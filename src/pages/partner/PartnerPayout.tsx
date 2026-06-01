@@ -195,7 +195,7 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
         amount: amt,
         period_start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0],
         period_end: now.toISOString().split("T")[0],
-        paid_at: now.toISOString(),
+        paid_at: null,
         payment_method: referrer?.payout_method || "bank_transfer",
         notes: notes || null,
         status: "pending",

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Copy, Eye, CreditCard, Pencil, ToggleLeft, ToggleRight, Gift, RefreshCw, Search } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Copy, Eye, CreditCard, Pencil, ToggleLeft, ToggleRight, Gift, RefreshCw, Search, MailPlus, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -35,10 +36,12 @@ export function ReferralTable({
   onEdit, onDetail, onPayout, onToggleActive, onTierRecalculated,
 }: Props) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortMode, setSortMode] = useState("balance_desc");
   const [page, setPage] = useState(1);
+  const [relinkingId, setRelinkingId] = useState<string | null>(null);
 
   const copyLink = async (code: string) => {
     const url = buildReferralLink(code);
@@ -61,6 +64,32 @@ export function ReferralTable({
     }
   };
 
+  // Collega/reinvita l'account del portale per i referrer creati senza user_id
+  // (es. fallback offline): senza account il partner non supera le RLS e non
+  // vede nulla nel portale. La edge function invita o riusa il profilo esistente.
+  const relinkAccount = async (referrer: Referrer) => {
+    setRelinkingId(referrer.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("link-referral-partner", {
+        body: { referrer_id: referrer.id },
+      });
+      if (error) throw error;
+      const alreadyLinked = (data as { already_linked?: boolean } | null)?.already_linked;
+      sonnerToast.success(alreadyLinked ? "Account già collegato" : "Invito inviato", {
+        description: alreadyLinked
+          ? `${referrer.email} ha già accesso al portale.`
+          : `${referrer.email} può ora accedere al portale partner.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["referrers"] });
+    } catch (err) {
+      sonnerToast.error("Collegamento non riuscito", {
+        description: err instanceof Error ? err.message : "Riprova più tardi.",
+      });
+    } finally {
+      setRelinkingId(null);
+    }
+  };
+
   const referrerRows = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return referrers
@@ -69,6 +98,7 @@ export function ReferralTable({
         if (statusFilter === "active" && !r.is_active) return false;
         if (statusFilter === "inactive" && r.is_active) return false;
         if (statusFilter === "to_pay" && balance <= 0) return false;
+        if (statusFilter === "orphan" && r.user_id) return false;
         if (!needle) return true;
         return [
           r.name,
@@ -100,6 +130,8 @@ export function ReferralTable({
       });
   }, [getCompanyCount, getMonthlyCommission, referrers, search, sortMode, statusFilter]);
 
+  const orphanCount = useMemo(() => referrers.filter((r) => !r.user_id).length, [referrers]);
+
   const pageCount = Math.max(1, Math.ceil(referrerRows.length / PAGE_SIZE));
   const effectivePage = Math.min(page, pageCount);
   const pageRows = referrerRows.slice((effectivePage - 1) * PAGE_SIZE, effectivePage * PAGE_SIZE);
@@ -109,9 +141,21 @@ export function ReferralTable({
       <CardHeader className="space-y-4">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle>Referrer</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            {referrerRows.length} risultati su {referrers.length}
-          </p>
+          <div className="flex items-center gap-3">
+            {orphanCount > 0 && (
+              <button
+                type="button"
+                onClick={() => { setStatusFilter("orphan"); setPage(1); }}
+                className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200 transition hover:bg-amber-100"
+              >
+                <UserX className="h-3.5 w-3.5" />
+                {orphanCount} senza accesso portale
+              </button>
+            )}
+            <p className="text-sm text-muted-foreground">
+              {referrerRows.length} risultati su {referrers.length}
+            </p>
+          </div>
         </div>
         <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_180px_220px]">
           <div className="relative">
@@ -135,6 +179,7 @@ export function ReferralTable({
               <SelectItem value="active">Solo attivi</SelectItem>
               <SelectItem value="inactive">Solo inattivi</SelectItem>
               <SelectItem value="to_pay">Con saldo da pagare</SelectItem>
+              <SelectItem value="orphan">Senza accesso portale</SelectItem>
             </SelectContent>
           </Select>
           <Select value={sortMode} onValueChange={(value) => { setSortMode(value); setPage(1); }}>
@@ -252,9 +297,16 @@ export function ReferralTable({
                           {formatCurrency(toPay)}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={r.is_active ? "default" : "secondary"}>
-                            {r.is_active ? "Attivo" : "Inattivo"}
-                          </Badge>
+                          <div className="flex flex-col items-start gap-1">
+                            <Badge variant={r.is_active ? "default" : "secondary"}>
+                              {r.is_active ? "Attivo" : "Inattivo"}
+                            </Badge>
+                            {!r.user_id && (
+                              <Badge className="gap-1 bg-amber-100 text-amber-800 hover:bg-amber-100">
+                                <UserX className="h-3 w-3" /> Senza accesso
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
@@ -298,6 +350,24 @@ export function ReferralTable({
                             </TooltipTrigger>
                             <TooltipContent>Ricalcola Tier</TooltipContent>
                           </Tooltip>
+                          {!r.user_id && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-amber-600 hover:text-amber-700"
+                                  disabled={relinkingId === r.id}
+                                  onClick={() => relinkAccount(r)}
+                                >
+                                  {relinkingId === r.id
+                                    ? <RefreshCw className="h-4 w-4 animate-spin" />
+                                    : <MailPlus className="h-4 w-4" />}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Reinvita / collega account portale</TooltipContent>
+                            </Tooltip>
+                          )}
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button

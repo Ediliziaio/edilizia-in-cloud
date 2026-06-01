@@ -120,7 +120,23 @@ Deno.serve(async (req) => {
       .select("id")
       .single();
 
-    if (clickError) throw clickError;
+    if (clickError) {
+      // 23505 = unique_violation: una richiesta concorrente ha già inserito lo stesso
+      // click (stesso dedupe_key). Lo trattiamo come dedup invece che come errore 500.
+      if ((clickError as { code?: string }).code === "23505") {
+        const { data: dupe } = await supabase
+          .from("referral_clicks")
+          .select("id")
+          .eq("referrer_id", referrer.id)
+          .eq("dedupe_key", dedupe_key)
+          .maybeSingle();
+        return new Response(
+          JSON.stringify({ success: true, click_id: dupe?.id ?? null, deduped: true }),
+          { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+        );
+      }
+      throw clickError;
+    }
 
     // Increment total_clicks
     await supabase.rpc("increment_referrer_clicks", {

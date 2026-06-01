@@ -7,13 +7,34 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
-import type { ReferralClick, ReferralCompany, Referrer } from "@/pages/admin/ReferralDashboard";
+import type { ReferralClick, ReferralCompany, ReferralConversion, Referrer } from "@/pages/admin/ReferralDashboard";
 
 interface Props {
   referrers: Referrer[];
   referralCompanies: ReferralCompany[];
+  conversions: ReferralConversion[];
   clicks: ReferralClick[];
   onDetail: (r: Referrer) => void;
+}
+
+// Etichette allineate al portale partner (PartnerReferrals) per coerenza tra le due pagine.
+const FUNNEL_LABEL: Record<string, string> = {
+  click: "Click",
+  registered: "Registrato",
+  active: "Attivo",
+  paying: "Pagante",
+  approved: "Approvato",
+  rejected: "Rifiutato",
+  expired: "Scaduto",
+};
+
+function funnelBadge(status: string | null, fraud: string | null) {
+  if (fraud === "blocked") return <Badge variant="destructive">Bloccato</Badge>;
+  if (fraud === "review") return <Badge className="bg-amber-100 text-amber-800">In verifica</Badge>;
+  if (!status) return <span className="text-xs text-muted-foreground">—</span>;
+  if (status === "paying" || status === "approved") return <Badge className="bg-emerald-100 text-emerald-800">{FUNNEL_LABEL[status] || status}</Badge>;
+  if (status === "rejected" || status === "expired") return <Badge variant="secondary">{FUNNEL_LABEL[status] || status}</Badge>;
+  return <Badge variant="outline">{FUNNEL_LABEL[status] || status}</Badge>;
 }
 
 function estimateLineCommission(referrer: Referrer | undefined, mrr: number) {
@@ -28,7 +49,7 @@ function getStatus(row: ReferralCompany) {
   return "inactive";
 }
 
-export function ReferralConversionsPanel({ referrers, referralCompanies, clicks, onDetail }: Props) {
+export function ReferralConversionsPanel({ referrers, referralCompanies, conversions, clicks, onDetail }: Props) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
@@ -38,6 +59,12 @@ export function ReferralConversionsPanel({ referrers, referralCompanies, clicks,
     clicks.forEach((click) => map.set(click.referrer_id, [...(map.get(click.referrer_id) || []), click]));
     return map;
   }, [clicks]);
+  // Stessa sorgente dati del portale partner: referral_conversions per (referrer_id, company_id).
+  const conversionByKey = useMemo(() => {
+    const map = new Map<string, ReferralConversion>();
+    conversions.forEach((c) => { if (c.company_id) map.set(`${c.referrer_id}:${c.company_id}`, c); });
+    return map;
+  }, [conversions]);
 
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -47,6 +74,7 @@ export function ReferralConversionsPanel({ referrers, referralCompanies, clicks,
         const mrr = Number(row.plan?.price_monthly || 0);
         const status = getStatus(row);
         const clickCount = clicksByReferrer.get(row.referrer_id)?.length || 0;
+        const conversion = conversionByKey.get(`${row.referrer_id}:${row.company_id}`);
         return {
           ...row,
           referrer,
@@ -54,6 +82,10 @@ export function ReferralConversionsPanel({ referrers, referralCompanies, clicks,
           status,
           clickCount,
           commission: estimateLineCommission(referrer, mrr),
+          funnelStatus: conversion?.status ?? null,
+          revenue: Number(conversion?.revenue ?? 0),
+          trackedCommission: Number(conversion?.commission_amount ?? 0),
+          fraudStatus: conversion?.fraud_status ?? null,
         };
       })
       .filter((row) => {
@@ -68,12 +100,14 @@ export function ReferralConversionsPanel({ referrers, referralCompanies, clicks,
         ].some((value) => value.toLowerCase().includes(needle));
       })
       .sort((a, b) => new Date(b.referred_at).getTime() - new Date(a.referred_at).getTime());
-  }, [clicksByReferrer, referralCompanies, referrersById, search, statusFilter]);
+  }, [clicksByReferrer, conversionByKey, referralCompanies, referrersById, search, statusFilter]);
 
   const activeRows = rows.filter((row) => row.status === "active");
   const reviewRows = rows.filter((row) => row.status === "review");
   const totalMrr = activeRows.reduce((sum, row) => sum + row.mrr, 0);
   const totalCommission = activeRows.reduce((sum, row) => sum + row.commission, 0);
+  const totalRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
+  const flaggedCount = rows.filter((row) => row.fraudStatus === "review" || row.fraudStatus === "blocked").length;
 
   return (
     <div className="space-y-6">
@@ -124,7 +158,11 @@ export function ReferralConversionsPanel({ referrers, referralCompanies, clicks,
         <CardHeader className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base">Conversioni e attribuzione</CardTitle>
-            <Badge variant="secondary">{rows.length} risultati</Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">{rows.length} risultati</Badge>
+              <Badge variant="outline">Revenue tracciata {formatCurrency(totalRevenue)}</Badge>
+              {flaggedCount > 0 && <Badge variant="destructive">{flaggedCount} segnalati frode</Badge>}
+            </div>
           </div>
           <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_220px]">
             <div className="relative">
@@ -157,7 +195,9 @@ export function ReferralConversionsPanel({ referrers, referralCompanies, clicks,
                     <TableHead>Partner</TableHead>
                     <TableHead>Data</TableHead>
                     <TableHead>Stato</TableHead>
-                    <TableHead className="text-center">Click 90g</TableHead>
+                    <TableHead>Funnel</TableHead>
+                    <TableHead className="text-center">Click partner</TableHead>
+                    <TableHead className="text-right">Revenue</TableHead>
                     <TableHead className="text-right">MRR</TableHead>
                     <TableHead className="text-right">Comm.</TableHead>
                     <TableHead className="text-right">Azione</TableHead>
@@ -180,9 +220,16 @@ export function ReferralConversionsPanel({ referrers, referralCompanies, clicks,
                           {row.status === "active" ? "Attiva" : row.status === "review" ? "Da verificare" : "Inattiva"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-center">{row.clickCount}</TableCell>
+                      <TableCell>{funnelBadge(row.funnelStatus, row.fraudStatus)}</TableCell>
+                      <TableCell className="text-center" title="Totale click del partner (ultimi 90 giorni)">{row.clickCount}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(row.revenue)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(row.mrr)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(row.commission)}</TableCell>
+                      <TableCell className="text-right">
+                        <div>{formatCurrency(row.commission)}</div>
+                        {row.trackedCommission > 0 && (
+                          <div className="text-xs text-muted-foreground">tracc. {formatCurrency(row.trackedCommission)}</div>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         {row.referrer && (
                           <Button variant="ghost" size="sm" onClick={() => onDetail(row.referrer!)}>

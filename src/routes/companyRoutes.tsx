@@ -172,6 +172,10 @@ const SettingsBranding = lazy(() => import("@/pages/azienda/settings/SettingsBra
 // v8.6.57 — Wrapper unificato Fatturazione (tab provider esterni + nativa SDI)
 const SettingsFatturazioneUnified = lazy(() => import("@/pages/azienda/settings/SettingsFatturazioneUnified"));
 const SettingsSubscriptionBilling = lazy(() => import("@/pages/azienda/settings/SettingsSubscriptionBilling"));
+// Apple Guideline 3.1.1 — su iOS native (Capacitor) nascondiamo upgrade/billing
+// e mostriamo schermata che reindirizza al sito web.
+const IosBillingBlocked = lazy(() => import("@/components/billing/IosBillingBlocked"));
+import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
 const SettingsFormBuilder = lazy(() => import("@/pages/azienda/settings/SettingsFormBuilder"));
 const SettingsPhoneNumbers = lazy(() => import("@/pages/azienda/settings/SettingsPhoneNumbers"));
 const OrdersList = lazy(() => import("@/pages/azienda/OrdersList"));
@@ -450,8 +454,9 @@ export default function CompanyRoutesContainer() {
             )
           }
         />
-        {/* Upgrade fallback — mostrata da FeatureRoute quando una feature è negata */}
-        <Route path="upgrade" element={<UpgradePage />} />
+        {/* Upgrade fallback — mostrata da FeatureRoute quando una feature è negata.
+            Su iOS native Apple Guideline 3.1.1 vieta pagine upgrade/checkout. */}
+        <Route path="upgrade" element={isIOSNativePlatform ? <IosBillingBlocked /> : <UpgradePage />} />
         {/* v8.6.63 — Showcase Feature Preview Mode (per QA / demo commerciale) */}
         <Route path="preview-demo" element={<DemoPreviewShowcase />} />
         {/* Dashboard Builder v1 — custom dashboards (gated: dashboard_builder_v1) */}
@@ -841,7 +846,15 @@ export default function CompanyRoutesContainer() {
           <Route path="integrazioni" element={withCompanyPermission("canViewSettingsSecurity", <SettingsIntegrations />)} />
           <Route path="whatsapp-bot" element={withCompanyPermission("canViewSettingsCustomization", <SettingsWhatsAppBot />)} />
           <Route path="lead-forms" element={withCompanyPermission("canViewSettingsCustomization", <FacebookFormsPage />)} />
-          <Route path="crediti" element={withCompanyPermission("canViewBilling", <SettingsCredits />)} />
+          {/* Apple Guideline 3.1.1 — SettingsCredits contiene RechargeDialog Stripe, blocco su iOS */}
+          <Route
+            path="crediti"
+            element={
+              isIOSNativePlatform
+                ? <IosBillingBlocked />
+                : withCompanyPermission("canViewBilling", <SettingsCredits />)
+            }
+          />
           <Route path="api" element={withCompanyPermission("canViewSettingsSecurity", <SettingsApiKeys />)} />
           <Route path="webhook" element={withCompanyPermission("canViewSettingsSecurity", <SettingsWebhooks />)} />
           <Route path="dominio-email" element={withCompanyPermission("canViewMarketingEmail", <SettingsEmailDomain />)} />
@@ -860,7 +873,15 @@ export default function CompanyRoutesContainer() {
               per backward-compat (link diretti, bookmark utenti). */}
           <Route path="fatturazione" element={withCompanyPermission("canViewBilling", <SettingsFatturazioneUnified />)} />
           <Route path="fatturazione-nativa" element={<Navigate to="/azienda/impostazioni/fatturazione?tab=nativa" replace />} />
-          <Route path="abbonamento" element={withCompanyPermission("canViewBilling", <SettingsSubscriptionBilling />)} />
+          {/* Apple Guideline 3.1.1 — su iOS native nascondiamo la gestione abbonamento Stripe */}
+          <Route
+            path="abbonamento"
+            element={
+              isIOSNativePlatform
+                ? <IosBillingBlocked />
+                : withCompanyPermission("canViewBilling", <SettingsSubscriptionBilling />)
+            }
+          />
           <Route path="form-builder" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFormBuilder />)} />
           <Route path="numeri-telefono" element={withCompanyPermission("canViewSettingsCustomization", <SettingsPhoneNumbers />)} />
         </Route>

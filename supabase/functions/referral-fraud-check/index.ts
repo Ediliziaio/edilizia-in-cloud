@@ -1,28 +1,41 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getCorsHeaders, errorResponse, jsonResponse } from '../_shared/headers.ts';
+import { requireAuth, requireRole } from '../_shared/auth.ts';
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: getCorsHeaders(req) });
+  const cors = getCorsHeaders(req);
+  if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
 
-  // Accettabile anche con JWT utente autenticato (per chiamate client-side)
+  // Autorizzazione: server-to-server via cron secret, OPPURE super_admin autenticato.
+  // In precedenza bastava un header "Bearer" qualsiasi: qualunque utente loggato
+  // poteva interrogare i dati frode di referrer/aziende arbitrari (enumerazione).
   const secret    = Deno.env.get('CRON_SECRET');
   const reqSecret = req.headers.get('x-cron-secret');
-  const authHeader = req.headers.get('Authorization');
-
-  const isAuthorized =
-    (secret && reqSecret === secret) ||
-    authHeader?.startsWith('Bearer ');
-
-  if (!isAuthorized) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
-  }
+  const isCron    = !!secret && reqSecret === secret;
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   );
 
-  const { referrer_id, company_id, ip_address } = await req.json();
+  if (!isCron) {
+    try {
+      const { userId, supabaseAdmin } = await requireAuth(req, cors);
+      await requireRole(supabaseAdmin, userId, ['super_admin'], cors);
+    } catch (resp) {
+      if (resp instanceof Response) return resp;
+      return errorResponse('Unauthorized', 401);
+    }
+  }
+
+  let payload: { referrer_id?: string; company_id?: string; ip_address?: string | null };
+  try {
+    payload = await req.json();
+  } catch {
+    return errorResponse('Invalid JSON body', 400);
+  }
+
+  const { referrer_id, company_id, ip_address } = payload;
 
   if (!referrer_id || !company_id) {
     return errorResponse('referrer_id e company_id sono obbligatori', 400);

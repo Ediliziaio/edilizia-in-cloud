@@ -36,8 +36,6 @@
 	<string>L'app richiede la posizione per registrare automaticamente la geolocalizzazione di timbrature e rapportini di cantiere.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>L'app richiede la posizione per registrare automaticamente la geolocalizzazione di timbrature e rapportini di cantiere.</string>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>I tuoi dati non sono utilizzati per tracking pubblicitario.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>UILaunchStoryboardName</key>

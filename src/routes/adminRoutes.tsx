@@ -18,6 +18,7 @@ const GlobalTickets = lazy(() => import("@/pages/admin/GlobalTickets"));
 // Sicurezza/Calendari/Email/Notifiche). Vecchia route /admin/impostazioni/
 // profilo redirige a /mio-profilo per back-compat.
 const AdminSettingsPlatform = lazy(() => import("@/pages/admin/settings/AdminSettingsPlatform"));
+const AdminSettingsCustomFields = lazy(() => import("@/pages/admin/settings/AdminSettingsCustomFields"));
 const AdminSettingsNotifications = lazy(() => import("@/pages/admin/settings/AdminSettingsNotifications"));
 const AdminSettingsSuperAdmins = lazy(() => import("@/pages/admin/settings/AdminSettingsSuperAdmins"));
 const AdminSettingsAuditLog = lazy(() => import("@/pages/admin/settings/AdminSettingsAuditLog"));
@@ -223,6 +224,7 @@ export default function AdminRoutesContainer() {
         <Route path="impostazioni" element={<Navigate to="/admin/impostazioni/mio-profilo" replace />} />
         <Route path="impostazioni/profilo" element={<Navigate to="/admin/impostazioni/mio-profilo" replace />} />
         <Route path="impostazioni/piattaforma" element={<RequireSuperAdmin><AdminSettingsPlatform /></RequireSuperAdmin>} />
+        <Route path="impostazioni/campi-personalizzati" element={<RequireSuperAdmin><AdminSettingsCustomFields /></RequireSuperAdmin>} />
         <Route path="impostazioni/notifiche" element={<RequireAdminPermission permission="can_view_platform_stats"><AdminSettingsNotifications /></RequireAdminPermission>} />
         <Route path="impostazioni/super-admin" element={<RequireSuperAdmin><AdminSettingsSuperAdmins /></RequireSuperAdmin>} />
         <Route path="impostazioni/audit" element={<RequireSuperAdmin><AdminSettingsAuditLog /></RequireSuperAdmin>} />

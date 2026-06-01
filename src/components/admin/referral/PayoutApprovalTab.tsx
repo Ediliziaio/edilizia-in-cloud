@@ -348,9 +348,14 @@ export function PayoutApprovalTab() {
                     return (
                       <TableRow key={p.id}>
                         <TableCell>
-                          <div>
+                          <div className="space-y-1">
                             <div className="font-medium">{p.referrer?.name || "—"}</div>
                             <div className="text-xs text-muted-foreground">{p.referrer?.email}</div>
+                            {p.requested_by_referrer ? (
+                              <Badge variant="outline" className="text-[11px]">Richiesto dal partner</Badge>
+                            ) : p.auto_generated ? (
+                              <Badge variant="secondary" className="text-[11px]">Auto · ciclo mensile</Badge>
+                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-bold">{formatCurrency(p.amount)}</TableCell>

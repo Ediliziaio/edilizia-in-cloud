@@ -541,6 +541,28 @@
     </div>
     <style>@keyframes eic-spin{to{transform:rotate(360deg)}}</style>
     <script>
+      // __EIC_BOOT_OK__ deve essere SEMPRE definita (anche su Capacitor) altrimenti
+      // App.tsx:407 chiama una funzione undefined e il boot-guard resta visibile per sempre.
+      window.__EIC_BOOT_OK__ = function () {
+        try {
+          var bootGuard = document.getElementById('eic-boot-guard');
+          if (bootGuard) bootGuard.remove();
+        } catch (e) {}
+      };
+
+      // Su Capacitor (iOS/Android) rimuovo il boot-guard IMMEDIATAMENTE.
+      // Capacitor ha la sua splash screen nativa, il boot-guard inline non serve
+      // e se React tarda a montare blocca l'utente con spinner web infinito.
+      if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+        if (document.readyState !== 'loading') {
+          window.__EIC_BOOT_OK__();
+        } else {
+          document.addEventListener('DOMContentLoaded', function () {
+            window.__EIC_BOOT_OK__();
+          }, { once: true });
+        }
+      }
+
       (function () {
         if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
           return;

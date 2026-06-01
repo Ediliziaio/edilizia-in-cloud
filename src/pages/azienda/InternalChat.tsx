@@ -810,7 +810,7 @@ const ChatListItem = React.memo(function ChatListItem({
           </span>
         </div>
         <div className="flex items-center justify-between gap-2 mt-0.5">
-          <p className={cn("text-[13px] truncate", unread > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>
+          <p className={cn("text-sm truncate", unread > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>
             {lastMsg?.sender_id === userId && (
               <CheckCheck className="inline h-3.5 w-3.5 text-blue-500 mr-1 -mt-0.5" />
             )}

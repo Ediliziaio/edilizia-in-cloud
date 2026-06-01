@@ -61,7 +61,8 @@ Deno.serve(async (req) => {
         status: 'pending',
         rejection_reason: `Bloccato dal controllo compliance: ${complianceReason(payout)}`,
       })
-      .eq('id', payout.id);
+      .eq('id', payout.id)
+      .eq('status', 'approved');
   }
 
   if (payablePayouts.length === 0) {
@@ -75,10 +76,34 @@ Deno.serve(async (req) => {
 
   console.log(`[payout-executor] ${payablePayouts.length} payout conformi da processare, ${blockedPayouts.length} bloccati`);
 
-  // Genera CSV SEPA-ready per batch bancario
+  // Claim idempotente: porta a 'processing' SOLO i payout ancora 'approved'.
+  // La guard .eq('status','approved') + .select() impedisce a un secondo run
+  // concorrente di ri-processare gli stessi payout (genererebbe un CSV SEPA doppio).
+  const candidateIds = payablePayouts.map((p: any) => p.id);
+  const { data: claimedRows, error: claimError } = await supabase
+    .from('referral_payouts')
+    .update({ status: 'processing' })
+    .in('id', candidateIds)
+    .eq('status', 'approved')
+    .select('id');
+  if (claimError) return errorResponse(claimError.message, 500);
+
+  const claimedIds = new Set((claimedRows || []).map((r: any) => r.id));
+  const claimedPayouts = payablePayouts.filter((p: any) => claimedIds.has(p.id));
+
+  if (claimedPayouts.length === 0) {
+    return jsonResponse({
+      success: true,
+      message: 'Payout già in elaborazione, nessuna nuova riga processata',
+      processed: 0,
+      blocked: blockedPayouts.length,
+    });
+  }
+
+  // Genera CSV SEPA-ready per batch bancario (solo payout effettivamente claimati)
   const csvRows = [
     'Nome,IBAN,Importo,Causale,Data',
-    ...payablePayouts.map((p: any) => {
+    ...claimedPayouts.map((p: any) => {
       const details      = p.referrers?.payout_details || {};
       const iban         = details.iban || 'IBAN_MANCANTE';
       const holder       = details.account_holder || p.referrers?.name || '';
@@ -87,18 +112,12 @@ Deno.serve(async (req) => {
     }),
   ].join('\n');
 
-  // Porta tutti a status 'processing'
-  const ids = payablePayouts.map((p: any) => p.id);
-  await supabase
-    .from('referral_payouts')
-    .update({ status: 'processing' })
-    .in('id', ids);
-
+  const ids = claimedPayouts.map((p: any) => p.id);
   const adminEmail  = Deno.env.get('ADMIN_EMAIL') || 'admin@ediliziaincloud.it';
-  const totalAmount = payablePayouts.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+  const totalAmount = claimedPayouts.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
 
   // Notifica ogni partner che il pagamento è in elaborazione
-  for (const payout of payablePayouts) {
+  for (const payout of claimedPayouts) {
     const referrerId = (payout as any).referrers?.id || payout.referrer_id;
     await fetch(
       `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-partner-notification`,
@@ -122,7 +141,7 @@ Deno.serve(async (req) => {
 
   return jsonResponse({
     success:      true,
-    processed:    duePayouts.length,
+    processed:    claimedPayouts.length,
     total_amount: totalAmount.toFixed(2),
     sepa_csv:     csvRows,   // L'admin usa questo CSV per il bonifico batch
     payout_ids:   ids,

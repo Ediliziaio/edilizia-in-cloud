@@ -16,9 +16,9 @@ Gestionale per imprese edili
 
 ### Promotional Text (max 170 char) — modificabile senza submit
 ```
-Cantieri, fatture, operai e marginalità in un'unica app pensata per chi sta in cantiere. Provala gratis 14 giorni.
+6 funzioni in 1 app + AI Silvio che lavora per te. Cantieri, fatture, marketing, personale: tutto dallo smartphone. Prova 31 giorni gratis, senza carta.
 ```
-*(120 char — ok)*
+*(148 char — ok)*
 
 ### Keywords (max 100 char, separate da virgola, NO spazi)
 ```
@@ -26,88 +26,175 @@ edilizia,cantiere,gestionale,impresa edile,preventivo,fattura,commessa,DURC,SOA,
 ```
 *(99 char — ok)*
 
-### Description (max 4000 char)
+### Description (max 4000 char) — v3 ASCII-clean per Apple (no emoji/arrow/box drawing)
 ```
-EDILIZIA IN CLOUD È IL GESTIONALE PER CHI STA IN CANTIERE.
+SE GESTISCI UN'IMPRESA EDILE E ANCORA USI EXCEL, WHATSAPP E QUADERNI, STAI PERDENDO SOLDI OGNI GIORNO.
 
-Niente più Excel, niente più WhatsApp dispersi, niente più carta. Tutto quello che ti serve per gestire la tua impresa edile in un'unica app, pensata per il tuo smartphone.
+Edilizia in Cloud è il primo gestionale costruito DA imprenditori edili PER imprenditori edili. Non è un software per commercialisti adattato al cantiere: è il contrario.
+
+Hai dentro un'AI che lavora con te. Si chiama Silvio. Gli deleghi i lavori che oggi ti rubano 4 ore al giorno e che potresti dare a un assistente - ma senza pagare lo stipendio.
+
+==========
+COSA DELEGHI A SILVIO (AI)
+==========
+
+- "Quanto guadagno sul cantiere Bianchi?" - numeri reali in 2 secondi
+- "Manda il preventivo a Mario" - bozza già scritta col tuo tono
+- "Chi mi deve pagare scaduto?" - lista + draft sollecito pronta
+- "Cosa devo fare oggi sui cantieri?" - piano già fatto
+- "Categoria di questa fattura?" - mandi foto, registra tutto
+- "Risposta al ticket di Rossi?" - bozza tono empatico già pronta
+
+Silvio non è un chatbot generico. Conosce i TUOI cantieri, i TUOI clienti, i TUOI numeri. Lavora 24/7. Non si stanca. Non ti chiede aumento.
+
+==========
+6 AREE CHE GESTISCI DAL TELEFONO
+==========
+
+CANTIERI
+Apri un cantiere in 30 secondi, assegna uomini, mezzi, materiali. Timbrature operai con foto e GPS. Rapportini caricati dal cellulare, firmati digitalmente. Marginalità in tempo reale: preventivo vs consuntivo, sempre sotto controllo.
+
+FATTURAZIONE
+Fatture elettroniche SdI in 1 tap, pronte per il commercialista. DDT, note di credito, scadenzario automatico. Conforme normativa italiana 2026: SdI, archiviazione sostitutiva, GDPR. Stop al caos di carta e PDF persi.
+
+FATTURATO
+Vedi MRR, ARR, cassa, scadenze, pagamenti in ritardo. Stripe e bonifici riconciliati automaticamente. Sai sempre QUANTO HAI in banca e quanto entra il mese prossimo. Niente più sorprese a fine trimestre.
+
+MARKETING
+Pipeline lead-to-cliente con drag-and-drop. Email marketing, WhatsApp business, SMS - tutto integrato. Form lead automatici che capturano contatti dal sito. Calendario marketing che ti dice cosa pubblicare e quando.
+
+MAGAZZINO
+Inventario materiali in tempo reale per cantiere. Lotti, scadenze, riordini automatici. Costo medio ponderato per voce di EPU. Niente più "non sapevo che mancasse il cemento" a 2 ore dall'inizio del getto.
+
+PERSONALE
+Mansionari scritti per ruolo, ore consuntivate vs preventivate per operaio. Buste paga compatibili con CCNL Edilizia. Foglio di verifica capocantiere automatico. Reclutamento e selezione con AI scoring.
+
+==========
+PROVA GRATIS 31 GIORNI
+==========
+
+* 31 giorni completi, tutte le funzioni AI attive, nessuna carta di credito
+* Setup guidato in 30 minuti con il tuo Customer Success
+* Dati 100% tuoi, esportabili in ogni momento (.csv, .xlsx, .pdf)
+* Supporto in italiano, da imprenditori edili veri
+* Aggiornamenti normativi automatici (CCNL, IVA, SdI)
+
+==========
+PER CHI È PENSATO
+==========
+
+- Imprese edili 1-50 dipendenti che vogliono smettere di lavorare nel caos
+- Geometri titolari di impresa che hanno troppo da seguire da soli
+- Subappaltatori (serramenti, impiantistica, ristrutturazioni) che vogliono crescere
+- Capocantiere con micro-impresa che vogliono passare da operai a titolari
+- Imprese in passaggio generazionale che vogliono digitalizzare il padre
+
+==========
+SICUREZZA E PRIVACY
+==========
+
+Dati su server europei (Supabase), crittografati in transito e a riposo. Mai venduti, mai condivisi. Login biometrico (Face ID / impronta) o PIN. Conforme GDPR + EU AI Act 2025.
+
+Privacy: ediliziaincloud.com/privacy
+Termini: ediliziaincloud.com/termini
+Supporto: supporto@ediliziaincloud.com
+```
+*(~3300 char — accenti italiani standard OK, no emoji/box-drawing/curly-quotes)*
+
+### Description v2 (originale con emoji — solo riferimento, NON usare su Apple)
+```
+SE GESTISCI UN'IMPRESA EDILE E ANCORA USI EXCEL, WHATSAPP E QUADERNI, STAI PERDENDO SOLDI OGNI GIORNO.
+
+Edilizia in Cloud è il primo gestionale costruito DA imprenditori edili PER imprenditori edili. Non è un software per commercialisti adattato al cantiere: è il contrario.
+
+Hai dentro un'AI che lavora con te. Si chiama Silvio. Gli deleghi i lavori che oggi ti rubano 4 ore al giorno e che potresti dare a un assistente — ma senza pagare lo stipendio.
 
 ──────────
-COSA FAI CON UN TAP
+COSA DELEGHI A SILVIO (AI)
 ──────────
 
-• APRI UN CANTIERE in 30 secondi e assegnaci subito uomini, mezzi, materiali
-• FAI IL PREVENTIVO da bozza a PDF in 2 minuti, con voci da prezziario CCIAA
-• EMETTI LA FATTURA elettronica in 1 click, già pronta per il commercialista
-• TIMBRA L'ORARIO degli operai con foto + geolocalizzazione del cantiere
-• CARICA RAPPORTINI cantiere direttamente dal cellulare, con firma digitale
-• VEDI LA MARGINALITÀ di ogni commessa in tempo reale (preventivo vs consuntivo)
-• CONTROLLI IL CASSAFLUSSO: chi ti deve pagare, quando, quanto
+• "Quanto guadagno sul cantiere Bianchi?" → numeri reali in 2 secondi
+• "Manda il preventivo a Mario" → bozza già scritta col tuo tono
+• "Chi mi deve pagare scaduto?" → lista + draft sollecito pronta
+• "Cosa devo fare oggi sui cantieri?" → piano già fatto
+• "Categoria di questa fattura?" → mandi foto → registra tutto
+• "Risposta al ticket di Rossi?" → bozza tono empatico già pronta
+
+Silvio non è un chatbot generico. Conosce i TUOI cantieri, i TUOI clienti, i TUOI numeri. Lavora 24/7. Non si stanca. Non ti chiede aumento.
 
 ──────────
-PERCHÉ NON È IL SOLITO GESTIONALE
+6 AREE CHE GESTISCI DAL TELEFONO
 ──────────
 
-Edilizia in Cloud è costruito DA imprenditori edili, PER imprenditori edili. Non è un software per commercialisti adattato al cantiere: è il contrario.
+🏗️ CANTIERI
+Apri un cantiere in 30 secondi, assegna uomini, mezzi, materiali. Timbrature operai con foto e GPS. Rapportini caricati dal cellulare, firmati digitalmente. Marginalità in tempo reale: preventivo vs consuntivo, sempre sotto controllo.
 
-→ Linguaggio del cantiere: voce di EPU, S.A.L., DURC, POS, PSC. Mai roba da consulente.
-→ Funziona dal capocantiere con smartphone in mano, sotto il sole.
-→ Compatibile con CCNL Edilizia (paghe operai, ferie, malattia).
-→ Conforme normativa italiana 2026: fatturazione elettronica SdI, archiviazione sostitutiva, GDPR.
+📄 FATTURAZIONE
+Fatture elettroniche SdI in 1 tap, pronte per il commercialista. DDT, note di credito, scadenzario automatico. Conforme normativa italiana 2026: SdI, archiviazione sostitutiva, GDPR. Stop al caos di carta e PDF persi.
+
+💰 FATTURATO
+Vedi MRR, ARR, cassa, scadenze, pagamenti in ritardo. Stripe e bonifici riconciliati automaticamente. Sai sempre QUANTO HAI in banca e quanto entra il mese prossimo. Niente più sorprese a fine trimestre.
+
+📣 MARKETING
+Pipeline lead-to-cliente con drag-and-drop. Email marketing, WhatsApp business, SMS — tutto integrato. Form lead automatici che capturano contatti dal sito. Calendario marketing che ti dice cosa pubblicare e quando.
+
+📦 MAGAZZINO
+Inventario materiali in tempo reale per cantiere. Lotti, scadenze, riordini automatici. Costo medio ponderato per voce di EPU. Niente più "non sapevo che mancasse il cemento" a 2 ore dall'inizio del getto.
+
+👷 PERSONALE
+Mansionari scritti per ruolo, ore consuntivate vs preventivate per operaio. Buste paga compatibili con CCNL Edilizia. Foglio di verifica capocantiere automatico. Reclutamento e selezione con AI scoring.
 
 ──────────
-INTELLIGENZA ARTIFICIALE INTEGRATA
+PROVA GRATIS 31 GIORNI
 ──────────
 
-Hai dentro Silvio, il tuo assistente AI sempre disponibile. Gli chiedi "quanto guadagno sul cantiere Rossi?" e ti risponde con i numeri reali. Gli mandi una foto del DDT e te lo registra. Gli passi una richiesta cliente e ti prepara il preventivo.
+✓ 31 giorni completi, tutte le funzioni AI attive, nessuna carta di credito
+✓ Setup guidato in 30 minuti con il tuo Customer Success
+✓ Dati 100% tuoi, esportabili in ogni momento (.csv, .xlsx, .pdf)
+✓ Supporto in italiano, da imprenditori edili veri
+✓ Aggiornamenti normativi automatici (CCNL, IVA, SdI)
 
 ──────────
 PER CHI È PENSATO
 ──────────
 
-• Imprese edili con 1-50 dipendenti
-• Geometri titolari di impresa
-• Subappaltatori specializzati (impiantistica, serramenti, ristrutturazioni)
-• Capocantiere che gestiscono la loro micro-impresa
-• Imprese in fase di passaggio generazionale che vogliono digitalizzare
-
-──────────
-COSA OTTIENI
-──────────
-
-✓ 14 giorni gratis, senza carta di credito
-✓ Setup in 30 minuti con il tuo Customer Success
-✓ Dati tuoi al 100%, esportabili in ogni momento
-✓ Supporto in italiano, da imprenditori edili
-✓ Aggiornamenti normativi automatici
+• Imprese edili 1-50 dipendenti che vogliono smettere di lavorare nel caos
+• Geometri titolari di impresa che hanno troppo da seguire da soli
+• Subappaltatori (serramenti, impiantistica, ristrutturazioni) che vogliono crescere
+• Capocantiere con micro-impresa che vogliono passare da operai a titolari
+• Imprese in passaggio generazionale che vogliono digitalizzare il padre
 
 ──────────
 SICUREZZA E PRIVACY
 ──────────
 
-I tuoi dati sono in server europei (Supabase), crittografati in transito e a riposo. Mai venduti, mai condivisi. Conforme GDPR e AI Act 2025.
+Dati su server europei (Supabase), crittografati in transito e a riposo. Mai venduti, mai condivisi. Login biometrico (Face ID / impronta) o PIN. Conforme GDPR + EU AI Act 2025.
 
-Privacy policy: ediliziaincloud.com/privacy
+Privacy: ediliziaincloud.com/privacy
 Termini: ediliziaincloud.com/terms
 Supporto: supporto@ediliziaincloud.com
 ```
-*(~2300 char — ok, ben sotto i 4000)*
+*(~3300 char — ok, sotto i 4000)*
 
 ### What's New (max 4000 char) — versione 1.0
 ```
 Benvenuti in Edilizia in Cloud 1.0!
 
-Tutto quello che serve per gestire la tua impresa edile dallo smartphone:
-• Cantieri con timbrature foto + GPS
-• Preventivi e fatture in 2 tap
-• Marginalità in tempo reale
-• Silvio AI: il tuo assistente personale per cantiere, preventivi, normativa
-• Login biometrico (Face ID / impronta)
-• Push notifications su scadenze, pagamenti, ticket
+La prima app italiana che ti dà 6 funzioni in 1 + un'AI (Silvio) che lavora insieme a te:
 
-Sviluppato in Italia, conforme normativa 2026.
+🏗️ Cantieri con timbrature foto + GPS
+📄 Fatturazione elettronica SdI in 1 tap
+💰 Fatturato e cassa in tempo reale
+📣 Marketing pipeline drag-and-drop
+📦 Magazzino con lotti e scadenze
+👷 Personale CCNL Edilizia
 
-Fammi sapere com'è andata: supporto@ediliziaincloud.com
+Silvio AI risponde 24/7 con i TUOI numeri, prepara preventivi, gestisce ticket, classifica fatture. Niente più fogli persi, niente più tempo bruciato.
+
+Prova gratis 31 giorni — nessuna carta di credito richiesta.
+
+Made in Italy, conforme normativa 2026.
+Feedback: supporto@ediliziaincloud.com
 ```
 
 ### App Review Information (per Apple reviewer)

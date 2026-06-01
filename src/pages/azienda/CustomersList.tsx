@@ -961,7 +961,7 @@ function CustomersListInner() {
               value={stats?.total ?? 0}
               icon={Users}
               accentClass="border-l-primary"
-              hint="Numero complessivo di clienti in anagrafica della tua azienda."
+              hint="In anagrafica"
             />
             <KpiCard
               label="Nuovi questo mese"
@@ -969,21 +969,21 @@ function CustomersListInner() {
               icon={UserPlus}
               accentClass="border-l-emerald-500"
               trend={trend}
-              hint="Clienti creati dal 1° del mese corrente rispetto al mese scorso."
+              hint="vs mese scorso"
             />
             <KpiCard
               label="Con ordini"
               value={stats?.with_orders ?? 0}
               icon={ShoppingBag}
               accentClass="border-l-blue-500"
-              hint="Clienti con almeno un ordine associato."
+              hint="Almeno 1 ordine"
             />
             <KpiCard
               label="Solo anagrafica"
               value={stats?.portal_disabled ?? 0}
               icon={ShieldOff}
               accentClass="border-l-amber-500"
-              hint="Clienti creati senza account di accesso al portale privato."
+              hint="Senza portale"
             />
           </>
         )}
@@ -1366,13 +1366,23 @@ function CustomersListInner() {
               const avatarColor = getAvatarColor(fullName);
               const isSelected = selectedIds.has(customer.id);
               return (
-                <div key={customer.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted transition-colors">
-                  <Checkbox
-                    checked={isSelected}
-                    onCheckedChange={() => toggleRow(customer.id)}
+                <div key={customer.id} className="flex items-center gap-2 px-4 py-3 hover:bg-muted/50 active:bg-muted transition-colors">
+                  {/* Hit area 44×44 (touch target Apple HIG / Material). Checkbox 16px centrato dentro */}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); toggleRow(customer.id); }}
                     aria-label={`Seleziona ${fullName}`}
-                    onClick={(e) => e.stopPropagation()}
-                  />
+                    aria-checked={isSelected}
+                    role="checkbox"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center -ml-2"
+                  >
+                    <Checkbox
+                      checked={isSelected}
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      className="pointer-events-none"
+                    />
+                  </button>
                   <Link to={`/azienda/clienti/${customer.id}`} className="flex-1 flex items-center gap-3 min-w-0">
                     <Avatar className={`h-10 w-10 shrink-0 ${avatarColor}`}>
                       <AvatarFallback className="text-sm font-bold text-white bg-transparent">
@@ -1380,8 +1390,8 @@ function CustomersListInner() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-sm truncate">{fullName}</p>
+                      <div className="flex items-start flex-wrap gap-x-2 gap-y-1">
+                        <p className="font-semibold text-sm leading-tight line-clamp-2 break-words">{fullName}</p>
                         {customer.is_business && (
                           <Badge variant="outline" className="text-[10px] h-4 px-1 border-blue-500/40 text-blue-700 dark:text-blue-400">
                             Azienda

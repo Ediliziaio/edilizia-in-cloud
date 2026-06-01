@@ -92,6 +92,13 @@ All colors MUST be HSL.
     --input: 0 0% 90%;
     --ring: 214 80% 50%;
 
+    /* Chart palette (recharts): usata come hsl(var(--chart-N)) */
+    --chart-1: 214 80% 50%;
+    --chart-2: 160 84% 39%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 262 83% 58%;
+    --chart-5: 347 77% 50%;
+
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 100%;
@@ -138,6 +145,13 @@ All colors MUST be HSL.
     --border: 0 0% 20%;
     --input: 0 0% 20%;
     --ring: 214 80% 50%;
+
+    /* Chart palette (dark): toni più chiari per leggibilità su sfondo scuro */
+    --chart-1: 214 80% 60%;
+    --chart-2: 160 70% 50%;
+    --chart-3: 38 92% 58%;
+    --chart-4: 262 83% 68%;
+    --chart-5: 347 77% 62%;
 
     --sidebar-background: 220 15% 10%;
     --sidebar-foreground: 215 10% 85%;

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Gift, Plus, AlertCircle, RefreshCw, Loader2, BarChart3, Wallet, Award, Compass, MousePointerClick, SlidersHorizontal } from "lucide-react";
+import { Gift, Plus, AlertCircle, RefreshCw, Loader2, BarChart3, Wallet, Award, Compass, MousePointerClick, SlidersHorizontal, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,6 +19,7 @@ import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { ReferralCommandCenter } from "@/components/admin/referral/ReferralCommandCenter";
 import { ReferralConversionsPanel } from "@/components/admin/referral/ReferralConversionsPanel";
+import { ReferralMegaDashboard } from "@/components/admin/referral/ReferralMegaDashboard";
 import { ReferralRulesPanel } from "@/components/admin/referral/ReferralRulesPanel";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -28,6 +29,7 @@ export interface Referrer {
   email: string;
   phone: string | null;
   referral_code: string;
+  user_id?: string | null;
   commission_type: string;
   commission_value: number;
   is_active: boolean;
@@ -70,6 +72,17 @@ export interface ReferralCompany {
   notes: string | null;
   company?: { id: string; name: string; status: string; subscription_plan_id: string | null };
   plan?: { price_monthly: number } | null;
+}
+
+export interface ReferralConversion {
+  id: string;
+  referrer_id: string;
+  company_id: string | null;
+  status: string;
+  revenue: number | null;
+  commission_amount: number | null;
+  fraud_status: string | null;
+  created_at: string;
 }
 
 export interface ReferralPayout {
@@ -146,7 +159,7 @@ type PlanLookupRow = { id: string; price_monthly: number };
 export default function ReferralDashboard() {
   const { permissions: saPermissions } = useSuperAdminPermissions();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("regia");
+  const [activeTab, setActiveTab] = useState("panoramica");
   const [referrerDialogOpen, setReferrerDialogOpen] = useState(false);
   const [editingReferrer, setEditingReferrer] = useState<Referrer | null>(null);
   const [detailReferrer, setDetailReferrer] = useState<Referrer | null>(null);
@@ -211,11 +224,10 @@ export default function ReferralDashboard() {
     staleTime: 60000,
   });
 
-  const since90Days = new Date(Date.now() - 90 * 86_400_000).toISOString();
-
   const { data: referralClicks = [], isError: referralClicksError } = useQuery({
     queryKey: ["referral_clicks", "admin", "90d"],
     queryFn: async () => {
+      const since90Days = new Date(Date.now() - 90 * 86_400_000).toISOString();
       const { data, error } = await supabase
         .from("referral_clicks")
         .select("id, referrer_id, referral_code, created_at, converted, converted_at, converted_company_id, utm_source, utm_medium, utm_campaign, landing_page, device_hash, dedupe_key")
@@ -266,6 +278,40 @@ export default function ReferralDashboard() {
         .limit(80);
       if (error) throw error;
       return (data ?? []) as ReferralFraudLog[];
+    },
+    staleTime: 60000,
+  });
+
+  const { data: referralConversions = [], isError: referralConversionsError } = useQuery({
+    queryKey: ["referral_conversions", "admin"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("referral_conversions")
+        .select("id, referrer_id, company_id, status, revenue, commission_amount, fraud_status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(1000);
+      if (error) throw error;
+      return (data ?? []) as ReferralConversion[];
+    },
+    staleTime: 60000,
+  });
+
+  // Conteggi server-side (head:true): accurati a prescindere dai limit 500/1000
+  // applicati alle query che caricano le righe per le tabelle/grafici.
+  const { data: referralCounts } = useQuery({
+    queryKey: ["referral_counts", "admin"],
+    queryFn: async () => {
+      const since90Days = new Date(Date.now() - 90 * 86_400_000).toISOString();
+      const [clicks90d, conversionsTotal, conversionsPaying] = await Promise.all([
+        supabase.from("referral_clicks").select("id", { count: "exact", head: true }).gte("created_at", since90Days),
+        supabase.from("referral_conversions").select("id", { count: "exact", head: true }),
+        supabase.from("referral_conversions").select("id", { count: "exact", head: true }).in("status", ["paying", "approved"]),
+      ]);
+      return {
+        clicks90d: clicks90d.count ?? 0,
+        conversionsTotal: conversionsTotal.count ?? 0,
+        conversionsPaying: conversionsPaying.count ?? 0,
+      };
     },
     staleTime: 60000,
   });
@@ -359,7 +405,7 @@ export default function ReferralDashboard() {
         </Alert>
       )}
 
-      {(referralClicksError || referralEventsError || referralLedgerError || referralFraudLogsError) && (
+      {(referralClicksError || referralEventsError || referralLedgerError || referralFraudLogsError || referralConversionsError) && (
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
@@ -370,6 +416,9 @@ export default function ReferralDashboard() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex h-auto justify-start gap-1 bg-muted/60 p-1 overflow-x-auto sm:flex-wrap whitespace-nowrap [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1">
+          <TabsTrigger value="panoramica">
+            <LayoutDashboard className="h-4 w-4 mr-2" /> Panoramica
+          </TabsTrigger>
           <TabsTrigger value="regia">
             <Compass className="h-4 w-4 mr-2" /> Regia
           </TabsTrigger>
@@ -397,6 +446,21 @@ export default function ReferralDashboard() {
             <SlidersHorizontal className="h-4 w-4 mr-2" /> Regole
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="panoramica" className="space-y-4 mt-4">
+          <ReferralMegaDashboard
+            referrers={referrers}
+            referralCompanies={referralCompanies}
+            conversions={referralConversions}
+            clicks={referralClicks}
+            events={referralEvents}
+            payouts={payouts}
+            fraudLogs={referralFraudLogs}
+            counts={referralCounts}
+            onSelectTab={setActiveTab}
+            onDetail={setDetailReferrer}
+          />
+        </TabsContent>
 
         <TabsContent value="regia" className="space-y-4 mt-4">
           <ReferralCommandCenter
@@ -432,6 +496,7 @@ export default function ReferralDashboard() {
           <ReferralConversionsPanel
             referrers={referrers}
             referralCompanies={referralCompanies}
+            conversions={referralConversions}
             clicks={referralClicks}
             onDetail={setDetailReferrer}
           />

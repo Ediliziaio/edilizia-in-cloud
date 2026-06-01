@@ -1187,6 +1187,15 @@ export function CustomFieldsConfig() {
     return result;
   }, [allFields, search, groupBy]);
 
+  // Campi creati su oggetti "solo API": salvati in DB ma non ancora resi nei
+  // form della UI. Sorgente di verità: RENDERED_OBJECT_TYPES.
+  const apiOnlyCustomCount = useMemo(
+    () => (customFields as MarketingCustomFieldRow[]).filter(
+      (f) => !isObjectRendered(f.object_type),
+    ).length,
+    [customFields],
+  );
+
   const handleObjectTypeChange = (val: string) => {
     setObjectType(val);
     if (val === "opportunity") setSection("opportunity_details");
@@ -1551,6 +1560,18 @@ export function CustomFieldsConfig() {
       </div>
       )}
 
+      {/* ── Banner copertura: campi su oggetti "solo API" ── */}
+      {activeTab === "all" && apiOnlyCustomCount > 0 && (
+        <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50/60 p-2.5 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            <strong>{apiOnlyCustomCount}</strong> camp{apiOnlyCustomCount === 1 ? "o" : "i"} su oggetti
+            “solo API”: i valori si salvano e sono utilizzabili via API, automazioni e variabili email,
+            ma non vengono ancora mostrati nei form della UI.
+          </span>
+        </div>
+      )}
+
       {/* ── Table (solo tab "all") ── */}
       {activeTab === "all" && (isError ? (
         <Alert variant="destructive">
@@ -1597,7 +1618,19 @@ export function CustomFieldsConfig() {
                       )}
                     </TableCell>
                     <TableCell className="font-medium text-sm">{f.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{f.object}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5">
+                        {f.object}
+                        {f.objectType && !isObjectRendered(f.objectType) && (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-300 px-1.5 py-0 text-[10px] font-normal text-amber-700 dark:border-amber-900/50 dark:text-amber-300"
+                          >
+                            Solo API
+                          </Badge>
+                        )}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className={`text-xs font-normal ${f.folderColor}`}>
                         {FOLDER_LABELS[f.folder] || f.folder}

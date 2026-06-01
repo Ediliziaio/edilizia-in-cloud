@@ -1,7 +1,7 @@
 import {
   User, Users, Server, Mail, Bell,
   ScrollText, Globe, Zap, Plug, Landmark,
-  Webhook, Activity, CalendarDays, Wrench,
+  Webhook, Activity, CalendarDays, Wrench, Variable,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -55,6 +55,14 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         description: "Configurazione generale della piattaforma",
         icon: Server,
         url: "/admin/impostazioni/piattaforma",
+      },
+      {
+        id: "campi-personalizzati",
+        label: "Campi personalizzati",
+        description: "Catalogo campi di sistema, copertura per oggetto e campi creati dalle aziende",
+        icon: Variable,
+        url: "/admin/impostazioni/campi-personalizzati",
+        permission: "can_manage_admins",
       },
       {
         id: "integrazioni",

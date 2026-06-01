@@ -7,6 +7,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import {
+  applyContactCustomFields,
+  loadContactCustomFieldResolverCrossCompany,
+} from "../_shared/contactCustomFields.ts";
 
 const getErrorMessage = (err: unknown) => err instanceof Error ? err.message : String(err);
 
@@ -99,7 +103,7 @@ Deno.serve(async (req) => {
   const filter = campaign.contact_filter;
   let contactQuery = supabase
     .from("marketing_contacts")
-    .select("id, first_name, last_name, email")
+    .select("id, first_name, last_name, email, company_id")
     .eq("unsubscribed", false)
     .not("email", "is", null);
 
@@ -130,7 +134,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const recipients = (contacts ?? []) as Array<{ id: string; first_name: string; last_name: string | null; email: string }>;
+  const recipients = (contacts ?? []) as Array<{ id: string; first_name: string; last_name: string | null; email: string; company_id: string | null }>;
   const total = recipients.length;
 
   // Aggiorna total_contacts
@@ -150,6 +154,13 @@ Deno.serve(async (req) => {
     );
   }
 
+  // Risolve i campi personalizzati contatto ({{ contact.<key> }}) cross-azienda.
+  const customFieldResolver = await loadContactCustomFieldResolverCrossCompany(
+    supabase,
+    recipients.map((c) => ({ id: c.id, company_id: c.company_id })),
+    [campaign.html_body],
+  );
+
   let sentCount = 0;
   let errorCount = 0;
 
@@ -161,10 +172,11 @@ Deno.serve(async (req) => {
       batch.map(async (c) => {
         if (!c.email) return;
         try {
-          const personalizedHtml = campaign.html_body
+          let personalizedHtml = campaign.html_body
             .replace(/\{\{nome\}\}/gi, c.first_name)
             .replace(/\{\{cognome\}\}/gi, c.last_name ?? "")
             .replace(/\{\{email\}\}/gi, c.email);
+          personalizedHtml = applyContactCustomFields(personalizedHtml, c.id, customFieldResolver);
 
           const result = await sendEmailUnified({
             companyId:    null,

@@ -1,5 +1,7 @@
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { navigateToSubdomain } from "@/utils/subdomainNav";
+// Apple Guideline 3.1.1 — su iOS nativo nascondiamo voci che linkano a checkout Stripe
+import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
 import { supabase } from "@/integrations/supabase/client";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { useAuth } from "@/contexts/AuthContext";
@@ -742,7 +744,8 @@ function buildSettingsGroups(isAdmin: boolean, permissions: Permissions): Settin
         { to: "/azienda/impostazioni/branding",      label: "White-Label",       icon: <Paintbrush className="h-4 w-4" />,   visible: isAdmin },
         // v8.6.59 — Solo "Piano abbonamento": "Crediti & Saldo" è ora il tab
         // "Portafoglio" interno alla dashboard Abbonamento (no duplicazione).
-        { to: "/azienda/impostazioni/abbonamento",   label: "Piano abbonamento", icon: <Wallet className="h-4 w-4" />,       visible: isAdmin },
+        // Apple Guideline 3.1.1 — nascosto su iOS nativo (no link a Stripe checkout).
+        { to: "/azienda/impostazioni/abbonamento",   label: "Piano abbonamento", icon: <Wallet className="h-4 w-4" />,       visible: isAdmin && !isIOSNativePlatform },
       ],
     },
     {
@@ -1656,7 +1659,8 @@ export function CompanyLayout() {
             />
           )}
           <AnnouncementBanner />
-          <SubscriptionBanner />
+          {/* Apple Guideline 3.1.1 — SubscriptionBanner contiene CTA upgrade Stripe, nascosto su iOS native */}
+          {!isIOSNativePlatform && <SubscriptionBanner />}
           <header className="h-14 border-b flex items-center px-2 md:px-3 gap-1.5 md:gap-4 bg-background">
             {/* Mobile: back arrow on sub-pages (no hamburger — bottom nav "App" replaces sidebar) */}
             {isSubPage && (

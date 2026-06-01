@@ -151,6 +151,7 @@ export function ReferrerDialog({ open, onOpenChange, referrer }: Props) {
           })
           .eq("id", referrer!.id);
         if (error) throw error;
+        return { fallback: false };
       } else {
         try {
           const { error } = await supabase.functions.invoke("create-referral-partner", {
@@ -167,6 +168,7 @@ export function ReferrerDialog({ open, onOpenChange, referrer }: Props) {
             },
           });
           if (error) throw error;
+          return { fallback: false };
         } catch (edgeError) {
           if (!canFallbackToLegacyCreate(edgeError)) throw edgeError;
 
@@ -189,12 +191,21 @@ export function ReferrerDialog({ open, onOpenChange, referrer }: Props) {
               p_base_url: getReferralLoginUrl(),
             });
           }
+          return { fallback: true };
         }
       }
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["referrers"] });
-      toast({ title: isEdit ? "Referrer aggiornato" : "Referrer creato" });
+      if (result?.fallback) {
+        toast({
+          title: "Referrer creato senza accesso al portale",
+          description:
+            "Creazione online non disponibile: il partner è stato salvato ma non ha ancora un account. Usa “Reinvita” nella scheda Partner per collegarlo.",
+        });
+      } else {
+        toast({ title: isEdit ? "Referrer aggiornato" : "Referrer creato" });
+      }
       onOpenChange(false);
     },
     onError: (err: any) => {

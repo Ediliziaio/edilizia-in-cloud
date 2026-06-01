@@ -62,34 +62,36 @@ const DEVICES = {
 };
 
 // Le 6 pagine da catturare — adatta i path al routing reale dell'app
+// `preAction(page)` opzionale = funzione async che agisce prima dello screenshot
+// (es. cliccare un filtro per mostrare dati cumulativi).
 const PAGES = [
   {
-    slug: "01-dashboard",
-    title: "Dashboard",
-    path: "/azienda",
-    waitFor: "main",
-    description: "Vista d'insieme attività",
-  },
-  {
-    slug: "02-commesse",
+    slug: "01-commesse",
     title: "Commesse e marginalità",
     path: "/azienda/ordini",
     waitFor: "main",
-    description: "Margine in tempo reale per commessa",
+    description: "Hero — margine in tempo reale, deal LAV-2026-001 visibile",
   },
   {
-    slug: "03-magazzino",
-    title: "Magazzino",
-    path: "/azienda/magazzino",
+    slug: "02-silvio-chat",
+    title: "Silvio AI assistente",
+    path: "/azienda/chat",
     waitFor: "main",
-    description: "Inventario materiali",
+    description: "AI come differenziatore principale",
+  },
+  {
+    slug: "03-cruscotto",
+    title: "Cruscotto KPI",
+    path: "/azienda/cruscotto",
+    waitFor: "main",
+    description: "KPI aziendali full (revenue, commesse, scadenze)",
   },
   {
     slug: "04-personale",
     title: "Personale e timbrature",
     path: "/azienda/personale",
     waitFor: "main",
-    description: "Operai, ore, presenze",
+    description: "HR + timbrature operai",
   },
   {
     slug: "05-clienti",
@@ -99,11 +101,11 @@ const PAGES = [
     description: "Anagrafica clienti",
   },
   {
-    slug: "06-silvio-chat",
-    title: "Silvio AI assistente",
-    path: "/azienda/chat",
+    slug: "06-calendario",
+    title: "Calendario appuntamenti",
+    path: "/azienda/calendario",
     waitFor: "main",
-    description: "AI sempre disponibile per cantiere, preventivo, normativa",
+    description: "Pianificazione visiva attività",
   },
 ];
 
@@ -189,6 +191,16 @@ async function captureForDevice(device) {
         });
       const skeletonMs = Date.now() - tSkeleton;
       if (skeletonMs > 500) console.log(`       ⏱ skeleton wait: ${skeletonMs}ms`);
+
+      // preAction opzionale (es. cliccare un filtro "Sempre" sulla dashboard)
+      if (typeof p.preAction === "function") {
+        try {
+          await p.preAction(page);
+          await page.waitForTimeout(800); // assesta dopo l'azione
+        } catch (e) {
+          console.warn(`       ⚠️ preAction failed: ${e.message}`);
+        }
+      }
 
       // Settle finale per animazioni di entrata (fade-in card, ecc.)
       await page.waitForTimeout(SETTLE_AFTER_DATA_MS);

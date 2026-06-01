@@ -1,6 +1,6 @@
 import { ShoppingBag, Euro, TrendingUp, AlertCircle, LifeBuoy, CheckCircle2, Hammer, BarChart3, ShieldAlert } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
 interface OrdersStats {
@@ -74,6 +74,8 @@ function StatCard({ icon, value, label, iconBg, iconColor, accentClass, onClick,
 interface BandMetricProps {
   icon: React.ReactNode;
   value: string | number;
+  /** Versione compatta del valore mostrata su mobile (es. "1.3M €"). Se omesso, value è usato per entrambi. */
+  valueShort?: string | number;
   label: string;
   hint: string;
   iconClass?: string;
@@ -85,7 +87,7 @@ interface BandMetricProps {
   active?: boolean;
 }
 
-function BandMetric({ icon, value, label, hint, iconClass, valueClass, labelClass, hintClass, accentClass, onClick, active }: BandMetricProps) {
+function BandMetric({ icon, value, valueShort, label, hint, iconClass, valueClass, labelClass, hintClass, accentClass, onClick, active }: BandMetricProps) {
   const className = cn(
     "group relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-slate-200/80 bg-white px-3 py-3 text-left shadow-sm transition-all duration-200",
     "hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md",
@@ -98,9 +100,11 @@ function BandMetric({ icon, value, label, hint, iconClass, valueClass, labelClas
       <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 ring-1 ring-slate-200 transition-colors duration-200 group-hover:bg-slate-50", iconClass)}>
         {icon}
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className={cn("text-[10px] font-semibold uppercase text-slate-500", labelClass)}>{label}</p>
-        <p className={cn("mt-0.5 truncate text-lg font-bold text-slate-950 sm:text-xl", valueClass)}>{value}</p>
+        {/* Mobile: versione compatta (1.3M €). Desktop: valore intero (1.348.666,00 €) */}
+        <p className={cn("mt-0.5 text-base font-bold text-slate-950 sm:hidden", valueClass)}>{valueShort ?? value}</p>
+        <p className={cn("mt-0.5 hidden truncate text-lg font-bold text-slate-950 sm:block sm:text-xl", valueClass)}>{value}</p>
         <p className={cn("truncate text-[11px] text-slate-500", hintClass)}>{hint}</p>
       </div>
     </>
@@ -188,6 +192,7 @@ export function OrdersStatsCards({
           <BandMetric
             icon={<Euro className={iconSize} />}
             value={formatCurrency(stats.totalGross)}
+            valueShort={formatCurrencyCompact(stats.totalGross)}
             label="Totale Ivato"
             hint={`${stats.totalOrders} commesse in vista`}
             iconClass="bg-blue-50 text-blue-700 ring-blue-100"
@@ -196,6 +201,7 @@ export function OrdersStatsCards({
           <BandMetric
             icon={<TrendingUp className={iconSize} />}
             value={formatCurrency(stats.collected)}
+            valueShort={formatCurrencyCompact(stats.collected)}
             label="Incassato"
             hint="entrate gia registrate"
             iconClass="bg-emerald-50 text-emerald-700 ring-emerald-100"
@@ -205,6 +211,7 @@ export function OrdersStatsCards({
           <BandMetric
             icon={<AlertCircle className={iconSize} />}
             value={formatCurrency(stats.pending)}
+            valueShort={formatCurrencyCompact(stats.pending)}
             label="Da Incassare"
             hint={activePendingFilter ? "filtro attivo" : "clicca per filtrare"}
             iconClass="bg-amber-50 text-amber-700 ring-amber-100"
@@ -220,6 +227,7 @@ export function OrdersStatsCards({
             <BandMetric
               icon={<BarChart3 className={iconSize} />}
               value={formatCurrency(stats.averageGross ?? 0)}
+              valueShort={formatCurrencyCompact(stats.averageGross ?? 0)}
               label="Valore Medio"
               hint="media della vista corrente"
               iconClass="bg-sky-50 text-sky-700 ring-sky-100"
@@ -228,6 +236,7 @@ export function OrdersStatsCards({
             <BandMetric
               icon={<TrendingUp className={iconSize} />}
               value={formatCurrency(stats.grossMargin ?? 0)}
+              valueShort={formatCurrencyCompact(stats.grossMargin ?? 0)}
               label="Margine Vista"
               hint={marginIsPositive ? "marginalita positiva" : "marginalita da verificare"}
               iconClass={marginIsPositive ? "bg-emerald-50 text-emerald-700 ring-emerald-100" : "bg-red-50 text-red-700 ring-red-100"}

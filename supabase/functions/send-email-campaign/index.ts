@@ -11,6 +11,7 @@ import {
 } from "../_shared/emailSuppression.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { loadContactCustomFieldResolver, applyContactCustomFields } from "../_shared/contactCustomFields.ts";
 
 function parseJsonObject(value: unknown): Record<string, any> {
   if (!value) return {};
@@ -473,6 +474,16 @@ Deno.serve(async (req) => {
       recipientsB = shuffled.slice(splitIdx);
     }
 
+    // Campi personalizzati contatto → variabili {{ contact.<key> }} (fail-safe).
+    // Risolve nelle email le variabili dei custom field mostrate dalla pagina
+    // /azienda/impostazioni/campi-personalizzati, prima non sostituite all'invio.
+    const customFieldResolver = await loadContactCustomFieldResolver(
+      adminClient,
+      companyId,
+      recipients.map((c: any) => c.id),
+      [campaign.html_content, campaign.ab_html_content_b],
+    );
+
     // Send emails in parallel batches (BUG-08: was 5, increased to avoid timeout on large lists)
     const BATCH_SIZE = Math.max(1, Math.min(Number(Deno.env.get("EMAIL_MARKETING_BATCH_SIZE") || 50), 100));
 
@@ -501,6 +512,9 @@ Deno.serve(async (req) => {
           .replace(/\{\{city\}\}/g, contact.city || "")
           .replace(/\{\{province\}\}/g, contact.province || "")
           .replace(/\{\{contact_company\}\}/g, contact.company_name || "");
+
+        // Campi personalizzati del contatto: {{ contact.<key> }} (no-op se nessuno referenziato)
+        html = applyContactCustomFields(html, contact.id, customFieldResolver);
 
         // Inject UTM parameters before click-tracking wraps links (BUG-07)
         if (campaign.utm_tracking) {
@@ -607,7 +621,7 @@ Deno.serve(async (req) => {
           stream: "marketing",
           campaign_id: campaignId,
           provider_id: result.providerMessageId ?? null,
-          error_message: providerError,
+          error_message: providerError ?? undefined,
           cost_eur: 0,
           charged_eur: 0,
           metadata: { ab_variant: abVariant ?? null, contact_id: contact.id },

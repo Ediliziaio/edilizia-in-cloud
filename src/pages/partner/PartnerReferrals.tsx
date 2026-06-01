@@ -115,7 +115,7 @@ export default function PartnerReferrals() {
         <p className="text-sm text-muted-foreground">Monitora registrazioni, stati e valore generato dai tuoi referral.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Referenze totali</CardTitle></CardHeader>
           <CardContent><p className="text-2xl font-bold">{referrals.length}</p></CardContent>
@@ -123,6 +123,10 @@ export default function PartnerReferrals() {
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Paganti</CardTitle></CardHeader>
           <CardContent><p className="text-2xl font-bold text-emerald-600">{totals.paying}</p></CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">In attesa</CardTitle></CardHeader>
+          <CardContent><p className="text-2xl font-bold text-amber-600">{totals.pending}</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Revenue tracciata</CardTitle></CardHeader>

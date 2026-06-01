@@ -47,7 +47,10 @@ const ADMIN_OBJECTS = [
   { value: "recipient", label: "Destinatario email" },
   { value: "platform", label: "Piattaforma" },
   { value: "admin", label: "Superadmin" },
+  { value: "company", label: "Azienda cliente" },
+  { value: "plan", label: "Piano / Abbonamento" },
   { value: "billing", label: "Billing" },
+  { value: "partner", label: "Partner / Referral" },
   { value: "support", label: "Supporto" },
   { value: "sales", label: "Vendite" },
 ];
@@ -62,8 +65,12 @@ const FOLDER_TONES: Record<string, string> = {
   recipient: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300",
   platform:  "bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-300",
   admin:     "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300",
+  company:   "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300",
+  plan:      "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   billing:   "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  partner:   "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300",
   support:   "bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300",
+  sales:     "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300",
 };
 
 function folderBadgeClass(folder: string): string {
@@ -110,33 +117,112 @@ const ACCESS_USER_FIELD_PRESETS: UnifiedField[] = [
   makeRecipientField("sys_recipient_email",          "Email destinatario",   "recipient.email"),
 ];
 
+// Label dell'oggetto per namespace admin (ADMIN_OBJECTS è la sorgente di verità).
+const ADMIN_OBJECT_LABEL: Record<string, string> = Object.fromEntries(
+  ADMIN_OBJECTS.map((o) => [o.value, o.label]),
+);
+
+// Factory DRY per i preset di sistema admin: id, label oggetto, tono cartella e
+// variabile {{ namespace.key }} derivati in modo coerente dal namespace.
+function makeAdminPreset(
+  namespace: string,
+  key: string,
+  name: string,
+  fieldType: string = "text",
+): UnifiedField {
+  return {
+    id: `sys_${namespace}_${key}`,
+    name,
+    object: ADMIN_OBJECT_LABEL[namespace] ?? namespace,
+    folder: namespace,
+    folderColor: FOLDER_TONES[namespace] ?? "bg-muted text-muted-foreground",
+    uniqueKey: `{{ ${namespace}.${key} }}`,
+    createdAt: "2024-01-01",
+    isSystem: true,
+    fieldType,
+  };
+}
+
+// Catalogo completo delle variabili di sistema esclusive del superadmin,
+// organizzato per dominio. Sono variabili "advertised" da inserire nei template:
+// la risoluzione a invio viene collegata progressivamente per namespace.
 const ADMIN_FIELD_PRESETS: UnifiedField[] = [
-  {
-    id: "sys_platform_name", name: "Nome piattaforma", object: "Piattaforma",
-    folder: "platform", folderColor: FOLDER_TONES.platform,
-    uniqueKey: "{{ platform.name }}", createdAt: "2024-01-01", isSystem: true, fieldType: "text",
-  },
-  {
-    id: "sys_platform_support_email", name: "Email supporto piattaforma", object: "Piattaforma",
-    folder: "platform", folderColor: FOLDER_TONES.platform,
-    uniqueKey: "{{ platform.support_email }}", createdAt: "2024-01-01", isSystem: true, fieldType: "text",
-  },
-  {
-    id: "sys_admin_first_name", name: "Nome superadmin", object: "Superadmin",
-    folder: "admin", folderColor: FOLDER_TONES.admin,
-    uniqueKey: "{{ admin.first_name }}", createdAt: "2024-01-01", isSystem: true, fieldType: "text",
-  },
-  {
-    id: "sys_billing_mrr", name: "MRR azienda", object: "Billing",
-    folder: "billing", folderColor: FOLDER_TONES.billing,
-    uniqueKey: "{{ billing.mrr }}", createdAt: "2024-01-01", isSystem: true, fieldType: "number",
-  },
-  {
-    id: "sys_trial_end_date", name: "Scadenza prova", object: "Billing",
-    folder: "billing", folderColor: FOLDER_TONES.billing,
-    uniqueKey: "{{ billing.trial_end_date }}", createdAt: "2024-01-01", isSystem: true, fieldType: "date",
-  },
+  // Piattaforma / marketing piattaforma
+  makeAdminPreset("platform", "name", "Nome piattaforma"),
+  makeAdminPreset("platform", "legal_name", "Ragione sociale piattaforma"),
+  makeAdminPreset("platform", "support_email", "Email supporto piattaforma"),
+  makeAdminPreset("platform", "website_url", "Sito web"),
+  makeAdminPreset("platform", "login_url", "Link di accesso"),
+  makeAdminPreset("platform", "logo_url", "Logo (URL)"),
+  makeAdminPreset("platform", "address", "Indirizzo"),
+  makeAdminPreset("platform", "phone", "Telefono"),
+  makeAdminPreset("platform", "privacy_url", "Informativa privacy"),
+  makeAdminPreset("platform", "unsubscribe_url", "Link disiscrizione"),
+  makeAdminPreset("platform", "current_year", "Anno corrente"),
+
+  // Superadmin mittente
+  makeAdminPreset("admin", "first_name", "Nome superadmin"),
+  makeAdminPreset("admin", "last_name", "Cognome superadmin"),
+  makeAdminPreset("admin", "full_name", "Nome completo superadmin"),
+  makeAdminPreset("admin", "email", "Email superadmin"),
+  makeAdminPreset("admin", "role_label", "Ruolo"),
+  makeAdminPreset("admin", "signature", "Firma email"),
+
+  // NB: il profilo "Azienda cliente" (namespace company.*) è già fornito dal
+  // dizionario di sistema (oggetto "Azienda" in BUILTIN_FIELDS): non va
+  // duplicato qui. I dati a livello account stanno nel namespace plan.* sotto.
+
+  // Piano / Abbonamento (livello account/abbonamento dell'azienda cliente)
+  makeAdminPreset("plan", "name", "Nome piano"),
+  makeAdminPreset("plan", "price", "Prezzo", "number"),
+  makeAdminPreset("plan", "billing_cycle", "Ciclo di fatturazione"),
+  makeAdminPreset("plan", "seats", "Postazioni incluse", "number"),
+  makeAdminPreset("plan", "status", "Stato abbonamento"),
+  makeAdminPreset("plan", "trial_end_date", "Fine periodo di prova", "date"),
+  makeAdminPreset("plan", "renewal_date", "Prossimo rinnovo", "date"),
+  makeAdminPreset("plan", "started_at", "Inizio abbonamento", "date"),
+
+  // Billing / fatturazione
+  makeAdminPreset("billing", "mrr", "MRR azienda", "number"),
+  makeAdminPreset("billing", "trial_end_date", "Scadenza prova", "date"),
+  makeAdminPreset("billing", "amount_due", "Importo dovuto", "number"),
+  makeAdminPreset("billing", "currency", "Valuta"),
+  makeAdminPreset("billing", "next_invoice_date", "Prossima fattura", "date"),
+  makeAdminPreset("billing", "last_payment_date", "Ultimo pagamento", "date"),
+  makeAdminPreset("billing", "payment_method", "Metodo di pagamento"),
+  makeAdminPreset("billing", "invoice_url", "Link ultima fattura"),
+
+  // Partner / Referral
+  makeAdminPreset("partner", "referrer_name", "Nome referrer"),
+  makeAdminPreset("partner", "referral_code", "Codice referral"),
+  makeAdminPreset("partner", "referral_url", "Link invito"),
+  makeAdminPreset("partner", "tier", "Livello partner"),
+  makeAdminPreset("partner", "commission_rate", "% commissione", "number"),
+  makeAdminPreset("partner", "commission_earned", "Commissioni maturate", "number"),
+  makeAdminPreset("partner", "referrals_count", "Inviti totali", "number"),
+  makeAdminPreset("partner", "conversions_count", "Conversioni", "number"),
+  makeAdminPreset("partner", "payout_pending", "Payout in attesa", "number"),
+
+  // Vendite
+  makeAdminPreset("sales", "owner_name", "Commerciale assegnato"),
+  makeAdminPreset("sales", "owner_email", "Email commerciale"),
+  makeAdminPreset("sales", "owner_phone", "Telefono commerciale"),
+  makeAdminPreset("sales", "demo_url", "Link demo"),
+  makeAdminPreset("sales", "quote_url", "Link preventivo"),
+
+  // Supporto
+  makeAdminPreset("support", "agent_name", "Operatore supporto"),
+  makeAdminPreset("support", "email", "Email supporto"),
+  makeAdminPreset("support", "ticket_url", "Link ticket"),
+  makeAdminPreset("support", "help_center_url", "Centro assistenza"),
+  makeAdminPreset("support", "sla", "SLA di risposta"),
 ];
+
+// Filtro aggregato dietro la KPI "Campi sistema admin": i preset di sistema admin
+// sono distribuiti su più oggetti (Piattaforma, Piano, Billing, Partner…), quindi
+// l'oggetto "Superadmin" da solo ne mostrerebbe solo una parte. Questo gruppo li raccoglie tutti.
+const ADMIN_SYSTEM_GROUP = "admin-system";
+const ADMIN_PRESET_IDS = new Set(ADMIN_FIELD_PRESETS.map((field) => field.id));
 
 function parseFields(value: string | null): PlatformField[] {
   if (!value) return [];
@@ -229,7 +315,9 @@ export function PlatformCustomFieldsPanel() {
 
   const filtered = useMemo(() => {
     let result = allFields;
-    if (groupBy !== "all") {
+    if (groupBy === ADMIN_SYSTEM_GROUP) {
+      result = result.filter((field) => ADMIN_PRESET_IDS.has(field.id));
+    } else if (groupBy !== "all") {
       const target = OBJECT_NAME_MAP[groupBy] ?? fieldObjectLabel(groupBy);
       result = result.filter((field) => field.object === target || field.folder === groupBy);
     }
@@ -373,12 +461,12 @@ export function PlatformCustomFieldsPanel() {
         </button>
         <button
           type="button"
-          onClick={() => setGroupBy("admin")}
+          onClick={() => setGroupBy(ADMIN_SYSTEM_GROUP)}
           className={cn(
             "rounded-md border p-4 text-left transition-colors hover:bg-muted/40",
-            groupBy === "admin" ? "ring-1 ring-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/20" : "",
+            groupBy === ADMIN_SYSTEM_GROUP ? "ring-1 ring-indigo-300 bg-indigo-50/50 dark:bg-indigo-950/20" : "",
           )}
-          aria-pressed={groupBy === "admin"}
+          aria-pressed={groupBy === ADMIN_SYSTEM_GROUP}
         >
           <p className="text-xs text-muted-foreground">Campi sistema admin</p>
           <p className="text-2xl font-semibold">{ADMIN_FIELD_PRESETS.length}</p>
@@ -418,6 +506,7 @@ export function PlatformCustomFieldsPanel() {
             <SelectContent>
               {[
                 ...GROUP_OPTIONS,
+                { value: ADMIN_SYSTEM_GROUP, label: `Tutti i campi admin (${ADMIN_FIELD_PRESETS.length})` },
                 ...ADMIN_OBJECTS.filter((item) => !GROUP_OPTIONS.some((group) => group.value === item.value)),
               ].map((item) => (
                 <SelectItem key={item.value} value={item.value}>
