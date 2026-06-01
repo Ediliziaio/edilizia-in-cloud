@@ -1,4 +1,3 @@
-// DEPLOYTEST-20260601-174850
 import { BLOG_BODIES } from "./_blog-bodies.js";
 
 /**
@@ -2410,6 +2409,16 @@ function resolveRoute(pathname) {
       intro: r.intro,
       links: r.links || [],
       jsonLd: r.jsonLd || null,
+      // 2026-06-01 BUG FIX CRITICO: `extra` veniva SCARTATO qui.
+      // Tutto il contenuto SEO ricco (sezioni h2/h3, FAQ, confronti) era
+      // definito nelle config ROUTES ma resolveRoute non lo passava a
+      // buildHtml → Google riceveva solo h1+intro (~166 parole) invece del
+      // contenuto completo (~1000+ parole). Questa singola riga mancante è
+      // la causa per cui gli arricchimenti SEO passati "non funzionavano mai":
+      // il contenuto c'era nel codice ma non veniva MAI servito ai bot.
+      extra: r.extra || "",
+      ogType: r.ogType,
+      ogImage: r.ogImage,
     };
   }
 
