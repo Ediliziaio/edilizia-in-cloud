@@ -1776,11 +1776,50 @@ function MessageBubble({ message }: { message: MessageRow }) {
   //   - Forza target="_blank" su tutti gli <a> per non rompere la nav app
   const sanitizedHtml = useMemo(() => {
     if (!message.raw_html) return null;
-    // Hook DOMPurify: aggiunge target=_blank + rel=noopener su tutti i link
+    // Hook DOMPurify:
+    //  • <a>  → target=_blank + rel=noopener (non rompe la nav dell'app)
+    //  • <img> → promuove le immagini "lazy-load" a src reale.
+    //    PROBLEMA UTENTE ("in alcune email non mostra le foto"): moltissime
+    //    newsletter (Meta, Google, Apple, Mailchimp, Stripe, ecc.) mettono un
+    //    placeholder 1×1 in `src=` e l'URL vero in `data-src`/`data-srcset`,
+    //    contando sul lazy-loader JS della webmail. Noi quello JS lo blocchiamo
+    //    per sicurezza → senza questa promozione le foto restavano vuote.
+    //    SICUREZZA: promuoviamo SOLO URL http(s) o protocol-relative (`//host`),
+    //    mai `javascript:`/`data:`-script → la promozione avviene DOPO la
+    //    sanitizzazione, quindi il controllo URI lo rifacciamo qui a mano.
+    const firstRemoteUrl = (el: Element, attrs: string[]): string | null => {
+      for (const a of attrs) {
+        const v = el.getAttribute(a)?.trim();
+        if (v && /^(https?:)?\/\//i.test(v)) return v;
+      }
+      return null;
+    };
     DOMPurify.addHook("afterSanitizeAttributes", (node) => {
       if (node.tagName === "A") {
         node.setAttribute("target", "_blank");
         node.setAttribute("rel", "noopener noreferrer");
+        return;
+      }
+      if (node.tagName === "IMG") {
+        const src = node.getAttribute("src")?.trim() ?? "";
+        const looksLikeSpacer = /spacer|blank\.|transparent|pixel|1x1|\/s\.gif|clear\.gif/i.test(src);
+        const srcIsPlaceholder = src === "" || src.startsWith("data:") || looksLikeSpacer;
+        if (srcIsPlaceholder) {
+          const real = firstRemoteUrl(node, [
+            "data-src", "data-original", "data-lazy-src", "data-lazy",
+            "data-url", "data-image-src", "data-srcurl", "data-echo",
+          ]);
+          if (real) node.setAttribute("src", real);
+        }
+        if (!node.getAttribute("srcset")?.trim()) {
+          const dss = node.getAttribute("data-srcset")?.trim();
+          if (dss) node.setAttribute("srcset", dss);
+        }
+        // Privacy + anti-hotlink: non inviare l'URL dell'app come referrer
+        // agli host delle immagini (alcuni CDN bloccano referrer esterni).
+        if (!node.getAttribute("referrerpolicy")) {
+          node.setAttribute("referrerpolicy", "no-referrer");
+        }
       }
     });
     const clean = DOMPurify.sanitize(message.raw_html, {

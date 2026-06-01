@@ -36,9 +36,11 @@ import {
   AlertTriangle,
   Building2,
   FileText,
+  Flame,
   Inbox,
   LifeBuoy,
   Loader2,
+  Mail,
   Menu,
   PenLine,
   ReceiptText,
@@ -73,6 +75,9 @@ export interface EmailFilter {
   search?: SearchQuery | null;
   accountId?: string; // filtro per oauth_connection_id
   category?: EmailSmartCategory;
+  // Filtri rapidi trasversali — combinabili con qualsiasi categoria (AND).
+  unreadOnly?: boolean; // mostra solo thread con messaggi da leggere
+  priorityOnly?: boolean; // mostra solo thread ad alta priorità
 }
 
 export interface EmailConnectionSummary extends EmailConnectionHealth {
@@ -553,8 +558,71 @@ function EmailMailboxToolbar({
 }) {
   // 2026-05-28: header secondario rimosso (era ridondante con header principale + folder title).
   // Manteniamo solo le pillole categoria, allineate al mockup "Demo casella email operativa".
+  // 2026-06-01 (richiesta utente): aggiunta riga "Filtri rapidi" sopra le categorie con
+  // toggle "Non lette" e "Prioritarie" — ispirati ai client email moderni (Gmail/Outlook).
+  // Sono toggle TRASVERSALI: si combinano (AND) con qualsiasi categoria selezionata sotto.
+  const anyQuickActive = !!filter.unreadOnly || !!filter.priorityOnly;
   return (
-    <div className="border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-orange-50/30 px-3 py-2 sm:px-4 sm:py-3">
+    <div className="space-y-2 border-b border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-orange-50/30 px-3 py-2 sm:px-4 sm:py-3">
+      {/* Filtri rapidi — toggle indipendenti, combinabili con le categorie */}
+      <div className="flex items-center gap-1.5">
+        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+          Filtri rapidi
+        </span>
+        <button
+          type="button"
+          aria-pressed={!!filter.unreadOnly}
+          title="Mostra solo le email da leggere"
+          className={cn(
+            "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors",
+            filter.unreadOnly
+              ? "border-blue-600 bg-blue-600 font-semibold text-white shadow-sm shadow-blue-200"
+              : "border-blue-200 bg-white/80 text-blue-700 hover:bg-blue-50",
+          )}
+          onClick={() => onFilterChange((current) => ({
+            ...current,
+            unreadOnly: current.unreadOnly ? undefined : true,
+          }))}
+        >
+          <Mail className="h-3.5 w-3.5" />
+          Non lette
+        </button>
+        <button
+          type="button"
+          aria-pressed={!!filter.priorityOnly}
+          title="Mostra solo le email ad alta priorità"
+          className={cn(
+            "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors",
+            filter.priorityOnly
+              ? "border-orange-500 bg-orange-500 font-semibold text-white shadow-sm shadow-orange-200"
+              : "border-orange-200 bg-white/80 text-orange-700 hover:bg-orange-50",
+          )}
+          onClick={() => onFilterChange((current) => ({
+            ...current,
+            priorityOnly: current.priorityOnly ? undefined : true,
+          }))}
+        >
+          <Flame className="h-3.5 w-3.5" />
+          Prioritarie
+        </button>
+        {anyQuickActive && (
+          <button
+            type="button"
+            title="Azzera i filtri rapidi"
+            className="ml-0.5 inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium text-slate-400 transition-colors hover:text-slate-700"
+            onClick={() => onFilterChange((current) => ({
+              ...current,
+              unreadOnly: undefined,
+              priorityOnly: undefined,
+            }))}
+          >
+            <X className="h-3.5 w-3.5" />
+            Azzera
+          </button>
+        )}
+      </div>
+
+      {/* Categorie (invariata) */}
       <div className="flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {CATEGORY_FILTERS.map((category) => {
           const active = category.key === "all" ? !filter.category : filter.category === category.key;

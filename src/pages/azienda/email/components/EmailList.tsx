@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Star, Paperclip, Inbox, Send, FileEdit, ShieldAlert, Trash2, AlertTriangle, ChevronDown, Loader2 } from "lucide-react";
+import { Star, Paperclip, Inbox, Send, FileEdit, ShieldAlert, Trash2, AlertTriangle, ChevronDown, Loader2, Flame, MailOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EmailFilter, EmailSmartCategory } from "../EmailLayout";
 import { categoryMatchesPrediction, predictEmailReconciliation } from "../lib/predictiveReconciliation";
@@ -216,10 +216,15 @@ function predictThread(thread: ThreadRow) {
   });
 }
 
+function threadIsHighPriority(thread: ThreadRow): boolean {
+  if (isHighPriority(thread.ai_priority)) return true;
+  return predictThread(thread).priority === "alta";
+}
+
 function threadMatchesCategory(thread: ThreadRow, category: EmailSmartCategory | undefined): boolean {
   if (!category) return true;
+  if (category === "priority") return threadIsHighPriority(thread);
   const prediction = predictThread(thread);
-  if (category === "priority") return isHighPriority(thread.ai_priority) || prediction.priority === "alta";
   const aiValues = categoryValues(category);
   if (thread.ai_category && aiValues.includes(thread.ai_category)) return true;
   return categoryMatchesPrediction(prediction, category);
@@ -343,7 +348,10 @@ async function fetchThreadsFallback(filter: EmailFilter, offset: number, scopedA
 async function fetchThreadPage(filter: EmailFilter, offset: number, scopedAccountIds?: string[]): Promise<ThreadPage> {
   const folderKey = filter.folder.type === "system" ? filter.folder.key : "inbox";
   const search = filter.search;
-  const pageLimit = filter.category ? 150 : THREAD_PAGE_SIZE;
+  // I filtri client-side (categoria + filtri rapidi) riducono le righe visibili,
+  // quindi chiediamo una pagina più ampia per non mostrare liste quasi vuote.
+  const hasClientFilter = !!filter.category || !!filter.unreadOnly || !!filter.priorityOnly;
+  const pageLimit = hasClientFilter ? 150 : THREAD_PAGE_SIZE;
 
   if (folderKey === "drafts") {
     return { threads: [], totalCount: 0, hasMore: false, nextOffset: offset, source: "rpc" };
@@ -410,6 +418,8 @@ export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelect
       labelId: filter.folder.type === "label" ? filter.folder.labelId : null,
       accountId: filter.accountId ?? null,
       category: filter.category ?? null,
+      unreadOnly: filter.unreadOnly ?? false,
+      priorityOnly: filter.priorityOnly ?? false,
       search: filter.search?.raw ?? null,
     });
   }, [filter]);
@@ -437,8 +447,16 @@ export function EmailList({ filter, scopedAccountIds, selectedThreadId, onSelect
 
   const pages = data?.pages ?? [];
   const allThreads = pages.flatMap((page) => page.threads);
-  const threads = allThreads.filter((thread) => threadMatchesCategory(thread, filter.category));
-  const totalCount = filter.category ? null : pages.find((page) => page.totalCount !== null)?.totalCount ?? null;
+  const threads = allThreads.filter((thread) => {
+    if (!threadMatchesCategory(thread, filter.category)) return false;
+    if (filter.unreadOnly && thread.unread_count === 0) return false;
+    if (filter.priorityOnly && !threadIsHighPriority(thread)) return false;
+    return true;
+  });
+  // Con qualsiasi filtro client-side il conteggio totale del server non è più
+  // rappresentativo (filtriamo dopo il fetch) → mostriamo solo i thread visibili.
+  const hasClientFilter = !!filter.category || !!filter.unreadOnly || !!filter.priorityOnly;
+  const totalCount = hasClientFilter ? null : pages.find((page) => page.totalCount !== null)?.totalCount ?? null;
   const usingFallback = pages.some((page) => page.source === "fallback");
   const isEmpty = !isLoading && threads.length === 0;
 
@@ -659,7 +677,15 @@ function ListEmptyState({ filter }: { filter: EmailFilter }) {
   let title = "Nessun thread";
   let desc = "";
 
-  if (filter.category) {
+  if (filter.priorityOnly) {
+    icon = Flame;
+    title = "Nessuna email prioritaria";
+    desc = "Non ci sono thread ad alta priorità in questa vista. Disattiva il filtro rapido «Prioritarie» per vedere tutte le email.";
+  } else if (filter.unreadOnly) {
+    icon = MailOpen;
+    title = "Tutto letto";
+    desc = "Non ci sono email da leggere in questa vista. Disattiva il filtro rapido «Non lette» per rivedere tutte le email.";
+  } else if (filter.category) {
     icon = filter.category === "priority" ? AlertTriangle : Inbox;
     title = "Nessuna email in questa vista";
     desc = "Prova a cambiare categoria, account o ricerca. Le email vengono riconciliate prima con regole predittive e poi, se disponibile, con AI.";
