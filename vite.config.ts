@@ -322,6 +322,17 @@ export default defineConfig(() => ({
       "@tiptap/extension-text-align",
       "@tiptap/extension-link",
       "dompurify",
+      // 2026-06-01 (fix crash /admin in dev): recharts (ESM) importa
+      // `{ isFragment }` da react-is, il cui entry è un CJS con
+      // `module.exports = require('./cjs/...')` condizionale che il
+      // pre-bundler di Vite NON riesce a leggere staticamente →
+      // "does not provide an export named 'isFragment'" su ogni pagina
+      // con grafici (Dashboard /admin e /admin/marketing). Forzando
+      // react-is (+ recharts) nel pre-bundle, esbuild espone i named
+      // export via cjs-module-lexer e l'import torna a funzionare.
+      // Solo dev: in produzione Rollup bundla correttamente.
+      "react-is",
+      "recharts",
     ],
     exclude: [
       "@tiptap/extension-color",
