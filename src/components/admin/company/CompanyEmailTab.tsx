@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -139,6 +140,7 @@ const statusBadge = (s: string) => {
 export function CompanyEmailTab({ companyId, companyName }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
 
   // ── Quota via RPC ─────────────────────────────────────────────────────────
   const {
@@ -764,7 +766,19 @@ export function CompanyEmailTab({ companyId, companyName }: Props) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => removeDomainMutation.mutate()}
+                    onClick={async () => {
+                      if (
+                        await confirm({
+                          title: "Rimuovere il dominio email?",
+                          description:
+                            "Il dominio verrà scollegato e l'azienda non potrà più inviare email da questo dominio finché non lo riconfigura e verifica i DNS.",
+                          confirmLabel: "Rimuovi",
+                          variant: "destructive",
+                        })
+                      ) {
+                        removeDomainMutation.mutate();
+                      }
+                    }}
                     disabled={removeDomainMutation.isPending}
                     className="text-muted-foreground hover:text-destructive"
                   >

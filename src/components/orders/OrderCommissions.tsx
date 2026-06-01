@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -109,6 +110,7 @@ export function OrderCommissions({
 
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
+  const confirm = useConfirm();
 
   // Dialog state for paid date selection
   const [paidDialogOpen, setPaidDialogOpen] = useState(false);
@@ -461,7 +463,19 @@ export function OrderCommissions({
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => removeSalespersonMutation.mutate(sp.id)}
+                          aria-label={`Rimuovi provvigione di ${sp.salesperson.first_name} ${sp.salesperson.last_name}`}
+                          onClick={async () => {
+                            if (
+                              await confirm({
+                                title: "Rimuovere il venditore dalla commessa?",
+                                description: `La provvigione di ${sp.salesperson.first_name} ${sp.salesperson.last_name} verrà rimossa da questa commessa.`,
+                                confirmLabel: "Rimuovi",
+                                variant: "destructive",
+                              })
+                            ) {
+                              removeSalespersonMutation.mutate(sp.id);
+                            }
+                          }}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>

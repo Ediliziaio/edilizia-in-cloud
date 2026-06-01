@@ -4,6 +4,7 @@ import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { it } from "date-fns/locale";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -41,6 +42,7 @@ function PrimaNotaInner() {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
 
@@ -338,7 +340,19 @@ function PrimaNotaInner() {
                   {!e.is_auto && (
                     <button
                       className="text-muted-foreground hover:text-destructive mt-1"
-                      onClick={() => remove.mutate(e.id)}
+                      aria-label="Elimina movimento di prima nota"
+                      onClick={async () => {
+                        if (
+                          await confirm({
+                            title: "Eliminare il movimento?",
+                            description: `Il movimento da ${formatCurrency(e.amount)} verrà rimosso definitivamente dalla prima nota. L'operazione non può essere annullata.`,
+                            confirmLabel: "Elimina",
+                            variant: "destructive",
+                          })
+                        ) {
+                          remove.mutate(e.id);
+                        }
+                      }}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -427,7 +441,19 @@ function PrimaNotaInner() {
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => remove.mutate(e.id)}
+                        aria-label="Elimina movimento di prima nota"
+                        onClick={async () => {
+                          if (
+                            await confirm({
+                              title: "Eliminare il movimento?",
+                              description: `Il movimento da ${formatCurrency(e.amount)} verrà rimosso definitivamente dalla prima nota. L'operazione non può essere annullata.`,
+                              confirmLabel: "Elimina",
+                              variant: "destructive",
+                            })
+                          ) {
+                            remove.mutate(e.id);
+                          }
+                        }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>

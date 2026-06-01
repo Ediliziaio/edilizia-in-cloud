@@ -3,6 +3,7 @@ import { it } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { FileText, Eye, FilePlus, Trash2, Loader2 } from 'lucide-react';
 import { useDocumentoTemplates } from '@/hooks/useDocumentoTemplates';
 import type { DocumentoTemplate, DocumentoTipo } from '@/types/fea';
@@ -25,6 +26,7 @@ const tipoBadgeColor: Record<DocumentoTipo, string> = {
 
 export function DocumentiList({ onSelect }: DocumentiListProps) {
   const { templates, isLoading, deleteTemplate } = useDocumentoTemplates();
+  const confirm = useConfirm();
 
   if (isLoading) {
     return (
@@ -101,7 +103,19 @@ export function DocumentiList({ onSelect }: DocumentiListProps) {
                 variant="ghost"
                 size="sm"
                 className="text-red-400 hover:text-red-600 hover:bg-red-50"
-                onClick={() => deleteTemplate.mutate(template.id)}
+                aria-label={`Elimina template ${template.nome}`}
+                onClick={async () => {
+                  if (
+                    await confirm({
+                      title: 'Eliminare il template documento?',
+                      description: `Il template "${template.nome}" verrà rimosso definitivamente.`,
+                      confirmLabel: 'Elimina',
+                      variant: 'destructive',
+                    })
+                  ) {
+                    deleteTemplate.mutate(template.id);
+                  }
+                }}
                 disabled={deleteTemplate.isPending}
               >
                 <Trash2 className="h-3.5 w-3.5" />

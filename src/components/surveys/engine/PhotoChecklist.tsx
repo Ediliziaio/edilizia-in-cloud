@@ -14,6 +14,7 @@ import { Camera, Trash2, AlertCircle, Loader2, Plus, ImageIcon } from "lucide-re
 import { uploadMedia, deleteMedia } from "@/lib/api/surveys";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export interface PhotoChecklistProps {
   items: PhotoChecklistItem[];
@@ -31,6 +32,7 @@ export function PhotoChecklist({
 }: PhotoChecklistProps) {
   const [uploading, setUploading] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const confirm = useConfirm();
 
   const photosByKey = items.reduce((acc, item) => {
     acc[item.key] = media.filter(
@@ -63,6 +65,16 @@ export function PhotoChecklist({
   };
 
   const handleDelete = async (mediaId: string) => {
+    if (
+      !(await confirm({
+        title: "Eliminare la foto?",
+        description: "La foto verrà rimossa definitivamente dal sopralluogo.",
+        confirmLabel: "Elimina",
+        variant: "destructive",
+      }))
+    ) {
+      return;
+    }
     try {
       await deleteMedia(mediaId);
       onMediaDeleted?.(mediaId);

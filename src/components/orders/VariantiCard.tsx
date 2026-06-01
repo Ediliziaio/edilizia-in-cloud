@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -68,6 +69,7 @@ const emptyForm = () => ({
 
 export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiCardProps) {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState(emptyForm());
 
@@ -231,7 +233,19 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
                           variant="ghost"
                           size="sm"
                           className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                          onClick={() => deleteMutation.mutate(v.id)}
+                          onClick={async () => {
+                            if (
+                              await confirm({
+                                title: "Eliminare la variante?",
+                                description:
+                                  "La variante verrà rimossa definitivamente dalla commessa. L'operazione non può essere annullata.",
+                                confirmLabel: "Elimina",
+                                variant: "destructive",
+                              })
+                            ) {
+                              deleteMutation.mutate(v.id);
+                            }
+                          }}
                           disabled={deleteMutation.isPending}
                           aria-label="Elimina variante"
                         >

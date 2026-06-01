@@ -14,6 +14,7 @@ import {
 import type { Condizione, Azione, CampoCondizione, OperatoreCondizione, TipoAzione } from "@/lib/email-ai/rules-engine";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -63,6 +64,7 @@ export function EmailRulesSettings() {
   const save = useSaveEmailRegola();
   const del = useDeleteEmailRegola();
   const toggle = useToggleEmailRegola();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState<Partial<EmailRegola> | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -131,7 +133,24 @@ export function EmailRulesSettings() {
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditor(r)} aria-label="Modifica">
                   <Pencil className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => del.mutate(r.id)} aria-label="Elimina">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive"
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        title: "Eliminare la regola email?",
+                        description: `La regola "${r.nome}" verrà rimossa definitivamente e non verrà più applicata alle email in arrivo.`,
+                        confirmLabel: "Elimina",
+                        variant: "destructive",
+                      })
+                    ) {
+                      del.mutate(r.id);
+                    }
+                  }}
+                  aria-label={`Elimina regola ${r.nome}`}
+                >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </CardContent>

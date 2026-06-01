@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -74,6 +75,7 @@ const emptyVoce = (): VoceForm => ({
 
 export function SalTab({ orderId, companyId, orderTotalAmount }: SalTabProps) {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [note, setNote] = useState("");
   const [stato, setStato] = useState<"bozza" | "emesso" | "approvato">("bozza");
@@ -308,7 +310,19 @@ export function SalTab({ orderId, companyId, orderTotalAmount }: SalTabProps) {
                       variant="ghost"
                       size="sm"
                       className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                      onClick={() => deleteSalMutation.mutate(sal.id)}
+                      onClick={async () => {
+                        if (
+                          await confirm({
+                            title: `Eliminare il SAL #${sal.numero_sal}?`,
+                            description:
+                              "Lo stato avanzamento lavori verrà rimosso definitivamente. L'operazione non può essere annullata.",
+                            confirmLabel: "Elimina",
+                            variant: "destructive",
+                          })
+                        ) {
+                          deleteSalMutation.mutate(sal.id);
+                        }
+                      }}
                       disabled={deleteSalMutation.isPending}
                       aria-label="Elimina SAL"
                     >

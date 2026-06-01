@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
@@ -108,6 +109,7 @@ export function OrderItemAttachments({
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const confirm = useConfirm();
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -190,6 +192,16 @@ export function OrderItemAttachments({
   };
 
   const handleDelete = async (attachment: OrderItemAttachment) => {
+    if (
+      !(await confirm({
+        title: "Eliminare l'allegato?",
+        description: `"${attachment.file_name}" verrà rimosso definitivamente. L'operazione non può essere annullata.`,
+        confirmLabel: "Elimina",
+        variant: "destructive",
+      }))
+    ) {
+      return;
+    }
     setDeleting(attachment.id);
 
     try {
@@ -344,6 +356,7 @@ export function OrderItemAttachments({
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label={`Elimina allegato ${att.file_name}`}
                         onClick={() => handleDelete(att)}
                         disabled={deleting === att.id}
                       >

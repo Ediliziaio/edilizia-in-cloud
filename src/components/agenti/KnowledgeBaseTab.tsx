@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -55,6 +56,7 @@ export function KnowledgeBaseTab() {
   const companyId = useEffectiveCompanyId();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [cerca, setCerca] = useState("");
   const [filtroSync, setFiltroSync] = useState("tutti");
   const [showAdd, setShowAdd] = useState(false);
@@ -350,7 +352,19 @@ export function KnowledgeBaseTab() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-destructive"
-                          onClick={() => deleteDoc.mutate(doc.id)}
+                          aria-label={`Elimina documento ${doc.titolo}`}
+                          onClick={async () => {
+                            if (
+                              await confirm({
+                                title: "Eliminare il documento dalla knowledge base?",
+                                description: `"${doc.titolo}" verrà rimosso definitivamente e l'agente AI non potrà più usarlo.`,
+                                confirmLabel: "Elimina",
+                                variant: "destructive",
+                              })
+                            ) {
+                              deleteDoc.mutate(doc.id);
+                            }
+                          }}
                           disabled={deleteDoc.isPending}
                         >
                           <Trash2 className="h-3.5 w-3.5" />

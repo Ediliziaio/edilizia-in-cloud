@@ -41,6 +41,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 type RuleScope = "company" | "salesperson" | "order";
 type RuleTrigger = "base" | "tier" | "bonus" | "malus" | "hold" | "payment_policy" | "quality";
@@ -354,6 +355,7 @@ function normalizeDraft(draft: RulePayload): RulePayload {
 
 export function CommissionRulesDialog({ open, onOpenChange, companyId }: CommissionRulesDialogProps) {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [aiPrompt, setAiPrompt] = useState(DEFAULT_AI_PROMPT);
   const [aiDrafts, setAiDrafts] = useState<RulePayload[]>([]);
   const [manualName, setManualName] = useState("Provvigione base 4%");
@@ -639,7 +641,23 @@ export function CommissionRulesDialog({ open, onOpenChange, companyId }: Commiss
                           checked={rule.is_active}
                           onCheckedChange={(checked) => toggleRuleMutation.mutate({ rule, is_active: checked })}
                         />
-                        <Button variant="ghost" size="icon" onClick={() => deleteRuleMutation.mutate(rule)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Elimina regola provvigione ${rule.name}`}
+                          onClick={async () => {
+                            if (
+                              await confirm({
+                                title: "Eliminare la regola di provvigione?",
+                                description: `La regola "${rule.name}" verrà rimossa definitivamente dal piano provvigioni.`,
+                                confirmLabel: "Elimina",
+                                variant: "destructive",
+                              })
+                            ) {
+                              deleteRuleMutation.mutate(rule);
+                            }
+                          }}
+                        >
                           <Trash2 className="h-4 w-4 text-destructive" />
                           <span className="sr-only">Elimina {rule.name}</span>
                         </Button>

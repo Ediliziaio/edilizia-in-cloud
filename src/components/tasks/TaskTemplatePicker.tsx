@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { LayoutTemplate, Plus, Trash2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { TaskStatusBadge } from "./TaskStatusBadge";
@@ -72,6 +73,7 @@ export function TaskTemplatePicker({
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"list" | "save">("list");
   const [saveName, setSaveName] = useState("");
@@ -197,8 +199,20 @@ export function TaskTemplatePicker({
                     </button>
                     <button
                       className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
-                      onClick={() => deleteMutation.mutate(tpl.id)}
+                      onClick={async () => {
+                        if (
+                          await confirm({
+                            title: "Eliminare il template attività?",
+                            description: `Il template "${tpl.name}" verrà rimosso definitivamente.`,
+                            confirmLabel: "Elimina",
+                            variant: "destructive",
+                          })
+                        ) {
+                          deleteMutation.mutate(tpl.id);
+                        }
+                      }}
                       title="Elimina template"
+                      aria-label={`Elimina template ${tpl.name}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>

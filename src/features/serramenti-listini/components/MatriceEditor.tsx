@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { captureVelocityError } from "@/lib/velocity/sentry";
 import { useGridCellMutations, useGridCells } from "../hooks/useGridCells";
 import type { GridCell, SupplierCatalog, SupplierProductLine } from "../types";
@@ -73,6 +74,7 @@ export function MatriceEditor({
     axisConfig: null,
   });
   const { upsert, remove } = useGridCellMutations();
+  const confirm = useConfirm();
 
   // Sconto effettivo: override linea ∨ default fornitore
   const scontoEffettivo =
@@ -420,7 +422,19 @@ export function MatriceEditor({
                 {v}
                 <button
                   type="button"
-                  onClick={() => removeX(v)}
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        title: `Rimuovere la larghezza ${v}?`,
+                        description:
+                          "Verranno cancellati tutti i prezzi inseriti per questa larghezza nella matrice. L'azione sarà definitiva al salvataggio.",
+                        confirmLabel: "Rimuovi",
+                        variant: "destructive",
+                      })
+                    ) {
+                      removeX(v);
+                    }
+                  }}
                   className="inline-flex items-center justify-center h-6 w-6 rounded-full hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive transition-colors"
                   aria-label={`Rimuovi larghezza ${v}`}
                 >
@@ -475,7 +489,19 @@ export function MatriceEditor({
                 {v}
                 <button
                   type="button"
-                  onClick={() => removeY(v)}
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        title: `Rimuovere l'altezza ${v}?`,
+                        description:
+                          "Verranno cancellati tutti i prezzi inseriti per questa altezza nella matrice. L'azione sarà definitiva al salvataggio.",
+                        confirmLabel: "Rimuovi",
+                        variant: "destructive",
+                      })
+                    ) {
+                      removeY(v);
+                    }
+                  }}
                   className="inline-flex items-center justify-center h-6 w-6 rounded-full hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive transition-colors"
                   aria-label={`Rimuovi altezza ${v}`}
                 >

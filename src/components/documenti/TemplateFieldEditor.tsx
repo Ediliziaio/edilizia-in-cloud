@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import {
   Select,
   SelectContent,
@@ -38,6 +39,7 @@ function toSlug(s: string): string {
 
 export function TemplateFieldEditor({ templateId, companyId }: TemplateFieldEditorProps) {
   const { fields, isLoading, addField, removeField } = useTemplateFields(templateId);
+  const confirm = useConfirm();
 
   const [nome, setNome] = useState('');
   const [etichetta, setEtichetta] = useState('');
@@ -108,7 +110,19 @@ export function TemplateFieldEditor({ templateId, companyId }: TemplateFieldEdit
                   variant="ghost"
                   size="sm"
                   className="text-red-500 hover:bg-red-50 hover:text-red-700"
-                  onClick={() => removeField.mutate(f.id)}
+                  aria-label={`Elimina campo ${f.etichetta}`}
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        title: 'Eliminare il campo dal template?',
+                        description: `Il campo "${f.etichetta}" (${f.segnaposto}) verrà rimosso dal template.`,
+                        confirmLabel: 'Elimina',
+                        variant: 'destructive',
+                      })
+                    ) {
+                      removeField.mutate(f.id);
+                    }
+                  }}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

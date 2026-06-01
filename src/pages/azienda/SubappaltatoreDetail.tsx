@@ -9,6 +9,7 @@ import { it } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -82,6 +83,7 @@ export default function SubappaltatoreDetail() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? '';
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
 
   // ── Fetch subappaltatore ─────────────────────────────────────────────────
   const { data: sub, isLoading: loadingSub } = useQuery({
@@ -854,7 +856,19 @@ export default function SubappaltatoreDetail() {
                             variant="ghost"
                             size="sm"
                             className="text-destructive hover:text-destructive"
-                            onClick={() => deleteDocumentMutation.mutate(doc)}
+                            aria-label={`Elimina documento ${TIPO_DOC_LABELS[doc.tipo]}`}
+                            onClick={async () => {
+                              if (
+                                await confirm({
+                                  title: 'Eliminare il documento?',
+                                  description: `Il documento "${TIPO_DOC_LABELS[doc.tipo]}${doc.nome_file ? ` — ${doc.nome_file}` : ''}" verrà rimosso definitivamente dal subappaltatore.`,
+                                  confirmLabel: 'Elimina',
+                                  variant: 'destructive',
+                                })
+                              ) {
+                                deleteDocumentMutation.mutate(doc);
+                              }
+                            }}
                             disabled={deleteDocumentMutation.isPending}
                           >
                             <Trash2 className="h-3.5 w-3.5" />

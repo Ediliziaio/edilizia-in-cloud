@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Upload, Download, Trash2, File, Image, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -34,6 +35,7 @@ function formatFileSize(bytes: number) {
 export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, linkToOpportunity, compact }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const queryKey = opportunityId
@@ -182,7 +184,19 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 text-destructive"
-                  onClick={() => deleteMutation.mutate(doc)}
+                  aria-label={`Elimina documento ${doc.file_name}`}
+                  onClick={async () => {
+                    if (
+                      await confirm({
+                        title: "Eliminare il documento?",
+                        description: `"${doc.file_name}" verrà rimosso definitivamente. L'operazione non può essere annullata.`,
+                        confirmLabel: "Elimina",
+                        variant: "destructive",
+                      })
+                    ) {
+                      deleteMutation.mutate(doc);
+                    }
+                  }}
                   disabled={deleteMutation.isPending}
                 >
                   <Trash2 className="h-3 w-3" />
