@@ -48,6 +48,7 @@ import { customerRoutes, employeeRoutes, salespersonRoutes, partnerRoutes } from
 // (TecnicoRoutesContainer/CampoRoutesContainer sopra) → rimossi gli import diretti
 // che non erano più usati (lint error: 'tecnicoRoutes'/'campoRoutes' defined but never used).
 import { portaleClienteRoutes } from "@/routes/portaleClienteRoutes";
+import { userErrorMessage } from "@/lib/userErrorMessage";
 
 // Suspense fallback — full-screen overlay (fixed inset-0 z-40) per evitare
 // che il fallback "piccolo" lasci intravedere la landing/Home sottostante
@@ -306,7 +307,9 @@ const queryClient = new QueryClient({
       // non si è dichiarata silent (vedi useWeatherForecast → meta:{silent:true}).
       const silent = (query.meta as { silent?: boolean } | undefined)?.silent;
       if (query.state.data !== undefined && !silent) {
-        toast.error(`Errore di aggiornamento dati: ${error.message}`);
+        // Audit design: niente error.message tecnico all'utente. Messaggio
+        // comprensibile in italiano; il dettaglio tecnico resta in Sentry sopra.
+        toast.error(userErrorMessage(error, "Aggiornamento dati non riuscito. Riprova."));
       }
     },
   }),
@@ -324,7 +327,7 @@ const queryClient = new QueryClient({
       } catch {
         /* noop */
       }
-      toast.error(`Operazione non riuscita: ${error.message}`);
+      toast.error(userErrorMessage(error));
     },
   }),
   defaultOptions: {
