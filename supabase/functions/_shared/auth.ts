@@ -79,9 +79,63 @@ export async function requireAuth(
 }
 
 /**
+ * Normalizza un'email per confronto case-insensitive (tollerante a whitespace).
+ */
+function normalizeEmail(email: string | null | undefined): string {
+  return (email ?? "").trim().toLowerCase();
+}
+
+/**
+ * Allowlist email super_admin — defense-in-depth lato server.
+ *
+ * Mirror di `src/config/superAdmin.ts`: anche se un utente ha
+ * `role = super_admin` in `user_roles` (seed errato, migrazione o DB
+ * compromesso), SOLO le email in `SUPER_ADMIN_EMAIL_ALLOWLIST` possono
+ * esercitare privilegi super_admin. È l'ULTIMA parola per la revoca: togliere
+ * l'email qui blocca l'utente anche se la riga `user_roles` sopravvive.
+ *
+ * Usa la stessa env var e lo stesso default delle funzioni referral
+ * (create-referral-partner / link-referral-partner) per coerenza.
+ */
+export function isSuperAdminEmailAllowed(email: string | null | undefined): boolean {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return false;
+  const configured = Deno.env.get("SUPER_ADMIN_EMAIL_ALLOWLIST") || "flo.andriciuc@gmail.com";
+  return configured
+    .split(",")
+    .map((item) => normalizeEmail(item))
+    .filter(Boolean)
+    .includes(normalized);
+}
+
+/**
+ * Risolve l'email (auth.users) dell'utente tramite il client service-role.
+ * Ritorna null se non recuperabile — il chiamante DEVE trattare null come
+ * "non in allowlist" (fail-closed).
+ */
+export async function resolveUserEmail(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  userId: string,
+): Promise<string | null> {
+  try {
+    const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
+    if (error || !data?.user) return null;
+    return data.user.email ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Checks that the authenticated user has one of the allowed roles.
  * Returns the matched role string.
  * Throws a Response (403) if no matching role is found.
+ *
+ * Defense-in-depth: il ruolo `super_admin` è riconosciuto SOLO se l'email del
+ * chiamante è nell'allowlist (vedi `isSuperAdminEmailAllowed`). Un super_admin
+ * non in allowlist conserva gli altri eventuali ruoli ma perde i privilegi
+ * super_admin, coerentemente con `src/config/superAdmin.ts`.
  */
 export async function requireRole(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -102,7 +156,20 @@ export async function requireRole(
     );
   }
 
-  const roleNames = userRoles.map((r: any) => r.role);
+  let roleNames = userRoles.map((r: any) => r.role);
+
+  // Defense-in-depth: "spegni" super_admin se l'email del chiamante non è
+  // nell'allowlist. L'utente conserva gli altri ruoli (es. company_admin) ma
+  // non può esercitare privilegi super_admin, anche se la riga `user_roles`
+  // sopravvive. L'email viene risolta solo quando il ruolo è presente, così i
+  // chiamanti non-super-admin non pagano la chiamata extra.
+  if (roleNames.includes("super_admin")) {
+    const callerEmail = await resolveUserEmail(supabaseAdmin, userId);
+    if (!isSuperAdminEmailAllowed(callerEmail)) {
+      roleNames = roleNames.filter((r: string) => r !== "super_admin");
+    }
+  }
+
   const matchedRole = allowedRoles.find((r) => roleNames.includes(r));
 
   if (!matchedRole) {

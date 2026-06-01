@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -41,7 +42,10 @@ Deno.serve(async (req) => {
       .eq("user_id", user.id);
 
     const isSuperAdmin = roles?.some((r: any) => r.role === "super_admin");
-    if (!isSuperAdmin) {
+    // Defense-in-depth: oltre al ruolo in user_roles, l'email deve essere
+    // nell'allowlist super_admin (vedi src/config/superAdmin.ts). Revoca =
+    // rimuovere l'email dall'allowlist, anche se la riga user_roles sopravvive.
+    if (!isSuperAdmin || !isSuperAdminEmailAllowed(user.email)) {
       return new Response(JSON.stringify({ error: "Forbidden: super_admin only" }), {
         status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });

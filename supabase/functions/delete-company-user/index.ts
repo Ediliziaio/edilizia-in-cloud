@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
 
 type SupabaseAdminClient = any;
 
@@ -34,8 +35,14 @@ async function hasCompanyAdminAccess(
   profileCompanyId: string | null | undefined,
   roles: RoleRow[] | null | undefined,
   companyId: string,
+  callerEmail: string | null | undefined,
 ) {
-  const isSuperAdmin = roles?.some((r) => r.role === "super_admin") ?? false;
+  // Defense-in-depth: il bypass super_admin (accesso a QUALSIASI azienda) vale
+  // solo se l'email è nell'allowlist (vedi src/config/superAdmin.ts). Un
+  // super_admin revocato dall'allowlist perde il bypass ma conserva gli
+  // eventuali diritti di company_admin sulla propria azienda (verificati sotto).
+  const isSuperAdmin = (roles?.some((r) => r.role === "super_admin") ?? false)
+    && isSuperAdminEmailAllowed(callerEmail);
   if (isSuperAdmin) return true;
 
   const isOwnCompanyAdmin = (roles?.some((r) => r.role === "company_admin") ?? false)
@@ -266,6 +273,7 @@ Deno.serve(async (req) => {
       callerProfile?.company_id,
       callerRoles,
       targetCompanyId,
+      caller.email,
     );
     if (!isAuthorized) {
       return jsonResponse(req, { error: "Solo gli amministratori possono eliminare utenti" }, 403);

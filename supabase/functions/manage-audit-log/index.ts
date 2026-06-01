@@ -27,6 +27,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
+import { isSuperAdminEmailAllowed } from "../_shared/auth.ts";
 
 interface AuditEntryInput {
   action?: string;
@@ -74,7 +75,9 @@ Deno.serve(async (req: Request) => {
       .select("role")
       .eq("user_id", userId);
     const isSuperAdmin = (rolesData ?? []).some((r: { role: string }) => r.role === "super_admin");
-    if (!isSuperAdmin) {
+    // Defense-in-depth: serve anche l'email nell'allowlist super_admin (vedi
+    // src/config/superAdmin.ts), non solo il ruolo in user_roles.
+    if (!isSuperAdmin || !isSuperAdminEmailAllowed(userData.user.email)) {
       return errorResponse("Forbidden: solo super_admin può scrivere audit log", 403, cors);
     }
 
