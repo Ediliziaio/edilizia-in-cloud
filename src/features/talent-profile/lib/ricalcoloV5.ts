@@ -366,6 +366,10 @@ export async function ricalcolaTuttiProfiliV5(
  * Esegue un ricalcolo di test (senza salvare) e stampa i risultati
  */
 export async function testRicalcoloV5(candidatoId: string): Promise<void> {
+  // Debug helper: i console.log sotto sono lo scopo della funzione (stampa
+  // diagnostica). Guard DEV-only: in produzione la funzione è no-op così non
+  // sporca la console utente né esegue lavoro inutile se richiamata per errore.
+  if (!import.meta.env.DEV) return;
   console.log('='.repeat(60));
   console.log('TEST RICALCOLO V5 NATIVO');
   console.log('='.repeat(60));
