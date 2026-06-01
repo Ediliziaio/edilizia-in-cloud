@@ -84,7 +84,7 @@ export function parseItalianNumber(raw: string | number | null | undefined): num
   if (!s) return null;
   // togli valuta, lettere e spazi (NBSP incluso)
   s = s
-    .replace(/ /g, "")
+    .replace(/\u00A0/g, "")
     .replace(/eur(o)?/gi, "")
     .replace(/[€$£\s]/g, "")
     .replace(/[a-z]/gi, "");
@@ -549,7 +549,7 @@ export async function parsePrezziarioExcel(buffer: ArrayBuffer): Promise<Prezzia
     const vals: string[] = [];
     row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       const raw = cell.value;
-      let str = "";
+      let str: string;
       if (raw === null || raw === undefined) {
         str = "";
       } else if (typeof raw === "object" && "richText" in (raw as object)) {

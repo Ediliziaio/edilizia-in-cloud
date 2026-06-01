@@ -20,7 +20,7 @@ const MobileBootstrap = isNative
   : (() => null) as React.FC;
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
+import { QueryClient, QueryCache, MutationCache } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createIdbPersister, shouldPersistQuery } from "@/lib/queryPersister";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";

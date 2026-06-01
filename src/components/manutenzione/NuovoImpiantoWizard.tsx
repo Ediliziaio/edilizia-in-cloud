@@ -89,6 +89,17 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
     mutationFn: async () => {
       if (!customerId) throw new Error("Seleziona un cliente");
       if (!tipoImpianto) throw new Error("Seleziona il tipo di impianto");
+      // Se l'utente ha scelto di creare un contratto, i campi obbligatori
+      // devono essere compilati: altrimenti il contratto verrebbe saltato in
+      // silenzio (l'impianto si salva ma il contratto no). Meglio un errore chiaro.
+      if (hasContratto) {
+        if (!nomeContratto.trim())
+          throw new Error('Inserisci il nome del contratto, oppure deseleziona "Crea contratto di manutenzione".');
+        if (!importoCanone.trim() || Number.isNaN(parseFloat(importoCanone)))
+          throw new Error('Inserisci un importo canone valido, oppure deseleziona "Crea contratto di manutenzione".');
+      }
+      if (hasPiano && !titoloManutenzione.trim())
+        throw new Error("Inserisci un titolo per il piano di manutenzione, oppure deseleziona l'opzione.");
 
       // 1. Crea impianto
       const { data: impianto, error: impErr } = await supabase
@@ -109,7 +120,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
 
       // 2. Crea contratto se richiesto
       let contrattoId: string | null = null;
-      if (hasContratto && nomeContratto.trim() && importoCanone) {
+      if (hasContratto) {
         const { data: contratto, error: contErr } = await supabase
           .from("contratti_manutenzione")
           .insert({
@@ -129,7 +140,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
       }
 
       // 3. Crea piano se richiesto (contratto opzionale)
-      if (hasPiano && titoloManutenzione.trim()) {
+      if (hasPiano) {
         const { error: pianoErr } = await supabase
           .from("piani_manutenzione")
           .insert({
@@ -172,10 +183,10 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
           <DialogTitle>Nuovo Impianto</DialogTitle>
           <div className="flex gap-1 mt-2">
             {[1, 2, 3].map((s) => (
-              <div key={s} className={`flex-1 h-1 rounded-full ${s <= step ? "bg-blue-500" : "bg-gray-200"}`} />
+              <div key={s} className={`flex-1 h-1 rounded-full ${s <= step ? "bg-primary" : "bg-muted"}`} />
             ))}
           </div>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Passo {step} di 3: {step === 1 ? "Cliente e impianto" : step === 2 ? "Piano manutenzione" : "Contratto"}
           </p>
         </DialogHeader>
@@ -369,6 +380,11 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
                     <input type="checkbox" checked={rinnovoAutomatico} onChange={(e) => setRinnovoAutomatico(e.target.checked)} className="h-4 w-4 rounded" />
                     <span className="text-sm">Rinnovo automatico</span>
                   </label>
+                  {(!nomeContratto.trim() || !importoCanone.trim()) && (
+                    <p className="text-xs text-amber-600">
+                      Compila nome e importo per creare il contratto, oppure deseleziona l&apos;opzione qui sopra.
+                    </p>
+                  )}
                 </div>
               )}
             </>

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft, Loader2, Mail, Phone, Trash2, Wand2,
   AlertTriangle, Pencil, Euro, ShoppingBag, LifeBuoy,
-  FileText, CalendarDays, MessageSquare, ChevronDown, Plus,
+  FileText, CalendarDays, MessageSquare, ChevronDown,
   ClipboardList, FileSignature, Ticket,
 } from "lucide-react";
 import {
