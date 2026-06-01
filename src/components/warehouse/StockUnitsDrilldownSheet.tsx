@@ -209,6 +209,7 @@ export function StockUnitsDrilldownSheet({
               Nessun seriale corrisponde ai filtri.
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-muted/50">
                 <tr className="text-left">
@@ -225,6 +226,7 @@ export function StockUnitsDrilldownSheet({
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </SheetContent>

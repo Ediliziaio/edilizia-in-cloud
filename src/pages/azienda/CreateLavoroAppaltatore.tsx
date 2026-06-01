@@ -579,7 +579,7 @@ export default function CreateLavoroAppaltatore() {
                           <span className="font-semibold text-sm text-slate-800">
                             {inst.label}
                             {isBalance && (
-                              <span className="ml-2 text-[10px] uppercase tracking-wider text-slate-400 font-medium">
+                              <span className="ml-2 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
                                 Calcolato
                               </span>
                             )}
@@ -719,13 +719,13 @@ export default function CreateLavoroAppaltatore() {
               <div className="flex items-start justify-between gap-3">
                 <dt className="text-slate-500 shrink-0">Appaltatore</dt>
                 <dd className="font-medium text-right text-slate-800 truncate max-w-[60%]">
-                  {selectedAppaltatore?.business_name || <em className="text-slate-400 font-normal">Da selezionare</em>}
+                  {selectedAppaltatore?.business_name || <em className="text-muted-foreground font-normal">Da selezionare</em>}
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-3">
                 <dt className="text-slate-500 shrink-0">Codice</dt>
                 <dd className="font-medium text-right text-slate-800 truncate font-mono text-[11px]">
-                  {orderCode.trim() || <em className="text-slate-400 font-normal font-sans">Auto</em>}
+                  {orderCode.trim() || <em className="text-muted-foreground font-normal font-sans">Auto</em>}
                 </dd>
               </div>
               <div className="flex items-start justify-between gap-3">

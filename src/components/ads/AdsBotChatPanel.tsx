@@ -213,7 +213,7 @@ export function AdsBotChatPanel({ companyId, context }: Props) {
                 )}
               </Button>
             </div>
-            <p className="mt-1 text-[10px] text-slate-400">
+            <p className="mt-1 text-[10px] text-muted-foreground">
               Premi Enter per inviare · Shift+Enter per andare a capo
             </p>
           </div>

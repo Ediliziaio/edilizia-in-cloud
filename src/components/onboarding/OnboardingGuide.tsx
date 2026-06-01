@@ -143,7 +143,7 @@ export function OnboardingGuide({ onDismiss }: { onDismiss?: () => void }) {
             <Badge variant="secondary" className="text-xs">
               {completed.length}/{steps.length}
             </Badge>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleDismiss}>
+            <Button variant="ghost" size="icon" className="h-6 w-6 max-sm:h-11 max-sm:w-11" onClick={handleDismiss}>
               <X className="h-3 w-3" />
             </Button>
           </div>

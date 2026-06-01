@@ -247,6 +247,7 @@ function AIUsageThresholdsPanel() {
             Nessuna soglia configurata. Esegui la migrazione SQL.
           </p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
@@ -269,6 +270,7 @@ function AIUsageThresholdsPanel() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </CardContent>
     </Card>

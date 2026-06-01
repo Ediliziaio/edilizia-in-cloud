@@ -553,6 +553,7 @@ export function FamilyGridEditor({
                 Nessuna modifica registrata. Lo storico parte dalle prime modifiche dopo l'attivazione.
               </p>
             ) : (
+              <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-muted/30">
                   <tr>
@@ -597,6 +598,7 @@ export function FamilyGridEditor({
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         ) : null}

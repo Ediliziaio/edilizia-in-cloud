@@ -191,7 +191,7 @@ export default function AnagraficaDetail() {
 
         <TabsContent value="fatture" className="mt-4">
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
@@ -229,7 +229,7 @@ export default function AnagraficaDetail() {
 
         <TabsContent value="ddt" className="mt-4">
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">
@@ -267,7 +267,7 @@ export default function AnagraficaDetail() {
 
         <TabsContent value="movimenti" className="mt-4">
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/50">

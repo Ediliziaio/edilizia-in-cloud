@@ -274,7 +274,8 @@ export function TabIndiciAvanzati({ anno }: Props) {
 
             <div className="rounded-2xl border p-4 text-sm lg:col-span-2">
               <p className="font-semibold">Componenti del calcolo</p>
-              <table className="mt-3 w-full text-xs">
+              <div className="overflow-x-auto">
+                <table className="mt-3 w-full text-xs">
                 <tbody>
                   <tr className="border-b">
                     <td className="py-1.5">EBITDA</td>
@@ -299,7 +300,8 @@ export function TabIndiciAvanzati({ anno }: Props) {
                     </td>
                   </tr>
                 </tbody>
-              </table>
+                </table>
+              </div>
               <p className="mt-3 flex items-start gap-1.5 text-xs text-muted-foreground">
                 <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
                 Soglie banca: <strong className="ml-1">≥ 1.50 eccellente · ≥ 1.20 buono · &lt; 1.00 insufficiente</strong>

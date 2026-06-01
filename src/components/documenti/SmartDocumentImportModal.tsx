@@ -614,7 +614,7 @@ export function SmartDocumentImportModal({
   // Helper: render JSON nidificato come tree leggibile
   const renderValue = (val: unknown, depth = 0): JSX.Element => {
     if (val === null || val === undefined) {
-      return <span className="text-slate-400 italic">—</span>;
+      return <span className="text-muted-foreground italic">—</span>;
     }
     if (typeof val === "boolean") {
       return <span className={val ? "text-green-600" : "text-red-600"}>{val ? "sì" : "no"}</span>;
@@ -626,7 +626,7 @@ export function SmartDocumentImportModal({
       return <span title={val}>{val.length > 100 ? val.slice(0, 100) + "…" : val}</span>;
     }
     if (Array.isArray(val)) {
-      if (val.length === 0) return <span className="text-slate-400 italic">vuoto</span>;
+      if (val.length === 0) return <span className="text-muted-foreground italic">vuoto</span>;
       if (typeof val[0] !== "object") {
         return (
           <span>
@@ -658,8 +658,8 @@ export function SmartDocumentImportModal({
     }
     if (typeof val === "object") {
       const entries = Object.entries(val as Record<string, unknown>);
-      if (entries.length === 0) return <span className="text-slate-400 italic">—</span>;
-      if (depth >= 2) return <span className="text-slate-400 italic">…</span>;
+      if (entries.length === 0) return <span className="text-muted-foreground italic">—</span>;
+      if (depth >= 2) return <span className="text-muted-foreground italic">…</span>;
       return (
         <dl className={`grid grid-cols-[max-content_1fr] gap-x-2 gap-y-0.5 ${depth > 0 ? "pl-3 border-l border-slate-200" : ""}`}>
           {entries.map(([k, v]) => (

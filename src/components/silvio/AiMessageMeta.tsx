@@ -223,7 +223,7 @@ function CouncilExpandable({ subOutputs }: { subOutputs: CouncilSubOutput[] }) {
                       <ChatMarkdown content={s.response} sources={s.rag_sources} />
                     </div>
                   ) : (
-                    <p className="text-[11px] text-slate-400 italic">(nessuna risposta)</p>
+                    <p className="text-[11px] text-muted-foreground italic">(nessuna risposta)</p>
                   )}
                 </div>
               ))}

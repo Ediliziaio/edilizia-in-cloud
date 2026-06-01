@@ -90,7 +90,7 @@ export function DettaglioVoceMeseSheet({
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Sub-righe (per categoria)
               </h3>
-              <div className="overflow-hidden rounded-xl border">
+              <div className="overflow-x-auto rounded-xl border">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/40">
                     <tr>

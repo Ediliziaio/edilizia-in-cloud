@@ -847,7 +847,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                     <Badge key={tag} variant="secondary" className="text-[11px] px-1.5 py-0 gap-1 h-5">
                       {tag}
                       {canEditContacts && (
-                      <X className="h-2.5 w-2.5 cursor-pointer" onClick={async () => {
+                      <X className="h-2.5 w-2.5 cursor-pointer max-sm:box-content max-sm:p-2 max-sm:-mr-1 max-sm:-my-1" onClick={async () => {
                         updateField.mutate({
                           field: "tags",
                           value: normalizeTagList(contact.tags).filter((currentTag) => currentTag !== normalizeTagName(tag)),

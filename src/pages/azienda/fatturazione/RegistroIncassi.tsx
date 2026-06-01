@@ -284,7 +284,7 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
             </div>
           ) : (
             <Card>
-              <CardContent className="p-0">
+              <CardContent className="p-0 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50">

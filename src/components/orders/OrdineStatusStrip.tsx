@@ -95,7 +95,7 @@ export function OrdineStatusStrip({
                   {status.name}
                 </span>
                 {date && (
-                  <span className="text-[10px] text-slate-400 whitespace-nowrap font-medium">
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap font-medium">
                     {date}
                   </span>
                 )}

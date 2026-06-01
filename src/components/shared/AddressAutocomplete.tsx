@@ -138,7 +138,7 @@ export default function AddressAutocomplete({ value, onChange }: Props) {
           <span className="flex-1 truncate">
             {value.formatted_address || `${value.address_line}, ${value.address_city}`}
           </span>
-          <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={clearAddress}>
+          <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0 max-sm:h-11 max-sm:w-11" onClick={clearAddress}>
             <X className="h-3.5 w-3.5" />
           </Button>
         </div>

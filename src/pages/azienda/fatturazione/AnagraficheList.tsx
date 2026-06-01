@@ -197,7 +197,7 @@ function AnagraficheTable() {
         <div className="text-center py-12 text-muted-foreground">Nessuna anagrafica trovata</div>
       ) : (
         <Card>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
@@ -387,7 +387,7 @@ function ReconciliazionePanel({ companyId, userId }: { companyId: string | null;
               Già collegate ({linked.length})
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
@@ -447,7 +447,7 @@ function ReconciliazionePanel({ companyId, userId }: { companyId: string | null;
               Non collegate ({unlinked.length})
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <ManualLinkTable
               unlinked={unlinked}
               companyId={companyId}

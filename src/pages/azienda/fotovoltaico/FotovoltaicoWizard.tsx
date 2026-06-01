@@ -3092,7 +3092,7 @@ function Step6Finanziario({
                 if (!ratiData) return null;
                 const r = ratiData.rata;
                 return (
-                  <div className="border-t border-slate-200 pt-3 mt-2">
+                  <div className="border-t border-slate-200 pt-3 mt-2 overflow-x-auto">
                     <table className="w-full text-sm">
                       <tbody>
                         <tr>

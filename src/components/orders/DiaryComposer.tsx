@@ -263,10 +263,10 @@ export function DiaryComposer({
             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden text-sm">
               <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
                 <p className="text-xs text-gray-400">Oggetto</p>
-                <p className="font-medium text-gray-900 mt-0.5">{subject || <span className="text-gray-300 italic">nessun oggetto</span>}</p>
+                <p className="font-medium text-gray-900 mt-0.5">{subject || <span className="text-muted-foreground italic">nessun oggetto</span>}</p>
               </div>
               <div className="px-4 py-3 whitespace-pre-wrap text-gray-700 min-h-[200px] font-mono text-xs leading-relaxed overflow-y-auto max-h-64">
-                {body || <span className="text-gray-300 italic">corpo vuoto</span>}
+                {body || <span className="text-muted-foreground italic">corpo vuoto</span>}
               </div>
             </div>
           )}
@@ -294,7 +294,7 @@ export function DiaryComposer({
             <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
               <p className="text-xs text-amber-600 font-medium mb-2">📝 Nota interna (solo team)</p>
               <p className="text-xs text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
-                {body || <span className="text-gray-300 italic">nota vuota</span>}
+                {body || <span className="text-muted-foreground italic">nota vuota</span>}
               </p>
             </div>
           )}

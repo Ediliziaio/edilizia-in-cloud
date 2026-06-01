@@ -125,7 +125,7 @@ export const TagSelector = forwardRef<HTMLDivElement, TagSelectorProps>(({ selec
             <Badge key={tag} variant="secondary" className="gap-1">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorByName.get(tag) || DEFAULT_TAG_COLOR }} />
               {tag}
-              <X className="h-3 w-3 cursor-pointer" onClick={() => removeTag(tag)} />
+              <X className="h-3 w-3 cursor-pointer max-sm:box-content max-sm:p-2 max-sm:-mr-1 max-sm:-my-1" onClick={() => removeTag(tag)} />
             </Badge>
           ))}
         </div>

@@ -76,7 +76,7 @@ export function OrdineNote({
       ) : (
         <p className="text-sm text-slate-600 whitespace-pre-wrap">
           {notes || (
-            <span className="text-slate-400 italic">Nessuna nota interna</span>
+            <span className="text-muted-foreground italic">Nessuna nota interna</span>
           )}
         </p>
       )}

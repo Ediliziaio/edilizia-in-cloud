@@ -351,7 +351,7 @@ function CounterBadge({
   len: number;
   ideal: { ideal_min?: number; ideal_max: number; hard_max: number };
 }) {
-  if (status === "empty") return <span className="text-slate-400">0 caratteri</span>;
+  if (status === "empty") return <span className="text-muted-foreground">0 caratteri</span>;
   return (
     <span
       className={cn(

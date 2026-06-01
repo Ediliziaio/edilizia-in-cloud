@@ -104,7 +104,7 @@ export function MergeTagInserter({ targetRef, onInsert, currentValue, trigger }:
         </div>
         <div className="overflow-y-auto p-2 flex-1 min-h-0 space-y-3">
           {Object.entries(grouped).length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-4">Nessun campo trovato.</p>
+            <p className="text-xs text-muted-foreground text-center py-4">Nessun campo trovato.</p>
           ) : (
             Object.entries(grouped).map(([group, tags]) => (
               <div key={group}>
