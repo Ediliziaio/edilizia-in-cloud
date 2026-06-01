@@ -165,6 +165,10 @@ Deno.serve(async (req) => {
   let errorCount = 0;
 
   // Invia in batch da 20
+  // Escape dei valori sostituiti (i campi contatto sono dati non fidati): evita
+  // HTML/phishing injection nel corpo email. Il template resta HTML voluto.
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const BATCH_SIZE = 20;
   for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
     const batch = recipients.slice(i, i + BATCH_SIZE);
@@ -173,9 +177,9 @@ Deno.serve(async (req) => {
         if (!c.email) return;
         try {
           let personalizedHtml = campaign.html_body
-            .replace(/\{\{nome\}\}/gi, c.first_name)
-            .replace(/\{\{cognome\}\}/gi, c.last_name ?? "")
-            .replace(/\{\{email\}\}/gi, c.email);
+            .replace(/\{\{nome\}\}/gi, escapeHtml(c.first_name ?? ""))
+            .replace(/\{\{cognome\}\}/gi, escapeHtml(c.last_name ?? ""))
+            .replace(/\{\{email\}\}/gi, escapeHtml(c.email));
           personalizedHtml = applyContactCustomFields(personalizedHtml, c.id, customFieldResolver);
 
           const result = await sendEmailUnified({

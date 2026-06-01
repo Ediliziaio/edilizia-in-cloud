@@ -12,11 +12,15 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { Send, User, Loader2 } from "lucide-react";
+import { Send, User, Loader2, Sparkles } from "lucide-react";
 import {
   useTicketRisposte, type TicketRow,
 } from "@/hooks/useTicketAzienda";
+import { SUPPORT_PRIORITIES } from "@/types/tickets";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const prioritaConfig: Record<
@@ -49,7 +53,10 @@ export function TicketDetailDrawer({
   ticket, onClose, onCambiaStato, isChangingState,
 }: TicketDetailDrawerProps) {
   const { user, profile } = useAuth();
+  const queryClient = useQueryClient();
   const [risposta, setRisposta] = useState("");
+  const [aiDrafting, setAiDrafting] = useState(false);
+  const [aiTriaging, setAiTriaging] = useState(false);
 
   const { risposte, isLoading, aggiungiRisposta } = useTicketRisposte(ticket?.id);
 
@@ -90,6 +97,81 @@ export function TicketDetailDrawer({
     );
   };
 
+  // Bozza risposta AI (support-ai-chat) a partire da richiesta + thread.
+  const handleAiDraft = async () => {
+    if (aiDrafting || !ticket) return;
+    setAiDrafting(true);
+    try {
+      const conversation: { role: string; content: string }[] = [
+        {
+          role: "user",
+          content: [ticket.titolo, ticket.descrizione].filter(Boolean).join("\n\n"),
+        },
+        ...risposte
+          .filter((r) => !r.is_interno)
+          .map((r) => ({
+            role: r.autore_nome && r.autore_nome === autoreNome ? "assistant" : "user",
+            content: r.testo,
+          })),
+      ];
+      const { data, error } = await supabase.functions.invoke("support-ai-chat", {
+        body: { action: "chat", conversation },
+      });
+      if (error) throw error;
+      const draft = (data?.reply ?? "").trim();
+      if (!draft) {
+        toast.error("L'AI non ha prodotto una risposta. Riprova.");
+        return;
+      }
+      setRisposta(draft);
+      toast.success("Bozza generata — rivedi prima di inviare.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Impossibile generare la bozza.");
+    } finally {
+      setAiDrafting(false);
+    }
+  };
+
+  // Triage AI: l'AI analizza richiesta + thread e aggiorna la priorità.
+  const handleAiTriage = async () => {
+    if (aiTriaging || !ticket) return;
+    setAiTriaging(true);
+    try {
+      const content = [
+        ticket.titolo,
+        ticket.descrizione,
+        ...risposte.filter((r) => !r.is_interno).map((r) => r.testo),
+      ]
+        .filter(Boolean)
+        .join("\n");
+      const { data, error } = await supabase.functions.invoke("support-ai-chat", {
+        body: { action: "chat", conversation: [{ role: "user", content }] },
+      });
+      if (error) throw error;
+      const sp = String(data?.suggested_priority ?? "");
+      if (!(SUPPORT_PRIORITIES as readonly string[]).includes(sp)) {
+        toast.info("Analisi AI completata: nessun cambio di priorità suggerito.");
+        return;
+      }
+      if (sp === ticket.priorita) {
+        toast.info(`L'AI conferma la priorità attuale (${sp}).`);
+        return;
+      }
+      const { error: upErr } = await supabase
+        .from("tickets")
+        .update({ priority: sp, priorita: sp })
+        .eq("id", ticket.id);
+      if (upErr) throw upErr;
+      queryClient.invalidateQueries({ queryKey: ["ticket-azienda", ticket.company_id] });
+      queryClient.invalidateQueries({ queryKey: ["company-detail", ticket.company_id] });
+      toast.success(`Priorità aggiornata dall'AI: ${sp}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Triage AI non riuscito.");
+    } finally {
+      setAiTriaging(false);
+    }
+  };
+
   const rispostaLen = risposta.length;
   const rispostaOver = rispostaLen > RISPOSTA_MAX;
 
@@ -115,6 +197,21 @@ export function TicketDetailDrawer({
                 >
                   {prioritaConfig[ticket.priorita].label}
                 </Badge>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-violet-600 hover:text-violet-700 dark:text-violet-400"
+                  onClick={handleAiTriage}
+                  disabled={aiTriaging}
+                  title="Triage AI: suggerisci e applica la priorità"
+                >
+                  {aiTriaging ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
+                </Button>
                 {ticket.categoria && (
                   <Badge variant="secondary" className="text-xs">
                     {ticket.categoria}
@@ -246,22 +343,37 @@ export function TicketDetailDrawer({
                     }
                   }}
                 />
-                <Button
-                  size="sm"
-                  className="self-end"
-                  onClick={handleSendRisposta}
-                  disabled={
-                    !risposta.trim() ||
-                    rispostaOver ||
-                    aggiungiRisposta.isPending
-                  }
-                >
-                  {aggiungiRisposta.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                </Button>
+                <div className="flex flex-col gap-2 self-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-violet-600 hover:text-violet-700 dark:text-violet-400"
+                    onClick={handleAiDraft}
+                    disabled={aiDrafting || aggiungiRisposta.isPending}
+                    title="Genera bozza risposta con AI"
+                  >
+                    {aiDrafting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSendRisposta}
+                    disabled={
+                      !risposta.trim() ||
+                      rispostaOver ||
+                      aggiungiRisposta.isPending
+                    }
+                  >
+                    {aggiungiRisposta.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
               </div>
               <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                 <span>

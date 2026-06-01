@@ -238,7 +238,9 @@ Deno.serve(async (req: Request) => {
             sender: campagna.mittente,
             recipient: contatto.telefono,
             content: messaggioPersonalizzato,
-            type: "transactional",
+            // È una campagna marketing (filtro consenso_marketing=true): va marcata
+            // come "marketing" per separazione provider + gestione opt-out/GDPR.
+            type: "marketing",
             tag: campagna_id,
           };
 

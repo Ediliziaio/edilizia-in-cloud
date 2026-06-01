@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Loader2, User, Paperclip, X, FileText, Download, Image as ImageIcon, MessageSquare, Upload } from "lucide-react";
+import { Send, Loader2, User, Paperclip, X, FileText, Download, Image as ImageIcon, MessageSquare, Upload, Sparkles, BookOpen } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { formatDateTime } from "@/lib/formatters";
 import type { TicketMessage } from "@/types/tickets";
@@ -40,6 +40,43 @@ interface TicketChatProps {
   height?: string;
 }
 
+/** Pulsante-icona della toolbar del composer (allega / bozza AI / KB). */
+function ToolbarIconButton({
+  icon,
+  tooltip,
+  onClick,
+  disabled,
+  loading,
+  className,
+}: {
+  icon: ReactNode;
+  tooltip: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  className?: string;
+}) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={`flex-shrink-0 h-auto ${className ?? ""}`}
+            onClick={onClick}
+            disabled={disabled}
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{tooltip}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export function TicketChat({
   ticketId,
   messages,
@@ -57,6 +94,8 @@ export function TicketChat({
   const [newMessage, setNewMessage] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [aiDrafting, setAiDrafting] = useState(false);
+  const [kbLoading, setKbLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
 
@@ -214,6 +253,94 @@ export function TicketChat({
     }
   };
 
+  // Bozza risposta AI: usa support-ai-chat per suggerire la prossima risposta
+  // dell'operatore a partire dalla conversazione del ticket.
+  const handleAiDraft = async () => {
+    if (aiDrafting || messages.length === 0) return;
+    setAiDrafting(true);
+    try {
+      const conversation = messages.map((m) => ({
+        role: m.sender_id === user?.id ? "assistant" : "user",
+        content: m.message,
+      }));
+      const { data, error } = await supabase.functions.invoke("support-ai-chat", {
+        body: { action: "chat", conversation },
+      });
+      if (error) throw error;
+      const draft = (data?.reply ?? "").trim();
+      if (!draft) {
+        toast({
+          title: "Nessuna bozza",
+          description: "L'AI non ha prodotto una risposta. Riprova.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setNewMessage(draft);
+      toast({ title: "Bozza generata", description: "Rivedi e modifica prima di inviare." });
+    } catch (err) {
+      toast({
+        title: "Errore AI",
+        description: err instanceof Error ? err.message : "Impossibile generare la bozza.",
+        variant: "destructive",
+      });
+    } finally {
+      setAiDrafting(false);
+    }
+  };
+
+  // Knowledge Base: cerca nella KB (silvio-kb-search) l'articolo più pertinente
+  // alla domanda del cliente e lo inserisce nella risposta.
+  const handleKbLookup = async () => {
+    if (kbLoading) return;
+    let lastCustomer: TicketMessage | undefined;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].sender_id !== user?.id) {
+        lastCustomer = messages[i];
+        break;
+      }
+    }
+    const query = (newMessage.trim() || lastCustomer?.message || "").trim();
+    if (query.length < 3) {
+      toast({
+        title: "Niente da cercare",
+        description: "Scrivi una domanda o attendi un messaggio del cliente.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setKbLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("silvio-kb-search", {
+        body: { query, top_k: 3 },
+      });
+      if (error) throw error;
+      const results = (data?.results ?? []) as Array<{ title?: string; content?: string }>;
+      if (!results.length) {
+        toast({ title: "Nessun articolo trovato", description: "La Knowledge Base non ha risposte pertinenti." });
+        return;
+      }
+      const top = results[0];
+      const snippet = `📚 ${top.title ?? "Articolo KB"}\n\n${(top.content ?? "").trim()}`;
+      setNewMessage((prev) => (prev.trim() ? `${prev}\n\n${snippet}` : snippet));
+      toast({
+        title: "Articolo KB inserito",
+        description:
+          results.length > 1
+            ? `${results.length} articoli trovati: inserito il più pertinente.`
+            : "Inserito nella risposta.",
+      });
+    } catch (err) {
+      toast({
+        title: "Errore KB",
+        description: err instanceof Error ? err.message : "Ricerca KB non riuscita.",
+        variant: "destructive",
+      });
+    } finally {
+      setKbLoading(false);
+    }
+  };
+
   const renderAttachment = (url: string, isSelf: boolean) => {
     if (isImageUrl(url)) {
       return (
@@ -352,23 +479,32 @@ export function TicketChat({
               className="hidden"
               onChange={handleFileSelect}
             />
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="flex-shrink-0 h-auto"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                  >
-                    <Paperclip className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Allega file (max 10MB)</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <ToolbarIconButton
+              icon={<Paperclip className="h-4 w-4" />}
+              tooltip="Allega file (max 10MB)"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+            />
+            <ToolbarIconButton
+              icon={<Sparkles className="h-4 w-4" />}
+              loading={aiDrafting}
+              tooltip={
+                messages.length === 0
+                  ? "Bozza AI disponibile dopo il primo messaggio"
+                  : "Genera bozza risposta con AI"
+              }
+              onClick={handleAiDraft}
+              disabled={aiDrafting || uploading || messages.length === 0}
+              className="text-violet-600 hover:text-violet-700 dark:text-violet-400"
+            />
+            <ToolbarIconButton
+              icon={<BookOpen className="h-4 w-4" />}
+              loading={kbLoading}
+              tooltip="Cerca in Knowledge Base e inserisci"
+              onClick={handleKbLookup}
+              disabled={kbLoading || uploading}
+              className="text-sky-600 hover:text-sky-700 dark:text-sky-400"
+            />
             <Textarea
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}

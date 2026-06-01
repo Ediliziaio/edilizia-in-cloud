@@ -537,7 +537,7 @@ export function generateFatturaPAXML(
     <Allegati>
       <NomeAttachment>${esc(String(a.nome))}</NomeAttachment>
       <FormatoAttachment>${esc(String(a.formato || "PDF"))}</FormatoAttachment>
-      <Attachment>${String(a.contenuto)}</Attachment>
+      <Attachment>${esc(String(a.contenuto))}</Attachment>
     </Allegati>`;
     }
   }

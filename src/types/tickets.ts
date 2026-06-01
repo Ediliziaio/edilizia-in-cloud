@@ -3,6 +3,9 @@ export type TicketPriority = "bassa" | "normale" | "media" | "alta" | "urgente";
 export type TicketTipo = "supporto" | "intervento" | "emergenza";
 export type TicketFonte = "ufficio" | "campo" | "cliente" | "api";
 
+/** Priorità ticket selezionabili lato support (sottoinsieme senza "media"). */
+export const SUPPORT_PRIORITIES = ["bassa", "normale", "alta", "urgente"] as const;
+
 export interface TicketMessage {
   id: string;
   message: string;

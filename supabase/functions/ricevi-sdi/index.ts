@@ -5,6 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts";
 import { corsHeaders } from "../_shared/headers.ts";
+import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 
 // ─── XML Parser Helpers (DOMParser via deno-dom WASM) ─────────────
 
@@ -351,6 +352,17 @@ Deno.serve(async (req) => {
           JSON.stringify({ error: "xml_content e company_id obbligatori" }),
           { status: 400, headers: corsHeaders }
         );
+      }
+
+      // SECURITY: company_id arriva dal body — verifica che l'utente appartenga
+      // a quell'azienda prima di scrivere fatture/storage (anti cross-tenant).
+      try {
+        await verifyCompanyAccess(supabase, user.id, company_id);
+      } catch {
+        return new Response(JSON.stringify({ error: "Accesso negato a questa azienda" }), {
+          status: 403,
+          headers: corsHeaders,
+        });
       }
 
       const parsed = parseFatturaPA(xml_content);

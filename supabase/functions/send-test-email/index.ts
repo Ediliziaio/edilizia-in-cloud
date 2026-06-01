@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -78,7 +79,7 @@ Deno.serve(async (req) => {
 
     const { data: campaign, error: campError } = await adminClient
       .from("email_campaigns")
-      .select("subject, html_content, sender_email, sender_name")
+      .select("company_id, subject, html_content, sender_email, sender_name")
       .eq("id", campaignId)
       .single();
 
@@ -87,6 +88,17 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: "Campagna non trovata" }),
         { status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
+    }
+
+    // SECURITY: verifica che il chiamante appartenga all'azienda della campagna
+    // (altrimenti chiunque potrebbe esfiltrare HTML campagna + PII contatti altrui).
+    try {
+      await verifyCompanyAccess(adminClient, user.id, campaign.company_id);
+    } catch {
+      return new Response(JSON.stringify({ error: "Accesso negato a questa campagna" }), {
+        status: 403,
+        headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
     }
 
     let htmlBody = campaign.html_content ||
@@ -108,6 +120,7 @@ Deno.serve(async (req) => {
         .from("marketing_contacts")
         .select("first_name, last_name, email, phone, city, province, company_name")
         .eq("id", previewContactId)
+        .eq("company_id", campaign.company_id)
         .maybeSingle();
       if (ct) previewContact = { ...previewContact, ...ct };
     }

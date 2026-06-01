@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
@@ -133,6 +134,14 @@ Deno.serve(async (req) => {
     const { data: invoice, error: invErr } = await supabase
       .from("invoices").select("*, invoice_lines(*)").eq("id", invoice_id).single();
     if (invErr || !invoice) return new Response(JSON.stringify({ error: "Invoice not found" }), { status: 404, headers: getCorsHeaders(req) });
+
+    // SECURITY: verify the caller belongs to the invoice's company (service-role
+    // client bypasses RLS, so this guard is mandatory to prevent cross-tenant IDOR).
+    try {
+      await verifyCompanyAccess(supabase, user.id, invoice.company_id);
+    } catch {
+      return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: getCorsHeaders(req) });
+    }
 
     // Fetch company
     const { data: company } = await supabase

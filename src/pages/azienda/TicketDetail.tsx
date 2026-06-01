@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Package, User, Mail, Phone, MapPin, Clock, CalendarPlus,
   AlertCircle, RefreshCw, Save, ChevronDown, Wrench, Loader2, CheckCircle2,
-  LifeBuoy, AlertTriangle,
+  LifeBuoy, AlertTriangle, Sparkles, ArrowUpCircle,
 } from "lucide-react";
 import { AppointmentDialog } from "@/components/appointments/AppointmentDialog";
 import {
@@ -38,6 +38,7 @@ import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { TicketAttachments } from "@/components/tickets/TicketAttachments";
 import { useUnreadTicketCounts } from "@/hooks/useUnreadTicketCounts";
 import type { TicketDetail as TicketDetailType, TicketMessage } from "@/types/tickets";
+import { SUPPORT_PRIORITIES } from "@/types/tickets";
 
 export default function TicketDetail() {
   const { id } = useParams<{ id: string }>();
@@ -49,6 +50,8 @@ export default function TicketDetail() {
   const [notesLoaded, setNotesLoaded] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   // Escalation a intervento (disponibile per tipo=supporto)
+  const [aiTriaging, setAiTriaging] = useState(false);
+  const [aiEscalating, setAiEscalating] = useState(false);
   const [escalationOpen, setEscalationOpen] = useState(false);
   const [escalationIndirizzo, setEscalationIndirizzo] = useState("");
   const [escalationData, setEscalationData] = useState("");
@@ -306,6 +309,63 @@ export default function TicketDetail() {
     },
   });
 
+  // Triage AI: l'AI analizza oggetto + thread e suggerisce la priorità.
+  const handleAiTriage = async () => {
+    if (aiTriaging || !ticket) return;
+    setAiTriaging(true);
+    try {
+      const content = [ticket.subject, ...messages.map((m) => m.message)]
+        .filter(Boolean)
+        .join("\n");
+      const { data, error } = await supabase.functions.invoke("support-ai-chat", {
+        body: { action: "chat", conversation: [{ role: "user", content }] },
+      });
+      if (error) throw error;
+      const sp = String(data?.suggested_priority ?? "");
+      if ((SUPPORT_PRIORITIES as readonly string[]).includes(sp)) {
+        if (sp !== ticket.priority) {
+          updateTicketMutation.mutate({ priority: sp });
+          toast.success(`Priorità suggerita dall'AI: ${sp}`);
+        } else {
+          toast.info(`L'AI conferma la priorità attuale (${sp}).`);
+        }
+      } else {
+        toast.info("Analisi AI completata: nessun cambio di priorità suggerito.");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Triage AI non riuscito.");
+    } finally {
+      setAiTriaging(false);
+    }
+  };
+
+  // Escalation azienda→piattaforma: inoltra il ticket al supporto della piattaforma
+  // riusando support-ai-chat (action escalate → inbox support_messages superadmin).
+  const handleEscalateToPlatform = async () => {
+    if (aiEscalating || !ticket) return;
+    setAiEscalating(true);
+    try {
+      const descrizione = [ticket.subject, ...messages.map((m) => m.message)]
+        .filter(Boolean)
+        .join("\n");
+      const { error } = await supabase.functions.invoke("support-ai-chat", {
+        body: {
+          action: "escalate",
+          conversation: messages.map((m) => ({ role: "user", content: m.message })),
+          titolo: `[Assistenza] ${ticket.subject ?? id} — inoltrato dall'azienda`,
+          descrizione,
+          priorita: ticket.priority,
+        },
+      });
+      if (error) throw error;
+      toast.success("Ticket inoltrato al supporto piattaforma.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Inoltro alla piattaforma non riuscito.");
+    } finally {
+      setAiEscalating(false);
+    }
+  };
+
   if (ticketLoading || messagesLoading) {
     return (
       <div className="space-y-6">
@@ -469,21 +529,38 @@ export default function TicketDetail() {
               {/* Priorità */}
               <div className="flex items-center justify-between gap-2">
                 <label className="text-xs text-muted-foreground shrink-0">Priorità</label>
-                <Select
-                  value={ticket.priority}
-                  onValueChange={(v) => updateTicketMutation.mutate({ priority: v })}
-                  disabled={updateTicketMutation.isPending}
-                >
-                  <SelectTrigger className="w-[160px] h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="bassa">Bassa</SelectItem>
-                    <SelectItem value="normale">Normale</SelectItem>
-                    <SelectItem value="alta">Alta</SelectItem>
-                    <SelectItem value="urgente">Urgente</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-violet-600 hover:text-violet-700 dark:text-violet-400"
+                    onClick={handleAiTriage}
+                    disabled={aiTriaging || updateTicketMutation.isPending}
+                    title="Triage AI: suggerisci priorità"
+                  >
+                    {aiTriaging ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Select
+                    value={ticket.priority}
+                    onValueChange={(v) => updateTicketMutation.mutate({ priority: v })}
+                    disabled={updateTicketMutation.isPending}
+                  >
+                    <SelectTrigger className="w-[160px] h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bassa">Bassa</SelectItem>
+                      <SelectItem value="normale">Normale</SelectItem>
+                      <SelectItem value="alta">Alta</SelectItem>
+                      <SelectItem value="urgente">Urgente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               {/* Assegnato */}
               <div className="flex items-center justify-between gap-2">
@@ -506,6 +583,23 @@ export default function TicketDetail() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full justify-center gap-2 text-amber-700 border-amber-200 hover:bg-amber-50 dark:text-amber-400"
+                onClick={handleEscalateToPlatform}
+                disabled={aiEscalating}
+                title="Inoltra il ticket al supporto della piattaforma (superadmin)"
+              >
+                {aiEscalating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowUpCircle className="h-4 w-4" />
+                )}
+                Inoltra al supporto piattaforma
+              </Button>
 
               <Separator />
 
