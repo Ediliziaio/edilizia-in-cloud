@@ -676,7 +676,7 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
     queryKey: ["calendar-appuntamenti", user?.id, companyId, monthStr],
     queryFn: async () => {
       const { data } = await supabase
-        .from("marketing_appointments")
+        .from("appointments")
         .select("id, title, appointment_date, status")
         .eq("company_id", companyId!)
         .gte("appointment_date", monthStartStr)
@@ -687,41 +687,45 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
     staleTime: 5 * 60 * 1000,
   });
 
-  // ── 6. HR profilo (per ferie) ──────────────────────────────────────────
+  // ── 6. Employee id corrente (per scoping ferie proprie) ────────────────
   const layerFeriaOn = enabledLayers.has("feria");
-  const { data: hrProfilo } = useQuery({
-    queryKey: ["hr-my-profilo-cal", user?.id, companyId],
+  const { data: myEmployeeId } = useQuery({
+    queryKey: ["my-employee-id-cal", user?.id, companyId],
     queryFn: async () => {
       const { data } = await supabase
-        .from("hr_profili")
-        .select("id, nome, cognome")
+        .from("employees")
+        .select("id")
         .eq("company_id", companyId!)
         .eq("user_id", user!.id)
-        .eq("attivo", true)
         .maybeSingle();
-      return data;
+      return (data?.id as string | undefined) ?? null;
     },
     enabled: !!user?.id && !!companyId && layerFeriaOn,
     staleTime: 10 * 60 * 1000,
   });
 
-  // ── 7. Ferie (proprie sempre; altrui se canViewPersone) ────────────────
+  // ── 7. Ferie/assenze approvate (proprie sempre; altrui solo se canViewPersone) ──
+  // Privacy: la RLS di leave_requests consente a CHIUNQUE in azienda di leggere
+  // tutte le richieste (branch company_id = get_my_company_id()). Quindi per i
+  // non-autorizzati filtriamo ESPLICITAMENTE alle proprie (employee_id).
   const { data: monthFerie = [] } = useQuery({
-    queryKey: ["calendar-ferie", hrProfilo?.id, companyId, monthStr, canViewPersone],
+    queryKey: ["calendar-ferie", myEmployeeId, companyId, monthStr, canViewPersone],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let q = (supabase.from("hr_richieste") as any)
-        .select("id, tipo, data_inizio, data_fine, stato, profilo_id, hr_profili(nome, cognome)")
+      let q = (supabase.from("leave_requests") as any)
+        .select("id, employee_id, type, start_date, end_date, employee:employees!leave_requests_employee_id_fkey(first_name, last_name)")
         .eq("company_id", companyId!)
-        .eq("stato", "approvata")
-        .in("tipo", ["ferie", "permesso"])
-        .lte("data_inizio", monthEndStr)
-        .gte("data_fine", monthStartStr);
-      if (!canViewPersone && hrProfilo?.id) q = q.eq("profilo_id", hrProfilo.id);
+        .eq("status", "approved")
+        .lte("start_date", monthEndStr)
+        .gte("end_date", monthStartStr);
+      if (!canViewPersone) {
+        if (!myEmployeeId) return [];
+        q = q.eq("employee_id", myEmployeeId);
+      }
       const { data } = await q;
       return (data ?? []) as any[];
     },
-    enabled: !!companyId && layerFeriaOn && (!!hrProfilo?.id || canViewPersone),
+    enabled: !!companyId && layerFeriaOn && (canViewPersone || !!myEmployeeId),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -804,11 +808,11 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
 
     // Ferie — espandi range in giorni singoli
     for (const f of monthFerie) {
-      const start = f.data_inizio as string;
-      const end = f.data_fine as string;
+      const start = f.start_date as string;
+      const end = f.end_date as string;
       if (!start || !end) continue;
-      const profilo = f.hr_profili as { nome?: string; cognome?: string } | null;
-      const nome = profilo ? `${profilo.nome ?? ""} ${profilo.cognome ?? ""}`.trim() : "";
+      const emp = f.employee as { first_name?: string; last_name?: string } | null;
+      const nome = emp ? `${emp.first_name ?? ""} ${emp.last_name ?? ""}`.trim() : "";
       const label = nome || "Ferie";
       const clampStart = start < monthStartStr ? monthStartStr : start;
       const clampEnd = end > monthEndStr ? monthEndStr : end;
