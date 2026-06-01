@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { calcolaTotaliDocumento } from "@/lib/fatturazione/calcoli";
+import type { RigaDocumento } from "@/types/fatturazione";
 
 /**
  * Test logica fatturazione italiana (FatturaPA / D.Lgs. 127/2015).
@@ -273,5 +275,104 @@ describe("calcolo totale linee fattura", () => {
     expect(r.imponibile).toBe(0);
     expect(r.iva).toBe(0);
     expect(r.totale).toBe(0);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// calcolaTotaliDocumento — fix fiscali (modulo reale src/lib/fatturazione/calcoli.ts)
+// Copre: contributo cassa previdenziale dentro la base IVA (FIX #1),
+// ritenuta sulla base imponibile+cassa (FIX #2), bollo dentro totale_documento (FIX #3).
+// ═══════════════════════════════════════════════════════════════════════════
+
+function mkRiga(over: Partial<RigaDocumento>): RigaDocumento {
+  return {
+    id: "r1",
+    numero_linea: 1,
+    descrizione: "Prestazione professionale",
+    quantita: 1,
+    unita_misura: "nr",
+    prezzo_unitario: 0,
+    imponibile: 0,
+    aliquota_iva: "22",
+    imposta: 0,
+    totale_riga: 0,
+    ...over,
+  };
+}
+
+describe("calcolaTotaliDocumento — cassa previdenziale (FIX #1 + #2)", () => {
+  it("contributo cassa 4% (IVA 22%) soggetto a ritenuta: IVA cassa in iva_totale, ritenuta su imponibile+cassa", () => {
+    const righe = [mkRiga({ prezzo_unitario: 1000, aliquota_iva: "22" })];
+    const t = calcolaTotaliDocumento(righe, {
+      cassaPrevidenziale: true,
+      cassaAliquota: 4,
+      cassaAliquotaIva: "22",
+      cassaRitenuta: true,
+      ritenutaAcconto: true,
+      ritenutaAliquota: 20,
+    });
+    expect(t.cassa_importo).toBe(40); // 1000 × 4%
+    // riepilogo 22%: imponibile 1040 (1000 + cassa 40), imposta 228.80 — coerente con XML DatiRiepilogo
+    const r22 = t.riepilogo_iva.find((r) => parseFloat(r.aliquota) === 22)!;
+    expect(r22.imponibile).toBe(1040);
+    expect(r22.imposta).toBe(228.8);
+    expect(t.iva_totale).toBe(228.8); // FIX #1: include l'IVA sul contributo cassa
+    expect(t.totale_documento).toBe(1268.8); // 1000 + 40 + 228.80
+    expect(t.ritenuta_importo).toBe(208); // FIX #2: 20% su (1000 + 40)
+    expect(t.totale_da_pagare).toBe(1060.8); // 1268.80 − 208.00
+  });
+
+  it("cassa NON soggetta a ritenuta: base ritenuta = solo imponibile (1000)", () => {
+    const righe = [mkRiga({ prezzo_unitario: 1000, aliquota_iva: "22" })];
+    const t = calcolaTotaliDocumento(righe, {
+      cassaPrevidenziale: true,
+      cassaAliquota: 4,
+      cassaAliquotaIva: "22",
+      cassaRitenuta: false,
+      ritenutaAcconto: true,
+      ritenutaAliquota: 20,
+    });
+    expect(t.totale_documento).toBe(1268.8); // invariato rispetto al caso con ritenuta su cassa
+    expect(t.ritenuta_importo).toBe(200); // 20% su 1000 (cassa esclusa dalla base)
+    expect(t.totale_da_pagare).toBe(1068.8); // 1268.80 − 200.00
+  });
+
+  it("cassa con aliquota IVA diversa dalle righe: crea una nuova riga di riepilogo", () => {
+    const righe = [mkRiga({ prezzo_unitario: 1000, aliquota_iva: "10" })];
+    const t = calcolaTotaliDocumento(righe, {
+      cassaPrevidenziale: true,
+      cassaAliquota: 4,
+      cassaAliquotaIva: "22",
+    });
+    const r10 = t.riepilogo_iva.find((r) => parseFloat(r.aliquota) === 10)!;
+    const r22 = t.riepilogo_iva.find((r) => parseFloat(r.aliquota) === 22)!;
+    expect(r10.imponibile).toBe(1000);
+    expect(r10.imposta).toBe(100);
+    expect(r22.imponibile).toBe(40); // solo il contributo cassa
+    expect(r22.imposta).toBe(8.8); // 40 × 22%
+    expect(t.iva_totale).toBe(108.8);
+    expect(t.totale_documento).toBe(1148.8); // 1000 + 40 + 108.80
+  });
+});
+
+describe("calcolaTotaliDocumento — bollo (FIX #3)", () => {
+  it("bollo virtuale incluso in totale_documento, non solo nel totale da pagare", () => {
+    const righe = [mkRiga({ prezzo_unitario: 1000, aliquota_iva: "0", natura_iva: "N2_2" })];
+    const t = calcolaTotaliDocumento(righe, { bolloVirtuale: true, bolloImporto: 2 });
+    expect(t.iva_totale).toBe(0);
+    expect(t.totale_documento).toBe(1002); // FIX #3: 1000 + bollo 2 (prima era 1000)
+    expect(t.totale_da_pagare).toBe(1002); // bollo non sommato due volte
+  });
+});
+
+describe("calcolaTotaliDocumento — regressione (nessun fix deve alterare i casi base)", () => {
+  it("fattura semplice 22% senza cassa/bollo/ritenuta: totali invariati", () => {
+    const righe = [mkRiga({ prezzo_unitario: 1000, aliquota_iva: "22" })];
+    const t = calcolaTotaliDocumento(righe);
+    expect(t.imponibile_totale).toBe(1000);
+    expect(t.iva_totale).toBe(220);
+    expect(t.totale_documento).toBe(1220);
+    expect(t.cassa_importo).toBe(0);
+    expect(t.totale_da_pagare).toBe(1220);
   });
 });

@@ -112,6 +112,12 @@ export interface TotaliOptions {
   cassaPrevidenziale?: boolean;
   cassaAliquota?: number;
   cassaImponibile?: number;
+  /** Aliquota IVA applicata al contributo cassa previdenziale (default 22).
+   *  Il contributo integrativo cassa è parte della base imponibile IVA. */
+  cassaAliquotaIva?: string | number;
+  /** Cassa soggetta a ritenuta d'acconto (flag <Ritenuta>SI</Ritenuta> nell'XML):
+   *  se true, la base della ritenuta include anche il contributo cassa. */
+  cassaRitenuta?: boolean;
   rivalsaInps?: boolean;
   rivalsaAliquota?: number;
   altraRitenuta?: boolean;
@@ -159,24 +165,71 @@ export function calcolaTotaliDocumento(
     esigibilitaDefault: options.esigibilitaDefault,
   });
 
-  const iva_totale = riepilogo_iva.reduce((s, r) => s + r.imposta, 0);
-  const totale_documento = round2(
-    imponibile_totale + iva_totale + (options.arrotondamento ?? 0)
-  );
-
-  const bollo = options.bolloVirtuale ? (options.bolloImporto ?? 2) : 0;
-
-  const ritenuta_importo =
-    options.ritenutaAcconto && options.ritenutaAliquota
-      ? round2(imponibile_totale * (options.ritenutaAliquota / 100))
-      : 0;
-
+  // ── Contributo cassa previdenziale (contributo integrativo) ──
+  // Calcolato sull'imponibile delle righe (o su cassaImponibile se fornito).
+  // NB: il contributo NON è incluso in imponibile_totale né nelle righe.
   const cassa_importo =
     options.cassaPrevidenziale && options.cassaAliquota
       ? round2(
           (options.cassaImponibile ?? imponibile_totale) *
             (options.cassaAliquota / 100)
         )
+      : 0;
+
+  // FIX #1 — Il contributo cassa è parte della base imponibile IVA.
+  // Va aggiunto al riepilogo IVA nell'aliquota propria della cassa (cassaAliquotaIva,
+  // default 22% — coerente con generateXML.ts che usa doc.cassa_aliquota_iva || "22").
+  // Così l'IVA sul contributo confluisce in iva_totale (= Σ riepilogo.imposta) e il
+  // <DatiRiepilogo> dell'XML resta coerente con il <DatiCassaPrevidenziale>
+  // (controlli SDI 00421 Imposta=Imponibile×Aliquota e 00423 coerenza imponibile).
+  const cassaIvaRaw = options.cassaAliquotaIva;
+  const cassaAliquotaIvaNum =
+    cassaIvaRaw == null || cassaIvaRaw === ""
+      ? 22
+      : typeof cassaIvaRaw === "number"
+        ? cassaIvaRaw
+        : parseFloat(cassaIvaRaw) || 0;
+  if (cassa_importo > 0 && cassaAliquotaIvaNum > 0) {
+    const bucket = riepilogo_iva.find(
+      (r) => !r.natura && (parseFloat(r.aliquota) || 0) === cassaAliquotaIvaNum
+    );
+    if (bucket) {
+      bucket.imponibile = round2(bucket.imponibile + cassa_importo);
+      bucket.imposta = round2(bucket.imponibile * (cassaAliquotaIvaNum / 100));
+    } else {
+      riepilogo_iva.push({
+        aliquota:
+          typeof cassaIvaRaw === "string" && cassaIvaRaw !== ""
+            ? cassaIvaRaw
+            : String(cassaAliquotaIvaNum),
+        natura: undefined,
+        imponibile: cassa_importo,
+        imposta: round2(cassa_importo * (cassaAliquotaIvaNum / 100)),
+        esigibilita: options.splitPayment ? "S" : (options.esigibilitaDefault ?? "I"),
+      });
+    }
+  }
+
+  // iva_totale ora include l'IVA sul contributo cassa (FIX #1).
+  const iva_totale = round2(riepilogo_iva.reduce((s, r) => s + r.imposta, 0));
+
+  const bollo = options.bolloVirtuale ? (options.bolloImporto ?? 2) : 0;
+
+  // FIX #1 + FIX #3 — totale_documento (→ XML <ImportoTotaleDocumento>) comprende:
+  //   imponibile righe + contributo cassa + IVA (righe + cassa) + bollo + arrotondamento.
+  // Prima erano esclusi sia il contributo cassa con la sua IVA (FIX #1) sia il bollo (FIX #3),
+  // quindi il totale documento trasmesso a SDI risultava SOTTOSTIMATO.
+  const totale_documento = round2(
+    imponibile_totale + cassa_importo + iva_totale + bollo + (options.arrotondamento ?? 0)
+  );
+
+  // FIX #2 — Se la cassa è soggetta a ritenuta (cassa_ritenuta → <Ritenuta>SI</Ritenuta>),
+  // la base della ritenuta d'acconto include anche il contributo cassa (imponibile + cassa).
+  const ritenutaBase =
+    imponibile_totale + (options.cassaRitenuta ? cassa_importo : 0);
+  const ritenuta_importo =
+    options.ritenutaAcconto && options.ritenutaAliquota
+      ? round2(ritenutaBase * (options.ritenutaAliquota / 100))
       : 0;
 
   const rivalsa_importo =
@@ -190,11 +243,13 @@ export function calcolaTotaliDocumento(
       : 0;
 
   // Split payment PA: l'IVA è versata direttamente dall'ente PA allo Stato,
-  // quindi il fornitore incassa solo imponibile (senza IVA)
+  // quindi il fornitore incassa solo imponibile (senza IVA).
   const splitPaymentIva = options.splitPayment ? iva_totale : 0;
 
+  // FIX #3 — bollo e contributo cassa sono già dentro totale_documento:
+  // qui NON vanno più ri-sommati (evita il doppio conteggio).
   const totale_da_pagare = round2(
-    totale_documento + bollo + cassa_importo + rivalsa_importo - ritenuta_importo - altra_ritenuta_importo - splitPaymentIva
+    totale_documento + rivalsa_importo - ritenuta_importo - altra_ritenuta_importo - splitPaymentIva
   );
 
   return {

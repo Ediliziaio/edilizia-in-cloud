@@ -46,6 +46,8 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
     cassaPrevidenziale: doc.cassa_previdenziale as boolean | undefined,
     cassaAliquota: doc.cassa_aliquota as number | undefined,
     cassaImponibile: doc.cassa_imponibile as number | undefined,
+    cassaAliquotaIva: doc.cassa_aliquota_iva as string | undefined,
+    cassaRitenuta: doc.cassa_ritenuta as boolean | undefined,
     rivalsaInps: doc.rivalsa_inps as boolean | undefined,
     rivalsaAliquota: doc.rivalsa_aliquota as number | undefined,
     altraRitenuta: doc.altra_ritenuta as boolean | undefined,

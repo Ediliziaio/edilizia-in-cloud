@@ -48,6 +48,8 @@ function recalculate(state: EditorState): EditorState {
     cassaPrevidenziale: state.cassa_previdenziale,
     cassaAliquota: state.cassa_aliquota,
     cassaImponibile: state.cassa_imponibile,
+    cassaAliquotaIva: state.cassa_aliquota_iva,
+    cassaRitenuta: state.cassa_ritenuta,
     rivalsaInps: state.rivalsa_inps,
     rivalsaAliquota: state.rivalsa_aliquota,
     altraRitenuta: state.altra_ritenuta,
