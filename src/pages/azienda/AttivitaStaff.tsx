@@ -24,6 +24,7 @@ import {
   CloudSun, ChevronLeft, ChevronRight, CalendarDays, Droplets,
   Thermometer, MapPin, Plus, Pencil, Trash2, X, Filter,
   ArrowUpCircle, Circle, AlertCircle, MoreHorizontal, Tag, Users,
+  CalendarClock, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -551,7 +552,7 @@ function MeteoWidget() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Mini Calendario Mensile
 // ─────────────────────────────────────────────────────────────────────────────
-function MiniCalendario({ onAddTask }: { onAddTask?: (date: string) => void }) {
+function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string) => void; onDateSelect?: (date: string | null) => void }) {
   const { user, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -577,6 +578,38 @@ function MiniCalendario({ onAddTask }: { onAddTask?: (date: string) => void }) {
     enabled: !!user?.id && !!companyId,
     staleTime: 60_000,
   });
+
+  // Query per la data più recente con task (usata per auto-jump quando il mese corrente è vuoto)
+  const { data: nearestTaskDate } = useQuery({
+    queryKey: ["nearest-task-date", user?.id, companyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("tasks")
+        .select("due_date")
+        .eq("company_id", companyId!)
+        .eq("assigned_to", user!.id)
+        .not("due_date", "is", null)
+        .neq("status", "completata")
+        .order("due_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return (data as any)?.due_date as string | null ?? null;
+    },
+    enabled: !!user?.id && !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Auto-jump: se il mese corrente non ha task, vai al mese dell'ultima scaduta
+  const hasAutoJumped = useRef(false);
+  useEffect(() => {
+    if (hasAutoJumped.current || !nearestTaskDate || monthTasks.length > 0) return;
+    const nearestMonth = nearestTaskDate.slice(0, 7);
+    const currentMonthStr = format(currentMonth, "yyyy-MM");
+    if (nearestMonth !== currentMonthStr) {
+      hasAutoJumped.current = true;
+      setCurrentMonth(startOfMonth(parseISO(nearestTaskDate)));
+    }
+  }, [nearestTaskDate, monthTasks.length, currentMonth]);
 
   const tasksByDate = useMemo(() => {
     const map = new Map<string, typeof monthTasks>();
@@ -633,7 +666,7 @@ function MiniCalendario({ onAddTask }: { onAddTask?: (date: string) => void }) {
               <TooltipProvider key={key} delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button onClick={() => setSelectedDate(day)} className={`relative aspect-square flex flex-col items-center justify-center rounded-md text-sm transition-all hover:bg-muted/60 ${isSelected ? "bg-primary text-primary-foreground font-bold shadow-sm" : isCurrentDay ? "bg-primary/10 font-semibold text-primary ring-1 ring-primary/30" : isPast ? "text-muted-foreground/60" : "text-foreground"}`}>
+                    <button onClick={() => { const newSel = selectedDate && isSameDay(day, selectedDate) ? null : day; setSelectedDate(newSel); onDateSelect?.(newSel ? format(newSel, "yyyy-MM-dd") : null); }} className={`relative aspect-square flex flex-col items-center justify-center rounded-md text-sm transition-all hover:bg-muted/60 ${isSelected ? "bg-primary text-primary-foreground font-bold shadow-sm" : isCurrentDay ? "bg-primary/10 font-semibold text-primary ring-1 ring-primary/30" : isPast ? "text-muted-foreground/60" : "text-foreground"}`}>
                       <span className="text-xs leading-none">{format(day, "d")}</span>
                       {dayTasks.length > 0 && (
                         <div className="flex gap-0.5 mt-0.5">
@@ -828,7 +861,7 @@ const GROUP_OPTIONS: { value: GroupBy; label: string }[] = [
   { value: "date", label: "Data" },
 ];
 
-function MieAttivita({ initialDueDate }: { initialDueDate?: AddTaskRequest | null }) {
+function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { initialDueDate?: AddTaskRequest | null; calendarDate?: string | null; onCalendarDateClear?: () => void }) {
   const { user, effectiveCompany, role } = useAuth();
   const isAdmin = role === "company_admin";
   const companyId = effectiveCompany?.id;
@@ -888,7 +921,15 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: AddTaskRequest | nul
   const today = startOfDay(new Date());
   const weekEnd = addDays(today, 7);
 
+  // Auto-set "scadute" al primo carico se ci sono task in ritardo
+  const hasSetInitialFilter = useRef(false);
+
   const filteredTasks = useMemo(() => {
+    // Quando il calendario ha selezionato una data: mostra TUTTE le task di quel giorno
+    if (calendarDate) {
+      return allTasks.filter((t: any) => t.due_date?.slice(0, 10) === calendarDate);
+    }
+
     let filtered = allTasks;
     // Assignee filter (admin only)
     if (isAdmin && filterAssignee !== "all") {
@@ -921,7 +962,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: AddTaskRequest | nul
       );
     }
     return filtered;
-  }, [allTasks, filter, today, weekEnd, searchQuery, isAdmin, filterAssignee, user?.id]);
+  }, [allTasks, filter, today, weekEnd, searchQuery, isAdmin, filterAssignee, user?.id, calendarDate]);
 
   // Stats
   const stats = useMemo(() => {
@@ -932,6 +973,14 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: AddTaskRequest | nul
     const inProgress = active.filter((t: any) => t.status === "in_corso");
     return { total: active.length, overdue: overdue.length, today: todayTasks.length, completed: completed.length, inProgress: inProgress.length };
   }, [allTasks, today]);
+
+  // Default al tab "scadute" alla prima apertura se ci sono task in ritardo
+  useEffect(() => {
+    if (hasSetInitialFilter.current || isLoading || allTasks.length === 0) return;
+    hasSetInitialFilter.current = true;
+    if (stats.overdue > 0) setFilter("scadute");
+  }, [isLoading, allTasks.length, stats.overdue]);
+
 
   // ── Grouping ──
   const groupedTasks = useMemo(() => {
@@ -1036,6 +1085,18 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: AddTaskRequest | nul
       setSelectedIds(new Set());
       invalidate();
     },
+    onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
+  });
+
+  const postponeMutation = useMutation({
+    mutationFn: async ({ id, newDate }: { id: string; newDate: string }) => {
+      let q = supabase.from("tasks").update({ due_date: newDate }).eq("id", id);
+      if (!isAdmin) q = q.eq("assigned_to", user!.id);
+      else q = q.eq("company_id", companyId!);
+      const { error } = await q;
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Scadenza posticipata di 7 giorni"); invalidate(); },
     onError: (err: any) => toast.error("Errore: " + (err.message ?? "Riprovare")),
   });
 
@@ -1158,6 +1219,17 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: AddTaskRequest | nul
               {isToday(new Date(t.due_date)) ? "Oggi" : format(new Date(t.due_date), "d/MM", { locale: it })}
             </span>
           )}
+          {/* Posticipa +7gg — visibile subito sulle scadute */}
+          {scaduta && (
+            <button
+              onClick={(e) => { e.stopPropagation(); postponeMutation.mutate({ id: t.id, newDate: format(addDays(new Date(), 7), "yyyy-MM-dd") }); }}
+              className="p-1 -m-0.5 text-amber-500 hover:text-amber-600 shrink-0 transition-colors"
+              title="Posticipa di 7 giorni"
+              aria-label="Posticipa di 7 giorni"
+            >
+              <CalendarClock className="h-3.5 w-3.5" />
+            </button>
+          )}
           {/* Quick actions: visibili sempre su mobile (no hover), opacity transition solo su md+ */}
           <div className="flex items-center gap-0.5 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity">
             <button onClick={() => openEdit(t)} className="p-1 -m-0.5 text-muted-foreground hover:text-foreground" title="Modifica" aria-label="Modifica attività">
@@ -1222,6 +1294,7 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: AddTaskRequest | nul
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem onClick={() => openEdit(t)}><Pencil className="h-3.5 w-3.5 mr-2" />Modifica</DropdownMenuItem>
             {!isDone && <DropdownMenuItem onClick={() => markDone(t)}><CheckCircle2 className="h-3.5 w-3.5 mr-2" />Segna come fatta</DropdownMenuItem>}
+            {scaduta && <DropdownMenuItem onClick={() => postponeMutation.mutate({ id: t.id, newDate: format(addDays(new Date(), 7), "yyyy-MM-dd") })}><CalendarClock className="h-3.5 w-3.5 mr-2" />Posticipa +7 giorni</DropdownMenuItem>}
             {t.status === "da_fare" && <DropdownMenuItem onClick={() => updateTask.mutate({ id: t.id, status: "in_corso" })}><PlayCircle className="h-3.5 w-3.5 mr-2" />Inizia (In corso)</DropdownMenuItem>}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-red-600" onClick={() => setTaskToDelete(t.id)}><Trash2 className="h-3.5 w-3.5 mr-2" />Elimina</DropdownMenuItem>
@@ -1258,13 +1331,36 @@ function MieAttivita({ initialDueDate }: { initialDueDate?: AddTaskRequest | nul
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ClipboardCheck className="h-4 w-4" />{isAdmin ? "Attività" : "Le mie Attività"}
-              {stats.total > 0 && <Badge variant="secondary" className="text-xs">{stats.total}</Badge>}
-            </CardTitle>
-            <Button size="sm" className="h-8 gap-1.5" onClick={() => openCreate()}>
-              <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">Nuova</span>
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <CardTitle className="flex items-center gap-2 text-base shrink-0">
+                <ClipboardCheck className="h-4 w-4" />{isAdmin ? "Attività" : "Le mie Attività"}
+                {!calendarDate && stats.total > 0 && <Badge variant="secondary" className="text-xs">{stats.total}</Badge>}
+              </CardTitle>
+              {calendarDate && (
+                <button
+                  onClick={() => { onCalendarDateClear?.(); }}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
+                  title="Rimuovi filtro data"
+                >
+                  <CalendarDays className="h-3 w-3" />
+                  {format(parseISO(calendarDate), "d MMM", { locale: it })}
+                  <X className="h-3 w-3 opacity-60" />
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent("silvio:open-chat", { detail: { draft: `Cosa conta ora? Ho ${stats.overdue > 0 ? `${stats.overdue} attività scadute` : "alcune attività aperte"} — dimmi cosa prioritizzare oggi.` } }))}
+                className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border text-xs font-medium bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 transition-colors dark:bg-orange-950/20 dark:text-orange-300 dark:border-orange-900/40"
+                title="Chiedi a Silvio come prioritizzare"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Silvio</span>
+              </button>
+              <Button size="sm" className="h-8 gap-1.5" onClick={() => openCreate()}>
+                <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">Nuova</span>
+              </Button>
+            </div>
           </div>
 
           {/* Stats */}
@@ -1591,6 +1687,7 @@ function TabAttivita() {
   const { role } = useAuth();
   const isAdmin = role === "company_admin";
   const [addTaskDate, setAddTaskDate] = useState<AddTaskRequest | null>(null);
+  const [calendarDate, setCalendarDate] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
@@ -1604,8 +1701,15 @@ function TabAttivita() {
       {isAdmin && <TeamTaskPulse />}
       {/* Riga 2: Calendario (1/2) + Le mie attività (1/2) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
-        <MiniCalendario onAddTask={(date) => setAddTaskDate({ date, requestId: Date.now() })} />
-        <MieAttivita initialDueDate={addTaskDate} />
+        <MiniCalendario
+          onAddTask={(date) => setAddTaskDate({ date, requestId: Date.now() })}
+          onDateSelect={(date) => setCalendarDate(date)}
+        />
+        <MieAttivita
+          initialDueDate={addTaskDate}
+          calendarDate={calendarDate}
+          onCalendarDateClear={() => setCalendarDate(null)}
+        />
       </div>
     </div>
   );
