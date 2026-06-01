@@ -129,7 +129,7 @@ export function MacroPagineDedicateManager({ vertical }: Props) {
                 {/* Thumb */}
                 <div className="h-12 w-12 shrink-0 rounded-md overflow-hidden border bg-muted/40 flex items-center justify-center">
                   {m.immagine_url ? (
-                    <img src={m.immagine_url} alt="" className="w-full h-full object-cover" />
+                    <img loading="lazy" src={m.immagine_url} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <ImageIcon className="h-5 w-5 text-muted-foreground/60" />
                   )}

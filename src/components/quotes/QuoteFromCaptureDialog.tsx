@@ -627,7 +627,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                   {images.map((img, i) => (
                     <div key={i} className="relative border rounded-md overflow-hidden">
-                      <img
+                      <img loading="lazy"
                         src={imagePreviewUrls[i]}
                         alt={`Foto ${i + 1} di ${images.length}`}
                         className="w-full h-24 object-cover"

@@ -481,7 +481,7 @@ export default function SettingsBranding() {
                   <CardContent className="space-y-3">
                     <div className="h-10 w-10 rounded border bg-muted/30 flex items-center justify-center p-1">
                       {brand?.brand_favicon_url ? (
-                        <img src={brand.brand_favicon_url} alt="Favicon" className="h-full w-full object-contain" />
+                        <img loading="lazy" src={brand.brand_favicon_url} alt="Favicon" className="h-full w-full object-contain" />
                       ) : (
                         <span className="text-[9px] text-muted-foreground">Vuoto</span>
                       )}
@@ -504,7 +504,7 @@ export default function SettingsBranding() {
                   <CardContent className="space-y-3">
                     <div className="h-16 w-full rounded border bg-muted/30 overflow-hidden flex items-center justify-center">
                       {brand?.brand_login_bg_url ? (
-                        <img src={brand.brand_login_bg_url} alt="" className="h-full w-full object-cover" />
+                        <img loading="lazy" src={brand.brand_login_bg_url} alt="" className="h-full w-full object-cover" />
                       ) : (
                         <span className="text-[10px] text-muted-foreground">Nessuno sfondo</span>
                       )}

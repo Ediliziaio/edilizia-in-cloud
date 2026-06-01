@@ -52,7 +52,7 @@ export function BuilderBlock({ block, isSelected, onSelect, onDuplicate, onDelet
         const p = block.props as ImageProps;
         return p.src ? (
           <div style={{ textAlign: p.align }}>
-            <img src={p.src} alt={p.alt} style={{ width: p.width, maxWidth: "100%", height: "auto" }} />
+            <img loading="lazy" src={p.src} alt={p.alt} style={{ width: p.width, maxWidth: "100%", height: "auto" }} />
           </div>
         ) : (
           <div className="flex items-center justify-center h-24 bg-muted/50 rounded border-2 border-dashed border-muted-foreground/20 text-sm text-muted-foreground">

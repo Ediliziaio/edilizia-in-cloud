@@ -343,13 +343,13 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
         <div className="max-w-sm w-full text-center space-y-10 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 relative z-10">
           {/* Logo */}
           {loginLogoUrl ? (
-            <img
+            <img loading="lazy"
               src={loginLogoUrl}
               alt={platformName}
               className="h-14 mx-auto object-contain"
             />
           ) : (
-            <img
+            <img loading="lazy"
               src={ediliziaLogo}
               alt="EdiliziaInCloud"
               className="h-14 mx-auto brightness-0 invert"
@@ -415,9 +415,9 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
           {/* Mobile logo (inside card) */}
           <div className="lg:hidden mb-5 sm:mb-8 text-center">
             {loginLogoUrl ? (
-              <img src={loginLogoUrl} alt={platformName} className="h-9 sm:h-11 mx-auto object-contain" />
+              <img loading="lazy" src={loginLogoUrl} alt={platformName} className="h-9 sm:h-11 mx-auto object-contain" />
             ) : (
-              <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-9 sm:h-11 mx-auto" />
+              <img loading="lazy" src={ediliziaLogo} alt="EdiliziaInCloud" className="h-9 sm:h-11 mx-auto" />
             )}
           </div>
 

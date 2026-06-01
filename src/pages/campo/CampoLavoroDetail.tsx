@@ -834,7 +834,7 @@ export default function CampoLavoroDetail() {
                   {r.foto_urls?.length > 0 && (
                     <div className="flex gap-1 mt-2">
                       {r.foto_urls.slice(0, 3).map((url: string, i: number) => (
-                        <img
+                        <img width={48} height={48} loading="lazy"
                           key={i}
                           src={url}
                           className="w-12 h-12 rounded-lg object-cover"

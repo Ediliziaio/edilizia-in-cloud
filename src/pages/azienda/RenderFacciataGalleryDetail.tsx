@@ -204,7 +204,7 @@ export default function RenderFacciataGalleryDetail() {
           <CardContent>
             <div className="flex min-h-[420px] items-center justify-center rounded-xl bg-muted p-3">
               {originalUrl ? (
-                <img src={originalUrl} alt="Originale" className="max-h-[560px] w-full object-contain" />
+                <img loading="lazy" src={originalUrl} alt="Originale" className="max-h-[560px] w-full object-contain" />
               ) : (
                 <Image className="h-10 w-10 text-muted-foreground/30" />
               )}

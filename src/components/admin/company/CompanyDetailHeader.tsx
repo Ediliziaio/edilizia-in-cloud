@@ -80,7 +80,7 @@ export function CompanyDetailHeader({
               </Button>
               <div className="flex items-center gap-4">
                 {company.logo_url ? (
-                  <img
+                  <img width={56} height={56} loading="lazy"
                     src={company.logo_url}
                     alt={company.name}
                     className="h-14 w-14 rounded-xl object-cover ring-2 ring-border"

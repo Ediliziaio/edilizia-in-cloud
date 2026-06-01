@@ -148,7 +148,7 @@ function CategoriaDialog({
             <div className="flex items-center gap-3 mt-1">
               <div className="h-16 w-16 rounded-md border bg-muted overflow-hidden shrink-0">
                 {immagineUrl ? (
-                  <img src={immagineUrl} alt="" className="h-full w-full object-cover" />
+                  <img loading="lazy" src={immagineUrl} alt="" className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs">—</div>
                 )}

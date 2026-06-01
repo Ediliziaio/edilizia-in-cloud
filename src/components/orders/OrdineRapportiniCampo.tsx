@@ -220,7 +220,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                       {r.foto_urls?.length > 0 && (
                         <div className="flex gap-2 flex-wrap">
                           {r.foto_urls.map((url: string, i: number) => (
-                            <img
+                            <img width={80} height={80} loading="lazy"
                               key={i} src={url} alt={`Foto ${i + 1}`}
                               className="w-20 h-20 object-cover rounded-lg cursor-pointer border hover:opacity-80 transition-opacity"
                               onClick={() => setFotoModal(url)}
@@ -236,7 +236,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                             <p className="text-xs text-muted-foreground mb-1">
                               Firma cliente{r.firma_cliente_nome ? `: ${r.firma_cliente_nome}` : ""}
                             </p>
-                            <img
+                            <img loading="lazy"
                               src={r.firma_cliente_url} alt="Firma cliente"
                               className="h-16 border rounded cursor-pointer bg-white"
                               onClick={() => setFirmaModal({ url: r.firma_cliente_url, title: "Firma cliente" })}
@@ -246,7 +246,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                         {r.firma_operaio_url && (
                           <div>
                             <p className="text-xs text-muted-foreground mb-1">Firma operaio</p>
-                            <img
+                            <img loading="lazy"
                               src={r.firma_operaio_url} alt="Firma operaio"
                               className="h-16 border rounded cursor-pointer bg-white"
                               onClick={() => setFirmaModal({ url: r.firma_operaio_url, title: "Firma operaio" })}
@@ -320,7 +320,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
       {/* Modal foto fullscreen */}
       <Dialog open={!!fotoModal} onOpenChange={() => setFotoModal(null)}>
         <DialogContent className="max-w-2xl">
-          {fotoModal && <img src={fotoModal} alt="Foto" className="w-full rounded-lg" />}
+          {fotoModal && <img loading="lazy" src={fotoModal} alt="Foto" className="w-full rounded-lg" />}
         </DialogContent>
       </Dialog>
 
@@ -331,7 +331,7 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
             <DialogTitle>{firmaModal?.title ?? "Firma"}</DialogTitle>
           </DialogHeader>
           {firmaModal && (
-            <img src={firmaModal.url} alt={firmaModal.title} className="w-full bg-white rounded-lg" />
+            <img loading="lazy" src={firmaModal.url} alt={firmaModal.title} className="w-full bg-white rounded-lg" />
           )}
         </DialogContent>
       </Dialog>

@@ -614,7 +614,7 @@ export default function AIQuotePanel({
                     <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                       {fotoPreviewUrls.map((url, i) => (
                         <div key={i} className="relative group rounded-md overflow-hidden border bg-muted">
-                          <img src={url} alt={`Foto ${i + 1}`} className="w-full aspect-square object-cover" />
+                          <img loading="lazy" src={url} alt={`Foto ${i + 1}`} className="w-full aspect-square object-cover" />
                           <button
                             type="button"
                             onClick={() => {

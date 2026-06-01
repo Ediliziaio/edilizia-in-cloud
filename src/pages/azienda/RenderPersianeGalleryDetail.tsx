@@ -254,7 +254,7 @@ export default function RenderPersianeGalleryDetail() {
           <CardContent>
             <div className="w-full rounded-lg bg-muted/20 overflow-hidden flex items-center justify-center min-h-[320px]">
               {originalUrl ? (
-                <img
+                <img loading="lazy"
                   src={originalUrl}
                   alt="Originale"
                   className="w-full max-h-[70vh] object-contain"
@@ -270,7 +270,7 @@ export default function RenderPersianeGalleryDetail() {
       {session.status === "completed" && resultUrl && !originalUrl && (
         <Card>
           <CardContent className="p-4">
-            <img
+            <img loading="lazy"
               src={resultUrl}
               alt="Render AI Persiane"
               className="w-full max-h-[75vh] object-contain rounded-lg"

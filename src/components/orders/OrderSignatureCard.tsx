@@ -160,7 +160,7 @@ export function OrderSignatureCard({ orderId, customerEmail, customerName }: Ord
         {latestSigned?.signature_data && (
           <div className="mt-4 border rounded-lg p-3">
             <p className="text-xs text-muted-foreground mb-2">Ultima firma:</p>
-            <img src={latestSigned.signature_data} alt="Firma" className="max-h-24 mx-auto" />
+            <img loading="lazy" src={latestSigned.signature_data} alt="Firma" className="max-h-24 mx-auto" />
           </div>
         )}
       </CardContent>

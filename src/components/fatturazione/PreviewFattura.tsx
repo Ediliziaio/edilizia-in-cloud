@@ -69,7 +69,7 @@ export function PreviewFattura({ documento, azienda, scale = 0.65 }: Props) {
         <div className="flex justify-between items-start" style={{ marginBottom: "24px" }}>
           <div style={{ maxWidth: "55%" }}>
             {azienda?.logo_url && (
-              <img src={azienda.logo_url} alt="Logo" style={{ height: "40px", marginBottom: "8px", objectFit: "contain" }} />
+              <img loading="lazy" src={azienda.logo_url} alt="Logo" style={{ height: "40px", marginBottom: "8px", objectFit: "contain" }} />
             )}
             {azienda ? (
               <>

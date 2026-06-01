@@ -240,7 +240,7 @@ export function BeforeAfterSlider({
         )}
 
         {baseImage && (
-          <img
+          <img loading="lazy"
             src={baseImage}
             alt={baseAlt}
             className={`absolute inset-0 h-full w-full ${baseObjectFit} block`}
@@ -253,7 +253,7 @@ export function BeforeAfterSlider({
             className="absolute inset-0 overflow-hidden"
             style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
           >
-            <img
+            <img loading="lazy"
               src={overlayImage}
               alt={overlayAlt}
               className={`absolute inset-0 h-full w-full ${overlayObjectFit} block transition-opacity duration-300 ${afterReady ? "opacity-100" : "opacity-0"}`}

@@ -214,7 +214,7 @@ export function PostReceiptDDTPrompt({
             {capturedPhoto && (
               <div className="flex items-center gap-2 rounded-md border bg-muted/30 p-2">
                 {capturedPhoto.type.startsWith("image/") ? (
-                  <img
+                  <img width={40} height={40} loading="lazy"
                     src={URL.createObjectURL(capturedPhoto)}
                     alt={capturedPhoto.name}
                     className="h-10 w-10 object-cover rounded shrink-0"

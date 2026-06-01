@@ -143,7 +143,7 @@ function RelatedPostCard({ post }: RelatedPostCardProps) {
       to={`/blog/${post.slug}`}
       className="group flex gap-4 bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors border border-gray-200"
     >
-      <img
+      <img loading="lazy"
         src={post.coverImage}
         alt={post.title}
         className="w-20 h-16 object-cover rounded-lg flex-shrink-0"
@@ -348,7 +348,7 @@ export default function BlogPost() {
             </h1>
             <div className="mt-4 flex items-center gap-3 text-sm text-white/60">
               {post.author.avatar && (
-                <img src={post.author.avatar} alt={post.author.name} className="w-8 h-8 rounded-full object-cover border border-white/30" />
+                <img width={32} height={32} loading="lazy" src={post.author.avatar} alt={post.author.name} className="w-8 h-8 rounded-full object-cover border border-white/30" />
               )}
               <span className="font-medium text-white/80">{post.author.name}</span>
               <span>·</span>
@@ -494,7 +494,7 @@ export default function BlogPost() {
             {/* Author card */}
             <div className="mt-10 bg-[#111111]/5 rounded-2xl p-6 flex items-start gap-5">
               {post.author.avatar ? (
-                <img
+                <img width={56} height={56} loading="lazy"
                   src={post.author.avatar}
                   alt={post.author.name}
                   className="w-14 h-14 rounded-full object-cover flex-shrink-0 border-2 border-[#F97415]/30"

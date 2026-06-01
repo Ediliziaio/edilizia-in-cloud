@@ -375,7 +375,7 @@ export default function RenderTettoNew() {
             <CardContent>
               {photoPreview ? (
                 <div className="relative rounded-lg overflow-hidden">
-                  <img
+                  <img loading="lazy"
                     src={photoPreview}
                     alt="Foto caricata"
                     className="w-full max-h-80 object-cover"
@@ -454,7 +454,7 @@ export default function RenderTettoNew() {
         <div className="space-y-4">
           {photoPreview && (
             <div className="rounded-lg overflow-hidden max-h-48">
-              <img src={photoPreview} alt="Foto tetto" className="w-full h-full object-cover" />
+              <img loading="lazy" src={photoPreview} alt="Foto tetto" className="w-full h-full object-cover" />
             </div>
           )}
 
@@ -513,7 +513,7 @@ export default function RenderTettoNew() {
                 />
               ) : (
                 <div className="rounded-lg overflow-hidden">
-                  <img
+                  <img loading="lazy"
                     src={resultUrls[0]}
                     alt="Render tetto"
                     className="w-full object-cover"

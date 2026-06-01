@@ -241,7 +241,7 @@ export function CompanyLogoUploader({ company, onLogoUpdated }: CompanyLogoUploa
         <div className="flex items-center gap-4">
           <div className="h-20 w-20 flex-shrink-0 rounded-lg border border-border bg-muted flex items-center justify-center overflow-hidden">
             {currentLogo ? (
-              <img
+              <img loading="lazy"
                 src={currentLogo}
                 alt={company.name}
                 className="h-full w-full object-contain p-1"

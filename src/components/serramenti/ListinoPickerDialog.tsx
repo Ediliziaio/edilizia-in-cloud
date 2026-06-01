@@ -458,7 +458,7 @@ export function ListinoPickerDialog({
                   >
                     {m.immagine_url ? (
                       <div className="relative aspect-[4/3] bg-slate-50 border-b border-slate-100">
-                        <img
+                        <img loading="lazy"
                           src={m.immagine_url}
                           alt={m.nome}
                           className="absolute inset-0 w-full h-full object-contain p-2"
@@ -507,7 +507,7 @@ export function ListinoPickerDialog({
                     className="text-left rounded-md border-2 border-slate-200 hover:border-orange-400 hover:bg-orange-50/30 focus:outline-none focus:ring-2 focus:ring-orange-400 transition overflow-hidden group flex flex-col"
                   >
                     {f.immagine_url ? (
-                      <img
+                      <img loading="lazy"
                         src={f.immagine_url}
                         alt={f.nome}
                         className="w-full h-32 object-contain bg-slate-50"

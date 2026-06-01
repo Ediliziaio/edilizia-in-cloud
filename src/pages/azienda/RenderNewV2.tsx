@@ -1078,7 +1078,7 @@ function StepPhoto({
         <CardContent className="p-0">
           {preview ? (
             <div className="relative">
-              <img src={preview} alt="Anteprima foto" className="block max-h-[520px] w-full object-contain bg-slate-100" />
+              <img loading="lazy" src={preview} alt="Anteprima foto" className="block max-h-[520px] w-full object-contain bg-slate-100" />
               <Button
                 type="button"
                 size="sm"

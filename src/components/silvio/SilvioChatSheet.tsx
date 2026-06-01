@@ -1498,7 +1498,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                   title={`${kindLabel(a.kind)} · ${a.file.name}`}
                 >
                   {a.previewUrl ? (
-                    <img src={a.previewUrl} alt={a.file.name} className="h-full w-full object-cover" />
+                    <img loading="lazy" src={a.previewUrl} alt={a.file.name} className="h-full w-full object-cover" />
                   ) : a.kind === "pdf" ? (
                     <FileText className="h-6 w-6 text-red-500" />
                   ) : a.kind === "audio" ? (

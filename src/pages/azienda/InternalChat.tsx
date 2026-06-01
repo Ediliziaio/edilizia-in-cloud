@@ -895,7 +895,7 @@ function AttachmentPreview({ msg, isMe }: { msg: Message; isMe: boolean }) {
     return (
       <div className="mb-1.5">
         <a href={href} target="_blank" rel="noopener noreferrer" className="block" aria-label={`Apri allegato ${attachmentName}`}>
-          <img
+          <img loading="lazy"
             src={href}
             alt={attachmentName}
             className="rounded-lg max-w-full max-h-60 object-cover cursor-pointer hover:opacity-90 transition-opacity"

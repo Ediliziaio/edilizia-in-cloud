@@ -267,7 +267,7 @@ export default function CustomerFirma() {
                   )}
                   {req.signature_url && (
                     <div className="border rounded-md p-2 bg-white">
-                      <img
+                      <img loading="lazy"
                         src={req.signature_url}
                         alt="Firma"
                         className="max-h-20 mx-auto"

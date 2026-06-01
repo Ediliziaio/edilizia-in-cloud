@@ -139,7 +139,7 @@ function TimelineItem({
           className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
           onClick={() => setLightboxSrc(null)}
         >
-          <img
+          <img loading="lazy"
             src={lightboxSrc}
             alt="Foto ingrandita"
             className="max-h-[85vh] max-w-full rounded-lg shadow-2xl object-contain"
@@ -224,7 +224,7 @@ function TimelineItem({
                     onClick={() => setLightboxSrc(url)}
                     aria-label={`Foto ${i + 1}`}
                   >
-                    <img
+                    <img loading="lazy"
                       src={url}
                       alt={`Foto ${i + 1}`}
                       className="h-full w-full object-cover"

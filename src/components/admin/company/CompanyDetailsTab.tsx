@@ -325,7 +325,7 @@ export function CompanyDetailsTab({
                 {company.logo_url && (
                   <div>
                     <p className="text-sm font-medium mb-2">Logo attuale</p>
-                    <img src={company.logo_url} alt="Logo" className="h-16 w-16 rounded-lg object-cover border" />
+                    <img width={64} height={64} loading="lazy" src={company.logo_url} alt="Logo" className="h-16 w-16 rounded-lg object-cover border" />
                   </div>
                 )}
               </CardContent>
@@ -625,7 +625,7 @@ export function CompanyDetailsTab({
           <CardContent className="pt-6">
             <div className="flex flex-col items-center text-center space-y-4">
               {company.logo_url ? (
-                <img
+                <img width={80} height={80} loading="lazy"
                   src={company.logo_url}
                   alt={company.name}
                   className="h-20 w-20 rounded-2xl object-cover shadow-sm"

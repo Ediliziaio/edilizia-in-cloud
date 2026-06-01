@@ -214,7 +214,7 @@ export default function ImpostazioniFatturazione() {
                 <div className="relative group">
                   <div className="h-24 w-24 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center bg-muted/30 overflow-hidden">
                     {current.logo_url ? (
-                      <img src={current.logo_url} alt="Logo" className="h-full w-full object-contain p-1" />
+                      <img loading="lazy" src={current.logo_url} alt="Logo" className="h-full w-full object-contain p-1" />
                     ) : (
                       <Upload className="h-8 w-8 text-muted-foreground/50" />
                     )}
@@ -631,7 +631,7 @@ export default function ImpostazioniFatturazione() {
               <div className="border rounded-lg p-6 bg-white dark:bg-gray-950 min-h-[200px]">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    {current.logo_url && <img src={current.logo_url} alt="Logo" className="h-10 object-contain" />}
+                    {current.logo_url && <img loading="lazy" src={current.logo_url} alt="Logo" className="h-10 object-contain" />}
                     <div>
                       <div className="font-bold text-sm" style={{ color: current.colore_primario ?? "#0ea5e9" }}>{current.ragione_sociale ?? "Nome Azienda"}</div>
                       <div className="text-[10px] text-muted-foreground">P.IVA {current.partita_iva ?? "00000000000"}</div>

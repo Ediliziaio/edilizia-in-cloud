@@ -217,7 +217,7 @@ export default function RenderTechnicalModuleGalleryDetail({ moduleId }: { modul
               <BeforeAfterSlider beforeUrl={originalUrl} afterUrl={resultUrl} />
             ) : (
               <div className="overflow-hidden rounded-lg">
-                <img src={resultUrl} alt={`Render ${spec.label}`} className="w-full object-cover" />
+                <img loading="lazy" src={resultUrl} alt={`Render ${spec.label}`} className="w-full object-cover" />
               </div>
             )}
           </CardContent>

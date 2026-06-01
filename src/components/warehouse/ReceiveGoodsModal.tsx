@@ -456,7 +456,7 @@ function DDTFilePreviewInline({
   return (
     <div className="flex items-center gap-3 rounded-md border-2 border-primary/30 bg-primary/5 p-2.5">
       {isImage && objectUrl ? (
-        <img
+        <img width={56} height={56} loading="lazy"
           src={objectUrl}
           alt={file.name}
           className="h-14 w-14 rounded object-cover shrink-0 border"

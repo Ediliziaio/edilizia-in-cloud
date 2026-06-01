@@ -1119,7 +1119,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               onClick={() => !uploadingLogo && logoInputRef.current?.click()}
             >
               {form.logo_url ? (
-                <img src={form.logo_url} alt="" className="w-full h-full object-contain p-2" />
+                <img loading="lazy" src={form.logo_url} alt="" className="w-full h-full object-contain p-2" />
               ) : (
                 <div className="text-center p-3">
                   <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
@@ -1803,7 +1803,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 >
                   {/* Immagine di sfondo */}
                   {form.pdf_cover_image_url && (
-                    <img
+                    <img loading="lazy"
                       src={form.pdf_cover_image_url}
                       alt="cover bg"
                       className="absolute inset-0 w-full h-full object-cover"
@@ -1868,7 +1868,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                         }}
                       >
                         {form.logo_url ? (
-                          <img
+                          <img width={28} height={28} loading="lazy"
                             src={form.logo_url}
                             alt="logo"
                             className="h-7 w-7 object-contain rounded bg-white/10 p-0.5"
@@ -2571,7 +2571,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     onClick={() => !uploadingChiSiamo && chiSiamoInputRef.current?.click()}
                   >
                     {form.chi_siamo_foto_url ? (
-                      <img
+                      <img loading="lazy"
                         src={form.chi_siamo_foto_url}
                         alt="Foto azienda"
                         className="w-full h-auto max-h-[280px] object-contain"

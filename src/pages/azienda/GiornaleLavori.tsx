@@ -580,7 +580,7 @@ export default function GiornaleLavori() {
                 <div className="grid grid-cols-3 gap-2">
                   {fotoPreview.map((foto, i) => (
                     <div key={i} className="relative aspect-square rounded-lg overflow-hidden bg-muted">
-                      <img src={foto.preview} alt="" className="w-full h-full object-cover" />
+                      <img loading="lazy" src={foto.preview} alt="" className="w-full h-full object-cover" />
                       <button
                         type="button"
                         onClick={() => removeFoto(i)}

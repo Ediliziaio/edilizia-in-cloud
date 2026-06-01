@@ -148,7 +148,7 @@ export default function PartnerLink() {
           </div>
           {showQR && (
             <div className="flex justify-center p-4 bg-white rounded-lg">
-              <img src={qrUrl} alt="QR Code" className="w-48 h-48" />
+              <img loading="lazy" src={qrUrl} alt="QR Code" className="w-48 h-48" />
             </div>
           )}
         </CardContent>

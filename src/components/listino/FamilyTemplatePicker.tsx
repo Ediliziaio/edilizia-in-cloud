@@ -280,7 +280,7 @@ export function FamilyTemplatePicker({
             ) : (
               <div className="space-y-3">
                 {selected.image_url && (
-                  <img
+                  <img loading="lazy"
                     src={selected.image_url}
                     alt={selected.nome}
                     className="w-full aspect-square object-cover rounded-md border"

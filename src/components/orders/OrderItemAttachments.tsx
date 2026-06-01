@@ -89,7 +89,7 @@ function ImageThumbnail({ fileUrl, fileName }: { fileUrl: string; fileName: stri
     getSignedDownloadUrl(fileUrl).then(setSrc);
   }, [fileUrl]);
   return src ? (
-    <img src={src} alt={fileName} className="h-10 w-10 object-cover rounded" />
+    <img width={40} height={40} loading="lazy" src={src} alt={fileName} className="h-10 w-10 object-cover rounded" />
   ) : (
     <div className="h-10 w-10 flex items-center justify-center bg-muted rounded">
       <Image className="h-5 w-5" />

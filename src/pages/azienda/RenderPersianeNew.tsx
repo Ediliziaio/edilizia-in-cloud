@@ -506,7 +506,7 @@ export default function RenderPersianeNew() {
               ) : (
                 <div className="space-y-3">
                   <div className="rounded-xl overflow-hidden border bg-muted/20">
-                    <img
+                    <img loading="lazy"
                       src={photoPreview}
                       alt="Anteprima"
                       className="w-full max-h-[420px] object-contain"
@@ -569,7 +569,7 @@ export default function RenderPersianeNew() {
             <CardContent className="space-y-4">
               {photoPreview && (
                 <div className="rounded-lg overflow-hidden border bg-muted/20">
-                  <img
+                  <img loading="lazy"
                     src={photoPreview}
                     alt="Foto originale"
                     className="w-full max-h-[360px] object-contain"
@@ -679,7 +679,7 @@ export default function RenderPersianeNew() {
         <div className="space-y-4">
           {photoPreview && (
             <div className="rounded-xl overflow-hidden border bg-muted/20">
-              <img
+              <img loading="lazy"
                 src={photoPreview}
                 alt="Originale"
                 className="w-full max-h-[260px] object-contain"
@@ -828,7 +828,7 @@ export default function RenderPersianeNew() {
             </CardHeader>
             <CardContent className="p-4">
               <div className="rounded-xl overflow-hidden border bg-muted/20">
-                <img
+                <img loading="lazy"
                   src={resultUrls[0]}
                   alt="Render persiane"
                   className="w-full max-h-[75vh] object-contain"

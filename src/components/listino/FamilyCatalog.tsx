@@ -760,7 +760,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                 )}
                 {/* Thumb macrocategoria: foto se presente, fallback icona Folder */}
                 {macroGroup.macroImmagineUrl ? (
-                  <img
+                  <img width={40} height={40} loading="lazy"
                     src={macroGroup.macroImmagineUrl}
                     alt=""
                     className="h-10 w-10 rounded-md object-cover border border-orange-200 dark:border-orange-900/50 shrink-0 shadow-sm"

@@ -103,7 +103,7 @@ function Lightbox({ open, onClose, url, name, mime }: LightboxProps) {
           {/* Content */}
           <div className="flex-1 flex items-center justify-center overflow-auto bg-black/95 p-2 sm:p-4">
             {isImage(mime) ? (
-              <img
+              <img loading="lazy"
                 src={url}
                 alt={name}
                 className="max-w-full max-h-full object-contain rounded-md"
@@ -343,7 +343,7 @@ export function DDTMainFilePreview({
             className="relative w-20 h-24 sm:w-28 sm:h-32 rounded-md overflow-hidden border-2 border-primary/30 bg-muted shrink-0 group"
           >
             {isImage(mime) ? (
-              <img src={url} alt={name} className="w-full h-full object-cover" />
+              <img loading="lazy" src={url} alt={name} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center bg-rose-50">
                 <FileText className="h-8 w-8 sm:h-10 sm:w-10 text-rose-500" />

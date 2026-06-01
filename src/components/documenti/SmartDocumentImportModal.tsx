@@ -231,7 +231,7 @@ function SmartFilePreview({
 
       {kind === "image" && previewUrl ? (
         <div className="flex h-[360px] items-center justify-center bg-slate-100">
-          <img src={previewUrl} alt={name} className="max-h-full max-w-full object-contain" />
+          <img loading="lazy" src={previewUrl} alt={name} className="max-h-full max-w-full object-contain" />
         </div>
       ) : kind === "pdf" && previewUrl ? (
         <iframe title={name} src={previewUrl} className="h-[360px] w-full bg-white" />

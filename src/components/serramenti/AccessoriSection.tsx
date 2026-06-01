@@ -752,7 +752,7 @@ function CopyMisureDialog({
                             }`}
                           >
                             {f.immagine_url ? (
-                              <img src={f.immagine_url} alt="" className="h-8 w-8 object-cover rounded shrink-0" />
+                              <img width={32} height={32} loading="lazy" src={f.immagine_url} alt="" className="h-8 w-8 object-cover rounded shrink-0" />
                             ) : (
                               <div className="h-8 w-8 rounded bg-slate-100 flex items-center justify-center shrink-0">
                                 <Package className="h-3.5 w-3.5 text-muted-foreground/50" />

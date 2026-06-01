@@ -537,7 +537,7 @@ export function MacroCategorieManager() {
                     {/* Preview */}
                     <div className="h-24 w-24 shrink-0 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center overflow-hidden bg-muted/40">
                       {formImmagineUrl ? (
-                        <img
+                        <img loading="lazy"
                           src={formImmagineUrl}
                           alt={formNome || "Macrocategoria"}
                           className="h-full w-full object-cover"
@@ -860,7 +860,7 @@ function MacroRow({
           aria-label={isOpen ? "Chiudi" : "Apri"}
         >
           {macro.immagine_url ? (
-            <img
+            <img loading="lazy"
               src={macro.immagine_url}
               alt=""
               className="h-full w-full object-cover"

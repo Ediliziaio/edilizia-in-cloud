@@ -214,7 +214,7 @@ export function PlatformBrandingTab() {
                   placeholder="https://cdn.example.com/logo.png"
                 />
                 {brandingValues.app_logo_url && (
-                  <img
+                  <img width={36} height={36} loading="lazy"
                     src={brandingValues.app_logo_url}
                     alt="Logo preview"
                     className="h-9 w-9 rounded border object-contain"
@@ -234,7 +234,7 @@ export function PlatformBrandingTab() {
                   placeholder="https://cdn.example.com/favicon.ico"
                 />
                 {brandingValues.favicon_url && (
-                  <img
+                  <img width={36} height={36} loading="lazy"
                     src={brandingValues.favicon_url}
                     alt="Favicon preview"
                     className="h-9 w-9 rounded border object-contain"

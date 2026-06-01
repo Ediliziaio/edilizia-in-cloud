@@ -334,7 +334,7 @@ export default function CommercialistaLogin() {
     <div className="min-h-dvh bg-[#07111f] lg:grid lg:grid-cols-[minmax(420px,45%)_1fr]">
       <aside className="hidden overflow-hidden bg-[#07111f] p-12 lg:flex lg:flex-col lg:justify-between">
         <div className="space-y-12">
-          <img
+          <img loading="lazy"
             src={ediliziaLogo}
             alt="Edilizia in Cloud"
             className="h-12 w-auto object-contain brightness-0 invert"
@@ -397,7 +397,7 @@ export default function CommercialistaLogin() {
       <main className="flex min-h-dvh items-center justify-center bg-slate-50 px-5 py-8 lg:px-12">
         <div className="w-full max-w-md">
           <div className="mb-8 flex justify-center lg:hidden">
-            <img src={ediliziaLogo} alt="Edilizia in Cloud" className="h-11 w-auto object-contain" />
+            <img loading="lazy" src={ediliziaLogo} alt="Edilizia in Cloud" className="h-11 w-auto object-contain" />
           </div>
 
           {view === "2fa" && (

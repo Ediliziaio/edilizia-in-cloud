@@ -146,7 +146,7 @@ export default function PartnerMaterials() {
               <Card key={m.id} className={!accessible ? "opacity-60" : ""}>
                 {m.thumbnail_url && (
                   <div className="aspect-video bg-muted rounded-t-lg overflow-hidden">
-                    <img src={m.thumbnail_url} alt={m.name} className="w-full h-full object-cover" />
+                    <img loading="lazy" src={m.thumbnail_url} alt={m.name} className="w-full h-full object-cover" />
                   </div>
                 )}
                 <CardHeader className="pb-2">

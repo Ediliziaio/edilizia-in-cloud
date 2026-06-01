@@ -832,7 +832,7 @@ export default function RenderPlanimetrieNew() {
               </span>
               {sourcePreviewUrl ? (
                 <span className="mb-3 block h-24 w-36 overflow-hidden rounded-xl border border-white bg-white shadow-sm">
-                  <img src={sourcePreviewUrl} alt="" className="h-full w-full object-cover opacity-90 grayscale transition group-hover:scale-105" />
+                  <img loading="lazy" src={sourcePreviewUrl} alt="" className="h-full w-full object-cover opacity-90 grayscale transition group-hover:scale-105" />
                 </span>
               ) : (
                 <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-500 shadow-sm transition group-hover:text-orange-600">

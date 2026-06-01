@@ -210,7 +210,7 @@ export function AdMediaUploader({ companyId, onUploaded }: Props) {
         >
           {preview ? (
             <div className="relative">
-              <img
+              <img loading="lazy"
                 src={preview}
                 alt="Preview"
                 className="max-h-48 rounded-lg object-contain"

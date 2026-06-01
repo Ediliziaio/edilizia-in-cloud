@@ -205,7 +205,7 @@ export function ProductSearchDialog({
                       className="w-full flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 text-left transition-colors"
                     >
                       {a.immagine_url ? (
-                        <img
+                        <img width={40} height={40} loading="lazy"
                           src={a.immagine_url}
                           alt=""
                           className="h-10 w-10 object-cover rounded shrink-0"

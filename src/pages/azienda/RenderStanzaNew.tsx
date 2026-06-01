@@ -417,7 +417,7 @@ export default function RenderStanzaNew() {
             <CardContent>
               {photoPreview ? (
                 <div className="relative rounded-lg overflow-hidden">
-                  <img
+                  <img loading="lazy"
                     src={photoPreview}
                     alt="Foto caricata"
                     className="w-full max-h-80 object-cover"
@@ -508,7 +508,7 @@ export default function RenderStanzaNew() {
           {/* Foto preview */}
           {photoPreview && (
             <div className="rounded-xl overflow-hidden h-40 relative">
-              <img src={photoPreview} alt="Stanza" className="w-full h-full object-cover" />
+              <img loading="lazy" src={photoPreview} alt="Stanza" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
               <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Foto caricata</div>
             </div>
@@ -585,7 +585,7 @@ export default function RenderStanzaNew() {
           {resultUrls[0] && !photoPreview && (
             <Card className="overflow-hidden">
               <CardContent className="p-0">
-                <img
+                <img loading="lazy"
                   src={resultUrls[0]}
                   alt="Render AI"
                   className="w-full object-cover"

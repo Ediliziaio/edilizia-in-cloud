@@ -395,7 +395,7 @@ export default function RenderPavimentoNew() {
             <CardContent>
               {photoPreview ? (
                 <div className="relative rounded-lg overflow-hidden">
-                  <img
+                  <img loading="lazy"
                     src={photoPreview}
                     alt="Foto caricata"
                     className="w-full max-h-80 object-cover"
@@ -485,7 +485,7 @@ export default function RenderPavimentoNew() {
           {/* Foto preview compatta */}
           {photoPreview && (
             <div className="rounded-xl overflow-hidden h-40 relative">
-              <img src={photoPreview} alt="Stanza" className="w-full h-full object-cover" />
+              <img loading="lazy" src={photoPreview} alt="Stanza" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
               <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Foto caricata</div>
             </div>
@@ -618,7 +618,7 @@ export default function RenderPavimentoNew() {
           {/* Render result */}
           <Card>
             <CardContent className="p-4">
-              <img
+              <img loading="lazy"
                 src={resultUrls[0]}
                 alt="Render pavimento"
                 className="w-full rounded-lg"

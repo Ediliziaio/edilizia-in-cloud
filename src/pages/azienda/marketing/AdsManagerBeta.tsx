@@ -6035,7 +6035,7 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
             {lastGeneratedImage && !isGeneratingImage && (
               <div className="overflow-hidden rounded-xl border shadow-sm">
                 <div className="relative">
-                  <img src={lastGeneratedImage.public_url} alt="Immagine generata" className="w-full object-cover" />
+                  <img loading="lazy" src={lastGeneratedImage.public_url} alt="Immagine generata" className="w-full object-cover" />
                   <div className="absolute right-2 top-2 flex gap-1">
                     <Badge className="bg-black/60 text-white text-[10px] backdrop-blur-sm">
                       {lastGeneratedImage.width_px}×{lastGeneratedImage.height_px}

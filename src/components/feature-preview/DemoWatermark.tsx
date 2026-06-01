@@ -10,7 +10,7 @@
  * Pattern d'uso:
  *
  *   <div className="relative">
- *     <img src={renderExample} alt="Esempio render" />
+ *     <img loading="lazy" src={renderExample} alt="Esempio render" />
  *     <DemoWatermark featureKey="render_ai" />
  *   </div>
  */

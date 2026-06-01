@@ -66,7 +66,7 @@ function KindPreview({ form, kind }: { form: Partial<QuoteTemplate>; kind: Quote
       <div className={A4}>
         {form.cover_image_url ? (
           <div className="flex-1 bg-slate-100 overflow-hidden">
-            <img src={getLogoPublicUrl(form.cover_image_url)} alt="cover" className="w-full h-full object-cover" />
+            <img loading="lazy" src={getLogoPublicUrl(form.cover_image_url)} alt="cover" className="w-full h-full object-cover" />
           </div>
         ) : (
           <div className={`flex-1 ${meta.bgColor} flex items-center justify-center`}>
@@ -87,7 +87,7 @@ function KindPreview({ form, kind }: { form: Partial<QuoteTemplate>; kind: Quote
       <div className={A4 + " p-6"}>
         <div className="flex gap-4 mb-4">
           {form.product_image_url ? (
-            <img src={getLogoPublicUrl(form.product_image_url)} alt="" className="h-32 w-32 object-cover rounded-lg border" />
+            <img loading="lazy" src={getLogoPublicUrl(form.product_image_url)} alt="" className="h-32 w-32 object-cover rounded-lg border" />
           ) : (
             <div className="h-32 w-32 rounded-lg border-2 border-dashed border-emerald-300 bg-emerald-50 flex items-center justify-center">
               <ImageIcon className="h-8 w-8 text-emerald-300" />
@@ -261,7 +261,7 @@ function ProductTemplateEditor({ form, updateForm, productImageInputRef, product
           <div className="mt-1 flex items-start gap-3">
             <div className="h-24 w-24 shrink-0 rounded-lg border-2 border-dashed border-emerald-300 bg-white overflow-hidden flex items-center justify-center">
               {form.product_image_url ? (
-                <img src={getLogoPublicUrl(form.product_image_url)} alt="" className="h-full w-full object-cover" />
+                <img loading="lazy" src={getLogoPublicUrl(form.product_image_url)} alt="" className="h-full w-full object-cover" />
               ) : (
                 <ImageIcon className="h-6 w-6 text-emerald-300" />
               )}
@@ -367,14 +367,14 @@ function TemplateCard({ tmpl, kindMeta, logoSrcFor, effectiveCompanyName, templa
     if (kind === 'copertina' && tmpl.cover_image_url) {
       return (
         <div className="aspect-[4/5] w-full max-w-[160px] rounded border border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center">
-          <img src={getLogoPublicUrl(tmpl.cover_image_url)} alt="cover" className="w-full h-full object-cover" />
+          <img loading="lazy" src={getLogoPublicUrl(tmpl.cover_image_url)} alt="cover" className="w-full h-full object-cover" />
         </div>
       );
     }
     if (kind === 'prodotto' && tmpl.product_image_url) {
       return (
         <div className="aspect-square w-full max-w-[160px] rounded border border-slate-200 overflow-hidden bg-slate-50 flex items-center justify-center">
-          <img src={getLogoPublicUrl(tmpl.product_image_url)} alt={tmpl.name} className="w-full h-full object-cover" />
+          <img loading="lazy" src={getLogoPublicUrl(tmpl.product_image_url)} alt={tmpl.name} className="w-full h-full object-cover" />
         </div>
       );
     }
@@ -1152,7 +1152,7 @@ export default function SettingsQuoteTemplates() {
                     <div className="mt-1 flex items-start gap-3">
                       <div className="h-24 w-24 shrink-0 rounded-lg border-2 border-dashed border-pink-300 bg-white overflow-hidden flex items-center justify-center">
                         {form.cover_image_url ? (
-                          <img src={getLogoPublicUrl(form.cover_image_url)} alt="" className="h-full w-full object-cover" />
+                          <img loading="lazy" src={getLogoPublicUrl(form.cover_image_url)} alt="" className="h-full w-full object-cover" />
                         ) : (
                           <ImageIcon className="h-6 w-6 text-pink-300" />
                         )}
@@ -1326,7 +1326,7 @@ export default function SettingsQuoteTemplates() {
                       </div>
                       {form.logo_url && (
                         <div className="mt-3 flex items-center gap-3">
-                          <img
+                          <img width={80} height={80} loading="lazy"
                             src={getLogoPublicUrl(form.logo_url)}
                             alt="Logo template"
                             className="h-20 w-20 rounded-lg border border-border object-contain bg-muted/50 p-1"
@@ -1690,7 +1690,7 @@ export default function SettingsQuoteTemplates() {
                       <div className="mt-1 flex items-start gap-3">
                         <div className="h-24 w-24 shrink-0 rounded-lg border-2 border-dashed border-orange-300 bg-white overflow-hidden flex items-center justify-center">
                           {form.cover_image_url ? (
-                            <img src={getLogoPublicUrl(form.cover_image_url)} alt="Cover" className="h-full w-full object-cover" />
+                            <img loading="lazy" src={getLogoPublicUrl(form.cover_image_url)} alt="Cover" className="h-full w-full object-cover" />
                           ) : (
                             <ImageIcon className="h-6 w-6 text-orange-300" />
                           )}

@@ -343,7 +343,7 @@ export function RenderUnifiedGallery({
                         imageFit={item.imageFit}
                       />
                     ) : item.imageUrl ? (
-                      <img
+                      <img loading="lazy"
                         src={item.imageUrl}
                         alt={item.title}
                         className={`h-full w-full transition-transform duration-300 group-hover:scale-[1.03] ${item.imageFit === "contain" ? "object-contain p-2" : "object-cover"}`}

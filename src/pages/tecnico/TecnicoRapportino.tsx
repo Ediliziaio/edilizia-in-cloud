@@ -555,7 +555,7 @@ export default function TecnicoRapportino() {
                 <div className="grid grid-cols-3 gap-2 mt-3">
                   {fotoPreviews.map((src, i) => (
                     <div key={i} className="relative aspect-square">
-                      <img src={src} alt={`Foto ${i + 1}`} className="w-full h-full object-cover rounded-xl" />
+                      <img loading="lazy" src={src} alt={`Foto ${i + 1}`} className="w-full h-full object-cover rounded-xl" />
                       <button
                         onClick={() => removeFoto(i)}
                         className="absolute top-1.5 right-1.5 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center"

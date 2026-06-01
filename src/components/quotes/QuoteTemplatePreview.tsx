@@ -184,7 +184,7 @@ function PreviewLogo({
 
   if (logoSrc) {
     return (
-      <img
+      <img loading="lazy"
         src={logoSrc}
         alt=""
         style={{

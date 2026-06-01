@@ -179,7 +179,7 @@ export default function AccountantLayout({ children }: { children?: ReactNode })
       <div className="flex flex-1 flex-col">
         <header className="flex items-center justify-between border-b bg-white px-4 py-3 lg:hidden">
           <Link to="/commercialista" className="flex items-center gap-2">
-            <img src={ediliziaLogo} alt="" className="h-6 w-auto" />
+            <img loading="lazy" src={ediliziaLogo} alt="" className="h-6 w-auto" />
             <span className="text-sm font-semibold">{firm.name}</span>
           </Link>
           <div className="flex items-center gap-2">

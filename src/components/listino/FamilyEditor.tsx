@@ -963,7 +963,7 @@ export function FamilyEditor() {
                       {/* Preview */}
                       <div className="h-28 w-28 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center overflow-hidden bg-muted/50 shrink-0">
                         {immagineUrl ? (
-                          <img
+                          <img loading="lazy"
                             src={immagineUrl}
                             alt={`Preview ${nome || "articolo"}`}
                             className="h-full w-full object-cover"
@@ -2395,7 +2395,7 @@ function RiepilogoSection(props: RiepilogoSectionProps) {
       >
         <div className="flex gap-4 items-start">
           {immagineUrl ? (
-            <img
+            <img width={80} height={80} loading="lazy"
               src={immagineUrl}
               alt={family.nome}
               className="h-20 w-20 rounded-md object-cover border flex-shrink-0"

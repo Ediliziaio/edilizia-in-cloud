@@ -294,7 +294,7 @@ export default function SerramentiStimaPubblica() {
         <div className="container mx-auto p-4 max-w-5xl flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             {azienda.logo_url ? (
-              <img src={azienda.logo_url} alt={azienda.nome} className="h-10" />
+              <img loading="lazy" src={azienda.logo_url} alt={azienda.nome} className="h-10" />
             ) : (
               <div
                 className="h-10 w-10 rounded border-2 flex items-center justify-center font-bold text-lg"

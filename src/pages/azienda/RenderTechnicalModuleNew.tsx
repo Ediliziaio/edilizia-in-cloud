@@ -354,7 +354,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
             <CardContent>
               {photoPreview ? (
                 <div className="relative overflow-hidden rounded-lg">
-                  <img src={photoPreview} alt="Foto caricata" className="max-h-96 w-full object-cover" />
+                  <img loading="lazy" src={photoPreview} alt="Foto caricata" className="max-h-96 w-full object-cover" />
                   <Button variant="secondary" size="sm" className="absolute right-3 top-3 gap-1.5" onClick={resetPhoto}>
                     <RefreshCw className="h-3.5 w-3.5" />
                     Cambia foto
@@ -397,7 +397,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
         <div className="space-y-4">
           {photoPreview && (
             <div className="overflow-hidden rounded-lg">
-              <img src={photoPreview} alt="Foto render" className="max-h-56 w-full object-cover" />
+              <img loading="lazy" src={photoPreview} alt="Foto render" className="max-h-56 w-full object-cover" />
             </div>
           )}
 
@@ -506,7 +506,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
               {photoPreview ? (
                 <BeforeAfterSlider beforeUrl={photoPreview} afterUrl={resultUrls[0]} />
               ) : (
-                <img src={resultUrls[0]} alt="Render completato" className="w-full rounded-lg object-cover" />
+                <img loading="lazy" src={resultUrls[0]} alt="Render completato" className="w-full rounded-lg object-cover" />
               )}
             </CardContent>
           </Card>

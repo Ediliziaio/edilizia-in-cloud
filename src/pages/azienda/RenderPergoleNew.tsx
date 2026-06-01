@@ -330,7 +330,7 @@ export default function RenderPergoleNew() {
             <CardContent>
               {photoPreview ? (
                 <div className="relative rounded-lg overflow-hidden">
-                  <img src={photoPreview} alt="Foto caricata" className="w-full max-h-96 object-cover" />
+                  <img loading="lazy" src={photoPreview} alt="Foto caricata" className="w-full max-h-96 object-cover" />
                   <Button variant="secondary" size="sm" className="absolute top-3 right-3 gap-1.5" onClick={() => { setPhoto(null); setPhotoPreview(null); }}>
                     <RefreshCw className="h-3.5 w-3.5" />
                     Cambia foto
@@ -372,7 +372,7 @@ export default function RenderPergoleNew() {
         <div className="space-y-4">
           {photoPreview && (
             <div className="rounded-lg overflow-hidden max-h-56">
-              <img src={photoPreview} alt="Foto pergola" className="w-full h-full object-cover" />
+              <img loading="lazy" src={photoPreview} alt="Foto pergola" className="w-full h-full object-cover" />
             </div>
           )}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
@@ -429,7 +429,7 @@ export default function RenderPergoleNew() {
               {photoPreview ? (
                 <BeforeAfterSlider beforeSrc={photoPreview} afterSrc={resultUrls[0]} beforeLabel="Prima" afterLabel="Dopo" />
               ) : (
-                <img src={resultUrls[0]} alt="Render pergola" className="w-full object-cover rounded-lg" />
+                <img loading="lazy" src={resultUrls[0]} alt="Render pergola" className="w-full object-cover rounded-lg" />
               )}
             </CardContent>
           </Card>

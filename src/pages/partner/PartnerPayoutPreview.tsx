@@ -909,7 +909,7 @@ export default function PartnerPayoutPreview() {
       <div className="grid min-h-screen lg:grid-cols-[260px_1fr]">
         <aside className="hidden border-r bg-card lg:flex lg:flex-col">
           <div className="flex h-14 items-center justify-between border-b px-4">
-            <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
+            <img loading="lazy" src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
             <Badge className="bg-amber-500 text-white">Gold</Badge>
           </div>
           <nav className="flex-1 space-y-1 p-3">
@@ -940,7 +940,7 @@ export default function PartnerPayoutPreview() {
         <main className="min-w-0 bg-muted/20">
           <div className="sticky top-0 z-20 border-b bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
             <div className="flex items-center justify-between gap-3">
-              <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
+              <img loading="lazy" src={ediliziaLogo} alt="EdiliziaInCloud" className="h-8" />
               <div className="flex items-center gap-2">
                 <Badge className="bg-amber-500 text-white">Gold</Badge>
                 <Avatar className="h-8 w-8">

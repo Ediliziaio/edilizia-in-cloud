@@ -498,7 +498,7 @@ export default function ChiusuraIntervento() {
                   <p className="font-medium text-gray-800">Firma acquisita</p>
                 </div>
                 <div className="border rounded-lg overflow-hidden bg-gray-50 p-2">
-                  <img
+                  <img loading="lazy"
                     src={firmaDataUrl}
                     alt="Anteprima firma"
                     className="max-h-28 mx-auto object-contain"

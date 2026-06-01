@@ -189,7 +189,7 @@ export function FamilyTemplateBulkDialog({
                             className="shrink-0"
                           />
                           {t.image_url ? (
-                            <img
+                            <img width={36} height={36}
                               src={t.thumbnail_url ?? t.image_url}
                               alt=""
                               className="h-9 w-9 object-cover rounded shrink-0 bg-slate-100"

@@ -183,7 +183,7 @@ export default function LavoriLogin() {
 
           {/* Logo */}
           <div className="flex justify-start">
-            <img
+            <img loading="lazy"
               src={ediliziaLogo}
               alt="Edilizia in Cloud"
               className="h-12 object-contain brightness-0 invert"
@@ -288,7 +288,7 @@ export default function LavoriLogin() {
           <>
             {/* Logo mobile */}
             <div className="lg:hidden mb-8 text-center space-y-2">
-              <img
+              <img loading="lazy"
                 src={ediliziaLogo}
                 alt="Edilizia in Cloud"
                 className="h-10 mx-auto object-contain brightness-0 invert"
@@ -416,7 +416,7 @@ export default function LavoriLogin() {
           <>
             {/* Logo mobile */}
             <div className="lg:hidden mb-8 text-center space-y-2">
-              <img
+              <img loading="lazy"
                 src={ediliziaLogo}
                 alt="Edilizia in Cloud"
                 className="h-10 mx-auto object-contain brightness-0 invert"

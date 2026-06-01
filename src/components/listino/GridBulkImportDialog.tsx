@@ -515,7 +515,7 @@ export function GridBulkImportDialog({
               {imagePreview && (
                 <div className="space-y-2">
                   <div className="border rounded-md p-2 bg-muted/20">
-                    <img
+                    <img loading="lazy"
                       src={imagePreview}
                       alt="Anteprima listino"
                       className="max-h-[280px] w-auto mx-auto rounded"

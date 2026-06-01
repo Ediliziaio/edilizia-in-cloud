@@ -222,7 +222,7 @@ export default function CampaignEditor() {
   const confirmInsertImage = () => {
     if (!imageUrl) return;
     const safeUrl = sanitizeUrl(imageUrl);
-    execCmd("insertHTML", `<img src="${safeUrl}" alt="${escapeHtml(imageAlt)}" style="max-width:100%" />`);
+    execCmd("insertHTML", `<img loading="lazy" src="${safeUrl}" alt="${escapeHtml(imageAlt)}" style="max-width:100%" />`);
     setImageDialogOpen(false);
   };
 
@@ -521,7 +521,7 @@ export default function CampaignEditor() {
             </div>
             {imageUrl && (
               <div className="border rounded-md p-2">
-                <img src={imageUrl} alt={imageAlt} className="max-h-32 mx-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                <img loading="lazy" src={imageUrl} alt={imageAlt} className="max-h-32 mx-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
               </div>
             )}
           </div>

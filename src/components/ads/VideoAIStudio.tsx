@@ -115,7 +115,7 @@ function JobCard({ job, onClear }: { job: VideoJob; onClear: () => void }) {
             onMouseEnter={e => { void (e.currentTarget as HTMLVideoElement).play(); }}
           />
         ) : job.input_image_url ? (
-          <img src={job.input_image_url} alt="" className={cn("h-full w-full object-cover", isActive && "opacity-40")} />
+          <img loading="lazy" src={job.input_image_url} alt="" className={cn("h-full w-full object-cover", isActive && "opacity-40")} />
         ) : (
           <div
             className="flex h-full w-full items-center justify-center"
@@ -418,7 +418,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                         <button key={img.id} type="button"
                           onClick={() => { setUploadedImage({ url: img.public_url }); setShowLibraryPicker(false); }}
                           className="aspect-square overflow-hidden rounded-lg border border-gray-200 hover:border-orange-400">
-                          <img src={img.public_url} alt={img.name} className="h-full w-full object-cover" />
+                          <img loading="lazy" src={img.public_url} alt={img.name} className="h-full w-full object-cover" />
                         </button>
                       ))}
                     </div>
@@ -426,7 +426,7 @@ export function VideoAIStudio({ companyId, libraryImages = [] }: Props) {
                 </div>
               ) : (
                 <div className="relative overflow-hidden rounded-xl">
-                  <img src={uploadedImage.url} alt="Selected" className="max-h-48 w-full object-cover" />
+                  <img loading="lazy" src={uploadedImage.url} alt="Selected" className="max-h-48 w-full object-cover" />
                   <button type="button" onClick={() => setUploadedImage(null)}
                     className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white hover:bg-black">
                     <X className="h-4 w-4" />

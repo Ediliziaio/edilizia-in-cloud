@@ -188,7 +188,7 @@ export default function RenderPergoleGalleryDetail() {
             {originalUrl ? (
               <BeforeAfterSlider beforeSrc={originalUrl} afterSrc={resultUrl} beforeLabel="Prima" afterLabel="Dopo" />
             ) : (
-              <div className="rounded-lg overflow-hidden"><img src={resultUrl} alt="Render pergola" className="w-full object-cover" /></div>
+              <div className="rounded-lg overflow-hidden"><img loading="lazy" src={resultUrl} alt="Render pergola" className="w-full object-cover" /></div>
             )}
           </CardContent>
         </Card>

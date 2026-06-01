@@ -416,7 +416,7 @@ function YouTubeDemoEmbed() {
       }
     </style>
     <a href="${YOUTUBE_RENDER_DEMO_AUTOPLAY_URL}" aria-label="Guarda il video demo Render Infissi AI">
-      <img src="${YOUTUBE_RENDER_DEMO_THUMBNAIL}" alt="Anteprima video demo Render Infissi AI" />
+      <img loading="lazy" src="${YOUTUBE_RENDER_DEMO_THUMBNAIL}" alt="Anteprima video demo Render Infissi AI" />
       <span class="shade"></span>
       <span class="play"></span>
       <span class="copy">Guarda il video demo<span>Click per riprodurre dentro questa card</span></span>

@@ -183,7 +183,7 @@ export default function RenderTettoGalleryDetail() {
               />
             ) : (
               <div className="rounded-lg overflow-hidden">
-                <img src={resultUrl} alt="Render tetto" className="w-full object-cover" />
+                <img loading="lazy" src={resultUrl} alt="Render tetto" className="w-full object-cover" />
               </div>
             )}
           </CardContent>

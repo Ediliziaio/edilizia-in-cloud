@@ -284,7 +284,7 @@ function ImageProperties({ props, update }: { props: ImageProps; update: (p: Par
       </div>
       {props.src && (
         <div className="border rounded p-2">
-          <img src={props.src} alt={props.alt} className="max-h-24 mx-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          <img loading="lazy" src={props.src} alt={props.alt} className="max-h-24 mx-auto" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
         </div>
       )}
       <div className="space-y-1.5">

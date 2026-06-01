@@ -71,7 +71,7 @@ export function RenderProcessingCard({
       <CardContent className="p-0">
         {photoPreview && (
           <div className="relative bg-slate-900">
-            <img
+            <img loading="lazy"
               src={photoPreview}
               alt="Foto in elaborazione"
               className="w-full max-h-64 object-cover opacity-50"

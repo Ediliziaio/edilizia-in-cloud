@@ -1151,7 +1151,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                 }}
               >
                 {form.pdf_cover_image_url && (
-                  <img
+                  <img loading="lazy"
                     src={form.pdf_cover_image_url}
                     alt=""
                     className="absolute inset-0 h-full w-full object-cover"
@@ -1178,7 +1178,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     >
                       <div className="flex h-9 w-9 items-center justify-center rounded bg-orange-500 text-white">
                         {form.logo_url ? (
-                          <img src={form.logo_url} alt="" className="h-full w-full rounded object-contain bg-white p-1" />
+                          <img loading="lazy" src={form.logo_url} alt="" className="h-full w-full rounded object-contain bg-white p-1" />
                         ) : (
                           <Sun className="h-5 w-5" />
                         )}
@@ -1266,7 +1266,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               onClick={() => !uploadingLogo && logoInputRef.current?.click()}
             >
               {form.logo_url ? (
-                <img src={form.logo_url} alt="Logo azienda" className="w-full h-full object-contain p-2" />
+                <img loading="lazy" src={form.logo_url} alt="Logo azienda" className="w-full h-full object-contain p-2" />
               ) : (
                 <div className="text-center p-3">
                   <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
@@ -1600,7 +1600,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     <div className="flex gap-3">
                       <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-slate-50 text-slate-400">
                         {macro.immagine_url ? (
-                          <img
+                          <img loading="lazy"
                             src={macro.immagine_url}
                             alt=""
                             className="h-full w-full object-cover"

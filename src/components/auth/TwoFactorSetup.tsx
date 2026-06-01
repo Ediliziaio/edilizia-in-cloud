@@ -192,7 +192,7 @@ export function TwoFactorSetup() {
             <div className="space-y-2">
               <p className="text-sm font-medium">1. Scansiona il QR code con la tua app di autenticazione</p>
               <div className="flex justify-center p-4 bg-white rounded-lg">
-                <img
+                <img loading="lazy"
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauthUri)}`}
                   alt="QR Code TOTP"
                   className="w-48 h-48"

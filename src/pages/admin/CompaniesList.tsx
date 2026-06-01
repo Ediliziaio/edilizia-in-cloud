@@ -1439,7 +1439,7 @@ export default function CompaniesList() {
                 <CardContent className="p-3">
                   <div className="flex items-start gap-3">
                     {company.logo_url ? (
-                      <img src={company.logo_url} alt={company.name} className="h-10 w-10 rounded-xl object-cover shrink-0" />
+                      <img width={40} height={40} loading="lazy" src={company.logo_url} alt={company.name} className="h-10 w-10 rounded-xl object-cover shrink-0" />
                     ) : (
                       <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                         <Building2 className="h-5 w-5 text-primary" />
@@ -1528,7 +1528,7 @@ export default function CompaniesList() {
                         />
                       </div>
                       {company.logo_url ? (
-                        <img src={company.logo_url} alt={company.name} className="h-10 w-10 rounded-lg object-cover shrink-0" />
+                        <img width={40} height={40} loading="lazy" src={company.logo_url} alt={company.name} className="h-10 w-10 rounded-lg object-cover shrink-0" />
                       ) : (
                         <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                           <Building2 className="h-5 w-5 text-primary" />
@@ -1680,7 +1680,7 @@ export default function CompaniesList() {
                         <TableCell>
                           <div className="flex items-center gap-3">
                             {company.logo_url ? (
-                              <img src={company.logo_url} alt={company.name} className="h-8 w-8 rounded-lg object-cover" />
+                              <img width={32} height={32} loading="lazy" src={company.logo_url} alt={company.name} className="h-8 w-8 rounded-lg object-cover" />
                             ) : (
                               <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
                                 <Building2 className="h-4 w-4 text-primary" />

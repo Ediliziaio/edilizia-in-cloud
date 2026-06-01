@@ -79,7 +79,7 @@ export function CompanyPipelineView({ companies, healthScores = {} }: CompanyPip
                     <CardContent className="p-3">
                       <div className="flex items-center gap-2">
                         {c.logo_url ? (
-                          <img src={c.logo_url} alt="" className="h-6 w-6 rounded object-cover" />
+                          <img width={24} height={24} loading="lazy" src={c.logo_url} alt="" className="h-6 w-6 rounded object-cover" />
                         ) : (
                           <div className="h-6 w-6 rounded bg-primary/10 flex items-center justify-center">
                             <Building2 className="h-3 w-3 text-primary" />

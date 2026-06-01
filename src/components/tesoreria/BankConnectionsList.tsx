@@ -323,7 +323,7 @@ export default function BankConnectionsList({ companyId, hasPendingCallback, onC
                 <CardContent className="flex items-center justify-between py-4">
                   <div className="flex items-center gap-4">
                     {conn.institution_logo ? (
-                      <img src={conn.institution_logo} alt="" className="h-10 w-10 rounded-lg object-contain" loading="lazy" />
+                      <img width={40} height={40} src={conn.institution_logo} alt="" className="h-10 w-10 rounded-lg object-contain" loading="lazy" />
                     ) : (
                       <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
                         <Landmark className="h-5 w-5 text-muted-foreground" />
@@ -408,7 +408,7 @@ export default function BankConnectionsList({ companyId, hasPendingCallback, onC
                   onClick={() => handleSelectInstitution(inst)}
                 >
                   {inst.logo ? (
-                    <img src={inst.logo} alt="" className="h-8 w-8 rounded object-contain" />
+                    <img width={32} height={32} loading="lazy" src={inst.logo} alt="" className="h-8 w-8 rounded object-contain" />
                   ) : (
                     <Landmark className="h-8 w-8 text-muted-foreground" />
                   )}

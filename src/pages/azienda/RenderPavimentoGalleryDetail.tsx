@@ -230,7 +230,7 @@ export default function RenderPavimentoGalleryDetail() {
       {session.status === "completed" && resultUrl && !originalUrl && (
         <Card>
           <CardContent className="p-4">
-            <img src={resultUrl} alt="Render AI Pavimento" className="w-full rounded-lg" />
+            <img loading="lazy" src={resultUrl} alt="Render AI Pavimento" className="w-full rounded-lg" />
             <div className="flex gap-2 mt-4 justify-end">
               <RenderPdfDownloadButton
                 afterUrl={resultUrl}
@@ -258,7 +258,7 @@ export default function RenderPavimentoGalleryDetail() {
           <CardContent>
             <div className="w-full aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center">
               {originalUrl ? (
-                <img
+                <img loading="lazy"
                   src={originalUrl}
                   alt="Originale"
                   className="w-full h-full object-cover opacity-60"

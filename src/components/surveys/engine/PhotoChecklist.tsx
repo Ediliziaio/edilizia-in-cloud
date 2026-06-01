@@ -130,7 +130,7 @@ export function PhotoChecklist({
                   <div className="grid grid-cols-2 gap-1">
                     {photos.map((p) => (
                       <div key={p.id} className="relative group aspect-square">
-                        <img
+                        <img loading="lazy"
                           src={p.url}
                           alt={p.checklist_label ?? "Foto"}
                           className="w-full h-full object-cover rounded"

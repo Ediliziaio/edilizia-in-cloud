@@ -196,7 +196,7 @@ export function TicketAttachments({ ticketId }: TicketAttachmentsProps) {
                   className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors group"
                 >
                   {img ? (
-                    <img src={url} alt={name} className="h-8 w-8 rounded object-cover flex-shrink-0" loading="lazy" />
+                    <img width={32} height={32} src={url} alt={name} className="h-8 w-8 rounded object-cover flex-shrink-0" loading="lazy" />
                   ) : (
                     <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   )}

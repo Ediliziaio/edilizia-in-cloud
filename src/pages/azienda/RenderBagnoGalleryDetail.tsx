@@ -263,7 +263,7 @@ export default function RenderBagnoGalleryDetail() {
       {session.stato === "completato" && resultUrl && !originalUrl && (
         <Card>
           <CardContent className="p-4">
-            <img src={resultUrl} alt="Render AI Bagno" className="w-full rounded-lg" />
+            <img loading="lazy" src={resultUrl} alt="Render AI Bagno" className="w-full rounded-lg" />
             <div className="flex gap-2 mt-4 justify-end">
               <RenderPdfDownloadButton
                 afterUrl={resultUrl}
@@ -291,7 +291,7 @@ export default function RenderBagnoGalleryDetail() {
           <CardContent>
             <div className="w-full max-h-[72vh] bg-muted/40 rounded-lg overflow-hidden flex items-center justify-center p-3">
               {originalDisplayUrl ? (
-                <img
+                <img loading="lazy"
                   src={originalDisplayUrl}
                   alt="Originale"
                   className="max-h-[68vh] w-full object-contain opacity-80"

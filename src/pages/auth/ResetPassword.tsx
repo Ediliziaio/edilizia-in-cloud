@@ -110,7 +110,7 @@ export default function ResetPassword() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-6">
         <div className="text-center space-y-4 max-w-sm">
-          <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-12 mx-auto mb-6" />
+          <img loading="lazy" src={ediliziaLogo} alt="EdiliziaInCloud" className="h-12 mx-auto mb-6" />
           <h2 className="text-xl font-bold text-foreground">Link non valido</h2>
           <p className="text-muted-foreground text-sm">
             Il link di reset è scaduto o non è valido. Richiedi un nuovo link dalla pagina di login.
@@ -127,7 +127,7 @@ export default function ResetPassword() {
     <div className="min-h-screen flex items-center justify-center bg-background px-6">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
-          <img src={ediliziaLogo} alt="EdiliziaInCloud" className="h-12 mx-auto mb-6" />
+          <img loading="lazy" src={ediliziaLogo} alt="EdiliziaInCloud" className="h-12 mx-auto mb-6" />
           <h2 className="text-2xl font-bold text-foreground">Nuova password</h2>
           <p className="text-muted-foreground mt-2">Imposta la tua nuova password</p>
         </div>

@@ -1022,7 +1022,7 @@ export default function DDTRicezioneDetail() {
                         rel="noreferrer"
                         className="inline-flex items-center gap-2 mt-0.5 group"
                       >
-                        <img
+                        <img loading="lazy"
                           src={ddt.signature_url}
                           alt="Firma"
                           className="h-10 bg-white border rounded-md px-1 group-hover:border-primary transition"

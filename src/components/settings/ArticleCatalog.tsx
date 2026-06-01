@@ -1119,7 +1119,7 @@ export function ArticleCatalog() {
                 <TableRow key={a.id}>
                   <TableCell>
                     {a.immagine_url ? (
-                      <img src={a.immagine_url} alt="" className="h-8 w-8 object-cover rounded" loading="lazy" />
+                      <img width={32} height={32} src={a.immagine_url} alt="" className="h-8 w-8 object-cover rounded" loading="lazy" />
                     ) : (
                       <div className="h-8 w-8 bg-muted rounded flex items-center justify-center">
                         <Package className="h-4 w-4 text-muted-foreground" />

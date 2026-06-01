@@ -2271,7 +2271,7 @@ function ContentStudioTab({
               {activeMediaUrl || selectedLibraryMedia ? (
                 <div className="relative overflow-hidden rounded-xl border">
                   {activeMediaUrl ? (
-                    <img src={activeMediaUrl} alt="Media" className="max-h-64 w-full object-cover" />
+                    <img loading="lazy" src={activeMediaUrl} alt="Media" className="max-h-64 w-full object-cover" />
                   ) : selectedLibraryMedia ? (
                     <div className={cn("flex h-48 flex-col items-center justify-center bg-gradient-to-br px-4 text-center text-white", selectedLibraryMedia.gradient)}>
                       {selectedLibraryMedia.type === "video" ? <Play className="mb-2 h-9 w-9 text-white/80" /> : <ImageIcon className="mb-2 h-9 w-9 text-white/80" />}
@@ -2492,7 +2492,7 @@ function ContentStudioTab({
                   {(isStory || contentTypeId === "reel") ? (
                     <>
                       {activeMediaUrl ? (
-                        <img src={activeMediaUrl} alt="Preview" className="h-full w-full object-cover" />
+                        <img loading="lazy" src={activeMediaUrl} alt="Preview" className="h-full w-full object-cover" />
                       ) : selectedLibraryMedia ? (
                         <div className={cn("flex h-full w-full items-center justify-center bg-gradient-to-br", selectedLibraryMedia.gradient)}>
                           <Smartphone className="h-10 w-10 text-white/70" />
@@ -2533,7 +2533,7 @@ function ContentStudioTab({
                       </div>
                       {/* Media */}
                       {activeMediaUrl ? (
-                        <img src={activeMediaUrl} alt="Post media" className="w-full object-cover" style={{ height: contentType.previewH }} />
+                        <img loading="lazy" src={activeMediaUrl} alt="Post media" className="w-full object-cover" style={{ height: contentType.previewH }} />
                       ) : selectedLibraryMedia ? (
                         <div className={cn("flex items-center justify-center bg-gradient-to-br", selectedLibraryMedia.gradient)} style={{ height: contentType.previewH }}>
                           <ImageIcon className="h-6 w-6 text-white/70" />
@@ -3355,7 +3355,7 @@ function GridPlannerTab({ posts }: { posts: ScheduledPost[] }) {
                   )}
                   {cell.type === "scheduled" && (
                     cell.image_url
-                      ? <img src={cell.image_url} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                      ? <img loading="lazy" src={cell.image_url} alt="" className="absolute inset-0 h-full w-full object-cover" />
                       : <div className={cn("absolute inset-0 bg-gradient-to-br", cell.gradient ?? "from-slate-300 to-slate-400")} />
                   )}
                   {cell.type === "placeholder" && (

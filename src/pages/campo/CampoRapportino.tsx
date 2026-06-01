@@ -468,7 +468,7 @@ export default function CampoRapportino() {
                 <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
                   {fotoPreviews.map((p, i) => (
                     <div key={i} className="relative">
-                      <img src={p} className="aspect-square w-full rounded-xl object-cover" alt="preview" />
+                      <img loading="lazy" src={p} className="aspect-square w-full rounded-xl object-cover" alt="preview" />
                       <button
                         onClick={() => {
                           setFotoPreviews(prev => prev.filter((_, idx) => idx !== i));

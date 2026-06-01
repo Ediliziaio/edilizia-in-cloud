@@ -519,7 +519,7 @@ function BlueHeader({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             {company.logo_url ? (
-              <img
+              <img width={48} height={48} loading="lazy"
                 src={company.logo_url}
                 alt={company.name}
                 className="h-12 w-12 object-contain rounded-lg p-1"

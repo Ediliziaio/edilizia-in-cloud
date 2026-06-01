@@ -645,7 +645,7 @@ export default function RenderBagnoNew() {
               {photoPreview ? (
                 <div className="relative overflow-hidden rounded-lg border border-border/60 bg-muted/20">
                   <div className="flex max-h-[34rem] min-h-[240px] items-center justify-center">
-                    <img
+                    <img loading="lazy"
                       src={photoPreview}
                       alt="Foto caricata"
                       className="max-h-[34rem] w-full object-contain"
@@ -746,7 +746,7 @@ export default function RenderBagnoNew() {
           {photoPreview && (
             <div className="relative overflow-hidden rounded-xl border border-border/60 bg-muted/20">
               <div className="flex max-h-[22rem] min-h-[180px] items-center justify-center">
-                <img src={photoPreview} alt="Bagno" className="max-h-[22rem] w-full object-contain" />
+                <img loading="lazy" src={photoPreview} alt="Bagno" className="max-h-[22rem] w-full object-contain" />
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
               <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Foto caricata</div>
@@ -877,7 +877,7 @@ export default function RenderBagnoNew() {
           {photoPreview && (
             <div className="relative overflow-hidden rounded-xl border border-border/60 bg-muted/20">
               <div className="flex max-h-[18rem] min-h-[160px] items-center justify-center">
-                <img src={photoPreview} alt="Bagno" className="max-h-[18rem] w-full object-contain" />
+                <img loading="lazy" src={photoPreview} alt="Bagno" className="max-h-[18rem] w-full object-contain" />
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
               <div className="absolute bottom-2 left-3 text-white text-xs font-medium">Foto originale</div>

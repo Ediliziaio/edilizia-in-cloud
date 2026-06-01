@@ -198,7 +198,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
                     {/* PRIMA — foto originale */}
                     <div className="relative group rounded-md overflow-hidden border bg-muted aspect-video">
                       {prima?.url ? (
-                        <img src={prima.url} alt="prima" className="w-full h-full object-cover" />
+                        <img loading="lazy" src={prima.url} alt="prima" className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground italic">
                           Foto originale mancante
@@ -211,7 +211,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
                     {/* DOPO — render AI */}
                     <div className="relative group rounded-md overflow-hidden border bg-muted aspect-video">
                       {render.url ? (
-                        <img src={render.url} alt={render.caption ?? "render"} className="w-full h-full object-cover" />
+                        <img loading="lazy" src={render.url} alt={render.caption ?? "render"} className="w-full h-full object-cover" />
                       ) : (
                         <Sparkles className="h-6 w-6 mx-auto text-orange-300 mt-8" />
                       )}
@@ -238,7 +238,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
                 })
                 .map((m) => (
                   <div key={m.id} className="relative group rounded-md overflow-hidden border bg-muted aspect-video max-w-xs">
-                    {m.url && <img src={m.url} alt="prima" className="w-full h-full object-cover" />}
+                    {m.url && <img loading="lazy" src={m.url} alt="prima" className="w-full h-full object-cover" />}
                     <button
                       onClick={() => setMediaToDelete(m)}
                       className="absolute top-1 right-1 h-6 w-6 rounded-full bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
@@ -290,7 +290,7 @@ export function StepAccessori({ progettoId, detail }: Props) {
             {detail.media.filter((m) => m.kind !== "render").map((m) => (
               <div key={m.id} className="relative group aspect-square rounded-md overflow-hidden border bg-muted">
                 {m.url ? (
-                  <img src={m.url} alt={m.caption ?? "foto"} className="w-full h-full object-cover" />
+                  <img loading="lazy" src={m.url} alt={m.caption ?? "foto"} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
@@ -442,7 +442,7 @@ function ImportRenderDialog({
                   onClick={() => onSelect(s.id, 0)}
                   className="group relative rounded-md overflow-hidden border bg-muted aspect-video text-left hover:ring-2 hover:ring-orange-500 transition disabled:opacity-50"
                 >
-                  <img src={url0} alt="render" className="w-full h-full object-cover" />
+                  <img loading="lazy" src={url0} alt="render" className="w-full h-full object-cover" />
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-[10px] px-2 py-1.5">
                     <p className="font-semibold">
                       {new Date(s.created_at).toLocaleDateString("it-IT")}

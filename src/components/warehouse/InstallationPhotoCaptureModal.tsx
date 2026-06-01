@@ -148,7 +148,7 @@ export function InstallationPhotoCaptureModal({
 
             {photoBeforePreview ? (
               <div className="relative w-full bg-gray-100 rounded border">
-                <img src={photoBeforePreview} alt="Anteprima foto PRIMA dell'installazione" className="w-full h-auto rounded" />
+                <img loading="lazy" src={photoBeforePreview} alt="Anteprima foto PRIMA dell'installazione" className="w-full h-auto rounded" />
                 <div className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded text-xs font-medium">
                   ✓ Caricata
                 </div>
@@ -219,7 +219,7 @@ export function InstallationPhotoCaptureModal({
 
             {photoAfterPreview ? (
               <div className="relative w-full bg-gray-100 rounded border">
-                <img src={photoAfterPreview} alt="Anteprima foto DOPO l'installazione" className="w-full h-auto rounded" />
+                <img loading="lazy" src={photoAfterPreview} alt="Anteprima foto DOPO l'installazione" className="w-full h-auto rounded" />
                 <div className="absolute top-2 right-2 bg-green-500 text-white px-2 py-1 rounded text-xs font-medium">
                   ✓ Caricata
                 </div>

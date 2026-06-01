@@ -136,7 +136,7 @@ export function EditorTopBar({
 
         {/* Company logo */}
         {companyLogo && (
-          <img
+          <img loading="lazy"
             src={companyLogo}
             alt="Logo"
             className="h-6 object-contain shrink-0"

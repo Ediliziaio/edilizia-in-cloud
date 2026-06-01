@@ -487,7 +487,7 @@ export default function RenderFacciataNew() {
             <Card>
               <CardContent className="p-4 space-y-4">
                 <div className="overflow-hidden rounded-lg bg-muted">
-                  <img
+                  <img loading="lazy"
                     src={photoPreview}
                     alt="Anteprima facciata"
                     className="max-h-[560px] w-full object-contain"
@@ -720,7 +720,7 @@ export default function RenderFacciataNew() {
 
           <Card>
             <CardContent className="p-4">
-              <img
+              <img loading="lazy"
                 src={resultUrls[0]}
                 alt="Render facciata"
                 className="max-h-[720px] w-full rounded-lg object-contain"

@@ -22,7 +22,7 @@ export function LandingFooter() {
       <div className="mx-auto grid max-w-6xl gap-10 md:grid-cols-4">
         <div>
           <Link to="/" className="inline-flex focus:outline-none focus:ring-2 focus:ring-eic-orange focus:ring-offset-2 focus:ring-offset-eic-navy-90">
-            <img
+            <img loading="lazy"
               src={logo}
               alt="Edilizia in Cloud"
               width={144}
