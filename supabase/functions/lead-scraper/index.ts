@@ -1,5 +1,6 @@
 // ============================================================================
 // lead-scraper — motore multi-source per la generazione di lead B2B (super_admin)
+// (deploy: v1 — primo rilascio via CI bun)
 // ============================================================================
 // Fonti (action "search", campo source):
 //   • google_maps → ATTIVA. Text Search + Place Details (riusa google_maps_api_key).

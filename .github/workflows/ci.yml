@@ -21,16 +21,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: '20'
-          cache: 'npm'
+          bun-version: latest
 
       - name: Install deps
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: tsc --noEmit
-        run: npx tsc --noEmit
+        run: bunx tsc --noEmit
 
   # ─────────────────────────────────────────────────────────────────────────
   # 2. Critical unit tests
@@ -41,16 +40,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: '20'
-          cache: 'npm'
+          bun-version: latest
 
       - name: Install deps
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       - name: Run critical tests
-        run: npm run test:critical
+        run: bun run test:critical
 
   # ─────────────────────────────────────────────────────────────────────────
   # 3. Deploy changed edge functions (main only, after checks pass)
