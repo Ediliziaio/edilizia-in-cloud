@@ -350,6 +350,9 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
   // msg storici) NON vogliamo animarli. Solo i messaggi che arrivano DOPO il
   // mount via realtime devono attivare il typewriter.
   const hasHydratedRef = useRef(false);
+  // F4 — auto-brief: flag che segnala al secondo effect di triggerare l'invio
+  // non appena il draft (settato nel primo effect) è effettivamente in stato.
+  const [autoSendPending, setAutoSendPending] = useState(false);
 
   useEffect(() => {
     if (!open || !prefillDraft) return;
@@ -360,6 +363,31 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
     setDraft((prev) => (prev.trim() ? `${prev.trim()}\n${clean}` : clean));
     requestAnimationFrame(() => draftTextareaRef.current?.focus());
   }, [draftTextareaRef, open, prefillDraft]);
+
+  // F4 — Daily auto-brief: quando il canale si carica per la prima volta oggi,
+  // invia automaticamente "Cosa conta ora?" senza che l'utente debba cliccare.
+  // Deduplica via localStorage (una sola volta per company per giornata).
+  useEffect(() => {
+    if (!open || !channelId || loadingChannel || mode !== "azienda" || !companyId) return;
+    const briefKey = `silvio_brief_${companyId}`;
+    const todayStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD UTC
+    if (localStorage.getItem(briefKey) === todayStr) return;
+    localStorage.setItem(briefKey, todayStr);
+    setDraft("Cosa conta ora?");
+    setAutoSendPending(true);
+  // channelId cambia solo se la company cambia — stabile durante la sessione
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, channelId, loadingChannel, mode, companyId]);
+
+  // F4 — Trigger effettivo invio quando draft è sincronizzato allo stato
+  useEffect(() => {
+    if (!autoSendPending || !draft.trim() || sending) return;
+    setAutoSendPending(false);
+    setSending(true);
+    sendMutation.mutate();
+  // sendMutation è stabile (React Query) — non serve in deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSendPending, draft, sending]);
   // mountTimeRef: cutoff per distinguere messaggi storici (created_at <)
   // da messaggi davvero "live" (created_at >=). Resettato sul cambio canale.
   const mountTimeRef = useRef<string>(new Date().toISOString());
@@ -1287,6 +1315,17 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
         {/* 🆕 Quick actions toolbar — sempre visibile (non solo nell'empty state)
             v8.6.72 — Padding ridotto su mobile per recuperare verticale. */}
         <div className="px-2 sm:px-3 py-1.5 sm:py-2 border-b bg-white/60 flex gap-1.5 overflow-x-auto scrollbar-thin shrink-0">
+          {/* F4 — Brief giornata: re-triggerabile manualmente anche se già auto-inviato */}
+          <SilvioQuickAction
+            icon={Sparkles}
+            label="Brief giornata"
+            color="text-orange-700 bg-orange-50 border-orange-200 hover:bg-orange-100"
+            onClick={() => {
+              if (companyId) localStorage.setItem(`silvio_brief_${companyId}`, new Date().toISOString().split("T")[0]);
+              setDraft("Cosa conta ora?");
+              setAutoSendPending(true);
+            }}
+          />
           <SilvioQuickAction
             icon={FileSpreadsheet}
             label="Computo → Preventivo"
@@ -1884,9 +1923,9 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
 }
 
 const SUGGESTED_QUESTIONS = [
+  "Cosa conta ora? Dimmi le priorità di oggi.",
   "Come sta la mia cassa nei prossimi 30 giorni?",
   "Quali commesse stanno erodendo margine?",
-  "Quali clienti sono in ritardo grave?",
   "Quanti preventivi devo ancora chiudere?",
 ];
 
