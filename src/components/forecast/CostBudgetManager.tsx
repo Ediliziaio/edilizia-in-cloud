@@ -14,6 +14,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { toast } from "sonner";
 import {
@@ -30,6 +31,7 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted }: CostBud
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
 
   const [selectedMonth, setSelectedMonth] = useState(() => format(startOfMonth(new Date()), "yyyy-MM"));
   const [newCategory, setNewCategory] = useState("");
@@ -204,7 +206,22 @@ export function CostBudgetManager({ dynamicCategories, allCostsSorted }: CostBud
                         {over ? "+" : ""}{formatCurrency(delta)}
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteBudgetMutation.mutate(b.id)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          aria-label={`Elimina budget ${b.category}`}
+                          onClick={async () => {
+                            if (await confirm({
+                              title: "Eliminare questo budget?",
+                              description: `Budget "${b.category}" verrà rimosso. L'operazione non può essere annullata.`,
+                              confirmLabel: "Elimina",
+                              variant: "destructive",
+                            })) {
+                              deleteBudgetMutation.mutate(b.id);
+                            }
+                          }}
+                        >
                           <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
                         </Button>
                       </TableCell>

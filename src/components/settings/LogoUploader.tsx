@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/utils/logger";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { Company } from "@/types/auth";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
@@ -21,6 +22,7 @@ export function LogoUploader({ company, onLogoUpdated, disabled = false }: LogoU
   const [isUploading, setIsUploading] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const confirm = useConfirm();
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -94,6 +96,14 @@ export function LogoUploader({ company, onLogoUpdated, disabled = false }: LogoU
 
   const handleRemoveLogo = async () => {
     if (!company || disabled) return;
+
+    const ok = await confirm({
+      title: "Rimuovere il logo aziendale?",
+      description: "Il logo verrà eliminato definitivamente. Potrai caricarne uno nuovo in qualsiasi momento.",
+      confirmLabel: "Rimuovi logo",
+      variant: "destructive",
+    });
+    if (!ok) return;
 
     setIsRemoving(true);
 

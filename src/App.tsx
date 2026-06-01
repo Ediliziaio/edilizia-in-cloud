@@ -49,6 +49,7 @@ import { customerRoutes, employeeRoutes, salespersonRoutes, partnerRoutes } from
 // che non erano più usati (lint error: 'tecnicoRoutes'/'campoRoutes' defined but never used).
 import { portaleClienteRoutes } from "@/routes/portaleClienteRoutes";
 import { userErrorMessage } from "@/lib/userErrorMessage";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 
 // Suspense fallback — full-screen overlay (fixed inset-0 z-40) per evitare
 // che il fallback "piccolo" lasci intravedere la landing/Home sottostante
@@ -447,6 +448,7 @@ const App = () => (
     }}
   >
     <TooltipProvider>
+     <ConfirmProvider>
       <Sonner />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <BootGuardDismiss />
@@ -692,6 +694,7 @@ const App = () => (
           </AnalyticsProvider>
         </AuthProvider>
       </BrowserRouter>
+     </ConfirmProvider>
     </TooltipProvider>
   </PersistQueryClientProvider>
   </ErrorBoundary>
