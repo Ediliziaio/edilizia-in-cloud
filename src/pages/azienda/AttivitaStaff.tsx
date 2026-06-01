@@ -29,6 +29,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { queryKeys } from "@/lib/queryKeys";
 import { cn } from "@/lib/utils";
@@ -99,6 +100,15 @@ const CATEGORY_OPTIONS = [
 ];
 
 const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+
+// ── Calendar layer config ──────────────────────────────────────────────────
+const LAYER_CONFIG = {
+  commessa:     { label: "Commesse",     dotClass: "bg-emerald-500", chipOn: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",  chipOff: "border-border text-muted-foreground/60 hover:bg-muted/40" },
+  scadenza:     { label: "Scadenze",     dotClass: "bg-amber-500",   chipOn: "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100",           chipOff: "border-border text-muted-foreground/60 hover:bg-muted/40" },
+  appuntamento: { label: "Appuntamenti", dotClass: "bg-teal-500",    chipOn: "border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100",               chipOff: "border-border text-muted-foreground/60 hover:bg-muted/40" },
+  feria:        { label: "Ferie",        dotClass: "bg-orange-400",  chipOn: "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100",       chipOff: "border-border text-muted-foreground/60 hover:bg-muted/40" },
+} as const;
+type LayerId = keyof typeof LAYER_CONFIG;
 
 type TaskFilter = "tutte" | "oggi" | "scadute" | "settimana" | "completate";
 type AddTaskRequest = { date: string; requestId: number };
@@ -554,23 +564,45 @@ function MeteoWidget() {
 // ─────────────────────────────────────────────────────────────────────────────
 function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string) => void; onDateSelect?: (date: string | null) => void }) {
   const { user, effectiveCompany } = useAuth();
+  const { canViewOrders, canViewScadenzario, canViewMarketingAppointments, canViewPersone } = usePermissions();
   const companyId = effectiveCompany?.id;
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
 
+  // Layer toggles — persisted in localStorage
+  const [enabledLayers, setEnabledLayers] = useState<Set<LayerId>>(() => {
+    try {
+      const stored = localStorage.getItem("cal-layers-v1");
+      if (stored) return new Set(JSON.parse(stored) as LayerId[]);
+    } catch {}
+    return new Set<LayerId>(["commessa", "scadenza", "appuntamento", "feria"]);
+  });
+  const toggleLayer = (id: LayerId) => {
+    setEnabledLayers(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      try { localStorage.setItem("cal-layers-v1", JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
+
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
+  const monthStartStr = format(monthStart, "yyyy-MM-dd");
+  const monthEndStr = format(monthEnd, "yyyy-MM-dd");
+  const monthStr = format(monthStart, "yyyy-MM");
 
+  // ── 1. Tasks (proprie, sempre) ─────────────────────────────────────────
   const { data: monthTasks = [] } = useQuery({
-    queryKey: ["calendar-tasks", user?.id, companyId, format(monthStart, "yyyy-MM")],
+    queryKey: ["calendar-tasks", user?.id, companyId, monthStr],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tasks")
         .select("id, title, due_date, priority, status, category")
         .eq("company_id", companyId!)
         .eq("assigned_to", user!.id)
-        .gte("due_date", format(monthStart, "yyyy-MM-dd"))
-        .lte("due_date", format(monthEnd, "yyyy-MM-dd"))
+        .gte("due_date", monthStartStr)
+        .lte("due_date", monthEndStr)
         .order("due_date", { ascending: true });
       if (error) throw error;
       return data ?? [];
@@ -579,7 +611,7 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
     staleTime: 60_000,
   });
 
-  // Query per la data più recente con task (usata per auto-jump quando il mese corrente è vuoto)
+  // ── 2. Nearest task (auto-jump) ────────────────────────────────────────
   const { data: nearestTaskDate } = useQuery({
     queryKey: ["nearest-task-date", user?.id, companyId],
     queryFn: async () => {
@@ -599,7 +631,115 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
     staleTime: 5 * 60 * 1000,
   });
 
-  // Auto-jump: se il mese corrente non ha task, vai al mese dell'ultima scaduta
+  // ── 3. Commesse (canViewOrders + layer on) ─────────────────────────────
+  const layerCommessaOn = enabledLayers.has("commessa") && canViewOrders;
+  const { data: monthOrders = [] } = useQuery({
+    queryKey: ["calendar-commesse", companyId, monthStr],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("orders")
+        .select("id, order_code, description, work_start_date, work_end_date, expected_date, warehouse_arrival_date")
+        .eq("company_id", companyId!)
+        .or(
+          `and(work_start_date.lte.${monthEndStr},work_end_date.gte.${monthStartStr}),` +
+          `and(work_start_date.gte.${monthStartStr},work_start_date.lte.${monthEndStr}),` +
+          `and(expected_date.gte.${monthStartStr},expected_date.lte.${monthEndStr}),` +
+          `and(warehouse_arrival_date.gte.${monthStartStr},warehouse_arrival_date.lte.${monthEndStr})`
+        );
+      return (data ?? []) as any[];
+    },
+    enabled: !!companyId && layerCommessaOn,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // ── 4. Scadenze (canViewScadenzario + layer on) ────────────────────────
+  const layerScadenzaOn = enabledLayers.has("scadenza") && canViewScadenzario;
+  const { data: monthScadenze = [] } = useQuery({
+    queryKey: ["calendar-scadenze", companyId, monthStr],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("scadenze")
+        .select("id, description, due_date, tipo, status")
+        .eq("company_id", companyId!)
+        .gte("due_date", monthStartStr)
+        .lte("due_date", monthEndStr)
+        .not("status", "eq", "annullata");
+      return (data ?? []) as any[];
+    },
+    enabled: !!companyId && layerScadenzaOn,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // ── 5. Appuntamenti mkt (canViewMarketingAppointments + layer on) ──────
+  const layerAppuntamentoOn = enabledLayers.has("appuntamento") && canViewMarketingAppointments;
+  const { data: monthAppuntamenti = [] } = useQuery({
+    queryKey: ["calendar-appuntamenti", user?.id, companyId, monthStr],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("marketing_appointments")
+        .select("id, title, appointment_date, status")
+        .eq("company_id", companyId!)
+        .gte("appointment_date", monthStartStr)
+        .lte("appointment_date", monthEndStr);
+      return (data ?? []) as any[];
+    },
+    enabled: !!companyId && layerAppuntamentoOn,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // ── 6. HR profilo (per ferie) ──────────────────────────────────────────
+  const layerFeriaOn = enabledLayers.has("feria");
+  const { data: hrProfilo } = useQuery({
+    queryKey: ["hr-my-profilo-cal", user?.id, companyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("hr_profili")
+        .select("id, nome, cognome")
+        .eq("company_id", companyId!)
+        .eq("user_id", user!.id)
+        .eq("attivo", true)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user?.id && !!companyId && layerFeriaOn,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  // ── 7. Ferie (proprie sempre; altrui se canViewPersone) ────────────────
+  const { data: monthFerie = [] } = useQuery({
+    queryKey: ["calendar-ferie", hrProfilo?.id, companyId, monthStr, canViewPersone],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q = (supabase.from("hr_richieste") as any)
+        .select("id, tipo, data_inizio, data_fine, stato, profilo_id, hr_profili(nome, cognome)")
+        .eq("company_id", companyId!)
+        .eq("stato", "approvata")
+        .in("tipo", ["ferie", "permesso"])
+        .lte("data_inizio", monthEndStr)
+        .gte("data_fine", monthStartStr);
+      if (!canViewPersone && hrProfilo?.id) q = q.eq("profilo_id", hrProfilo.id);
+      const { data } = await q;
+      return (data ?? []) as any[];
+    },
+    enabled: !!companyId && layerFeriaOn && (!!hrProfilo?.id || canViewPersone),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // ── 8. Festività/chiusure aziendali (sempre visibili, no toggle) ───────
+  const { data: allFestivita = [] } = useQuery({
+    queryKey: ["hr-festivita-cal", companyId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("hr_festivita")
+        .select("id, data, descrizione, ricorrente")
+        .eq("company_id", companyId!);
+      return (data ?? []) as { id: string; data: string; descrizione: string; ricorrente: boolean }[];
+    },
+    enabled: !!companyId,
+    staleTime: 60 * 60 * 1000,
+  });
+
+  // ── Auto-jump al mese con task se il mese corrente è vuoto ────────────
   const hasAutoJumped = useRef(false);
   useEffect(() => {
     if (hasAutoJumped.current || !nearestTaskDate || monthTasks.length > 0) return;
@@ -611,16 +751,110 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
     }
   }, [nearestTaskDate, monthTasks.length, currentMonth]);
 
-  const tasksByDate = useMemo(() => {
-    const map = new Map<string, typeof monthTasks>();
+  // ── Build date maps ────────────────────────────────────────────────────
+  const { tasksByDate, eventsByDate, rangeByDate, festivitaByDate } = useMemo(() => {
+    type LayerEvent = { id: string; type: LayerId; label: string; dotClass: string };
+
+    // Tasks
+    const tasksByDate = new Map<string, typeof monthTasks>();
     for (const t of monthTasks) {
       if (!t.due_date) continue;
-      const arr = map.get(t.due_date) ?? [];
+      const arr = tasksByDate.get(t.due_date) ?? [];
       arr.push(t);
-      map.set(t.due_date, arr);
+      tasksByDate.set(t.due_date, arr);
     }
-    return map;
-  }, [monthTasks]);
+
+    // Multi-layer events
+    const eventsByDate = new Map<string, LayerEvent[]>();
+    const addEv = (date: string, ev: LayerEvent) => {
+      const arr = eventsByDate.get(date) ?? [];
+      arr.push(ev);
+      eventsByDate.set(date, arr);
+    };
+
+    // Scadenze
+    for (const s of monthScadenze) {
+      if (!s.due_date) continue;
+      addEv(s.due_date, { id: s.id, type: "scadenza", label: s.description ?? "Scadenza", dotClass: LAYER_CONFIG.scadenza.dotClass });
+    }
+
+    // Appuntamenti
+    for (const a of monthAppuntamenti) {
+      const d = (a.appointment_date as string | undefined)?.slice(0, 10);
+      if (!d) continue;
+      addEv(d, { id: a.id, type: "appuntamento", label: a.title ?? "Appuntamento", dotClass: LAYER_CONFIG.appuntamento.dotClass });
+    }
+
+    // Commesse milestones
+    for (const o of monthOrders) {
+      const code = (o.order_code as string | null) ?? "";
+      const desc = (o.description as string | null) ?? "";
+      const baseLabel = [code, desc].filter(Boolean).join(" · ").slice(0, 35);
+      const milestones: { date: string | null; suffix: string }[] = [
+        { date: o.work_start_date, suffix: "Inizio posa" },
+        { date: o.work_end_date,   suffix: "Fine posa" },
+        { date: o.expected_date,   suffix: "Consegna" },
+        { date: o.warehouse_arrival_date, suffix: "Arrivo mag." },
+      ];
+      for (const { date, suffix } of milestones) {
+        if (!date || date < monthStartStr || date > monthEndStr) continue;
+        addEv(date as string, { id: `${o.id}-${suffix}`, type: "commessa", label: `${suffix}${baseLabel ? ": " + baseLabel : ""}`, dotClass: LAYER_CONFIG.commessa.dotClass });
+      }
+    }
+
+    // Ferie — espandi range in giorni singoli
+    for (const f of monthFerie) {
+      const start = f.data_inizio as string;
+      const end = f.data_fine as string;
+      if (!start || !end) continue;
+      const profilo = f.hr_profili as { nome?: string; cognome?: string } | null;
+      const nome = profilo ? `${profilo.nome ?? ""} ${profilo.cognome ?? ""}`.trim() : "";
+      const label = nome || "Ferie";
+      const clampStart = start < monthStartStr ? monthStartStr : start;
+      const clampEnd = end > monthEndStr ? monthEndStr : end;
+      if (clampStart > clampEnd) continue;
+      for (const day of eachDayOfInterval({ start: parseISO(clampStart), end: parseISO(clampEnd) })) {
+        const d = format(day, "yyyy-MM-dd");
+        addEv(d, { id: `${f.id}-${d}`, type: "feria", label, dotClass: LAYER_CONFIG.feria.dotClass });
+      }
+    }
+
+    // Range commesse (sfondo verde per giorni fra inizio/fine posa)
+    const rangeByDate = new Set<string>();
+    for (const o of monthOrders) {
+      const ws = o.work_start_date as string | null;
+      const we = o.work_end_date as string | null;
+      if (!ws || !we || ws > we) continue;
+      const clampStart = ws < monthStartStr ? monthStartStr : ws;
+      const clampEnd = we > monthEndStr ? monthEndStr : we;
+      if (clampStart > clampEnd) continue;
+      for (const day of eachDayOfInterval({ start: parseISO(clampStart), end: parseISO(clampEnd) })) {
+        rangeByDate.add(format(day, "yyyy-MM-dd"));
+      }
+    }
+
+    // Festività — ricorrenti trasposte all'anno corrente
+    const currentYear = format(currentMonth, "yyyy");
+    const currentMonthNum = format(currentMonth, "MM");
+    const festivitaByDate = new Map<string, { id: string; descrizione: string }[]>();
+    for (const fv of allFestivita) {
+      if (!fv.data) continue;
+      let dateKey: string;
+      if (fv.ricorrente) {
+        const md = fv.data.slice(5); // "MM-DD"
+        if (!md.startsWith(currentMonthNum)) continue;
+        dateKey = `${currentYear}-${md}`;
+      } else {
+        if (fv.data.slice(0, 7) !== monthStr) continue;
+        dateKey = fv.data;
+      }
+      const arr = festivitaByDate.get(dateKey) ?? [];
+      arr.push({ id: fv.id, descrizione: fv.descrizione });
+      festivitaByDate.set(dateKey, arr);
+    }
+
+    return { tasksByDate, eventsByDate, rangeByDate, festivitaByDate };
+  }, [monthTasks, monthScadenze, monthAppuntamenti, monthOrders, monthFerie, allFestivita, monthStartStr, monthEndStr, monthStr, currentMonth]);
 
   const days = useMemo(() => {
     const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -629,12 +863,20 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
     return { allDays, padding: startDow };
   }, [monthStart, monthEnd]);
 
-  const selectedTasks = useMemo(() => {
-    if (!selectedDate) return [];
-    return tasksByDate.get(format(selectedDate, "yyyy-MM-dd")) ?? [];
-  }, [selectedDate, tasksByDate]);
-
   const today = startOfDay(new Date());
+  const selectedKey = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
+  const selectedTasks    = useMemo(() => selectedKey ? (tasksByDate.get(selectedKey)    ?? []) : [], [selectedKey, tasksByDate]);
+  const selectedEvents   = useMemo(() => selectedKey ? (eventsByDate.get(selectedKey)   ?? []) : [], [selectedKey, eventsByDate]);
+  const selectedFestivita = useMemo(() => selectedKey ? (festivitaByDate.get(selectedKey) ?? []) : [], [selectedKey, festivitaByDate]);
+
+  // Quali chip mostrare (solo se l'utente ha il permesso per quel layer)
+  const visibleChips: LayerId[] = [
+    ...(canViewOrders              ? ["commessa"]     as LayerId[] : []),
+    ...(canViewScadenzario         ? ["scadenza"]     as LayerId[] : []),
+    ...(canViewMarketingAppointments ? ["appuntamento"] as LayerId[] : []),
+    ...["feria"] as LayerId[],
+  ];
+  const hasFestivita = allFestivita.length > 0;
 
   return (
     <Card>
@@ -649,6 +891,33 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentMonth(m => addMonths(m, 1))} aria-label="Mese successivo"><ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>
+        {visibleChips.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {visibleChips.map(id => {
+              const cfg = LAYER_CONFIG[id];
+              const on = enabledLayers.has(id);
+              return (
+                <button
+                  key={id}
+                  onClick={() => toggleLayer(id)}
+                  className={cn(
+                    "inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border transition-colors",
+                    on ? cfg.chipOn : cfg.chipOff,
+                  )}
+                >
+                  <span className={cn("w-1.5 h-1.5 rounded-full", on ? cfg.dotClass : "bg-muted-foreground/30")} />
+                  {cfg.label}
+                </button>
+              );
+            })}
+            {hasFestivita && (
+              <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-red-200 bg-red-50 text-red-700">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                Chiusure
+              </span>
+            )}
+          </div>
+        )}
       </CardHeader>
       <CardContent className="pb-3">
         <div className="grid grid-cols-7 mb-1">
@@ -658,32 +927,74 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
           {Array.from({ length: days.padding }).map((_, i) => <div key={`pad-${i}`} className="aspect-square" />)}
           {days.allDays.map(day => {
             const key = format(day, "yyyy-MM-dd");
-            const dayTasks = tasksByDate.get(key) ?? [];
-            const isSelected = selectedDate && isSameDay(day, selectedDate);
+            const dayTasks   = tasksByDate.get(key)    ?? [];
+            const dayEvents  = eventsByDate.get(key)   ?? [];
+            const isFestivita = festivitaByDate.has(key);
+            const isInRange   = rangeByDate.has(key);
+            const isSelected  = !!(selectedDate && isSameDay(day, selectedDate));
             const isCurrentDay = isToday(day);
-            const isPast = isBefore(day, today) && !isCurrentDay;
+            const isPast      = isBefore(day, today) && !isCurrentDay;
+
+            // Dot list: task dots (max 2) + one dot per layer type present + festività dot
+            const dots: { cls: string; key: string }[] = [];
+            dayTasks.slice(0, 2).forEach((t: any, i: number) => {
+              const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
+              dots.push({ cls: t.status === "completata" ? "bg-green-400" : cfg.dotClass, key: `t${i}` });
+            });
+            const seenTypes = new Set<string>();
+            for (const ev of dayEvents) {
+              if (!seenTypes.has(ev.type)) {
+                seenTypes.add(ev.type);
+                dots.push({ cls: ev.dotClass, key: ev.type });
+              }
+            }
+            if (isFestivita) dots.push({ cls: "bg-red-400", key: "fv" });
+            const visibleDots = dots.slice(0, 4);
+            const overflow = Math.max(0, dots.length - 4);
+
             return (
               <TooltipProvider key={key} delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button onClick={() => { const newSel = selectedDate && isSameDay(day, selectedDate) ? null : day; setSelectedDate(newSel); onDateSelect?.(newSel ? format(newSel, "yyyy-MM-dd") : null); }} className={`relative aspect-square flex flex-col items-center justify-center rounded-md text-sm transition-all hover:bg-muted/60 ${isSelected ? "bg-primary text-primary-foreground font-bold shadow-sm" : isCurrentDay ? "bg-primary/10 font-semibold text-primary ring-1 ring-primary/30" : isPast ? "text-muted-foreground/60" : "text-foreground"}`}>
+                    <button
+                      onClick={() => {
+                        const newSel = selectedDate && isSameDay(day, selectedDate) ? null : day;
+                        setSelectedDate(newSel);
+                        onDateSelect?.(newSel ? format(newSel, "yyyy-MM-dd") : null);
+                      }}
+                      className={cn(
+                        "relative aspect-square flex flex-col items-center justify-center rounded-md text-sm transition-all hover:bg-muted/60",
+                        isSelected
+                          ? "bg-primary text-primary-foreground font-bold shadow-sm"
+                          : isCurrentDay
+                          ? "bg-primary/10 font-semibold text-primary ring-1 ring-primary/30"
+                          : isFestivita
+                          ? "bg-red-50 dark:bg-red-950/20"
+                          : isInRange
+                          ? "bg-emerald-50 dark:bg-emerald-950/20"
+                          : isPast
+                          ? "text-muted-foreground/60"
+                          : "text-foreground",
+                      )}
+                    >
                       <span className="text-xs leading-none">{format(day, "d")}</span>
-                      {dayTasks.length > 0 && (
-                        <div className="flex gap-0.5 mt-0.5">
-                          {dayTasks.slice(0, 3).map((t: any, i: number) => {
-                            const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
-                            const isDone = t.status === "completata";
-                            return <div key={i} className={`w-1 h-1 rounded-full ${isDone ? "bg-green-400" : cfg.dotClass}`} />;
-                          })}
-                          {dayTasks.length > 3 && <span className="text-[8px] leading-none text-muted-foreground">+{dayTasks.length - 3}</span>}
+                      {dots.length > 0 && (
+                        <div className="flex gap-0.5 mt-0.5 items-center">
+                          {visibleDots.map(d => <div key={d.key} className={`w-1 h-1 rounded-full ${d.cls}`} />)}
+                          {overflow > 0 && <span className="text-[8px] leading-none text-muted-foreground">+{overflow}</span>}
                         </div>
                       )}
                     </button>
                   </TooltipTrigger>
-                  {dayTasks.length > 0 && (
-                    <TooltipContent side="bottom" className="max-w-[200px]">
-                      <p className="font-medium text-xs mb-1">{format(day, "d MMMM", { locale: it })} — {dayTasks.length} attività</p>
-                      {dayTasks.slice(0, 4).map((t: any) => <p key={t.id} className="text-xs text-muted-foreground truncate">• {t.title}</p>)}
+                  {(dayTasks.length > 0 || dayEvents.length > 0 || isFestivita) && (
+                    <TooltipContent side="bottom" className="max-w-[220px]">
+                      <p className="font-medium text-xs mb-1">{format(day, "d MMMM", { locale: it })}</p>
+                      {dayTasks.length > 0 && <p className="text-xs text-muted-foreground">🔵 {dayTasks.length} attività</p>}
+                      {dayEvents.filter((e: any) => e.type === "commessa").length > 0 && <p className="text-xs text-muted-foreground">🟢 {dayEvents.filter((e: any) => e.type === "commessa").length} commesse</p>}
+                      {dayEvents.filter((e: any) => e.type === "scadenza").length > 0 && <p className="text-xs text-muted-foreground">🟡 {dayEvents.filter((e: any) => e.type === "scadenza").length} scadenze</p>}
+                      {dayEvents.filter((e: any) => e.type === "appuntamento").length > 0 && <p className="text-xs text-muted-foreground">🩵 {dayEvents.filter((e: any) => e.type === "appuntamento").length} appuntamenti</p>}
+                      {dayEvents.filter((e: any) => e.type === "feria").length > 0 && <p className="text-xs text-muted-foreground">🟠 {dayEvents.filter((e: any) => e.type === "feria").length} ferie</p>}
+                      {isFestivita && festivitaByDate.get(key)!.map(fv => <p key={fv.id} className="text-xs text-red-600">🔴 {fv.descrizione}</p>)}
                     </TooltipContent>
                   )}
                 </Tooltip>
@@ -696,7 +1007,8 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 {isToday(selectedDate) ? "Oggi" : format(selectedDate, "d MMMM", { locale: it })}
-                {selectedTasks.length > 0 && ` — ${selectedTasks.length} attività`}
+                {(selectedTasks.length + selectedEvents.length + selectedFestivita.length) > 0 &&
+                  ` — ${selectedTasks.length + selectedEvents.length + selectedFestivita.length} eventi`}
               </p>
               {onAddTask && !isBefore(selectedDate, today) && (
                 <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1 text-primary" onClick={() => onAddTask(format(selectedDate!, "yyyy-MM-dd"))}>
@@ -704,23 +1016,43 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
                 </Button>
               )}
             </div>
-            {selectedTasks.length === 0 ? (
-              <p className="text-xs text-muted-foreground italic">Nessuna scadenza per questo giorno</p>
-            ) : (
-              <div className="space-y-1.5 max-h-[140px] overflow-y-auto">
-                {selectedTasks.map((t: any) => {
-                  const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
-                  const isDone = t.status === "completata";
-                  return (
-                    <div key={t.id} className={`flex items-center gap-2 text-xs rounded px-2 py-1.5 ${isDone ? "bg-green-50 dark:bg-green-950/20" : "bg-muted/50"}`}>
-                      <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isDone ? "bg-green-500" : cfg.dotClass}`} />
-                      <span className={`flex-1 truncate ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</span>
-                      <Badge className={`text-[9px] px-1 py-0 ${isDone ? "bg-green-100 text-green-700" : cfg.badgeClass}`}>{isDone ? "Fatto" : cfg.label}</Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <div className="space-y-1.5 max-h-[160px] overflow-y-auto">
+              {selectedTasks.map((t: any) => {
+                const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
+                const isDone = t.status === "completata";
+                return (
+                  <div key={t.id} className={`flex items-center gap-2 text-xs rounded px-2 py-1.5 ${isDone ? "bg-green-50 dark:bg-green-950/20" : "bg-muted/50"}`}>
+                    <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isDone ? "bg-green-500" : cfg.dotClass}`} />
+                    <span className={`flex-1 truncate ${isDone ? "line-through text-muted-foreground" : ""}`}>{t.title}</span>
+                    <Badge className={`text-[9px] px-1 py-0 ${isDone ? "bg-green-100 text-green-700" : cfg.badgeClass}`}>{isDone ? "Fatto" : cfg.label}</Badge>
+                  </div>
+                );
+              })}
+              {selectedEvents.map((ev: { id: string; type: LayerId; label: string; dotClass: string }) => (
+                <div key={ev.id} className="flex items-center gap-2 text-xs rounded px-2 py-1.5 bg-muted/40">
+                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${ev.dotClass}`} />
+                  <span className="flex-1 truncate">{ev.label}</span>
+                  <span className={cn("text-[9px] px-1 py-0 rounded font-medium",
+                    ev.type === "commessa"     ? "bg-emerald-100 text-emerald-700" :
+                    ev.type === "scadenza"     ? "bg-amber-100 text-amber-700" :
+                    ev.type === "appuntamento" ? "bg-teal-100 text-teal-700" :
+                                                "bg-orange-100 text-orange-700",
+                  )}>
+                    {LAYER_CONFIG[ev.type].label.replace(/e$/, "a")}
+                  </span>
+                </div>
+              ))}
+              {selectedFestivita.map(fv => (
+                <div key={fv.id} className="flex items-center gap-2 text-xs rounded px-2 py-1.5 bg-red-50 dark:bg-red-950/20">
+                  <div className="w-1.5 h-1.5 rounded-full shrink-0 bg-red-400" />
+                  <span className="flex-1 truncate text-red-700">{fv.descrizione}</span>
+                  <span className="text-[9px] px-1 py-0 rounded font-medium bg-red-100 text-red-700">Chiusura</span>
+                </div>
+              ))}
+              {selectedTasks.length === 0 && selectedEvents.length === 0 && selectedFestivita.length === 0 && (
+                <p className="text-xs text-muted-foreground italic">Nessun evento per questo giorno</p>
+              )}
+            </div>
           </div>
         )}
       </CardContent>
