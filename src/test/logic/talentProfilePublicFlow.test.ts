@@ -33,7 +33,7 @@ describe("Talent Profile public candidate flow", () => {
     expect(publicPageSource).toContain('hr_talent_public_session');
     expect(publicPageSource).toContain('hr_talent_public_save_answers');
     expect(publicPageSource).toContain("privacyAccepted");
-    expect(publicPageSource).toContain("Salva e continua");
+    expect(publicPageSource).toContain("Avanti");
     expect(publicPageSource).toContain("Completa test");
     expect(publicPageSource).toContain("missingAnswersCount");
     expect(publicPageSource).not.toContain("{question.trait_code}");
@@ -51,9 +51,9 @@ describe("Talent Profile public candidate flow", () => {
   it("salva in silenzioso prima di cambiare blocco nel questionario pubblico", () => {
     const publicPageSource = readFileSync(PUBLIC_PAGE_PATH, "utf8");
 
-    expect(publicPageSource).toContain("const goToBlock = async (nextBlock: number)");
+    expect(publicPageSource).toContain("const goNextPage = async ()");
     expect(publicPageSource).toContain("await persistAnswers({ silent: true })");
-    expect(publicPageSource).toContain("void goToBlock(item)");
-    expect(publicPageSource).toContain("void goToBlock(blocks[Math.max(0, blockIndex - 1)])");
+    expect(publicPageSource).toContain("const goPrevPage = async ()");
+    expect(publicPageSource).toContain("setPageIndex((p) => Math.min(totalPages - 1, p + 1))");
   });
 });

@@ -287,7 +287,7 @@ export function CustomerComposeBar({
         return r;
       } catch (err) {
         if ((err as { name?: string })?.name === "AbortError") {
-          throw new Error("Server lento (timeout 30s). La bozza è salvata, riprova.");
+          throw new Error("Server lento (timeout 30s). La bozza è salvata, riprova.", { cause: err });
         }
         throw err;
       } finally {

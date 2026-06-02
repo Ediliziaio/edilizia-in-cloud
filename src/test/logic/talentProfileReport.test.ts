@@ -85,7 +85,7 @@ describe("Talent Profile report decision", () => {
     });
 
     expect(html).toContain("@page");
-    expect(html).toContain("Report Talent Profile");
+    expect(html).toContain("Report Talent Assessment");
     expect(html).toContain("Decisione HR");
     expect(html).toContain("Domande colloquio");
     expect(html).toContain("Confronto ruoli");

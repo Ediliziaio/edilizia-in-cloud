@@ -288,6 +288,13 @@ function EditOrderInner() {
         setNumInstallments(draft.installments.length);
       }
       if (draft.orderItems?.length) setOrderItems(draft.orderItems);
+      // Campi non sempre presenti nella bozza → ripristina da bozza o dal record DB,
+      // altrimenti al salvataggio verrebbero azzerati (assegnazione persa, tipo→cliente).
+      setAssignedTo(draft.assignedTo || order.assigned_to || "");
+      setOrderTypeState(order.order_type === "appaltatore_lavoro" ? "appaltatore_lavoro" : "cliente");
+      setWorkAddress(order.work_address || "");
+      setWorkDescription(order.work_description || "");
+      setMaterialsLocation(order.materials_location || "");
       setDraftRestored(true);
       setDataLoaded(true);
       return;
@@ -350,6 +357,7 @@ function EditOrderInner() {
     if (customerId === "" && order?.customer_id) return;
     saveDraft({
       customerId, orderCode, description, internalNotes, statusId: "",
+      assignedTo,
       salespersonId, salespersonData,
       expectedDate: dateToIso(expectedDate),
       warehouseArrivalDate: dateToIso(warehouseArrivalDate),

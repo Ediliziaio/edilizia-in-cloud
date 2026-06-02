@@ -9,7 +9,7 @@
  *  4. Ferie        — saldo ferie/permessi e richieste
  *  5. Cedolini     — lista cedolini con download PDF
  */
-import { lazy, Suspense, useState, useMemo, useRef, useEffect } from "react";
+import { lazy, Suspense, useState, useMemo, useRef, useEffect, Fragment } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -22,7 +22,7 @@ import {
   Clock, ClipboardCheck, CheckCircle2, PlayCircle, PauseCircle, LogOut,
   CheckCircle, Loader2, ExternalLink, Palmtree, Receipt,
   CloudSun, ChevronLeft, ChevronRight, CalendarDays, Droplets,
-  Thermometer, MapPin, Plus, Pencil, Trash2, X, Filter,
+  MapPin, Plus, Pencil, Trash2, X, Filter,
   ArrowUpCircle, Circle, AlertCircle, MoreHorizontal, Tag, Users,
   CalendarClock, Sparkles,
 } from "lucide-react";
@@ -60,13 +60,10 @@ import { Link } from "react-router-dom";
 import { logger } from "@/utils/logger";
 import {
   useWeatherForecast,
-  useCalendarWeather,
   weatherCodeToEmoji,
   weatherCodeToLabel,
   type WeatherDay,
-  type CalendarLocation,
 } from "@/hooks/useWeatherForecast";
-import { forwardGeocode } from "@/lib/geocoding";
 
 // Lazy load delle sotto-pagine
 const TimbraturePersonali = lazy(() => import("@/pages/azienda/TimbraturePersonali"));
@@ -100,6 +97,7 @@ const CATEGORY_OPTIONS = [
 ];
 
 const GIORNI_SETTIMANA = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+const ORE_GRIGLIA = Array.from({ length: 14 }, (_, i) => 7 + i); // 07:00 → 20:00
 
 // ── Calendar layer config ──────────────────────────────────────────────────
 const LAYER_CONFIG = {
@@ -166,199 +164,6 @@ function useCompanyLocation() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// METEO CANTIERI v1 — Analisi impatto meteo + lista cantieri attivi geo-meteo.
-// Trasforma il widget meteo da decorativo a strumento operativo:
-//   • Header analisi → quali lavorazioni evitare oggi (pioggia/vento/temp)
-//   • Lista cantieri → ogni cantiere mostra il meteo del proprio indirizzo
-//     (non quello dell'azienda, perché il cantiere può essere in un'altra città)
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface ImpattoMeteo {
-  livello: "ok" | "attenzione" | "stop";
-  vietato: string[];       // lavorazioni a rischio oggi
-  consigliato: string[];   // alternative al coperto
-  oreUtili: number;        // stima ore lavorabili (su 8h)
-  motivi: string[];        // perché (es. "Pioggia 12mm", "Vento 25km/h")
-}
-
-/**
- * Analizza il meteo di oggi e restituisce l'impatto operativo per
- * un'impresa edile. Logica conservativa basata su prassi italiane:
- *   - Getti CLS: temp 5-30°C, no pioggia
- *   - Asfalti: temp >10°C, no pioggia 24h prima
- *   - Tinteggi esterni: no pioggia, no vento forte, no temp <5°C
- *   - Coperture/quota: no vento >25km/h, no temporali
- *   - Intonaci/CLS: no temp <5°C (gelivo)
- */
-function analizzaImpattoMeteo(today: WeatherDay): ImpattoMeteo {
-  const vietato: string[] = [];
-  const consigliato: string[] = ["Lavori interni", "Sopralluoghi", "Magazzino", "Preventivi"];
-  const motivi: string[] = [];
-  let oreUtili = 8;
-  let livello: ImpattoMeteo["livello"] = "ok";
-
-  const pioggia = today.precip;
-  const tempMax = today.maxTemp;
-  const tempMin = today.minTemp;
-  const code = today.code;
-
-  // Pioggia significativa (>2mm)
-  if (pioggia > 5) {
-    vietato.push("Asfaltature", "Getti CLS", "Tinteggi esterni", "Impermeabilizzazioni");
-    motivi.push(`Pioggia ${pioggia}mm`);
-    oreUtili -= Math.min(4, Math.ceil(pioggia / 3));
-    livello = pioggia > 10 ? "stop" : "attenzione";
-  } else if (pioggia > 2) {
-    vietato.push("Tinteggi esterni", "Impermeabilizzazioni");
-    motivi.push(`Pioggia leggera ${pioggia}mm`);
-    oreUtili -= 2;
-    livello = "attenzione";
-  }
-
-  // Temporale/grandine (WMO 95-99)
-  if (code >= 95) {
-    vietato.push("Coperture in quota", "Lavori in altezza", "Ponteggi");
-    motivi.push("Temporale");
-    oreUtili = Math.min(oreUtili, 2);
-    livello = "stop";
-  }
-
-  // Temperatura bassa (gelo per CLS/intonaci)
-  if (tempMin < 5) {
-    if (!vietato.includes("Getti CLS")) vietato.push("Getti CLS");
-    vietato.push("Intonaci", "Massetti");
-    motivi.push(`Temp min ${tempMin}°C (gelivo)`);
-    if (livello === "ok") livello = "attenzione";
-  }
-
-  // Temperatura alta (CLS, asfalti, sicurezza operatori)
-  if (tempMax > 32) {
-    if (!vietato.includes("Asfaltature")) vietato.push("Asfaltature");
-    motivi.push(`Caldo intenso ${tempMax}°C`);
-    consigliato.unshift("Lavori mattino presto (06-10)");
-    if (livello === "ok") livello = "attenzione";
-  }
-
-  // Neve (WMO 71-77)
-  if (code >= 71 && code <= 77) {
-    vietato.push("Tutti lavori esterni");
-    motivi.push("Neve");
-    oreUtili = 0;
-    livello = "stop";
-  }
-
-  return {
-    livello,
-    vietato: Array.from(new Set(vietato)),
-    consigliato: consigliato.slice(0, 4),
-    oreUtili: Math.max(0, oreUtili),
-    motivi,
-  };
-}
-
-/**
- * Fetch cantieri attivi con il meteo del proprio indirizzo.
- *
- * Pipeline:
- *   1. Query orders con status attivo (in_corso/programmato/confermato)
- *   2. Per ogni order con indirizzo → forwardGeocode() → lat/lng
- *   3. Cache geocoding in-memory (la lib `forwardGeocode` ha già cache)
- *   4. useCalendarWeather con tutte le location → fetch parallelo
- *
- * Performance: limite a 5 cantieri visibili (max 10 per Open-Meteo rate limit).
- * Cache geocoding TTL effettivo: la lib lib/geocoding.ts mantiene cache
- * in-memory per la sessione (4 decimali precision).
- */
-function useCantieriAttiviConMeteo() {
-  const { effectiveCompany } = useAuth();
-  const companyId = effectiveCompany?.id;
-  const { data: companyLoc } = useCompanyLocation();
-
-  // 1. Fetch orders attivi
-  const { data: orders = [] } = useQuery({
-    queryKey: ["cantieri-attivi-meteo", companyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("id, order_code, description, indirizzo_lavori, work_address, status, customer_id")
-        .eq("company_id", companyId!)
-        .in("status", ["in_corso", "programmato", "confermato"])
-        .order("updated_at", { ascending: false })
-        .limit(5);
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!companyId,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // 2. Geocode degli indirizzi (parallelo, con cache lib)
-  const { data: coordsMap } = useQuery({
-    queryKey: [
-      "cantieri-geocodes",
-      orders.map((o) => o.indirizzo_lavori ?? o.work_address ?? "").join("|"),
-    ],
-    queryFn: async () => {
-      const result = new Map<string, { lat: number; lng: number }>();
-      // Parallelo ma con un piccolo throttle (Nominatim 1 req/sec)
-      for (const order of orders) {
-        const addr = order.indirizzo_lavori || order.work_address;
-        if (!addr || addr.trim().length < 3) continue;
-        try {
-          const coords = await forwardGeocode(addr);
-          if (coords) result.set(order.id, coords);
-        } catch {
-          // Geocoding failure silente — l'order semplicemente non avrà meteo
-        }
-        // Throttle 200ms per evitare rate limit Nominatim
-        await new Promise((r) => setTimeout(r, 200));
-      }
-      return result;
-    },
-    enabled: orders.length > 0,
-    staleTime: 24 * 60 * 60 * 1000, // 24h: indirizzi non cambiano spesso
-  });
-
-  // 3. Costruisci CalendarLocation[] e fetch meteo per ognuno
-  const todayStr = format(new Date(), "yyyy-MM-dd");
-  const locations: CalendarLocation[] = orders
-    .map((o) => {
-      const c = coordsMap?.get(o.id);
-      if (!c) return null;
-      const addr = o.indirizzo_lavori || o.work_address || "";
-      return {
-        lat: c.lat,
-        lng: c.lng,
-        address: addr,
-        orderRef: o.order_code ?? undefined,
-        orderDesc: o.description ?? undefined,
-        dates: [todayStr],
-      };
-    })
-    .filter(Boolean) as CalendarLocation[];
-
-  const { data: weatherMap } = useCalendarWeather(
-    locations,
-    companyLoc?.lat,
-    companyLoc?.lng,
-    companyLoc?.city,
-  );
-
-  // 4. Restituisci array { order, weather } pronto per render
-  return orders
-    .map((order) => {
-      const coords = coordsMap?.get(order.id);
-      if (!coords) return { order, weather: null as WeatherDay | null };
-      const weatherDays = weatherMap?.get(todayStr) ?? [];
-      const w = weatherDays.find(
-        (d) => Math.abs(d.lat - coords.lat) < 0.01 && Math.abs(d.lng - coords.lng) < 0.01,
-      );
-      return { order, weather: w as WeatherDay | null };
-    })
-    .slice(0, 5);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Header
 // ─────────────────────────────────────────────────────────────────────────────
 function AttivitaHeader() {
@@ -389,8 +194,6 @@ function MeteoWidget() {
   const { data: weatherMap, isLoading: loadingWeather, isError: weatherError, refetch: refetchWeather } = useWeatherForecast(lat, lng);
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const todayWeather = weatherMap?.get(todayStr);
-  const cantieriMeteo = useCantieriAttiviConMeteo();
-  const impatto = todayWeather ? analizzaImpattoMeteo(todayWeather) : null;
 
   const forecastDays = useMemo(() => {
     if (!weatherMap) return [];
@@ -426,134 +229,34 @@ function MeteoWidget() {
 
   return (
     <Card className="overflow-hidden">
-      <CardContent className="p-0">
-        <div className="bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/30 dark:to-sky-950/30 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground"><MapPin className="h-3 w-3" /><span>{location?.city ?? "Milano"}</span></div>
-            <span className="text-xs text-muted-foreground">Oggi</span>
+      <CardContent className="bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/30 dark:to-sky-950/30 p-2.5">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-2xl leading-none">{weatherCodeToEmoji(todayWeather.code)}</span>
+          <div className="min-w-0">
+            <p className="text-lg font-bold leading-none">
+              {todayWeather.maxTemp}°<span className="text-xs font-normal text-muted-foreground"> / {todayWeather.minTemp}°</span>
+            </p>
+            <p className="text-[10px] text-muted-foreground leading-none mt-0.5 flex items-center gap-1 truncate">
+              <MapPin className="h-2.5 w-2.5 shrink-0" />{location?.city ?? "Milano"} · {weatherCodeToLabel(todayWeather.code)}
+            </p>
           </div>
-          <div className="flex items-center gap-3 mt-2">
-            <span className="text-4xl leading-none">{weatherCodeToEmoji(todayWeather.code)}</span>
-            <div>
-              <p className="text-2xl font-bold leading-none">{todayWeather.maxTemp}°C</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{weatherCodeToLabel(todayWeather.code)}</p>
+          {todayWeather.precip > 0 && (
+            <span className="flex items-center gap-0.5 text-[11px] text-blue-600 dark:text-blue-400">
+              <Droplets className="h-3 w-3" />{todayWeather.precip}mm
+            </span>
+          )}
+          {forecastDays.length > 0 && (
+            <div className="ml-auto flex items-center gap-3">
+              {forecastDays.map(({ date, weather }) => (
+                <div key={date} className="flex items-center gap-1 text-[10px]">
+                  <span className="capitalize text-muted-foreground">{format(new Date(date), "EEE", { locale: it })}</span>
+                  <span className="text-base leading-none">{weatherCodeToEmoji(weather.code)}</span>
+                  <span className="font-medium tabular-nums">{weather.maxTemp}°</span>
+                </div>
+              ))}
             </div>
-            <div className="ml-auto text-right space-y-0.5">
-              <div className="flex items-center gap-1 text-xs text-muted-foreground"><Thermometer className="h-3 w-3" /><span>{todayWeather.minTemp}° / {todayWeather.maxTemp}°</span></div>
-              {todayWeather.precip > 0 && <div className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400"><Droplets className="h-3 w-3" /><span>{todayWeather.precip}mm</span></div>}
-            </div>
-          </div>
+          )}
         </div>
-        {forecastDays.length > 0 && (
-          <div className="grid grid-cols-3 divide-x border-t">
-            {forecastDays.map(({ date, weather }) => (
-              <div key={date} className="p-2 text-center">
-                <p className="text-[10px] text-muted-foreground capitalize">{format(new Date(date), "EEE d", { locale: it })}</p>
-                <p className="text-lg leading-none mt-0.5">{weatherCodeToEmoji(weather.code)}</p>
-                <p className="text-xs font-medium mt-0.5">{weather.minTemp}° / {weather.maxTemp}°</p>
-                {weather.precip > 0 && <p className="text-[10px] text-blue-500">{weather.precip}mm</p>}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ─── METEO CANTIERI v1: Impatto operativo + lista cantieri ─── */}
-        {impatto && (impatto.vietato.length > 0 || impatto.livello !== "ok") && (
-          <div className={cn(
-            "border-t px-3 py-2.5 text-xs space-y-1.5",
-            impatto.livello === "stop" && "bg-rose-50 dark:bg-rose-950/20",
-            impatto.livello === "attenzione" && "bg-amber-50 dark:bg-amber-950/20",
-          )}>
-            <div className="flex items-center justify-between gap-2">
-              <p className={cn(
-                "font-semibold flex items-center gap-1.5",
-                impatto.livello === "stop" && "text-rose-700 dark:text-rose-300",
-                impatto.livello === "attenzione" && "text-amber-700 dark:text-amber-300",
-              )}>
-                <AlertCircle className="h-3.5 w-3.5" />
-                Impatto sui cantieri
-              </p>
-              <span className="text-[10px] text-muted-foreground">
-                ⏱ {impatto.oreUtili}h utili
-              </span>
-            </div>
-            {impatto.vietato.length > 0 && (
-              <p className="text-[11px] leading-snug">
-                <span className="text-rose-700 dark:text-rose-300 font-medium">✗ Stop:</span>{" "}
-                <span className="text-foreground">{impatto.vietato.join(", ")}</span>
-              </p>
-            )}
-            {impatto.consigliato.length > 0 && (
-              <p className="text-[11px] leading-snug">
-                <span className="text-emerald-700 dark:text-emerald-400 font-medium">✓ OK:</span>{" "}
-                <span className="text-muted-foreground">{impatto.consigliato.join(", ")}</span>
-              </p>
-            )}
-            {impatto.motivi.length > 0 && (
-              <p className="text-[10px] text-muted-foreground italic">
-                {impatto.motivi.join(" · ")}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Lista cantieri attivi col meteo del proprio indirizzo */}
-        {cantieriMeteo.length > 0 && (
-          <div className="border-t">
-            <div className="px-3 pt-2.5 pb-1 flex items-center justify-between">
-              <p className="text-[11px] font-semibold flex items-center gap-1.5 text-muted-foreground uppercase tracking-wide">
-                <MapPin className="h-3 w-3" />
-                Cantieri attivi ({cantieriMeteo.length})
-              </p>
-              <Link to="/azienda/ordini" className="text-[10px] text-primary hover:underline">
-                Vedi tutti
-              </Link>
-            </div>
-            <div className="divide-y">
-              {cantieriMeteo.map(({ order, weather }) => {
-                const addr = order.indirizzo_lavori || order.work_address || "";
-                const city = addr.split(",").slice(-2, -1)[0]?.trim() || addr.split(",")[0]?.trim() || "—";
-                const isRisk = weather && (weather.precip > 5 || (weather.code >= 95));
-                return (
-                  <Link
-                    key={order.id}
-                    to={`/azienda/ordini/${order.id}`}
-                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-muted/40 active:bg-muted transition-colors"
-                  >
-                    <span className="text-base leading-none shrink-0">
-                      {weather ? weatherCodeToEmoji(weather.code) : "📍"}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[12px] font-medium truncate leading-tight">
-                        {order.description || order.order_code || "Cantiere"}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground truncate leading-tight">
-                        {city}
-                      </p>
-                    </div>
-                    {weather ? (
-                      <div className="flex items-center gap-1.5 shrink-0 text-right">
-                        <span className="text-[11px] font-semibold tabular-nums">
-                          {weather.maxTemp}°
-                        </span>
-                        {weather.precip > 0 && (
-                          <span className="text-[10px] text-blue-600 dark:text-blue-400 tabular-nums">
-                            {weather.precip}mm
-                          </span>
-                        )}
-                        {isRisk && (
-                          <span className="text-rose-600 dark:text-rose-400 text-[11px]" title="A rischio">⚠</span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground italic shrink-0">…</span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
@@ -574,14 +277,14 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
     try {
       const stored = localStorage.getItem("cal-layers-v1");
       if (stored) return new Set(JSON.parse(stored) as LayerId[]);
-    } catch {}
+    } catch { /* localStorage non disponibile/corrotto: uso default */ }
     return new Set<LayerId>(["commessa", "scadenza", "appuntamento", "feria"]);
   });
   const toggleLayer = (id: LayerId) => {
     setEnabledLayers(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      try { localStorage.setItem("cal-layers-v1", JSON.stringify([...next])); } catch {}
+      if (next.has(id)) next.delete(id); else next.add(id);
+      try { localStorage.setItem("cal-layers-v1", JSON.stringify([...next])); } catch { /* quota/private mode: ignora persistenza */ }
       return next;
     });
   };
@@ -677,7 +380,7 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
     queryFn: async () => {
       const { data } = await supabase
         .from("appointments")
-        .select("id, title, appointment_date, status")
+        .select("id, title, appointment_date, appointment_time, status")
         .eq("company_id", companyId!)
         .gte("appointment_date", monthStartStr)
         .lte("appointment_date", monthEndStr);
@@ -757,7 +460,7 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
 
   // ── Build date maps ────────────────────────────────────────────────────
   const { tasksByDate, eventsByDate, rangeByDate, festivitaByDate } = useMemo(() => {
-    type LayerEvent = { id: string; type: LayerId; label: string; dotClass: string };
+    type LayerEvent = { id: string; type: LayerId; label: string; dotClass: string; time?: string };
 
     // Tasks
     const tasksByDate = new Map<string, typeof monthTasks>();
@@ -786,7 +489,7 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
     for (const a of monthAppuntamenti) {
       const d = (a.appointment_date as string | undefined)?.slice(0, 10);
       if (!d) continue;
-      addEv(d, { id: a.id, type: "appuntamento", label: a.title ?? "Appuntamento", dotClass: LAYER_CONFIG.appuntamento.dotClass });
+      addEv(d, { id: a.id, type: "appuntamento", label: a.title ?? "Appuntamento", dotClass: LAYER_CONFIG.appuntamento.dotClass, time: (a.appointment_time as string | undefined)?.slice(0, 5) });
     }
 
     // Commesse milestones
@@ -868,6 +571,102 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
   }, [monthStart, monthEnd]);
 
   const today = startOfDay(new Date());
+  const [calView, setCalView] = useState<"mese" | "settimana" | "giorno">("mese");
+  const weekDays = useMemo(() => {
+    const start = new Date(selectedDate ?? today);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // lunedì come primo giorno
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return d;
+    });
+  }, [selectedDate, today]);
+
+  // Navigazione contestuale: ‹ › cambia mese / settimana / giorno secondo la vista attiva.
+  const goCalendario = (dir: -1 | 1) => {
+    if (calView === "mese") {
+      setCurrentMonth((m) => (dir === 1 ? addMonths(m, 1) : subMonths(m, 1)));
+      return;
+    }
+    const step = calView === "settimana" ? 7 : 1;
+    const next = addDays(selectedDate ?? today, dir * step);
+    setSelectedDate(next);
+    setCurrentMonth(startOfMonth(next));
+  };
+  const headerLabel =
+    calView === "mese"
+      ? format(currentMonth, "MMMM yyyy", { locale: it })
+      : calView === "settimana"
+        ? `${format(weekDays[0], "d", { locale: it })}–${format(weekDays[6], "d MMM", { locale: it })}`
+        : format(selectedDate ?? today, "EEE d MMM", { locale: it });
+
+  // Eventi di un giorno divisi tra "tutto il dì" e per ora (07–20).
+  const buildSchedule = (date: Date) => {
+    const k = format(date, "yyyy-MM-dd");
+    const allDay: { id: string; label: string; cls: string }[] = [];
+    const byHour: Record<number, { id: string; label: string; cls: string; time?: string }[]> = {};
+    (tasksByDate.get(k) ?? []).forEach((t: { id: string; title?: string }) =>
+      allDay.push({ id: t.id, label: t.title ?? "Attività", cls: "bg-primary/60" }));
+    (festivitaByDate.get(k) ?? []).forEach((f) =>
+      allDay.push({ id: f.id, label: f.descrizione, cls: "bg-red-400" }));
+    (eventsByDate.get(k) ?? []).forEach((e: { id: string; label: string; dotClass: string; time?: string }) => {
+      const m = e.time ? /^(\d{2}):/.exec(e.time) : null;
+      if (m) {
+        const h = Math.min(20, Math.max(7, parseInt(m[1], 10)));
+        (byHour[h] ??= []).push({ id: e.id, label: e.label, cls: e.dotClass, time: e.time });
+      } else {
+        allDay.push({ id: e.id, label: e.label, cls: e.dotClass });
+      }
+    });
+    return { allDay, byHour };
+  };
+
+  // Griglia oraria: colonne = giorni, righe = ore. Usata per Settimana e Giorno.
+  const renderTimeGrid = (gridDays: Date[]) => {
+    const sched = gridDays.map((d) => ({ date: d, key: format(d, "yyyy-MM-dd"), ...buildSchedule(d) }));
+    return (
+      <div className="mt-2 overflow-auto">
+        <div className="grid text-xs" style={{ gridTemplateColumns: `34px repeat(${gridDays.length}, minmax(64px, 1fr))` }}>
+          <div className="bg-card" />
+          {sched.map((s) => (
+            <div key={`hd-${s.key}`} className={cn("py-1 text-center text-[10px] font-semibold capitalize", isToday(s.date) && "text-primary")}>
+              {format(s.date, "EEE d", { locale: it })}
+            </div>
+          ))}
+          <div className="border-t bg-card py-0.5 pr-1 text-right text-[8px] text-muted-foreground">tutto il dì</div>
+          {sched.map((s) => (
+            <div key={`ad-${s.key}`} className="space-y-0.5 border-l border-t p-0.5">
+              {s.allDay.map((it) => (
+                <div key={it.id} className="flex items-center gap-1 rounded bg-muted/50 px-1 py-0.5">
+                  <span className={`h-1 w-1 shrink-0 rounded-full ${it.cls}`} />
+                  <span className="truncate text-[9px] leading-tight">{it.label}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+          {ORE_GRIGLIA.map((h) => (
+            <Fragment key={`row-${h}`}>
+              <div className="border-t bg-card py-1 pr-1 text-right text-[9px] text-muted-foreground">
+                {String(h).padStart(2, "0")}:00
+              </div>
+              {sched.map((s) => (
+                <div key={`c-${s.key}-${h}`} className="min-h-[26px] space-y-0.5 border-l border-t p-0.5">
+                  {(s.byHour[h] ?? []).map((it) => (
+                    <div key={it.id} className="flex items-center gap-1 rounded bg-teal-50 px-1 py-0.5 dark:bg-teal-950/30">
+                      <span className="shrink-0 font-mono text-[8px] font-semibold text-teal-600">{it.time}</span>
+                      <span className="truncate text-[9px] leading-tight">{it.label}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const selectedKey = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
   const selectedTasks    = useMemo(() => selectedKey ? (tasksByDate.get(selectedKey)    ?? []) : [], [selectedKey, tasksByDate]);
   const selectedEvents   = useMemo(() => selectedKey ? (eventsByDate.get(selectedKey)   ?? []) : [], [selectedKey, eventsByDate]);
@@ -890,10 +689,25 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
             <CalendarDays className="h-4 w-4" />Calendario
           </CardTitle>
           <div className="flex items-center gap-0.5 sm:gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentMonth(m => subMonths(m, 1))} aria-label="Mese precedente"><ChevronLeft className="h-4 w-4" /></Button>
-            <span className="text-xs sm:text-sm font-medium min-w-[90px] sm:min-w-[120px] text-center capitalize">{format(currentMonth, "MMMM yyyy", { locale: it })}</span>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setCurrentMonth(m => addMonths(m, 1))} aria-label="Mese successivo"><ChevronRight className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => goCalendario(-1)} aria-label="Precedente"><ChevronLeft className="h-4 w-4" /></Button>
+            <span className="text-xs sm:text-sm font-medium min-w-[90px] sm:min-w-[120px] text-center capitalize">{headerLabel}</span>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => goCalendario(1)} aria-label="Successivo"><ChevronRight className="h-4 w-4" /></Button>
           </div>
+        </div>
+        <div className="mt-1.5 flex items-center gap-1">
+          {(["mese", "settimana", "giorno"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => { setCalView(v); if (v === "giorno") setSelectedDate(new Date()); }}
+              className={cn(
+                "h-6 rounded-md px-2 text-[11px] font-medium capitalize transition-colors",
+                calView === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {v}
+            </button>
+          ))}
         </div>
         {visibleChips.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
@@ -924,6 +738,7 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
         )}
       </CardHeader>
       <CardContent className="pb-3">
+        {calView === "mese" && (<>
         <div className="grid grid-cols-7 mb-1">
           {GIORNI_SETTIMANA.map(g => <div key={g} className="text-center text-[10px] font-semibold text-muted-foreground py-1 uppercase">{g}</div>)}
         </div>
@@ -939,22 +754,18 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
             const isCurrentDay = isToday(day);
             const isPast      = isBefore(day, today) && !isCurrentDay;
 
-            // Dot list: task dots (max 2) + one dot per layer type present + festività dot
-            const dots: { cls: string; key: string }[] = [];
-            dayTasks.slice(0, 2).forEach((t: any, i: number) => {
-              const cfg = PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale;
-              dots.push({ cls: t.status === "completata" ? "bg-green-400" : cfg.dotClass, key: `t${i}` });
-            });
-            const seenTypes = new Set<string>();
-            for (const ev of dayEvents) {
-              if (!seenTypes.has(ev.type)) {
-                seenTypes.add(ev.type);
-                dots.push({ cls: ev.dotClass, key: ev.type });
-              }
-            }
-            if (isFestivita) dots.push({ cls: "bg-red-400", key: "fv" });
-            const visibleDots = dots.slice(0, 4);
-            const overflow = Math.max(0, dots.length - 4);
+            // Item con TITOLO da mostrare nelle celle (più informazioni dei pallini)
+            const cellItems: { label: string; cls: string }[] = [
+              ...dayTasks.map((t: { title?: string; priority?: string; status?: string }) => ({
+                label: String(t.title ?? "Attività"),
+                cls: t.status === "completata"
+                  ? "bg-green-400"
+                  : (PRIORITY_CONFIG[t.priority ?? "normale"] ?? PRIORITY_CONFIG.normale).dotClass,
+              })),
+              ...dayEvents.map((ev: { label: string; dotClass: string }) => ({ label: ev.label, cls: ev.dotClass })),
+            ];
+            const cellShown = cellItems.slice(0, 2);
+            const cellOverflow = cellItems.length - cellShown.length;
 
             return (
               <TooltipProvider key={key} delayDuration={200}>
@@ -967,27 +778,38 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
                         onDateSelect?.(newSel ? format(newSel, "yyyy-MM-dd") : null);
                       }}
                       className={cn(
-                        "relative aspect-square flex flex-col items-center justify-center rounded-md text-sm transition-all hover:bg-muted/60",
+                        "relative min-h-[58px] sm:min-h-[72px] flex flex-col items-stretch justify-start rounded-md p-1 text-sm transition-all",
                         isSelected
-                          ? "bg-primary text-primary-foreground font-bold shadow-sm"
+                          ? "bg-primary text-primary-foreground font-bold shadow-sm hover:bg-primary/90"
                           : isCurrentDay
-                          ? "bg-primary/10 font-semibold text-primary ring-1 ring-primary/30"
+                          ? "bg-primary/10 font-semibold text-primary ring-1 ring-primary/30 hover:bg-primary/20"
                           : isFestivita
-                          ? "bg-red-50 dark:bg-red-950/20"
+                          ? "bg-red-50 dark:bg-red-950/20 text-foreground hover:bg-red-100 dark:hover:bg-red-950/40"
                           : isInRange
-                          ? "bg-emerald-50 dark:bg-emerald-950/20"
+                          ? "bg-emerald-50 dark:bg-emerald-950/20 text-foreground hover:bg-emerald-100 dark:hover:bg-emerald-950/40"
                           : isPast
-                          ? "text-muted-foreground/60"
-                          : "text-foreground",
+                          ? "text-muted-foreground/60 hover:bg-muted/60"
+                          : "text-foreground hover:bg-muted/60",
                       )}
                     >
-                      <span className="text-xs leading-none">{format(day, "d")}</span>
-                      {dots.length > 0 && (
-                        <div className="flex gap-0.5 mt-0.5 items-center">
-                          {visibleDots.map(d => <div key={d.key} className={`w-1 h-1 rounded-full ${d.cls}`} />)}
-                          {overflow > 0 && <span className="text-[8px] leading-none text-muted-foreground">+{overflow}</span>}
-                        </div>
-                      )}
+                      <span className="text-xs leading-none mb-0.5">{format(day, "d")}</span>
+                      <div className="flex-1 w-full space-y-0.5 overflow-hidden text-left">
+                        {cellShown.map((it, i) => (
+                          <div key={i} className="flex items-center gap-1 leading-tight">
+                            <span className={`w-1 h-1 rounded-full shrink-0 ${it.cls}`} />
+                            <span className="truncate text-[9px]">{it.label}</span>
+                          </div>
+                        ))}
+                        {isFestivita && cellItems.length === 0 && (
+                          <div className="flex items-center gap-1 leading-tight">
+                            <span className="w-1 h-1 rounded-full shrink-0 bg-red-400" />
+                            <span className="truncate text-[9px] text-red-600">Festività</span>
+                          </div>
+                        )}
+                        {cellOverflow > 0 && (
+                          <span className="block text-[8px] leading-none text-muted-foreground">+{cellOverflow} altri</span>
+                        )}
+                      </div>
                     </button>
                   </TooltipTrigger>
                   {(dayTasks.length > 0 || dayEvents.length > 0 || isFestivita) && (
@@ -1006,7 +828,10 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
             );
           })}
         </div>
-        {selectedDate && (
+        </>)}
+        {calView === "settimana" && renderTimeGrid(weekDays)}
+        {calView === "giorno" && renderTimeGrid([selectedDate ?? today])}
+        {calView === "mese" && selectedDate && (
           <div className="mt-3 border-t pt-3">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -1032,9 +857,10 @@ function MiniCalendario({ onAddTask, onDateSelect }: { onAddTask?: (date: string
                   </div>
                 );
               })}
-              {selectedEvents.map((ev: { id: string; type: LayerId; label: string; dotClass: string }) => (
+              {selectedEvents.map((ev: { id: string; type: LayerId; label: string; dotClass: string; time?: string }) => (
                 <div key={ev.id} className="flex items-center gap-2 text-xs rounded px-2 py-1.5 bg-muted/40">
                   <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${ev.dotClass}`} />
+                  {ev.time && <span className="font-mono text-[10px] font-semibold text-teal-600 shrink-0">{ev.time}</span>}
                   <span className="flex-1 truncate">{ev.label}</span>
                   <span className={cn("text-[9px] px-1 py-0 rounded font-medium",
                     ev.type === "commessa"     ? "bg-emerald-100 text-emerald-700" :
@@ -2027,26 +1853,28 @@ function TabAttivita() {
 
   return (
     <div className="space-y-6">
-      {/* Riga 1: Meteo (1/3) + Timbratura o TaskTeam (2/3) */}
+      {/* Timbratura in cima per lo staff non-admin */}
+      {!isAdmin && <TimbraturaSede />}
+
+      {/* Sinistra: Meteo + Calendario (integrati) · Destra: le mie attività giornaliere */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
-        <MeteoWidget />
-        <div className="lg:col-span-2">
-          {isAdmin ? <TaskTeam /> : <TimbraturaSede />}
+        <div className="lg:col-span-2 space-y-3 sm:space-y-6">
+          <MeteoWidget />
+          <MiniCalendario
+            onAddTask={(date) => setAddTaskDate({ date, requestId: Date.now() })}
+            onDateSelect={(date) => setCalendarDate(date)}
+          />
         </div>
-      </div>
-      {isAdmin && <TeamTaskPulse />}
-      {/* Riga 2: Calendario (1/2) + Le mie attività (1/2) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
-        <MiniCalendario
-          onAddTask={(date) => setAddTaskDate({ date, requestId: Date.now() })}
-          onDateSelect={(date) => setCalendarDate(date)}
-        />
         <MieAttivita
           initialDueDate={addTaskDate}
           calendarDate={calendarDate}
           onCalendarDateClear={() => setCalendarDate(null)}
         />
       </div>
+
+      {/* Strumenti del team (solo admin), a tutta larghezza sotto */}
+      {isAdmin && <TeamTaskPulse />}
+      {isAdmin && <TaskTeam />}
     </div>
   );
 }

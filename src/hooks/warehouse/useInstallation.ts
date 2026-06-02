@@ -59,7 +59,7 @@ export function useInstallation() {
         setUploadProgress(40);
       } catch (error) {
         console.error('Before photo error:', error);
-        throw new Error('Errore nel caricamento foto prima');
+        throw new Error('Errore nel caricamento foto prima', { cause: error });
       }
 
       // Upload after photo (MANDATORY)
@@ -80,7 +80,7 @@ export function useInstallation() {
         setUploadProgress(70);
       } catch (error) {
         console.error('After photo error:', error);
-        throw new Error('Errore nel caricamento foto dopo');
+        throw new Error('Errore nel caricamento foto dopo', { cause: error });
       }
 
       // Create installation record

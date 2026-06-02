@@ -76,6 +76,7 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
       toast.success("Ordine d'acquisto creato");
       // Diary log
       void supabase.from("order_events" as never).insert({
+        company_id: effectiveCompany.id,
         order_id: orderId,
         event_type: "ordine_fornitore_creato",
         payload: { po_id: po.id, supplier_id: supplierId, order_code: orderCode },

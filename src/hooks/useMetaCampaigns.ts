@@ -277,7 +277,7 @@ export function useMetaCampaigns(companyId: string | undefined) {
             const updated = next.find((d) => d.id === input.id);
             if (updated) return updated;
           }
-          throw new Error("draft_not_found");
+          throw new Error("draft_not_found", { cause: err });
         }
         throw err;
       }
@@ -332,7 +332,7 @@ export function useMetaCampaigns(companyId: string | undefined) {
             const updated = next.find((d) => d.id === input.id);
             if (updated) return updated;
           }
-          throw new Error("draft_not_found");
+          throw new Error("draft_not_found", { cause: err });
         }
         throw err;
       }

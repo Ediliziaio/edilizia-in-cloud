@@ -214,7 +214,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         return { tickets: data as unknown as TicketListItem[], totalCount: count ?? 0 };
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
-          throw new Error("Il caricamento dei ticket sta impiegando troppo tempo. Riprova o restringi i filtri.");
+          throw new Error("Il caricamento dei ticket sta impiegando troppo tempo. Riprova o restringi i filtri.", { cause: error });
         }
         throw error;
       } finally {

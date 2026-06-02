@@ -38,7 +38,7 @@ import { BulkActionsBar } from "@/components/tasks/BulkActionsBar";
 import { TaskStatusSettingsDialog } from "@/components/tasks/TaskStatusSettingsDialog";
 import { MyDayView } from "@/components/attivita/MyDayView";
 import { TaskQuickAdd } from "@/components/attivita/TaskQuickAdd";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { logTaskActivity } from "@/lib/taskActivityLog";
 import { useTaskStatuses } from "@/hooks/useTaskStatuses";
@@ -49,13 +49,6 @@ import {
   getTaskStatusTransitionDescription,
   isTaskDoneStatus,
 } from "@/lib/taskStatuses";
-
-const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
-  bassa: { label: "Bassa", className: "bg-muted text-muted-foreground" },
-  normale: { label: "Normale", className: "bg-primary/10 text-primary" },
-  alta: { label: "Alta", className: "bg-warning/10 text-warning" },
-  urgente: { label: "Urgente", className: "bg-destructive/10 text-destructive" },
-};
 
 const ALL_CATEGORY_LABELS: Record<string, string> = {
   generale: "Generale",
@@ -337,6 +330,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
           due_date: format(nextDue, "yyyy-MM-dd"),
           parent_task_id: task.id,
           completed_at: null,
+          creator_profile: undefined, // campo sintetico (non colonna): escludere o PostgREST rifiuta l'insert (PGRST204) e la ricorrenza si interrompe
           assigned_profile: undefined,
           order: undefined,
           stock_item: undefined,
@@ -352,39 +346,7 @@ export default function UnifiedTasks({ embedded = false, initialTab = "myday" }:
     queryClient.invalidateQueries({ queryKey: ["my-task-count"] });
   };
 
-  const isOverdue = (task: any) => !isTaskDoneStatus(task.status, statusOptions) && task.due_date && isBefore(new Date(task.due_date), now);
-
   const handleRefresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
-
-  const renderCorrelation = (task: any) => {
-    if (task.order) {
-      return (
-        <Link to={`/azienda/ordini/${task.order_id}`} className="inline-flex items-center gap-1 text-primary hover:underline text-sm" onClick={(e) => e.stopPropagation()}>
-          <ExternalLink className="h-3 w-3" />
-          {task.order.order_code || task.order.description?.slice(0, 20)}
-        </Link>
-      );
-    }
-    if (task.contact) {
-      return (
-        <Link to={`/azienda/marketing/contatti/${task.contact_id}`} className="inline-flex items-center gap-1 text-primary hover:underline text-sm" onClick={(e) => e.stopPropagation()}>
-          <ExternalLink className="h-3 w-3" />
-          {task.contact.first_name} {task.contact.last_name}
-        </Link>
-      );
-    }
-    if (task.opportunity) {
-      return (
-        <Link to={`/azienda/marketing/opportunita`} className="inline-flex items-center gap-1 text-primary hover:underline text-sm" onClick={(e) => e.stopPropagation()}>
-          <ExternalLink className="h-3 w-3" />
-          {task.opportunity.name}
-        </Link>
-      );
-    }
-    if (task.stock_item) return <span className="text-sm text-muted-foreground">{task.stock_item.name}</span>;
-    if (task.cost) return <span className="text-sm text-muted-foreground">{task.cost.name}</span>;
-    return "—";
-  };
 
   return (
     <div className={embedded ? "space-y-5" : "space-y-6"}>

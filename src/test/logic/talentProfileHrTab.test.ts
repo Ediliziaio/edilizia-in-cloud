@@ -9,7 +9,7 @@ describe("Talent Profile HR tab", () => {
       "utf8",
     );
 
-    expect(pageSource).toContain('import { TabSelezioni } from "./tabs/TabSelezioni"');
+    expect(pageSource).toContain('const TabSelezioni = lazy(() => import("./tabs/TabSelezioni")');
     expect(pageSource).toContain('"selezioni"');
     expect(pageSource).toContain('TabsTrigger value="selezioni"');
     expect(pageSource).toContain("<TabSelezioni />");
@@ -26,7 +26,7 @@ describe("Talent Profile HR tab", () => {
     expect(tabSource).toContain("DOMANDE.length");
     expect(tabSource).toContain("ROLE_PROFILES_V5");
     expect(tabSource).toContain("buildTalentReportPayload");
-    expect(tabSource).toContain("Talent Profile");
+    expect(tabSource).toContain("Talent Assessment");
   });
 
   it("rende operativo il report HR con decisione, confronto e piano di inserimento", () => {
@@ -41,7 +41,7 @@ describe("Talent Profile HR tab", () => {
     expect(tabSource).toContain("autoGenerateMissingReports");
     expect(tabSource).toContain("buildTalentReportPrintHtml");
     expect(tabSource).toContain("openTalentReportPrintView");
-    expect(tabSource).toContain("Scarica PDF / stampa");
+    expect(tabSource).toContain("Stampa rapida");
     expect(tabSource).toContain("ReportInsightCard");
     expect(tabSource).toContain("Punti forti");
     expect(tabSource).toContain("Aree da allenare");

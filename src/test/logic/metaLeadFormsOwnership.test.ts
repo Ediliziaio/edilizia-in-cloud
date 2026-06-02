@@ -12,7 +12,10 @@ describe("Meta lead forms ownership", () => {
     "utf8",
   );
 
-  it("keeps Meta Lead Ads setup out of the generic integrations hub", () => {
+  // SUPERSEDED dal redesign "stile GHL" (commit c823ab174 + ce0fc49c1 "consolida card
+  // duplicate ... Meta, Google"): Meta è ora una card del hub integrazioni unificato.
+  // Premessa architetturale invertita di proposito — da riscrivere dall'owner.
+  it.skip("keeps Meta Lead Ads setup out of the generic integrations hub", () => {
     expect(integrationsPage).not.toContain("MetaIntegrationWizard");
     expect(integrationsPage).not.toContain("integration-meta-stats");
     expect(integrationsPage).not.toContain("Meta (Facebook & Instagram Lead Ads)");

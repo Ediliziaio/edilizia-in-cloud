@@ -464,7 +464,7 @@ function TemplateDetailDialog({
       try {
         parsed = JSON.parse(jsonText);
       } catch (e) {
-        throw new Error("JSON non valido: " + (e instanceof Error ? e.message : String(e)));
+        throw new Error("JSON non valido: " + (e instanceof Error ? e.message : String(e)), { cause: e });
       }
       await updateTemplate(template.id, { schema: parsed });
     },

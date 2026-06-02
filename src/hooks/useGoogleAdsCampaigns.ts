@@ -174,7 +174,7 @@ export function useGoogleAdsCampaigns(companyId: string | undefined) {
         );
         persistLegacy(next);
         const updated = next.find((campaign) => campaign.id === input.id);
-        if (!updated) throw new Error("draft_not_found");
+        if (!updated) throw new Error("draft_not_found", { cause: err });
         return updated;
       }
     },
@@ -217,7 +217,7 @@ export function useGoogleAdsCampaigns(companyId: string | undefined) {
         );
         persistLegacy(next);
         const updated = next.find((campaign) => campaign.id === input.id);
-        if (!updated) throw new Error("draft_not_found");
+        if (!updated) throw new Error("draft_not_found", { cause: err });
         return updated;
       }
     },

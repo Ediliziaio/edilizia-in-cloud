@@ -32,7 +32,7 @@ export function useTableSort<T>(
       if (valA == null) return 1;
       if (valB == null) return -1;
 
-      let cmp = 0;
+      let cmp: number;
       if (valA instanceof Date && valB instanceof Date) {
         cmp = valA.getTime() - valB.getTime();
       } else if (typeof valA === "number" && typeof valB === "number") {

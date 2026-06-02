@@ -49,11 +49,12 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
   // Get unpaid invoices for selection
   const { data: invoicesData } = useDocumentiFiscali({
     stato: ["emessa", "parzialmente_pagata"],
+    perPage: 1000, // KPI/selezione su TUTTI gli aperti, non solo i primi 50 (default paginazione)
   });
   const unpaidInvoices = useMemo(() => invoicesData?.documenti ?? [], [invoicesData?.documenti]);
 
   // All invoices for scadenzario
-  const { data: allInvoicesData } = useDocumentiFiscali({});
+  const { data: allInvoicesData } = useDocumentiFiscali({ perPage: 1000 });
   const allInvoices = useMemo(() => allInvoicesData?.documenti ?? [], [allInvoicesData?.documenti]);
 
   // KPIs
@@ -63,7 +64,9 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
       .filter((m) => m.data_movimento >= monthStart && m.data_movimento <= monthEnd && m.tipo === "incasso")
       .reduce((sum, m) => sum + m.importo, 0);
     const daIncassare = unpaidInvoices.reduce((sum, d) => sum + (d.totale_da_pagare - d.importo_pagato), 0);
-    const scaduto = allInvoices
+    // scaduto = quota scaduta DELLE STESSE fatture incassabili (emessa/parz. pagata),
+    // non di tutti i documenti: altrimenti preventivi/bozze gonfiano lo scaduto e "non scaduto" va negativo.
+    const scaduto = unpaidInvoices
       .filter((d) => d.data_scadenza && isPast(new Date(d.data_scadenza)) && d.importo_pagato < d.totale_da_pagare)
       .reduce((sum, d) => sum + (d.totale_da_pagare - d.importo_pagato), 0);
     const nonScaduto = daIncassare - scaduto;

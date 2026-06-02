@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { useToast } from "@/hooks/use-toast";
 import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
 import { logger } from "@/utils/logger";
@@ -149,7 +150,7 @@ export default function CreateLavoroAppaltatore() {
 
   // ── Importi pagamento (saldo = totale - somma acconti) ──────────
   const totalNum = useMemo(() => {
-    const v = totalAmount ? Number(totalAmount.replace(",", ".")) : 0;
+    const v = totalAmount ? parseDecimalIT(totalAmount) : 0;
     return Number.isNaN(v) ? 0 : v;
   }, [totalAmount]);
 
@@ -183,7 +184,7 @@ export default function CreateLavoroAppaltatore() {
       if (!companyId) throw new Error("Azienda non disponibile.");
       if (!customerId) throw new Error("Seleziona un appaltatore.");
 
-      const totalVal = totalAmount ? Number(totalAmount.replace(",", ".")) : 0;
+      const totalVal = totalAmount ? parseDecimalIT(totalAmount) : 0;
       if (Number.isNaN(totalVal) || totalVal < 0) {
         throw new Error("Importo non valido.");
       }
@@ -271,7 +272,7 @@ export default function CreateLavoroAppaltatore() {
   //     rispettare le rules-of-hooks di React) ────────────────────
   const selectedAppaltatore = appaltatori.find((a) => a.id === customerId);
   const totalForSummary = totalAmount
-    ? Number(totalAmount.replace(",", "."))
+    ? parseDecimalIT(totalAmount)
     : 0;
   const formattedTotal = !Number.isNaN(totalForSummary) && totalForSummary > 0
     ? new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(totalForSummary)
@@ -611,7 +612,7 @@ export default function CreateLavoroAppaltatore() {
                           value={isBalance ? (displayAmount > 0 ? displayAmount.toFixed(2) : "") : (inst.amount > 0 ? String(inst.amount) : "")}
                           onChange={(e) => {
                             if (isBalance) return; // saldo è calcolato
-                            const v = parseFloat(e.target.value.replace(",", ".")) || 0;
+                            const v = parseDecimalIT(e.target.value);
                             updateInstallment(inst.position, { amount: v });
                           }}
                           placeholder="0,00"

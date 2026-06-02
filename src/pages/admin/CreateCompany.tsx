@@ -323,6 +323,7 @@ export default function CreateCompany() {
         const msg = networkErr instanceof Error ? networkErr.message : String(networkErr);
         throw new Error(
           `Impossibile contattare il server Supabase (${msg}). Verifica la connessione.`,
+          { cause: networkErr },
         );
       }
 
