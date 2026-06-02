@@ -20,8 +20,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   TrendingUp, TrendingDown, AlertTriangle, RefreshCw,
-  Wallet, Clock, Sparkles, ArrowDownUp,
+  Wallet, Clock, Sparkles, ArrowDownUp, Radar, ShieldCheck,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 
@@ -73,6 +74,98 @@ function fmtDate(iso: string): string {
   return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
 }
 
+type AnomalySeverity = "critical" | "warning" | "info";
+
+interface CashAnomaly {
+  id: string;
+  severity: AnomalySeverity;
+  icon: LucideIcon;
+  title: string;
+  detail: string;
+}
+
+const ANOMALY_SEVERITY_CLS: Record<AnomalySeverity, string> = {
+  critical: "border-rose-300 bg-rose-50 text-rose-900",
+  warning: "border-amber-300 bg-amber-50 text-amber-900",
+  info: "border-sky-300 bg-sky-50 text-sky-900",
+};
+
+const STATUS_RANK: Record<string, number> = { ok: 0, warning: 1, critical: 2 };
+
+/**
+ * Rileva anomalie di cassa azionabili dall'output del forecast.
+ * Non introduce nuove fonti dati: nomina e mette in evidenza segnali che il
+ * forecast già calcola (saldo cumulato, status settimanale, ritardi per cliente).
+ */
+function detectCashAnomalies(data: ForecastResult): CashAnomaly[] {
+  const anomalies: CashAnomaly[] = [];
+  const weeks = data.weeks ?? [];
+  const avgDelay = data.delay_pattern?.avg_delay_days_global ?? 0;
+
+  // 1. Saldo cumulato che scende sotto zero — prima settimana interessata
+  const firstNegative = weeks.find((w) => w.saldo_atteso_eur < 0);
+  if (firstNegative) {
+    anomalies.push({
+      id: "neg-balance",
+      severity: "critical",
+      icon: TrendingDown,
+      title: `Saldo sotto zero dalla S${firstNegative.week_index} (${fmtDate(firstNegative.week_start)})`,
+      detail: `Il saldo cumulato previsto scende a ${formatCurrency(firstNegative.saldo_atteso_eur)}. Copri lo scoperto o anticipa incassi prima di quella settimana.`,
+    });
+  }
+
+  // 2. Primo peggioramento di stato (OK → attenzione/critico)
+  for (let i = 1; i < weeks.length; i++) {
+    const prev = weeks[i - 1];
+    const cur = weeks[i];
+    if ((STATUS_RANK[cur.status] ?? 0) > (STATUS_RANK[prev.status] ?? 0) && cur.status !== "ok") {
+      anomalies.push({
+        id: `transition-${cur.week_index}`,
+        severity: cur.status === "critical" ? "critical" : "warning",
+        icon: AlertTriangle,
+        title: `Peggioramento in S${cur.week_index} (${fmtDate(cur.week_start)})`,
+        detail: `La cassa passa da "${STATUS_BADGE[prev.status]?.label ?? prev.status}" a "${STATUS_BADGE[cur.status]?.label ?? cur.status}": saldo previsto ${formatCurrency(cur.saldo_atteso_eur)}.`,
+      });
+      break;
+    }
+  }
+
+  // 3. Concentrazione di uscite (uscite molto superiori agli incassi della settimana)
+  const outflowSpikes = weeks.filter(
+    (w) => w.uscite_eur > 0 && w.uscite_eur >= Math.max(w.incassi_eur * 2, 1) && w.status !== "ok",
+  );
+  if (outflowSpikes.length) {
+    const worst = outflowSpikes.reduce((a, b) => (b.uscite_eur > a.uscite_eur ? b : a));
+    anomalies.push({
+      id: `outflow-${worst.week_index}`,
+      severity: worst.status === "critical" ? "critical" : "warning",
+      icon: ArrowDownUp,
+      title: `Uscite concentrate in S${worst.week_index} (${fmtDate(worst.week_start)})`,
+      detail: `Uscite ${formatCurrency(worst.uscite_eur)} contro incassi ${formatCurrency(worst.incassi_eur)}. Valuta di scaglionare i pagamenti su più settimane.`,
+    });
+  }
+
+  // 4. Clienti che peggiorano il ritardo medio aziendale
+  const perClient = data.delay_pattern?.delays_per_client ?? {};
+  const laggards = Object.entries(perClient)
+    .filter(([, d]) => typeof d === "number" && d > avgDelay && d - avgDelay >= 5)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+  for (const [client, delay] of laggards) {
+    const label = client.length > 40 ? `${client.slice(0, 37)}…` : client;
+    const extra = Math.round(delay - avgDelay);
+    anomalies.push({
+      id: `client-${client}`,
+      severity: extra >= 15 ? "warning" : "info",
+      icon: Clock,
+      title: `${label} paga in ritardo`,
+      detail: `Ritardo medio ${Math.round(delay)}gg, +${extra}gg oltre la media aziendale (${Math.round(avgDelay)}gg). Sollecita o rivedi i termini di pagamento.`,
+    });
+  }
+
+  return anomalies;
+}
+
 export function SilvioCashflowForecast({
   weeks = 13,
   applyDelay = true,
@@ -111,6 +204,11 @@ export function SilvioCashflowForecast({
     );
   }, [data]);
 
+  const anomalies = useMemo(
+    () => (data ? detectCashAnomalies(data) : []),
+    [data],
+  );
+
   if (!companyId) return null;
 
   if (isLoading) {
@@ -145,6 +243,9 @@ export function SilvioCashflowForecast({
   const hasCritical = data.critical_weeks_count > 0;
   const hasWarning = data.warning_weeks_count > 0;
   const overallStatus = hasCritical ? "critical" : hasWarning ? "warning" : "ok";
+  const visibleAnomalies = compact
+    ? anomalies.filter((a) => a.severity !== "info")
+    : anomalies;
 
   return (
     <Card className={cn(
@@ -249,6 +350,44 @@ export function SilvioCashflowForecast({
             </AlertDescription>
           </Alert>
         )}
+
+        {/* Anomalie di cassa — segnali azionabili derivati dal forecast */}
+        {visibleAnomalies.length > 0 ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <Radar className="h-3.5 w-3.5" />
+              Anomalie di cassa
+              <Badge variant="outline" className="ml-0.5 px-1.5 py-0 text-[10px]">
+                {visibleAnomalies.length}
+              </Badge>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {visibleAnomalies.map((a) => {
+                const Icon = a.icon;
+                return (
+                  <div
+                    key={a.id}
+                    className={cn(
+                      "flex gap-2 rounded-lg border p-2.5",
+                      ANOMALY_SEVERITY_CLS[a.severity],
+                    )}
+                  >
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold">{a.title}</div>
+                      <div className="mt-0.5 text-[11px] opacity-80">{a.detail}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : !compact ? (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5 text-xs text-emerald-800">
+            <ShieldCheck className="h-4 w-4 shrink-0" />
+            Nessuna anomalia di cassa rilevata nelle prossime {data.orizzonte_settimane} settimane.
+          </div>
+        ) : null}
 
         {/* Weekly table with bars */}
         {!compact && (
