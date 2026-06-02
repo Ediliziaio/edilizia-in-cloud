@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -106,6 +106,38 @@ export default function ImpostazioniFatturazione() {
   const [conti, setConti] = useState<ContoCorrente[]>([]);
   const [showNewConto, setShowNewConto] = useState(false);
   const [newConto, setNewConto] = useState<Partial<ContoCorrente>>({});
+
+  // ─── Onboarding Fatturazione Elettronica (registrazione cedente openapi) ──
+  const companyId = effectiveCompany?.id;
+  const { data: feConfig, isLoading: feLoading } = useQuery({
+    queryKey: ["sdi-cedente-config", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sdi_cedente_config" as never)
+        .select("stato, delega_stato, fiscal_id, last_error, registered_at, codice_destinatario")
+        .eq("company_id", companyId as string)
+        .maybeSingle();
+      if (error) throw error;
+      return data as {
+        stato?: string; delega_stato?: string; fiscal_id?: string;
+        last_error?: string | null; registered_at?: string | null; codice_destinatario?: string | null;
+      } | null;
+    },
+  });
+  const onboardMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sdi-onboarding", { body: { company_id: companyId } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as { stato?: string; next_step?: string };
+    },
+    onSuccess: (data) => {
+      toast.success(data?.stato === "registrato" ? "Azienda registrata sul sistema di invio SDI" : "Onboarding eseguito");
+      queryClient.invalidateQueries({ queryKey: ["sdi-cedente-config", companyId] });
+    },
+    onError: (e: any) => toast.error(e?.message || "Errore durante l'attivazione"),
+  });
 
   if (isLoading) {
     return <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
@@ -548,6 +580,76 @@ export default function ImpostazioniFatturazione() {
               )}
             </CardContent>
           </Card>
+
+          {/* ─── ATTIVAZIONE FE (registrazione cedente openapi) ─── */}
+          {current.sdi_provider === "openapi" && (() => {
+            const piva = String(current.partita_iva ?? "").replace(/\D/g, "");
+            const canOnboard = piva.length === 11 && !!current.ragione_sociale && !!(current.pec || current.email);
+            const stato = feConfig?.stato ?? "non_attivo";
+            const delega = feConfig?.delega_stato ?? "none";
+            const registrato = stato === "registrato" || stato === "attivo";
+            const statoBadge =
+              stato === "attivo" ? <Badge className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"><CheckCircle className="h-3 w-3" />Attivo</Badge> :
+              stato === "registrato" ? <Badge className="gap-1 bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300"><CheckCircle className="h-3 w-3" />Registrato</Badge> :
+              stato === "errore" ? <Badge variant="destructive" className="gap-1"><AlertTriangle className="h-3 w-3" />Errore</Badge> :
+              stato === "pending" ? <Badge variant="outline" className="gap-1 text-amber-600"><Loader2 className="h-3 w-3 animate-spin" />In corso</Badge> :
+              <Badge variant="outline" className="gap-1 text-muted-foreground"><AlertTriangle className="h-3 w-3" />Non attivo</Badge>;
+            const delegaBadge =
+              delega === "attiva" ? <Badge className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"><CheckCircle className="h-3 w-3" />Delega attiva</Badge> :
+              delega === "richiesta" ? <Badge variant="outline" className="gap-1 text-amber-600">Delega richiesta</Badge> :
+              delega === "revocata" ? <Badge variant="destructive" className="gap-1">Delega revocata</Badge> :
+              <Badge variant="outline" className="gap-1 text-muted-foreground">Delega da completare</Badge>;
+            return (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Attivazione Fatturazione Elettronica</CardTitle>
+                  <CardDescription>Registra la tua azienda come cedente sul sistema di invio. Operazione una tantum, necessaria <b>prima del primo invio allo SDI</b>.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {feLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Verifica stato…</div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {statoBadge}
+                      {delegaBadge}
+                      {feConfig?.registered_at && (
+                        <span className="text-xs text-muted-foreground">Registrata il {new Date(feConfig.registered_at).toLocaleDateString("it-IT")}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {feConfig?.last_error && stato === "errore" && (
+                    <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg p-3 text-sm text-red-700 dark:text-red-300">
+                      {feConfig.last_error}
+                    </div>
+                  )}
+
+                  {registrato && delega !== "attiva" && (
+                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-medium text-amber-800 dark:text-amber-300">Ultimo passo: delega SDI</p>
+                        <p className="text-amber-700 dark:text-amber-400 text-xs mt-0.5">La registrazione è completata. Per attivare invio e ricezione reali serve la <b>delega</b> al sistema di interscambio (codice destinatario / delega Agenzia delle Entrate). Ti guideremo a completarla.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {!canOnboard && (
+                    <div className="bg-muted/50 rounded-lg p-3 flex items-start gap-2 text-sm text-muted-foreground">
+                      <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                      <span>Completa prima <b>Partita IVA</b> (11 cifre), <b>Ragione Sociale</b> ed <b>Email/PEC</b> nel tab Azienda, poi salva. Sono i dati usati per la registrazione.</span>
+                    </div>
+                  )}
+
+                  <Button onClick={() => onboardMutation.mutate()} disabled={onboardMutation.isPending || !canOnboard || isDirty} className="gap-1.5">
+                    {onboardMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                    {registrato ? "Ri-verifica registrazione" : "Attiva Fatturazione Elettronica"}
+                  </Button>
+                  {isDirty && <p className="text-xs text-amber-600">Salva prima le modifiche in sospeso, poi attiva.</p>}
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           <Card>
             <CardHeader>

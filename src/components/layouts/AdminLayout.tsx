@@ -34,6 +34,7 @@ import {
   GraduationCap,
   CheckSquare,
   MessagesSquare,
+  Receipt,
 } from "lucide-react";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -126,6 +127,8 @@ const allNavItems: AdminNavItem[] = [
   // (Revenue · Piani · Fatture · Promo · Dunning). Pulisce visualmente la
   // navigazione mantenendo l'accesso a tutti i sotto-strumenti con 1 click.
   { title: "Fatturato", url: "/admin/fatturato", icon: Wallet, permission: "billing_read", subcategory: "sa_revenue" },
+  // Fatturazione Elettronica — chi usa la FE, volumi, costi e wallet openapi.
+  { title: "Fatturazione Elettronica", url: "/admin/fatturazione-elettronica", icon: Receipt, permission: "billing_read", subcategory: "sa_revenue" },
   // ─── AI MANAGEMENT — Hub unico (Operate · Monitor · Config · Memoria
   //     in tab in alto). 4 voci → 1. Coerenza con Fatturato/CS/Operazioni. ──
   { title: "AI", url: "/admin/ai", icon: Sparkles, permission: "can_view_platform_stats", subcategory: "sa_ai" },

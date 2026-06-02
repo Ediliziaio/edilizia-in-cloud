@@ -101,6 +101,8 @@ const AdminDunningConfig = lazy(() => import("@/pages/admin/AdminDunningConfig")
 // Hub unificato: 5 tab in alto (Revenue · Piani · Fatture · Promo · Dunning).
 // Sostituisce 5 voci sidebar separate per ridurre rumore visivo.
 const AdminFatturatoHub = lazy(() => import("@/pages/admin/fatturato/AdminFatturatoHub"));
+// FE Operations — dashboard super_admin Fatturazione Elettronica (chi usa, volumi, costi, wallet).
+const AdminFatturazioneElettronica = lazy(() => import("@/pages/admin/fatturazione/AdminFatturazioneElettronica"));
 // Hub CS: Dashboard · Assistenza · Lifecycle · Onboarding · Playbook.
 const AdminCustomerSuccessHub = lazy(() => import("@/pages/admin/cs/AdminCustomerSuccessHub"));
 // Hub Operazioni: Sync · Alert · Import · Audit · GDPR.
@@ -338,6 +340,8 @@ export default function AdminRoutesContainer() {
         <Route path="marketing/agenti-ai/*" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingAgents /></RequireAdminPermission>} />
         {/* Hub Fatturato — 5 tab in alto, sostituisce 5 voci sidebar separate. */}
         <Route path="fatturato" element={<RequireAdminPermission permission="billing_read"><AdminFatturatoHub /></RequireAdminPermission>} />
+        {/* FE Operations — Fatturazione Elettronica (usage + costi + wallet openapi). */}
+        <Route path="fatturazione-elettronica" element={<RequireSuperAdmin><AdminFatturazioneElettronica /></RequireSuperAdmin>} />
         {/* Route legacy → redirect verso il tab corrispondente nell'hub.
            Manteniamo bookmark/link esterni funzionanti senza esporre 5 voci. */}
         <Route path="revenue" element={<Navigate to="/admin/fatturato?tab=revenue" replace />} />
