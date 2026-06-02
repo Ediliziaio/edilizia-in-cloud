@@ -2255,6 +2255,20 @@ Deno.serve(async (req) => {
       return jsonResponse({ enriched, withPec, attempted: withPiva.length }, 200, corsH);
     }
 
+    // ═══════════ OPENAPI ENV (toggle sandbox/prod dalla UI) ═══════════
+    if (action === "openapi_env") {
+      const set = body.set === "prod" ? "prod" : body.set === "sandbox" ? "sandbox" : null;
+      if (set) {
+        const { error } = await supabaseAdmin.from("platform_settings")
+          .upsert({ key: "openapi_env", value: set }, { onConflict: "key" });
+        if (error) return errorResponse(error.message, 500, corsH);
+        _openapiBaseCache = null; // invalida la cache così il cambio è immediato
+      }
+      const env = ((await getPlatformSetting("openapi_env", "OPENAPI_ENV")) || "prod").toLowerCase();
+      const token = await getPlatformSetting("openapi_it_token", "OPENAPI_IT_TOKEN");
+      return jsonResponse({ env: env === "test" ? "sandbox" : env, hasToken: !!token }, 200, corsH);
+    }
+
     return errorResponse(`Azione sconosciuta: ${action}`, 400, corsH);
   } catch (err) {
     // requireAuth/requireRole lanciano una Response già pronta

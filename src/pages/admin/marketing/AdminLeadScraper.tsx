@@ -567,6 +567,21 @@ export default function AdminLeadScraper() {
     return acc;
   };
 
+  // openapi.it: ambiente sandbox (test gratis) vs produzione (dati reali)
+  const openapiEnvQuery = useQuery({
+    queryKey: ["lead-scraper", "openapi-env"],
+    queryFn: () => invoke({ action: "openapi_env" }) as Promise<{ env: string; hasToken: boolean }>,
+    enabled: hasAccess && source === "company_search",
+  });
+  const setOpenapiEnv = useMutation({
+    mutationFn: (env: "sandbox" | "prod") => invoke({ action: "openapi_env", set: env }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["lead-scraper", "openapi-env"], data);
+      toast.success(`openapi.it → ${data.env === "prod" ? "Produzione (dati reali)" : "Sandbox (test gratis)"}`);
+    },
+    onError: (e: Error) => toast.error("Cambio ambiente fallito", { description: e.message }),
+  });
+
   const searchMutation = useMutation({
     mutationFn: () => invoke({
       action: "search", source,
@@ -1109,6 +1124,24 @@ export default function AdminLeadScraper() {
                     );
                   })}
                 </div>
+                {source === "company_search" && (
+                  <div className="mt-2 flex items-center justify-between rounded-lg border bg-muted/30 px-2.5 py-1.5">
+                    <span className="text-[11px] text-muted-foreground">Ambiente openapi.it</span>
+                    <div className="flex gap-1">
+                      {(["sandbox", "prod"] as const).map((e) => {
+                        const active = (openapiEnvQuery.data?.env || "sandbox") === e;
+                        return (
+                          <button key={e} type="button" disabled={setOpenapiEnv.isPending || active}
+                            onClick={() => setOpenapiEnv.mutate(e)}
+                            title={e === "sandbox" ? "Test gratis con dati finti" : "Dati reali (consuma il free-tier/credito)"}
+                            className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${active ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}>
+                            {e === "sandbox" ? "Sandbox" : "Produzione"}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Settore / keyword */}
