@@ -260,6 +260,7 @@ describe("detectCashAnomalies", () => {
     expect(neg).toBeTruthy();
     expect(neg!.severity).toBe("critical");
     expect(neg!.title).toContain("S3");
+    expect(neg!.weekIndex).toBe(3); // aggancia la settimana per highlight/scroll
   });
 
   it("rileva il primo peggioramento di stato (ok → warning)", () => {
@@ -270,6 +271,7 @@ describe("detectCashAnomalies", () => {
     const t = detectCashAnomalies(data).find((a) => a.id === "transition-2");
     expect(t).toBeTruthy();
     expect(t!.severity).toBe("warning");
+    expect(t!.weekIndex).toBe(2);
   });
 
   it("il peggioramento verso 'critical' ha severità critical", () => {
@@ -289,6 +291,7 @@ describe("detectCashAnomalies", () => {
     const spike = detectCashAnomalies(data).find((a) => a.id.startsWith("outflow-"));
     expect(spike).toBeTruthy();
     expect(spike!.id).toBe("outflow-3"); // 900 > 500 → settimana peggiore
+    expect(spike!.weekIndex).toBe(3);
   });
 
   it("segnala i clienti che superano la media dei ritardi di ≥5gg", () => {
@@ -300,6 +303,7 @@ describe("detectCashAnomalies", () => {
     const lento = out.find((a) => a.id === "client-Cliente Lento");
     expect(lento).toBeTruthy();
     expect(lento!.severity).toBe("warning"); // +20gg oltre la media → ≥15 ⇒ warning
+    expect(lento!.weekIndex).toBeUndefined(); // i ritardi cliente non puntano a una settimana
     // 'Cliente Ok' è solo +2gg sopra la media → sotto la soglia di 5gg
     expect(out.find((a) => a.id === "client-Cliente Ok")).toBeUndefined();
   });

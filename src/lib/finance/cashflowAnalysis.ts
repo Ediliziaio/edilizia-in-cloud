@@ -48,6 +48,8 @@ export interface CashAnomaly {
   icon: LucideIcon;
   title: string;
   detail: string;
+  /** Settimana del forecast a cui l'anomalia si riferisce (per highlight/scroll). */
+  weekIndex?: number;
 }
 
 /** Etichette di stato (decouple dalla presentazione STATUS_BADGE del componente). */
@@ -82,6 +84,7 @@ export function detectCashAnomalies(data: ForecastResult): CashAnomaly[] {
       id: "neg-balance",
       severity: "critical",
       icon: TrendingDown,
+      weekIndex: firstNegative.week_index,
       title: `Saldo sotto zero dalla S${firstNegative.week_index} (${fmtDate(firstNegative.week_start)})`,
       detail: `Il saldo cumulato previsto scende a ${formatCurrency(firstNegative.saldo_atteso_eur)}. Copri lo scoperto o anticipa incassi prima di quella settimana.`,
     });
@@ -96,6 +99,7 @@ export function detectCashAnomalies(data: ForecastResult): CashAnomaly[] {
         id: `transition-${cur.week_index}`,
         severity: cur.status === "critical" ? "critical" : "warning",
         icon: AlertTriangle,
+        weekIndex: cur.week_index,
         title: `Peggioramento in S${cur.week_index} (${fmtDate(cur.week_start)})`,
         detail: `La cassa passa da "${STATUS_LABELS[prev.status] ?? prev.status}" a "${STATUS_LABELS[cur.status] ?? cur.status}": saldo previsto ${formatCurrency(cur.saldo_atteso_eur)}.`,
       });
@@ -113,6 +117,7 @@ export function detectCashAnomalies(data: ForecastResult): CashAnomaly[] {
       id: `outflow-${worst.week_index}`,
       severity: worst.status === "critical" ? "critical" : "warning",
       icon: ArrowDownUp,
+      weekIndex: worst.week_index,
       title: `Uscite concentrate in S${worst.week_index} (${fmtDate(worst.week_start)})`,
       detail: `Uscite ${formatCurrency(worst.uscite_eur)} contro incassi ${formatCurrency(worst.incassi_eur)}. Valuta di scaglionare i pagamenti su più settimane.`,
     });

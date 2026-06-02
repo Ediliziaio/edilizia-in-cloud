@@ -9,7 +9,7 @@
  * Permessi: visibile a super_admin e company_admin.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -87,6 +87,18 @@ export function SilvioCashflowForecast({
     () => (data ? detectCashAnomalies(data) : []),
     [data],
   );
+
+  // Settimana evidenziata al click su un'anomalia agganciata (weekIndex).
+  const [highlightWeek, setHighlightWeek] = useState<number | null>(null);
+  const focusWeek = (weekIndex?: number) => {
+    if (weekIndex == null || compact) return;
+    setHighlightWeek(weekIndex);
+    if (typeof document !== "undefined") {
+      document
+        .getElementById(`cf-week-${weekIndex}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
 
   if (!companyId) return null;
 
@@ -243,6 +255,40 @@ export function SilvioCashflowForecast({
             <div className="grid gap-2 sm:grid-cols-2">
               {visibleAnomalies.map((a) => {
                 const Icon = a.icon;
+                const clickable = a.weekIndex != null && !compact;
+                const isActive = clickable && highlightWeek === a.weekIndex;
+                const inner = (
+                  <>
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold">{a.title}</div>
+                      <div className="mt-0.5 text-[11px] opacity-80">{a.detail}</div>
+                      {clickable && (
+                        <div className="mt-1 text-[10px] font-medium opacity-70">
+                          Vai alla settimana →
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+                if (clickable) {
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => focusWeek(a.weekIndex)}
+                      aria-pressed={isActive}
+                      title="Evidenzia la settimana nella tabella"
+                      className={cn(
+                        "flex gap-2 rounded-lg border p-2.5 text-left transition hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
+                        ANOMALY_SEVERITY_CLS[a.severity],
+                        isActive && "ring-2 ring-offset-1",
+                      )}
+                    >
+                      {inner}
+                    </button>
+                  );
+                }
                 return (
                   <div
                     key={a.id}
@@ -251,11 +297,7 @@ export function SilvioCashflowForecast({
                       ANOMALY_SEVERITY_CLS[a.severity],
                     )}
                   >
-                    <Icon className="mt-0.5 h-4 w-4 shrink-0" />
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold">{a.title}</div>
-                      <div className="mt-0.5 text-[11px] opacity-80">{a.detail}</div>
-                    </div>
+                    {inner}
                   </div>
                 );
               })}
@@ -284,10 +326,13 @@ export function SilvioCashflowForecast({
               return (
                 <div
                   key={w.week_index}
+                  id={`cf-week-${w.week_index}`}
                   className={cn(
-                    "grid grid-cols-12 gap-2 items-center px-2 py-1.5 rounded text-xs hover:bg-muted/40",
+                    "grid grid-cols-12 gap-2 items-center px-2 py-1.5 rounded text-xs hover:bg-muted/40 scroll-mt-4 transition",
                     w.status === "critical" && "bg-rose-50/50",
                     w.status === "warning" && "bg-amber-50/30",
+                    highlightWeek === w.week_index &&
+                      "ring-2 ring-violet-400 ring-offset-1 bg-violet-50/50",
                   )}
                 >
                   <div className="col-span-2 font-medium">
