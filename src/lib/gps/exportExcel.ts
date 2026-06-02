@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { neutralizeXlsxCell } from '@/lib/csvExport';
 import { it } from 'date-fns/locale';
 import { calcolaDistanzaTotaleKm } from './geofenceCheck';
 
@@ -111,7 +112,7 @@ export async function esportaPercorsoExcel(
   ];
 
   righeRiepilogo.forEach(([label, value]) => {
-    const row = wsRiepilogo.addRow({ label, value });
+    const row = wsRiepilogo.addRow({ label, value: neutralizeXlsxCell(value) });
     row.getCell(1).font = { bold: true };
     row.getCell(1).fill = {
       type: 'pattern',

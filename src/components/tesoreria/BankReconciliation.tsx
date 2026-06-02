@@ -30,7 +30,7 @@ import {
   detectReconAnomalies,
 } from "@/lib/finance/reconciliationAnalysis";
 import type { MatchSuggestion, ReconSeverity } from "@/lib/finance/reconciliationAnalysis";
-import { escapeCSV } from "@/lib/csvExport";
+import { escapeCSV, neutralizeXlsxCell } from "@/lib/csvExport";
 
 interface Props {
   companyId: string;
@@ -406,8 +406,13 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         const wb = new ExcelJS.Workbook();
         const ws = wb.addWorksheet("Riconciliazioni");
         if (rows.length > 0) {
+          const safeRows = rows.map((row) => {
+            const out: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(row)) out[k] = neutralizeXlsxCell(v);
+            return out;
+          });
           ws.columns = Object.keys(rows[0]).map((key, i) => ({ header: key, key, width: colWidths[i] ?? 14 }));
-          ws.addRows(rows);
+          ws.addRows(safeRows);
         }
         const buffer = await wb.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });

@@ -1,4 +1,5 @@
 import { formatCurrency } from "@/lib/formatters";
+import { neutralizeXlsxCell } from "@/lib/csvExport";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -34,8 +35,13 @@ async function exportToXLS(documenti: DocumentoFiscale[], filename: string) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Documenti");
   if (rows.length > 0) {
+    const safeRows = rows.map((row) => {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(row)) out[k] = neutralizeXlsxCell(v);
+      return out;
+    });
     ws.columns = Object.keys(rows[0]).map((key) => ({ header: key, key }));
-    ws.addRows(rows);
+    ws.addRows(safeRows);
   }
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });

@@ -25,6 +25,18 @@ export function neutralizeCsvFormula(value: string): string {
 }
 
 /**
+ * Neutralizza il valore di una cella destinata a un file XLSX (ExcelJS). ExcelJS
+ * scrive le stringhe come celle di tipo testo — Excel non le esegue all'apertura
+ * — ma un valore tipo "=cmd|..." resta pericoloso se il foglio viene riesportato
+ * in CSV o copiato nella barra formule. Per difesa in profondità si antepone
+ * l'apice alle sole celle stringa "attive"; numeri, date, booleani e oggetti
+ * (formule legittime, richText) restano intatti.
+ */
+export function neutralizeXlsxCell<T>(value: T): T | string {
+  return typeof value === "string" ? neutralizeCsvFormula(value) : value;
+}
+
+/**
  * Mette in sicurezza una singola cella CSV, per un separatore qualsiasi. Due livelli:
  *  1. Anti formula-injection (vedi neutralizeCsvFormula).
  *  2. Quoting RFC-4180: se contiene il separatore scelto, le virgolette o un a
@@ -87,7 +99,7 @@ export async function exportToXLSX(
 ) {
   const ExcelJS = (await import("exceljs")).default;
   const headerRow = columns.map((c) => c.label);
-  const dataRows = rows.map((row) => columns.map((c) => row[c.key] || ""));
+  const dataRows = rows.map((row) => columns.map((c) => neutralizeCsvFormula(row[c.key] || "")));
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Contatti");

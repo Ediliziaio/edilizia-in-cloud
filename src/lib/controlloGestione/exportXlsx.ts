@@ -4,6 +4,7 @@
  * Uso ExcelJS (già installato per altri import) — generazione lazy import
  * per non gonfiare il bundle iniziale.
  */
+import { neutralizeXlsxCell } from "@/lib/csvExport";
 
 export interface ExportColumn<T> {
   header: string;
@@ -78,7 +79,7 @@ export async function exportXlsx(opts: ExportXlsxOptions): Promise<void> {
       for (const ph of sheet.preheader) {
         const r = ws.getRow(rowIdx++);
         ph.forEach((v, i) => {
-          r.getCell(i + 1).value = v;
+          r.getCell(i + 1).value = neutralizeXlsxCell(v);
           r.getCell(i + 1).font = { italic: true, color: { argb: "FF6b7280" } };
         });
       }
@@ -115,7 +116,7 @@ export async function exportXlsx(opts: ExportXlsxOptions): Promise<void> {
           cell.numFmt = "0.0%";
           cell.alignment = { horizontal: "right" };
         } else {
-          cell.value = value as string | number | null;
+          cell.value = neutralizeXlsxCell(value) as string | number | null;
         }
 
         // Style per riga subtot/total

@@ -22,6 +22,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { neutralizeXlsxCell } from "@/lib/csvExport";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useModuliVendita } from "@/lib/moduli-vendita";
 import { toast } from "sonner";
@@ -541,12 +542,12 @@ export function UnifiedPreventiviList() {
 
       filtered.forEach((r) => {
         ws.addRow({
-          numero: r.numero,
-          cliente: r.cliente,
+          numero: neutralizeXlsxCell(r.numero),
+          cliente: neutralizeXlsxCell(r.cliente),
           tipo: TIPO_LABEL[r.tipo].label,
-          commerciale: r.commerciale_nome ?? "",
+          commerciale: neutralizeXlsxCell(r.commerciale_nome ?? ""),
           stato: STATO_UNIF_LABEL[r.stato_unif].label,
-          statoRaw: r.stato_raw,
+          statoRaw: neutralizeXlsxCell(r.stato_raw),
           totale: r.totale ?? 0,
           data: new Date(r.data),
         });

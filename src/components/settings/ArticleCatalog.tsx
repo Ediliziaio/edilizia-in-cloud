@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { neutralizeXlsxCell } from "@/lib/csvExport";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
@@ -998,8 +999,13 @@ export function ArticleCatalog() {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Prodotti");
     if (sheet1Data.length > 0) {
+      const safeRows = sheet1Data.map((row) => {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(row)) out[k] = neutralizeXlsxCell(v);
+        return out;
+      });
       ws.columns = Object.keys(sheet1Data[0]).map((key) => ({ header: key, key }));
-      ws.addRows(sheet1Data);
+      ws.addRows(safeRows);
     }
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
