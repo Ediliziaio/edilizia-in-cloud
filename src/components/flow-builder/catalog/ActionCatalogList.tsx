@@ -99,13 +99,15 @@ export function ActionCatalogList({ search, onSelect, onDragStart, includeCondit
     if (search) return [];
     return recents
       .map(id => ACTION_CATALOG.find(a => a.id === id))
-      .filter(Boolean)
+      // Separazione: nel builder azienda i "recenti" non possono riproporre
+      // un'azione di piattaforma salvata in localStorage.
+      .filter(a => Boolean(a) && (isAdmin || a!.categoria !== "piattaforma"))
       .map(a => ({
         id: a!.id, label: a!.label, description: a!.description, icon: a!.icon,
         category: a!.categoria, categoryLabel: CATEGORY_LABELS[a!.categoria] ?? a!.categoria,
         kind: actionKind(a!.id), configSchema: a!.configSchema, outputVariables: a!.outputVariables,
       }));
-  }, [recents, search]);
+  }, [recents, search, isAdmin]);
 
   const toggle = (cat: string) => {
     setExpanded(prev => {

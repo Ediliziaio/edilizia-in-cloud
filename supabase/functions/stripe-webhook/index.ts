@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "npm:stripe@14";
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { emitPlatformEvent, PLATFORM_EVENTS } from "../_shared/platformAutomation.ts";
 
 // ─── Helpers ───────────────────────────────────────────────
 
@@ -451,6 +452,20 @@ async function handleInvoicePaid(
     event_type: "invoice_paid",
     notes: `Fattura Stripe pagata (${invoice.id})`,
   });
+
+  // Trigger di PIATTAFORMA: pagamento abbonamento ricevuto (best-effort).
+  const cPaid = company as { id: string; name?: string };
+  await emitPlatformEvent(supabase, PLATFORM_EVENTS.PAYMENT_RECEIVED, {
+    entityId: cPaid.id,
+    entityType: "company",
+    payload: {
+      "azienda.id": cPaid.id,
+      "azienda.name": cPaid.name ?? null,
+      "pagamento.importo": typeof invoice.amount_paid === "number" ? invoice.amount_paid / 100 : null,
+      "pagamento.data": new Date().toISOString(),
+      "pagamento.metodo": "stripe",
+    },
+  });
 }
 
 async function handleInvoicePaymentFailed(
@@ -566,6 +581,19 @@ async function handleSubscriptionDeleted(
     old_status: company.status,
     new_status: "expired",
     notes: "Abbonamento Stripe cancellato",
+  });
+
+  // Trigger di PIATTAFORMA: abbonamento cancellato (best-effort) per builder admin.
+  const cCancel = company as { id: string; name?: string };
+  await emitPlatformEvent(supabase, PLATFORM_EVENTS.SUBSCRIPTION_CANCELLED, {
+    entityId: cCancel.id,
+    entityType: "company",
+    payload: {
+      "azienda.id": cCancel.id,
+      "azienda.name": cCancel.name ?? null,
+      "abbonamento.piano": null,
+      "abbonamento.motivo": "stripe_cancellation",
+    },
   });
 }
 

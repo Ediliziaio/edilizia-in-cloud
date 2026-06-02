@@ -66,13 +66,15 @@ export function TriggerCatalogList({ search, onSelect, onDragStart, isAdmin = fa
     if (search) return [];
     return recents
       .map(id => TRIGGER_CATALOG.find(t => t.id === id))
-      .filter(Boolean)
+      // Separazione: nel builder azienda i "recenti" non possono riproporre
+      // un trigger di piattaforma salvato in localStorage.
+      .filter(t => Boolean(t) && (isAdmin || t!.categoria !== "piattaforma"))
       .map(t => ({
         id: t!.id, label: t!.label, description: t!.description, icon: t!.icon,
         category: t!.categoria, categoryLabel: CATEGORY_LABELS[t!.categoria] ?? t!.categoria,
         kind: "trigger" as const, configSchema: t!.configSchema, outputVariables: t!.outputVariables,
       }));
-  }, [recents, search]);
+  }, [recents, search, isAdmin]);
 
   const toggle = (cat: string) => {
     setExpanded(prev => {
