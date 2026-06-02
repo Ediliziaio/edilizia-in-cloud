@@ -463,25 +463,25 @@ async function fetchFirmografici(piva: string, token: string, base = "company.op
       fatturato,
       dipendenti: empl,
       anno_fondazione: anno && anno > 1800 && anno <= 2100 ? anno : undefined,
-      forma_giuridica: rec?.legalForm || rec?.businessNature || rec?.companyForm || undefined,
+      forma_giuridica: rec?.detailedLegalForm?.description || rec?.legalForm?.description || rec?.legalForm || rec?.businessNature || rec?.companyForm || undefined,
     };
   } catch { return null; }
 }
 
 // ── Company Search (openapi.it) — elenchi imprese italiane per criteri ────────
-// GET company.openapi.com/IT-search: liste di aziende per ATECO/provincia/comune/
-// fatturato/dipendenti, direttamente dal Registro Imprese (niente scraping).
-async function companySearch(opts: {
-  ateco?: string; companyName?: string; provincia?: string; comune?: string;
-  fatturatoMin?: number; impiegatiMin?: number; limit: number;
-}, token: string, base = "company.openapi.com"): Promise<any[]> {
+// Flusso a 2 step:
+//  1) GET /IT-search?atecoCode&companyName&province&townCode → lista di soli ID.
+//  2) GET /IT-advanced/{id} per ogni ID → dati completi (P.IVA, ATECO, PEC, SdI…).
+// Parametri di ricerca REALI (verificati): atecoCode, companyName, province (sigla),
+// townCode (codice catastale), pec, limit, skip.
+async function companySearchIds(opts: {
+  ateco?: string; companyName?: string; province?: string; townCode?: string; limit: number;
+}, token: string, base = "company.openapi.com"): Promise<string[]> {
   const p = new URLSearchParams();
-  if (opts.ateco) p.set("codiceAteco", opts.ateco);
+  if (opts.ateco) p.set("atecoCode", opts.ateco);
   if (opts.companyName) p.set("companyName", opts.companyName);
-  if (opts.provincia) p.set("provincia", opts.provincia);
-  if (opts.comune) p.set("comune", opts.comune);
-  if (opts.fatturatoMin) p.set("fatturato", String(opts.fatturatoMin));
-  if (opts.impiegatiMin) p.set("impiegati", String(opts.impiegatiMin));
+  if (opts.province) p.set("province", opts.province);
+  if (opts.townCode) p.set("townCode", opts.townCode);
   p.set("limit", String(Math.max(1, Math.min(200, opts.limit))));
   try {
     const res = await fetchWithTimeout(`https://${base}/IT-search?${p.toString()}`, {
@@ -490,13 +490,22 @@ async function companySearch(opts: {
     });
     if (!res.ok) return [];
     const d = await res.json();
-    // risposta difensiva: data può essere array o { companies: [] }
-    const arr = Array.isArray(d?.data) ? d.data
-      : Array.isArray(d?.data?.companies) ? d.data.companies
-      : Array.isArray(d?.companies) ? d.companies
-      : Array.isArray(d) ? d : [];
-    return arr;
+    const arr = Array.isArray(d?.data) ? d.data : [];
+    return arr.map((x: any) => x?.id).filter(Boolean);
   } catch { return []; }
+}
+
+// Dettaglio azienda per id (o P.IVA). IT-advanced = con ATECO + PEC; IT-start = solo base.
+async function companyDetail(idOrPiva: string, token: string, base = "company.openapi.com", level: "IT-start" | "IT-advanced" = "IT-advanced"): Promise<any | null> {
+  try {
+    const res = await fetchWithTimeout(`https://${base}/${level}/${encodeURIComponent(idOrPiva)}`, {
+      timeoutMs: 10000,
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const d = await res.json();
+    return Array.isArray(d?.data) ? (d.data[0] || null) : (d?.data || null);
+  } catch { return null; }
 }
 
 // ── LinkedIn full profile via Proxycurl — gated ───────────────────────────────
@@ -959,62 +968,59 @@ Deno.serve(async (req) => {
         const token = await getPlatformSetting("openapi_it_token", "OPENAPI_IT_TOKEN");
         if (!token) return errorResponse("Fonte Company Search non configurata: imposta openapi_it_token (openapi.it → attiva il servizio Company Search).", 400, corsH);
         const keyword = String(body.keyword || "").trim();
-        const city = String(body.city || "").trim();
         const region = String(body.region || "").trim();
-        const provincia = String(body.provincia || "").trim().toUpperCase();
+        // la UI riusa il campo "città" per la sigla provincia (es. MI) su questa fonte
+        const provincia = String(body.provincia || body.province || body.city || "").trim().toUpperCase();
         // se la keyword è un codice ATECO (cifre) usala come filtro ATECO, altrimenti come nome
         const ateco = String(body.ateco || "").trim() || (/^\d{2}/.test(keyword) ? keyword.replace(/[^\d.]/g, "") : "");
         const companyName = ateco ? String(body.companyName || "").trim() : keyword;
-        const max = Math.max(1, Math.min(200, Number(body.maxResults) || 40));
-        const num0 = (v: unknown): number | null => {
-          const n = Number(String(v ?? "").replace(/[^\d.-]/g, ""));
-          return Number.isFinite(n) && n > 0 ? n : null;
-        };
+        const max = Math.max(1, Math.min(100, Number(body.maxResults) || 40));
         const cbase = await openapiBase();
-        let companies: any[];
+        // 1) ricerca → lista di ID
+        let ids: string[];
         try {
-          companies = await companySearch({
-            ateco, companyName, comune: city,
-            provincia: provincia.length === 2 ? provincia : undefined,
-            fatturatoMin: num0(body.fatturatoMin) || undefined,
-            impiegatiMin: num0(body.impiegatiMin) || undefined,
+          ids = await companySearchIds({
+            ateco, companyName,
+            province: provincia.length === 2 ? provincia : undefined,
             limit: max,
           }, token, cbase);
         } catch (e) {
           return errorResponse(`Company Search fallita: ${(e as Error).message}`, 502, corsH);
         }
-        const rows = companies.slice(0, max).map((c: any) => {
-          const addr = c.address || {};
-          const atecoObj = c.atecoClassification?.ateco || c.ateco || {};
-          const pivaRaw = c.vatCode || c.piva || c.partitaIva || c.vat || c.taxCode || null;
-          const town = addr.town || addr.comune || addr.city || c.comune || city || null;
-          const pec = c.pec || c.pecEmail || c.digitalAddress || null;
+        // 2) dettaglio per ogni ID (IT-advanced: P.IVA + ATECO + PEC + SdI)
+        const details = (await poolMap(ids.slice(0, max), 6, (id: string) => companyDetail(id, token, cbase, "IT-advanced"))).filter(Boolean);
+        try { await supabaseAdmin.rpc("lead_scraper_bump_usage", { p_provider: "openapi_company_search", p_n: 1 + details.length }); } catch { /* best-effort */ }
+        const rows = details.map((c: any) => {
+          const ro = c.address?.registeredOffice || c.address || {};
+          const atecoObj = c.atecoClassification?.ateco || {};
+          const pivaRaw = c.vatCode || c.taxCode || null;
+          const town = ro.town || null;
+          const pec = c.pec || null;
           const base = {
             source: "company_search",
-            business_name: c.companyName || c.denominazione || c.name || "Azienda",
+            business_name: c.companyName || "Azienda",
             partita_iva: pivaRaw ? String(pivaRaw).replace(/\D/g, "") : null,
             city: town,
-            region: addr.region || c.region || region || null,
-            address: [addr.streetName || addr.address || addr.toponym, addr.zipCode || addr.cap, town].filter(Boolean).join(", ") || null,
-            ateco: (typeof atecoObj === "object" ? atecoObj.code : atecoObj) || c.atecoCode || null,
-            ateco_desc: (typeof atecoObj === "object" ? atecoObj.description : null) || c.atecoDescription || null,
-            dipendenti: num0(c.employees ?? c.impiegati),
-            fatturato: num0(c.turnover ?? c.fatturato ?? c.revenue),
+            region: ro.region?.description || region || null,
+            address: [ro.streetName, ro.zipCode, town].filter(Boolean).join(", ") || null,
+            ateco: atecoObj.code || null,
+            ateco_desc: atecoObj.description || null,
+            anno_fondazione: c.startDate ? (Number(String(c.startDate).slice(0, 4)) || null) : null,
+            forma_giuridica: c.detailedLegalForm?.description || c.legalForm || null,
             email: pec && /@/.test(String(pec)) ? String(pec).toLowerCase() : null,
             email_status: pec && /@/.test(String(pec)) ? "pec" : null,
             country: "IT",
-            raw: { provincia: addr.province || addr.provincia || c.provincia || null, source: "openapi_company_search" },
+            raw: { openapi_id: c.id, sdi_code: c.sdiCode || null, province: ro.province || null, activity: c.activityStatus || null, source: "openapi_company_search" },
           };
           const dk = base.partita_iva ? `piva:${base.partita_iva}` : `n:${base.business_name.toLowerCase()}|${(town || "").toLowerCase()}`;
           return { ...base, dedupe_key: dk };
         });
         const seenK = new Set<string>();
         const uniq = rows.filter((r) => (seenK.has(r.dedupe_key) ? false : (seenK.add(r.dedupe_key), true)));
-        try { await supabaseAdmin.rpc("lead_scraper_bump_usage", { p_provider: "openapi_company_search", p_n: 1 }); } catch { /* best-effort */ }
         const { data: searchRow, error: sErr } = await supabaseAdmin.from("lead_scraper_searches").insert({
           created_by: userId, source: "company_search",
-          label: body.label || `Company Search · ${ateco ? "ATECO " + ateco : (keyword || "imprese")}${city ? " · " + city : ""}`,
-          query: { keyword, city, region, provincia, ateco }, status: "completed", results_count: uniq.length,
+          label: body.label || `Registro Imprese · ${ateco ? "ATECO " + ateco : (keyword || "imprese")}${provincia ? " · " + provincia : ""}`,
+          query: { keyword, region, provincia, ateco }, status: "completed", results_count: uniq.length,
         }).select("id").single();
         if (sErr) return errorResponse(`Errore salvataggio ricerca: ${sErr.message}`, 500, corsH);
         const { data: inserted, error: rErr } = await supabaseAdmin.from("lead_scraper_results")

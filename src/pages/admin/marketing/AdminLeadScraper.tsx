@@ -90,7 +90,7 @@ interface LeadSearch {
 
 const SOURCES = [
   { id: "internal", label: "Interno", icon: Database, active: true, hint: "Scraper self-host + DB proprietario: scrapa 1 volta, riusa per sempre (~€0). Richiede scraper-worker." },
-  { id: "company_search", label: "Registro Imprese", icon: Building2, active: true, hint: "Liste imprese italiane dal Registro (openapi.it Company Search): ATECO, provincia, fatturato, dipendenti. ~€0,01/azienda, 100/g gratis (openapi_it_token)." },
+  { id: "company_search", label: "Registro Imprese", icon: Building2, active: true, hint: "Liste imprese italiane dal Registro (openapi.it): filtra per ATECO + provincia (sigla). Ritorna P.IVA, ATECO, PEC, codice SdI. ~€0,03/azienda (ricerca + dettaglio). Sandbox = dati finti gratis (openapi_it_token + openapi_env)." },
   { id: "google_maps", label: "Google Maps", icon: MapPin, active: true, hint: "Imprese locali da Maps: telefono, sito, email (gratis)" },
   { id: "apify_maps", label: "Apify Maps", icon: Bot, active: true, hint: "Google Maps via Apify: include le email. $5 free/mese (apify_api_token)" },
   { id: "linkedin", label: "LinkedIn", icon: Linkedin, active: true, hint: "Decisori via Serper (≈$0.30/1000) o Google CSE (gratis 100/g)" },
@@ -1137,8 +1137,8 @@ export default function AdminLeadScraper() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-xs">Città</Label>
-                  <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Milano" className="mt-1" />
+                  <Label className="text-xs">{source === "company_search" ? "Provincia (sigla)" : "Città"}</Label>
+                  <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder={source === "company_search" ? "es. MI" : "Milano"} className="mt-1" />
                 </div>
                 <div>
                   <Label className="text-xs">Regione/Prov.</Label>
