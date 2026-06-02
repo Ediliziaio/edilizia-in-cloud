@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { escapeCSV, escapeCsvCell, neutralizeCsvFormula } from "@/lib/csvExport";
+import { escapeCSV, escapeCsvCell, neutralizeCsvFormula, neutralizeXlsxCell } from "@/lib/csvExport";
 
 /**
  * Test della messa in sicurezza delle celle CSV (src/lib/csvExport.ts).
@@ -123,5 +123,30 @@ describe("escapeCsvCell — quoting parametrico sul separatore", () => {
   it("non tocca numeri e testo benigno", () => {
     expect(escapeCsvCell("-500", ",")).toBe("-500");
     expect(escapeCsvCell("Mario Rossi", ",")).toBe("Mario Rossi");
+  });
+});
+
+describe("neutralizeXlsxCell — XLSX (ExcelJS): neutralizza solo le stringhe", () => {
+  it("antepone l'apice alle stringhe 'attive'", () => {
+    expect(neutralizeXlsxCell("=1+1")).toBe("'=1+1");
+    expect(neutralizeXlsxCell("@SUM(A1)")).toBe("'@SUM(A1)");
+    expect(neutralizeXlsxCell("-cmd|' /C calc'")).toBe("'-cmd|' /C calc'");
+  });
+
+  it("lascia intatto il testo benigno e le stringhe numeriche", () => {
+    expect(neutralizeXlsxCell("Mario Rossi")).toBe("Mario Rossi");
+    expect(neutralizeXlsxCell("-500")).toBe("-500"); // stringa numerica → resta tale, niente apice
+  });
+
+  it("NON converte i non-stringa (numeri, date, bool, oggetti) in testo", () => {
+    expect(neutralizeXlsxCell(42)).toBe(42);
+    expect(neutralizeXlsxCell(-1234.56)).toBe(-1234.56);
+    const d = new Date("2026-06-02T00:00:00Z");
+    expect(neutralizeXlsxCell(d)).toBe(d); // stessa istanza Date, non stringa
+    expect(neutralizeXlsxCell(true)).toBe(true);
+    const formula = { formula: "SUM(A1:A2)" }; // formula ExcelJS legittima
+    expect(neutralizeXlsxCell(formula)).toBe(formula);
+    expect(neutralizeXlsxCell(null)).toBe(null);
+    expect(neutralizeXlsxCell(undefined)).toBe(undefined);
   });
 });
