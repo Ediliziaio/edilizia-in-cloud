@@ -8,7 +8,8 @@ import {
   Search, MapPin, Linkedin, Building2, Loader2, Sparkles, Mail, Phone,
   Globe, Star, Download, UserPlus, Trash2, Target, ChevronRight,
   Wand2, Facebook, Instagram, Flame, FileText, Grid3x3, Upload, MessageSquareQuote, ShieldBan, EyeOff,
-  MessageCircle, Send, Pencil, SlidersHorizontal, Rocket, Bot, BadgeCheck, ChevronDown, Database,
+  MessageCircle, Send, Pencil, SlidersHorizontal, Rocket, Bot, BadgeCheck, ChevronDown, Database, Zap,
+  BarChart3,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,9 +60,19 @@ interface LeadResult {
   ateco: string | null;
   ateco_desc: string | null;
   company_size: string | null;
+  // registro imprese
+  fatturato: number | null;
+  dipendenti: number | null;
+  anno_fondazione: number | null;
+  forma_giuridica: string | null;
   ai_summary: string | null;
   ai_icebreaker: string | null;
   crm_opportunity_id: string | null;
+  // v5
+  buying_score: number | null;
+  buying_signals: Record<string, boolean> | null;
+  ai_sequence: unknown | null;
+  is_existing_customer: boolean | null;
   pushed_to_crm: boolean;
   created_at: string;
 }
@@ -77,6 +88,7 @@ interface LeadSearch {
 }
 
 const SOURCES = [
+  { id: "internal", label: "Interno", icon: Database, active: true, hint: "Scraper self-host + DB proprietario: scrapa 1 volta, riusa per sempre (~€0). Richiede scraper-worker." },
   { id: "google_maps", label: "Google Maps", icon: MapPin, active: true, hint: "Imprese locali da Maps: telefono, sito, email (gratis)" },
   { id: "apify_maps", label: "Apify Maps", icon: Bot, active: true, hint: "Google Maps via Apify: include le email. $5 free/mese (apify_api_token)" },
   { id: "linkedin", label: "LinkedIn", icon: Linkedin, active: true, hint: "Decisori via Serper (≈$0.30/1000) o Google CSE (gratis 100/g)" },
@@ -107,6 +119,8 @@ const INTENT_LABELS: Record<string, { label: string; cls: string }> = {
 
 const EMAIL_STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   found: { label: "verificata", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
+  pec: { label: "PEC", cls: "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300" },
+  verified: { label: "valida", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
   verified_mx: { label: "MX ok", cls: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300" },
   guessed: { label: "ipotizzata", cls: "bg-muted text-muted-foreground" },
 };
@@ -116,6 +130,14 @@ function scoreColor(score: number | null): string {
   if (score >= 70) return "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
   if (score >= 40) return "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
   return "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300";
+}
+
+// Formatta il fatturato in modo compatto (€1,2M · €450k · €80k).
+function fmtFatturato(v: number | null): string {
+  if (v == null || !Number.isFinite(v) || v <= 0) return "—";
+  if (v >= 1_000_000) return `€${(v / 1_000_000).toFixed(v >= 10_000_000 ? 0 : 1).replace(".", ",")}M`;
+  if (v >= 1_000) return `€${Math.round(v / 1_000)}k`;
+  return `€${Math.round(v)}`;
 }
 
 // Normalizza un numero IT in E.164 e indica se è mobile (per WhatsApp).
@@ -191,6 +213,219 @@ function LeadDetailSheet({ lead, onClose, onSave, saving }: {
   );
 }
 
+// ── Analytics/ROI per fonte ───────────────────────────────────────────────────
+interface SourceAnalytics {
+  source: string; total: number; contactable: number; with_email: number; with_phone: number;
+  with_pec: number; with_piva: number; qualified: number; hot: number; high_intent: number;
+  in_crm: number; opportunities: number; existing_customers: number;
+  avg_ai_score: number | null; avg_buying_score: number | null; last_lead_at: string | null;
+}
+interface ProviderUsage { provider: string; calls_total: number; calls_30d: number; calls_today: number; last_used: string | null; }
+
+function AnalyticsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { data: rows = [], isFetching } = useQuery({
+    queryKey: ["lead-scraper", "analytics"],
+    queryFn: async (): Promise<SourceAnalytics[]> => {
+      const { data, error } = await fromLS("lead_scraper_source_analytics").select("*").order("total", { ascending: false });
+      if (error) throw error;
+      return (data || []) as SourceAnalytics[];
+    },
+    enabled: open,
+  });
+  const { data: usage = [] } = useQuery({
+    queryKey: ["lead-scraper", "provider-usage"],
+    queryFn: async (): Promise<ProviderUsage[]> => {
+      const { data, error } = await fromLS("lead_scraper_provider_usage").select("*").order("calls_total", { ascending: false });
+      if (error) throw error;
+      return (data || []) as ProviderUsage[];
+    },
+    enabled: open,
+  });
+  const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
+  const tot = rows.reduce((a, r) => a + r.total, 0);
+  const totOpps = rows.reduce((a, r) => a + r.opportunities, 0);
+
+  return (
+    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent className="w-full sm:max-w-3xl overflow-y-auto">
+        <SheetHeader><SheetTitle className="text-base flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Analytics & ROI per fonte</SheetTitle></SheetHeader>
+        {isFetching && rows.length === 0 ? (
+          <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">Nessun dato ancora. Esegui qualche ricerca.</p>
+        ) : (
+          <div className="mt-4 space-y-5">
+            <div className="grid grid-cols-3 gap-2">
+              {[["Lead totali", tot], ["Opportunità", totOpps], ["Conv. media", `${pct(totOpps, tot)}%`]].map(([l, v]) => (
+                <div key={l as string} className="rounded-lg border p-2.5 text-center">
+                  <div className="text-lg font-bold">{v}</div>
+                  <div className="text-[11px] text-muted-foreground">{l as string}</div>
+                </div>
+              ))}
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs">Fonte</TableHead>
+                    <TableHead className="text-xs text-right">Lead</TableHead>
+                    <TableHead className="text-xs text-right">Contattabili</TableHead>
+                    <TableHead className="text-xs text-right">PEC</TableHead>
+                    <TableHead className="text-xs text-right">Qualif.</TableHead>
+                    <TableHead className="text-xs text-right">In CRM</TableHead>
+                    <TableHead className="text-xs text-right">Opp.</TableHead>
+                    <TableHead className="text-xs text-right">Conv.</TableHead>
+                    <TableHead className="text-xs text-right">AI medio</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((r) => (
+                    <TableRow key={r.source}>
+                      <TableCell className="text-xs font-medium">{r.source}</TableCell>
+                      <TableCell className="text-xs text-right">{r.total}</TableCell>
+                      <TableCell className="text-xs text-right">{r.contactable} <span className="text-muted-foreground">({pct(r.contactable, r.total)}%)</span></TableCell>
+                      <TableCell className="text-xs text-right">{r.with_pec || "—"}</TableCell>
+                      <TableCell className="text-xs text-right">{r.qualified}</TableCell>
+                      <TableCell className="text-xs text-right">{r.in_crm}</TableCell>
+                      <TableCell className="text-xs text-right font-semibold">{r.opportunities}</TableCell>
+                      <TableCell className="text-xs text-right">{pct(r.opportunities, r.total)}%</TableCell>
+                      <TableCell className="text-xs text-right">{r.avg_ai_score ?? "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {usage.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-muted-foreground mb-2">Consumo API esterne (chiamate)</h3>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Provider</TableHead>
+                        <TableHead className="text-xs text-right">Oggi</TableHead>
+                        <TableHead className="text-xs text-right">30 giorni</TableHead>
+                        <TableHead className="text-xs text-right">Totale</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {usage.map((u) => (
+                        <TableRow key={u.provider}>
+                          <TableCell className="text-xs font-medium">{u.provider}</TableCell>
+                          <TableCell className="text-xs text-right">{u.calls_today || 0}</TableCell>
+                          <TableCell className="text-xs text-right">{u.calls_30d || 0}</TableCell>
+                          <TableCell className="text-xs text-right">{u.calls_total}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1.5">Le fonti interne (paginegialle/gmaps self-host) e il riuso dal DB proprietario non consumano API → costo ≈ 0.</p>
+              </div>
+            )}
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ── Autopilot: config dello scraping notturno (città × settore) ───────────────
+interface AutopilotCfg {
+  id: string; enabled: boolean; engine: string; cities: string[]; sectors: string[];
+  per_run: number; cursor: number; last_run_at: string | null; last_result: Record<string, unknown> | null;
+}
+function AutopilotForm({ cfg }: { cfg: AutopilotCfg | null }) {
+  const qc = useQueryClient();
+  // initializer dalle props: il remount via key (cfg.id) ri-idrata senza ref/effect
+  const [enabled, setEnabled] = useState(cfg?.enabled ?? false);
+  const [engine, setEngine] = useState(cfg?.engine ?? "paginegialle");
+  const [cities, setCities] = useState((cfg?.cities ?? []).join(", "));
+  const [sectors, setSectors] = useState((cfg?.sectors ?? []).join(", "));
+  const [perRun, setPerRun] = useState(String(cfg?.per_run ?? 40));
+  const save = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        enabled, engine,
+        cities: cities.split(",").map((s) => s.trim()).filter(Boolean),
+        sectors: sectors.split(",").map((s) => s.trim()).filter(Boolean),
+        per_run: Math.max(1, Math.min(200, Number(perRun) || 40)),
+      };
+      if (cfg?.id) {
+        const { error } = await fromLS("lead_scraper_autopilot").update(payload).eq("id", cfg.id);
+        if (error) throw error;
+      } else {
+        const { error } = await fromLS("lead_scraper_autopilot").insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["lead-scraper", "autopilot"] }); toast.success("Autopilot salvato"); },
+    onError: (e: Error) => toast.error("Salvataggio fallito", { description: e.message }),
+  });
+  const combos = cities.split(",").filter((s) => s.trim()).length * sectors.split(",").filter((s) => s.trim()).length;
+
+  return (
+    <div className="mt-4 space-y-4">
+      <p className="text-xs text-muted-foreground">Ogni notte l'autopilot scrapa la prossima combinazione <b>città × settore</b> nel database proprietario, a costo ≈ 0. Richiede la edge function <code>lead-scraper-autopilot</code> schedulata via cron.</p>
+      <div className="flex items-center justify-between rounded-lg border p-3">
+        <div><div className="text-sm font-medium">Attivo</div><div className="text-[11px] text-muted-foreground">Abilita il ciclo notturno</div></div>
+        <Switch checked={enabled} onCheckedChange={setEnabled} />
+      </div>
+      <div>
+        <Label className="text-xs">Motore</Label>
+        <Select value={engine} onValueChange={setEngine}>
+          <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="paginegialle">Pagine Gialle (HTTP, economico)</SelectItem>
+            <SelectItem value="gmaps">Google Maps (Playwright)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label className="text-xs">Città (separate da virgola)</Label>
+        <Textarea value={cities} onChange={(e) => setCities(e.target.value)} placeholder="Milano, Roma, Torino, Napoli, Bologna" className="mt-1 text-xs" rows={2} />
+      </div>
+      <div>
+        <Label className="text-xs">Settori (separati da virgola)</Label>
+        <Textarea value={sectors} onChange={(e) => setSectors(e.target.value)} placeholder="impresa edile, ristrutturazioni, serramenti" className="mt-1 text-xs" rows={2} />
+      </div>
+      <div>
+        <Label className="text-xs">Lead per combinazione / notte</Label>
+        <Input type="number" min={1} max={200} value={perRun} onChange={(e) => setPerRun(e.target.value)} className="mt-1" />
+      </div>
+      <div className="rounded-lg bg-muted/50 p-2.5 text-[11px] text-muted-foreground space-y-0.5">
+        <div>{combos} combinazioni · ~{combos * (Number(perRun) || 0)} lead/ciclo completo</div>
+        {cfg?.last_run_at && <div>Ultimo run: {new Date(cfg.last_run_at).toLocaleString("it-IT")} · cursore {cfg.cursor}/{combos || "—"}</div>}
+      </div>
+      <Button className="w-full gap-2" onClick={() => save.mutate()} disabled={save.isPending}>
+        {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />} Salva configurazione
+      </Button>
+    </div>
+  );
+}
+
+function AutopilotSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { data: cfg, isFetching, isSuccess } = useQuery({
+    queryKey: ["lead-scraper", "autopilot"],
+    queryFn: async (): Promise<AutopilotCfg | null> => {
+      const { data, error } = await fromLS("lead_scraper_autopilot").select("*").order("created_at", { ascending: true }).limit(1).maybeSingle();
+      if (error) throw error;
+      return (data || null) as AutopilotCfg | null;
+    },
+    enabled: open,
+  });
+  return (
+    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetHeader><SheetTitle className="text-base flex items-center gap-2"><Bot className="h-4 w-4" /> Autopilot — scraping notturno</SheetTitle></SheetHeader>
+        {isFetching && !isSuccess
+          ? <div className="flex justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+          : <AutopilotForm key={cfg?.id ?? "new"} cfg={cfg ?? null} />}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 export default function AdminLeadScraper() {
   const { hasAccess, permLoading } = useAdminMarketing();
   const queryClient = useQueryClient();
@@ -209,17 +444,23 @@ export default function AdminLeadScraper() {
   const [gridMode, setGridMode] = useState(false);
   const [createOpp, setCreateOpp] = useState(false);
   const [hideSeen, setHideSeen] = useState(false);
+  const [massive, setMassive] = useState(false);          // scraping massivo (migliaia, asincrono)
+  const [massiveTarget, setMassiveTarget] = useState("1000");
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [renderLimit, setRenderLimit] = useState(200);    // righe renderizzate (anti-jank su migliaia)
 
   const [progress, setProgress] = useState<{ label: string; done: number; total: number } | null>(null);
   const [filterQ, setFilterQ] = useState("");
-  const [filterFlags, setFilterFlags] = useState({ email: false, hot: false, notCrm: false });
-  const [sortBy, setSortBy] = useState<"ai" | "intent" | "rating" | "name">("ai");
+  const [filterFlags, setFilterFlags] = useState({ email: false, hot: false, notCrm: false, edil: false });
+  const [sortBy, setSortBy] = useState<"ai" | "intent" | "buying" | "rating" | "name">("ai");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [sequenzaId, setSequenzaId] = useState<string>("");
 
   const [currentSearchId, setCurrentSearchId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [autopilotOpen, setAutopilotOpen] = useState(false);
 
   // ── ricerche salvate ───────────────────────────────────────────────────────
   const { data: searches = [] } = useQuery({
@@ -244,7 +485,8 @@ export default function AdminLeadScraper() {
         .select("*")
         .eq("search_id", currentSearchId)
         .order("ai_score", { ascending: false, nullsFirst: false })
-        .order("rating", { ascending: false, nullsFirst: false });
+        .order("rating", { ascending: false, nullsFirst: false })
+        .limit(2000); // cap: oltre si lavora a segmenti/export
       if (error) throw error;
       return (data || []) as LeadResult[];
     },
@@ -257,6 +499,25 @@ export default function AdminLeadScraper() {
     withEmail: results.filter((r) => r.email).length,
     hot: results.filter((r) => r.ai_label === "hot").length,
   }), [results]);
+
+  // ── stato outreach per lead (inviata/aperta/click) ──────────────────────────
+  const resultIdsKey = results.length;
+  const { data: outreachRows = [] } = useQuery({
+    queryKey: ["lead-scraper", "outreach-map", currentSearchId, resultIdsKey],
+    queryFn: async (): Promise<Array<{ lead_id: string; sends: number; opened: boolean; clicked: boolean; replied: boolean }>> => {
+      const ids = results.map((r) => r.id).slice(0, 1000);
+      if (!ids.length) return [];
+      const { data, error } = await fromLS("lead_scraper_outreach_by_lead")
+        .select("lead_id, sends, opened, clicked, replied").in("lead_id", ids);
+      if (error) throw error;
+      return (data || []) as Array<{ lead_id: string; sends: number; opened: boolean; clicked: boolean; replied: boolean }>;
+    },
+    enabled: hasAccess && !!currentSearchId && results.length > 0,
+  });
+  const outreachMap = useMemo(
+    () => new Map(outreachRows.map((o) => [o.lead_id, o])),
+    [outreachRows],
+  );
 
   // ── mutations ────────────────────────────────────────────────────────────────
   const invoke = async (body: Record<string, unknown>) => {
@@ -306,14 +567,53 @@ export default function AdminLeadScraper() {
       setCurrentSearchId(data.searchId);
       setSelected(new Set());
       queryClient.invalidateQueries({ queryKey: ["lead-scraper", "searches"] });
-      toast.success(`${data.count} lead trovati`, {
-        description: data.withPhone != null
+      const desc = data.scrapedNew != null
+        ? `${data.reused ?? 0} riusati dal DB (gratis) · ${data.scrapedNew} nuovi scrapati`
+        : data.withPhone != null
           ? `${data.withPhone} con telefono · ${data.withEmail} con email`
-          : "Usa Arricchisci per recuperare contatti",
-      });
+          : "Usa Arricchisci per recuperare contatti";
+      toast.success(`${data.count} lead trovati`, { description: desc });
     },
     onError: (e: Error) => toast.error("Ricerca fallita", { description: e.message }),
   });
+
+  // Scraping MASSIVO (migliaia): enqueue di un job → il worker lo processa in
+  // background → polling con setTimeout (no effetti → no warning lint).
+  const runMassive = async () => {
+    const target = Math.max(1, Math.min(20000, parseInt(massiveTarget, 10) || 1000));
+    try {
+      const data = await invoke({ action: "enqueue_scrape", keyword: keyword.trim(), city: city.trim(), region: region.trim(), engine: "paginegialle", target, extractEmails });
+      const id = data.jobId as string;
+      setJobId(id);
+      setProgress({ label: "Scraping massivo (in coda)", done: 0, total: target });
+      const poll = async () => {
+        try {
+          const s = await invoke({ action: "job_status", jobId: id });
+          setProgress({ label: `Scraping massivo · ${s.status}`, done: s.processed || 0, total: s.total || target });
+          if (s.status === "done") {
+            setProgress(null); setJobId(null);
+            if (s.search_id) { setCurrentSearchId(s.search_id); setSelected(new Set()); setRenderLimit(200); }
+            queryClient.invalidateQueries({ queryKey: ["lead-scraper", "searches"] });
+            toast.success(`Scraping massivo completato`, { description: `${s.results_count} aziende nel DB proprietario` });
+            return;
+          }
+          if (s.status === "error" || s.status === "canceled") {
+            setProgress(null); setJobId(null);
+            toast.error("Job interrotto", { description: s.error || s.status });
+            return;
+          }
+          setTimeout(poll, 4000);
+        } catch {
+          setTimeout(poll, 6000);
+        }
+      };
+      toast.success("Job avviato", { description: `Il worker scraperà fino a ${target} aziende in background` });
+      setTimeout(poll, 3000);
+    } catch (e) {
+      setProgress(null); setJobId(null);
+      toast.error("Avvio job fallito", { description: (e as Error).message });
+    }
+  };
 
   const qualifyMutation = useMutation({
     mutationFn: (resultIds?: string[]) => invoke({
@@ -384,6 +684,89 @@ export default function AdminLeadScraper() {
     },
     onError: (e: Error) => toast.error("Verifica email fallita", { description: e.message }),
   });
+
+  // PEC — email certificata deliverable da P.IVA (Italia)
+  const findPecMutation = useMutation({
+    mutationFn: (resultIds: string[]) => batchInvoke("Trova PEC", "find_pec", resultIds, 8),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      toast.success(`${data.found} PEC trovate`, { description: `email certificate da P.IVA · su ${data.attempted} lead` });
+    },
+    onError: (e: Error) => toast.error("Ricerca PEC fallita", { description: e.message }),
+  });
+
+  // Registro Imprese — firmografici reali (ATECO, fatturato, dipendenti, anno) da P.IVA
+  const enrichRegistroMutation = useMutation({
+    mutationFn: (resultIds: string[]) => batchInvoke("Registro Imprese", "enrich_registro", resultIds, 8),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      toast.success(`${data.enriched} aziende arricchite dal Registro`, {
+        description: `ATECO · fatturato · dipendenti${data.withPec ? ` · ${data.withPec} PEC` : ""} · su ${data.attempted} con P.IVA`,
+      });
+    },
+    onError: (e: Error) => toast.error("Arricchimento Registro fallito", { description: e.message }),
+  });
+
+  // Outreach reale — invio email a freddo via Resend + tracking aperture/click
+  const sendOutreachMutation = useMutation({
+    mutationFn: (resultIds: string[]) => batchInvoke("Invio email", "send_outreach", resultIds, 5),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "outreach-map", currentSearchId] });
+      toast.success(`${data.sent} email inviate`, {
+        description: `${data.failed || 0} fallite · ${data.suppressed || 0} in opt-out · su ${data.attempted || 0} con email`,
+      });
+    },
+    onError: (e: Error) => toast.error("Invio outreach fallito", { description: e.message }),
+  });
+
+  // v5 — Buying signals (intent reale)
+  const buyingMutation = useMutation({
+    mutationFn: (resultIds: string[]) => batchInvoke("Buying signals", "compute_buying_signals", resultIds, 10),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      toast.success(`${data.scored} lead valutati per intento d'acquisto`);
+    },
+    onError: (e: Error) => toast.error("Buying signals falliti", { description: e.message }),
+  });
+  // v5 — flag già-clienti
+  const flagExistingMutation = useMutation({
+    mutationFn: (resultIds: string[]) => invoke({ action: "flag_existing_customers", resultIds: resultIds.length ? resultIds : undefined, searchId: resultIds.length ? undefined : currentSearchId }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      toast.success(`${data.flagged} già clienti EiC segnalati`, { description: "Filtrali via per non ricontattarli" });
+    },
+    onError: (e: Error) => toast.error("Controllo clienti fallito", { description: e.message }),
+  });
+  // v5 — sequenza AI multi-step
+  const generateSequenceMutation = useMutation({
+    mutationFn: () => invoke({ action: "generate_sequence", product: "Edilizia in Cloud, gestionale cloud per imprese edili", settore: keyword }),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "sequenze"] });
+      setSequenzaId(data.sequenzaId);
+      toast.success(`Sequenza AI creata (${data.steps?.length || 0} step)`, { description: "Selezionata sotto — premi 'Avvia sequenza' per arruolare i lead" });
+    },
+    onError: (e: Error) => toast.error("Generazione sequenza fallita", { description: e.message }),
+  });
+
+  // v5 — Pipeline automatica: arricchisci → qualifica → buying → flag clienti (sui selezionati o tutti)
+  const [pipelineRunning, setPipelineRunning] = useState(false);
+  const runPipeline = async () => {
+    const ids = selectedIds.length ? selectedIds : results.map((r) => r.id);
+    if (ids.length === 0) return;
+    setPipelineRunning(true);
+    try {
+      await batchInvoke("Pipeline · arricchimento", "deep_enrich", ids, 10, { vies: true });
+      await batchInvoke("Pipeline · buying signals", "compute_buying_signals", ids, 10);
+      await invoke({ action: "qualify", resultIds: ids, icp: icp.trim() });
+      await invoke({ action: "flag_existing_customers", resultIds: ids });
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      toast.success("Pipeline completata", { description: "Arricchiti, valutati, qualificati e filtrati i già-clienti" });
+    } catch (e) {
+      toast.error("Pipeline interrotta", { description: (e as Error).message });
+    } finally {
+      setPipelineRunning(false);
+    }
+  };
 
   const pushMutation = useMutation({
     mutationFn: (resultIds: string[]) => batchInvoke("Salvataggio CRM", "push_crm", resultIds, 25, { createOpportunity: createOpp }),
@@ -520,7 +903,9 @@ export default function AdminLeadScraper() {
     findEmailMutation.isPending || findLinkedinMutation.isPending || pushMutation.isPending ||
     outreachMutation.isPending || suppressMutation.isPending || importMutation.isPending ||
     enrollMutation.isPending || enrichApolloMutation.isPending || enrichPdlMutation.isPending ||
-    verifyEmailMutation.isPending || progress !== null;
+    verifyEmailMutation.isPending || buyingMutation.isPending || flagExistingMutation.isPending ||
+    generateSequenceMutation.isPending || findPecMutation.isPending || enrichRegistroMutation.isPending ||
+    sendOutreachMutation.isPending || pipelineRunning || jobId !== null || progress !== null;
 
   // ── filtri + ordinamento ──────────────────────────────────────────────────────
   const visibleResults = useMemo(() => {
@@ -530,10 +915,11 @@ export default function AdminLeadScraper() {
     if (filterFlags.email) list = list.filter((r) => !!r.email);
     if (filterFlags.hot) list = list.filter((r) => r.ai_label === "hot" || (r.intent_score != null && r.intent_score >= 70));
     if (filterFlags.notCrm) list = list.filter((r) => !r.pushed_to_crm);
+    if (filterFlags.edil) list = list.filter((r) => /^4[123]/.test(r.ateco || "")); // ATECO 41/42/43 = costruzioni
     const arr = [...list];
     arr.sort((a, b) => {
       if (sortBy === "name") return a.business_name.localeCompare(b.business_name);
-      const key = sortBy === "ai" ? "ai_score" : sortBy === "intent" ? "intent_score" : "rating";
+      const key = sortBy === "ai" ? "ai_score" : sortBy === "intent" ? "intent_score" : sortBy === "buying" ? "buying_score" : "rating";
       return (Number(b[key as keyof LeadResult] ?? -1)) - (Number(a[key as keyof LeadResult] ?? -1));
     });
     return arr;
@@ -547,7 +933,9 @@ export default function AdminLeadScraper() {
     qualified: results.filter((r) => r.ai_score != null).length,
     pushed: results.filter((r) => r.pushed_to_crm).length,
     opps: results.filter((r) => r.crm_opportunity_id).length,
-  }), [results]);
+    inviate: outreachMap.size,
+    aperte: [...outreachMap.values()].filter((o) => o.opened).length,
+  }), [results, outreachMap]);
 
   const detailLead = useMemo(() => results.find((r) => r.id === detailId) || null, [results, detailId]);
 
@@ -563,30 +951,72 @@ export default function AdminLeadScraper() {
   });
   const allSelected = visibleResults.length > 0 && visibleResults.every((r) => selected.has(r.id));
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(visibleResults.map((r) => r.id)));
-  const selectedIds = useMemo(() => [...selected], [selected]);
+  const selectedIds = [...selected];
 
   // ── export CSV ─────────────────────────────────────────────────────────────────
-  const exportCsv = () => {
-    const rows = selectedIds.length ? results.filter((r) => selected.has(r.id)) : results;
-    if (!rows.length) return;
-    const header = ["Azienda", "Contatto", "Ruolo", "Telefono", "Email", "Stato email", "P.IVA", "Sito",
-      "LinkedIn", "Facebook", "Instagram", "Indirizzo", "Città", "Rating", "Recensioni", "AI Score", "Intent Score"];
-    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const csv = [
-      header.join(","),
-      ...rows.map((r) => [
-        r.business_name, r.contact_name, r.role, r.phone, r.email, r.email_status, r.partita_iva, r.website,
-        r.linkedin_url, r.facebook_url, r.instagram_url, r.address, r.city,
-        r.rating, r.reviews_count, r.ai_score, r.intent_score,
-      ].map(esc).join(",")),
-    ].join("\n");
+  const CSV_HEADER = ["Azienda", "Contatto", "Ruolo", "Telefono", "Email", "Stato email", "P.IVA", "Sito",
+    "LinkedIn", "Facebook", "Instagram", "Indirizzo", "Città", "Rating", "Recensioni", "AI Score", "Intent Score",
+    "Buying Score", "Già cliente", "ATECO", "Settore", "Dipendenti", "Fatturato", "Anno", "Forma giuridica"];
+  const csvEsc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const csvRow = (r: Partial<LeadResult>) => [
+    r.business_name, r.contact_name, r.role, r.phone, r.email, r.email_status, r.partita_iva, r.website,
+    r.linkedin_url, r.facebook_url, r.instagram_url, r.address, r.city,
+    r.rating, r.reviews_count, r.ai_score, r.intent_score,
+    r.buying_score, r.is_existing_customer ? "sì" : "",
+    r.ateco, r.ateco_desc, r.dipendenti, r.fatturato, r.anno_fondazione, r.forma_giuridica,
+  ].map(csvEsc).join(",");
+  const downloadCsv = (csv: string, suffix = "") => {
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `lead-scraper-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `lead-scraper-${suffix ? suffix + "-" : ""}${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Export rapido: selezione o risultati già in memoria (≤2000).
+  const exportCsv = () => {
+    const rows = selectedIds.length ? results.filter((r) => selected.has(r.id)) : results;
+    if (!rows.length) return;
+    const csv = [CSV_HEADER.join(","), ...rows.map(csvRow)].join("\n");
+    downloadCsv(csv);
+  };
+
+  // Export MASSIVO: pagina l'intera ricerca corrente dal DB (migliaia di righe)
+  // a blocchi di 1000 con barra di avanzamento → niente cap a 2000.
+  const [exportingAll, setExportingAll] = useState(false);
+  const exportCsvAll = async () => {
+    if (!currentSearchId || exportingAll) return;
+    setExportingAll(true);
+    const PAGE = 1000;
+    const lines: string[] = [CSV_HEADER.join(",")];
+    try {
+      const { count } = await fromLS("lead_scraper_results")
+        .select("id", { count: "exact", head: true })
+        .eq("search_id", currentSearchId);
+      const total = count ?? 0;
+      if (!total) { toast.info("Nessun risultato da esportare"); return; }
+      setProgress({ label: `Export CSV (${total} lead)`, done: 0, total });
+      for (let from = 0; from < total; from += PAGE) {
+        const { data, error } = await fromLS("lead_scraper_results")
+          .select("business_name, contact_name, role, phone, email, email_status, partita_iva, website, linkedin_url, facebook_url, instagram_url, address, city, rating, reviews_count, ai_score, intent_score, buying_score, is_existing_customer, ateco, ateco_desc, dipendenti, fatturato, anno_fondazione, forma_giuridica")
+          .eq("search_id", currentSearchId)
+          .order("ai_score", { ascending: false, nullsFirst: false })
+          .order("rating", { ascending: false, nullsFirst: false })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        for (const r of (data || []) as Partial<LeadResult>[]) lines.push(csvRow(r));
+        setProgress({ label: `Export CSV (${total} lead)`, done: Math.min(from + PAGE, total), total });
+      }
+      downloadCsv(lines.join("\n"), "completo");
+      toast.success(`Esportati ${lines.length - 1} lead in CSV`);
+    } catch (e) {
+      toast.error("Errore export CSV", { description: (e as Error).message });
+    } finally {
+      setProgress(null);
+      setExportingAll(false);
+    }
   };
 
   if (permLoading) {
@@ -609,6 +1039,14 @@ export default function AdminLeadScraper() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Lead Scraper</h1>
           <p className="text-sm text-muted-foreground">Genera liste di imprese edili da più fonti, qualificale con l'AI e portale nel CRM.</p>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setAnalyticsOpen(true)}>
+            <BarChart3 className="h-4 w-4" /> Analytics
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setAutopilotOpen(true)}>
+            <Bot className="h-4 w-4" /> Autopilot
+          </Button>
         </div>
       </div>
 
@@ -700,9 +1138,30 @@ export default function AdminLeadScraper() {
                 </div>
               )}
 
-              <Button className="w-full gap-2" onClick={() => searchMutation.mutate()} disabled={busy || !keyword.trim()}>
-                {searchMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                Cerca lead
+              {source === "internal" && (
+                <div className="rounded-lg border p-2.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-orange-500" />
+                      <span className="text-xs">Scraping massivo (migliaia, in background)</span>
+                    </div>
+                    <Switch checked={massive} onCheckedChange={setMassive} />
+                  </div>
+                  {massive && (
+                    <div className="flex items-center gap-2">
+                      <Label className="text-[11px] text-muted-foreground">Target</Label>
+                      <Input type="number" value={massiveTarget} onChange={(e) => setMassiveTarget(e.target.value)} className="h-7 w-24 text-xs" min={1} max={20000} />
+                      <span className="text-[10px] text-muted-foreground">aziende (job asincrono)</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <Button className="w-full gap-2"
+                onClick={() => (massive && source === "internal" ? runMassive() : searchMutation.mutate())}
+                disabled={busy || !keyword.trim()}>
+                {searchMutation.isPending || jobId ? <Loader2 className="h-4 w-4 animate-spin" /> : (massive && source === "internal" ? <Zap className="h-4 w-4" /> : <Search className="h-4 w-4" />)}
+                {massive && source === "internal" ? "Avvia scraping massivo" : "Cerca lead"}
               </Button>
 
               <div className="flex items-center gap-2">
@@ -828,12 +1287,44 @@ export default function AdminLeadScraper() {
                     <DropdownMenuItem onClick={() => enrichPdlMutation.mutate(selectedIds)}>
                       <Database className="h-3.5 w-3.5 mr-2" /> People Data Labs — email/tel
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => verifyEmailMutation.mutate(selectedIds)}>
                       <BadgeCheck className="h-3.5 w-3.5 mr-2" /> Verifica email (deliverability)
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => findPecMutation.mutate(selectedIds)}>
+                      <Mail className="h-3.5 w-3.5 mr-2 text-violet-600" /> Trova PEC (email certificata da P.IVA)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => enrichRegistroMutation.mutate(selectedIds)}>
+                      <Building2 className="h-3.5 w-3.5 mr-2 text-sky-600" /> Registro Imprese (ATECO, fatturato, dipendenti)
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-[11px]">Intento & outreach</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => buyingMutation.mutate(selectedIds)}>
+                      <Flame className="h-3.5 w-3.5 mr-2 text-orange-500" /> Buying signals (intento d'acquisto)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => flagExistingMutation.mutate(selectedIds)}>
+                      <ShieldBan className="h-3.5 w-3.5 mr-2" /> Segnala già-clienti EiC
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => generateSequenceMutation.mutate()}>
+                      <MessageSquareQuote className="h-3.5 w-3.5 mr-2 text-primary" /> Genera sequenza email AI
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={async () => {
+                      const n = selectedIds.length;
+                      if (!n) { toast.error("Seleziona almeno un lead"); return; }
+                      if (await confirm({ title: `Inviare email a ${n} lead?`, description: "Invio reale via Resend con tracking aperture/click. Esclude automaticamente gli opt-out (GDPR).", confirmLabel: "Invia ora" })) {
+                        sendOutreachMutation.mutate(selectedIds);
+                      }
+                    }}>
+                      <Send className="h-3.5 w-3.5 mr-2 text-emerald-600" /> Invia email outreach (reale + tracking)
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                <Button size="sm" className="gap-1.5 bg-orange-600 hover:bg-orange-700"
+                  disabled={busy || results.length === 0}
+                  onClick={runPipeline}
+                  title="Tutto in uno: arricchisci → buying signals → qualifica AI → segnala già-clienti">
+                  {pipelineRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                  Pipeline AI{selectedIds.length ? ` (${selectedIds.length})` : " (tutti)"}
+                </Button>
                 <Button size="sm" variant="outline" className="gap-1.5" disabled={busy}
                   onClick={() => qualifyMutation.mutate(selectedIds.length ? selectedIds : undefined)}
                   title="Punteggio AI 0-100 vs ICP">
@@ -867,7 +1358,12 @@ export default function AdminLeadScraper() {
                   {suppressMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldBan className="h-3.5 w-3.5" />}
                 </Button>
                 <Button size="sm" variant="ghost" className="gap-1.5 ml-auto" onClick={exportCsv} disabled={results.length === 0}>
-                  <Download className="h-3.5 w-3.5" /> CSV
+                  <Download className="h-3.5 w-3.5" /> CSV {selectedIds.length ? `(${selectedIds.length})` : "vista"}
+                </Button>
+                <Button size="sm" variant="ghost" className="gap-1.5" onClick={exportCsvAll}
+                  disabled={!currentSearchId || exportingAll}
+                  title="Esporta TUTTI i lead della ricerca (anche oltre 2000) — paginazione dal DB">
+                  {exportingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} CSV completo
                 </Button>
               </div>
 
@@ -883,7 +1379,7 @@ export default function AdminLeadScraper() {
 
               {/* Funnel */}
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground flex-wrap">
-                {([["Trovati", funnel.total], ["Arricchiti", funnel.enriched], ["Qualificati", funnel.qualified], ["In CRM", funnel.pushed], ["Opportunità", funnel.opps]] as const).map(([l, v], i, arr) => (
+                {([["Trovati", funnel.total], ["Arricchiti", funnel.enriched], ["Qualificati", funnel.qualified], ["Inviate", funnel.inviate], ["Aperte", funnel.aperte], ["In CRM", funnel.pushed], ["Opportunità", funnel.opps]] as const).map(([l, v], i, arr) => (
                   <span key={l} className="flex items-center gap-1.5">
                     <span><span className="font-semibold text-foreground">{v}</span> {l}</span>
                     {i < arr.length - 1 && <ChevronRight className="h-3 w-3 opacity-40" />}
@@ -901,12 +1397,13 @@ export default function AdminLeadScraper() {
                   <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ai">Ordina: AI score</SelectItem>
-                    <SelectItem value="intent">Ordina: Intento</SelectItem>
+                    <SelectItem value="buying">Ordina: Intento d'acquisto</SelectItem>
+                    <SelectItem value="intent">Ordina: Intento (fit)</SelectItem>
                     <SelectItem value="rating">Ordina: Rating</SelectItem>
                     <SelectItem value="name">Ordina: Nome</SelectItem>
                   </SelectContent>
                 </Select>
-                {([["email", "Con email"], ["hot", "Hot"], ["notCrm", "Non in CRM"]] as const).map(([k, lbl]) => (
+                {([["email", "Con email"], ["hot", "Hot"], ["notCrm", "Non in CRM"], ["edil", "Solo edilizia"]] as const).map(([k, lbl]) => (
                   <button key={k} type="button"
                     onClick={() => setFilterFlags((f) => ({ ...f, [k]: !f[k] }))}
                     className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${filterFlags[k] ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/50"}`}>
@@ -977,13 +1474,14 @@ export default function AdminLeadScraper() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {visibleResults.map((r) => (
+                      {visibleResults.slice(0, renderLimit).map((r) => (
                         <TableRow key={r.id} className={selected.has(r.id) ? "bg-primary/5" : ""}>
                           <TableCell><Checkbox checked={selected.has(r.id)} onCheckedChange={() => toggle(r.id)} aria-label={`Seleziona ${r.business_name}`} /></TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1.5">
                               <button type="button" onClick={() => setDetailId(r.id)} className="font-medium text-sm text-left hover:text-primary hover:underline">{r.business_name}</button>
                               {r.seen_before && <Badge variant="outline" className="text-[8px] px-1 py-0 text-muted-foreground">già visto</Badge>}
+                              {r.is_existing_customer && <Badge variant="secondary" className="text-[8px] px-1 py-0 bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border-0">già cliente</Badge>}
                             </div>
                             {(r.contact_name || r.role) && (
                               <div className="text-[11px] text-foreground/80">{r.contact_name}{r.role ? ` · ${r.role}` : ""}</div>
@@ -997,7 +1495,16 @@ export default function AdminLeadScraper() {
                               )}
                               {r.partita_iva && <span className="inline-flex items-center gap-0.5"><FileText className="h-3 w-3" />{r.partita_iva}</span>}
                               {r.ateco && <span className="inline-flex items-center gap-0.5" title={r.ateco_desc || ""}>ATECO {r.ateco}</span>}
-                              {r.company_size && <span>{r.company_size} dip.</span>}
+                              {r.dipendenti != null ? <span title="dipendenti (Registro Imprese)">{r.dipendenti} dip.</span> : (r.company_size && <span>{r.company_size} dip.</span>)}
+                              {r.fatturato != null && <span className="inline-flex items-center gap-0.5 text-emerald-600 dark:text-emerald-400" title="fatturato (Registro Imprese)">{fmtFatturato(r.fatturato)}</span>}
+                              {r.anno_fondazione != null && <span title="anno fondazione">dal {r.anno_fondazione}</span>}
+                              {(() => {
+                                const o = outreachMap.get(r.id);
+                                if (!o) return null;
+                                const label = o.replied ? "ha risposto" : o.clicked ? "ha cliccato" : o.opened ? "aperta" : "inviata";
+                                const cls = o.replied ? "text-emerald-600" : o.clicked ? "text-sky-600" : o.opened ? "text-violet-600" : "text-muted-foreground";
+                                return <span className={`inline-flex items-center gap-0.5 ${cls}`} title={`${o.sends} invio/i`}><Send className="h-3 w-3" />{label}</span>;
+                              })()}
                             </div>
                             {r.intent_signals && Object.keys(r.intent_signals).some((k) => r.intent_signals?.[k] && INTENT_LABELS[k]) && (
                               <div className="flex flex-wrap gap-1 mt-1">
@@ -1056,11 +1563,17 @@ export default function AdminLeadScraper() {
                                 </Badge>
                               )}
                               {r.intent_score != null && (
-                                <Badge variant="secondary" className={`${scoreColor(r.intent_score)} border-0 gap-0.5`} title="Punteggio intento (buon prospect per EiC)">
+                                <Badge variant="secondary" className={`${scoreColor(r.intent_score)} border-0 gap-0.5`} title="Fit (buon prospect per EiC)">
                                   <Flame className="h-2.5 w-2.5" />{r.intent_score}
                                 </Badge>
                               )}
-                              {r.ai_score == null && r.intent_score == null && <span className="text-muted-foreground/40 text-xs">—</span>}
+                              {r.buying_score != null && (
+                                <Badge variant="secondary" className={`${scoreColor(r.buying_score)} border-0 gap-0.5`}
+                                  title={`Intento d'acquisto${r.buying_signals?.hiring ? " · sta assumendo" : ""}`}>
+                                  <Zap className="h-2.5 w-2.5" />{r.buying_score}
+                                </Badge>
+                              )}
+                              {r.ai_score == null && r.intent_score == null && r.buying_score == null && <span className="text-muted-foreground/40 text-xs">—</span>}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -1072,6 +1585,17 @@ export default function AdminLeadScraper() {
                       ))}
                     </TableBody>
                   </Table>
+                  {visibleResults.length > renderLimit && (
+                    <div className="flex items-center justify-center gap-3 py-3 border-t text-xs text-muted-foreground">
+                      <span>Mostrati {renderLimit} di {visibleResults.length}</span>
+                      <Button size="sm" variant="outline" className="h-7" onClick={() => setRenderLimit((n) => n + 200)}>
+                        Mostra altri 200
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7" onClick={() => setRenderLimit(visibleResults.length)}>
+                        Tutti
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -1086,6 +1610,8 @@ export default function AdminLeadScraper() {
         saving={updateLeadMutation.isPending}
         onSave={(patch) => updateLeadMutation.mutate(patch, { onSuccess: () => setDetailId(null) })}
       />
+      <AnalyticsSheet open={analyticsOpen} onClose={() => setAnalyticsOpen(false)} />
+      <AutopilotSheet open={autopilotOpen} onClose={() => setAutopilotOpen(false)} />
     </div>
   );
 }
