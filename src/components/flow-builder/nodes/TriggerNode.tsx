@@ -15,11 +15,14 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
         onClick={() => (data as any).onOpenCatalog?.()}
         className={`min-w-[260px] max-w-[300px] rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 px-5 py-5 cursor-pointer transition-all hover:border-primary/70 hover:bg-primary/10 ${selected ? "ring-2 ring-primary shadow-lg" : ""}`}
       >
-        <div className="flex flex-col items-center gap-2 text-primary/60">
-          <div className="rounded-full bg-primary/10 p-2">
+        <div className="flex flex-col items-center gap-1.5 text-center">
+          <div className="rounded-full bg-primary/10 p-2 text-primary/70">
             <Plus className="h-5 w-5" />
           </div>
-          <p className="text-xs font-medium">Aggiungi nuovo trigger</p>
+          <p className="text-sm font-semibold text-primary/80">Aggiungi il primo trigger</p>
+          <p className="max-w-[200px] text-[11px] leading-tight text-muted-foreground">
+            Scegli l'evento che avvia l'automazione (es. nuovo contatto, preventivo accettato…)
+          </p>
         </div>
         <Handle type="source" position={Position.Bottom} className="!bg-primary !w-3 !h-3 !border-2 !border-background" />
       </div>
@@ -32,7 +35,7 @@ function TriggerNodeComponent({ data, selected }: NodeProps) {
   return (
     <div className="relative group">
       <div
-        className={`min-w-[260px] max-w-[300px] rounded-xl border-2 bg-card shadow-sm transition-all hover:shadow-md border-emerald-400 dark:border-emerald-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""} ${data.hasError ? "!border-destructive ring-1 ring-destructive" : data.hasWarning ? "!border-amber-500 ring-1 ring-amber-300" : ""}`}
+        className={`min-w-[260px] max-w-[300px] rounded-xl border-2 bg-card shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md border-emerald-400 dark:border-emerald-600 ${selected ? "ring-2 ring-primary ring-offset-1 shadow-lg" : ""} ${data.hasError ? "!border-destructive ring-1 ring-destructive" : data.hasWarning ? "!border-amber-500 ring-1 ring-amber-300" : ""}`}
       >
         {/* Colored header bar */}
         <div className="flex items-center gap-2 rounded-t-[10px] bg-emerald-50 dark:bg-emerald-950/40 px-4 py-2.5">
