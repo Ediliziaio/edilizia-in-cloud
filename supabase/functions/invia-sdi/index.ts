@@ -366,46 +366,66 @@ Deno.serve(async (req) => {
       if (!token) {
         sdiErrors = [{ provider: "openapi", message: "openapi_it_token non configurato. Imposta il token openapi.it (scope SDI Electronic Invoicing)." }];
       } else {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30000);
+        // Invia l'XML grezzo: openapi valida, firma (CAdES p7m) e trasmette allo SDI.
+        const sendOnce = async () => {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 30000);
+          try {
+            const r = await fetch(invEndpoint, {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/xml" },
+              body: xml,
+              signal: controller.signal,
+            });
+            const j = await r.json().catch(() => null);
+            return { status: r.status, ok: r.ok, json: j as any };
+          } finally {
+            clearTimeout(timeout);
+          }
+        };
         try {
-          // Inviamo l'XML non firmato: openapi firma (CAdES p7m) e trasmette.
-          const resp = await fetch(invEndpoint, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/xml" },
-            body: xml,
-            signal: controller.signal,
-          });
-          clearTimeout(timeout);
-          const result = await resp.json().catch(() => null);
+          let res = await sendOnce();
+          // Cedente non registrato (424) → auto-registra la P.IVA e ritenta una volta.
+          const notRegistered = res.json?.error === 424 || /not\s*registered|fiscal id not found/i.test(String(res.json?.message || ""));
+          if (notRegistered) {
+            const regEmail = azienda.pec || azienda.email || "";
+            const regPiva = String(azienda.partita_iva || "").replace(/\D/g, "");
+            if (regPiva.length === 11 && azienda.ragione_sociale && regEmail) {
+              await fetch(`https://${invBase}/IT-configurations`, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ fiscal_id: regPiva, name: azienda.ragione_sociale, email: regEmail }),
+              }).catch(() => { /* best-effort: l'attivazione/delega può richiedere un passo manuale */ });
+              res = await sendOnce();
+            }
+          }
           try {
             await supabase.from("sdi_provider_responses").insert({
               company_id: doc.company_id,
               documento_id: doc.id,
               provider: "openapi",
               endpoint: invEndpoint,
-              status_code: resp.status,
-              response_json: result,
-              detected_keys: result && typeof result === "object" ? Object.keys(result) : [],
+              status_code: res.status,
+              response_json: res.json,
+              detected_keys: res.json && typeof res.json === "object" ? Object.keys(res.json) : [],
             });
           } catch (logErr) {
             console.error("[invia-sdi] audit log openapi failed:", logErr);
           }
-          if (resp.ok && result?.success !== false) {
-            const d = result?.data;
+          if (res.ok && res.json?.success !== false) {
+            const d = res.json?.data;
             sdiId =
               (d && (d.id || d.uuid || d.invoice_hash || d.filename || d.idSdi)) ||
               (Array.isArray(d) ? (d[0]?.id || d[0]?.uuid) : null) ||
               (typeof d === "string" ? d : null) ||
               null;
             if (!sdiId) {
-              sdiErrors = [{ provider: "openapi", status: resp.status, message: "Risposta openapi senza ID tracciabile", raw_response: result }];
+              sdiErrors = [{ provider: "openapi", status: res.status, message: "Risposta openapi senza ID tracciabile", raw_response: res.json }];
             }
           } else {
-            sdiErrors = [{ provider: "openapi", status: resp.status, message: result?.message || `Errore openapi (HTTP ${resp.status})`, raw_response: result }];
+            sdiErrors = [{ provider: "openapi", status: res.status, message: res.json?.message || `Errore openapi (HTTP ${res.status})`, raw_response: res.json }];
           }
         } catch (fetchErr) {
-          clearTimeout(timeout);
           sdiErrors = [{ provider: "openapi", message: String(fetchErr) }];
         }
       }
