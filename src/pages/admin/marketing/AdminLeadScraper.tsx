@@ -90,6 +90,7 @@ interface LeadSearch {
 
 const SOURCES = [
   { id: "internal", label: "Interno", icon: Database, active: true, hint: "Scraper self-host + DB proprietario: scrapa 1 volta, riusa per sempre (~€0). Richiede scraper-worker." },
+  { id: "company_search", label: "Registro Imprese", icon: Building2, active: true, hint: "Liste imprese italiane dal Registro (openapi.it Company Search): ATECO, provincia, fatturato, dipendenti. ~€0,01/azienda, 100/g gratis (openapi_it_token)." },
   { id: "google_maps", label: "Google Maps", icon: MapPin, active: true, hint: "Imprese locali da Maps: telefono, sito, email (gratis)" },
   { id: "apify_maps", label: "Apify Maps", icon: Bot, active: true, hint: "Google Maps via Apify: include le email. $5 free/mese (apify_api_token)" },
   { id: "linkedin", label: "LinkedIn", icon: Linkedin, active: true, hint: "Decisori via Serper (≈$0.30/1000) o Google CSE (gratis 100/g)" },
@@ -103,6 +104,16 @@ const SECTOR_PRESETS = [
   "studio di architettura", "ristrutturazioni", "general contractor",
   "impresa di ristrutturazioni", "termoidraulica", "serramentista",
   "impresa di pavimenti", "edilizia", "cartongesso",
+];
+
+// Preset codici ATECO edilizia (per la fonte Registro Imprese / Company Search)
+const ATECO_PRESETS: { code: string; label: string }[] = [
+  { code: "41", label: "41 · Costruzione edifici" },
+  { code: "42", label: "42 · Ingegneria civile" },
+  { code: "43", label: "43 · Lavori specializzati" },
+  { code: "4332", label: "4332 · Serramenti/infissi" },
+  { code: "4391", label: "4391 · Coperture/tetti" },
+  { code: "4322", label: "4322 · Idraulica/riscaldamento" },
 ];
 
 // Le tabelle lead_scraper_* non sono ancora nei tipi generati (nessun push DB):
@@ -1102,16 +1113,26 @@ export default function AdminLeadScraper() {
 
               {/* Settore / keyword */}
               <div>
-                <Label className="text-xs">Settore / attività</Label>
-                <Input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="es. impresa edile" className="mt-1" />
+                <Label className="text-xs">{source === "company_search" ? "Codice ATECO o nome" : "Settore / attività"}</Label>
+                <Input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder={source === "company_search" ? "es. 41 (ATECO) oppure nome azienda" : "es. impresa edile"} className="mt-1" />
                 <div className="flex flex-wrap gap-1 mt-1.5">
-                  {SECTOR_PRESETS.slice(0, 6).map((p) => (
-                    <button key={p} type="button" onClick={() => setKeyword(p)}
-                      className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-muted/70">
-                      {p}
-                    </button>
-                  ))}
+                  {source === "company_search"
+                    ? ATECO_PRESETS.map((p) => (
+                      <button key={p.code} type="button" onClick={() => setKeyword(p.code)}
+                        className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-muted/70" title={p.label}>
+                        {p.label}
+                      </button>
+                    ))
+                    : SECTOR_PRESETS.slice(0, 6).map((p) => (
+                      <button key={p} type="button" onClick={() => setKeyword(p)}
+                        className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-muted/70">
+                        {p}
+                      </button>
+                    ))}
                 </div>
+                {source === "company_search" && (
+                  <p className="text-[10px] text-muted-foreground mt-1">Dati ufficiali dal Registro Imprese (P.IVA, ATECO, fatturato, dipendenti, PEC). Filtra per ATECO + città.</p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2">
