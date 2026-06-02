@@ -1594,10 +1594,9 @@ Deno.serve(async (req) => {
     if (action === "send_outreach") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
-      const resendKey = await getPlatformSetting("resend_api_key", "RESEND_API_KEY");
-      if (!resendKey) return errorResponse("Configura resend_api_key per inviare le email outreach.", 400, corsH);
-      const fromAddr = (await getPlatformSetting("outreach_from", "OUTREACH_FROM")) ||
-        "Edilizia in Cloud <noreply@ediliziaincloud.it>";
+      // channel: "mailbox" = ruota sulle caselle Google/Outlook collegate (cold outreach,
+      // protegge la reputazione del dominio transazionale); "esp" = Resend (per opt-in).
+      const channel = body.channel === "mailbox" ? "mailbox" : "esp";
       const ctaUrl = (await getPlatformSetting("outreach_cta_url", "OUTREACH_CTA_URL")) || "https://www.ediliziaincloud.it";
       const trackBase = `${Deno.env.get("SUPABASE_URL")}/functions/v1/lead-scraper-track`;
       const step = Math.max(1, Math.min(10, Number(body.step) || 1));
@@ -1607,10 +1606,10 @@ Deno.serve(async (req) => {
       const { data: leads, error } = await supabaseAdmin
         .from("lead_scraper_results")
         .select("id, business_name, contact_name, email, city, ateco_desc, ai_icebreaker, ai_summary")
-        .in("id", ids).limit(200);
+        .in("id", ids).limit(500);
       if (error) return errorResponse(error.message, 500, corsH);
       const withEmail = (leads || []).filter((l: any) => l.email && /@/.test(l.email));
-      if (!withEmail.length) return jsonResponse({ sent: 0, skipped: 0, failed: 0, suppressed: 0 }, 200, corsH);
+      if (!withEmail.length) return jsonResponse({ channel, sent: 0, queued: 0, suppressed: 0, failed: 0 }, 200, corsH);
 
       // rispetta la do-not-contact (GDPR)
       const supp = await getSuppressedEmailMap(
@@ -1622,32 +1621,94 @@ Deno.serve(async (req) => {
         .replace(/\{\{\s*azienda\s*\}\}/gi, l.business_name || "")
         .replace(/\{\{\s*citta\s*\}\}/gi, l.city || "")
         .replace(/\{\{\s*settore\s*\}\}/gi, l.ateco_desc || "");
+      const subjectFor = (l: any) => (subjTpl ? render(subjTpl, l) : `${l.business_name} — un'idea per la vostra impresa`).slice(0, 200);
+      const textFor = (l: any) => bodyTpl
+        ? render(bodyTpl, l)
+        : (l.ai_icebreaker
+            ? `${l.contact_name ? `Gentile ${l.contact_name},` : "Buongiorno,"}\n\n${l.ai_icebreaker}\n\nSe può essere utile le mostro Edilizia in Cloud, il gestionale per imprese edili (cantieri, preventivi, DDT, fatture).`
+            : `${l.contact_name ? `Gentile ${l.contact_name},` : "Buongiorno,"}\n\nmi occupo di Edilizia in Cloud, il gestionale cloud per imprese edili (cantieri, preventivi, DDT, fatture). Vi va una breve call per capire se può esservi utile?`);
+      const htmlFor = (oid: string, baseText: string) =>
+        `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:15px;line-height:1.5;color:#1a1a1a">` +
+        escHtml(baseText).replace(/\n/g, "<br>") +
+        `<br><br><a href="${trackBase}?e=${oid}&t=click&u=${encodeURIComponent(ctaUrl)}" style="display:inline-block;background:#0ea5e9;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Scopri Edilizia in Cloud</a>` +
+        `<br><br><span style="font-size:12px;color:#888">Se non desidera ricevere altre email, risponda con "STOP".</span>` +
+        `<img src="${trackBase}?e=${oid}&t=open" width="1" height="1" alt="" style="display:none"></div>`;
 
-      let sent = 0, failed = 0, suppressed = 0;
-      await poolMap(withEmail, 4, async (l: any) => {
-        const to = normalizeEmailAddress(l.email);
-        if (!to || supp.get(to)) { suppressed++; return; }
-        const subject = (subjTpl ? render(subjTpl, l) : `${l.business_name} — un'idea per la vostra impresa`).slice(0, 200);
-        const baseText = bodyTpl
-          ? render(bodyTpl, l)
-          : (l.ai_icebreaker
-              ? `${l.contact_name ? `Gentile ${l.contact_name},` : "Buongiorno,"}\n\n${l.ai_icebreaker}\n\nSe può essere utile le mostro Edilizia in Cloud, il gestionale per imprese edili (cantieri, preventivi, DDT, fatture).`
-              : `${l.contact_name ? `Gentile ${l.contact_name},` : "Buongiorno,"}\n\nmi occupo di Edilizia in Cloud, il gestionale cloud per imprese edili (cantieri, preventivi, DDT, fatture). Vi va una breve call per capire se può esservi utile?`);
+      // bersagli validi (con email, non in opt-out)
+      const targets = withEmail
+        .map((l: any) => ({ l, to: normalizeEmailAddress(l.email) }))
+        .filter((t: any) => t.to && !supp.get(t.to));
+      const suppressed = withEmail.length - targets.length;
 
-        // crea il record outreach (per avere l'id da usare nel tracking)
+      // ── CANALE MAILBOX: rotazione sulle caselle collegate della piattaforma ──
+      if (channel === "mailbox") {
+        const { data: pool } = await supabaseAdmin
+          .from("email_oauth_connections")
+          .select("id, user_id, email_address, provider")
+          .eq("company_id", PLATFORM_ADMIN_COMPANY_ID)
+          .eq("status", "active").eq("is_pec", false)
+          .in("provider", ["gmail", "outlook"]).order("id");
+        if (!pool || !pool.length) {
+          return errorResponse("Nessuna casella dedicata della piattaforma collegata (Gmail/Outlook). Collega le caselle per l'outreach a rotazione.", 400, corsH);
+        }
+        const cap = Math.max(1, Math.min(500, Number(await getPlatformSetting("outreach_mailbox_daily_cap", "OUTREACH_MAILBOX_DAILY_CAP")) || 40));
+        const startDay = new Date(); startDay.setUTCHours(0, 0, 0, 0);
+        const remaining = new Map<string, number>();
+        for (const c of pool) {
+          const { count } = await supabaseAdmin.from("lead_scraper_outreach")
+            .select("id", { count: "exact", head: true })
+            .eq("oauth_connection_id", c.id).gte("created_at", startDay.toISOString());
+          remaining.set(c.id, Math.max(0, cap - (count || 0)));
+        }
+        let queued = 0, failed = 0, skippedCap = 0, ri = 0;
+        const perMailbox: Record<string, number> = {};
+        for (const { l, to } of targets) {
+          // prossima casella con capienza (round-robin)
+          let chosen: any = null;
+          for (let k = 0; k < pool.length; k++) {
+            const c = pool[(ri + k) % pool.length];
+            if ((remaining.get(c.id) || 0) > 0) { chosen = c; ri = ri + k + 1; break; }
+          }
+          if (!chosen) { skippedCap++; continue; }
+          remaining.set(chosen.id, (remaining.get(chosen.id) || 0) - 1);
+          const subject = subjectFor(l);
+          const baseText = textFor(l);
+          const { data: oRow } = await supabaseAdmin.from("lead_scraper_outreach").insert({
+            lead_id: l.id, channel: "email", step, subject, to_addr: to, status: "sent",
+            created_by: userId, oauth_connection_id: chosen.id,
+          }).select("id").single();
+          if (!oRow) { failed++; continue; }
+          const { error: obErr } = await supabaseAdmin.from("email_outbox").insert({
+            company_id: PLATFORM_ADMIN_COMPANY_ID, user_id: chosen.user_id || userId,
+            oauth_connection_id: chosen.id, to_emails: [to], subject,
+            body_html: htmlFor(oRow.id, baseText), body_text: baseText, status: "queued",
+          });
+          if (obErr) {
+            await supabaseAdmin.from("lead_scraper_outreach").update({ status: "failed", meta: { error: obErr.message } }).eq("id", oRow.id);
+            failed++; continue;
+          }
+          perMailbox[chosen.email_address] = (perMailbox[chosen.email_address] || 0) + 1;
+          queued++;
+        }
+        return jsonResponse({
+          channel: "mailbox", queued, failed, suppressed, skipped_capacity: skippedCap,
+          mailboxes: pool.length, cap_per_mailbox: cap, perMailbox, attempted: targets.length,
+        }, 200, corsH);
+      }
+
+      // ── CANALE ESP (Resend): per liste opt-in / dominio dedicato ──
+      const resendKey = await getPlatformSetting("resend_api_key", "RESEND_API_KEY");
+      if (!resendKey) return errorResponse("Configura resend_api_key, oppure usa channel=mailbox per inviare dalle caselle Google/Outlook collegate.", 400, corsH);
+      const fromAddr = (await getPlatformSetting("outreach_from", "OUTREACH_FROM")) ||
+        "Edilizia in Cloud <noreply@ediliziaincloud.it>";
+      let sent = 0, failed = 0;
+      await poolMap(targets, 4, async ({ l, to }: any) => {
+        const subject = subjectFor(l);
         const { data: oRow, error: oErr } = await supabaseAdmin.from("lead_scraper_outreach").insert({
           lead_id: l.id, channel: "email", step, subject, to_addr: to, status: "sent", created_by: userId,
         }).select("id").single();
         if (oErr || !oRow) { failed++; return; }
-
-        const cta = `${trackBase}?e=${oRow.id}&t=click&u=${encodeURIComponent(ctaUrl)}`;
-        const pixel = `${trackBase}?e=${oRow.id}&t=open`;
-        const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:15px;line-height:1.5;color:#1a1a1a">` +
-          escHtml(baseText).replace(/\n/g, "<br>") +
-          `<br><br><a href="${cta}" style="display:inline-block;background:#0ea5e9;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Scopri Edilizia in Cloud</a>` +
-          `<br><br><span style="font-size:12px;color:#888">Se non desidera ricevere altre email, risponda con "STOP".</span>` +
-          `<img src="${pixel}" width="1" height="1" alt="" style="display:none"></div>`;
-
+        const html = htmlFor(oRow.id, textFor(l));
         try {
           const res = await fetchWithTimeout("https://api.resend.com/emails", {
             method: "POST", timeoutMs: 12000,
@@ -1668,7 +1729,7 @@ Deno.serve(async (req) => {
           failed++;
         }
       });
-      return jsonResponse({ sent, failed, suppressed, attempted: withEmail.length }, 200, corsH);
+      return jsonResponse({ channel: "esp", sent, failed, suppressed, attempted: targets.length }, 200, corsH);
     }
 
     // ════════════════════ SUPPRESS (GDPR do-not-contact) ════════════════════

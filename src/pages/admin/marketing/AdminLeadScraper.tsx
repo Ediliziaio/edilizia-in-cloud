@@ -708,14 +708,25 @@ export default function AdminLeadScraper() {
     onError: (e: Error) => toast.error("Arricchimento Registro fallito", { description: e.message }),
   });
 
-  // Outreach reale — invio email a freddo via Resend + tracking aperture/click
+  // Outreach reale — invio a freddo. channel "mailbox" = ruota sulle caselle Google/Outlook
+  // collegate (cap/giorno, protegge la reputazione del dominio); "esp" = Resend (per opt-in).
   const sendOutreachMutation = useMutation({
-    mutationFn: (resultIds: string[]) => batchInvoke("Invio email", "send_outreach", resultIds, 5),
-    onSuccess: (data) => {
+    mutationFn: ({ ids, channel }: { ids: string[]; channel: "mailbox" | "esp" }) =>
+      batchInvoke(
+        channel === "mailbox" ? "Invio (caselle)" : "Invio (Resend)",
+        "send_outreach", ids, channel === "mailbox" ? 50 : 5, { channel },
+      ),
+    onSuccess: (data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["lead-scraper", "outreach-map", currentSearchId] });
-      toast.success(`${data.sent} email inviate`, {
-        description: `${data.failed || 0} fallite · ${data.suppressed || 0} in opt-out · su ${data.attempted || 0} con email`,
-      });
+      if (vars.channel === "mailbox") {
+        toast.success(`${data.queued || 0} email in coda dalle caselle`, {
+          description: `${data.skipped_capacity ? `${data.skipped_capacity} oltre il cap giornaliero · ` : ""}${data.suppressed || 0} opt-out · invio a rotazione`,
+        });
+      } else {
+        toast.success(`${data.sent || 0} email inviate (Resend)`, {
+          description: `${data.failed || 0} fallite · ${data.suppressed || 0} opt-out · su ${data.attempted || 0}`,
+        });
+      }
     },
     onError: (e: Error) => toast.error("Invio outreach fallito", { description: e.message }),
   });
@@ -1314,11 +1325,20 @@ export default function AdminLeadScraper() {
                     <DropdownMenuItem onClick={async () => {
                       const n = selectedIds.length;
                       if (!n) { toast.error("Seleziona almeno un lead"); return; }
-                      if (await confirm({ title: `Inviare email a ${n} lead?`, description: "Invio reale via Resend con tracking aperture/click. Esclude automaticamente gli opt-out (GDPR).", confirmLabel: "Invia ora" })) {
-                        sendOutreachMutation.mutate(selectedIds);
+                      if (await confirm({ title: `Invio a freddo dalle caselle a ${n} lead?`, description: "Ruota sulle caselle Google/Outlook collegate alla piattaforma, con cap giornaliero per casella (consigliato per il cold: protegge la reputazione del dominio). Esclude gli opt-out (GDPR).", confirmLabel: "Metti in coda" })) {
+                        sendOutreachMutation.mutate({ ids: selectedIds, channel: "mailbox" });
                       }
                     }}>
-                      <Send className="h-3.5 w-3.5 mr-2 text-emerald-600" /> Invia email outreach (reale + tracking)
+                      <Send className="h-3.5 w-3.5 mr-2 text-emerald-600" /> Invia dalle caselle Google/Outlook (rotazione)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={async () => {
+                      const n = selectedIds.length;
+                      if (!n) { toast.error("Seleziona almeno un lead"); return; }
+                      if (await confirm({ title: `Inviare via Resend a ${n} lead?`, description: "Invio via ESP (Resend). Adatto a liste opt-in / dominio dedicato — NON per liste a freddo (rischio reputazione). Esclude gli opt-out (GDPR).", confirmLabel: "Invia ora" })) {
+                        sendOutreachMutation.mutate({ ids: selectedIds, channel: "esp" });
+                      }
+                    }}>
+                      <Mail className="h-3.5 w-3.5 mr-2 text-sky-600" /> Invia via Resend/ESP (liste opt-in)
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
