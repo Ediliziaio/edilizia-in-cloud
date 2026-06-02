@@ -104,6 +104,34 @@ export function pickAutoMatch(tx: any, invoices: any[]): MatchSuggestion | null 
   return top;
 }
 
+export interface PaymentApplication {
+  newPaidAmount: number;
+  newStatus: string;
+}
+
+/**
+ * Applica un incasso a una fattura: nuovo paid_amount = paid_amount + importo;
+ * se copre il totale la fattura passa a "paid", altrimenti lo stato resta
+ * invariato. Sola aritmetica (nessuna scrittura su DB), così il calcolo
+ * money-critical è verificabile in isolamento.
+ */
+export function computePaymentApplication(inv: any, matchedAmount: number): PaymentApplication {
+  const newPaidAmount = Number(inv.paid_amount || 0) + matchedAmount;
+  const newStatus = newPaidAmount >= Number(inv.total || 0) ? "paid" : inv.status;
+  return { newPaidAmount, newStatus };
+}
+
+/**
+ * Annulla un incasso applicato (scollegamento): nuovo paid_amount = paid_amount
+ * − importo, mai sotto zero; se la fattura era "paid" torna a "delivered",
+ * altrimenti lo stato resta invariato. Sola aritmetica, nessuna scrittura.
+ */
+export function computePaymentReversal(inv: any, matchedAmount: number): PaymentApplication {
+  const newPaidAmount = Math.max(0, Number(inv.paid_amount || 0) - Number(matchedAmount || 0));
+  const newStatus = inv.status === "paid" ? "delivered" : inv.status;
+  return { newPaidAmount, newStatus };
+}
+
 export type ReconSeverity = "critical" | "warning" | "info";
 
 export interface ReconAnomaly {

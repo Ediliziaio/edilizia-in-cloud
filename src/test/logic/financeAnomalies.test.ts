@@ -4,6 +4,8 @@ import {
   fuzzyMatch,
   computeMatchScore,
   pickAutoMatch,
+  computePaymentApplication,
+  computePaymentReversal,
   detectReconAnomalies,
 } from "@/lib/finance/reconciliationAnalysis";
 import {
@@ -316,6 +318,62 @@ describe("pickAutoMatch", () => {
 
   it("ambiguo: distacco < 15 (85 vs 80) → null", () => {
     expect(pickAutoMatch(tx, [inv85("i1"), inv80("i2")])).toBeNull();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RICONCILIAZIONE — aritmetica pagamento (money-critical)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("computePaymentApplication", () => {
+  it("pagamento parziale: aumenta paid_amount, stato invariato", () => {
+    const r = computePaymentApplication({ paid_amount: 0, total: 1000, status: "sent" }, 400);
+    expect(r.newPaidAmount).toBe(400);
+    expect(r.newStatus).toBe("sent");
+  });
+
+  it("pagamento che salda il totale → stato 'paid'", () => {
+    const r = computePaymentApplication({ paid_amount: 600, total: 1000, status: "sent" }, 400);
+    expect(r.newPaidAmount).toBe(1000);
+    expect(r.newStatus).toBe("paid");
+  });
+
+  it("pagamento che eccede il totale → stato 'paid'", () => {
+    const r = computePaymentApplication({ paid_amount: 0, total: 1000, status: "overdue" }, 1200);
+    expect(r.newPaidAmount).toBe(1200);
+    expect(r.newStatus).toBe("paid");
+  });
+
+  it("paid_amount nullo trattato come 0", () => {
+    const r = computePaymentApplication({ paid_amount: null, total: 500, status: "sent" }, 200);
+    expect(r.newPaidAmount).toBe(200);
+    expect(r.newStatus).toBe("sent");
+  });
+});
+
+describe("computePaymentReversal", () => {
+  it("annulla un pagamento parziale: riduce paid_amount, stato invariato se non era 'paid'", () => {
+    const r = computePaymentReversal({ paid_amount: 1000, total: 1000, status: "sent" }, 400);
+    expect(r.newPaidAmount).toBe(600);
+    expect(r.newStatus).toBe("sent");
+  });
+
+  it("fattura 'paid' scollegata → torna 'delivered'", () => {
+    const r = computePaymentReversal({ paid_amount: 1000, total: 1000, status: "paid" }, 400);
+    expect(r.newPaidAmount).toBe(600);
+    expect(r.newStatus).toBe("delivered");
+  });
+
+  it("non scende mai sotto zero", () => {
+    const r = computePaymentReversal({ paid_amount: 300, total: 1000, status: "paid" }, 500);
+    expect(r.newPaidAmount).toBe(0);
+    expect(r.newStatus).toBe("delivered");
+  });
+
+  it("oggetto vuoto (null-tolerant): paid 0, stato undefined", () => {
+    const r = computePaymentReversal({}, 100);
+    expect(r.newPaidAmount).toBe(0);
+    expect(r.newStatus).toBeUndefined();
   });
 });
 

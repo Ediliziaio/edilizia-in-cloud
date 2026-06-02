@@ -24,6 +24,8 @@ import {
   fmtEur,
   computeMatchScore,
   pickAutoMatch,
+  computePaymentApplication,
+  computePaymentReversal,
   detectReconAnomalies,
 } from "@/lib/finance/reconciliationAnalysis";
 import type { MatchSuggestion, ReconSeverity } from "@/lib/finance/reconciliationAnalysis";
@@ -160,8 +162,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
     setMatching(true);
     try {
       const matchedAmount = Math.abs(tx.amount);
-      const newPaidAmount = Number(inv.paid_amount || 0) + matchedAmount;
-      const newStatus = newPaidAmount >= Number(inv.total || 0) ? "paid" : inv.status;
+      const { newPaidAmount, newStatus } = computePaymentApplication(inv, matchedAmount);
 
       // Step 1: link transaction
       const linkRes = await supabase.from("bank_transactions").update({ linked_invoice_id: inv.id }).eq("id", tx.id).eq("company_id", companyId);
@@ -207,8 +208,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   async function confirmMatchBatch(tx: any, inv: any): Promise<boolean> {
     try {
       const matchedAmount = Math.abs(tx.amount);
-      const newPaidAmount = Number(inv.paid_amount || 0) + matchedAmount;
-      const newStatus = newPaidAmount >= Number(inv.total || 0) ? "paid" : inv.status;
+      const { newPaidAmount, newStatus } = computePaymentApplication(inv, matchedAmount);
 
       const linkRes = await supabase.from("bank_transactions").update({ linked_invoice_id: inv.id }).eq("id", tx.id).eq("company_id", companyId);
       if (linkRes.error) throw linkRes.error;
@@ -296,8 +296,10 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         setUnlinking(false);
         return;
       }
-      const newPaid = Math.max(0, Number(inv?.paid_amount || 0) - Number(rec.matched_amount || 0));
-      const wasFullyPaid = inv?.status === "paid";
+      const { newPaidAmount: newPaid, newStatus: reversedStatus } = computePaymentReversal(
+        inv ?? {},
+        rec.matched_amount,
+      );
 
       // Step 1: unlink transaction
       const unlinkRes = await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", txId);
@@ -313,7 +315,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       // Step 3: update invoice
       const invRes = await supabase.from("invoices").update({
         paid_amount: newPaid,
-        status: wasFullyPaid ? "delivered" : inv?.status,
+        status: reversedStatus,
       }).eq("id", invId);
       if (invRes.error) {
         await supabase.from("bank_transactions").update({ linked_invoice_id: invId }).eq("id", txId);
