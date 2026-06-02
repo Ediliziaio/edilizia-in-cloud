@@ -7,8 +7,18 @@ import { resolveSender } from "../_shared/resolveSender.ts";
 import { getSuppressedEmailMap, normalizeEmailAddress } from "../_shared/emailSuppression.ts";
 
 import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
-import { isInternalRequest, requireAuth, requireCompanyAccess, requireInternalSecret } from "../_shared/auth.ts";
+import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
+import { isInternalRequest, isSuperAdminEmailAllowed, requireAuth, requireCompanyAccess, requireInternalSecret, resolveUserEmail } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import {
+  COMPANY_ONLY_ACTION_IDS,
+  isPlatformCompany,
+  isPlatformEvent,
+  PLATFORM_ACTION_IDS,
+  PLATFORM_ADMIN_COMPANY_ID,
+  PLATFORM_TRIGGER_EVENT_MAP,
+} from "../_shared/platformAutomation.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 interface AutomationNode {
   id: string;
@@ -88,6 +98,18 @@ async function handleTrigger(supabase: any, body: any) {
     return jsonResponse({ error: "Missing trigger_event, company_id, or entity_id" }, 400);
   }
 
+  // ── SEPARAZIONE AREA (trigger) ──
+  // Un evento PLATFORM_* deve arruolare SOLO i flussi della platform-admin
+  // company. Se arriva con un company_id di un'azienda è un errore o un
+  // tentativo di leak cross-area → rifiuta. I flussi azienda non ricevono mai
+  // questi eventi perché gli emettitori li scrivono con company_id piattaforma.
+  if (isPlatformEvent(trigger_event) && !isPlatformCompany(company_id)) {
+    return jsonResponse({
+      message: "Platform trigger rejected outside platform context",
+      enrolled: 0,
+    });
+  }
+
   // Find published flows for this company that have a trigger node matching this event
   const { data: flows, error: flowErr } = await supabase
     .from("automation_flows")
@@ -153,11 +175,78 @@ async function handleTrigger(supabase: any, body: any) {
     ? legacyEventsRaw.filter((v): v is string => typeof v === "string")
     : [];
 
+  // Il flow-builder salva l'id catalogo (italiano) in `config_json.item_id`,
+  // mentre gli emettitori producono l'evento canonico (inglese). Mappa qui gli
+  // id ad alta confidenza già emessi, con fallback a trigger_event/item_id.
+  const TRIGGER_EVENT_MAP: Record<string, string> = {
+    contatto_creato: "contact_created",
+    contatto_aggiornato: "contact_updated",
+    opportunita_creata: "opportunity_created",
+    opportunita_stage_cambiato: "pipeline_stage_change",
+    opportunita_vinta: "opportunity_won",
+    opportunita_persa: "opportunity_lost",
+    appuntamento_creato: "appointment_booked",
+    email_aperta: "email_opened",
+    email_cliccata: "email_clicked",
+    form_compilato: "form_submitted",
+    whatsapp_ricevuto: "whatsapp_message_received",
+    campagna_facebook_lead: "facebook_lead_received",
+
+    // ── Trigger OPERATIVI (area azienda). Eventi emessi dai DB-trigger della
+    // migration 20270616110000 e dal cron check-scheduled-triggers. Mappano
+    // l'id catalogo italiano all'evento canonico inglese in automation_trigger_events.
+    // Ordini / cantieri (un cantiere è un record orders → stesso evento order_created)
+    ordine_creato: "order_created",
+    cantiere_creato: "order_created",
+    ordine_stato_cambiato: "order_status_changed",
+    ordine_in_ritardo: "order_overdue",            // SCHEDULED
+    cantiere_in_ritardo: "site_overdue",            // SCHEDULED
+    // Fatturazione & incassi
+    fattura_creata: "invoice_created",
+    fattura_scaduta: "invoice_overdue",             // SCHEDULED (azienda, ≠ fattura_piattaforma_scaduta)
+    pagamento_ricevuto: "payment_received",
+    costo_registrato: "cost_registered",
+    // Preventivi
+    preventivo_creato: "quote_created",
+    preventivo_accettato: "quote_accepted",
+    preventivo_rifiutato: "quote_rejected",
+    preventivo_in_scadenza: "quote_expiring",       // SCHEDULED
+    // Assistenza / ticket
+    ticket_creato: "ticket_created",
+    ticket_stato_cambiato: "ticket_status_changed",
+    ticket_senza_risposta: "ticket_unanswered",     // SCHEDULED
+    // Magazzino
+    scorta_minima: "stock_below_minimum",
+    prodotto_esaurito: "stock_out",
+    carico_magazzino: "stock_received",
+    // HR
+    dipendente_creato: "employee_created",
+    contratto_in_scadenza: "contract_expiring",     // SCHEDULED
+    ferie_richiesta: "leave_requested",
+    // Task
+    task_creato: "task_created",
+    task_completato: "task_completed",
+    task_scaduto: "task_overdue",                   // SCHEDULED
+    // Agenda
+    appuntamento_imminente: "appointment_reminder", // SCHEDULED
+    // Cron generici (enrollment diretto in check-scheduled-triggers; qui per robustezza)
+    cron_giornaliero: "cron_daily",
+    cron_settimanale: "cron_weekly",
+    cron_mensile: "cron_monthly",
+    manuale: "manual_run",
+    // Trigger di PIATTAFORMA (id catalogo italiano → nome canonico PLATFORM_*).
+    // Fonte unica: _shared/platformAutomation.ts.
+    ...PLATFORM_TRIGGER_EVENT_MAP,
+  };
+
   for (const flow of flows) {
     // Use in-memory lookup instead of per-flow query
     const nodes = nodesByFlow.get(flow.id) ?? [];
     const matchingTrigger = nodes.find((n: AutomationNode) => {
-      const nodeEvent = n.config_json?.trigger_event;
+      const nodeEvent =
+        n.config_json?.trigger_event ??
+        TRIGGER_EVENT_MAP[n.config_json?.item_id as string] ??
+        n.config_json?.item_id;
       if (!nodeEvent) return false;
       if (nodeEvent === trigger_event) return true;
       return legacyEvents.includes(nodeEvent);
@@ -490,6 +579,39 @@ function queueSafeId(cfg: Record<string, any>, queueItem?: any): string {
   return String(raw).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
 }
 
+// ── Helpers per azioni di PIATTAFORMA ──
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Esegue una promise best-effort ingoiando qualsiasi errore (rollback/side-effects). */
+async function swallow(p: Promise<unknown>): Promise<void> {
+  try { await p; } catch { /* ignore */ }
+}
+
+/** Password temporanea robusta per il provisioning automatico. */
+function generateTempPassword(): string {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  const base = btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, "").slice(0, 20);
+  return `${base}aA1!`;
+}
+
+/**
+ * Guardia allowlist per le azioni di piattaforma più sensibili: l'autore del
+ * flusso (automation_flows.created_by) deve essere un super_admin in allowlist
+ * (_shared/auth.ts). Fail-closed: senza autore certo → false.
+ */
+async function flowAuthorIsAllowedSuperAdmin(supabase: any, flowId: string | undefined): Promise<boolean> {
+  if (!flowId) return false;
+  const { data: flow } = await supabase
+    .from("automation_flows")
+    .select("created_by")
+    .eq("id", flowId)
+    .maybeSingle();
+  if (!flow?.created_by) return false;
+  const email = await resolveUserEmail(supabase, flow.created_by);
+  return isSuperAdminEmailAllowed(email);
+}
+
 // ── Action ──
 async function executeAction(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string, queueItem?: any) {
   // ── Normalize Italian action IDs to internal handler IDs ──
@@ -543,9 +665,37 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     return c;
   }
 
-  const rawActionType = cfg.action_type;
+  // Il flow-builder salva l'id catalogo in `item_id`: usalo come fallback se
+  // `action_type` non è impostato (nodi creati a mano, non da template).
+  const rawActionType = cfg.action_type ?? cfg.item_id;
   const actionType = ACTION_ALIASES[rawActionType] || rawActionType;
   const ncfg = normalizeConfig(actionType, cfg);
+
+  // ── SEPARAZIONE AREA (azioni) ──
+  // Le azioni di PIATTAFORMA girano SOLO se il flusso appartiene alla
+  // platform-admin company; le azioni esclusive AZIENDA (ordini/preventivi/
+  // cantieri/assistenza/fatturazione) NON girano nel contesto piattaforma.
+  const isPlatformCtx = isPlatformCompany(companyId);
+  if (PLATFORM_ACTION_IDS.has(rawActionType)) {
+    if (!isPlatformCtx) {
+      return { success: false, error: `Azione di piattaforma "${rawActionType}" non eseguibile in un contesto azienda` };
+    }
+  } else if (COMPANY_ONLY_ACTION_IDS.has(rawActionType) && isPlatformCtx) {
+    return { success: false, error: `Azione azienda "${rawActionType}" non eseguibile nel contesto piattaforma` };
+  }
+
+  // Payload del trigger (chiavi namespacing es. "azienda.id") + resolver {{var}}.
+  // Usati dalle azioni di piattaforma per risolvere i placeholder.
+  const pPayload: Record<string, any> = (queueItem?.context_json?.payload as Record<string, any>) || {};
+  const rv = (s: any): any =>
+    typeof s === "string"
+      ? s.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m: string, k: string) => {
+          const v = pPayload[k];
+          return v == null ? "" : String(v);
+        })
+      : s;
+  const subjectCompanyId: string = (pPayload["azienda.id"] as string) || entityId;
+  const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
   switch (actionType) {
     case "add_tag": {
@@ -1003,19 +1153,61 @@ Istruzione: ${aiPrompt}`;
     }
 
     case "crea_cantiere": {
-      // No 'cantieri' table exists — log and create a task instead
+      // Un "cantiere"/commessa è un record della tabella `orders` (order_type='cliente').
+      // Rispecchia il path ufficiale preventivo→cantiere (migration converti_preventivo_cantiere
+      // + RPC sr_converti_in_ordine): customer_id nullable, dati cliente denormalizzati nei
+      // campi client_*, status testuale 'confermato'.
       const nome = ncfg.nome || "Cantiere automatico";
-      const { error } = await supabase.from("tasks").insert({
+      const importo = parseFloat(String(ncfg.importo ?? 0)) || 0;
+
+      // Arricchisci dai dati del contatto marketing (entity del flow), se disponibile.
+      const { data: cantiereContact } = await supabase
+        .from("marketing_contacts")
+        .select("first_name, last_name, email, phone, company_name, address, customer_profile_id")
+        .eq("id", entityId)
+        .eq("company_id", companyId)
+        .maybeSingle();
+
+      const clientName = cantiereContact
+        ? [cantiereContact.first_name, cantiereContact.last_name].filter(Boolean).join(" ").trim() || null
+        : null;
+
+      // `customer_id` referenzia profiles(id): l'entity del flow è un marketing_contact,
+      // quindi usa il profilo collegato se esiste, altrimenti lascia null (i dati cliente
+      // restano nei campi client_*). Mai assegnare l'id del contatto a customer_id (FK su profiles).
+      const customerId = cantiereContact?.customer_profile_id || null;
+
+      // data_inizio = giorni da oggi (default catalogo: 7)
+      const parsedStart = parseInt(String(ncfg.data_inizio));
+      const startOffsetDays = Number.isFinite(parsedStart) ? Math.max(parsedStart, 0) : 7;
+      const workStart = new Date(Date.now() + startOffsetDays * 86400000);
+
+      const cantierePayload: Record<string, any> = {
         company_id: companyId,
-        title: `🏗️ Apertura cantiere: ${nome}`,
-        notes: `Cantiere creato automaticamente. Cliente: ${ncfg.cliente_id || entityId}. Importo: €${ncfg.importo || 0}`,
-        priority: "alta",
-        category: "cantieri",
-        status: "da_fare",
-        created_by: "00000000-0000-0000-0000-000000000000",
-      });
+        description: nome,
+        total_amount: importo,
+        balance_amount: importo,
+        order_type: "cliente",
+        status: "confermato",
+        customer_id: customerId,
+        client_name: clientName,
+        client_email: cantiereContact?.email || null,
+        client_phone: cantiereContact?.phone || null,
+        client_company: cantiereContact?.company_name || null,
+        client_address: cantiereContact?.address || null,
+        work_start_date: workStart.toISOString().split("T")[0],
+        internal_notes: "Cantiere aperto automaticamente da un'automazione.",
+      };
+      // user_select → id profilo/utente valido; assigned_to ha FK su profiles ON DELETE SET NULL.
+      if (ncfg.responsabile_id) cantierePayload.assigned_to = ncfg.responsabile_id;
+
+      const { data, error } = await supabase
+        .from("orders")
+        .insert(cantierePayload)
+        .select("id")
+        .single();
       if (error) return { success: false, error: error.message };
-      return { success: true, output: { action: "crea_cantiere", fallback: "task_created", nome } };
+      return { success: true, output: { action: "crea_cantiere", cantiere_id: data?.id, nome } };
     }
 
     case "crea_appuntamento": {
@@ -1100,6 +1292,243 @@ Istruzione: ${aiPrompt}`;
       }
     }
 
+    case "vai_a": {
+      // Salta a un nodo specifico del flow invece di seguire gli archi del grafo.
+      // Il vero accodamento è gestito da queueNextNodes (result.isJump), con validazione
+      // del nodo destinazione e backstop anti-loop.
+      const targetNodeId = ncfg.target_node_id;
+      if (!targetNodeId) return { success: false, error: "No target_node_id configured" };
+      return {
+        success: true,
+        output: { action: "vai_a", target_node_id: String(targetNodeId), label: ncfg.label || null },
+        isJump: true,
+        jumpToNodeId: String(targetNodeId),
+      };
+    }
+
+    case "drip_sequenza": {
+      // Sequenza a goccia: accoda i nodi successori N volte a intervalli crescenti.
+      // L'accodamento temporizzato è gestito da queueNextNodes (result.isDrip).
+      const intervalHours = parseInt(String(ncfg.intervallo_ore)) || 24;
+      const count = Math.min(Math.max(parseInt(String(ncfg.num_messaggi)) || 1, 1), 20);
+      return {
+        success: true,
+        output: { action: "drip_sequenza", num_messaggi: count, intervallo_ore: intervalHours, label: ncfg.label || null },
+        isDrip: true,
+        dripCount: count,
+        dripIntervalMs: intervalHours * 3600000,
+      };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // AZIONI DI PIATTAFORMA (solo area superadmin)
+    // La guardia di contesto sopra garantisce isPlatformCtx === true qui.
+    // Le 3 più sensibili richiedono in più l'autore super_admin in allowlist.
+    // ═══════════════════════════════════════════════════════════════════
+    case "invia_email_admin_azienda": {
+      let to = String(rv(ncfg.email_to) || rv(cfg.destinatario) || pPayload["azienda.email"] || "").trim();
+      if (!to) {
+        const { data: comp } = await supabase.from("companies").select("email").eq("id", subjectCompanyId).maybeSingle();
+        to = String(comp?.email || "").trim();
+      }
+      if (!to) return { success: false, error: "Email admin azienda non determinabile" };
+      const res = await sendEmailUnified({
+        companyId: subjectCompanyId,
+        stream: "transactional",
+        to,
+        subject: rv(cfg.oggetto) || "Comunicazione dalla piattaforma",
+        html: rv(cfg.corpo) || "",
+        adminClient: supabase,
+        metadata: { source: "platform_automation", action: "invia_email_admin_azienda" },
+      });
+      if (!res?.ok) return { success: false, error: `Invio email fallito (status ${res?.status ?? "?"})` };
+      return { success: true, output: { action: "invia_email_admin_azienda", to } };
+    }
+
+    case "crea_cs_task": {
+      const PRIO: Record<string, string> = { urgente: "urgent", alta: "high", media: "medium", bassa: "low" };
+      let dueDate: string | null = null;
+      const dueDays = cfg.scadenza_giorni != null ? parseInt(String(cfg.scadenza_giorni)) : NaN;
+      if (!Number.isNaN(dueDays)) {
+        const d = new Date(); d.setDate(d.getDate() + dueDays); dueDate = d.toISOString().split("T")[0];
+      }
+      const { data, error } = await supabase.from("cs_tasks").insert({
+        company_id: subjectCompanyId,
+        title: rv(cfg.titolo) || "CS Task",
+        description: rv(cfg.descrizione) || null,
+        priority: PRIO[String(cfg.priorita)] || "medium",
+        status: "open",
+        task_type: "automation",
+        due_date: dueDate,
+        assigned_to: UUID_RE.test(String(cfg.assegnato_a || "")) ? cfg.assegnato_a : null,
+        created_by: SYSTEM_USER_ID,
+      }).select("id").maybeSingle();
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "crea_cs_task", "cs_task.id": data?.id } };
+    }
+
+    case "cambia_piano_azienda": {
+      if (!(await flowAuthorIsAllowedSuperAdmin(supabase, queueItem?.flow_id))) {
+        return { success: false, error: "Autorizzazione super_admin (allowlist) richiesta per cambiare piano" };
+      }
+      const planRef = String(rv(cfg.nuovo_piano) || "").trim().toLowerCase().replace(/[^\w \-]/g, "");
+      if (!planRef) return { success: false, error: "Piano non specificato" };
+      const { data: plan } = await supabase
+        .from("subscription_plans")
+        .select("id, name, slug")
+        .or(`slug.eq.${planRef},name.ilike.${planRef}`)
+        .limit(1)
+        .maybeSingle();
+      if (!plan?.id) return { success: false, error: `Piano "${planRef}" non trovato` };
+      const { error } = await supabase.from("companies").update({ subscription_plan_id: plan.id }).eq("id", subjectCompanyId);
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "cambia_piano_azienda", plan: plan.slug } };
+    }
+
+    case "aggiungi_nota_azienda": {
+      const content = rv(cfg.testo) || "";
+      if (!content) return { success: false, error: "Nota vuota" };
+      const { error } = await supabase.from("company_notes").insert({
+        company_id: subjectCompanyId,
+        author_id: SYSTEM_USER_ID,
+        content,
+      });
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "aggiungi_nota_azienda" } };
+    }
+
+    case "invia_notifica_team_admin": {
+      const message = rv(cfg.messaggio) || "Notifica piattaforma";
+      const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "super_admin");
+      const ids: string[] = Array.from(new Set((admins || []).map((r: any) => r.user_id).filter(Boolean)));
+      if (ids.length === 0) {
+        return { success: true, output: { action: "invia_notifica_team_admin", notified: 0, note: "Nessun super_admin trovato" } };
+      }
+      const rows = ids.map((uid) => ({
+        company_id: PLATFORM_ADMIN_COMPANY_ID,
+        user_id: uid,
+        type: "platform_automation",
+        title: String(message).slice(0, 120),
+        body: message,
+        entity_type: "company",
+        entity_id: UUID_RE.test(String(subjectCompanyId)) ? subjectCompanyId : null,
+      }));
+      const { error } = await supabase.from("notifications").insert(rows);
+      if (error) return { success: false, error: error.message };
+      return { success: true, output: { action: "invia_notifica_team_admin", notified: ids.length } };
+    }
+
+    case "crea_account_azienda": {
+      if (!(await flowAuthorIsAllowedSuperAdmin(supabase, queueItem?.flow_id))) {
+        return { success: false, error: "Autorizzazione super_admin (allowlist) richiesta per il provisioning" };
+      }
+      const email = String(rv(cfg.email) || pPayload["contatto.email"] || pPayload["azienda.email"] || "").trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { success: false, error: "Email admin non valida per il provisioning" };
+      const name = String(rv(cfg.nome) || pPayload["azienda.name"] || pPayload["contatto.company_name"] || `Azienda ${email.split("@")[0]}`).slice(0, 120);
+      const planRef = String(rv(cfg.piano) || "").trim().toLowerCase().replace(/[^\w \-]/g, "");
+      let planId: string | null = null;
+      let trialDays = parseInt(String(cfg.trial_giorni ?? 0)) || 0;
+      if (planRef) {
+        const { data: plan } = await supabase.from("subscription_plans").select("id, trial_days").or(`slug.eq.${planRef},name.ilike.${planRef}`).limit(1).maybeSingle();
+        if (plan?.id) { planId = plan.id; if (!cfg.trial_giorni && plan.trial_days) trialDays = plan.trial_days; }
+      }
+      const trialEndsAt = trialDays > 0 ? new Date(Date.now() + trialDays * 86400000).toISOString() : null;
+      const password = generateTempPassword();
+      const { data: authData, error: authErr } = await supabase.auth.admin.createUser({ email, password, email_confirm: true });
+      if (authErr || !authData?.user?.id) return { success: false, error: `Creazione utente fallita: ${authErr?.message || "unknown"}` };
+      const newUserId = authData.user.id;
+      const { data: companyRow, error: compErr } = await supabase.from("companies").insert({
+        name, email, sector: "altro",
+        status: trialDays > 0 ? "trial" : "active",
+        trial_ends_at: trialEndsAt,
+        subscription_plan_id: planId,
+      }).select("id").single();
+      if (compErr || !companyRow?.id) {
+        await swallow(supabase.auth.admin.deleteUser(newUserId));
+        return { success: false, error: `Creazione azienda fallita: ${compErr?.message || "unknown"}` };
+      }
+      const newCompanyId = companyRow.id;
+      const { error: profErr } = await supabase.from("profiles").insert({
+        id: newUserId, email, first_name: "Admin", last_name: name, company_id: newCompanyId,
+      });
+      if (profErr) {
+        await swallow(supabase.from("companies").delete().eq("id", newCompanyId));
+        await swallow(supabase.auth.admin.deleteUser(newUserId));
+        return { success: false, error: `Creazione profilo fallita: ${profErr.message}` };
+      }
+      await swallow(supabase.from("user_roles").insert({ user_id: newUserId, role: "company_admin" }));
+      if (cfg.invia_credenziali !== "no") {
+        await swallow(sendEmailUnified({
+          companyId: newCompanyId, stream: "transactional", to: email,
+          subject: "Il tuo account EdiliziaInCloud è pronto",
+          html: `<p>Benvenuto, ${name}.</p><p>Accedi con:<br/>Email: <b>${email}</b><br/>Password temporanea: <b>${password}</b></p><p>Cambia la password al primo accesso.</p>`,
+          adminClient: supabase, metadata: { source: "platform_automation", action: "crea_account_azienda" },
+        }));
+      }
+      return { success: true, output: { action: "crea_account_azienda", "nuovo_account.id": newCompanyId, "nuovo_account.email_admin": email } };
+    }
+
+    case "invia_fattura": {
+      if (!(await flowAuthorIsAllowedSuperAdmin(supabase, queueItem?.flow_id))) {
+        return { success: false, error: "Autorizzazione super_admin (allowlist) richiesta per fatturare" };
+      }
+      const importo = Number(cfg.importo);
+      if (!Number.isFinite(importo) || importo < 0) return { success: false, error: "Importo fattura non valido" };
+      const scadenzaGiorni = parseInt(String(cfg.scadenza_giorni ?? 30)) || 30;
+      const now = new Date();
+      const periodEnd = new Date(now.getTime() + scadenzaGiorni * 86400000);
+      const synthId = `manual_${crypto.randomUUID()}`;
+      const { data, error } = await supabase.from("subscription_invoices").insert({
+        company_id: subjectCompanyId,
+        stripe_invoice_id: synthId,
+        amount_due: Math.round(importo * 100),
+        amount_paid: 0,
+        currency: "eur",
+        status: "open",
+        period_start: now.toISOString(),
+        period_end: periodEnd.toISOString(),
+      }).select("id").maybeSingle();
+      if (error) return { success: false, error: error.message };
+      if (cfg.invia_email !== "no") {
+        const { data: comp } = await supabase.from("companies").select("email").eq("id", subjectCompanyId).maybeSingle();
+        const to = String(pPayload["azienda.email"] || comp?.email || "").trim();
+        if (to) {
+          await swallow(sendEmailUnified({
+            companyId: subjectCompanyId, stream: "transactional", to,
+            subject: "Nuova fattura EdiliziaInCloud",
+            html: `<p>${rv(cfg.descrizione) || "Fattura"}</p><p>Importo: € ${importo.toFixed(2)}</p>`,
+            adminClient: supabase, metadata: { source: "platform_automation", action: "invia_fattura" },
+          }));
+        }
+      }
+      return { success: true, output: { action: "invia_fattura", "fattura.id": data?.id, "fattura.numero": synthId } };
+    }
+
+    case "attiva_onboarding": {
+      const { data: tpl } = await supabase
+        .from("onboarding_templates")
+        .select("id")
+        .order("is_default", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!tpl?.id) {
+        return { success: true, output: { action: "attiva_onboarding", skipped: true, reason: "Nessun onboarding_template disponibile" } };
+      }
+      const { error } = await supabase.from("company_onboarding").insert({
+        company_id: subjectCompanyId,
+        template_id: tpl.id,
+        assigned_cs: UUID_RE.test(String(cfg.assegna_cs || "")) ? cfg.assegna_cs : null,
+        status: "in_progress",
+      });
+      if (error) {
+        if (String(error.code) === "23505" || /duplicate|unique/i.test(error.message || "")) {
+          return { success: true, output: { action: "attiva_onboarding", already_active: true } };
+        }
+        return { success: false, error: error.message };
+      }
+      return { success: true, output: { action: "attiva_onboarding", template_id: tpl.id } };
+    }
+
     default:
       return { success: true, output: { action: actionType, skipped: true, reason: "Not implemented yet" } };
   }
@@ -1109,6 +1538,51 @@ Istruzione: ${aiPrompt}`;
 // QUEUE NEXT NODES
 // ────────────────────────────────────────────────────
 async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNode, result: any) {
+  // ── vai_a (Go To): salta a un nodo specifico ignorando gli archi del grafo ──
+  // Va prima del controllo "nessuna connessione": un nodo vai_a può non avere archi uscenti.
+  if (result.isJump && result.jumpToNodeId) {
+    // Il nodo destinazione deve esistere e appartenere a questo flow.
+    const { data: targetNode } = await supabase
+      .from("automation_nodes")
+      .select("id")
+      .eq("id", result.jumpToNodeId)
+      .eq("flow_id", queueItem.flow_id)
+      .maybeSingle();
+
+    if (!targetNode) {
+      await supabase
+        .from("automation_enrollments")
+        .update({ status: "completed", updated_at: new Date().toISOString() })
+        .eq("id", queueItem.enrollment_id);
+      await completeExecutionRun(supabase, queueItem.enrollment_id, "error", `vai_a: nodo destinazione ${result.jumpToNodeId} non trovato nel flow`);
+      return;
+    }
+
+    // Backstop anti-loop: limita il numero totale di salti per iscrizione.
+    const jumpCount = (Number(queueItem.context_json?._jump_count) || 0) + 1;
+    if (jumpCount > 200) {
+      await supabase
+        .from("automation_enrollments")
+        .update({ status: "completed", updated_at: new Date().toISOString() })
+        .eq("id", queueItem.enrollment_id);
+      await completeExecutionRun(supabase, queueItem.enrollment_id, "error", "vai_a: limite massimo di salti raggiunto (possibile loop nel flow)");
+      return;
+    }
+
+    await supabase.from("automation_queue").insert({
+      enrollment_id: queueItem.enrollment_id,
+      flow_id: queueItem.flow_id,
+      company_id: queueItem.company_id,
+      current_node_id: result.jumpToNodeId,
+      entity_id: queueItem.entity_id,
+      entity_type: queueItem.entity_type,
+      status: "pending",
+      execute_at: new Date().toISOString(),
+      context_json: { ...queueItem.context_json, _jump_count: jumpCount, jumped_from: node.id, prev_result: result.output },
+    });
+    return;
+  }
+
   // Get all connections from this node
   const { data: connections } = await supabase
     .from("automation_connections")
@@ -1166,6 +1640,29 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
           status: "waiting",
           execute_at: timeoutAt,
           context_json: { ...queueItem.context_json, branch: "timeout", await_event: result.awaitEvent, waiting_for: result.awaitEvent, wait_node_id: node.id },
+        });
+      }
+    }
+    return;
+  }
+
+  // ── drip_sequenza: accoda i nodi successori `dripCount` volte a intervalli crescenti ──
+  if (result.isDrip) {
+    const count = result.dripCount || 1;
+    const intervalMs = result.dripIntervalMs || 86400000;
+    for (const conn of nextConns) {
+      for (let step = 0; step < count; step++) {
+        const executeAt = new Date(Date.now() + step * intervalMs).toISOString();
+        await supabase.from("automation_queue").insert({
+          enrollment_id: queueItem.enrollment_id,
+          flow_id: queueItem.flow_id,
+          company_id: queueItem.company_id,
+          current_node_id: conn.to_node_id,
+          entity_id: queueItem.entity_id,
+          entity_type: queueItem.entity_type,
+          status: "pending",
+          execute_at: executeAt,
+          context_json: { ...queueItem.context_json, branch: conn.label, drip_step: step + 1, drip_total: count, prev_result: result.output },
         });
       }
     }
@@ -1414,11 +1911,21 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       .replace(/\{\{province\}\}/g, contact.province || "")
       .replace(/\{\{contact_company\}\}/g, contact.company_name || "");
 
-    // Inject tracking pixel and unsubscribe link for marketing emails
+    // Inject tracking pixel and unsubscribe link for marketing emails.
+    // SEC: link firmati HMAC (vedi emailTrackingSignature.ts). L'URL di unsub
+    // firmato è riusato sotto nell'header List-Unsubscribe per coerenza.
+    let automationUnsubUrl = "";
     if (stream === "marketing") {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const trackingPixel = `<img src="${supabaseUrl}/functions/v1/email-tracking?type=automation_open&rid=${contact.id}&co=${companyId}" width="1" height="1" style="display:none" alt="" />`;
-      const unsubLink = `${supabaseUrl}/functions/v1/email-tracking?type=automation_unsub&rid=${contact.id}&co=${companyId}`;
+      const openPixelUrl = await appendTrackingSig(
+        `${supabaseUrl}/functions/v1/email-tracking?type=automation_open&rid=${contact.id}&co=${companyId}`,
+        { co: companyId, rid: contact.id, type: "automation_open" },
+      );
+      automationUnsubUrl = await appendTrackingSig(
+        `${supabaseUrl}/functions/v1/email-tracking?type=automation_unsub&rid=${contact.id}&co=${companyId}`,
+        { co: companyId, rid: contact.id, type: "automation_unsub" },
+      );
+      const trackingPixel = `<img src="${openPixelUrl}" width="1" height="1" style="display:none" alt="" />`;
 
       // Inject pixel before </body> or at end
       if (html.includes("</body>")) {
@@ -1428,7 +1935,7 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       }
 
       // Inject unsubscribe link if placeholder exists
-      html = html.replace(/\{\{unsubscribe_url\}\}/g, unsubLink);
+      html = html.replace(/\{\{unsubscribe_url\}\}/g, automationUnsubUrl);
     }
 
     const resolvedSender = cfg.from_email
@@ -1472,7 +1979,8 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
       html,
       headers: stream === "marketing"
         ? {
-            "List-Unsubscribe": `<${Deno.env.get("SUPABASE_URL")!}/functions/v1/email-tracking?type=automation_unsub&rid=${contact.id}&co=${companyId}>`,
+            // SEC: stesso URL di unsub firmato HMAC iniettato nel corpo.
+            "List-Unsubscribe": `<${automationUnsubUrl}>`,
             "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
           }
         : undefined,
