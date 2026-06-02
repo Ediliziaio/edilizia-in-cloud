@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Search, Zap, Link2, Unlink, CheckCircle2, ArrowRight, Loader2, FileText, Banknote, Download, FileSpreadsheet, AlertTriangle, CalendarClock, Copy, HelpCircle, Siren, ShieldCheck } from "lucide-react";
+import { Search, Zap, Link2, Unlink, CheckCircle2, ArrowRight, Loader2, FileText, Banknote, Download, FileSpreadsheet, AlertTriangle, CalendarClock, Copy, HelpCircle, Siren, ShieldCheck, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { logger } from "@/utils/logger";
 import { cn } from "@/lib/utils";
@@ -100,6 +100,10 @@ interface ReconAnomaly {
   icon: LucideIcon;
   title: string;
   detail: string;
+  /** Quale lista filtrare al click */
+  target: "tx" | "inv";
+  /** ID degli elementi coinvolti (transazioni o fatture) */
+  ids: string[];
 }
 
 const RECON_SEVERITY_CLS: Record<ReconSeverity, string> = {
@@ -138,15 +142,17 @@ function detectReconAnomalies(transactions: any[], invoices: any[]): ReconAnomal
       id: "overdue",
       severity: "warning",
       icon: CalendarClock,
+      target: "inv",
+      ids: overdue.map((i) => i.id),
       title: `${overdue.length} fatture scadute non incassate`,
       detail: `${fmtEur(amt)} oltre la data di scadenza. Verifica incassi non registrati o sollecita il cliente.`,
     });
   }
 
   // 2. Accrediti senza fattura corrispondente + 3. match ambiguo (singola passata)
-  let noMatchCount = 0;
+  const noMatchIds: string[] = [];
   let noMatchAmt = 0;
-  let ambiguousCount = 0;
+  const ambiguousIds: string[] = [];
   for (const tx of transactions) {
     let hasMatch = false;
     let strong = 0;
@@ -158,47 +164,54 @@ function detectReconAnomalies(transactions: any[], invoices: any[]): ReconAnomal
       }
     }
     if (!hasMatch) {
-      noMatchCount++;
+      noMatchIds.push(tx.id);
       noMatchAmt += Math.abs(tx.amount);
     }
-    if (strong >= 2) ambiguousCount++;
+    if (strong >= 2) ambiguousIds.push(tx.id);
   }
-  if (noMatchCount) {
+  if (noMatchIds.length) {
     out.push({
       id: "nomatch",
       severity: "info",
       icon: HelpCircle,
-      title: `${noMatchCount} incassi senza fattura corrispondente`,
+      target: "tx",
+      ids: noMatchIds,
+      title: `${noMatchIds.length} incassi senza fattura corrispondente`,
       detail: `${fmtEur(noMatchAmt)} di accrediti non agganciabili a nessuna fattura aperta: potrebbe mancare la fattura o essere un incasso extra.`,
     });
   }
-  if (ambiguousCount) {
+  if (ambiguousIds.length) {
     out.push({
       id: "ambiguous",
       severity: "warning",
       icon: AlertTriangle,
-      title: `${ambiguousCount} transazioni con match ambiguo`,
+      target: "tx",
+      ids: ambiguousIds,
+      title: `${ambiguousIds.length} transazioni con match ambiguo`,
       detail: `Più fatture risultano compatibili: verifica manualmente prima di riconciliare per evitare abbinamenti errati.`,
     });
   }
 
   // 4. Possibili pagamenti duplicati (stesso importo + intestatario entro 7 giorni)
-  const groups = new Map<string, number[]>();
+  const groups = new Map<string, { id: string; t: number }[]>();
   for (const tx of transactions) {
     const name = normName(tx.creditor_name || tx.debtor_name || "");
     if (!name) continue; // serve un intestatario per valutare il duplicato
     const key = `${Math.round(Math.abs(tx.amount) * 100)}|${name}`;
     const t = tx.booking_date ? new Date(tx.booking_date).getTime() : NaN;
+    const entry = { id: tx.id as string, t };
     const arr = groups.get(key);
-    if (arr) arr.push(t);
-    else groups.set(key, [t]);
+    if (arr) arr.push(entry);
+    else groups.set(key, [entry]);
   }
+  const dupIds: string[] = [];
   let dupGroups = 0;
-  for (const times of groups.values()) {
-    if (times.length < 2) continue;
-    const valid = times.filter((n) => !Number.isNaN(n)).sort((a, b) => a - b);
-    if (valid.length >= 2 && valid[valid.length - 1] - valid[0] <= 7 * 86400000) {
+  for (const arr of groups.values()) {
+    if (arr.length < 2) continue;
+    const valid = arr.filter((e) => !Number.isNaN(e.t)).sort((a, b) => a.t - b.t);
+    if (valid.length >= 2 && valid[valid.length - 1].t - valid[0].t <= 7 * 86400000) {
       dupGroups++;
+      for (const e of valid) dupIds.push(e.id);
     }
   }
   if (dupGroups) {
@@ -206,6 +219,8 @@ function detectReconAnomalies(transactions: any[], invoices: any[]): ReconAnomal
       id: "duplicates",
       severity: "warning",
       icon: Copy,
+      target: "tx",
+      ids: dupIds,
       title: `${dupGroups} possibili pagamenti duplicati`,
       detail: `Accrediti con stesso importo e stesso intestatario a pochi giorni di distanza: controlla che non siano doppi incassi o importazioni ripetute.`,
     });
@@ -222,6 +237,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   const [loading, setLoading] = useState(true);
   const [searchTx, setSearchTx] = useState("");
   const [searchInv, setSearchInv] = useState("");
+  const [activeInsightId, setActiveInsightId] = useState<string | null>(null);
 
   // Match dialog
   const [selectedTx, setSelectedTx] = useState<any>(null);
@@ -308,6 +324,13 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
   const anomalies = useMemo(
     () => detectReconAnomalies(transactions, invoices),
     [transactions, invoices],
+  );
+
+  // Anomalia selezionata come filtro — derivata dai dati correnti, così si
+  // azzera da sola quando gli elementi coinvolti spariscono dopo una riconciliazione.
+  const activeInsight = useMemo(
+    () => anomalies.find((a) => a.id === activeInsightId) ?? null,
+    [anomalies, activeInsightId],
   );
 
   // Open match dialog
@@ -499,23 +522,37 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
 
   // Filtered lists
   const filteredTx = useMemo(() => {
-    if (!searchTx) return transactions;
-    const q = searchTx.toLowerCase();
-    return transactions.filter((t) =>
-      (t.description || "").toLowerCase().includes(q) ||
-      (t.creditor_name || "").toLowerCase().includes(q) ||
-      (t.debtor_name || "").toLowerCase().includes(q)
-    );
-  }, [transactions, searchTx]);
+    let list = transactions;
+    if (activeInsight?.target === "tx") {
+      const ids = new Set(activeInsight.ids);
+      list = list.filter((t) => ids.has(t.id));
+    }
+    if (searchTx) {
+      const q = searchTx.toLowerCase();
+      list = list.filter((t) =>
+        (t.description || "").toLowerCase().includes(q) ||
+        (t.creditor_name || "").toLowerCase().includes(q) ||
+        (t.debtor_name || "").toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [transactions, searchTx, activeInsight]);
 
   const filteredInv = useMemo(() => {
-    if (!searchInv) return invoices;
-    const q = searchInv.toLowerCase();
-    return invoices.filter((i) =>
-      (i.invoice_number || "").toLowerCase().includes(q) ||
-      (i.client_company_name || "").toLowerCase().includes(q)
-    );
-  }, [invoices, searchInv]);
+    let list = invoices;
+    if (activeInsight?.target === "inv") {
+      const ids = new Set(activeInsight.ids);
+      list = list.filter((i) => ids.has(i.id));
+    }
+    if (searchInv) {
+      const q = searchInv.toLowerCase();
+      list = list.filter((i) =>
+        (i.invoice_number || "").toLowerCase().includes(q) ||
+        (i.client_company_name || "").toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [invoices, searchInv, activeInsight]);
 
   // Export reconciliations
   async function exportReconciliations(fmt: "csv" | "xlsx") {
@@ -659,17 +696,32 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           <CardContent className="grid gap-2 sm:grid-cols-2">
             {anomalies.map((a) => {
               const Icon = a.icon;
+              const active = activeInsightId === a.id;
               return (
-                <div
+                <button
+                  type="button"
                   key={a.id}
-                  className={cn("flex gap-2 rounded-lg border p-3", RECON_SEVERITY_CLS[a.severity])}
+                  onClick={() => setActiveInsightId((cur) => (cur === a.id ? null : a.id))}
+                  aria-pressed={active}
+                  className={cn(
+                    "flex w-full gap-2 rounded-lg border p-3 text-left transition-shadow hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    RECON_SEVERITY_CLS[a.severity],
+                    active && "ring-2 ring-current",
+                  )}
                 >
                   <Icon className="mt-0.5 h-4 w-4 shrink-0" />
                   <div className="min-w-0">
                     <div className="text-sm font-semibold">{a.title}</div>
                     <div className="mt-0.5 text-xs opacity-80">{a.detail}</div>
+                    <div className="mt-1 text-[10px] font-medium uppercase tracking-wide opacity-70">
+                      {active
+                        ? "Filtro attivo · clicca per azzerare"
+                        : a.target === "tx"
+                          ? "Clicca per filtrare le transazioni"
+                          : "Clicca per filtrare le fatture"}
+                    </div>
                   </div>
-                </div>
+                </button>
               );
             })}
           </CardContent>
@@ -679,6 +731,29 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           <ShieldCheck className="h-4 w-4 shrink-0" /> Nessuna anomalia rilevata nei dati bancari correnti.
         </div>
       ) : null}
+
+      {/* Filtro anomalia attivo */}
+      {activeInsight && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Filtro anomalia attivo:</span>
+          <Badge variant="secondary" className="gap-1.5">
+            {activeInsight.title}
+            <button
+              type="button"
+              onClick={() => setActiveInsightId(null)}
+              className="rounded-sm hover:bg-foreground/10"
+              aria-label="Azzera filtro anomalia"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </Badge>
+          <span className="text-muted-foreground">
+            {activeInsight.target === "tx"
+              ? `${filteredTx.length} transazioni mostrate`
+              : `${filteredInv.length} fatture mostrate`}
+          </span>
+        </div>
+      )}
 
       {/* Auto-match button */}
       <div className="flex justify-end">
@@ -708,7 +783,9 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           </CardHeader>
           <CardContent className="max-h-[500px] overflow-y-auto space-y-2">
             {filteredTx.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Nessuna transazione da riconciliare</p>
+              <p className="text-sm text-muted-foreground text-center py-8">
+                {transactions.length === 0 ? "Nessuna transazione da riconciliare" : "Nessun risultato con i filtri attivi"}
+              </p>
             ) : (
               filteredTx.map((tx) => (
                 <div
@@ -754,7 +831,9 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           </CardHeader>
           <CardContent className="max-h-[500px] overflow-y-auto space-y-2">
             {filteredInv.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">Nessuna fattura non pagata</p>
+              <p className="text-sm text-muted-foreground text-center py-8">
+                {invoices.length === 0 ? "Nessuna fattura non pagata" : "Nessun risultato con i filtri attivi"}
+              </p>
             ) : (
               filteredInv.map((inv) => {
                 const remaining = Number(inv.total || 0) - Number(inv.paid_amount || 0);
