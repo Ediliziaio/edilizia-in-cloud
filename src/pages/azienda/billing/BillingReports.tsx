@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Download, BarChart3, PieChart, TrendingUp, CalendarClock } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell } from "recharts";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { escapeCsvCell } from "@/lib/csvExport";
 
 const MONTHS_IT = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 const PIE_COLORS = ["hsl(var(--primary))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))"];
@@ -118,7 +119,7 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
       Number(i.paid_amount || 0).toFixed(2),
       i.status,
     ]);
-    const csv = [headers, ...rows].map((r) => r.join(";")).join("\n");
+    const csv = [headers, ...rows].map((r) => r.map((v) => escapeCsvCell(v, ";")).join(";")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

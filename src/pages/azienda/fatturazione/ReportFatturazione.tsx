@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -112,7 +113,11 @@ export default function ReportFatturazione() {
     const header = "Numero;Data;Tipo;Cliente;P.IVA;Imponibile;IVA;Totale\n";
     const rows = docs
       .filter((d) => ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "nota_credito"].includes(d.tipo) && d.stato !== "bozza")
-      .map((d) => `${d.numero};${d.data_emissione};${d.tipo};${d.cliente_snapshot?.ragione_sociale ?? ""};${d.cliente_snapshot?.partita_iva ?? ""};${d.imponibile_totale.toFixed(2)};${d.iva_totale.toFixed(2)};${d.totale_documento.toFixed(2)}`)
+      .map((d) => [
+        d.numero, d.data_emissione, d.tipo,
+        d.cliente_snapshot?.ragione_sociale ?? "", d.cliente_snapshot?.partita_iva ?? "",
+        d.imponibile_totale.toFixed(2), d.iva_totale.toFixed(2), d.totale_documento.toFixed(2),
+      ].map((v) => escapeCsvCell(v as string | number, ";")).join(";"))
       .join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);

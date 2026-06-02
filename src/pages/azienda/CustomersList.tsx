@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getAvatarColor } from "@/lib/contactUtils";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -523,7 +524,7 @@ function CustomersListInner() {
         c.site_postal_code || "",
         c.site_city || "",
         c.site_province || "",
-        (c.notes || "").replace(/"/g, '""'),
+        c.notes || "",
         String(c.order_count),
         c.created_at ? format(new Date(c.created_at), "dd/MM/yyyy") : "",
         sp ? `${sp.first_name} ${sp.last_name}` : "",
@@ -535,7 +536,7 @@ function CustomersListInner() {
 
   const downloadCSV = (rows: CustomerWithOrders[], fileName: string) => {
     const csvRows = buildCsvRows(rows);
-    const csv = csvRows.map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(";")).join("\n");
+    const csv = csvRows.map((r) => r.map((v) => escapeCsvCell(v, ";")).join(";")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

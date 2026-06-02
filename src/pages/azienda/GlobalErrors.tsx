@@ -55,6 +55,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import {
@@ -499,9 +500,7 @@ function formatErrorDate(value: string | null | undefined): string {
 }
 
 function csvEscape(value: string | number | null | undefined): string {
-  const raw = String(value ?? "");
-  const escaped = raw.replace(/"/g, '""');
-  return `"${escaped}"`;
+  return escapeCsvCell(value, ";");
 }
 
 function SortIcon({ active, direction }: { active: boolean; direction: SortDirection }) {

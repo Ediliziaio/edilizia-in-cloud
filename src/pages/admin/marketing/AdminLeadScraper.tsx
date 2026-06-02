@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAdminMarketing } from "@/hooks/useAdminMarketing";
 import { toast } from "sonner";
 import { formatRelativeTime } from "@/lib/formatters";
+import { escapeCsvCell } from "@/lib/csvExport";
 import {
   Search, MapPin, Linkedin, Building2, Loader2, Sparkles, Mail, Phone,
   Globe, Star, Download, UserPlus, Trash2, Target, ChevronRight,
@@ -571,7 +572,7 @@ export default function AdminLeadScraper() {
     if (!rows.length) return;
     const header = ["Azienda", "Contatto", "Ruolo", "Telefono", "Email", "Stato email", "P.IVA", "Sito",
       "LinkedIn", "Facebook", "Instagram", "Indirizzo", "Città", "Rating", "Recensioni", "AI Score", "Intent Score"];
-    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const esc = (v: unknown) => escapeCsvCell(v as string | number | null | undefined, ",");
     const csv = [
       header.join(","),
       ...rows.map((r) => [

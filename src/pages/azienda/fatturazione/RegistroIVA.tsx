@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency } from "@/lib/formatters";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,7 +32,8 @@ function exportCSV(rows: any[], filename: string) {
     headers.join(";"),
     ...rows.map((r) =>
       [r.data, r.numero, r.controparte, r.imponibile.toFixed(2), r.iva.toFixed(2),
-        r.totale.toFixed(2), r.aliquota, r.natura || ""].join(";")
+        r.totale.toFixed(2), r.aliquota, r.natura || ""]
+        .map((v) => escapeCsvCell(v as string | number, ";")).join(";")
     ),
   ];
   const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });

@@ -19,6 +19,7 @@ import { usePrimaNota } from "@/hooks/usePrimaNota";
 import NewEntryDialog from "@/components/prima-nota/NewEntryDialog";
 import { TablePagination } from "@/components/ui/table-pagination";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -153,13 +154,13 @@ function PrimaNotaInner() {
         e.entry_date,
         e.direction,
         e.category,
-        `"${e.description.replace(/"/g, '""')}"`,
+        e.description,
         e.direction === "uscita" ? `-${e.amount}` : e.amount,
         e.payment_method || "",
         e.reference_number || "",
-        `"${(e.notes || "").replace(/"/g, '""')}"`,
+        e.notes || "",
         e.is_auto ? "Sì" : "No",
-      ].join(",")
+      ].map((v) => escapeCsvCell(v as string | number, ",")).join(",")
     ).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
