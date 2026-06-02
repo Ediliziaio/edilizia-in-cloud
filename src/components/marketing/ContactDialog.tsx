@@ -4,6 +4,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ComuneAutocomplete } from "@/components/shared/ComuneAutocomplete";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { TagSelector } from "@/components/marketing/TagSelector";
@@ -205,7 +206,11 @@ export function ContactDialog({ open, onOpenChange, onSave, initialData, isEditi
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Città</Label>
-              <Input value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} />
+              <ComuneAutocomplete
+                value={form.city}
+                onValueChange={(v) => setForm((f) => ({ ...f, city: v }))}
+                onSelect={(c) => setForm((f) => ({ ...f, city: c.comune, province: c.provinciaSigla }))}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Provincia</Label>

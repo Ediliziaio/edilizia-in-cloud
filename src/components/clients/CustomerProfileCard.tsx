@@ -283,6 +283,12 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                       label="Città"
                       value={customer.city || ""}
                       onSave={(v) => updateField.mutate({ field: "city", value: v || null })}
+                      comuneMode="comune"
+                      onSelectComune={(c) => {
+                        updateField.mutate({ field: "city", value: c.comune });
+                        updateField.mutate({ field: "province", value: c.provinciaSigla });
+                        if (!customer.postal_code) updateField.mutate({ field: "postal_code", value: c.cap });
+                      }}
                     />
                   )}
                   {matchesSearch("CAP") && (
@@ -290,6 +296,12 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                       label="CAP"
                       value={customer.postal_code || ""}
                       onSave={(v) => updateField.mutate({ field: "postal_code", value: v || null })}
+                      comuneMode="cap"
+                      onSelectComune={(c) => {
+                        updateField.mutate({ field: "postal_code", value: c.cap });
+                        updateField.mutate({ field: "city", value: c.comune });
+                        updateField.mutate({ field: "province", value: c.provinciaSigla });
+                      }}
                     />
                   )}
                   {matchesSearch("Provincia") && (
@@ -328,6 +340,12 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                       label="Città"
                       value={customer.site_city || ""}
                       onSave={(v) => updateField.mutate({ field: "site_city", value: v || null })}
+                      comuneMode="comune"
+                      onSelectComune={(c) => {
+                        updateField.mutate({ field: "site_city", value: c.comune });
+                        updateField.mutate({ field: "site_province", value: c.provinciaSigla });
+                        if (!customer.site_postal_code) updateField.mutate({ field: "site_postal_code", value: c.cap });
+                      }}
                     />
                   )}
                   {matchesSearch("CAP cantiere") && (
@@ -335,6 +353,12 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
                       label="CAP"
                       value={customer.site_postal_code || ""}
                       onSave={(v) => updateField.mutate({ field: "site_postal_code", value: v || null })}
+                      comuneMode="cap"
+                      onSelectComune={(c) => {
+                        updateField.mutate({ field: "site_postal_code", value: c.cap });
+                        updateField.mutate({ field: "site_city", value: c.comune });
+                        updateField.mutate({ field: "site_province", value: c.provinciaSigla });
+                      }}
                     />
                   )}
                   {matchesSearch("Provincia cantiere") && (

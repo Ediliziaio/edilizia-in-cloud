@@ -13,6 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ComuneAutocomplete } from "@/components/shared/ComuneAutocomplete";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -631,21 +632,28 @@ export default function CreateCustomer() {
                     maxLength={200}
                   />
                   <div className="grid grid-cols-6 gap-2">
-                    <Input
+                    <ComuneAutocomplete
                       className="col-span-2"
+                      mode="cap"
                       value={postalCode}
-                      onChange={(e) => setPostalCode(e.target.value)}
+                      onValueChange={setPostalCode}
+                      onSelect={(c) => {
+                        setPostalCode(c.cap);
+                        setCity(c.comune);
+                        setProvince(c.provinciaSigla);
+                      }}
                       placeholder="CAP"
-                      maxLength={10}
-                      aria-label="CAP"
                     />
-                    <Input
+                    <ComuneAutocomplete
                       className="col-span-3"
                       value={city}
-                      onChange={(e) => setCity(e.target.value)}
+                      onValueChange={setCity}
+                      onSelect={(c) => {
+                        setCity(c.comune);
+                        setProvince(c.provinciaSigla);
+                        if (!postalCode.trim()) setPostalCode(c.cap);
+                      }}
                       placeholder="Città"
-                      maxLength={100}
-                      aria-label="Città"
                     />
                     <Input
                       className="col-span-1"
@@ -674,21 +682,28 @@ export default function CreateCustomer() {
                     maxLength={200}
                   />
                   <div className="grid grid-cols-6 gap-2">
-                    <Input
+                    <ComuneAutocomplete
                       className="col-span-2"
+                      mode="cap"
                       value={sitePostalCode}
-                      onChange={(e) => setSitePostalCode(e.target.value)}
+                      onValueChange={setSitePostalCode}
+                      onSelect={(c) => {
+                        setSitePostalCode(c.cap);
+                        setSiteCity(c.comune);
+                        setSiteProvince(c.provinciaSigla);
+                      }}
                       placeholder="CAP"
-                      maxLength={10}
-                      aria-label="CAP cantiere"
                     />
-                    <Input
+                    <ComuneAutocomplete
                       className="col-span-3"
                       value={siteCity}
-                      onChange={(e) => setSiteCity(e.target.value)}
+                      onValueChange={setSiteCity}
+                      onSelect={(c) => {
+                        setSiteCity(c.comune);
+                        setSiteProvince(c.provinciaSigla);
+                        if (!sitePostalCode.trim()) setSitePostalCode(c.cap);
+                      }}
                       placeholder="Città"
-                      maxLength={100}
-                      aria-label="Città cantiere"
                     />
                     <Input
                       className="col-span-1"

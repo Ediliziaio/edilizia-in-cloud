@@ -919,9 +919,23 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                   <CollapsibleContent className="px-1 space-y-0">
                     <InlineField label="Azienda" value={contact.company_name || ""} onSave={(v) => updateField.mutate({ field: "company_name", value: v })} disabled={!canEditContacts} />
                     <InlineField label="Indirizzo" value={contact.address || ""} onSave={(v) => updateField.mutate({ field: "address", value: v })} disabled={!canEditContacts} />
-                    <InlineField label="Città" value={contact.city || ""} onSave={(v) => updateField.mutate({ field: "city", value: v })} disabled={!canEditContacts} />
+                    <InlineField label="Città" value={contact.city || ""} onSave={(v) => updateField.mutate({ field: "city", value: v })} disabled={!canEditContacts}
+                      comuneMode="comune"
+                      onSelectComune={(c) => {
+                        updateField.mutate({ field: "city", value: c.comune });
+                        updateField.mutate({ field: "province", value: c.provinciaSigla });
+                        if (!contact.postal_code) updateField.mutate({ field: "postal_code", value: c.cap });
+                      }}
+                    />
                     <InlineField label="Provincia" value={contact.province || ""} onSave={(v) => updateField.mutate({ field: "province", value: v })} disabled={!canEditContacts} />
-                    <InlineField label="CAP" value={contact.postal_code || ""} onSave={(v) => updateField.mutate({ field: "postal_code", value: v })} disabled={!canEditContacts} />
+                    <InlineField label="CAP" value={contact.postal_code || ""} onSave={(v) => updateField.mutate({ field: "postal_code", value: v })} disabled={!canEditContacts}
+                      comuneMode="cap"
+                      onSelectComune={(c) => {
+                        updateField.mutate({ field: "postal_code", value: c.cap });
+                        updateField.mutate({ field: "city", value: c.comune });
+                        updateField.mutate({ field: "province", value: c.provinciaSigla });
+                      }}
+                    />
                     <InlineField label="Paese" value={contact.country || ""} onSave={(v) => updateField.mutate({ field: "country", value: v })} disabled={!canEditContacts} />
                     <InlineField label="Sito web" value={contact.website || ""} onSave={(v) => updateField.mutate({ field: "website", value: v })} disabled={!canEditContacts} />
                   </CollapsibleContent>
