@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { escapeCSV, neutralizeCsvFormula } from "@/lib/csvExport";
+import { escapeCSV, escapeCsvCell, neutralizeCsvFormula } from "@/lib/csvExport";
 
 /**
  * Test della messa in sicurezza delle celle CSV (src/lib/csvExport.ts).
@@ -88,5 +88,40 @@ describe("neutralizeCsvFormula — riuso indipendente da separatore/quoting", ()
   it("è la base usata da escapeCSV (stessa neutralizzazione, senza quoting)", () => {
     // cella attiva ma senza separatori → escapeCSV non aggiunge quoting
     expect(escapeCSV("=1+1")).toBe(neutralizeCsvFormula("=1+1"));
+  });
+});
+
+describe("escapeCsvCell — quoting parametrico sul separatore", () => {
+  it("con separatore , racchiude tra virgolette se contiene la virgola", () => {
+    expect(escapeCsvCell("Rossi, Mario", ",")).toBe('"Rossi, Mario"');
+    // il ; non è il separatore → non triggera quoting
+    expect(escapeCsvCell("Rossi; Mario", ",")).toBe("Rossi; Mario");
+  });
+
+  it("con separatore ; si comporta come escapeCSV", () => {
+    expect(escapeCsvCell("Rossi; Mario", ";")).toBe('"Rossi; Mario"');
+    expect(escapeCsvCell("Rossi, Mario", ";")).toBe("Rossi, Mario");
+    expect(escapeCsvCell("=1+1")).toBe(escapeCSV("=1+1"));
+  });
+
+  it("neutralizza la formula a prescindere dal separatore", () => {
+    expect(escapeCsvCell("=HYPERLINK()", ",")).toBe("'=HYPERLINK()");
+    expect(escapeCsvCell("@SUM(A1)", ",")).toBe("'@SUM(A1)");
+    expect(escapeCsvCell("-cmd", ",")).toBe("'-cmd");
+  });
+
+  it("combina neutralizzazione e quoting (formula + separatore ,)", () => {
+    expect(escapeCsvCell("=A1,B1", ",")).toBe(`"'=A1,B1"`);
+  });
+
+  it("raddoppia le virgolette interne e gestisce null/undefined", () => {
+    expect(escapeCsvCell('dice "ciao"', ",")).toBe('"dice ""ciao"""');
+    expect(escapeCsvCell(null, ",")).toBe("");
+    expect(escapeCsvCell(undefined, ",")).toBe("");
+  });
+
+  it("non tocca numeri e testo benigno", () => {
+    expect(escapeCsvCell("-500", ",")).toBe("-500");
+    expect(escapeCsvCell("Mario Rossi", ",")).toBe("Mario Rossi");
   });
 });

@@ -25,18 +25,33 @@ export function neutralizeCsvFormula(value: string): string {
 }
 
 /**
- * Mette in sicurezza una singola cella CSV. Due livelli:
+ * Mette in sicurezza una singola cella CSV, per un separatore qualsiasi. Due livelli:
  *  1. Anti formula-injection (vedi neutralizeCsvFormula).
- *  2. Quoting RFC-4180: se contiene il separatore ; le virgolette o un a capo,
- *     la cella viene racchiusa tra virgolette e le " interne raddoppiate.
+ *  2. Quoting RFC-4180: se contiene il separatore scelto, le virgolette o un a
+ *     capo, la cella viene racchiusa tra virgolette e le " interne raddoppiate.
+ *
+ * Parametrizzare il separatore permette di riusare la stessa messa in sicurezza
+ * negli export che usano la virgola (,) invece del punto e virgola (;), evitando
+ * sia la formula-injection sia la rottura del CSV quando un campo contiene il
+ * separatore. Vedi escapeCSV per la variante con separatore ; di default.
  */
-export function escapeCSV(value: string | number | null | undefined): string {
+export function escapeCsvCell(
+  value: string | number | null | undefined,
+  delimiter: string = ";"
+): string {
   if (value == null) return "";
   const str = neutralizeCsvFormula(String(value));
-  if (str.includes(";") || str.includes('"') || str.includes("\n")) {
+  if (str.includes(delimiter) || str.includes('"') || str.includes("\n")) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
+}
+
+/**
+ * Mette in sicurezza una singola cella CSV con separatore ; (vedi escapeCsvCell).
+ */
+export function escapeCSV(value: string | number | null | undefined): string {
+  return escapeCsvCell(value, ";");
 }
 
 export function exportToCSV(
