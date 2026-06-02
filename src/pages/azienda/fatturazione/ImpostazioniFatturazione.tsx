@@ -492,6 +492,7 @@ export default function ImpostazioniFatturazione() {
                 <Select value={current.sdi_provider ?? "manuale"} onValueChange={(v) => updateField("sdi_provider", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="openapi">openapi.it — Fatturazione Elettronica / SDI</SelectItem>
                     <SelectItem value="aruba">Aruba PEC — Fatturazione Elettronica</SelectItem>
                     <SelectItem value="manuale">Manuale — Download XML</SelectItem>
                     {/* InfoCert e Poste nascosti finché non implementati (P2-04) */}
@@ -499,7 +500,17 @@ export default function ImpostazioniFatturazione() {
                 </Select>
               </div>
 
-              {current.sdi_provider !== "manuale" && (
+              {current.sdi_provider === "openapi" && (
+                <div className="bg-sky-50 dark:bg-sky-950/30 rounded-lg p-4 flex items-start gap-2">
+                  <Info className="h-5 w-5 text-sky-600 mt-0.5 shrink-0" />
+                  <div className="text-sm text-muted-foreground">
+                    <p className="font-medium text-foreground">openapi.it — invio automatico allo SDI</p>
+                    <p className="text-xs mt-0.5">L'XML FatturaPA viene trasmesso, firmato e inoltrato allo SDI tramite openapi.it. Usa il token openapi configurato a livello piattaforma (Lead Scraper → Ambiente openapi.it) — nessuna chiave da inserire qui. In <b>Sandbox</b> le fatture sono di test; passa a <b>Produzione</b> per l'invio reale.</p>
+                  </div>
+                </div>
+              )}
+
+              {current.sdi_provider === "aruba" && (
                 <>
                   <div className="space-y-2">
                     <Label>API Key / Credenziali</Label>

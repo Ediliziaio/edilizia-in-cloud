@@ -351,6 +351,64 @@ Deno.serve(async (req) => {
         clearTimeout(timeout);
         sdiErrors = [{ provider: "aruba", message: String(fetchErr) }];
       }
+    } else if (provider === "openapi") {
+      // openapi.it Fatturazione Elettronica / SDI.
+      // Contratto (verificato in sandbox): POST {base}/IT-invoices con il body =
+      // XML FatturaPA GREZZO (Content-Type application/xml). openapi valida lo
+      // schema, firma e trasmette allo SDI. Token + ambiente da platform_settings
+      // (riusa l'integrazione openapi_it_token / openapi_env già presente).
+      const { data: tokRow } = await supabase.from("platform_settings").select("value").eq("key", "openapi_it_token").maybeSingle();
+      const { data: envRow } = await supabase.from("platform_settings").select("value").eq("key", "openapi_env").maybeSingle();
+      const token = (tokRow?.value || Deno.env.get("OPENAPI_IT_TOKEN") || "").trim();
+      const env = (envRow?.value || "prod").toLowerCase();
+      const invBase = (env === "sandbox" || env === "test") ? "test.invoice.openapi.com" : "invoice.openapi.com";
+      const invEndpoint = `https://${invBase}/IT-invoices`;
+      if (!token) {
+        sdiErrors = [{ provider: "openapi", message: "openapi_it_token non configurato. Imposta il token openapi.it (scope SDI Electronic Invoicing)." }];
+      } else {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+        try {
+          // Inviamo l'XML non firmato: openapi firma (CAdES p7m) e trasmette.
+          const resp = await fetch(invEndpoint, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/xml" },
+            body: xml,
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          const result = await resp.json().catch(() => null);
+          try {
+            await supabase.from("sdi_provider_responses").insert({
+              company_id: doc.company_id,
+              documento_id: doc.id,
+              provider: "openapi",
+              endpoint: invEndpoint,
+              status_code: resp.status,
+              response_json: result,
+              detected_keys: result && typeof result === "object" ? Object.keys(result) : [],
+            });
+          } catch (logErr) {
+            console.error("[invia-sdi] audit log openapi failed:", logErr);
+          }
+          if (resp.ok && result?.success !== false) {
+            const d = result?.data;
+            sdiId =
+              (d && (d.id || d.uuid || d.invoice_hash || d.filename || d.idSdi)) ||
+              (Array.isArray(d) ? (d[0]?.id || d[0]?.uuid) : null) ||
+              (typeof d === "string" ? d : null) ||
+              null;
+            if (!sdiId) {
+              sdiErrors = [{ provider: "openapi", status: resp.status, message: "Risposta openapi senza ID tracciabile", raw_response: result }];
+            }
+          } else {
+            sdiErrors = [{ provider: "openapi", status: resp.status, message: result?.message || `Errore openapi (HTTP ${resp.status})`, raw_response: result }];
+          }
+        } catch (fetchErr) {
+          clearTimeout(timeout);
+          sdiErrors = [{ provider: "openapi", message: String(fetchErr) }];
+        }
+      }
     } else {
       // Manuale: just save XML, generate a local ID
       sdiId = `MAN-${Date.now()}`;
