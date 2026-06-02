@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { escapeCSV } from "@/lib/csvExport";
+import { escapeCSV, neutralizeCsvFormula } from "@/lib/csvExport";
 
 /**
  * Test della messa in sicurezza delle celle CSV (src/lib/csvExport.ts).
@@ -68,5 +68,25 @@ describe("escapeCSV — quoting RFC-4180", () => {
   it("combina anti-formula e quoting quando serve", () => {
     // inizia con = (formula) e contiene ; (separatore) → apice + quoting
     expect(escapeCSV("=A1;B1")).toBe(`"'=A1;B1"`);
+  });
+});
+
+describe("neutralizeCsvFormula — riuso indipendente da separatore/quoting", () => {
+  it("antepone l'apice solo alle celle 'attive'", () => {
+    expect(neutralizeCsvFormula("=1+1")).toBe("'=1+1");
+    expect(neutralizeCsvFormula("@x")).toBe("'@x");
+    expect(neutralizeCsvFormula("+x")).toBe("'+x");
+    expect(neutralizeCsvFormula("-cmd")).toBe("'-cmd");
+    expect(neutralizeCsvFormula("\t=1")).toBe("'\t=1");
+  });
+
+  it("non tocca numeri e testo benigno", () => {
+    expect(neutralizeCsvFormula("-500")).toBe("-500");
+    expect(neutralizeCsvFormula("Mario")).toBe("Mario");
+  });
+
+  it("è la base usata da escapeCSV (stessa neutralizzazione, senza quoting)", () => {
+    // cella attiva ma senza separatori → escapeCSV non aggiunge quoting
+    expect(escapeCSV("=1+1")).toBe(neutralizeCsvFormula("=1+1"));
   });
 });

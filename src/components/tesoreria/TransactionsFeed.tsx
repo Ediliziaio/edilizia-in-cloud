@@ -12,6 +12,7 @@ import { Download, Search, X, TrendingUp, TrendingDown, ChevronLeft, ChevronRigh
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { buildBankTransactionSearchFilter, formatTreasuryCurrency, isChronologicalDateRange, toFiniteAmount } from "@/lib/treasury";
+import { neutralizeCsvFormula } from "@/lib/csvExport";
 
 const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
 
@@ -230,8 +231,12 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
       return;
     }
     const headers = Object.keys(rows[0]);
+    // Ogni cella è racchiusa tra virgolette (separatore = virgola). Il quoting
+    // da solo non basta: neutralizeCsvFormula evita la formula-injection.
     const csvRows = rows.map((r) =>
-      headers.map((h) => `"${String((r as any)[h] ?? "").replace(/"/g, '""')}"`).join(",")
+      headers
+        .map((h) => `"${neutralizeCsvFormula(String((r as any)[h] ?? "")).replace(/"/g, '""')}"`)
+        .join(","),
     );
     const csv = [headers.join(","), ...csvRows].join("\n");
     const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
