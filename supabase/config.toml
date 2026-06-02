@@ -550,3 +550,11 @@ verify_jwt = false
 # MP-SILVIO-ACTIONS-EXTERNAL-01: consegna outbound email approvate (cron). Auth: x-internal-cron-secret.
 [functions.silvio-outbound-worker]
 verify_jwt = false
+
+# Lead Scraper · tracking pubblico aperture/click email outreach (pixel + redirect). No auth utente.
+[functions.lead-scraper-track]
+verify_jwt = false
+
+# Lead Scraper · autopilot cron notturno. Auth custom: x-cron-secret OPPURE super_admin JWT.
+[functions.lead-scraper-autopilot]
+verify_jwt = false

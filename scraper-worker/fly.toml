@@ -1,0 +1,21 @@
+# Deploy su Fly.io (~$2-5/mese). In alternativa: qualsiasi VPS con Docker,
+# Railway, Render. Vedi README.
+app = "eic-scraper-worker"
+primary_region = "cdg"   # Parigi (vicino IT). Cambia se preferisci.
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"    # spegne la macchina quando inattiva → paghi pochissimo
+  auto_start_machines = true     # si riaccende alla prima richiesta
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"                 # Chromium ha bisogno di RAM
