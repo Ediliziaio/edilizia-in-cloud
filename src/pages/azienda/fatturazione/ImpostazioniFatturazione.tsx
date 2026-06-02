@@ -583,8 +583,13 @@ export default function ImpostazioniFatturazione() {
 
           {/* ─── ATTIVAZIONE FE (registrazione cedente openapi) ─── */}
           {current.sdi_provider === "openapi" && (() => {
-            const piva = String(current.partita_iva ?? "").replace(/\D/g, "");
-            const canOnboard = piva.length === 11 && !!current.ragione_sociale && !!(current.pec || current.email);
+            // canOnboard si basa sui dati SALVATI (l'edge sdi-onboarding legge dal DB,
+            // non dal form): evita che il pulsante e il backend siano in disaccordo.
+            const savedPiva = String(azienda?.partita_iva ?? "").replace(/\D/g, "");
+            const canOnboard = savedPiva.length === 11 && !!azienda?.ragione_sociale && !!(azienda?.pec || azienda?.email);
+            // Blocca solo se ci sono modifiche NON salvate ai campi anagrafici usati per
+            // la registrazione — non per modifiche fatte in altri tab (PDF, pagamenti…).
+            const anagraficaDirty = ["partita_iva", "ragione_sociale", "pec", "email"].some((k) => k in form);
             const stato = feConfig?.stato ?? "non_attivo";
             const delega = feConfig?.delega_stato ?? "none";
             const registrato = stato === "registrato" || stato === "attivo";
@@ -641,11 +646,11 @@ export default function ImpostazioniFatturazione() {
                     </div>
                   )}
 
-                  <Button onClick={() => onboardMutation.mutate()} disabled={onboardMutation.isPending || !canOnboard || isDirty} className="gap-1.5">
+                  <Button onClick={() => onboardMutation.mutate()} disabled={onboardMutation.isPending || !canOnboard || anagraficaDirty} className="gap-1.5">
                     {onboardMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
                     {registrato ? "Ri-verifica registrazione" : "Attiva Fatturazione Elettronica"}
                   </Button>
-                  {isDirty && <p className="text-xs text-amber-600">Salva prima le modifiche in sospeso, poi attiva.</p>}
+                  {anagraficaDirty && <p className="text-xs text-amber-600">Hai modificato i dati anagrafici: salvali prima di attivare.</p>}
                 </CardContent>
               </Card>
             );

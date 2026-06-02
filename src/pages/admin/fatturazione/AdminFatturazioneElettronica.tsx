@@ -1,7 +1,7 @@
 // FE Operations — Dashboard super_admin per la Fatturazione Elettronica.
 // Risponde a: CHI usa la FE, QUANTO invia/riceve, QUANTO costa, QUANTO ricaricare.
 // Modello intermediario: 1 account openapi piattaforma → N cedenti (aziende).
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -255,8 +255,13 @@ function ConfigDialog({ open, onOpenChange, data, onSaved }: {
   open: boolean; onOpenChange: (v: boolean) => void; data?: FeOverview; onSaved: () => void;
 }) {
   const [form, setForm] = useState<Record<string, string>>({});
+  // Seed UNA volta all'apertura: un refetch in background mentre il dialog è aperto
+  // non deve sovrascrivere le modifiche in corso dell'admin.
+  const seededRef = useRef(false);
   useEffect(() => {
-    if (open && data) {
+    if (!open) { seededRef.current = false; return; }
+    if (data && !seededRef.current) {
+      seededRef.current = true;
       setForm({
         openapi_cost_per_invoice: String(data.pricing.cost_per_invoice ?? ""),
         openapi_cost_per_receipt: String(data.pricing.cost_per_receipt ?? ""),

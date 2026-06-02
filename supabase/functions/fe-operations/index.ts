@@ -30,7 +30,14 @@ const PS = {
 const BALANCE_FIELDS = ["credit", "credits", "balance", "wallet", "residuo", "amount", "saldo", "available"];
 
 function num(v: unknown, d: number): number {
-  const n = parseFloat(String(v ?? "").replace(",", "."));
+  if (typeof v === "number") return isFinite(v) ? v : d;
+  let s = String(v ?? "").trim().replace(/\s/g, "");
+  if (!s) return d;
+  // Formato italiano "1.234,56": rimuovi i separatori migliaia ('.' seguito da 3
+  // cifre) e converti la virgola decimale in punto. Senza virgola, '.' resta
+  // decimale (così "0.20" rimane 0.20).
+  if (s.includes(",")) s = s.replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
+  const n = parseFloat(s);
   return isFinite(n) ? n : d;
 }
 
@@ -41,7 +48,7 @@ function deepFindBalance(obj: unknown, depth = 0): number | null {
     const o = obj as Record<string, unknown>;
     for (const f of BALANCE_FIELDS) {
       if (f in o && (typeof o[f] === "number" || typeof o[f] === "string")) {
-        const n = parseFloat(String(o[f]).replace(",", "."));
+        const n = num(o[f], NaN);
         if (isFinite(n)) return n;
       }
     }
@@ -114,8 +121,8 @@ Deno.serve(async (req) => {
 
     const rawCompanies = (stats?.companies || []) as Row[];
     const companies = rawCompanies.map((c) => {
-      const cost_total = +(c.oa_sent_total * costSend + c.rec_total * costRecv).toFixed(2);
-      const cost_month = +(c.oa_sent_month * costSend + c.rec_month * costRecv).toFixed(2);
+      const cost_total = +(num(c.oa_sent_total, 0) * costSend + num(c.rec_total, 0) * costRecv).toFixed(2);
+      const cost_month = +(num(c.oa_sent_month, 0) * costSend + num(c.rec_month, 0) * costRecv).toFixed(2);
       return { ...c, cost_total, cost_month };
     });
 

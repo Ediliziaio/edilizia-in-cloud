@@ -61,9 +61,17 @@ Deno.serve(async (req) => {
       return new Response("Bad request: invalid XML", { status: 400 });
     }
     const getTag = (tag: string): string | null => {
-      // Try with and without namespace
-      const el = xmlDoc.getElementsByTagName(tag)[0]
-        ?? xmlDoc.querySelector(`[localName="${tag}"]`);
+      // getElementsByTagName, con fallback che ignora il prefisso namespace
+      // (ns:TipoNotifica). `localName` è una proprietà DOM, NON un attributo,
+      // quindi il vecchio selettore [localName="..."] non matchava mai.
+      let el = xmlDoc.getElementsByTagName(tag)[0];
+      if (!el) {
+        const all = xmlDoc.getElementsByTagName("*");
+        for (let i = 0; i < all.length; i++) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if ((all[i] as any).localName === tag) { el = all[i]; break; }
+        }
+      }
       return el?.textContent?.trim() || null;
     };
 
@@ -80,7 +88,8 @@ Deno.serve(async (req) => {
       .from("documenti_fiscali")
       .select("id, company_id, stato")
       .eq("sdi_id_trasmissione", idTrasmissione)
-      .single();
+      .limit(1)
+      .maybeSingle();
 
     if (!doc) {
       // Log unknown SDI ID

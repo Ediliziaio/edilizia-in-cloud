@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     const email = azienda.pec || azienda.email || "";
     if (fiscalId.length !== 11) return json({ error: "P.IVA azienda non valida (11 cifre)." }, 422);
     if (!name) return json({ error: "Ragione sociale azienda mancante." }, 422);
-    if (!email) return json({ error: "Email/PEC azienda mancante (richiesta per la registrazione SDI)." }, 422);
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Email/PEC azienda mancante o non valida (richiesta per la registrazione SDI)." }, 422);
 
     // Token + ambiente openapi (platform-level)
     const { data: tokRow } = await supabase.from("platform_settings").select("value").eq("key", "openapi_it_token").maybeSingle();
@@ -64,7 +64,8 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ fiscal_id: fiscalId, name, email }),
       });
       const result = await resp.json().catch(() => null) as any;
-      if (resp.ok && result?.success !== false) {
+      if (resp.ok && result && result.success !== false) {
+        // Richiede un body parseabile (un 200 vuoto/non-JSON NON è una conferma).
         stato = "registrato";
         providerConfigId = result?.data?.id || result?.data?.uuid || null;
       } else if (result?.error === 111 || /already exists/i.test(String(result?.message || ""))) {

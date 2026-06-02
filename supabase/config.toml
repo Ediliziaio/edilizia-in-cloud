@@ -299,6 +299,12 @@ verify_jwt = false
 [functions.sdi-webhook]
 verify_jwt = false
 
+# Ricezione fatture passive: Mode 1 webhook XML (auth HMAC x-webhook-signature),
+# Mode 2 upload manuale (JWT utente verificato nel handler). Deve essere aperta al
+# gateway, altrimenti i webhook provider (privi di JWT utente) vengono respinti 401.
+[functions.ricevi-sdi]
+verify_jwt = false
+
 [functions.secure-impersonation]
 verify_jwt = false
 

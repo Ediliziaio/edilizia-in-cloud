@@ -101,7 +101,7 @@ function parseFatturaPA(xmlString: string): ParsedFattura {
     const quantita = parseFloat(r.getElementsByTagName("Quantita")[0]?.textContent ?? "1") || 1;
     const prezzoUnitario = parseFloat(r.getElementsByTagName("PrezzoUnitario")[0]?.textContent ?? "0") || 0;
     const prezzoTotale = parseFloat(r.getElementsByTagName("PrezzoTotale")[0]?.textContent ?? "0") || 0;
-    const aliquotaIva = parseFloat(r.getElementsByTagName("AliquotaIVA")[0]?.textContent ?? "22") || 0;
+    const aliquotaIva = parseFloat(r.getElementsByTagName("AliquotaIVA")[0]?.textContent ?? "0") || 0;
     const natura = r.getElementsByTagName("Natura")[0]?.textContent?.trim() ?? null;
 
     imponibileTot += prezzoTotale;
@@ -152,6 +152,31 @@ function parseFatturaPA(xmlString: string): ParsedFattura {
     sdi_id_trasmissione: sdiId,
     sdi_progressivo: progressivo,
   };
+}
+
+// Cerca una fattura passiva già esistente: prima per IdentificativoSdI (se
+// presente nell'XML), poi per chiave naturale (cedente P.IVA + numero + data).
+// L'IdentificativoSdI è assegnato da SDI e spesso NON è nell'XML del cedente,
+// quindi senza la chiave naturale ogni redelivery del webhook inserirebbe un dup.
+async function findExistingFattura(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any, companyId: string, parsed: ParsedFattura,
+): Promise<string | null> {
+  if (parsed.sdi_id_trasmissione) {
+    const { data } = await supabase.from("fatture_ricevute").select("id")
+      .eq("sdi_id_trasmissione", parsed.sdi_id_trasmissione).limit(1).maybeSingle();
+    if (data?.id) return data.id;
+  }
+  if (parsed.cedente_piva && parsed.numero_fattura && parsed.data_fattura) {
+    const { data } = await supabase.from("fatture_ricevute").select("id")
+      .eq("company_id", companyId)
+      .eq("cedente_piva", parsed.cedente_piva)
+      .eq("numero_fattura", parsed.numero_fattura)
+      .eq("data_fattura", parsed.data_fattura)
+      .limit(1).maybeSingle();
+    if (data?.id) return data.id;
+  }
+  return null;
 }
 
 // ─── Main Handler ────────────────────────────────────────────────
@@ -215,19 +240,30 @@ Deno.serve(async (req) => {
       const cessionario = xmlDoc.getElementsByTagName("CessionarioCommittente")[0];
       const destPiva =
         cessionario?.getElementsByTagName("IdCodice")[0]?.textContent?.trim() ?? "";
+      const destCf =
+        cessionario?.getElementsByTagName("CodiceFiscale")[0]?.textContent?.trim() ?? "";
 
-      const { data: azienda } = await supabase
-        .from("anagrafica_azienda")
-        .select("company_id")
-        .eq("partita_iva", destPiva)
-        .single();
+      // Match per P.IVA del cessionario, con fallback al Codice Fiscale (cessionari
+      // identificati solo da CF). maybeSingle + limit(1): niente 500 se due aziende
+      // condividono/typo la stessa P.IVA.
+      let azienda: { company_id: string } | null = null;
+      if (destPiva) {
+        const { data } = await supabase.from("anagrafica_azienda")
+          .select("company_id").eq("partita_iva", destPiva).limit(1).maybeSingle();
+        azienda = data ?? null;
+      }
+      if (!azienda && destCf) {
+        const { data } = await supabase.from("anagrafica_azienda")
+          .select("company_id").eq("codice_fiscale", destCf).limit(1).maybeSingle();
+        azienda = data ?? null;
+      }
 
       if (!azienda) {
-        // Log: nessuna azienda trovata per questa P.IVA destinatario
+        // Log: nessuna azienda trovata per questo destinatario
         await supabase.from("sdi_log").insert({
           company_id: null as unknown as string,
           evento: "fattura_ricevuta_no_match",
-          messaggio: `P.IVA destinatario ${destPiva} non trovata`,
+          messaggio: `Destinatario non trovato (P.IVA ${destPiva || "—"} / CF ${destCf || "—"})`,
           xml_content: xmlBody.slice(0, 5000),
         }).then(() => {}, () => {});
         return new Response("OK", { status: 200 });
@@ -239,19 +275,12 @@ Deno.serve(async (req) => {
         .from("fatture-xml")
         .upload(xmlPath, new Blob([xmlBody], { type: "application/xml" }), { upsert: true });
 
-      // Check duplicato
-      if (parsed.sdi_id_trasmissione) {
-        const { data: existing } = await supabase
-          .from("fatture_ricevute")
-          .select("id")
-          .eq("sdi_id_trasmissione", parsed.sdi_id_trasmissione)
-          .maybeSingle();
-
-        if (existing) {
-          return new Response(JSON.stringify({ success: true, duplicate: true, id: existing.id }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
+      // Check duplicato (IdentificativoSdI o chiave naturale)
+      const existingId = await findExistingFattura(supabase, azienda.company_id, parsed);
+      if (existingId) {
+        return new Response(JSON.stringify({ success: true, duplicate: true, id: existingId }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       // Insert
@@ -284,7 +313,16 @@ Deno.serve(async (req) => {
         .select("id")
         .single();
 
-      if (insertErr) throw insertErr;
+      if (insertErr) {
+        // 23505 = corsa concorrente sull'unique index naturale → è un duplicato:
+        // rispondi 200 così il provider non ritenta all'infinito.
+        if ((insertErr as { code?: string }).code === "23505") {
+          return new Response(JSON.stringify({ success: true, duplicate: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        throw insertErr;
+      }
 
       // Log
       await supabase.from("sdi_log").insert({
@@ -373,19 +411,12 @@ Deno.serve(async (req) => {
         .from("fatture-xml")
         .upload(xmlPath, new Blob([xml_content], { type: "application/xml" }), { upsert: true });
 
-      // Check duplicate
-      if (parsed.sdi_id_trasmissione) {
-        const { data: existing } = await supabase
-          .from("fatture_ricevute")
-          .select("id")
-          .eq("sdi_id_trasmissione", parsed.sdi_id_trasmissione)
-          .maybeSingle();
-
-        if (existing) {
-          return new Response(JSON.stringify({ success: true, duplicate: true, id: existing.id }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
+      // Check duplicate (IdentificativoSdI o chiave naturale)
+      const existingId = await findExistingFattura(supabase, company_id, parsed);
+      if (existingId) {
+        return new Response(JSON.stringify({ success: true, duplicate: true, id: existingId }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       const { data: inserted, error: insertErr } = await supabase
@@ -417,7 +448,16 @@ Deno.serve(async (req) => {
         .select("id")
         .single();
 
-      if (insertErr) throw insertErr;
+      if (insertErr) {
+        // 23505 = corsa concorrente sull'unique index naturale → è un duplicato:
+        // rispondi 200 così il provider non ritenta all'infinito.
+        if ((insertErr as { code?: string }).code === "23505") {
+          return new Response(JSON.stringify({ success: true, duplicate: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        throw insertErr;
+      }
 
       return new Response(
         JSON.stringify({ success: true, id: inserted?.id, parsed }),

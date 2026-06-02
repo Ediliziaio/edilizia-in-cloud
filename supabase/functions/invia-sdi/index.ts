@@ -385,18 +385,34 @@ Deno.serve(async (req) => {
         };
         try {
           let res = await sendOnce();
-          // Cedente non registrato (424) → auto-registra la P.IVA e ritenta una volta.
-          const notRegistered = res.json?.error === 424 || /not\s*registered|fiscal id not found/i.test(String(res.json?.message || ""));
+          // Cedente non registrato → auto-registra la P.IVA e ritenta una volta.
+          // Rileva sia via HTTP status 424 (vero status della risposta), sia via body.
+          const notRegistered = res.status === 424 || res.json?.error === 424
+            || /not\s*registered|fiscal id not found/i.test(String(res.json?.message || ""));
           if (notRegistered) {
             const regEmail = azienda.pec || azienda.email || "";
             const regPiva = String(azienda.partita_iva || "").replace(/\D/g, "");
             if (regPiva.length === 11 && azienda.ragione_sociale && regEmail) {
-              await fetch(`https://${invBase}/IT-configurations`, {
-                method: "POST",
-                headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ fiscal_id: regPiva, name: azienda.ragione_sociale, email: regEmail }),
-              }).catch(() => { /* best-effort: l'attivazione/delega può richiedere un passo manuale */ });
-              res = await sendOnce();
+              // Registrazione idempotente (openapi: error 111 / "already exists" = ok).
+              // Ritenta SOLO se la registrazione è andata a buon fine.
+              try {
+                const regRes = await fetch(`https://${invBase}/IT-configurations`, {
+                  method: "POST",
+                  headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({ fiscal_id: regPiva, name: azienda.ragione_sociale, email: regEmail }),
+                });
+                const regJson = await regRes.json().catch(() => null) as any;
+                const regOk = regRes.ok || regJson?.error === 111 || /already exists/i.test(String(regJson?.message || ""));
+                if (regOk) {
+                  res = await sendOnce();
+                } else {
+                  sdiErrors = [{ provider: "openapi", status: regRes.status, message: `Registrazione cedente fallita: ${regJson?.message || `HTTP ${regRes.status}`}`, raw_response: regJson }];
+                }
+              } catch (regErr) {
+                sdiErrors = [{ provider: "openapi", message: `Registrazione cedente non riuscita: ${String(regErr)}` }];
+              }
+            } else {
+              sdiErrors = [{ provider: "openapi", message: "Cedente non registrato sullo SDI e dati incompleti per la registrazione automatica (servono P.IVA 11 cifre, ragione sociale e PEC/email)." }];
             }
           }
           try {
@@ -412,18 +428,22 @@ Deno.serve(async (req) => {
           } catch (logErr) {
             console.error("[invia-sdi] audit log openapi failed:", logErr);
           }
-          if (res.ok && res.json?.success !== false) {
-            const d = res.json?.data;
-            sdiId =
-              (d && (d.id || d.uuid || d.invoice_hash || d.filename || d.idSdi)) ||
-              (Array.isArray(d) ? (d[0]?.id || d[0]?.uuid) : null) ||
-              (typeof d === "string" ? d : null) ||
-              null;
-            if (!sdiId) {
-              sdiErrors = [{ provider: "openapi", status: res.status, message: "Risposta openapi senza ID tracciabile", raw_response: res.json }];
+          // Non sovrascrivere un errore di registrazione già rilevato sopra.
+          if (!sdiErrors) {
+            // Richiede un segnale positivo: 2xx + body presente non-success:false.
+            if (res.ok && res.json && res.json.success !== false) {
+              const d = res.json?.data;
+              sdiId =
+                (d && (d.id || d.uuid || d.invoice_hash || d.filename || d.idSdi)) ||
+                (Array.isArray(d) ? (d[0]?.id || d[0]?.uuid) : null) ||
+                (typeof d === "string" ? d : null) ||
+                null;
+              if (!sdiId) {
+                sdiErrors = [{ provider: "openapi", status: res.status, message: "Risposta openapi senza ID tracciabile", raw_response: res.json }];
+              }
+            } else {
+              sdiErrors = [{ provider: "openapi", status: res.status, message: res.json?.message || `Errore openapi (HTTP ${res.status})`, raw_response: res.json }];
             }
-          } else {
-            sdiErrors = [{ provider: "openapi", status: res.status, message: res.json?.message || `Errore openapi (HTTP ${res.status})`, raw_response: res.json }];
           }
         } catch (fetchErr) {
           sdiErrors = [{ provider: "openapi", message: String(fetchErr) }];
