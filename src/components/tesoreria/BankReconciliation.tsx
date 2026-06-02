@@ -7,8 +7,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Search, Zap, Link2, Unlink, CheckCircle2, ArrowRight, Loader2, FileText, Banknote, Download, FileSpreadsheet } from "lucide-react";
+import { Search, Zap, Link2, Unlink, CheckCircle2, ArrowRight, Loader2, FileText, Banknote, Download, FileSpreadsheet, AlertTriangle, CalendarClock, Copy, HelpCircle, Siren, ShieldCheck } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { logger } from "@/utils/logger";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -88,6 +90,128 @@ function computeMatchScore(tx: any, inv: any): MatchSuggestion | null {
 
   if (score < 50) return null;
   return { invoice: inv, score, reasons };
+}
+
+type ReconSeverity = "critical" | "warning" | "info";
+
+interface ReconAnomaly {
+  id: string;
+  severity: ReconSeverity;
+  icon: LucideIcon;
+  title: string;
+  detail: string;
+}
+
+const RECON_SEVERITY_CLS: Record<ReconSeverity, string> = {
+  critical: "border-rose-300 bg-rose-50 text-rose-900 dark:bg-rose-950/30 dark:text-rose-200",
+  warning: "border-amber-300 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200",
+  info: "border-sky-300 bg-sky-50 text-sky-900 dark:bg-sky-950/30 dark:text-sky-200",
+};
+
+const normName = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * Rileva anomalie e segnali sui dati bancari (sola lettura, nessun movimento):
+ * fatture scadute non incassate, accrediti senza fattura corrispondente,
+ * match ambigui (più candidati forti) e possibili pagamenti duplicati.
+ */
+function detectReconAnomalies(transactions: any[], invoices: any[]): ReconAnomaly[] {
+  const out: ReconAnomaly[] = [];
+  if (transactions.length === 0 && invoices.length === 0) return out;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // 1. Fatture scadute non ancora incassate
+  const overdue = invoices.filter((i) => {
+    const rem = Number(i.total || 0) - Number(i.paid_amount || 0);
+    if (rem <= 0) return false;
+    if (i.status === "overdue") return true;
+    return i.due_date ? new Date(i.due_date) < today : false;
+  });
+  if (overdue.length) {
+    const amt = overdue.reduce(
+      (s, i) => s + (Number(i.total || 0) - Number(i.paid_amount || 0)),
+      0,
+    );
+    out.push({
+      id: "overdue",
+      severity: "warning",
+      icon: CalendarClock,
+      title: `${overdue.length} fatture scadute non incassate`,
+      detail: `${fmtEur(amt)} oltre la data di scadenza. Verifica incassi non registrati o sollecita il cliente.`,
+    });
+  }
+
+  // 2. Accrediti senza fattura corrispondente + 3. match ambiguo (singola passata)
+  let noMatchCount = 0;
+  let noMatchAmt = 0;
+  let ambiguousCount = 0;
+  for (const tx of transactions) {
+    let hasMatch = false;
+    let strong = 0;
+    for (const inv of invoices) {
+      const m = computeMatchScore(tx, inv);
+      if (m) {
+        hasMatch = true;
+        if (m.score >= 70) strong++;
+      }
+    }
+    if (!hasMatch) {
+      noMatchCount++;
+      noMatchAmt += Math.abs(tx.amount);
+    }
+    if (strong >= 2) ambiguousCount++;
+  }
+  if (noMatchCount) {
+    out.push({
+      id: "nomatch",
+      severity: "info",
+      icon: HelpCircle,
+      title: `${noMatchCount} incassi senza fattura corrispondente`,
+      detail: `${fmtEur(noMatchAmt)} di accrediti non agganciabili a nessuna fattura aperta: potrebbe mancare la fattura o essere un incasso extra.`,
+    });
+  }
+  if (ambiguousCount) {
+    out.push({
+      id: "ambiguous",
+      severity: "warning",
+      icon: AlertTriangle,
+      title: `${ambiguousCount} transazioni con match ambiguo`,
+      detail: `Più fatture risultano compatibili: verifica manualmente prima di riconciliare per evitare abbinamenti errati.`,
+    });
+  }
+
+  // 4. Possibili pagamenti duplicati (stesso importo + intestatario entro 7 giorni)
+  const groups = new Map<string, number[]>();
+  for (const tx of transactions) {
+    const name = normName(tx.creditor_name || tx.debtor_name || "");
+    if (!name) continue; // serve un intestatario per valutare il duplicato
+    const key = `${Math.round(Math.abs(tx.amount) * 100)}|${name}`;
+    const t = tx.booking_date ? new Date(tx.booking_date).getTime() : NaN;
+    const arr = groups.get(key);
+    if (arr) arr.push(t);
+    else groups.set(key, [t]);
+  }
+  let dupGroups = 0;
+  for (const times of groups.values()) {
+    if (times.length < 2) continue;
+    const valid = times.filter((n) => !Number.isNaN(n)).sort((a, b) => a - b);
+    if (valid.length >= 2 && valid[valid.length - 1] - valid[0] <= 7 * 86400000) {
+      dupGroups++;
+    }
+  }
+  if (dupGroups) {
+    out.push({
+      id: "duplicates",
+      severity: "warning",
+      icon: Copy,
+      title: `${dupGroups} possibili pagamenti duplicati`,
+      detail: `Accrediti con stesso importo e stesso intestatario a pochi giorni di distanza: controlla che non siano doppi incassi o importazioni ripetute.`,
+    });
+  }
+
+  return out;
 }
 
 export default function BankReconciliation({ companyId, refreshKey = 0 }: Props) {
@@ -179,6 +303,12 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       reconciledAmount,
     };
   }, [transactions, invoices, reconciliations]);
+
+  // Anomalie e segnali (sola lettura) sui dati bancari correnti
+  const anomalies = useMemo(
+    () => detectReconAnomalies(transactions, invoices),
+    [transactions, invoices],
+  );
 
   // Open match dialog
   function openMatch(tx: any) {
@@ -516,6 +646,39 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           </CardContent>
         </Card>
       </div>
+
+      {/* Anomalie e segnali (sola lettura) */}
+      {anomalies.length > 0 ? (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Siren className="h-4 w-4 text-amber-600" /> Anomalie e segnali
+              <Badge variant="outline" className="ml-1">{anomalies.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-2 sm:grid-cols-2">
+            {anomalies.map((a) => {
+              const Icon = a.icon;
+              return (
+                <div
+                  key={a.id}
+                  className={cn("flex gap-2 rounded-lg border p-3", RECON_SEVERITY_CLS[a.severity])}
+                >
+                  <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">{a.title}</div>
+                    <div className="mt-0.5 text-xs opacity-80">{a.detail}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      ) : (transactions.length > 0 || invoices.length > 0) ? (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 text-sm text-emerald-800 dark:text-emerald-200">
+          <ShieldCheck className="h-4 w-4 shrink-0" /> Nessuna anomalia rilevata nei dati bancari correnti.
+        </div>
+      ) : null}
 
       {/* Auto-match button */}
       <div className="flex justify-end">
