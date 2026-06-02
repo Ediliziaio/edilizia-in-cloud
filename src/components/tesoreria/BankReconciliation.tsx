@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import {
   fmtEur,
   computeMatchScore,
+  pickAutoMatch,
   detectReconAnomalies,
 } from "@/lib/finance/reconciliationAnalysis";
 import type { MatchSuggestion, ReconSeverity } from "@/lib/finance/reconciliationAnalysis";
@@ -256,11 +257,12 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
 
       for (const tx of txSnapshot) {
         if (matchedTxIds.has(tx.id)) continue;
-        const best = invSnapshot
-          .filter((inv) => !matchedInvIds.has(inv.id))
-          .map((inv) => computeMatchScore(tx, inv))
-          .filter((m): m is MatchSuggestion => m !== null && m.score >= 80)
-          .sort((a, b) => b.score - a.score)[0];
+        // Solo match forti e NON ambigui: se due fatture sono quasi pari,
+        // pickAutoMatch ritorna null e lascia decidere all'utente (no auto-link).
+        const best = pickAutoMatch(
+          tx,
+          invSnapshot.filter((inv) => !matchedInvIds.has(inv.id)),
+        );
         if (best) {
           const ok = await confirmMatchBatch(tx, best.invoice);
           if (ok) {

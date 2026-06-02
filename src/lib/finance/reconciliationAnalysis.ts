@@ -80,6 +80,30 @@ export function computeMatchScore(tx: any, inv: any): MatchSuggestion | null {
   return { invoice: inv, score, reasons };
 }
 
+/** Soglia minima di punteggio per un auto-match (riconciliazione automatica). */
+export const AUTO_MATCH_MIN_SCORE = 80;
+/** Distacco minimo sul 2° candidato per considerare il match NON ambiguo. */
+export const AUTO_MATCH_AMBIGUITY_MARGIN = 15;
+
+/**
+ * Sceglie l'unico match forte e NON ambiguo per una transazione, pensato per
+ * l'auto-riconciliazione (che muove denaro: aggiorna paid_amount/status della
+ * fattura). Ritorna null se nessun candidato raggiunge la soglia, oppure se il
+ * secondo candidato è troppo vicino al primo: in quel caso il match è ambiguo e
+ * deve deciderlo l'utente, per evitare di agganciare un incasso alla fattura
+ * sbagliata.
+ */
+export function pickAutoMatch(tx: any, invoices: any[]): MatchSuggestion | null {
+  const ranked = invoices
+    .map((inv) => computeMatchScore(tx, inv))
+    .filter((m): m is MatchSuggestion => m !== null && m.score >= AUTO_MATCH_MIN_SCORE)
+    .sort((a, b) => b.score - a.score);
+  if (ranked.length === 0) return null;
+  const [top, second] = ranked;
+  if (second && top.score - second.score < AUTO_MATCH_AMBIGUITY_MARGIN) return null;
+  return top;
+}
+
 export type ReconSeverity = "critical" | "warning" | "info";
 
 export interface ReconAnomaly {

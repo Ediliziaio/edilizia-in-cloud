@@ -3,6 +3,7 @@ import {
   fmtEur,
   fuzzyMatch,
   computeMatchScore,
+  pickAutoMatch,
   detectReconAnomalies,
 } from "@/lib/finance/reconciliationAnalysis";
 import {
@@ -243,6 +244,78 @@ describe("detectReconAnomalies", () => {
       [{ id: "i1", total: 1000, paid_amount: 0, client_company_name: "Mario Rossi", due_date: "2999-12-31", status: "sent" }],
     );
     expect(out).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RICONCILIAZIONE — pickAutoMatch (guard anti-ambiguità per auto-link denaro)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("pickAutoMatch", () => {
+  // tx che combacia con l'IBAN/nome dei fixture invoice qui sotto
+  const tx = {
+    id: "t1",
+    amount: -1000,
+    creditor_iban: "IT00 1234 5678",
+    creditor_name: "ACME SRL",
+  };
+  // exact(50) + IBAN(30) + nome(20) = 100
+  const inv100 = (id: string) => ({
+    id,
+    total: 1000,
+    paid_amount: 0,
+    bank_iban: "it0012345678",
+    client_company_name: "ACME SRL",
+  });
+  // simile(35) + IBAN(30) + nome(20) = 85 (diff 5 entro tolleranza)
+  const inv85 = (id: string) => ({
+    id,
+    total: 1005,
+    paid_amount: 0,
+    bank_iban: "it0012345678",
+    client_company_name: "ACME SRL",
+  });
+  // exact(50) + IBAN(30), nessun nome = 80
+  const inv80 = (id: string) => ({
+    id,
+    total: 1000,
+    paid_amount: 0,
+    bank_iban: "it0012345678",
+    client_company_name: "Altro Cliente",
+  });
+  // exact(50) + nome(20), nessun IBAN = 70 (< soglia 80)
+  const inv70 = (id: string) => ({
+    id,
+    total: 1000,
+    paid_amount: 0,
+    client_company_name: "ACME SRL",
+  });
+
+  it("lista vuota → null", () => {
+    expect(pickAutoMatch(tx, [])).toBeNull();
+  });
+
+  it("nessun candidato raggiunge la soglia (80) → null", () => {
+    expect(pickAutoMatch(tx, [inv70("i1")])).toBeNull();
+  });
+
+  it("singolo candidato forte → lo restituisce", () => {
+    const best = pickAutoMatch(tx, [inv100("i1"), inv70("i2")]);
+    expect(best?.invoice.id).toBe("i1");
+    expect(best?.score).toBe(100);
+  });
+
+  it("vincitore netto (distacco ≥ 15: 100 vs 85) → restituisce il migliore", () => {
+    const best = pickAutoMatch(tx, [inv85("i1"), inv100("i2")]);
+    expect(best?.invoice.id).toBe("i2");
+  });
+
+  it("ambiguo: due candidati pari (100 vs 100) → null, decide l'utente", () => {
+    expect(pickAutoMatch(tx, [inv100("i1"), inv100("i2")])).toBeNull();
+  });
+
+  it("ambiguo: distacco < 15 (85 vs 80) → null", () => {
+    expect(pickAutoMatch(tx, [inv85("i1"), inv80("i2")])).toBeNull();
   });
 });
 
