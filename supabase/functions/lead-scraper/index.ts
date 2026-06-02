@@ -421,11 +421,23 @@ interface Firmografici {
   ateco?: string; ateco_desc?: string; company_size?: string; pec?: string;
   fatturato?: number; dipendenti?: number; anno_fondazione?: number; forma_giuridica?: string;
 }
-async function fetchFirmografici(piva: string, token: string): Promise<Firmografici | null> {
+// Base host openapi.it: produzione vs sandbox (test gratis). Switch via openapi_env.
+// Cache in-memory (60s) per non leggere il setting ad ogni chiamata nei loop.
+let _openapiBaseCache: { v: string; t: number } | null = null;
+async function openapiBase(): Promise<string> {
+  const now = Date.now();
+  if (_openapiBaseCache && now - _openapiBaseCache.t < 60_000) return _openapiBaseCache.v;
+  const env = ((await getPlatformSetting("openapi_env", "OPENAPI_ENV")) || "prod").toLowerCase();
+  const v = env === "sandbox" || env === "test" ? "test.company.openapi.com" : "company.openapi.com";
+  _openapiBaseCache = { v, t: now };
+  return v;
+}
+
+async function fetchFirmografici(piva: string, token: string, base = "company.openapi.com"): Promise<Firmografici | null> {
   const num = piva.replace(/\D/g, "");
   if (num.length !== 11) return null;
   try {
-    const res = await fetchWithTimeout(`https://company.openapi.com/IT-advanced/${num}`, {
+    const res = await fetchWithTimeout(`https://${base}/IT-advanced/${num}`, {
       timeoutMs: 9000,
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
@@ -462,7 +474,7 @@ async function fetchFirmografici(piva: string, token: string): Promise<Firmograf
 async function companySearch(opts: {
   ateco?: string; companyName?: string; provincia?: string; comune?: string;
   fatturatoMin?: number; impiegatiMin?: number; limit: number;
-}, token: string): Promise<any[]> {
+}, token: string, base = "company.openapi.com"): Promise<any[]> {
   const p = new URLSearchParams();
   if (opts.ateco) p.set("codiceAteco", opts.ateco);
   if (opts.companyName) p.set("companyName", opts.companyName);
@@ -472,7 +484,7 @@ async function companySearch(opts: {
   if (opts.impiegatiMin) p.set("impiegati", String(opts.impiegatiMin));
   p.set("limit", String(Math.max(1, Math.min(200, opts.limit))));
   try {
-    const res = await fetchWithTimeout(`https://company.openapi.com/IT-search?${p.toString()}`, {
+    const res = await fetchWithTimeout(`https://${base}/IT-search?${p.toString()}`, {
       timeoutMs: 12000,
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
@@ -958,6 +970,7 @@ Deno.serve(async (req) => {
           const n = Number(String(v ?? "").replace(/[^\d.-]/g, ""));
           return Number.isFinite(n) && n > 0 ? n : null;
         };
+        const cbase = await openapiBase();
         let companies: any[];
         try {
           companies = await companySearch({
@@ -966,7 +979,7 @@ Deno.serve(async (req) => {
             fatturatoMin: num0(body.fatturatoMin) || undefined,
             impiegatiMin: num0(body.impiegatiMin) || undefined,
             limit: max,
-          }, token);
+          }, token, cbase);
         } catch (e) {
           return errorResponse(`Company Search fallita: ${(e as Error).message}`, 502, corsH);
         }
@@ -1484,7 +1497,7 @@ Deno.serve(async (req) => {
         let anno_fondazione: number | null = null, forma_giuridica: string | null = null;
         let pecEmail: string | null = null;
         if (openapiToken && deep?.partita_iva) {
-          const firmo = await fetchFirmografici(deep.partita_iva, openapiToken);
+          const firmo = await fetchFirmografici(deep.partita_iva, openapiToken, await openapiBase());
           if (firmo) {
             ateco = firmo.ateco || null;
             ateco_desc = firmo.ateco_desc || null;
@@ -2180,7 +2193,7 @@ Deno.serve(async (req) => {
 
       let found = 0;
       await poolMap((leads || []).filter((l: any) => l.partita_iva), 4, async (l: any) => {
-        const firmo = await fetchFirmografici(l.partita_iva, openapiToken);
+        const firmo = await fetchFirmografici(l.partita_iva, openapiToken, await openapiBase());
         if (firmo?.pec) {
           await supabaseAdmin.from("lead_scraper_results").update({
             email: l.email || firmo.pec,
@@ -2217,7 +2230,7 @@ Deno.serve(async (req) => {
       const withPiva = (leads || []).filter((l: any) => l.partita_iva);
       let enriched = 0, withPec = 0;
       await poolMap(withPiva, 4, async (l: any) => {
-        const firmo = await fetchFirmografici(l.partita_iva, openapiToken);
+        const firmo = await fetchFirmografici(l.partita_iva, openapiToken, await openapiBase());
         if (!firmo) return;
         const patch: Record<string, unknown> = {
           ateco: firmo.ateco || undefined,
