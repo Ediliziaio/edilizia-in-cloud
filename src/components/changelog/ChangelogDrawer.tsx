@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkles, Pin, Bug, Shield, Megaphone, Zap, ArrowRight } from "lucide-react";
 import { useChangelog, type ChangelogEntry } from "@/hooks/useChangelog";
 import { track } from "@/lib/analytics/posthog";
+import { renderMarkdownLite } from "@/lib/utils/markdownLite";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_META: Record<
@@ -39,36 +40,6 @@ function formatDate(iso: string): string {
     month: "short",
     year: "numeric",
   });
-}
-
-/** Sanitizza un URL: consente solo http(s), mailto, tel, path relativi. */
-function sanitizeUrl(raw: string): string {
-  const trimmed = raw.trim();
-  // Path relativo / anchor → OK
-  if (trimmed.startsWith("/") || trimmed.startsWith("#")) return trimmed;
-  // Protocolli ammessi
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (/^mailto:/i.test(trimmed)) return trimmed;
-  if (/^tel:/i.test(trimmed)) return trimmed;
-  // Tutto il resto (javascript:, data:, ecc.) viene neutralizzato
-  return "#";
-}
-
-/** Renderer markdown molto semplice: **bold**, `code`, [link](url), newline. */
-function renderMarkdownLite(md: string): string {
-  const html = md
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/`(.+?)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-xs">$1</code>')
-    .replace(/\[(.+?)\]\((.+?)\)/g, (_m, label: string, url: string) => {
-      const safe = sanitizeUrl(url);
-      return `<a href="${safe}" rel="noopener noreferrer" class="text-primary hover:underline">${label}</a>`;
-    })
-    .replace(/\n\n/g, "</p><p>")
-    .replace(/\n/g, "<br/>");
-  return "<p>" + html + "</p>";
 }
 
 export function ChangelogDrawer() {
