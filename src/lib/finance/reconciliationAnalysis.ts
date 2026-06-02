@@ -132,6 +132,24 @@ export function computePaymentReversal(inv: any, matchedAmount: number): Payment
   return { newPaidAmount, newStatus };
 }
 
+/**
+ * Messaggio di riepilogo dell'auto-match. Con il guard anti-ambiguità alcune
+ * transazioni con un candidato forte ma non univoco restano volutamente non
+ * abbinate: il testo lo rende esplicito così l'utente sa che deve verificarle
+ * a mano (le trova evidenziate nel pannello "Anomalie e segnali").
+ */
+export function autoMatchSummary(matched: number, total: number): string {
+  const remaining = Math.max(0, total - matched);
+  if (matched === 0) {
+    return remaining > 0
+      ? `Nessun abbinamento automatico sicuro: ${remaining} transazioni da verificare manualmente`
+      : "Nessuna transazione da riconciliare";
+  }
+  return remaining > 0
+    ? `Auto-match: ${matched} riconciliate · ${remaining} ancora da abbinare`
+    : `Auto-match completato: ${matched} riconciliazioni`;
+}
+
 export type ReconSeverity = "critical" | "warning" | "info";
 
 export interface ReconAnomaly {

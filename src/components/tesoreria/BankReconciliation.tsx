@@ -24,6 +24,7 @@ import {
   fmtEur,
   computeMatchScore,
   pickAutoMatch,
+  autoMatchSummary,
   computePaymentApplication,
   computePaymentReversal,
   detectReconAnomalies,
@@ -272,7 +273,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           }
         }
       }
-      toast.success(`Auto-match completato: ${matched} riconciliazioni`);
+      toast.success(autoMatchSummary(matched, txSnapshot.length));
       await loadData(); // Single reload at end
     } finally {
       setAutoMatching(false);

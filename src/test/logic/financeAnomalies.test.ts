@@ -4,6 +4,7 @@ import {
   fuzzyMatch,
   computeMatchScore,
   pickAutoMatch,
+  autoMatchSummary,
   computePaymentApplication,
   computePaymentReversal,
   detectReconAnomalies,
@@ -374,6 +375,26 @@ describe("computePaymentReversal", () => {
     const r = computePaymentReversal({}, 100);
     expect(r.newPaidAmount).toBe(0);
     expect(r.newStatus).toBeUndefined();
+  });
+});
+
+describe("autoMatchSummary", () => {
+  it("alcuni riconciliati, altri da abbinare", () => {
+    expect(autoMatchSummary(3, 10)).toBe("Auto-match: 3 riconciliate · 7 ancora da abbinare");
+  });
+
+  it("tutti riconciliati → messaggio completo", () => {
+    expect(autoMatchSummary(5, 5)).toBe("Auto-match completato: 5 riconciliazioni");
+  });
+
+  it("nessun abbinamento sicuro ma transazioni presenti → invito alla verifica manuale", () => {
+    expect(autoMatchSummary(0, 4)).toBe(
+      "Nessun abbinamento automatico sicuro: 4 transazioni da verificare manualmente",
+    );
+  });
+
+  it("nessuna transazione da riconciliare", () => {
+    expect(autoMatchSummary(0, 0)).toBe("Nessuna transazione da riconciliare");
   });
 });
 
