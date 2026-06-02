@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -469,9 +470,10 @@ function Step4Risultato({
   function esportaErroriCsv() {
     const header = "Riga,Campo,Valore,Motivo\n";
     const righe = errori
-      .map(
-        (e) =>
-          `${e.row},"${e.field}","${e.value.replace(/"/g, '""')}","${e.message.replace(/"/g, '""')}"`
+      .map((e) =>
+        [e.row, e.field, e.value, e.message]
+          .map((v) => escapeCsvCell(v as string | number, ","))
+          .join(","),
       )
       .join("\n");
 

@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { escapeCsvCell, neutralizeCsvFormula } from "@/lib/csvExport";
 import { FileSpreadsheet, FileText } from "lucide-react";
 import { format } from "date-fns";
 import type { NormalizedCampaignRow } from "@/lib/metaInsightsNormalizer";
@@ -54,7 +55,7 @@ const ExportDialog = ({ open, onOpenChange, rows, visibleColumns, dateRange, acc
     const headers = Object.keys(data[0]);
     const csvRows = [
       headers.join(","),
-      ...data.map((row) => headers.map((h) => `"${String(row[h] ?? "").replace(/"/g, '""')}"`).join(",")),
+      ...data.map((row) => headers.map((h) => escapeCsvCell(row[h] as string | number | null | undefined, ",")).join(",")),
     ];
     const csv = csvRows.join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -71,8 +72,17 @@ const ExportDialog = ({ open, onOpenChange, rows, visibleColumns, dateRange, acc
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Facebook Ads");
     if (data.length > 0) {
+      // Neutralizza le sole celle stringa (numeri/date intatti) contro
+      // formula-injection se l'xlsx viene riesportato in CSV o copia-incollato.
+      const safeData = data.map((row) => {
+        const out: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(row)) {
+          out[k] = typeof v === "string" ? neutralizeCsvFormula(v) : v;
+        }
+        return out;
+      });
       ws.columns = Object.keys(data[0]).map((key) => ({ header: key, key }));
-      ws.addRows(data);
+      ws.addRows(safeData);
     }
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });

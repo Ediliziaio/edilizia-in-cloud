@@ -17,6 +17,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -279,11 +280,7 @@ export default function AdminAITestLab() {
       "Avg output tokens",
       "Last call",
     ].join(",");
-    const escape = (v: string | number | null | undefined) => {
-      if (v === null || v === undefined) return "";
-      const s = String(v);
-      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
+    const escape = (v: string | number | null | undefined) => escapeCsvCell(v, ",");
     const rows = stats.map((s) =>
       [
         escape(s.model_id),

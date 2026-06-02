@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -101,16 +102,17 @@ export default function PartnerCommissions() {
   const exportCsvCommissions = () => {
     if (ledger.length === 0) { toast.error("Nessuna commissione da esportare"); return; }
     const monthName = MONTHS[month - 1];
+    const esc = (v: string | number | null | undefined) => escapeCsvCell(v, ",");
     const csv = [
       ["Piano/Azienda", "MRR", "Tipo", "Aliquota", "Moltipl.", "Commissione", "Stato"].join(","),
       ...ledger.map((l) => [
-        `"${l.subscription_plan_name || "---"}"`,
-        l.plan_mrr?.toFixed(2) || "0",
-        l.commission_type || "---",
-        l.commission_type === "percentage" ? `${l.commission_rate}%` : `€${l.commission_rate}`,
-        `x${l.tier_multiplier}`,
-        l.commission_amount?.toFixed(2) || "0",
-        l.status || "pending",
+        esc(l.subscription_plan_name || "---"),
+        esc(l.plan_mrr?.toFixed(2) || "0"),
+        esc(l.commission_type || "---"),
+        esc(l.commission_type === "percentage" ? `${l.commission_rate}%` : `€${l.commission_rate}`),
+        esc(`x${l.tier_multiplier}`),
+        esc(l.commission_amount?.toFixed(2) || "0"),
+        esc(l.status || "pending"),
       ].join(",")),
     ].join("\n");
     const bom  = "\uFEFF"; // BOM per Excel italiano
