@@ -424,9 +424,6 @@ export function useApplyAuditAdjustmentMutation() {
   return useMutation({
     mutationFn: async ({
       auditId,
-      stockItemId,
-      actualQuantity,
-      difference,
       companyId,
     }: {
       auditId: string;
@@ -435,35 +432,19 @@ export function useApplyAuditAdjustmentMutation() {
       difference: number;
       companyId: string;
     }) => {
-      // Create adjustment movement
-      const { error: movError } = await supabase
-        .from("warehouse_movements")
-        .insert({
-          stock_item_id: stockItemId,
-          movement_type: "rettifica",
-          quantity: Math.abs(difference),
-          notes: `Rettifica inventariale — differenza: ${difference > 0 ? "+" : ""}${difference}`,
-          performed_by: (await supabase.auth.getUser()).data.user?.id,
-          company_id: companyId,
-        } as any);
-      if (movError) throw movError;
-
-      // Update stock to actual quantity
-      const { error: stockError } = await supabase
-        .from("warehouse_stock")
-        .update({ quantity: actualQuantity, updated_at: new Date().toISOString() })
-        .eq("id", stockItemId);
-      if (stockError) throw stockError;
-
-      // Mark audit as applied
-      const { error: auditError } = await supabase
-        .from("inventory_audits")
-        .update({
-          adjustment_applied: true,
-          applied_at: new Date().toISOString(),
-        } as any)
-        .eq("id", auditId);
-      if (auditError) throw auditError;
+      // Rettifica inventariale ATOMICA lato DB (RPC apply_inventory_audit_adjustment):
+      // movimento + aggiornamento giacenza RELATIVO (quantity + difference, NON più
+      // set assoluto a actualQuantity → non clobbera scarichi/carichi concorrenti) +
+      // flag applied, in un'unica transazione con lock FOR UPDATE.
+      // La differenza è letta server-side dalla riga audit (colonna GENERATED),
+      // e il movimento è registrato come carico/scarico per segno (il trigger
+      // validate_movement_type non ammette 'rettifica').
+      // Cast `as any`: la RPC non è ancora nei types generati (migration non applicata).
+      const { error } = await (supabase as any).rpc("apply_inventory_audit_adjustment", {
+        p_audit_id: auditId,
+        p_company_id: companyId,
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: magazzinoKeys.all });

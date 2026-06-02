@@ -157,140 +157,26 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const user = (await supabase.auth.getUser()).data.user;
-
-      // Crea il trasferimento
-      const { data: transfer, error: tErr } = await supabase
-        .from("warehouse_transfers")
-        .insert({
-          company_id: companyId!,
-          from_warehouse_id: fromWarehouseId,
-          to_warehouse_id: toWarehouseId,
-          status: "confermato",
-          transfer_date: transferDate,
-          notes: notes || null,
-          created_by: user?.id,
-        } as any)
-        .select()
-        .single();
-      if (tErr) throw tErr;
-
-      // Inserisci le righe
-      if (items.length > 0) {
-        const { error: iErr } = await supabase
-          .from("warehouse_transfer_items")
-          .insert(
-            items.map((item, idx) => ({
-              transfer_id: transfer.id,
-              stock_item_id: item.stock_item_id,
-              quantity: item.quantity,
-              sort_order: idx,
-            } as any))
-          );
-        if (iErr) throw iErr;
-
-        // Aggiorna warehouse_stock: scarica dal magazzino sorgente
-        // OPTIMISTIC LOCK: la WHERE clause include `.eq("quantity", current)`
-        // → l'UPDATE scatta SOLO se nessun'altra mutazione ha cambiato la
-        // quantity nel frattempo. Senza questo, 2 transfer concorrenti
-        // potevano leggere stesso valore stale e sovrascriversi (lost update,
-        // stock sballato). Con il check, il secondo update affected_rows=0
-        // e lanciamo errore → utente fa retry.
-        for (const item of items) {
-          // Decrementa from_warehouse
-          const src = stockItems.find((s) => s.id === item.stock_item_id);
-          if (src) {
-            const newSrcQty = Math.max(0, src.quantity - item.quantity);
-            const { data: srcUpdated, error: srcErr } = await supabase
-              .from("warehouse_stock")
-              .update({ quantity: newSrcQty } as any)
-              .eq("id", src.id)
-              .eq("quantity", src.quantity)
-              .select("id");
-            if (srcErr) throw srcErr;
-            if (!srcUpdated || srcUpdated.length === 0) {
-              throw new Error(
-                `Stock "${src.name}" è stato modificato in parallelo da un altro utente. Ricarica e riprova.`,
-              );
-            }
-          }
-
-          // Incrementa nel magazzino destinazione (cerca o crea)
-          const { data: destStock } = await supabase
-            .from("warehouse_stock")
-            .select("id, quantity")
-            .eq("company_id", companyId!)
-            .eq("warehouse_id", toWarehouseId)
-            .eq("name", src?.name ?? "")
-            .maybeSingle();
-
-          let destinationStockItemId: string | null = destStock?.id ?? null;
-          if (destStock) {
-            const { data: destUpdated, error: destErr } = await supabase
-              .from("warehouse_stock")
-              .update({ quantity: destStock.quantity + item.quantity } as any)
-              .eq("id", destStock.id)
-              .eq("quantity", destStock.quantity)
-              .select("id");
-            if (destErr) throw destErr;
-            if (!destUpdated || destUpdated.length === 0) {
-              throw new Error(
-                `Stock destinazione modificato in parallelo. Ricarica e riprova.`,
-              );
-            }
-          } else if (src) {
-            // Articolo non esiste nel magazzino destinazione → crealo
-            const { data: insertedDest, error: insertDestError } = await supabase
-              .from("warehouse_stock")
-              .insert({
-                company_id: companyId!,
-                warehouse_id: toWarehouseId,
-                name: src.name,
-                description: src.description,
-                quantity: item.quantity,
-                unit_cost: src.unit_cost ?? 0,
-                vat_rate: src.vat_rate ?? 22,
-                supplier_id: src.supplier_id,
-                section_id: src.section_id,
-                min_stock_level: src.min_stock_level ?? 0,
-                barcode: src.barcode ?? null,
-                internal_code: src.internal_code ?? null,
-                tracking_mode: src.tracking_mode ?? "fungible",
-                requires_warranty: !!src.requires_warranty,
-                default_warranty_months: src.default_warranty_months ?? null,
-              } as any)
-              .select("id")
-              .single();
-            if (insertDestError) throw insertDestError;
-            destinationStockItemId = insertedDest.id;
-          }
-
-          const toWarehouseName = warehouses.find((w) => w.id === toWarehouseId)?.name;
-          const fromWarehouseName = warehouses.find((w) => w.id === fromWarehouseId)?.name;
-
-          // Movimenti: scarico dall'origine + carico nella destinazione
-          await supabase.from("warehouse_movements").insert([
-            {
-              stock_item_id: item.stock_item_id,
-              movement_type: "scarico",
-              quantity: item.quantity,
-              notes: `Trasferimento verso ${toWarehouseName}`,
-              performed_by: user?.id,
-              warehouse_id: fromWarehouseId,
-            } as any,
-            {
-              stock_item_id: destinationStockItemId ?? item.stock_item_id,
-              movement_type: "carico",
-              quantity: item.quantity,
-              notes: `Trasferimento da ${fromWarehouseName}`,
-              performed_by: user?.id,
-              warehouse_id: toWarehouseId,
-            } as any,
-          ]);
-        }
-      }
-
-      return transfer;
+      // Trasferimento ATOMICO lato DB: header + righe + scarico sorgente +
+      // carico destinazione + movimenti in un'unica transazione (RPC
+      // create_warehouse_transfer_atomic). Sostituisce i round-trip separati
+      // che, in caso di errore intermedio, lasciavano la giacenza corrotta.
+      // Lock FOR UPDATE + math relativa + errore su giacenza insufficiente
+      // sono gestiti dentro la funzione Postgres.
+      // Cast `as any`: la RPC non è ancora nei types generati (migration non applicata).
+      const { data, error } = await (supabase as any).rpc("create_warehouse_transfer_atomic", {
+        p_company_id: companyId,
+        p_from_warehouse_id: fromWarehouseId,
+        p_to_warehouse_id: toWarehouseId,
+        p_transfer_date: transferDate,
+        p_notes: notes || null,
+        p_items: items.map((item) => ({
+          stock_item_id: item.stock_item_id,
+          quantity: item.quantity,
+        })),
+      });
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       toast.success("Trasferimento creato");
