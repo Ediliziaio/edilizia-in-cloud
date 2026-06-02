@@ -7,9 +7,24 @@ export interface CsvColumn {
   label: string;
 }
 
-function escapeCSV(value: string | null | undefined): string {
+/**
+ * Mette in sicurezza una singola cella CSV. Due livelli:
+ *  1. Anti CSV/formula-injection: se la cella inizia con un carattere "attivo"
+ *     (= + - @, oppure TAB/CR) un foglio di calcolo (Excel/Sheets/LibreOffice)
+ *     la eseguirebbe come formula all'apertura del file. Per i caratteri = @
+ *     TAB CR e per + - quando NON sono un numero valido, si antepone un apice '
+ *     che la forza a testo. I numeri con segno (es. "-1.234,56") restano numeri.
+ *  2. Quoting RFC-4180: se contiene il separatore ; le virgolette o un a capo,
+ *     la cella viene racchiusa tra virgolette e le " interne raddoppiate.
+ */
+export function escapeCSV(value: string | number | null | undefined): string {
   if (value == null) return "";
-  const str = String(value);
+  let str = String(value);
+  const isPlainNumber = /^[+-]?[\d.,\s]+$/.test(str);
+  const startsActive = /^[=@\t\r]/.test(str) || (/^[+-]/.test(str) && !isPlainNumber);
+  if (startsActive) {
+    str = `'${str}`;
+  }
   if (str.includes(";") || str.includes('"') || str.includes("\n")) {
     return `"${str.replace(/"/g, '""')}"`;
   }

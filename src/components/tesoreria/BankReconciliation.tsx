@@ -30,6 +30,7 @@ import {
   detectReconAnomalies,
 } from "@/lib/finance/reconciliationAnalysis";
 import type { MatchSuggestion, ReconSeverity } from "@/lib/finance/reconciliationAnalysis";
+import { escapeCSV } from "@/lib/csvExport";
 
 interface Props {
   companyId: string;
@@ -421,11 +422,10 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       } else {
         const headers = Object.keys(rows[0] ?? {});
         const csvRows = [
-          headers.join(";"),
-          ...rows.map((row) => headers.map((h) => {
-            const val = String(row[h as keyof typeof row] ?? "");
-            return val.includes(";") || val.includes('"') || val.includes("\n") ? `"${val.replace(/"/g, '""')}"` : val;
-          }).join(";")),
+          headers.map((h) => escapeCSV(h)).join(";"),
+          ...rows.map((row) =>
+            headers.map((h) => escapeCSV(row[h as keyof typeof row])).join(";"),
+          ),
         ];
         const csv = csvRows.join("\n");
         const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
