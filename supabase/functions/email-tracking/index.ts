@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { secureHeaders } from "../_shared/headers.ts";
 import { normalizeEmailAddress } from "../_shared/emailSuppression.ts";
+import { getEmailTrackingSecret, verifyTrackingSig } from "../_shared/emailTrackingSignature.ts";
 
 // 1x1 transparent GIF
 const PIXEL_GIF = Uint8Array.from(atob("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"), c => c.charCodeAt(0));
@@ -84,6 +85,47 @@ Deno.serve(async (req) => {
 
   if (!type || !contactId || !companyId || (!campaignId && !isAutomationTracking)) {
     return new Response("Missing params", { status: 400, headers: secureHeaders });
+  }
+
+  // SEC: verifica firma HMAC. Questa function è unauthenticated (verify_jwt=false):
+  // senza firma chiunque indovini gli UUID co/rid/cid potrebbe disiscrivere
+  // contatti arbitrari (type=unsub) o forgiare eventi open/click. Firmiamo
+  // "co|rid|cid|type" in generazione e qui lo verifichiamo (constant-time).
+  // Backward-compat: se EMAIL_TRACKING_SECRET non è configurato accettiamo i
+  // link legacy non firmati; appena il secret è impostato, link assenti/invalidi
+  // vengono rifiutati. Vedi _shared/emailTrackingSignature.ts.
+  const trackingSecret = getEmailTrackingSecret();
+  const sigValid = trackingSecret
+    ? await verifyTrackingSig(
+        trackingSecret,
+        { co: companyId, rid: contactId, cid: campaignId, type },
+        url.searchParams.get("sig"),
+      )
+    : true; // legacy mode (secret non configurato) → accetta
+
+  if (!sigValid) {
+    console.warn("email-tracking: firma assente/non valida — richiesta rifiutata", {
+      type,
+      companyId,
+      contactId,
+      campaignId,
+    });
+    // open: restituiamo comunque il pixel per non rompere il rendering, ma
+    // senza registrare nulla (niente inquinamento analytics).
+    if (type === "open" || type === "automation_open") {
+      return pixelResponse();
+    }
+    // click: preserviamo la navigazione (redirect sicuro http/https) senza
+    // registrare l'evento, così i link legacy già inviati continuano a portare
+    // l'utente a destinazione ma non possono inquinare gli eventi.
+    if (type === "click") {
+      const safeRedirect = decodeSafeHttpUrl(redirectUrl);
+      return safeRedirect
+        ? new Response(null, { status: 302, headers: { ...secureHeaders, Location: safeRedirect } })
+        : new Response("OK", { status: 200, headers: secureHeaders });
+    }
+    // unsub / automation_unsub (azione distruttiva) → rifiuto netto.
+    return new Response("Link non valido o scaduto", { status: 403, headers: secureHeaders });
   }
 
   const adminClient = createClient(

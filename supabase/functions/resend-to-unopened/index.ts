@@ -18,6 +18,7 @@ import { logEmailDelivery } from "../_shared/email-log.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
 import { getSuppressedEmailMap, normalizeEmailAddress } from "../_shared/emailSuppression.ts";
+import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
 
 // How many hours after campaign completion to re-send to non-openers
 const DEFAULT_RESEND_DELAY_HOURS = 24;
@@ -177,12 +178,18 @@ Deno.serve(async (req) => {
             .replace(/\{\{last_name\}\}/g, contact.last_name || "")
             .replace(/\{\{email\}\}/g, contact.email || "");
 
-          // Tracking pixel
-          const trackPixel = `${supabaseUrl}/functions/v1/email-tracking?type=open&cid=${resendCampaignId}&rid=${contact.id}&co=${campaign.company_id}`;
+          // Tracking pixel (SEC: firmato HMAC — vedi emailTrackingSignature.ts)
+          const trackPixel = await appendTrackingSig(
+            `${supabaseUrl}/functions/v1/email-tracking?type=open&cid=${resendCampaignId}&rid=${contact.id}&co=${campaign.company_id}`,
+            { co: campaign.company_id, rid: contact.id, cid: resendCampaignId, type: "open" },
+          );
           html += `<img src="${trackPixel}" width="1" height="1" style="display:none" alt="" />`;
 
-          // Unsubscribe
-          const unsubUrl = `${supabaseUrl}/functions/v1/email-tracking?type=unsub&cid=${resendCampaignId}&rid=${contact.id}&co=${campaign.company_id}`;
+          // Unsubscribe (SEC: firmato HMAC)
+          const unsubUrl = await appendTrackingSig(
+            `${supabaseUrl}/functions/v1/email-tracking?type=unsub&cid=${resendCampaignId}&rid=${contact.id}&co=${campaign.company_id}`,
+            { co: campaign.company_id, rid: contact.id, cid: resendCampaignId, type: "unsub" },
+          );
           html = html.replace(/\{\{unsubscribe_url\}\}/g, unsubUrl);
 
           const result = await sendViaProviderWithFailover(

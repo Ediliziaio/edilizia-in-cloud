@@ -12,6 +12,7 @@ import {
 
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { loadContactCustomFieldResolver, applyContactCustomFields } from "../_shared/contactCustomFields.ts";
+import { appendTrackingSig, trackingSigSuffix } from "../_shared/emailTrackingSignature.ts";
 
 function parseJsonObject(value: unknown): Record<string, any> {
   if (!value) return {};
@@ -525,21 +526,29 @@ Deno.serve(async (req) => {
           });
         }
 
-        // Add tracking pixel
-        const trackingPixelUrl = `${supabaseUrl}/functions/v1/email-tracking?type=open&cid=${campaignId}&rid=${contact.id}&co=${companyId}`;
+        // Add tracking pixel (SEC: firmato HMAC — vedi emailTrackingSignature.ts)
+        const trackingPixelUrl = await appendTrackingSig(
+          `${supabaseUrl}/functions/v1/email-tracking?type=open&cid=${campaignId}&rid=${contact.id}&co=${companyId}`,
+          { co: companyId, rid: contact.id, cid: campaignId, type: "open" },
+        );
         html += `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none" alt="" />`;
 
-        // Wrap links for click tracking
+        // Wrap links for click tracking. La firma non copre `url`, quindi è
+        // identica per tutti i link dell'email: la calcoliamo una volta sola.
+        const clickSigSuffix = await trackingSigSuffix({ co: companyId, rid: contact.id, cid: campaignId, type: "click" });
         html = html.replace(
           /href="(https?:\/\/[^"]+)"/g,
           (_match: string, url: string) => {
-            const trackUrl = `${supabaseUrl}/functions/v1/email-tracking?type=click&cid=${campaignId}&rid=${contact.id}&co=${companyId}&url=${encodeURIComponent(url)}`;
+            const trackUrl = `${supabaseUrl}/functions/v1/email-tracking?type=click&cid=${campaignId}&rid=${contact.id}&co=${companyId}&url=${encodeURIComponent(url)}${clickSigSuffix}`;
             return `href="${trackUrl}"`;
           }
         );
 
-        // Add unsubscribe link
-        const unsubUrl = `${supabaseUrl}/functions/v1/email-tracking?type=unsub&cid=${campaignId}&rid=${contact.id}&co=${companyId}`;
+        // Add unsubscribe link (SEC: firmato HMAC)
+        const unsubUrl = await appendTrackingSig(
+          `${supabaseUrl}/functions/v1/email-tracking?type=unsub&cid=${campaignId}&rid=${contact.id}&co=${companyId}`,
+          { co: companyId, rid: contact.id, cid: campaignId, type: "unsub" },
+        );
         // Replace {{unsubscribe_url}} placeholder in HTML (BUG-09) — done after click-tracking
         // so the unsub link goes directly to the unsub endpoint, not through the click tracker
         html = html.replace(/\{\{unsubscribe_url\}\}/g, unsubUrl);
