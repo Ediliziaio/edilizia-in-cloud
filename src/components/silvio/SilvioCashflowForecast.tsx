@@ -22,39 +22,10 @@ import {
   TrendingUp, TrendingDown, AlertTriangle, RefreshCw,
   Wallet, Clock, Sparkles, ArrowDownUp, Radar, ShieldCheck,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
-
-interface ForecastWeek {
-  week_index: number;
-  week_start: string;
-  week_end: string;
-  incassi_eur: number;
-  uscite_eur: number;
-  cashflow_netto_eur: number;
-  saldo_atteso_eur: number;
-  status: "ok" | "warning" | "critical";
-}
-
-interface ForecastResult {
-  aggiornato_al: string;
-  saldo_oggi_eur: number;
-  orizzonte_settimane: number;
-  delay_pattern: {
-    avg_delay_days_global: number;
-    delays_per_client: Record<string, number>;
-  };
-  costo_personale_mensile_netto_eur: number;
-  totale_incassi_previsti_eur: number;
-  totale_uscite_previste_eur: number;
-  saldo_atteso_fine_periodo_eur: number;
-  saldo_minimo_eur: number;
-  settimana_critica: string;
-  critical_weeks_count: number;
-  warning_weeks_count: number;
-  weeks: ForecastWeek[];
-}
+import { detectCashAnomalies, fmtDate } from "@/lib/finance/cashflowAnalysis";
+import type { ForecastResult, AnomalySeverity } from "@/lib/finance/cashflowAnalysis";
 
 interface Props {
   weeks?: number;
@@ -68,103 +39,11 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   critical: { label: "Critico", cls: "bg-rose-100 text-rose-700 border-rose-300" },
 };
 
-function fmtDate(iso: string): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleDateString("it-IT", { day: "2-digit", month: "short" });
-}
-
-type AnomalySeverity = "critical" | "warning" | "info";
-
-interface CashAnomaly {
-  id: string;
-  severity: AnomalySeverity;
-  icon: LucideIcon;
-  title: string;
-  detail: string;
-}
-
 const ANOMALY_SEVERITY_CLS: Record<AnomalySeverity, string> = {
   critical: "border-rose-300 bg-rose-50 text-rose-900",
   warning: "border-amber-300 bg-amber-50 text-amber-900",
   info: "border-sky-300 bg-sky-50 text-sky-900",
 };
-
-const STATUS_RANK: Record<string, number> = { ok: 0, warning: 1, critical: 2 };
-
-/**
- * Rileva anomalie di cassa azionabili dall'output del forecast.
- * Non introduce nuove fonti dati: nomina e mette in evidenza segnali che il
- * forecast già calcola (saldo cumulato, status settimanale, ritardi per cliente).
- */
-function detectCashAnomalies(data: ForecastResult): CashAnomaly[] {
-  const anomalies: CashAnomaly[] = [];
-  const weeks = data.weeks ?? [];
-  const avgDelay = data.delay_pattern?.avg_delay_days_global ?? 0;
-
-  // 1. Saldo cumulato che scende sotto zero — prima settimana interessata
-  const firstNegative = weeks.find((w) => w.saldo_atteso_eur < 0);
-  if (firstNegative) {
-    anomalies.push({
-      id: "neg-balance",
-      severity: "critical",
-      icon: TrendingDown,
-      title: `Saldo sotto zero dalla S${firstNegative.week_index} (${fmtDate(firstNegative.week_start)})`,
-      detail: `Il saldo cumulato previsto scende a ${formatCurrency(firstNegative.saldo_atteso_eur)}. Copri lo scoperto o anticipa incassi prima di quella settimana.`,
-    });
-  }
-
-  // 2. Primo peggioramento di stato (OK → attenzione/critico)
-  for (let i = 1; i < weeks.length; i++) {
-    const prev = weeks[i - 1];
-    const cur = weeks[i];
-    if ((STATUS_RANK[cur.status] ?? 0) > (STATUS_RANK[prev.status] ?? 0) && cur.status !== "ok") {
-      anomalies.push({
-        id: `transition-${cur.week_index}`,
-        severity: cur.status === "critical" ? "critical" : "warning",
-        icon: AlertTriangle,
-        title: `Peggioramento in S${cur.week_index} (${fmtDate(cur.week_start)})`,
-        detail: `La cassa passa da "${STATUS_BADGE[prev.status]?.label ?? prev.status}" a "${STATUS_BADGE[cur.status]?.label ?? cur.status}": saldo previsto ${formatCurrency(cur.saldo_atteso_eur)}.`,
-      });
-      break;
-    }
-  }
-
-  // 3. Concentrazione di uscite (uscite molto superiori agli incassi della settimana)
-  const outflowSpikes = weeks.filter(
-    (w) => w.uscite_eur > 0 && w.uscite_eur >= Math.max(w.incassi_eur * 2, 1) && w.status !== "ok",
-  );
-  if (outflowSpikes.length) {
-    const worst = outflowSpikes.reduce((a, b) => (b.uscite_eur > a.uscite_eur ? b : a));
-    anomalies.push({
-      id: `outflow-${worst.week_index}`,
-      severity: worst.status === "critical" ? "critical" : "warning",
-      icon: ArrowDownUp,
-      title: `Uscite concentrate in S${worst.week_index} (${fmtDate(worst.week_start)})`,
-      detail: `Uscite ${formatCurrency(worst.uscite_eur)} contro incassi ${formatCurrency(worst.incassi_eur)}. Valuta di scaglionare i pagamenti su più settimane.`,
-    });
-  }
-
-  // 4. Clienti che peggiorano il ritardo medio aziendale
-  const perClient = data.delay_pattern?.delays_per_client ?? {};
-  const laggards = Object.entries(perClient)
-    .filter(([, d]) => typeof d === "number" && d > avgDelay && d - avgDelay >= 5)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3);
-  for (const [client, delay] of laggards) {
-    const label = client.length > 40 ? `${client.slice(0, 37)}…` : client;
-    const extra = Math.round(delay - avgDelay);
-    anomalies.push({
-      id: `client-${client}`,
-      severity: extra >= 15 ? "warning" : "info",
-      icon: Clock,
-      title: `${label} paga in ritardo`,
-      detail: `Ritardo medio ${Math.round(delay)}gg, +${extra}gg oltre la media aziendale (${Math.round(avgDelay)}gg). Sollecita o rivedi i termini di pagamento.`,
-    });
-  }
-
-  return anomalies;
-}
 
 export function SilvioCashflowForecast({
   weeks = 13,
