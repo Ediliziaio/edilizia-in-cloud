@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -132,10 +133,10 @@ export function CreditsHistory() {
       r.type === "deduction" ? -Math.abs(r.amount_eur) : Math.abs(r.amount_eur),
       r.balance_before,
       r.balance_after,
-      (r.description ?? "").replace(/"/g, '""'),
+      r.description ?? "",
     ]);
     const csv = [headers, ...csvRows]
-      .map((row) => row.map((c) => `"${c}"`).join(","))
+      .map((row) => row.map((c) => escapeCsvCell(c, ",")).join(","))
       .join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);

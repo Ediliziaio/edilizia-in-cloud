@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { escapeCsvCell } from "@/lib/csvExport";
 import {
   Card, CardContent, CardHeader, CardTitle, CardDescription,
 } from "@/components/ui/card";
@@ -463,10 +464,7 @@ function presetToRange(p: PeriodPreset): { dateFrom: string; dateTo: string } {
 }
 
 function csvEscape(v: string | number | null | undefined): string {
-  if (v === null || v === undefined) return "";
-  const s = String(v);
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
+  return escapeCsvCell(v, ",");
 }
 
 export function AIUsageMonitor() {

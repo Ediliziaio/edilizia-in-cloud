@@ -14,6 +14,7 @@ import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 
 import { Button } from "@/components/ui/button";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -1023,7 +1024,7 @@ export function UsersConfig() {
       ROLE_CONFIG[u.effectiveRole]?.label || u.effectiveRole,
       u.last_login_at ? new Date(u.last_login_at).toLocaleString("it-IT") : "Mai",
     ]);
-    const csvContent = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const csvContent = [headers, ...rows].map((r) => r.map((c) => escapeCsvCell(c, ",")).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

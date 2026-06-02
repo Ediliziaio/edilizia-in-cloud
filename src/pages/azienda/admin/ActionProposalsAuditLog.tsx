@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -102,11 +103,17 @@ export default function ActionProposalsAuditLog() {
 
   const exportCSV = () => {
     const header = "timestamp,event_type,proposal_id,user_id,ip_address,event_data";
-    const lines = rows.map(
-      (r) =>
-        `${r.created_at},${r.event_type},${r.proposal_id},${r.user_id ?? ""},${r.ip_address ?? ""},"${
-          JSON.stringify(r.event_data ?? {}).replace(/"/g, '""')
-        }"`,
+    const lines = rows.map((r) =>
+      [
+        r.created_at,
+        r.event_type,
+        r.proposal_id,
+        r.user_id ?? "",
+        r.ip_address ?? "",
+        JSON.stringify(r.event_data ?? {}),
+      ]
+        .map((v) => escapeCsvCell(v as string, ","))
+        .join(","),
     );
     const csv = [header, ...lines].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });

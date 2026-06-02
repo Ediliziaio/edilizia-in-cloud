@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { useAdminRevenueData, type CompanyHealthScore, type HealthStatus } from "@/hooks/useAdminRevenueData";
 import { AccessDenied } from "@/components/admin/AccessDenied";
@@ -411,11 +412,7 @@ function exportLifecycleCsv(companies: CompanyHealthScore[], filename: string) {
     "has_customers", "has_staff", "has_orders",
     "trial_ends_at", "trial_extensions_count", "price_monthly",
   ];
-  const escape = (v: unknown) => {
-    if (v === null || v === undefined) return "";
-    const s = String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+  const escape = (v: unknown) => escapeCsvCell(v as string | number | null | undefined, ",");
   const keyMap: Record<string, keyof CompanyHealthScore> = {
     company_id: "companyId", company_name: "companyName", sector: "sector",
     status: "status", score: "score", health: "health",

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
+import { escapeCsvCell } from "@/lib/csvExport";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -240,11 +241,7 @@ export function CreditTransactionsTable({ companyId }: Props) {
         return;
       }
 
-      const escape = (v: string | number | null | undefined) => {
-        if (v === null || v === undefined) return "";
-        const s = String(v);
-        return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-      };
+      const escape = (v: string | number | null | undefined) => escapeCsvCell(v, ",");
 
       const headers = [
         "Data", "Wallet", "Direzione", "Tipo movimento", "Importo",

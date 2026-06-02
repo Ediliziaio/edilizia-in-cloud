@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
+import { escapeCsvCell } from "@/lib/csvExport";
 import {
   Plus, Pencil, Trash2, Download, FolderOpen, Search, X, AlertTriangle,
   CheckCircle2, Minus, FileDown, ShieldCheck, ArrowUpDown,
@@ -362,7 +363,7 @@ export default function SettingsCostCategories() {
       ]),
     ];
     const csv = rows
-      .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))
+      .map((row) => row.map((value) => escapeCsvCell(value, ",")).join(","))
       .join("\n");
     const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);

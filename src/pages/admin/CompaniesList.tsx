@@ -4,6 +4,7 @@ import { safeRedirect } from "@/utils/safeRedirect";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Building2, Plus, Search, LogIn, ExternalLink, Download, ChevronDown, RefreshCw, AlertCircle, Clock, Users, ArrowUpDown, ArrowUp, ArrowDown, LayoutList, Kanban, Heart, AlertTriangle, CreditCard, UserX, ChevronLeft, ChevronRight, SlidersHorizontal, X, ChevronRight as ChevronRightIcon, Filter } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter, SheetClose } from "@/components/ui/sheet";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -169,8 +170,7 @@ function sanitizeOrSearchTerm(value: string): string {
 }
 
 function csvCell(value: unknown): string {
-  const raw = value == null ? "" : String(value);
-  return `"${raw.replace(/"/g, '""').replace(/\r?\n/g, " ")}"`;
+  return escapeCsvCell(value as string | number | null | undefined, ",");
 }
 
 export default function CompaniesList() {

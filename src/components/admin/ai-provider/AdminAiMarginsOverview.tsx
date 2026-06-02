@@ -12,6 +12,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -209,10 +210,7 @@ const fmtPct = (v: number) =>
 function downloadCsv(filename: string, rows: Array<Record<string, unknown>>) {
   if (rows.length === 0) return;
   const headers = Object.keys(rows[0]);
-  const escape = (v: unknown) => {
-    const s = String(v ?? "");
-    return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+  const escape = (v: unknown) => escapeCsvCell(v as string | number | null | undefined, ";");
   const csv = [
     headers.join(";"),
     ...rows.map((r) => headers.map((h) => escape(r[h])).join(";")),

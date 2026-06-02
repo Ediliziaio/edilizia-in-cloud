@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { queryKeys } from "@/lib/queryKeys";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -74,7 +75,7 @@ export function UserActivityLogTab({ userId }: UserActivityLogTabProps) {
       log.actor_id,
       JSON.stringify(log.details || {}),
     ]);
-    const csv = [headers.join(","), ...rows.map((r) => r.map((v) => `"${v}"`).join(","))].join("\n");
+    const csv = [headers.join(","), ...rows.map((r) => r.map((v) => escapeCsvCell(v, ",")).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

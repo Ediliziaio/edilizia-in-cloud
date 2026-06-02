@@ -3,6 +3,7 @@
  * Extracted from useCompanyCostsData to improve maintainability.
  */
 import { format, startOfMonth, endOfMonth, addMonths, addDays, isBefore, isAfter } from "date-fns";
+import { escapeCsvCell } from "./csvExport";
 import { it } from "date-fns/locale";
 import { calculateGrossFromNet } from "@/lib/vatUtils";
 import { RECURRENCE_LABELS, COST_ID_PREFIX } from "@/lib/forecastTypes";
@@ -350,7 +351,7 @@ export function exportCostsToCSV(filteredCosts: any[], filteredOrderItemCosts: a
       c.isFromOrder ? "Da Ordine" : "Manuale",
     ]);
   });
-  const csv = rows.map((r) => r.map((v) => `"${v}"`).join(";")).join("\n");
+  const csv = rows.map((r) => r.map((v) => escapeCsvCell(v, ";")).join(";")).join("\n");
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

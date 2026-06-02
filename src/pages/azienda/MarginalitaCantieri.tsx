@@ -5,6 +5,7 @@ import MargineVociDetail from "@/components/marginalita/MargineVociDetail";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency } from "@/lib/formatters";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { SedeFilterBar } from "@/components/sedi/SedeFilterBar";
 import { SedeMargineCard } from "@/components/sedi/SedeMargineCard";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
@@ -546,7 +547,7 @@ export default function MarginalitaCantieri() {
       ];
     });
     const csv = [headers, ...rowsCsv]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(";"))
+      .map((row) => row.map((cell) => escapeCsvCell(cell, ";")).join(";"))
       .join("\n");
     const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);

@@ -18,6 +18,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -186,11 +187,7 @@ export function EmailSuppressionsTable() {
   const handleExportCsv = () => {
     if (filtered.length === 0) return;
     const headers = ["Email", "Motivo", "Scope", "Provider", "Data", "Note"];
-    const escape = (v: string | null | undefined) => {
-      if (v === null || v === undefined) return "";
-      const s = String(v);
-      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
+    const escape = (v: string | null | undefined) => escapeCsvCell(v, ",");
     const rows = filtered.map((r) =>
       [
         escape(r.email),

@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { Activity, AlertCircle, Download, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -37,7 +38,7 @@ function exportCsv(events: ReturnType<typeof useLifecycleEvents>["events"]) {
     e.plan_id ?? "",
     e.notes ?? "",
   ]);
-  const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(";")).join("\n");
+  const csv = [headers, ...rows].map((r) => r.map((v) => escapeCsvCell(v, ";")).join(";")).join("\n");
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

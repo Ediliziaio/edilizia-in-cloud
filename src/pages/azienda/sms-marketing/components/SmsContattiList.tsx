@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { Search, Plus, Download, UserX, UserCheck, Loader2, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,7 +51,14 @@ export function SmsContattiList() {
   const handleExportCsv = () => {
     const header = "telefono,nome,cognome,consenso,opt_out,tags";
     const rows = contatti.map((c) =>
-      `${c.telefono},${c.nome ?? ""},${c.cognome ?? ""},${c.consenso_marketing},${c.opt_out},"${c.tags.join(";") ?? ""}"`
+      [
+        c.telefono,
+        c.nome ?? "",
+        c.cognome ?? "",
+        String(c.consenso_marketing),
+        String(c.opt_out),
+        c.tags.join(";"),
+      ].map((v) => escapeCsvCell(v, ",")).join(",")
     );
     const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);

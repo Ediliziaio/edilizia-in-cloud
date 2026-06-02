@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -179,11 +180,9 @@ function PhoneLink({ phone }: { phone?: string | null }) {
   );
 }
 
-/** CSV escape RFC 4180 */
+/** CSV escape RFC 4180 + anti formula-injection (separatore ,) */
 function csvEscape(v: string | number | null | undefined): string {
-  if (v === null || v === undefined) return "";
-  const s = String(v);
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  return escapeCsvCell(v, ",");
 }
 
 export function CompanyTeamTab({

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   Card, CardContent, CardHeader, CardTitle,
 } from "@/components/ui/card";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -174,12 +175,7 @@ function BankingRow({ row }: { row: BankingOverviewRow }) {
 
 /** Escapa un valore per un campo CSV (standard RFC 4180). */
 function csvEscape(v: string | number | null | undefined): string {
-  if (v === null || v === undefined) return "";
-  const s = String(v);
-  if (/[",\n\r]/.test(s)) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
+  return escapeCsvCell(v, ",");
 }
 
 export function BankingOverviewPanel() {

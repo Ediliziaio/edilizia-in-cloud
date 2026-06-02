@@ -9,6 +9,7 @@ import {
   AlertTriangle, Clock, ShieldCheck, Shield, Download, Filter, Users, FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -63,7 +64,7 @@ function exportCSV(rows: ReturnType<typeof useDocumentiCompany>["data"]) {
         ? format(parseISO(r.data_scadenza), "dd/MM/yyyy") : "",
       giorni !== null ? String(giorni) : "",
       statoLabel(r.stato),
-    ].map(v => `"${v.replace(/"/g, '""')}"`).join(",");
+    ].map(v => escapeCsvCell(v, ",")).join(",");
   });
   const csv = [headers.join(","), ...csvRows].join("\n");
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });

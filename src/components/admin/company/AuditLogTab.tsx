@@ -8,6 +8,7 @@ import {
 import {
   Card, CardContent, CardHeader, CardTitle,
 } from "@/components/ui/card";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -215,11 +216,7 @@ export function AuditLogTab({ companyId }: AuditLogTabProps) {
   // CSV export delle entries filtrate
   const handleExportCsv = () => {
     if (filtered.length === 0) return;
-    const escape = (v: string | number | null | undefined) => {
-      if (v === null || v === undefined) return "";
-      const s = String(v);
-      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
+    const escape = (v: string | number | null | undefined) => escapeCsvCell(v, ",");
     const headers = [
       "Data", "Campo", "Operatore", "Vecchio valore", "Nuovo valore",
       "Motivo", "IP",

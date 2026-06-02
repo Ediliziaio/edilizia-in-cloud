@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { escapeCsvCell } from "@/lib/csvExport";
 import {
   Card, CardContent, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -670,11 +671,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   // Export CSV degli aggiustamenti correnti (filtrati)
   const handleExportAdjustmentsCsv = () => {
     if (filteredAdjustments.length === 0) return;
-    const escape = (v: string | number | null | undefined) => {
-      if (v === null || v === undefined) return "";
-      const s = String(v);
-      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
+    const escape = (v: string | number | null | undefined) => escapeCsvCell(v, ",");
     const headers = ["Data", "Servizio", "Importo (EUR)", "Motivazione", "Creato da"];
     const rows = filteredAdjustments.map((a) =>
       [

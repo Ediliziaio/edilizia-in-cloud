@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Card, CardContent, CardHeader, CardTitle,
 } from "@/components/ui/card";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -122,7 +123,7 @@ export function CompanyActivityTab({ companyId }: CompanyActivityTabProps) {
   // Export CSV degli eventi filtrati
   const handleExportCsv = () => {
     if (filtered.length === 0) return;
-    const escape = (v: string) => /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+    const escape = (v: string) => escapeCsvCell(v, ",");
     const headers = ["Data", "Tipo", "Azione", "Dettaglio"];
     const rows = filtered.map((e) =>
       [

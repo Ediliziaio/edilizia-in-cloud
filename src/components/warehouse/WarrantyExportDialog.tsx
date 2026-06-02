@@ -25,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -65,9 +66,7 @@ function downloadFile(filename: string, content: string, mime = "text/plain") {
 }
 
 function csvCell(v: string | null | undefined): string {
-  if (v == null) return "";
-  const s = String(v);
-  return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  return escapeCsvCell(v, ",");
 }
 
 export function WarrantyExportDialog({

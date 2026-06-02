@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { escapeCsvCell } from "@/lib/csvExport";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -142,12 +143,7 @@ export function QuoteBulkToolbar({
         "Totale (€)",
         "Data",
       ];
-      const esc = (v: unknown) => {
-        const s = v == null ? "" : String(v);
-        return s.includes(";") || s.includes('"') || s.includes("\n")
-          ? `"${s.replace(/"/g, '""')}"`
-          : s;
-      };
+      const esc = (v: unknown) => escapeCsvCell(v as string | number | null | undefined, ";");
       const lines = [
         headers.join(";"),
         ...selectedQuotes.map((q) =>

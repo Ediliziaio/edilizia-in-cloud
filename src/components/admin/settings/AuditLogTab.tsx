@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { escapeCsvCell } from "@/lib/csvExport";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -217,12 +218,12 @@ export default function AuditLogTab() {
         const details = log.details as Record<string, unknown> | null;
         return [
           format(new Date(log.created_at), "dd/MM/yyyy HH:mm", { locale: it }),
-          `"${profiles[log.user_id] || "—"}"`,
-          `"${actionLabels[log.action] || log.action}"`,
-          `"${details?.target_name || details?.company_name || "—"}"`,
-          `"${log.ip_address || "—"}"`,
-          `"${log.target_id || "—"}"`,
-        ].join(",");
+          String(profiles[log.user_id] || "—"),
+          String(actionLabels[log.action] || log.action),
+          String(details?.target_name || details?.company_name || "—"),
+          String(log.ip_address || "—"),
+          String(log.target_id || "—"),
+        ].map((v) => escapeCsvCell(v, ",")).join(",");
       });
       const csv = [headers.join(","), ...rows].join("\n");
       const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
