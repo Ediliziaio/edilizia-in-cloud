@@ -19,6 +19,7 @@
  * per non trascinare React nei test). Se cambiano gli enum, aggiornare entrambi.
  */
 import Papa from "papaparse";
+import { neutralizeCsvFormula } from "@/lib/csvExport";
 
 // ── Enum canonici (mirror di SettingsTariffe/types.ts) ───────────────────────
 
@@ -511,10 +512,15 @@ export function buildTariffeExportCsv(
     : ["Nome", "Tipo", "Unità", "Prezzo vendita", "Descrizione"];
   const data = rows.map((r) => {
     const um = (r.unita_fatturazione ?? r.unita ?? "") as string;
-    const base = [r.nome ?? "", r.tipo ?? "", um, fmt(r.prezzo_vendita)];
+    const base = [
+      neutralizeCsvFormula(r.nome ?? ""),
+      neutralizeCsvFormula(r.tipo ?? ""),
+      neutralizeCsvFormula(um),
+      fmt(r.prezzo_vendita),
+    ];
     return opts.includeCosto
-      ? [...base, fmt(r.costo_interno ?? r.prezzo_costo), r.descrizione ?? ""]
-      : [...base, r.descrizione ?? ""];
+      ? [...base, fmt(r.costo_interno ?? r.prezzo_costo), neutralizeCsvFormula(r.descrizione ?? "")]
+      : [...base, neutralizeCsvFormula(r.descrizione ?? "")];
   });
   return Papa.unparse({ fields, data }, { delimiter: ";" });
 }

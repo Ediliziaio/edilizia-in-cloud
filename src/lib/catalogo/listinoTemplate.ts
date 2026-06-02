@@ -11,6 +11,7 @@
  */
 import Papa from "papaparse";
 import type { CompanyCustomFieldDef, CatalogObjectType } from "@/hooks/useCompanyCustomFields";
+import { neutralizeCsvFormula } from "@/lib/csvExport";
 
 /** Colonne fisse per ogni object_type */
 export const FIXED_COLUMNS: Record<CatalogObjectType, { key: string; label: string; required?: boolean; hint?: string }[]> = {
@@ -154,12 +155,12 @@ export function buildListinoTemplateCsv(opts: BuildTemplateOpts): string {
   const headers = [
     ...fixed.map((c) => c.label + (c.required ? " *" : "")),
     ...customFields.map((f) => `${f.name} ${TYPE_HINT[f.field_type] ?? ""}`.trim()),
-  ];
+  ].map(neutralizeCsvFormula);
   const keys = [
     ...fixed.map((c) => c.key),
     ...customFields.map((f) => `cf:${f.id}`),
   ];
-  const rows = sampleRows.map((r) => keys.map((k) => r[k] ?? ""));
+  const rows = sampleRows.map((r) => keys.map((k) => neutralizeCsvFormula(String(r[k] ?? ""))));
   return Papa.unparse({ fields: headers, data: rows });
 }
 
