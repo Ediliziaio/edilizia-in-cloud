@@ -414,8 +414,14 @@ async function googleNearby(lat: number, lng: number, radius: number, keyword: s
   return out;
 }
 
-// ── Firmografici via openapi.it (ATECO, dimensione) — gated ───────────────────
-async function fetchFirmografici(piva: string, token: string): Promise<{ ateco?: string; ateco_desc?: string; company_size?: string } | null> {
+// ── Firmografici + PEC via openapi.it (ATECO, dimensione, PEC) — gated ────────
+// La PEC (posta certificata) è l'email B2B garantita-deliverable di ogni azienda
+// italiana: è il dato d'oro per l'outreach in Italia.
+interface Firmografici {
+  ateco?: string; ateco_desc?: string; company_size?: string; pec?: string;
+  fatturato?: number; dipendenti?: number; anno_fondazione?: number; forma_giuridica?: string;
+}
+async function fetchFirmografici(piva: string, token: string): Promise<Firmografici | null> {
   const num = piva.replace(/\D/g, "");
   if (num.length !== 11) return null;
   try {
@@ -427,10 +433,25 @@ async function fetchFirmografici(piva: string, token: string): Promise<{ ateco?:
     const d = await res.json();
     const rec = d?.data?.[0] || d?.data || d;
     const atecoObj = rec?.atecoClassification?.ateco || rec?.ateco || {};
+    const pec = rec?.pec || rec?.pecEmail || rec?.contacts?.pec || undefined;
+    const balance = rec?.balanceSheets?.[0] || rec?.lastBalanceSheet || {};
+    const num0 = (v: unknown): number | undefined => {
+      const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/[^\d.-]/g, ""));
+      return Number.isFinite(n) && n > 0 ? n : undefined;
+    };
+    const empl = num0(rec?.employees) ?? num0(balance?.employees);
+    const fatturato = num0(balance?.turnover) ?? num0(balance?.revenue) ?? num0(rec?.turnover) ?? num0(rec?.revenue);
+    const startRaw = rec?.startDate || rec?.registrationDate || rec?.activityStartDate || rec?.creationDate;
+    const anno = startRaw ? num0(String(startRaw).slice(0, 4)) : undefined;
     return {
       ateco: atecoObj?.code || rec?.atecoCode || undefined,
       ateco_desc: atecoObj?.description || rec?.atecoDescription || undefined,
-      company_size: rec?.employees ? String(rec.employees) : (rec?.balanceSheets?.[0]?.employees ? String(rec.balanceSheets[0].employees) : undefined),
+      company_size: empl ? String(empl) : undefined,
+      pec: pec && /@/.test(String(pec)) ? String(pec).toLowerCase() : undefined,
+      fatturato,
+      dipendenti: empl,
+      anno_fondazione: anno && anno > 1800 && anno <= 2100 ? anno : undefined,
+      forma_giuridica: rec?.legalForm || rec?.businessNature || rec?.companyForm || undefined,
     };
   } catch { return null; }
 }
@@ -565,6 +586,24 @@ async function verifyEmailProvider(email: string, provider: string, key: string)
     if (d.result === "invalid" || d.result === "disposable") return "invalid";
     return "unknown";
   } catch { return "unknown"; }
+}
+
+/** Rileva segnale d'assunzione dal sito (sta assumendo = cresce = buon momento). */
+const HIRING_RE = /(lavora con noi|posizioni aperte|stiamo assumendo|si ricerca|cerchiamo|candidati|invia il tuo cv|offerte di lavoro|careers|we are hiring|join our team)/i;
+async function detectHiring(website: string | null | undefined): Promise<boolean> {
+  if (!website) return false;
+  let base: URL;
+  try { base = new URL(website.startsWith("http") ? website : `https://${website}`); } catch { return false; }
+  const pages = [base.href, `${base.origin}/lavora-con-noi`, `${base.origin}/careers`, `${base.origin}/lavora-con-noi/`];
+  for (const url of pages) {
+    try {
+      const res = await fetchWithTimeout(url, { timeoutMs: 6000, headers: { "User-Agent": "Mozilla/5.0 (compatible; EiC-LeadBot/1.0)" }, redirect: "follow" });
+      if (!res.ok) continue;
+      const html = await res.text();
+      if (HIRING_RE.test(html)) return true;
+    } catch { continue; }
+  }
+  return false;
 }
 
 // ── Google Maps: Text Search paginata (fino a ~60 risultati) ──────────────────
@@ -759,6 +798,116 @@ Deno.serve(async (req) => {
         if (rErr) return errorResponse(`Errore salvataggio lead: ${rErr.message}`, 500, corsH);
 
         return jsonResponse({ searchId: searchRow.id, count: (inserted || []).length, results: inserted || [] }, 200, corsH);
+      }
+
+      // ── INTERNO (scraper self-host + DB proprietario riuso-first) — costo ~€0 ──
+      if (source === "internal") {
+        const internalUrl = (await getPlatformSetting("internal_scraper_url", "INTERNAL_SCRAPER_URL")).replace(/\/$/, "");
+        const internalSecret = await getPlatformSetting("internal_scraper_secret", "INTERNAL_SCRAPER_SECRET");
+        const keyword = String(body.keyword || "").trim();
+        const city = String(body.city || "").trim();
+        const region = String(body.region || "").trim();
+        const maxResults = Math.max(1, Math.min(200, Number(body.maxResults) || 40));
+        const engine = body.engine === "gmaps" ? "gmaps" : "paginegialle";
+        const refresh = body.refresh === true;
+        if (!keyword) return errorResponse("Parametro 'keyword' obbligatorio.", 400, corsH);
+
+        const kw = keyword.toLowerCase();
+        // 1) RIUSO dal database proprietario (gratis)
+        const reuseQuery = () => {
+          let q = supabaseAdmin.from("scraped_companies").select("*").contains("categories", [kw]);
+          if (city) q = q.ilike("city", `%${city}%`);
+          return q.order("last_scraped_at", { ascending: false }).limit(maxResults);
+        };
+        let { data: pool } = await reuseQuery();
+        pool = pool || [];
+        let scrapedNew = 0;
+
+        // 2) SCRAPA solo se servono nuovi (o refresh forzato)
+        if (refresh || pool.length < maxResults) {
+          if (!internalUrl) {
+            if (pool.length === 0) {
+              return errorResponse("Fonte interna non configurata: imposta internal_scraper_url (URL del tuo scraper-worker self-host). Vedi scraper-worker/README.md.", 400, corsH);
+            }
+            // ho cache → la uso comunque
+          } else {
+            try {
+              const res = await fetchWithTimeout(`${internalUrl}/scrape`, {
+                timeoutMs: 130000,
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ secret: internalSecret, engine, keyword, city, max: maxResults, withEmails: body.extractEmails !== false }),
+              });
+              if (!res.ok) {
+                const t = await res.text();
+                throw new Error(`worker ${res.status}: ${t.slice(0, 150)}`);
+              }
+              const d = await res.json();
+              const scraped: any[] = d.results || [];
+              if (scraped.length) {
+                // 3) UPSERT nel DB proprietario (merge categorie) → asset che cresce
+                const rows = scraped.map((b) => {
+                  const dk = b.place_id
+                    ? `g:${b.place_id}`
+                    : b.phone
+                      ? `p:${String(b.phone).replace(/[^0-9+]/g, "")}`
+                      : `n:${String(b.business_name || "").trim().toLowerCase()}|${String(b.city || city || "").toLowerCase()}`;
+                  return { ...b, region: b.region || region || null, dedupe_key: dk, categories: [kw] };
+                });
+                await supabaseAdmin.rpc("scraped_companies_upsert", { p_rows: rows });
+                scrapedNew = rows.length;
+                const re = await reuseQuery();
+                pool = re.data || pool;
+              }
+            } catch (e) {
+              if (pool.length === 0) return errorResponse(`Scraper interno non raggiungibile: ${(e as Error).message}`, 502, corsH);
+              // altrimenti degrado alla cache
+            }
+          }
+        }
+
+        // 4) costruisci i lead della ricerca dal pool (DB proprietario)
+        const rows = pool.slice(0, maxResults).map((c: any) => {
+          const base = {
+            source: "internal",
+            business_name: c.business_name,
+            phone: c.phone || null,
+            email: c.email || null,
+            email_status: c.email ? "found" : null,
+            website: c.website || null,
+            address: c.address || null,
+            city: c.city || city || null,
+            region: c.region || region || null,
+            country: c.country || "IT",
+            partita_iva: c.partita_iva || null,
+            place_id: c.place_id || null,
+            rating: c.rating ?? null,
+            reviews_count: c.reviews_count ?? null,
+          };
+          return { ...base, dedupe_key: c.dedupe_key };
+        });
+
+        const { data: searchRow, error: sErr } = await supabaseAdmin.from("lead_scraper_searches").insert({
+          created_by: userId, source: "internal",
+          label: body.label || `Interno · ${keyword}${city ? " · " + city : ""}`,
+          query: { keyword, city, region, engine, reused: pool.length - scrapedNew, scrapedNew },
+          status: "completed", results_count: rows.length,
+        }).select("id").single();
+        if (sErr) return errorResponse(`Errore salvataggio ricerca: ${sErr.message}`, 500, corsH);
+
+        const { data: inserted, error: rErr } = await supabaseAdmin.from("lead_scraper_results")
+          .upsert(rows.map((r) => ({ ...r, search_id: searchRow.id })), { onConflict: "search_id,dedupe_key", ignoreDuplicates: true })
+          .select("*");
+        if (rErr) return errorResponse(`Errore salvataggio lead: ${rErr.message}`, 500, corsH);
+
+        return jsonResponse({
+          searchId: searchRow.id,
+          count: (inserted || []).length,
+          withEmail: (inserted || []).filter((r: any) => r.email).length,
+          withPhone: (inserted || []).filter((r: any) => r.phone).length,
+          scrapedNew, reused: Math.max(0, (inserted || []).length - scrapedNew),
+          results: inserted || [],
+        }, 200, corsH);
       }
 
       // ── Apollo.io (decisori + email) — free tier + crediti economici ──
@@ -1230,22 +1379,35 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Firmografici (ATECO, dimensione) se token openapi configurato
+        // Firmografici (ATECO, dimensione, fatturato, dipendenti, anno) + PEC se token openapi configurato
         let ateco: string | null = null, ateco_desc: string | null = null, company_size: string | null = null;
+        let fatturato: number | null = null, dipendenti: number | null = null;
+        let anno_fondazione: number | null = null, forma_giuridica: string | null = null;
+        let pecEmail: string | null = null;
         if (openapiToken && deep?.partita_iva) {
           const firmo = await fetchFirmografici(deep.partita_iva, openapiToken);
           if (firmo) {
             ateco = firmo.ateco || null;
             ateco_desc = firmo.ateco_desc || null;
             company_size = firmo.company_size || null;
+            fatturato = firmo.fatturato ?? null;
+            dipendenti = firmo.dipendenti ?? null;
+            anno_fondazione = firmo.anno_fondazione ?? null;
+            forma_giuridica = firmo.forma_giuridica || null;
+            pecEmail = firmo.pec || null;
             enrichment.firmografici = firmo;
           }
         }
+        // PEC = email certificata deliverable → usala se non c'è una email
+        const finalEmail = bestEmail || pecEmail;
+        const finalEmailStatus = l.email
+          ? l.email_status
+          : (deep?.emails?.length ? "found" : (pecEmail ? "pec" : l.email_status));
 
         await supabaseAdmin.from("lead_scraper_results").update({
-          email: bestEmail,
+          email: finalEmail,
           phone: bestPhone,
-          email_status: l.email ? l.email_status : (deep?.emails?.length ? "found" : l.email_status),
+          email_status: finalEmailStatus,
           partita_iva: deep?.partita_iva || null,
           facebook_url: deep?.facebook_url || null,
           instagram_url: deep?.instagram_url || null,
@@ -1254,6 +1416,10 @@ Deno.serve(async (req) => {
           ateco,
           ateco_desc,
           company_size,
+          fatturato,
+          dipendenti,
+          anno_fondazione,
+          forma_giuridica,
           intent_signals: signals,
           intent_score,
           enriched: true,
@@ -1418,6 +1584,91 @@ Deno.serve(async (req) => {
         generated++;
       }
       return jsonResponse({ generated }, 200, corsH);
+    }
+
+    // ════════════════════ SEND OUTREACH (invio email reale + tracking) ════════════════════
+    // Invia un'email a freddo ai lead selezionati via Resend (gated resend_api_key),
+    // con pixel di tracciamento aperture e link cliccabili tracciati. Crea una riga
+    // in lead_scraper_outreach per ciascun invio (aperture/click aggiornati dal
+    // tracker pubblico lead-scraper-track).
+    if (action === "send_outreach") {
+      const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
+      if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      const resendKey = await getPlatformSetting("resend_api_key", "RESEND_API_KEY");
+      if (!resendKey) return errorResponse("Configura resend_api_key per inviare le email outreach.", 400, corsH);
+      const fromAddr = (await getPlatformSetting("outreach_from", "OUTREACH_FROM")) ||
+        "Edilizia in Cloud <noreply@ediliziaincloud.it>";
+      const ctaUrl = (await getPlatformSetting("outreach_cta_url", "OUTREACH_CTA_URL")) || "https://www.ediliziaincloud.it";
+      const trackBase = `${Deno.env.get("SUPABASE_URL")}/functions/v1/lead-scraper-track`;
+      const step = Math.max(1, Math.min(10, Number(body.step) || 1));
+      const subjTpl = String(body.subject || "").trim();
+      const bodyTpl = String(body.body || "").trim();
+
+      const { data: leads, error } = await supabaseAdmin
+        .from("lead_scraper_results")
+        .select("id, business_name, contact_name, email, city, ateco_desc, ai_icebreaker, ai_summary")
+        .in("id", ids).limit(200);
+      if (error) return errorResponse(error.message, 500, corsH);
+      const withEmail = (leads || []).filter((l: any) => l.email && /@/.test(l.email));
+      if (!withEmail.length) return jsonResponse({ sent: 0, skipped: 0, failed: 0, suppressed: 0 }, 200, corsH);
+
+      // rispetta la do-not-contact (GDPR)
+      const supp = await getSuppressedEmailMap(
+        supabaseAdmin, withEmail.map((l: any) => l.email), PLATFORM_ADMIN_COMPANY_ID, "marketing",
+      );
+      const escHtml = (s: string) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const render = (tpl: string, l: any) => tpl
+        .replace(/\{\{\s*nome\s*\}\}/gi, l.contact_name || "")
+        .replace(/\{\{\s*azienda\s*\}\}/gi, l.business_name || "")
+        .replace(/\{\{\s*citta\s*\}\}/gi, l.city || "")
+        .replace(/\{\{\s*settore\s*\}\}/gi, l.ateco_desc || "");
+
+      let sent = 0, failed = 0, suppressed = 0;
+      await poolMap(withEmail, 4, async (l: any) => {
+        const to = normalizeEmailAddress(l.email);
+        if (!to || supp.get(to)) { suppressed++; return; }
+        const subject = (subjTpl ? render(subjTpl, l) : `${l.business_name} — un'idea per la vostra impresa`).slice(0, 200);
+        const baseText = bodyTpl
+          ? render(bodyTpl, l)
+          : (l.ai_icebreaker
+              ? `${l.contact_name ? `Gentile ${l.contact_name},` : "Buongiorno,"}\n\n${l.ai_icebreaker}\n\nSe può essere utile le mostro Edilizia in Cloud, il gestionale per imprese edili (cantieri, preventivi, DDT, fatture).`
+              : `${l.contact_name ? `Gentile ${l.contact_name},` : "Buongiorno,"}\n\nmi occupo di Edilizia in Cloud, il gestionale cloud per imprese edili (cantieri, preventivi, DDT, fatture). Vi va una breve call per capire se può esservi utile?`);
+
+        // crea il record outreach (per avere l'id da usare nel tracking)
+        const { data: oRow, error: oErr } = await supabaseAdmin.from("lead_scraper_outreach").insert({
+          lead_id: l.id, channel: "email", step, subject, to_addr: to, status: "sent", created_by: userId,
+        }).select("id").single();
+        if (oErr || !oRow) { failed++; return; }
+
+        const cta = `${trackBase}?e=${oRow.id}&t=click&u=${encodeURIComponent(ctaUrl)}`;
+        const pixel = `${trackBase}?e=${oRow.id}&t=open`;
+        const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:15px;line-height:1.5;color:#1a1a1a">` +
+          escHtml(baseText).replace(/\n/g, "<br>") +
+          `<br><br><a href="${cta}" style="display:inline-block;background:#0ea5e9;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Scopri Edilizia in Cloud</a>` +
+          `<br><br><span style="font-size:12px;color:#888">Se non desidera ricevere altre email, risponda con "STOP".</span>` +
+          `<img src="${pixel}" width="1" height="1" alt="" style="display:none"></div>`;
+
+        try {
+          const res = await fetchWithTimeout("https://api.resend.com/emails", {
+            method: "POST", timeoutMs: 12000,
+            headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ from: fromAddr, to: [to], subject, html }),
+          });
+          if (res.ok) {
+            const j = await res.json().catch(() => ({}));
+            await supabaseAdmin.from("lead_scraper_outreach").update({ message_id: j?.id || null }).eq("id", oRow.id);
+            sent++;
+          } else {
+            const txt = await res.text().catch(() => "");
+            await supabaseAdmin.from("lead_scraper_outreach").update({ status: "failed", meta: { error: txt.slice(0, 300) } }).eq("id", oRow.id);
+            failed++;
+          }
+        } catch (e) {
+          await supabaseAdmin.from("lead_scraper_outreach").update({ status: "failed", meta: { error: (e as Error).message } }).eq("id", oRow.id);
+          failed++;
+        }
+      });
+      return jsonResponse({ sent, failed, suppressed, attempted: withEmail.length }, 200, corsH);
     }
 
     // ════════════════════ SUPPRESS (GDPR do-not-contact) ════════════════════
@@ -1611,6 +1862,218 @@ Deno.serve(async (req) => {
         }
       });
       return jsonResponse({ valid, invalid, attempted: (leads || []).filter((l: any) => l.email).length }, 200, corsH);
+    }
+
+    // ════════════════════ FLAG GIÀ-CLIENTI (no doppioni) ════════════════════
+    if (action === "flag_existing_customers") {
+      const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
+      const searchId = String(body.searchId || "");
+      let q = supabaseAdmin.from("lead_scraper_results").select("id, business_name, partita_iva");
+      if (ids.length) q = q.in("id", ids);
+      else if (searchId) q = q.eq("search_id", searchId);
+      else return errorResponse("Specifica searchId o resultIds.", 400, corsH);
+      const { data: leads, error } = await q;
+      if (error) return errorResponse(error.message, 500, corsH);
+
+      const pivas = (leads || []).map((l: any) => l.partita_iva).filter(Boolean);
+      const names = (leads || []).map((l: any) => l.business_name).filter(Boolean);
+      const existPivas = new Set<string>();
+      const existNames = new Set<string>();
+      if (pivas.length) {
+        const { data } = await supabaseAdmin.from("companies").select("vat_number").in("vat_number", pivas);
+        for (const c of data || []) if (c.vat_number) existPivas.add(String(c.vat_number));
+      }
+      if (names.length) {
+        const { data } = await supabaseAdmin.from("companies").select("name").in("name", names);
+        for (const c of data || []) if (c.name) existNames.add(String(c.name).toLowerCase());
+      }
+      let flagged = 0;
+      for (const l of leads || []) {
+        const isCust = (l.partita_iva && existPivas.has(String(l.partita_iva))) ||
+                       (l.business_name && existNames.has(String(l.business_name).toLowerCase()));
+        if (isCust) { await supabaseAdmin.from("lead_scraper_results").update({ is_existing_customer: true }).eq("id", l.id); flagged++; }
+      }
+      return jsonResponse({ flagged, attempted: (leads || []).length }, 200, corsH);
+    }
+
+    // ════════════════════ BUYING SIGNALS (intent reale) ════════════════════
+    if (action === "compute_buying_signals") {
+      const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
+      const searchId = String(body.searchId || "");
+      let q = supabaseAdmin.from("lead_scraper_results")
+        .select("id, website, email, phone, reviews_count, intent_signals");
+      if (ids.length) q = q.in("id", ids);
+      else if (searchId) q = q.eq("search_id", searchId);
+      else return errorResponse("Specifica searchId o resultIds.", 400, corsH);
+      const { data: leads, error } = await q.limit(80);
+      if (error) return errorResponse(error.message, 500, corsH);
+
+      let scored = 0;
+      await poolMap(leads || [], 4, async (l: any) => {
+        const hiring = await detectHiring(l.website);
+        const signals = (l.intent_signals || {}) as Record<string, boolean>;
+        const reachable = !!(l.email || l.phone);
+        const active_reviews = (l.reviews_count || 0) >= 20;
+        let s = 35;
+        if (hiring) s += 30;                         // sta assumendo → cresce
+        if (signals.outdated_copyright) s += 10;     // sito vecchio → modernizza
+        if (active_reviews) s += 10;                 // attiva
+        if (reachable) s += 10; else s -= 10;
+        const buying_score = Math.max(0, Math.min(100, s));
+        await supabaseAdmin.from("lead_scraper_results").update({
+          buying_score,
+          buying_signals: { hiring, active_reviews, reachable },
+        }).eq("id", l.id);
+        scored++;
+      });
+      return jsonResponse({ scored, attempted: (leads || []).length }, 200, corsH);
+    }
+
+    // ════════════════════ GENERATE SEQUENCE (sequenza email AI multi-step) ════════════════════
+    if (action === "generate_sequence") {
+      const product = String(body.product || "").trim() ||
+        "Edilizia in Cloud, il gestionale cloud per imprese edili (cantieri, preventivi, DDT, fatture).";
+      const settore = String(body.settore || body.keyword || "impresa edile").trim();
+      const sys = "Sei un copywriter di cold email B2B in Italia. Crea una sequenza di 3 email di follow-up " +
+        "(giorno 0, giorno 3, giorno 7) per vendere il prodotto al settore indicato. Usa i placeholder " +
+        "{{nome}} e {{azienda}}. Toni diversi: 1) valore+dolore, 2) prova/sociale, 3) breakup. Solo JSON.";
+      const user = `Prodotto: ${product}\nSettore destinatario: ${settore}\n\n` +
+        `Rispondi: {"steps":[{"offset_giorni":0,"oggetto":"...","corpo_template":"..."},{"offset_giorni":3,...},{"offset_giorni":7,...}]}`;
+      let out;
+      try {
+        out = await aiRouterComplete({
+          supabase: supabaseAdmin, taskKey: "lead_sequence",
+          messages: [{ role: "system", content: sys }, { role: "user", content: user }],
+          params: { temperature: 0.7, max_tokens: 2000 }, responseFormat: { type: "json_object" },
+        });
+      } catch (e) {
+        return errorResponse(`Generazione sequenza fallita: ${(e as Error).message}`, 502, corsH);
+      }
+      let parsed: { steps?: Array<{ offset_giorni: number; oggetto: string; corpo_template: string }> } | null = null;
+      try { parsed = extractJsonFromLLM(out.content); } catch { parsed = null; }
+      const steps = (parsed?.steps || []).slice(0, 5).map((s, i) => ({
+        offset_giorni: Number(s.offset_giorni ?? i * 3) || 0,
+        oggetto: String(s.oggetto || "").slice(0, 200),
+        corpo_template: String(s.corpo_template || "").slice(0, 4000),
+        condizione_stop: "risposta",
+      }));
+      if (steps.length === 0) return errorResponse("L'AI non ha prodotto step validi.", 502, corsH);
+
+      const { data: seqRow, error: seqErr } = await supabaseAdmin.from("sequenze").insert({
+        company_id: PLATFORM_ADMIN_COMPANY_ID,
+        nome: `AI · ${settore} · ${steps.length} step`,
+        tipo: "altro",
+        attiva: false,        // bozza: l'utente la approva/attiva prima di usarla
+        modalita_invio: "conferma",
+        step: steps,
+        created_by: userId,
+      }).select("id, nome").single();
+      if (seqErr) return errorResponse(`Errore creazione sequenza: ${seqErr.message}`, 500, corsH);
+      return jsonResponse({ sequenzaId: seqRow.id, nome: seqRow.nome, steps }, 200, corsH);
+    }
+
+    // ════════════════════ ENQUEUE SCRAPE (massivo asincrono) ════════════════════
+    if (action === "enqueue_scrape") {
+      const keyword = String(body.keyword || "").trim();
+      const city = String(body.city || "").trim();
+      const region = String(body.region || "").trim();
+      const engine = body.engine === "gmaps" ? "gmaps" : "paginegialle";
+      const target = Math.max(1, Math.min(20000, Number(body.target) || 1000));
+      if (!keyword) return errorResponse("Parametro 'keyword' obbligatorio.", 400, corsH);
+      // verifica che il worker sia configurato (altrimenti il job resterebbe in coda all'infinito)
+      const internalUrl = await getPlatformSetting("internal_scraper_url", "INTERNAL_SCRAPER_URL");
+      if (!internalUrl) return errorResponse("Scraper-worker non configurato (internal_scraper_url): il job massivo lo processa il worker self-host.", 400, corsH);
+
+      const { data: job, error } = await supabaseAdmin.from("lead_scraper_jobs").insert({
+        type: "scrape", status: "queued",
+        params: { engine, keyword, city, region, target, withEmails: body.extractEmails !== false },
+        total: target, created_by: userId,
+      }).select("id, status").single();
+      if (error) return errorResponse(`Errore creazione job: ${error.message}`, 500, corsH);
+      return jsonResponse({ jobId: job.id, status: job.status, target }, 200, corsH);
+    }
+
+    // ════════════════════ JOB STATUS (polling avanzamento) ════════════════════
+    if (action === "job_status") {
+      const jobId = String(body.jobId || "");
+      if (!jobId) return errorResponse("jobId obbligatorio.", 400, corsH);
+      const { data: job, error } = await supabaseAdmin.from("lead_scraper_jobs")
+        .select("id, status, total, processed, results_count, search_id, error, started_at, finished_at")
+        .eq("id", jobId).maybeSingle();
+      if (error) return errorResponse(error.message, 500, corsH);
+      if (!job) return errorResponse("Job non trovato.", 404, corsH);
+      return jsonResponse(job, 200, corsH);
+    }
+
+    // ════════════════════ FIND PEC (email certificata da P.IVA) ════════════════════
+    if (action === "find_pec") {
+      const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
+      if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      const openapiToken = await getPlatformSetting("openapi_it_token", "OPENAPI_IT_TOKEN");
+      if (!openapiToken) return errorResponse("Configura openapi_it_token per recuperare la PEC dalla P.IVA (openapi.it).", 400, corsH);
+
+      const { data: leads, error } = await supabaseAdmin
+        .from("lead_scraper_results")
+        .select("id, partita_iva, email, email_status")
+        .in("id", ids);
+      if (error) return errorResponse(error.message, 500, corsH);
+
+      let found = 0;
+      await poolMap((leads || []).filter((l: any) => l.partita_iva), 4, async (l: any) => {
+        const firmo = await fetchFirmografici(l.partita_iva, openapiToken);
+        if (firmo?.pec) {
+          await supabaseAdmin.from("lead_scraper_results").update({
+            email: l.email || firmo.pec,
+            email_status: l.email && l.email_status !== "pec" ? l.email_status : "pec",
+            ateco: firmo.ateco || undefined,
+            ateco_desc: firmo.ateco_desc || undefined,
+            company_size: firmo.company_size || undefined,
+            fatturato: firmo.fatturato ?? undefined,
+            dipendenti: firmo.dipendenti ?? undefined,
+            anno_fondazione: firmo.anno_fondazione ?? undefined,
+            forma_giuridica: firmo.forma_giuridica || undefined,
+          }).eq("id", l.id);
+          found++;
+        }
+      });
+      return jsonResponse({ found, attempted: (leads || []).filter((l: any) => l.partita_iva).length }, 200, corsH);
+    }
+
+    // ═══════════ ENRICH REGISTRO IMPRESE (ATECO, fatturato, dipendenti, anno) ═══════════
+    // Arricchisce i firmografici reali da P.IVA via openapi.it (Registro Imprese).
+    // Non richiede una PEC: utile per filtrare per dimensione/codice ATECO edilizia (41/42/43).
+    if (action === "enrich_registro") {
+      const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
+      if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      const openapiToken = await getPlatformSetting("openapi_it_token", "OPENAPI_IT_TOKEN");
+      if (!openapiToken) return errorResponse("Configura openapi_it_token per arricchire dal Registro Imprese (openapi.it).", 400, corsH);
+
+      const { data: leads, error } = await supabaseAdmin
+        .from("lead_scraper_results")
+        .select("id, partita_iva, email, email_status")
+        .in("id", ids);
+      if (error) return errorResponse(error.message, 500, corsH);
+
+      const withPiva = (leads || []).filter((l: any) => l.partita_iva);
+      let enriched = 0, withPec = 0;
+      await poolMap(withPiva, 4, async (l: any) => {
+        const firmo = await fetchFirmografici(l.partita_iva, openapiToken);
+        if (!firmo) return;
+        const patch: Record<string, unknown> = {
+          ateco: firmo.ateco || undefined,
+          ateco_desc: firmo.ateco_desc || undefined,
+          company_size: firmo.company_size || undefined,
+          fatturato: firmo.fatturato ?? undefined,
+          dipendenti: firmo.dipendenti ?? undefined,
+          anno_fondazione: firmo.anno_fondazione ?? undefined,
+          forma_giuridica: firmo.forma_giuridica || undefined,
+        };
+        // se non ha email ancora, usa la PEC come email deliverable
+        if (firmo.pec && !l.email) { patch.email = firmo.pec; patch.email_status = "pec"; withPec++; }
+        const hasAny = Object.values(patch).some((v) => v !== undefined);
+        if (hasAny) { await supabaseAdmin.from("lead_scraper_results").update(patch).eq("id", l.id); enriched++; }
+      });
+      return jsonResponse({ enriched, withPec, attempted: withPiva.length }, 200, corsH);
     }
 
     return errorResponse(`Azione sconosciuta: ${action}`, 400, corsH);

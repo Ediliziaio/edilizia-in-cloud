@@ -585,7 +585,11 @@ function OrderDetailInner() {
 
   // Delete order mutation
   const deleteOrderMutation = useMutation({
-    mutationFn: () => deleteOrderCascading(id!, effectiveCompany?.id),
+    mutationFn: () => {
+      const companyId = effectiveCompany?.id;
+      if (!companyId) throw new Error("Nessuna azienda selezionata.");
+      return deleteOrderCascading(id!, companyId);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });

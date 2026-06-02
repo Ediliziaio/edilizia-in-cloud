@@ -8,6 +8,8 @@ import {
   Background,
   Controls,
   MiniMap,
+  MarkerType,
+  Panel,
   addEdge,
   useNodesState,
   useEdgesState,
@@ -23,6 +25,7 @@ import { useAutomationBuilder } from "@/hooks/useAutomationBuilder";
 import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
 import { nodesToReactFlow, connectionsToEdges } from "@/components/flow-builder/hooks/useFlowAdapter";
 import { nodeTypes, edgeTypes } from "@/components/flow-builder/nodes";
+import { computeAutoLayout } from "@/components/flow-builder/autoLayout";
 import { FlowBuilderHeader, type BuilderTab } from "./FlowBuilderHeader";
 import { FlowBuilderSidebar, type LeftPanel } from "./FlowBuilderSidebar";
 import { WorkflowRightPanel } from "./WorkflowRightPanel";
@@ -31,7 +34,7 @@ import { WorkflowCronologia } from "./tabs/WorkflowCronologia";
 import { WorkflowRegistro } from "./tabs/WorkflowRegistro";
 import { TestFlowDialog } from "./TestFlowDialog";
 import { type CatalogItem } from "@/lib/flow-node-catalog";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -54,7 +57,7 @@ export function FlowBuilderPage() {
   const {
     flow, isLoading, isSaving, hasUnsavedChanges, canUndo, canRedo,
     undo, redo, saveImmediate, togglePublish,
-    addNode, updateNode, removeNode, removeConnection, addConnection,
+    addNode, updateNode, updateNodePositions, removeNode, removeConnection, addConnection,
     effectiveCompany, user, createFlowMutation, updateFlowMutation,
   } = builder;
 
@@ -71,6 +74,7 @@ export function FlowBuilderPage() {
   const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [testEnrollmentId, setTestEnrollmentId] = useState<string | null>(null);
   const [nodeTestStatus, setNodeTestStatus] = useState<Record<string, "success" | "error" | "skipped">>({});
+  const [nodeTestData, setNodeTestData] = useState<Record<string, { input?: unknown; output?: unknown }>>({});
 
   // ReactFlow state
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
@@ -125,7 +129,7 @@ export function FlowBuilderPage() {
         {
           id: endId,
           type: "end",
-          position: { x: 300, y: 500 },
+          position: { x: 300, y: 300 },
           data: { label: "Fine", nodeType: "end" },
         },
       ]);
@@ -373,6 +377,37 @@ export function FlowBuilderPage() {
         label: item.label, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       });
 
+      // Auto-connessione: niente nodi orfani. Il nuovo nodo (non-nota) viene
+      // inserito nel flusso appena prima del nodo "Fine".
+      if (item.kind !== "note") {
+        const endNode = rfNodes.find((n) => n.type === "end");
+        const edgeToEnd = endNode ? rfEdges.find((e) => e.target === endNode.id) : undefined;
+        const mkEdge = (source: string, target: string): Edge => ({
+          id: crypto.randomUUID(), source, target, type: "addStep", animated: true,
+          style: { strokeWidth: 2 }, data: { onAddStep: (eid: string) => openCatalogForEdge(eid) },
+        });
+        const persist = (e: Edge) => {
+          if (flowId && effectiveCompany) addConnection({
+            id: e.id, flow_id: flowId, company_id: effectiveCompany.id,
+            from_node_id: e.source, to_node_id: e.target, label: null, created_at: new Date().toISOString(),
+          });
+        };
+        if (edgeToEnd) {
+          // sorgente → nuovo → Fine (sostituisce sorgente → Fine)
+          const e1 = mkEdge(edgeToEnd.source, newNodeId);
+          const e2 = mkEdge(newNodeId, edgeToEnd.target);
+          setRfEdges((eds) => [...eds.filter((e) => e.id !== edgeToEnd.id), e1, e2]);
+          removeConnection(edgeToEnd.id);
+          persist(e1); persist(e2);
+        } else {
+          // nessun arco verso Fine: collega da un nodo "foglia" (senza archi uscenti) al nuovo, e nuovo → Fine
+          const leaf = rfNodes.find((n) => n.type !== "end" && n.type !== "note" && !rfEdges.some((e) => e.source === n.id))
+            ?? rfNodes.find((n) => n.type === "trigger");
+          if (leaf) { const e1 = mkEdge(leaf.id, newNodeId); setRfEdges((eds) => [...eds, e1]); persist(e1); }
+          if (endNode) { const e2 = mkEdge(newNodeId, endNode.id); setRfEdges((eds) => [...eds, e2]); persist(e2); }
+        }
+      }
+
       // Auto-open config for non-note nodes
       if (item.kind !== "note") {
         setSelectedNodeId(newNodeId);
@@ -380,7 +415,7 @@ export function FlowBuilderPage() {
         setRightPanelMode("config");
       }
     },
-    [flowId, effectiveCompany, user, setRfNodes, setRfEdges, addNode, addConnection, rfNodes, rfEdges, openCatalogForEdge]
+    [flowId, effectiveCompany, user, setRfNodes, setRfEdges, addNode, addConnection, removeConnection, rfNodes, rfEdges, openCatalogForEdge]
   );
 
   const handleSelectItem = useCallback(
@@ -560,6 +595,26 @@ export function FlowBuilderPage() {
     },
     [updateNode]
   );
+
+  // Auto-layout "Riordina": ridispone i nodi in un layout verticale pulito
+  // seguendo il grafo dai trigger. Aggiorna sia la vista (rfNodes) sia lo stato
+  // DB-mirror marcando il flow come dirty (stesso meccanismo di onNodeDragStop,
+  // ma in blocco → un solo undo/salvataggio). Risolve i flussi esistenti in cui
+  // il nodo "Fine" resta lontano/scollegato.
+  const handleAutoLayout = useCallback(() => {
+    const { positions, movedCount } = computeAutoLayout(rfNodes, rfEdges);
+    if (Object.keys(positions).length === 0) {
+      toast.info("Nessun nodo da riordinare");
+      return;
+    }
+    setRfNodes((nds) => nds.map((n) => (positions[n.id] ? { ...n, position: positions[n.id] } : n)));
+    updateNodePositions(positions);
+    // Rinquadra la vista sul nuovo layout (dopo l'applicazione delle posizioni).
+    window.setTimeout(() => {
+      try { reactFlowInstance?.fitView?.({ padding: 0.2, duration: 400 }); } catch { /* noop */ }
+    }, 60);
+    toast.success(movedCount > 0 ? "Flusso riordinato" : "Il flusso è già ordinato");
+  }, [rfNodes, rfEdges, setRfNodes, updateNodePositions, reactFlowInstance]);
 
 
   // Node click → open config in right panel (but NOT for empty trigger placeholder)
@@ -829,14 +884,17 @@ export function FlowBuilderPage() {
     queryFn: async () => {
       const { data } = await (supabase as any)
         .from("automation_execution_log")
-        .select("node_id, status")
+        .select("node_id, status, input_json, output_json")
         .eq("enrollment_id", testEnrollmentId!);
       if (!data?.length) return null;
       const statuses: Record<string, "success" | "error" | "skipped"> = {};
+      const payloads: Record<string, { input?: unknown; output?: unknown }> = {};
       for (const row of data) {
         statuses[row.node_id] = row.status;
+        payloads[row.node_id] = { input: row.input_json, output: row.output_json };
       }
       setNodeTestStatus(statuses);
+      setNodeTestData(payloads);
       return statuses;
     },
     enabled: !!testEnrollmentId,
@@ -860,11 +918,31 @@ export function FlowBuilderPage() {
     refetchIntervalInBackground: false,
   });
 
-  // Apply canvas overlay colors to nodes
+  // Overlay del test: evidenzia i NODI (ring) e fa "scorrere i dati" nelle LINEE.
   useEffect(() => {
-    if (Object.keys(nodeTestStatus).length === 0) return;
+    // Test azzerato → ripristina lo stile delle linee toccate
+    if (Object.keys(nodeTestStatus).length === 0) {
+      setRfEdges(eds =>
+        eds.some(e => (e.data as { __flow?: boolean } | undefined)?.__flow)
+          ? eds.map(e =>
+              (e.data as { __flow?: boolean } | undefined)?.__flow
+                ? { ...e, animated: false, style: { ...e.style, stroke: undefined, strokeWidth: 1.5, filter: undefined }, data: { ...e.data, __flow: false } }
+                : e,
+            )
+          : eds,
+      );
+      return;
+    }
+    // Mappa id-nodo-ReactFlow → stato (via dbNodeId)
+    const statusByRfId: Record<string, string> = {};
+    for (const n of rfNodes) {
+      const dbId = (n.data?.dbNodeId as string) || n.id;
+      const st = nodeTestStatus[dbId];
+      if (st) statusByRfId[n.id] = st;
+    }
+    // Ring sui nodi
     setRfNodes(nds => nds.map(n => {
-      const dbId = n.data?.dbNodeId || n.id;
+      const dbId = (n.data?.dbNodeId as string) || n.id;
       const status = nodeTestStatus[dbId];
       if (!status) return { ...n, className: "" };
       const ring = status === "success"
@@ -874,7 +952,20 @@ export function FlowBuilderPage() {
         : "ring-2 ring-muted-foreground ring-offset-1";
       return { ...n, className: ring };
     }));
-  }, [nodeTestStatus, setRfNodes]);
+    // Flusso dati sulle linee: la linea in uscita da un nodo completato si
+    // illumina, anima (tratteggio in movimento) e trasporta i dati a valle.
+    setRfEdges(eds => eds.map(e => {
+      const srcStatus = statusByRfId[e.source];
+      if (srcStatus === "success") {
+        return { ...e, animated: true, style: { ...e.style, stroke: "#22c55e", strokeWidth: 2.5, strokeDasharray: undefined, filter: "drop-shadow(0 0 4px rgba(34,197,94,0.55))" }, data: { ...e.data, __flow: true } };
+      }
+      if (srcStatus === "error") {
+        return { ...e, animated: false, style: { ...e.style, stroke: "#ef4444", strokeWidth: 2, filter: "drop-shadow(0 0 3px rgba(239,68,68,0.5))" }, data: { ...e.data, __flow: true } };
+      }
+      return e;
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeTestStatus, setRfNodes, setRfEdges]);
 
   // Auto-save removed: manual save only via Ctrl+S or Save button
 
@@ -1039,12 +1130,25 @@ export function FlowBuilderPage() {
                 onPaneClick={onPaneClick}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
+                defaultEdgeOptions={{ type: "addStep", style: { stroke: "#64748b", strokeWidth: 2 }, markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: "#64748b" } }}
                 fitView
                 deleteKeyCode={["Backspace", "Delete"]}
                 className="bg-muted/30"
               >
                 <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
                 <Controls />
+                <Panel position="top-left">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1.5 text-xs shadow-sm"
+                    onClick={handleAutoLayout}
+                    title="Riordina i nodi in un layout verticale pulito a partire dal trigger"
+                  >
+                    <Wand2 className="h-3.5 w-3.5" />
+                    Riordina
+                  </Button>
+                </Panel>
                 <MiniMap
                   nodeStrokeWidth={3}
                   className="!bg-background !border-border"
@@ -1052,15 +1156,64 @@ export function FlowBuilderPage() {
                 />
               </ReactFlow>
 
-              {/* Floating button to open catalog when right panel is closed */}
+              {/* Floating button to open catalog when right panel is closed.
+                  z-10 → sempre sopra le chrome di React Flow; max-w + flex-wrap +
+                  shrink-0 → il secondo pulsante ("+ Azione") non viene mai tagliato
+                  a destra: se lo spazio è poco i pulsanti vanno a capo invece di
+                  sforare il bordo del canvas. */}
               {!rightPanelOpen && (
-                <div className="absolute top-3 right-3 flex gap-1.5">
-                  <Button size="sm" variant="outline" className="h-7 text-xs shadow-sm" onClick={() => openCatalog("trigger")}>
+                <div className="absolute top-3 right-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap justify-end gap-1.5">
+                  <Button size="sm" variant="outline" className="h-7 shrink-0 text-xs shadow-sm" onClick={() => openCatalog("trigger")}>
                     + Trigger
                   </Button>
-                  <Button size="sm" variant="outline" className="h-7 text-xs shadow-sm" onClick={() => openCatalog("action")}>
+                  <Button size="sm" variant="outline" className="h-7 shrink-0 text-xs shadow-sm" onClick={() => openCatalog("action")}>
                     + Azione
                   </Button>
+                </div>
+              )}
+
+              {/* Inspector dati: durante il test mostra i valori in transito per nodo */}
+              {testEnrollmentId && Object.keys(nodeTestData).length > 0 && (
+                <div className="absolute bottom-3 left-3 z-10 w-72 max-h-[45%] overflow-auto rounded-lg border bg-background/95 shadow-lg backdrop-blur">
+                  <div className="sticky top-0 flex items-center gap-2 border-b bg-background/95 px-3 py-2 text-xs font-medium">
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+                    </span>
+                    Dati in transito (test)
+                  </div>
+                  <div className="divide-y">
+                    {rfNodes
+                      .map((n) => ({ id: (n.data?.dbNodeId as string) || n.id, label: String(n.data?.label ?? "Nodo") }))
+                      .filter((n) => nodeTestData[n.id])
+                      .map((n) => {
+                        const st = nodeTestStatus[n.id];
+                        const out = nodeTestData[n.id]?.output as Record<string, unknown> | undefined;
+                        const entries = out && typeof out === "object" && !Array.isArray(out) ? Object.entries(out).slice(0, 8) : [];
+                        return (
+                          <div key={n.id} className="px-3 py-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate text-xs font-medium">{n.label}</span>
+                              <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${st === "success" ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300" : st === "error" ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-muted text-muted-foreground"}`}>
+                                {st ?? "—"}
+                              </span>
+                            </div>
+                            {entries.length > 0 ? (
+                              <div className="mt-1 space-y-0.5">
+                                {entries.map(([k, v]) => (
+                                  <div key={k} className="flex gap-1.5 font-mono text-[10px]">
+                                    <span className="max-w-[45%] truncate text-muted-foreground">{k}</span>
+                                    <span className="truncate">{typeof v === "object" ? JSON.stringify(v) : String(v)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="mt-1 text-[10px] text-muted-foreground">nessun dato in output</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
                 </div>
               )}
             </div>

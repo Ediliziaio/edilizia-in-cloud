@@ -52,7 +52,23 @@ export interface TriggerDefinition {
   icon: string;
   categoria: string;
   dbTable?: string;
-  dbEvent?: 'INSERT' | 'UPDATE' | 'DELETE' | 'SCHEDULED';
+  dbEvent?:
+    | 'INSERT' | 'UPDATE' | 'DELETE' | 'SCHEDULED'
+    // ── Eventi di PIATTAFORMA (solo area superadmin) ──
+    // Nomi canonici emessi in `automation_trigger_events.trigger_event` dagli
+    // emettitori lato server (create-company, admin-change-plan, stripe-webhook,
+    // platform-lifecycle-cron). NON sono operazioni DB: rappresentano l'evento
+    // di business. L'executor mappa l'id catalogo italiano → questo nome.
+    | 'PLATFORM_COMPANY_CREATED'
+    | 'PLATFORM_PLAN_CHANGED'
+    | 'PLATFORM_SUBSCRIPTION_CANCELLED'
+    | 'PLATFORM_TRIAL_EXPIRING'
+    | 'PLATFORM_AI_CREDITS_LOW'
+    | 'PLATFORM_TICKET_OPENED'
+    | 'PLATFORM_COMPANY_PAUSED'
+    | 'PLATFORM_DEAL_WON'
+    | 'PLATFORM_PAYMENT_RECEIVED'
+    | 'PLATFORM_INVOICE_OVERDUE';
   outputVariables: VariableDefinition[];
   configSchema: ConfigFieldSchema[];
 }
@@ -1141,7 +1157,9 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     configSchema: [],
   },
   {
-    id: 'fattura_scaduta',
+    // ID rinominato per evitare collisione con il trigger 'fattura_scaduta'
+    // di categoria 'fatturazione' (TRIGGER_MAP avrebbe sovrascritto l'uno con l'altro).
+    id: 'fattura_piattaforma_scaduta',
     label: 'Fattura scaduta / non pagata',
     description: 'Si attiva quando una fattura supera la data di scadenza senza pagamento',
     icon: 'AlertCircle',
@@ -1507,72 +1525,13 @@ export const ACTION_CATALOG: ActionDefinition[] = [
       { id: 'label', label: 'Nome sequenza', type: 'text', required: false, placeholder: 'Es: Onboarding 7 giorni' },
     ],
   },
-];
-
-// ─── CONDITION CATALOG ───────────────────────────────────────────────────────
-
-export const CONDITION_CATALOG: ConditionDefinition[] = [
-  {
-    id: 'condition_se',
-    label: 'SE condizione',
-    description: 'Biforca il flow: esegue ramo "Sì" o "No" in base a una condizione',
-    icon: 'GitBranch',
-    configSchema: [
-      { id: 'variabile', label: 'Variabile da controllare', type: 'text', required: true, supportsVariables: true, placeholder: '{{opportunita.value}}', helpText: 'Seleziona una variabile disponibile dagli step precedenti' },
-      { id: 'operatore', label: 'Operatore', type: 'select', required: true, options: [
-        { value: 'uguale', label: '= uguale a' }, { value: 'diverso', label: '≠ diverso da' },
-        { value: 'contiene', label: 'contiene' }, { value: 'non_contiene', label: 'non contiene' },
-        { value: 'maggiore', label: '> maggiore di' }, { value: 'minore', label: '< minore di' },
-        { value: 'maggiore_uguale', label: '≥ maggiore o uguale a' }, { value: 'minore_uguale', label: '≤ minore o uguale a' },
-        { value: 'vuoto', label: 'è vuoto' }, { value: 'non_vuoto', label: 'non è vuoto' },
-        { value: 'inizia_con', label: 'inizia con' }, { value: 'finisce_con', label: 'finisce con' },
-      ]},
-      { id: 'valore', label: 'Valore di confronto', type: 'text', required: false, supportsVariables: true, placeholder: 'Es: 5000', helpText: 'Non necessario per "è vuoto" / "non è vuoto"' },
-      { id: 'label', label: 'Etichetta condizione (per il canvas)', type: 'text', required: false, placeholder: 'Es: Valore > 5000€', helpText: 'Testo mostrato sul nodo nel canvas' },
-    ],
-  },
-  {
-    id: 'condition_multi',
-    label: 'SE condizioni multiple (AND/OR)',
-    description: 'Valuta più condizioni contemporaneamente con operatore AND o OR',
-    icon: 'GitBranch',
-    configSchema: [
-      { id: 'operatore_logico', label: 'Tipo di combinazione', type: 'select', required: true, defaultValue: 'AND', options: [
-        { value: 'AND', label: 'AND — tutte le condizioni devono essere vere' },
-        { value: 'OR', label: 'OR — almeno una condizione deve essere vera' },
-      ]},
-      { id: 'condizioni', label: 'Condizioni (JSON array)', type: 'json_editor', required: true, placeholder: '[{"variabile":"{{opportunita.value}}","operatore":"maggiore","valore":"5000"}]', helpText: 'Ogni condizione: { variabile, operatore, valore }' },
-    ],
-  },
-  {
-    id: 'goal',
-    label: 'Obiettivo (Goal)',
-    description: 'Termina il ramo quando una condizione obiettivo viene raggiunta (es: il contatto ha comprato)',
-    icon: 'Target',
-    configSchema: [
-      { id: 'variabile', label: 'Variabile obiettivo', type: 'text', required: true, supportsVariables: true, placeholder: '{{opportunita.status}}' },
-      { id: 'operatore', label: 'Operatore', type: 'select', required: true, options: [
-        { value: 'uguale', label: '= uguale a' }, { value: 'diverso', label: '≠ diverso da' },
-        { value: 'non_vuoto', label: 'non è vuoto' }, { value: 'maggiore', label: '> maggiore di' },
-      ]},
-      { id: 'valore', label: 'Valore atteso', type: 'text', required: false, supportsVariables: true, placeholder: 'Es: vinto' },
-      { id: 'label', label: 'Etichetta (per il canvas)', type: 'text', required: false, placeholder: 'Es: Ha comprato' },
-    ],
-  },
-  {
-    id: 'split_ab',
-    label: 'Split A/B',
-    description: 'Divide il traffico in 2 o più rami con percentuali configurabili per test A/B',
-    icon: 'Shuffle',
-    configSchema: [
-      { id: 'rami', label: 'Numero di rami', type: 'number', required: true, defaultValue: 2, min: 2, max: 5 },
-      { id: 'percentuali', label: 'Percentuali (es: 50,50 o 33,33,34)', type: 'text', required: true, defaultValue: '50,50', placeholder: '50,50', helpText: 'La somma deve essere 100%' },
-      { id: 'label', label: 'Etichetta split', type: 'text', required: false, placeholder: 'Es: Test email' },
-    ],
-  },
-  // NOTE: vai_a e drip_sequenza sono stati spostati in ACTION_CATALOG (FIX B3)
 
   // ═══ PIATTAFORMA (solo area superadmin) ═══
+  // Azioni di categoria 'piattaforma': appaiono SOLO nel builder admin
+  // (ADMIN_CATEGORY_ORDER include 'piattaforma') e MAI nel builder azienda.
+  // L'executor (process-automation) le rifiuta se il contesto non è la
+  // platform-admin company. Spostate qui da CONDITION_CATALOG: erano azioni,
+  // non condizioni, e finivano per errore nella sezione "Logica" di OGNI builder.
   {
     id: 'invia_email_admin_azienda',
     label: 'Invia email all\'admin azienda',
@@ -1581,7 +1540,7 @@ export const CONDITION_CATALOG: ConditionDefinition[] = [
     categoria: 'piattaforma',
     configSchema: [
       { id: 'oggetto', label: 'Oggetto email', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Aggiornamento sul tuo account {{azienda.name}}' },
-      { id: 'corpo', label: 'Corpo email', type: 'rich_text', required: true, supportsVariables: true },
+      { id: 'corpo', label: 'Corpo email', type: 'textarea', required: true, supportsVariables: true },
       { id: 'mittente_nome', label: 'Nome mittente (opzionale)', type: 'text', required: false, placeholder: 'Es: Team EdiliziaInCloud' },
     ],
   },
@@ -1692,6 +1651,77 @@ export const CONDITION_CATALOG: ConditionDefinition[] = [
       { id: 'assegna_cs', label: 'Assegna Customer Success', type: 'user_select', required: false, helpText: 'Il CS sarà responsabile del follow-up' },
     ],
   },
+];
+
+// ─── CONDITION CATALOG ───────────────────────────────────────────────────────
+
+export const CONDITION_CATALOG: ConditionDefinition[] = [
+  {
+    id: 'condition_se',
+    label: 'SE condizione',
+    description: 'Biforca il flow: esegue ramo "Sì" o "No" in base a una condizione',
+    icon: 'GitBranch',
+    configSchema: [
+      { id: 'variabile', label: 'Variabile da controllare', type: 'text', required: true, supportsVariables: true, placeholder: '{{opportunita.value}}', helpText: 'Seleziona una variabile disponibile dagli step precedenti' },
+      { id: 'operatore', label: 'Operatore', type: 'select', required: true, options: [
+        { value: 'uguale', label: '= uguale a' }, { value: 'diverso', label: '≠ diverso da' },
+        { value: 'contiene', label: 'contiene' }, { value: 'non_contiene', label: 'non contiene' },
+        { value: 'maggiore', label: '> maggiore di' }, { value: 'minore', label: '< minore di' },
+        { value: 'maggiore_uguale', label: '≥ maggiore o uguale a' }, { value: 'minore_uguale', label: '≤ minore o uguale a' },
+        { value: 'vuoto', label: 'è vuoto' }, { value: 'non_vuoto', label: 'non è vuoto' },
+        { value: 'inizia_con', label: 'inizia con' }, { value: 'finisce_con', label: 'finisce con' },
+      ]},
+      { id: 'valore', label: 'Valore di confronto', type: 'text', required: false, supportsVariables: true, placeholder: 'Es: 5000', helpText: 'Non necessario per "è vuoto" / "non è vuoto"' },
+      { id: 'label', label: 'Etichetta condizione (per il canvas)', type: 'text', required: false, placeholder: 'Es: Valore > 5000€', helpText: 'Testo mostrato sul nodo nel canvas' },
+    ],
+  },
+  {
+    id: 'condition_multi',
+    label: 'SE condizioni multiple (AND/OR)',
+    description: 'Valuta più condizioni contemporaneamente con operatore AND o OR',
+    icon: 'GitBranch',
+    configSchema: [
+      { id: 'operatore_logico', label: 'Tipo di combinazione', type: 'select', required: true, defaultValue: 'AND', options: [
+        { value: 'AND', label: 'AND — tutte le condizioni devono essere vere' },
+        { value: 'OR', label: 'OR — almeno una condizione deve essere vera' },
+      ]},
+      { id: 'condizioni', label: 'Condizioni (JSON array)', type: 'json_editor', required: true, placeholder: '[{"variabile":"{{opportunita.value}}","operatore":"maggiore","valore":"5000"}]', helpText: 'Ogni condizione: { variabile, operatore, valore }' },
+    ],
+  },
+  {
+    id: 'goal',
+    label: 'Obiettivo (Goal)',
+    description: 'Termina il ramo quando una condizione obiettivo viene raggiunta (es: il contatto ha comprato)',
+    icon: 'Target',
+    configSchema: [
+      { id: 'variabile', label: 'Variabile obiettivo', type: 'text', required: true, supportsVariables: true, placeholder: '{{opportunita.status}}' },
+      { id: 'operatore', label: 'Operatore', type: 'select', required: true, options: [
+        { value: 'uguale', label: '= uguale a' }, { value: 'diverso', label: '≠ diverso da' },
+        { value: 'non_vuoto', label: 'non è vuoto' }, { value: 'maggiore', label: '> maggiore di' },
+      ]},
+      { id: 'valore', label: 'Valore atteso', type: 'text', required: false, supportsVariables: true, placeholder: 'Es: vinto' },
+      { id: 'label', label: 'Etichetta (per il canvas)', type: 'text', required: false, placeholder: 'Es: Ha comprato' },
+    ],
+  },
+  {
+    id: 'split_ab',
+    label: 'Split A/B',
+    description: 'Divide il traffico in 2 o più rami con percentuali configurabili per test A/B',
+    icon: 'Shuffle',
+    configSchema: [
+      { id: 'rami', label: 'Numero di rami', type: 'number', required: true, defaultValue: 2, min: 2, max: 5 },
+      { id: 'percentuali', label: 'Percentuali (es: 50,50 o 33,33,34)', type: 'text', required: true, defaultValue: '50,50', placeholder: '50,50', helpText: 'La somma deve essere 100%' },
+      { id: 'label', label: 'Etichetta split', type: 'text', required: false, placeholder: 'Es: Test email' },
+    ],
+  },
+  // NOTE: vai_a e drip_sequenza sono stati spostati in ACTION_CATALOG (FIX B3)
+
+  // NB: le azioni di categoria 'piattaforma' (invia_email_admin_azienda,
+  // crea_cs_task, cambia_piano_azienda, aggiungi_nota_azienda,
+  // invia_notifica_team_admin, crea_account_azienda, invia_fattura,
+  // attiva_onboarding) sono state spostate in ACTION_CATALOG: sono AZIONI,
+  // non condizioni. Restando qui finivano nella sezione "Logica" di OGNI
+  // builder (anche azienda) — leak di separazione ora chiuso.
 ];
 
 // ─── Helper maps ─────────────────────────────────────────────────────────────

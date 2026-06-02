@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { emitPlatformEvent, PLATFORM_EVENTS } from "../_shared/platformAutomation.ts";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -158,6 +159,18 @@ Deno.serve(async (req) => {
       }
       return errorResponse("Errore aggiornamento piano: " + updateErr.message, 500, corsH);
     }
+
+    // Trigger di PIATTAFORMA: piano cambiato (best-effort) per il builder admin.
+    await emitPlatformEvent(supabaseAdmin, PLATFORM_EVENTS.PLAN_CHANGED, {
+      entityId: company_id,
+      entityType: "company",
+      payload: {
+        "azienda.id": company_id,
+        "azienda.name": company.name,
+        "piano.vecchio": oldPlanName,
+        "piano.nuovo": newPlan.name,
+      },
+    });
 
     // Subscription log
     await supabaseAdmin.from("subscription_logs").insert({

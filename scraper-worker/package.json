@@ -1,0 +1,21 @@
+{
+  "name": "eic-scraper-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Scraper interno self-host per Edilizia in Cloud — sostituisce Apify. Google Maps (Playwright) + Pagine Gialle (cheerio) + estrazione email.",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "postinstall": "playwright install chromium --with-deps || playwright install chromium || true"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "cheerio": "^1.0.0",
+    "fastify": "^4.28.1",
+    "playwright": "^1.48.2",
+    "tsx": "^4.19.2",
+    "undici": "^6.21.0"
+  }
+}

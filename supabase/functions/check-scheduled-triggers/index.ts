@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, secureHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 
 /**
  * 2026-05-27 SECURITY FIX: prima accettava QUALSIASI Bearer senza validare.
@@ -45,6 +46,195 @@ async function verifyCronOrAuth(req: Request): Promise<void> {
   }
 }
 
+// -- Mappa id-catalogo italiani (SCHEDULED) -> chiave handler / evento canonico.
+// Il flow-builder salva l'id catalogo in config_json.item_id; gli handler inseriscono
+// l'evento canonico inglese in automation_trigger_events cosi' che
+// process-automation/handleTrigger (TRIGGER_EVENT_MAP) lo matchi col nodo.
+const SCHEDULED_EVENT_MAP: Record<string, string> = {
+  ordine_in_ritardo: "order_overdue",
+  task_scaduto: "task_overdue",
+  appuntamento_imminente: "appointment_reminder",
+  fattura_scaduta: "invoice_overdue",
+  preventivo_in_scadenza: "quote_expiring",
+  ticket_senza_risposta: "ticket_unanswered",
+  contratto_in_scadenza: "contract_expiring",
+  cantiere_in_ritardo: "site_overdue",
+  cron_giornaliero: "cron_daily",
+  cron_settimanale: "cron_weekly",
+  cron_mensile: "cron_monthly",
+};
+
+// Emette un evento UNA SOLA VOLTA per (company, evento, entity): evita spam giornaliero
+// per gli alert "di stato" (scaduto/sotto-soglia). handleTrigger blocca comunque la
+// ri-arruolamento sulla stessa entity, quindi una emissione e' sufficiente.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function emitEventOnce(supabase: any, companyId: string, event: string, entityId: string, entityType: string, payload: Record<string, unknown>): Promise<boolean> {
+  const { data: existing } = await supabase
+    .from("automation_trigger_events")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("trigger_event", event)
+    .eq("entity_id", String(entityId))
+    .limit(1)
+    .maybeSingle();
+  if (existing) return false;
+  await supabase.from("automation_trigger_events").insert({
+    company_id: companyId,
+    trigger_event: event,
+    entity_id: String(entityId),
+    entity_type: entityType,
+    payload,
+  });
+  return true;
+}
+
+// Arruola direttamente UN flusso specifico (bypassa il fan-out per-evento). Usato dai
+// trigger cron (per rispettare giorno/orario per-nodo, che handleTrigger ignorerebbe) e
+// dall'avvio manuale. Replica il minimo di handleTrigger: enrollment + queue dei nodi
+// successivi al trigger. La coda viene poi processata da process-automation.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function enrollFlowDirect(supabase: any, flowId: string, companyId: string, triggerNodeId: string, entityId: string, entityType: string, payload: Record<string, unknown>): Promise<string | null> {
+  const { data: flow } = await supabase.from("automation_flows").select("version").eq("id", flowId).maybeSingle();
+  const { data: enrollment, error } = await supabase
+    .from("automation_enrollments")
+    .insert({
+      flow_id: flowId,
+      company_id: companyId,
+      entity_id: entityId,
+      entity_type: entityType,
+      flow_version: flow?.version ?? 1,
+      status: "active",
+    })
+    .select("id")
+    .single();
+  if (error || !enrollment) return null;
+
+  const { data: conns } = await supabase
+    .from("automation_connections")
+    .select("to_node_id, label")
+    .eq("flow_id", flowId)
+    .eq("from_node_id", triggerNodeId);
+
+  for (const c of conns || []) {
+    await supabase.from("automation_queue").insert({
+      enrollment_id: enrollment.id,
+      flow_id: flowId,
+      company_id: companyId,
+      current_node_id: c.to_node_id,
+      entity_id: entityId,
+      entity_type: entityType,
+      status: "pending",
+      execute_at: new Date().toISOString(),
+      context_json: { payload, branch: c.label },
+    });
+  }
+
+  await supabase
+    .from("flow_execution_runs")
+    .insert({
+      flow_id: flowId,
+      company_id: companyId,
+      enrollment_id: enrollment.id,
+      trigger_type: (payload?.trigger as string) ?? "scheduled",
+      trigger_data: payload,
+      status: "running",
+    })
+    .then(() => {})
+    .catch(() => {});
+
+  return enrollment.id;
+}
+
+const CRON_WEEKDAY: Record<string, number> = {
+  domenica: 0, lunedi: 1, martedi: 2, mercoledi: 3, giovedi: 4, venerdi: 5, sabato: 6,
+};
+
+// Trigger cron generici. Granularita' giornaliera (il cron gira 1volta/giorno alle 07:00 UTC):
+// cron_daily fira ogni run; weekly/monthly solo nel giorno configurato. Entity unica per
+// occorrenza (data nell'id) -> ri-arruolamento ad ogni occorrenza. Dedup per enrollment.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleCronTrigger(supabase: any, flow: any, node: any, ev: string, cfg: any): Promise<boolean> {
+  const now = new Date();
+  const todayStr = now.toISOString().split("T")[0];
+  let shouldFire = false;
+  if (ev === "cron_daily") {
+    shouldFire = true;
+  } else if (ev === "cron_weekly") {
+    const want = CRON_WEEKDAY[String(cfg.giorno || "lunedi")] ?? 1;
+    shouldFire = now.getUTCDay() === want;
+  } else if (ev === "cron_monthly") {
+    const want = parseInt(cfg.giorno_mese) || 1;
+    shouldFire = now.getUTCDate() === want;
+  }
+  if (!shouldFire) return false;
+
+  const entityId = `cron:${flow.id}:${todayStr}`;
+  const { data: existing } = await supabase
+    .from("automation_enrollments")
+    .select("id")
+    .eq("flow_id", flow.id)
+    .eq("entity_id", entityId)
+    .limit(1)
+    .maybeSingle();
+  if (existing) return false;
+
+  const enrolled = await enrollFlowDirect(supabase, flow.id, flow.company_id, node.id, entityId, "cron", {
+    data: todayStr,
+    ora: now.toISOString().slice(11, 16),
+    trigger: ev,
+  });
+  return !!enrolled;
+}
+
+// Avvio MANUALE di un flusso (trigger 'manuale'): il pulsante "Esegui" chiama questa
+// function con { mode:"run_flow", flow_id, company_id }. Auth: cron-secret OPPURE JWT
+// utente con accesso alla company.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleManualRun(req: Request, supabase: any, body: any): Promise<Response> {
+  const corsH = getCorsHeaders(req);
+  const { flow_id, company_id, entity_id, entity_type, payload } = body;
+  if (!flow_id || !company_id) {
+    return jsonResponse({ error: "Missing flow_id or company_id" }, 400);
+  }
+
+  const reqSecret = req.headers.get("x-cron-secret") ?? "";
+  const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
+  const proactiveSecret = Deno.env.get("PROACTIVE_CRON_SECRET") ?? "";
+  const isInternal = reqSecret.length > 0 && (
+    (cronSecret.length > 0 && reqSecret === cronSecret) ||
+    (proactiveSecret.length > 0 && reqSecret === proactiveSecret)
+  );
+  if (!isInternal) {
+    const { userId, supabaseAdmin } = await requireAuth(req, corsH);
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, corsH);
+  }
+
+  const { data: flow } = await supabase
+    .from("automation_flows")
+    .select("id, version, status, company_id")
+    .eq("id", flow_id)
+    .eq("company_id", company_id)
+    .maybeSingle();
+  if (!flow) return jsonResponse({ error: "Flow not found" }, 404);
+  if (flow.status !== "published") return jsonResponse({ error: "Flow not published" }, 400);
+
+  const { data: nodes } = await supabase
+    .from("automation_nodes")
+    .select("id, node_type")
+    .eq("flow_id", flow_id);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const triggerNode = (nodes || []).find((n: any) => n.node_type === "trigger");
+  if (!triggerNode) return jsonResponse({ error: "Flow has no trigger node" }, 400);
+
+  const eid = entity_id || `manual:${crypto.randomUUID()}`;
+  const enrollmentId = await enrollFlowDirect(
+    supabase, flow_id, company_id, triggerNode.id, eid, entity_type || "manual",
+    { ...(payload || {}), trigger: "manual_run", manual: true },
+  );
+  if (!enrollmentId) return jsonResponse({ error: "Enrollment failed" }, 500);
+  return jsonResponse({ message: "Flow started", enrollment_id: enrollmentId, entity_id: eid });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -54,6 +244,20 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let body: Record<string, any> = {};
+  try { body = await req.json(); } catch { body = {}; }
+
+  // Avvio manuale di un singolo flusso (trigger 'manuale').
+  if (body && (body.mode === "run_flow" || body.action === "run_flow")) {
+    try {
+      return await handleManualRun(req, supabase, body);
+    } catch (e: any) {
+      if (e instanceof Response) return e;
+      return errorResponse(e?.message || String(e), 500);
+    }
+  }
 
   const results: Record<string, number> = {
     birthday: 0,
@@ -68,6 +272,12 @@ Deno.serve(async (req) => {
     task_overdue: 0,
     cost_due: 0,
     appointment_reminder: 0,
+    invoice_overdue: 0,
+    quote_expiring: 0,
+    ticket_unanswered: 0,
+    contract_expiring: 0,
+    site_overdue: 0,
+    cron: 0,
   };
 
   try {
@@ -95,7 +305,8 @@ Deno.serve(async (req) => {
 
       for (const node of triggerNodes) {
         const cfg = node.config_json || {};
-        const triggerEvent = cfg.trigger_event;
+        const itemId = (cfg.item_id ?? cfg.trigger_event ?? "") as string;
+        const triggerEvent = SCHEDULED_EVENT_MAP[itemId] ?? cfg.trigger_event ?? itemId;
 
         switch (triggerEvent) {
           case "birthday_reminder": {
@@ -189,79 +400,51 @@ Deno.serve(async (req) => {
           }
 
           case "order_overdue": {
-            // Fire when an order's expected delivery date is in the past and order is not completed
+            // ordine_in_ritardo: ordine oltre la data di consegna prevista, con N giorni di
+            // tolleranza. NB: la colonna reale e' `expected_date` (non expected_delivery_date)
+            // e lo stato testuale e' `status`.
+            const giorniTolleranza = parseInt(cfg.giorni_tolleranza) || 1;
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - giorniTolleranza);
+            const cutoffStr = cutoff.toISOString().split("T")[0];
+
             const { data: overdueOrders } = await supabase
               .from("orders")
-              .select("id, description, code, expected_delivery_date")
+              .select("id, description, order_code, status, customer_id, expected_date")
               .eq("company_id", flow.company_id)
-              .lt("expected_delivery_date", new Date().toISOString().split("T")[0])
-              .not("current_status_id", "is", null);
+              .not("expected_date", "is", null)
+              .lt("expected_date", cutoffStr);
 
-            if (overdueOrders) {
-              const today = new Date().toISOString().split("T")[0];
-              for (const order of overdueOrders) {
-                const { data: existing } = await supabase
-                  .from("automation_trigger_events")
-                  .select("id")
-                  .eq("company_id", flow.company_id)
-                  .eq("trigger_event", "order_overdue")
-                  .eq("entity_id", order.id)
-                  .gte("created_at", today)
-                  .maybeSingle();
-
-                if (!existing) {
-                  await supabase.from("automation_trigger_events").insert({
-                    company_id: flow.company_id,
-                    trigger_event: "order_overdue",
-                    entity_id: order.id,
-                    entity_type: "order",
-                    payload: {
-                      order_id: order.id,
-                      description: order.description,
-                      code: order.code,
-                      expected_delivery_date: order.expected_delivery_date,
-                    },
-                  });
-                  results.order_overdue++;
-                }
-              }
+            for (const order of overdueOrders || []) {
+              const st = String(order.status || "").toLowerCase();
+              if (["completato", "consegnato", "chiuso", "annullato", "completed", "delivered", "closed", "cancelled"].includes(st)) continue;
+              const giorni = Math.max(0, Math.floor((Date.now() - new Date(order.expected_date).getTime()) / 86400000));
+              const emitted = await emitEventOnce(supabase, flow.company_id, "order_overdue", order.id, "order", {
+                order_id: order.id, order_code: order.order_code, description: order.description,
+                customer_id: order.customer_id, expected_date: order.expected_date, giorni_ritardo: giorni,
+              });
+              if (emitted) results.order_overdue++;
             }
             break;
           }
 
           case "task_overdue": {
-            // Fire when a task's due date has passed and task is not completed
+            // task_scaduto: due_date passata e task non completato (valore reale 'completato').
+            const todayStr = new Date().toISOString().split("T")[0];
             const { data: overdueTasks } = await supabase
               .from("tasks")
-              .select("id, title, due_date, assigned_to")
+              .select("id, title, due_date, assigned_to, status")
               .eq("company_id", flow.company_id)
-              .lt("due_date", new Date().toISOString().split("T")[0])
-              .neq("status", "completed")
-              .neq("status", "done");
+              .not("due_date", "is", null)
+              .lt("due_date", todayStr)
+              .neq("status", "completato");
 
-            if (overdueTasks) {
-              const today = new Date().toISOString().split("T")[0];
-              for (const task of overdueTasks) {
-                const { data: existing } = await supabase
-                  .from("automation_trigger_events")
-                  .select("id")
-                  .eq("company_id", flow.company_id)
-                  .eq("trigger_event", "task_overdue")
-                  .eq("entity_id", task.id)
-                  .gte("created_at", today)
-                  .maybeSingle();
-
-                if (!existing) {
-                  await supabase.from("automation_trigger_events").insert({
-                    company_id: flow.company_id,
-                    trigger_event: "task_overdue",
-                    entity_id: task.id,
-                    entity_type: "task",
-                    payload: { task_id: task.id, title: task.title, due_date: task.due_date },
-                  });
-                  results.task_overdue++;
-                }
-              }
+            for (const task of overdueTasks || []) {
+              const giorni = Math.max(0, Math.floor((Date.now() - new Date(task.due_date).getTime()) / 86400000));
+              const emitted = await emitEventOnce(supabase, flow.company_id, "task_overdue", task.id, "task", {
+                task_id: task.id, title: task.title, assigned_to: task.assigned_to, due_date: task.due_date, giorni_ritardo: giorni,
+              });
+              if (emitted) results.task_overdue++;
             }
             break;
           }
@@ -309,11 +492,17 @@ Deno.serve(async (req) => {
           }
 
           case "appointment_reminder": {
-            // Flow-based appointment reminder: fires X minutes before appointment
-            const minutesBefore = parseInt(cfg.minutes_before) || 60;
-            const reminderFrom = new Date();
-            const reminderTo = new Date(reminderFrom.getTime() + 10 * 60 * 1000); // 10 min window
-            const aptTargetTime = new Date(reminderFrom.getTime() + minutesBefore * 60 * 1000);
+            // appuntamento_imminente: reminder X ore (ore_prima) / minuti (minutes_before)
+            // prima dell'appuntamento. Con cron giornaliero la granularita' e' il giorno:
+            // si emette per gli appuntamenti che cadono entro la finestra [now, now+anticipo].
+            const minutesBefore = cfg.minutes_before
+              ? parseInt(cfg.minutes_before)
+              : cfg.ore_prima
+                ? parseInt(cfg.ore_prima) * 60
+                : 1440;
+            const now = new Date();
+            const horizon = new Date(now.getTime() + minutesBefore * 60 * 1000);
+            const todayStr = now.toISOString().split("T")[0];
 
             const { data: flowApts } = await supabase
               .from("appointments")
@@ -322,43 +511,182 @@ Deno.serve(async (req) => {
               .eq("is_blocked_slot", false)
               .neq("status", "annullato")
               .neq("status", "cancelled")
-              .eq("appointment_date", aptTargetTime.toISOString().split("T")[0]);
+              .gte("appointment_date", todayStr)
+              .lte("appointment_date", horizon.toISOString().split("T")[0]);
 
-            if (flowApts) {
-              const today = new Date().toISOString().split("T")[0];
-              for (const apt of flowApts) {
-                if (!apt.contact_id) continue;
-                const aptDate = new Date(apt.appointment_date);
-                if (apt.appointment_time) {
-                  const [hh, mm] = apt.appointment_time.split(":").map(Number);
-                  aptDate.setHours(hh || 0, mm || 0, 0, 0);
-                } else {
-                  aptDate.setHours(9, 0, 0, 0);
-                }
-                const triggerAt = new Date(aptDate.getTime() - minutesBefore * 60 * 1000);
-                if (reminderFrom > triggerAt || reminderTo < triggerAt) continue;
+            for (const apt of flowApts || []) {
+              if (!apt.contact_id) continue;
+              const aptDate = new Date(apt.appointment_date);
+              if (apt.appointment_time) {
+                const [hh, mm] = apt.appointment_time.split(":").map(Number);
+                aptDate.setHours(hh || 0, mm || 0, 0, 0);
+              } else {
+                aptDate.setHours(9, 0, 0, 0);
+              }
+              if (aptDate < now || aptDate > horizon) continue;
 
-                const { data: existing } = await supabase
-                  .from("automation_trigger_events")
-                  .select("id")
-                  .eq("company_id", flow.company_id)
-                  .eq("trigger_event", "appointment_reminder")
-                  .eq("entity_id", apt.contact_id)
-                  .gte("created_at", today)
-                  .maybeSingle();
+              const { data: existing } = await supabase
+                .from("automation_trigger_events")
+                .select("id")
+                .eq("company_id", flow.company_id)
+                .eq("trigger_event", "appointment_reminder")
+                .eq("entity_id", apt.contact_id)
+                .gte("created_at", todayStr)
+                .maybeSingle();
 
-                if (!existing) {
-                  await supabase.from("automation_trigger_events").insert({
-                    company_id: flow.company_id,
-                    trigger_event: "appointment_reminder",
-                    entity_id: apt.contact_id,
-                    entity_type: "contact",
-                    payload: { appointment_id: apt.id, title: apt.title, date: apt.appointment_date, time: apt.appointment_time, minutes_before: minutesBefore },
-                  });
-                  results.appointment_reminder++;
-                }
+              if (!existing) {
+                await supabase.from("automation_trigger_events").insert({
+                  company_id: flow.company_id,
+                  trigger_event: "appointment_reminder",
+                  entity_id: apt.contact_id,
+                  entity_type: "contact",
+                  payload: { appointment_id: apt.id, title: apt.title, date: apt.appointment_date, time: apt.appointment_time, minutes_before: minutesBefore },
+                });
+                results.appointment_reminder++;
               }
             }
+            break;
+          }
+
+          case "invoice_overdue": {
+            // fattura_scaduta: fattura non pagata oltre N giorni dalla scadenza.
+            const giorni = parseInt(cfg.giorni_dopo_scadenza) || 3;
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - giorni);
+            const cutoffStr = cutoff.toISOString().split("T")[0];
+
+            const { data: overdue } = await supabase
+              .from("invoices")
+              .select("id, invoice_number, total, client_company_name, client_email, due_date, status")
+              .eq("company_id", flow.company_id)
+              .not("due_date", "is", null)
+              .lte("due_date", cutoffStr);
+
+            for (const inv of overdue || []) {
+              const st = String(inv.status || "").toLowerCase();
+              if (["paid", "pagata", "cancelled", "canceled", "annullata", "draft", "bozza"].includes(st)) continue;
+              const giorniScaduta = Math.max(0, Math.floor((Date.now() - new Date(inv.due_date).getTime()) / 86400000));
+              const emitted = await emitEventOnce(supabase, flow.company_id, "invoice_overdue", inv.id, "invoice", {
+                invoice_id: inv.id, invoice_number: inv.invoice_number, total: inv.total,
+                client_company_name: inv.client_company_name, client_email: inv.client_email,
+                due_date: inv.due_date, giorni_scaduta: giorniScaduta,
+              });
+              if (emitted) results.invoice_overdue++;
+            }
+            break;
+          }
+
+          case "quote_expiring": {
+            // preventivo_in_scadenza: scade entro N giorni e non ancora risposto.
+            const giorni = parseInt(cfg.giorni_prima) || 3;
+            const now = new Date();
+            const limit = new Date(now.getTime() + giorni * 86400000);
+
+            const { data: expiring } = await supabase
+              .from("quotes")
+              .select("id, quote_number, total, client_name, client_email, expires_at, signed_at, refused_at")
+              .eq("company_id", flow.company_id)
+              .not("expires_at", "is", null)
+              .is("signed_at", null)
+              .is("refused_at", null)
+              .gte("expires_at", now.toISOString())
+              .lte("expires_at", limit.toISOString());
+
+            for (const q of expiring || []) {
+              const giorniAlla = Math.max(0, Math.ceil((new Date(q.expires_at).getTime() - Date.now()) / 86400000));
+              const emitted = await emitEventOnce(supabase, flow.company_id, "quote_expiring", q.id, "quote", {
+                preventivo_id: q.id, quote_number: q.quote_number, total: q.total,
+                client_name: q.client_name, client_email: q.client_email, giorni_alla_scadenza: giorniAlla,
+              });
+              if (emitted) results.quote_expiring++;
+            }
+            break;
+          }
+
+          case "ticket_unanswered": {
+            // ticket_senza_risposta: ticket aperto/in lavorazione senza attivita' da N ore (SLA).
+            const oreSla = parseInt(cfg.ore_sla) || 24;
+            const cutoff = new Date(Date.now() - oreSla * 3600000).toISOString();
+
+            const { data: stale } = await supabase
+              .from("tickets")
+              .select("id, subject, customer_id, assigned_to, created_at, last_message_at, status")
+              .eq("company_id", flow.company_id)
+              .neq("status", "risolto")
+              .lte("last_message_at", cutoff);
+
+            for (const t of stale || []) {
+              const oreApertura = Math.max(0, Math.floor((Date.now() - new Date(t.created_at).getTime()) / 3600000));
+              const emitted = await emitEventOnce(supabase, flow.company_id, "ticket_unanswered", t.id, "ticket", {
+                ticket_id: t.id, subject: t.subject, customer_id: t.customer_id,
+                assigned_to: t.assigned_to, ore_apertura: oreApertura,
+              });
+              if (emitted) results.ticket_unanswered++;
+            }
+            break;
+          }
+
+          case "contract_expiring": {
+            // contratto_in_scadenza: contratto dipendente in scadenza entro N giorni.
+            // Fonte dati: hr_profili.data_cessazione (data fine rapporto/contratto).
+            const giorni = parseInt(cfg.giorni_prima) || 30;
+            const today = new Date();
+            const limit = new Date(today.getTime() + giorni * 86400000);
+            const todayStr = today.toISOString().split("T")[0];
+            const limitStr = limit.toISOString().split("T")[0];
+
+            const { data: contracts } = await supabase
+              .from("hr_profili")
+              .select("id, employee_id, nome, cognome, data_cessazione, attivo")
+              .eq("company_id", flow.company_id)
+              .eq("attivo", true)
+              .not("data_cessazione", "is", null)
+              .gte("data_cessazione", todayStr)
+              .lte("data_cessazione", limitStr);
+
+            for (const c of contracts || []) {
+              const entityId = c.employee_id || c.id;
+              const giorniRim = Math.max(0, Math.ceil((new Date(c.data_cessazione).getTime() - Date.now()) / 86400000));
+              const emitted = await emitEventOnce(supabase, flow.company_id, "contract_expiring", entityId, "employee", {
+                dipendente_id: entityId, first_name: c.nome, last_name: c.cognome,
+                data_cessazione: c.data_cessazione, giorni_rimanenti: giorniRim,
+              });
+              if (emitted) results.contract_expiring++;
+            }
+            break;
+          }
+
+          case "site_overdue": {
+            // cantiere_in_ritardo: ordine/cantiere oltre la data di fine prevista (work_end_date).
+            const giorniTolleranza = parseInt(cfg.giorni_tolleranza) || 0;
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - giorniTolleranza);
+            const cutoffStr = cutoff.toISOString().split("T")[0];
+
+            const { data: lateSites } = await supabase
+              .from("orders")
+              .select("id, order_code, description, status, assigned_to, work_end_date")
+              .eq("company_id", flow.company_id)
+              .not("work_end_date", "is", null)
+              .lt("work_end_date", cutoffStr);
+
+            for (const o of lateSites || []) {
+              const st = String(o.status || "").toLowerCase();
+              if (["completato", "consegnato", "chiuso", "annullato", "completed", "delivered", "closed", "cancelled"].includes(st)) continue;
+              const giorni = Math.max(0, Math.floor((Date.now() - new Date(o.work_end_date).getTime()) / 86400000));
+              const emitted = await emitEventOnce(supabase, flow.company_id, "site_overdue", o.id, "order", {
+                cantiere_id: o.id, nome: o.order_code || o.description, giorni_ritardo: giorni, responsabile_id: o.assigned_to,
+              });
+              if (emitted) results.site_overdue++;
+            }
+            break;
+          }
+
+          case "cron_daily":
+          case "cron_weekly":
+          case "cron_monthly": {
+            const fired = await handleCronTrigger(supabase, flow, node, triggerEvent, cfg);
+            if (fired) results.cron++;
             break;
           }
 
@@ -371,7 +699,10 @@ Deno.serve(async (req) => {
             targetDate.setDate(targetDate.getDate() + daysOffset);
             const targetStr = targetDate.toISOString().split("T")[0];
 
-            const { data: contacts } = await supabase
+            // cast: .eq(dateField, ...) con colonna dinamica genera TS2589
+            // (deep generic instantiation) sul query-builder tipizzato.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data: contacts } = await (supabase as any)
               .from("marketing_contacts")
               .select("id")
               .eq("company_id", flow.company_id)

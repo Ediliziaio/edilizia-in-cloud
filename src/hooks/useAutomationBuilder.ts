@@ -337,6 +337,23 @@ export function useAutomationBuilder(flowId: string | undefined) {
     markDirty();
   }, [pushHistory, markDirty]);
 
+  // Bulk position update (auto-layout): un solo history push + dirty, così
+  // "Riordina" si annulla con un solo Ctrl+Z e si salva come un drag normale.
+  const updateNodePositions = useCallback((positions: Record<string, { x: number; y: number }>) => {
+    setNodes(prev => {
+      const next = prev.map(n => {
+        const p = positions[n.id];
+        return p ? { ...n, position_x: Math.round(p.x), position_y: Math.round(p.y) } : n;
+      });
+      setConnections(currentConns => {
+        pushHistory(next, currentConns);
+        return currentConns;
+      });
+      return next;
+    });
+    markDirty();
+  }, [pushHistory, markDirty]);
+
   // Remove node
   const removeNode = useCallback((id: string) => {
     setNodes(prev => {
@@ -439,7 +456,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
   return {
     flow, nodes, connections, isLoading, isSaving, hasUnsavedChanges, canPersist,
     selectedNodeId, selectedNode, setSelectedNodeId,
-    addNode, updateNode, removeNode,
+    addNode, updateNode, updateNodePositions, removeNode,
     addConnection, removeConnection,
     undo, redo, canUndo, canRedo,
     saveAll, saveImmediate, createFlowMutation, updateFlowMutation, togglePublish, validateForPublish,

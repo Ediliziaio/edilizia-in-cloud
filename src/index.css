@@ -692,3 +692,21 @@ html.capacitor [role="button"] {
     word-break: break-all;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   FIX TOAST (sonner): la DESCRIZIONE dei toast (es. "Email o password non
+   validi", "google_maps_api_key non configurata…") risultava bianco-su-bianco
+   / illeggibile. Causa: le regole interne di sonner
+   ([data-sonner-toast] [data-description]) vincono per SPECIFICITÀ sulla classe
+   Tailwind `text-muted-foreground` impostata in components/ui/sonner.tsx, e in
+   alcuni temi il colore di default risultava quasi bianco.
+   Forziamo colori leggibili usando le CSS variable del tema ATTIVO → corretto
+   sia in chiaro che in scuro. !important per battere la specificità di sonner.
+   ────────────────────────────────────────────────────────────────────────── */
+[data-sonner-toast] [data-title] {
+  color: hsl(var(--foreground)) !important;
+}
+[data-sonner-toast] [data-description] {
+  color: hsl(var(--muted-foreground)) !important;
+  opacity: 1 !important;
+}

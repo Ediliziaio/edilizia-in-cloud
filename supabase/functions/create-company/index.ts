@@ -1,5 +1,6 @@
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { emitPlatformEvent, PLATFORM_EVENTS } from "../_shared/platformAutomation.ts";
 
 interface OrderStatusTemplate {
   name: string;
@@ -268,6 +269,18 @@ Deno.serve(async (req) => {
     if (statusError) {
       console.error("Status error:", statusError);
     }
+
+    // Trigger di PIATTAFORMA: notifica il motore automazioni admin (best-effort).
+    await emitPlatformEvent(supabaseAdmin, PLATFORM_EVENTS.COMPANY_CREATED, {
+      entityId: companyId,
+      entityType: "company",
+      payload: {
+        "azienda.id": companyId,
+        "azienda.name": companyData.name,
+        "azienda.email": companyData.email,
+        "azienda.created_at": companyData.created_at,
+      },
+    });
 
     return jsonResponse({
       success: true,

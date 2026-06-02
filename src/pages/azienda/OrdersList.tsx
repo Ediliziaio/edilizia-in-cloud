@@ -827,7 +827,11 @@ function OrdersListInner() {
   });
 
   const deleteOrderMutation = useMutation({
-    mutationFn: async (orderId: string) => deleteOrderCascading(orderId, effectiveCompany?.id),
+    mutationFn: async (orderId: string) => {
+      const companyId = effectiveCompany?.id;
+      if (!companyId) throw new Error("Nessuna azienda selezionata.");
+      return deleteOrderCascading(orderId, companyId);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.calendarOrders.all });
@@ -888,8 +892,13 @@ function OrdersListInner() {
   const handleBulkDelete = async (orderIds: string[]) => {
     setIsBulkUpdating(true);
     try {
+      const companyId = effectiveCompany?.id;
+      if (!companyId) {
+        toast({ title: "Errore", description: "Nessuna azienda selezionata.", variant: "destructive" });
+        return;
+      }
       const results = await Promise.allSettled(
-        orderIds.map((orderId) => deleteOrderCascading(orderId, effectiveCompany?.id))
+        orderIds.map((orderId) => deleteOrderCascading(orderId, companyId))
       );
       const failed = results.filter((r) => r.status === "rejected").length;
       const ok = results.length - failed;

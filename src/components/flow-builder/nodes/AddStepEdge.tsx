@@ -27,9 +27,24 @@ export function AddStepEdge({
     targetPosition,
   });
 
+  // Durante il test: la linea da un nodo completato "trasporta" un pacchetto di
+  // dati (pallino che scorre lungo il path). Solo sulle linee verdi (success).
+  const flowing =
+    Boolean((data as { __flow?: boolean } | undefined)?.__flow) &&
+    (style as { stroke?: string } | undefined)?.stroke === "#22c55e";
+
   return (
     <>
-      <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
+      <BaseEdge
+        path={edgePath}
+        markerEnd={markerEnd}
+        style={{ stroke: "#64748b", strokeWidth: 2, ...style }}
+      />
+      {flowing && (
+        <circle r={4.5} fill="#22c55e" style={{ filter: "drop-shadow(0 0 5px rgba(34,197,94,0.9))" }}>
+          <animateMotion dur="1.4s" repeatCount="indefinite" path={edgePath} />
+        </circle>
+      )}
       <EdgeLabelRenderer>
         <div
           style={{
