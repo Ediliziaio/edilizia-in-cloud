@@ -371,14 +371,17 @@ BEGIN
 END;
 $function$;
 
--- ─── Grants: solo utenti autenticati (RLS-safe via company scoping interno) ──
-REVOKE ALL ON FUNCTION public.create_warehouse_transfer_atomic(UUID, UUID, UUID, DATE, TEXT, JSONB) FROM PUBLIC;
+-- ─── Grants: SOLO utenti autenticati ───────────────────────────────────────
+-- NB: in Supabase le DEFAULT PRIVILEGES concedono EXECUTE ad `anon` sulle nuove
+-- funzioni in `public`; REVOKE FROM PUBLIC non basta → revochiamo anche anon
+-- esplicitamente (le funzioni hanno comunque la guardia auth.uid() IS NULL).
+REVOKE ALL ON FUNCTION public.create_warehouse_transfer_atomic(UUID, UUID, UUID, DATE, TEXT, JSONB) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.create_warehouse_transfer_atomic(UUID, UUID, UUID, DATE, TEXT, JSONB) TO authenticated;
 
-REVOKE ALL ON FUNCTION public.delete_order_cascading(UUID, UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.delete_order_cascading(UUID, UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.delete_order_cascading(UUID, UUID) TO authenticated;
 
-REVOKE ALL ON FUNCTION public.apply_inventory_audit_adjustment(UUID, UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.apply_inventory_audit_adjustment(UUID, UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.apply_inventory_audit_adjustment(UUID, UUID) TO authenticated;
 
 COMMENT ON FUNCTION public.create_warehouse_transfer_atomic IS
