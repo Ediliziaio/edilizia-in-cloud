@@ -54,7 +54,7 @@ interface LeadResult {
   instagram_url: string | null;
   intent_signals: Record<string, boolean> | null;
   intent_score: number | null;
-  email_status: "none" | "guessed" | "verified_mx" | "found" | null;
+  email_status: "none" | "guessed" | "verified_mx" | "found" | "pec" | "verified" | null;
   enrichment: Record<string, unknown> | null;
   // v3
   seen_before: boolean | null;
