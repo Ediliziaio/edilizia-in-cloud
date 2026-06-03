@@ -8,7 +8,7 @@
  *   Day 0  → "Abbonamento scaduto" soft notification
  *   Day 3  → "Accesso sospeso a breve" urgent reminder
  *   Day 7  → "Ultimo avviso" final warning
- *   Day 14 → account suspended automatically
+ *   Day 7  → annullamento: account sospeso automaticamente (comped/regalati ESENTI)
  *
  * Trial expiry sequence:
  *   Day -3 → "Il tuo trial scade tra 3 giorni" upsell
@@ -27,6 +27,16 @@ const APP_URL = Deno.env.get("APP_URL") || Deno.env.get("SITE_URL") || "https://
 const SUPPORT_PHONE = "+39 0424 123456";
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2 * 60 * 60 * 1000; // 2 hours
+// Grace period (giorni) dopo la scadenza abbonamento prima dell'annullamento
+// (sospensione accesso). Gli account "comped"/regalati sono ESENTI.
+const GRACE_DAYS = 7;
+
+// Metodi "regalo" (accesso gratuito per policy) — esenti dall'annullamento.
+// Mirror di GIFTED_EXEMPT_METHODS in src/lib/paymentStatus.ts ("comped" canonico
+// + sinonimi legacy). Volutamente esclusi none/""/free/trial.
+const GIFTED_EXEMPT_METHODS = new Set([
+  "comped", "complimentary", "comp", "manual_free", "gift", "gifted", "gratis", "omaggio",
+]);
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -83,9 +93,9 @@ function buildExpiredEmail(company: any, daysExpired: number, _dunningDay: strin
 
   const urgencyBlock =
     daysExpired >= 7
-      ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:20px 0;"><p style="margin:0;font-family:sans-serif;font-size:15px;font-weight:bold;color:#dc2626;">Ultimo avviso: il tuo account verra' sospeso tra ${14 - daysExpired} giorni.</p></div>`
+      ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:20px 0;"><p style="margin:0;font-family:sans-serif;font-size:15px;font-weight:bold;color:#dc2626;">Ultimo avviso: il tuo account verra' sospeso tra ${7 - daysExpired} giorni.</p></div>`
       : daysExpired >= 3
-      ? `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:16px;margin:20px 0;"><p style="margin:0;font-family:sans-serif;font-size:15px;font-weight:bold;color:#ea580c;">Il tuo accesso verra' sospeso tra ${14 - daysExpired} giorni se non rinnovi.</p></div>`
+      ? `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:16px;margin:20px 0;"><p style="margin:0;font-family:sans-serif;font-size:15px;font-weight:bold;color:#ea580c;">Il tuo accesso verra' sospeso tra ${7 - daysExpired} giorni se non rinnovi.</p></div>`
       : `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px;margin:20px 0;"><p style="margin:0;font-family:sans-serif;font-size:15px;color:#1e40af;">Il tuo abbonamento e' scaduto. Rinnova ora per continuare senza interruzioni.</p></div>`;
 
   return `<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>@media(max-width:600px){table{width:100%!important}td{padding:16px!important}}</style></head><body style="margin:0;padding:0;background:#f8fafc;">
@@ -308,11 +318,14 @@ Deno.serve(async (req) => {
 
     // ── 1. Companies with expired subscriptions (grace period 0-14 days) ──
     const { data: expiredCompanies } = await supabase
-      .from("companies").select("id, name, email, status, subscription_plan_id")
+      .from("companies").select("id, name, email, status, subscription_plan_id, payment_method")
       .in("status", ["active", "trial"]).not("subscription_plan_id", "is", null);
 
     for (const company of expiredCompanies || []) {
       try {
+        // "Regalati"/comped (e sinonimi legacy): ESENTI dall'annullamento per mancato pagamento.
+        if (GIFTED_EXEMPT_METHODS.has(String((company as { payment_method?: string }).payment_method ?? "").toLowerCase())) continue;
+
         const { data: sub } = await supabase.from("company_subscriptions")
           .select("current_period_end, status").eq("company_id", company.id)
           .order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -321,16 +334,17 @@ Deno.serve(async (req) => {
         if (!sub.current_period_end) continue;
 
         const daysExpired = daysDiff(sub.current_period_end);
-        if (daysExpired < 0 || daysExpired > 14) continue;
+        if (daysExpired < 0 || daysExpired > 30) continue;
 
         results.processed++;
 
-        if (daysExpired >= 14) {
+        // Grace di GRACE_DAYS giorni, poi annullamento (sospensione accesso reale).
+        if (daysExpired >= GRACE_DAYS) {
           await supabase.from("companies").update({ status: "suspended" }).eq("id", company.id);
-          await logDunningEvent(company.id, "dunning_suspended", "Account sospeso automaticamente dopo 14 giorni di mancato pagamento");
+          await logDunningEvent(company.id, "dunning_suspended", `Account sospeso (annullamento) dopo ${GRACE_DAYS} giorni di mancato pagamento`);
           results.suspended++;
           await notifySuperAdmin(company.id, company.name, "auto_suspension",
-            "Account sospeso automaticamente dopo 14 giorni di mancato pagamento");
+            `Account sospeso (annullamento) dopo ${GRACE_DAYS} giorni di mancato pagamento`);
           continue;
         }
 

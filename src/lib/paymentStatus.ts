@@ -23,6 +23,29 @@ export type PaymentMethod =
   | "comped"
   | "other";
 
+/**
+ * Metodi "regalo" (accesso gratuito concesso per policy: demo, partner, early
+ * adopter): ESENTI dal gate carta/abbonamento sui tool a consumo.
+ *
+ * "comped" è il valore canonico scritto dalla UI (PaymentMethodCard); gli altri
+ * sono sinonimi legacy mantenuti per retrocompatibilità con dati pre-esistenti,
+ * allineati a NON_PAYING_METHODS in src/lib/adminRevenue.ts.
+ *
+ * NB volutamente ESCLUSI: "none"/""/"free"/"trial" → significano "nessuna carta"
+ * e DEVONO restare bloccati (anche un account gratis richiede la carta per i
+ * tool a consumo: email, WhatsApp, AI, render, firma).
+ */
+export const GIFTED_EXEMPT_METHODS = new Set<string>([
+  "comped",
+  "complimentary",
+  "comp",
+  "manual_free",
+  "gift",
+  "gifted",
+  "gratis",
+  "omaggio",
+]);
+
 export type EffectivePaymentStatus =
   | "paying"
   | "trial"
@@ -114,8 +137,8 @@ export interface CompanyPaymentShape {
  * Calcola lo stato di pagamento effettivo.
  *
  * Precedenza:
- *   1. Se payment_method === "comped" → sempre COMPED, anche se trial/active
- *      (policy decide, indipendente da status).
+ *   1. Se payment_method è "regalo" (comped + sinonimi legacy) → sempre COMPED,
+ *      anche se trial/active (policy decide, indipendente da status).
  *   2. Se status terminale (suspended/cancelled/expired) → mappa 1:1.
  *   3. Se status === "trial" → TRIAL.
  *   4. Se status === "active":
@@ -129,8 +152,8 @@ export function getEffectivePaymentStatus(
   const method = (company.payment_method ?? "none") as PaymentMethod;
   const status = (company.status ?? "trial").toLowerCase();
 
-  // 1) Policy override: comped
-  if (method === "comped") return "comped";
+  // 1) Policy override: "comped" e sinonimi legacy (gift, complimentary, manual_free…)
+  if (GIFTED_EXEMPT_METHODS.has(String(method).toLowerCase())) return "comped";
 
   // 2) Stati terminali
   if (status === "suspended") return "suspended";

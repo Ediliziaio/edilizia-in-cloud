@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { usePaymentGateStore } from "@/store/paymentGateStore";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { formatCurrency, formatDateShort } from "@/lib/formatters";
 import { createTimeoutSignal, withClientTimeout } from "@/lib/query-timeout";
@@ -129,6 +130,12 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
         body: { documento_id: docId },
       });
       if (error) {
+        // 402 = gate "carta obbligatoria": apri il dialog "Aggiungi carta".
+        // (invoke diretto → non passa dal MutationCache globale di App.tsx.)
+        if ((error as { context?: { status?: number } })?.context?.status === 402) {
+          usePaymentGateStore.getState().show();
+          return;
+        }
         const detail = error.context ? await (error.context as any).json?.().catch((): null => null) : null;
         throw new Error(detail?.error || error.message);
       }

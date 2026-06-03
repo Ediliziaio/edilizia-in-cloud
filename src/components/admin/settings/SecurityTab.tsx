@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminSessions, useRevokeSession } from "@/hooks/useAdminSessions";
 import { toast } from "sonner";
@@ -458,7 +459,7 @@ function useRlsStatus() {
     queryKey: ["admin-rls-status"],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("check-rls-status");
-      if (error) throw error;
+      if (error) throw new Error(await edgeErrorMessage(error));
       return data as { tables_without_rls: string[]; count: number; scanned_at: string };
     },
     staleTime: 10 * 60 * 1000,

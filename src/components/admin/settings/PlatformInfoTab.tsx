@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { queryKeys } from "@/lib/queryKeys";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
@@ -544,7 +545,7 @@ export default function PlatformInfoTab() {
         body: { action: "stats" },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) throw new Error(await edgeErrorMessage(res.error, res.error.message));
       return res.data as PlatformStats;
     },
     staleTime: 5 * 60 * 1000,
@@ -558,7 +559,7 @@ export default function PlatformInfoTab() {
         body: { action: "get-settings" },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) throw new Error(await edgeErrorMessage(res.error, res.error.message));
       return res.data?.settings as Record<string, { value: string; masked?: string }> | undefined;
     },
     staleTime: 60 * 1000,
@@ -571,7 +572,7 @@ export default function PlatformInfoTab() {
         body: { action: "update-settings", settings: updates },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) throw new Error(await edgeErrorMessage(res.error, res.error.message));
       return res.data;
     },
     onSuccess: () => {

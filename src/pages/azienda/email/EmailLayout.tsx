@@ -137,18 +137,51 @@ export function EmailLayout({
         body: { source: "manual_force_layout" },
       });
       if (error) throw new Error(error.message);
-      return data as { connections_checked?: number; emails_fetched?: number; emails_stored?: number };
+      return data as {
+        connections_checked?: number;
+        emails_fetched?: number;
+        emails_stored?: number;
+        reads_reconciled?: number;
+        errors?: Array<{ connection_id: string; error: string }>;
+      };
     },
     onSuccess: (data) => {
-      const stored = data?.emails_stored ?? 0;
-      toast.success("Sync completato", {
-        description: stored === 0
-          ? "Nessuna nuova email."
-          : `${stored} nuova email scaricata.`,
-      });
+      // Anche un sync parziale può aver scaricato qualcosa → invalida sempre.
       void qc.invalidateQueries({ queryKey: ["email-threads"] });
       void qc.invalidateQueries({ queryKey: ["email-folder-counts"] });
       void qc.invalidateQueries({ queryKey: ["email-oauth-connections"] });
+      void qc.invalidateQueries({ queryKey: ["email-client-connections"] });
+
+      const stored = data?.emails_stored ?? 0;
+      const checked = data?.connections_checked ?? 0;
+      const failed = data?.errors ?? [];
+
+      // Caselle in errore: NON fingere "completato" — mostra il motivo reale + come risolvere.
+      if (failed.length > 0) {
+        toast.error(
+          `${failed.length} ${failed.length === 1 ? "casella non sincronizzata" : "caselle non sincronizzate"}`,
+          {
+            description: `${describeEmailSyncError(failed[0].error)} — verifica o riconnetti l'account in Impostazioni.`,
+            duration: 8000,
+          },
+        );
+        return;
+      }
+      // Nessuna casella processata (tutte disconnesse/revocate).
+      if (checked === 0) {
+        toast.warning("Nessuna casella da sincronizzare", {
+          description: "Le caselle potrebbero essere disconnesse: riconnettile in Impostazioni → Email.",
+          duration: 7000,
+        });
+        return;
+      }
+      const reconciled = data?.reads_reconciled ?? 0;
+      toast.success("Sync completato", {
+        description: [
+          stored === 0 ? "Nessuna nuova email." : `${stored} nuova email scaricata.`,
+          reconciled > 0 ? `${reconciled} segnate come lette (aperte altrove).` : "",
+        ].filter(Boolean).join(" "),
+      });
     },
     onError: (e) => toast.error("Errore sync", { description: String(e) }),
   });
@@ -650,6 +683,27 @@ function EmailMailboxToolbar({
       </div>
     </div>
   );
+}
+
+/** Traduce gli errori tecnici di sync email in un messaggio comprensibile per l'utente. */
+function describeEmailSyncError(raw: string): string {
+  const e = (raw || "").toLowerCase();
+  if (e.includes("refresh_token_missing") || e.includes("invalid_grant")) {
+    return "Accesso a Google scaduto o revocato";
+  }
+  if (e.includes("token_refresh_failed")) {
+    return "Impossibile rinnovare l'accesso alla casella";
+  }
+  if (e.includes("tokens_not_found")) {
+    return "Credenziali della casella non disponibili";
+  }
+  if (e.includes("429") || e.includes("rate") || e.includes("quota")) {
+    return "Troppe richieste a Google: riprova tra qualche minuto";
+  }
+  if (e.includes("gmail_list") || e.includes("gmail_get")) {
+    return "Gmail ha rifiutato la richiesta";
+  }
+  return "Errore di sincronizzazione";
 }
 
 function folderTitleText(filter: FolderFilter): string {

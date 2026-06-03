@@ -7,6 +7,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { getSuppressedEmailMap, normalizeEmailAddress } from "../_shared/emailSuppression.ts";
 import {
   applyContactCustomFields,
   loadContactCustomFieldResolverCrossCompany,
@@ -134,7 +135,17 @@ Deno.serve(async (req) => {
     });
   }
 
-  const recipients = (contacts ?? []) as Array<{ id: string; first_name: string; last_name: string | null; email: string; company_id: string | null }>;
+  const rawRecipients = (contacts ?? []) as Array<{ id: string; first_name: string; last_name: string | null; email: string; company_id: string | null }>;
+  // Soppressioni GLOBALI (company_id IS NULL): hard bounce, reclami spam, opt-out
+  // a livello piattaforma. Coerente con send-email-campaign; protegge la
+  // reputazione del dominio mittente condiviso anche per le campagne cross-company.
+  const suppressed = await getSuppressedEmailMap(
+    supabase,
+    rawRecipients.map((c) => c.email),
+    null,
+    "marketing",
+  );
+  const recipients = rawRecipients.filter((c) => !suppressed.has(normalizeEmailAddress(c.email)));
   const total = recipients.length;
 
   // Aggiorna total_contacts

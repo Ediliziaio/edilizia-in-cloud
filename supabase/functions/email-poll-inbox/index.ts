@@ -445,6 +445,78 @@ async function pollGmail(
   return emails;
 }
 
+/**
+ * Riconciliazione stato letto/non-letto Gmail → EiC, ANCHE per email vecchie
+ * (fuori dalla finestra di re-fetch dei corpi). Risolve: "leggo un'email da un
+ * altro strumento → dovrei vederla letta anche qui".
+ *
+ * Direzione conservativa (solo mark-as-read): se un'email è non-letta nel DB ma
+ * NON è più tra le non-lette di Gmail (l'utente l'ha aperta altrove) → la
+ * segniamo letta. Non tocchiamo quelle già lette in EiC.
+ *
+ * SICUREZZA (un bug qui potrebbe segnare letto in massa → guardie forti):
+ *  - procede SOLO se la list Gmail va a buon fine (HTTP ok), altrimenti no-op;
+ *  - richiede paginazione COMPLETA del set non-letto: se è enorme (>4000) fa
+ *    abort senza update, per non agire su un set parziale (falsi "letti");
+ *  - candidati limitati alle non-lette recenti (ultimi 60 giorni).
+ * Una risposta vuota MA valida (zero non-lette su Gmail) è legittima: l'utente
+ * ha letto tutto altrove → allineiamo.
+ *
+ * Ritorna il numero di email segnate come lette.
+ */
+async function reconcileGmailReadState(
+  supa: SupabaseClient,
+  accessToken: string,
+  connectionId: string,
+): Promise<number> {
+  // 1) ID delle email NON LETTE in inbox su Gmail (chiamata leggera: solo ID).
+  const unreadIds = new Set<string>();
+  let pageToken: string | null = null;
+  let pages = 0;
+  do {
+    const url = `${GMAIL_API}/messages?q=${encodeURIComponent("in:inbox is:unread")}&maxResults=500${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ""}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) return 0; // fallimento → no-op (mai update con set parziale)
+    const data = (await res.json()) as { messages?: Array<{ id: string }>; nextPageToken?: string };
+    for (const m of data.messages ?? []) unreadIds.add(m.id);
+    pageToken = data.nextPageToken ?? null;
+    if (++pages >= 8 && pageToken) return 0; // >4000 non-lette → abort, set incompleto
+  } while (pageToken);
+
+  // 2) Candidati: nostre email non-lette recenti (60 gg) in inbox.
+  const cutoffIso = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: localUnread, error } = await (supa as any)
+    .from("email_inbox")
+    .select("id, provider_message_id")
+    .eq("oauth_connection_id", connectionId)
+    .eq("is_read", false)
+    .eq("mailbox_folder", "inbox")
+    .gte("received_at", cutoffIso)
+    .limit(3000);
+  if (error || !Array.isArray(localUnread) || localUnread.length === 0) return 0;
+
+  // 3) Da segnare letti: locali-non-letti il cui ID Gmail NON è più tra i non-letti.
+  const toMark = (localUnread as Array<{ id: string; provider_message_id: string | null }>)
+    .filter((e) => e.provider_message_id && !unreadIds.has(e.provider_message_id))
+    .map((e) => e.id);
+  if (toMark.length === 0) return 0;
+
+  // Update a batch (evita IN list gigante).
+  let marked = 0;
+  for (let i = 0; i < toMark.length; i += 200) {
+    const slice = toMark.slice(i, i + 200);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: updErr } = await (supa as any)
+      .from("email_inbox")
+      .update({ is_read: true })
+      .in("id", slice);
+    if (updErr) break;
+    marked += slice.length;
+  }
+  return marked;
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // OUTLOOK POLL
 // ════════════════════════════════════════════════════════════════════════════
@@ -758,6 +830,7 @@ Deno.serve(async (req) => {
     emails_fetched: 0,
     emails_stored: 0,
     ai_triage_queued: 0,
+    reads_reconciled: 0,
     errors: [] as Array<{ connection_id: string; error: string }>,
     duration_ms: 0,
   };
@@ -772,7 +845,11 @@ Deno.serve(async (req) => {
       .from("email_oauth_connections")
       .select("id, provider, email_address, company_id, user_id, last_synced_at, sync_from_date")
       .eq("user_id", manualUserId)
-      .eq("status", "active")
+      // Sync MANUALE = intento esplicito di recupero: include anche le caselle in
+      // 'error' (>=5 errori consecutivi), altrimenti il pulsante "Aggiorna" non
+      // potrebbe mai sbloccarle (deadlock). Al primo sync riuscito mark_sync
+      // riporta status a 'active'. Esclusi 'revoked'/'expired' → serve riconnessione.
+      .in("status", ["active", "error"])
       .eq("poll_enabled", true)
       .order("created_at", { ascending: false })
       .limit(10);
@@ -899,6 +976,15 @@ Deno.serve(async (req) => {
             summary.emails_fetched += sentEmails.length;
           } catch (e) {
             console.warn(`[email-poll] sent sync failed for ${conn.email_address}:`, e instanceof Error ? e.message : e);
+          }
+
+          // Riconciliazione stato letto/non-letto: allinea is_read alle email
+          // aperte da altri strumenti (Gmail web/mobile), anche quelle vecchie
+          // fuori dalla finestra di re-fetch. Best-effort: non blocca il sync.
+          try {
+            summary.reads_reconciled += await reconcileGmailReadState(supa, accessToken, conn.id);
+          } catch (e) {
+            console.warn(`[email-poll] read-state reconcile failed for ${conn.email_address}:`, e instanceof Error ? e.message : e);
           }
         }
       }

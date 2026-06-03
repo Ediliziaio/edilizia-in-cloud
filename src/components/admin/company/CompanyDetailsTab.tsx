@@ -27,6 +27,7 @@ import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import type { Company, CompanyStatus } from "@/types/auth";
 import { sectorLabels, sectors, statusConfig } from "@/lib/companyUtils";
 import type { UseFormReturn } from "react-hook-form";
@@ -233,7 +234,7 @@ export function CompanyDetailsTab({
         body: { action: "admin_export_company_data", company_id: company.id },
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      if (res.error) throw res.error;
+      if (res.error) throw new Error(await edgeErrorMessage(res.error, "Errore export GDPR"));
       const blob = new Blob([JSON.stringify(res.data, null, 2)], {
         type: "application/json",
       });
