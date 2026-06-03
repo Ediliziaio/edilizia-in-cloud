@@ -238,6 +238,39 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "kpi",
   },
 
+  get_serie_grafico: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_serie_grafico",
+        description: "Ritorna una SERIE di dati REALI dell'azienda già pronta per essere disegnata come grafico. Metriche: 'fatturato_mensile' (€/mese), 'incassi_mensili' (€/mese), 'cantieri_per_stato' (n. commesse per stato), 'documenti_per_tipo'. Ritorna {titolo, unita, x_label, data:[{label,value}]}. IMPORTANTE: dopo aver ricevuto i dati, DISEGNA il grafico emettendo un blocco ```chart``` (es. type 'bar' per i confronti/ripartizioni, 'line' o 'area' per gli andamenti nel tempo) usando esattamente i data ricevuti + titolo/unita. Usa per richieste tipo 'mostrami il fatturato per mese', 'grafico incassi', 'commesse per stato', 'andamento del fatturato', 'quanto ho incassato'.",
+        parameters: {
+          type: "object",
+          properties: {
+            metric: {
+              type: "string",
+              enum: ["fatturato_mensile", "incassi_mensili", "cantieri_per_stato", "documenti_per_tipo"],
+              description: "Quale serie restituire.",
+            },
+            mesi: { type: "integer", minimum: 3, maximum: 36, default: 12, description: "Mesi indietro (solo per le serie mensili)." },
+          },
+          required: ["metric"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_serie_grafico", {
+      p_company_id: ctx.companyId,
+      p_metric: args?.metric ?? "fatturato_mensile",
+      p_mesi: args?.mesi ?? 12,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione", "assistente_imprenditore", "sales", "pm_cantiere", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "kpi",
+    resultContract: "Disegna SUBITO un grafico ```chart``` con i data ricevuti (bar per ripartizioni/confronti, line/area per andamenti), poi 1 frase d'insight.",
+  },
+
   get_orders_summary: {
     schema: {
       type: "function",
