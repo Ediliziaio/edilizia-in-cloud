@@ -71,6 +71,10 @@ export default function TalentProfilePublic() {
   const [session, setSession] = useState<PublicSession | null>(null);
   const [answers, setAnswers] = useState<Record<number, AnswerValue>>({});
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  // Gate "test avviato": disaccoppiato dalla spunta privacy. Senza, la sola
+  // checkbox faceva saltare il gate avviando il test (pulsante "Inizia"
+  // irraggiungibile + consenso esplicito non salvato sull'avvio).
+  const [started, setStarted] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -122,6 +126,9 @@ export default function TalentProfilePublic() {
         );
         setAnswers(nextAnswers);
         setPrivacyAccepted(Boolean(nextSession.privacy_accepted));
+        // Ripresa: se il candidato ha già accettato la privacy, salta la
+        // schermata iniziale e torna direttamente alle domande.
+        setStarted(Boolean(nextSession.privacy_accepted));
         setCompleted(nextSession.candidate?.status === "completed");
         const allQuestions = nextSession.questions || [];
         const firstUnansweredIndex = allQuestions.findIndex((q) => !nextAnswers[q.question_id]);
@@ -196,17 +203,17 @@ export default function TalentProfilePublic() {
   );
 
   useEffect(() => {
-    if (!loadedRef.current || !dirty || completed || !privacyAccepted) return;
+    if (!loadedRef.current || !dirty || completed || !started) return;
     const timeout = window.setTimeout(() => {
       persistAnswers({ silent: true }).catch(() => {
         // Il salvataggio manuale resta disponibile e mostrera l'errore.
       });
     }, 900);
     return () => window.clearTimeout(timeout);
-  }, [completed, dirty, persistAnswers, privacyAccepted]);
+  }, [completed, dirty, persistAnswers, started]);
 
   useEffect(() => {
-    if (!privacyAccepted || completed) return;
+    if (!started || completed) return;
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
@@ -221,7 +228,7 @@ export default function TalentProfilePublic() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [privacyAccepted, completed, pageIndex, totalPages, dirty]);
+  }, [started, completed, pageIndex, totalPages, dirty]);
 
   const goNextPage = async () => {
     if (dirty) {
@@ -250,8 +257,16 @@ export default function TalentProfilePublic() {
   };
 
   const acceptPrivacyAndStart = async () => {
-    setPrivacyAccepted(true);
-    await persistAnswers({ acceptPrivacy: true, silent: false });
+    // Persisti PRIMA il consenso; avvia il test solo se il backend conferma
+    // (persistAnswers aggiorna privacyAccepted dalla risposta). Così un errore
+    // di rete non lascia l'utente "avviato" senza consenso salvato, e il
+    // pulsante resta in stato di caricamento finché non completa.
+    try {
+      await persistAnswers({ acceptPrivacy: true, silent: false });
+      setStarted(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Non sono riuscito ad avviare il test");
+    }
   };
 
   if (loading) {
@@ -324,7 +339,7 @@ export default function TalentProfilePublic() {
     );
   }
 
-  if (!privacyAccepted) {
+  if (!started) {
     return (
       <PublicShell companyName={session.company?.name || undefined}>
         <motion.div

@@ -13,7 +13,6 @@ const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 const CompaniesList = lazy(() => import("@/pages/admin/CompaniesList"));
 const CreateCompany = lazy(() => import("@/pages/admin/CreateCompany"));
 const CompanyDetail = lazy(() => import("@/pages/admin/CompanyDetail"));
-const GlobalTickets = lazy(() => import("@/pages/admin/GlobalTickets"));
 // AdminSettingsProfile rimosso: sostituito da AdminMioProfilo (tab Profilo/
 // Sicurezza/Calendari/Email/Notifiche). Vecchia route /admin/impostazioni/
 // profilo redirige a /mio-profilo per back-compat.
@@ -37,14 +36,9 @@ const SilvioApprovalsPage = lazy(() => import("@/pages/admin/SilvioApprovalsPage
 // ============================================================================
 // REFACTOR Strategia C: nuove 3 pagine AI consolidate
 // ============================================================================
-const AIConfigPage = lazy(() => import("@/pages/admin/ai/AIConfigPage"));
-const AIMonitorPage = lazy(() => import("@/pages/admin/ai/AIMonitorPage"));
-const AIOperatePage = lazy(() => import("@/pages/admin/ai/AIOperatePage"));
-const AdminAIMemoryPage = lazy(() => import("@/pages/admin/ai/AdminAIMemoryPage"));
 // Hub AI unificato: Operate · Monitor · Config · Memoria in tab in alto.
 const AdminAIHub = lazy(() => import("@/pages/admin/ai/AdminAIHub"));
 const AdminBulkSchedulesPage = lazy(() => import("@/pages/admin/AdminBulkSchedulesPage"));
-const SubscriptionPlans = lazy(() => import("@/pages/admin/SubscriptionPlans"));
 const PlanDetail = lazy(() => import("@/pages/admin/PlanDetail"));
 const ReferralDashboard = lazy(() => import("@/pages/admin/ReferralDashboard"));
 const FeatureFlags = lazy(() => import("@/pages/admin/FeatureFlags"));
@@ -52,10 +46,7 @@ const FeatureBundles = lazy(() => import("@/pages/admin/FeatureBundles"));
 const CompanyPacchettoCustom = lazy(() => import("@/pages/admin/CompanyPacchettoCustom"));
 const AdminFvModulo = lazy(() => import("@/pages/admin/AdminFvModulo"));
 const AdminSettingsSecurity = lazy(() => import("@/pages/admin/settings/AdminSettingsSecurity"));
-const SyncLogs = lazy(() => import("@/pages/admin/SyncLogs"));
-const CompanyLifecycle = lazy(() => import("@/pages/admin/CompanyLifecycle"));
 const Announcements = lazy(() => import("@/pages/admin/Announcements"));
-const CustomerSuccess = lazy(() => import("@/pages/admin/CustomerSuccess"));
 // AdminCSTasks non è più importato qui: vive come tab dentro AdminAttivita.
 // La route /admin/cs-tasks redirige al tab per backward-compat.
 const AdminAttivita = lazy(() => import("@/pages/admin/AdminAttivita"));
@@ -63,7 +54,6 @@ const AdminEmailClientPage = lazy(() => import("@/pages/admin/AdminEmailClientPa
 const AdminMioProfilo = lazy(() => import("@/pages/admin/impostazioni/AdminMioProfilo"));
 const AdminEmailOAuthCallback = lazy(() => import("@/pages/admin/impostazioni/AdminEmailOAuthCallback"));
 const AdminTeamChat = lazy(() => import("@/pages/admin/AdminTeamChat"));
-const AdminGDPR = lazy(() => import("@/pages/admin/AdminGDPR"));
 const AdminSettingsIPAllowlist = lazy(() => import("@/pages/admin/settings/AdminSettingsIPAllowlist"));
 const AdminSettingsIntegrations = lazy(() => import("@/pages/admin/settings/AdminSettingsIntegrations"));
 const AdminSettingsMarketingCalendars = lazy(() => import("@/pages/admin/settings/AdminSettingsMarketingCalendars"));
@@ -94,10 +84,6 @@ const AdminSalesOS = lazy(() => import("@/pages/admin/marketing/AdminSalesOS"));
 const AdminPreventivi = lazy(() => import("@/pages/admin/marketing/AdminPreventivi"));
 const AdminQuoteBuilder = lazy(() => import("@/pages/admin/marketing/AdminQuoteBuilder"));
 const AdminQuoteDetail = lazy(() => import("@/pages/admin/marketing/AdminQuoteDetail"));
-const AdminRevenueDashboard = lazy(() => import("@/pages/admin/AdminRevenueDashboard"));
-const PromoCodes = lazy(() => import("@/pages/admin/PromoCodes"));
-const AdminInvoiceHistory = lazy(() => import("@/pages/admin/AdminInvoiceHistory"));
-const AdminDunningConfig = lazy(() => import("@/pages/admin/AdminDunningConfig"));
 // Hub unificato: 5 tab in alto (Revenue · Piani · Fatture · Promo · Dunning).
 // Sostituisce 5 voci sidebar separate per ridurre rumore visivo.
 const AdminFatturatoHub = lazy(() => import("@/pages/admin/fatturato/AdminFatturatoHub"));
@@ -113,20 +99,11 @@ const AdminPortalePage = lazy(() => import("@/pages/admin/AdminPortalePage"));
 // 404 admin-scoped — preserva AdminLayout (sidebar, header, breadcrumb)
 // e mostra suggerimenti contestuali admin.
 const NotFound = lazy(() => import("@/pages/NotFound"));
-const AdminCSDashboard = lazy(() => import("@/pages/admin/AdminCSDashboard"));
 const SmsSuperAdminPage = lazy(() => import("@/pages/admin/sms/SmsSuperAdminPage"));
 const AdminCRM = lazy(() => import("@/pages/admin/AdminCRM"));
 // Campagne AB Test (Feature 7)
 const CampaignsPage = lazy(() => import("@/pages/admin/CampaignsPage"));
 const CampaignAnalyticsPage = lazy(() => import("@/pages/admin/CampaignAnalyticsPage"));
-// Playbook Automatici (Feature 8)
-const PlaybooksPage = lazy(() => import("@/pages/admin/PlaybooksPage"));
-// Import CSV Lead (Feature 5)
-const CsvImportPage = lazy(() => import("@/pages/admin/CsvImportPage"));
-// Audit Log Flag (Feature 9)
-const AuditLogPage = lazy(() => import("@/pages/admin/AuditLogPage"));
-// Failure Alerts (Feature 11)
-const FailureAlertsPage = lazy(() => import("@/pages/admin/FailureAlertsPage"));
 // Cohort Chart (Feature 3)
 const CohortPage = lazy(() => import("@/pages/admin/CohortPage"));
 // Dunning Templates (Feature 4)

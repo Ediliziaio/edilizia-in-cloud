@@ -447,7 +447,10 @@ export default function FotovoltaicoWizard() {
           }
         );
         if (error) throw error;
-        const newId = (result as { progetto_id: string }).progetto_id;
+        const newId = (result as { progetto_id?: string } | null)?.progetto_id;
+        // Difesa: se la edge function risponde senza progetto_id non avanziamo
+        // con id undefined (gli step successivi farebbero no-op silenziosi).
+        if (!newId) throw new Error("Risposta del server priva di progetto_id");
         if (!mountedRef.current) return;
         setProgettoId(newId);
         toast.success("Progetto creato — continua con i consumi");
