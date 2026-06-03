@@ -84,6 +84,11 @@ import { toast } from "sonner";
 // Refactor 2026-05-10: CassaCumulataChart estratto in
 // src/components/fotovoltaico/CassaCumulataChart.tsx (-142 righe)
 import { CassaCumulataChart } from "@/components/fotovoltaico/CassaCumulataChart";
+import { FvConfrontoVarianti } from "@/components/fotovoltaico/FvConfrontoVarianti";
+import { FvLayoutTetto } from "@/components/fotovoltaico/FvLayoutTetto";
+import { FvSimulatoreInterattivo } from "@/components/fotovoltaico/FvSimulatoreInterattivo";
+import { FvDimensionamentoStringhe } from "@/components/fotovoltaico/FvDimensionamentoStringhe";
+import { inputBaseDaContesto, type ContestoVariantiVicine } from "@/lib/fotovoltaico/varianti";
 
 // MP-MKT-001: TOTAL_STEPS + TABS estratti in ./FotovoltaicoWizard/constants.ts
 import { TOTAL_STEPS, TABS } from "./FotovoltaicoWizard/constants";
@@ -550,6 +555,14 @@ export default function FotovoltaicoWizard() {
       );
       update("qualita_dati_tetto", qualitaTetto);
       update("imagery_date", (result.imagery_date as string) ?? null);
+      // Cattura il layout reale dei pannelli (solo Solar API lo fornisce): oggi
+      // veniva scartato; ora alimenta la vista "Disposizione reale dei pannelli".
+      update(
+        "layout_tetto",
+        data.fonte_dati_tetto === "solar_api"
+          ? ((result.layout_suggerito as WizardData["layout_tetto"]) ?? null)
+          : null,
+      );
 
       await aggiornaProgetto.mutateAsync({
         id: progettoId,
@@ -1899,6 +1912,7 @@ function Step4Tetto({
               Modulo → API & Secrets</em>.
             </FvCallout>
           )}
+          <FvLayoutTetto panels={data.layout_tetto} className="mt-3" />
         </>
       )}
     </>
@@ -2045,6 +2059,9 @@ function Step5Configurazione({
           variant="green"
         />
       </div>
+
+      {/* Progettazione elettrica: dimensionamento stringhe/MPPT (gap vs Reonic/Autarc) */}
+      <FvDimensionamentoStringhe numeroModuli={data.numero_pannelli_scelti} className="mb-4" />
 
       <div className="mb-4">
         <FvCallout
@@ -2420,6 +2437,10 @@ function Step6Finanziario({
   fvTemplate: Record<string, unknown> | null | undefined;
   onRicalcola: () => void;
 }) {
+  // Confronto varianti (gap vs Reonic/Autarc): profili autoconsumo per stimare
+  // il delta delle varianti con/senza accumulo. Hook prima di ogni early-return.
+  const { data: profiliAutoconsumo } = useProfiliAutoconsumo();
+
   if (calcolando) {
     return (
       <FvCard>
@@ -2588,6 +2609,37 @@ function Step6Finanziario({
         ? "Economia da rivedere"
         : "Economia pronta per vendita e campagne";
 
+  // ─── Confronto varianti (stima indicativa client-side) ────────────────────
+  const profiloRow =
+    (profiliAutoconsumo ?? []).find((p) => p.codice === data.profilo_consumo) ?? null;
+  const produzioneAnnua = (scenario.produzione_annua_kwh as number) ?? 0;
+  const ctxVarianti: ContestoVariantiVicine | null =
+    data.potenza_kwp > 0 && investimento > 0 && produzioneAnnua > 0
+      ? {
+          potenza_kwp: data.potenza_kwp,
+          investimento_eur: investimento,
+          produzione_anno_1_kwh: produzioneAnnua,
+          autoconsumo_pct: (scenario.autoconsumo_pct as number) ?? 0,
+          consumo_annuo_kwh: data.consumo_annuo_kwh ?? 0,
+          costo_kwh_attuale: (scenario.costo_kwh_attuale as number) ?? 0.32,
+          prezzo_rid_kwh: (scenario.prezzo_rid_eur_kwh as number) ?? 0.1,
+          detrazione_annua_eur: (scenario.detrazione_anno_eur as number) ?? 0,
+          con_accumulo: data.con_accumulo,
+          capacita_accumulo_kwh: data.capacita_accumulo_kwh,
+          costo_kwp_base: Number(fvTemplate?.costo_kwp_base ?? 0),
+          costo_accumulo_kwh: Number(fvTemplate?.costo_accumulo_kwh ?? 0),
+          profilo: profiloRow
+            ? {
+                autoconsumo_no_accumulo: profiloRow.autoconsumo_no_accumulo,
+                autoconsumo_accumulo_5kwh: profiloRow.autoconsumo_accumulo_5kwh,
+                autoconsumo_accumulo_10kwh: profiloRow.autoconsumo_accumulo_10kwh,
+                autoconsumo_accumulo_15kwh: profiloRow.autoconsumo_accumulo_15kwh,
+              }
+            : null,
+        }
+      : null;
+  const baseSimulatore = ctxVarianti ? inputBaseDaContesto(ctxVarianti) : null;
+
   return (
     <>
       <FvPanelTitle
@@ -2682,6 +2734,19 @@ function Step6Finanziario({
           </div>
         </FvCallout>
       </div>
+
+      {/* Confronto varianti — affianca configurazioni alternative (gap vs Reonic/Autarc) */}
+      <FvConfrontoVarianti ctx={ctxVarianti} className="mb-4" />
+
+      {/* Simulatore interattivo — il cliente muove i parametri e vede i numeri live */}
+      {baseSimulatore && (
+        <FvSimulatoreInterattivo
+          base={baseSimulatore}
+          potenzaKwp={data.potenza_kwp}
+          conAccumulo={data.con_accumulo}
+          className="mb-4"
+        />
+      )}
 
       {/* HERO */}
       <div

@@ -48,6 +48,13 @@ export interface WizardData {
   imagery_date: string | null;
   /** True se i dati tetto provengono dal mock dev (no GOOGLE_SOLAR_API_KEY). */
   tetto_mock: boolean;
+  /** Layout reale pannelli (coordinate Google Solar API) — transitorio, per la vista in app. */
+  layout_tetto: Array<{
+    centro_lat: number;
+    centro_lng: number;
+    orientamento?: "LANDSCAPE" | "PORTRAIT";
+    segment_index?: number;
+  }> | null;
   // Step 5: Configurazione
   numero_pannelli_scelti: number;
   potenza_kwp: number;

@@ -460,6 +460,98 @@ export function confrontoInvestimentiAlternativi(input: {
   };
 }
 
+// ─── LCOE — Levelized Cost Of Energy (§ nuovo) ──────────────────────────────
+
+export interface InputLCOE {
+  investimento_iniziale: number;
+  produzione_anno_1_kwh: number;
+  degradazione_pannelli_pct: number;
+  costo_manutenzione_anno_eur: number;
+  costo_sostituzione_inverter_eur: number;
+  anno_sostituzione_inverter?: number;
+  orizzonte_anni?: number;
+  /** Tasso di sconto per attualizzare costi ed energia (default 4%). */
+  tasso_sconto?: number;
+}
+
+/**
+ * LCOE = costo medio di 1 kWh autoprodotto sull'intera vita dell'impianto.
+ *   LCOE = (investimento + Σ costi_attualizzati) / Σ energia_attualizzata
+ * Costi ed energia sono attualizzati allo stesso tasso; l'investimento (anno 0)
+ * non viene scontato. Utile come messaggio di vendita: "produci a X €/kWh
+ * contro Y €/kWh dalla rete".
+ */
+export function calcolaLCOE(input: InputLCOE): number {
+  const orizzonte = input.orizzonte_anni ?? 25;
+  const annoSost = input.anno_sostituzione_inverter ?? 12;
+  const r = input.tasso_sconto ?? 0.04;
+
+  let costiAttualizzati = input.investimento_iniziale; // anno 0, non scontato
+  let energiaAttualizzata = 0;
+
+  for (let anno = 1; anno <= orizzonte; anno++) {
+    const prod = produzioneAnnoN(
+      input.produzione_anno_1_kwh,
+      anno,
+      input.degradazione_pannelli_pct
+    );
+    const disc = Math.pow(1 + r, anno);
+    let costo = input.costo_manutenzione_anno_eur;
+    if (anno === annoSost) costo += input.costo_sostituzione_inverter_eur;
+    costiAttualizzati += costo / disc;
+    energiaAttualizzata += prod / disc;
+  }
+
+  if (energiaAttualizzata <= 0) return 0;
+  return round4(costiAttualizzati / energiaAttualizzata);
+}
+
+// ─── Finanziamento dentro il cashflow (§ nuovo) ─────────────────────────────
+
+export interface InputFinanziamento {
+  /** Anticipo versato all'anno 0 (default 0). */
+  anticipo_eur?: number;
+  rata_mensile_eur: number;
+  durata_mesi: number;
+}
+
+/**
+ * Trasforma una cassa "cash" (anno 0 = -investimento) in una cassa FINANZIATA:
+ *  - anno 0: solo l'anticipo (niente esborso pieno dell'investimento);
+ *  - anni durante il prestito: flusso operativo − rate dell'anno (gestisce
+ *    correttamente l'ultimo anno parziale del piano);
+ *  - anni successivi: flusso operativo pieno.
+ * I flussi operativi (risparmio + RID + detrazione − manutenzione − inverter)
+ * restano quelli della cassa cash; cambia solo come si paga l'impianto.
+ * Permette payback/NPV/IRR che riflettono il finanziamento.
+ */
+export function applicaFinanziamento(
+  cassaCash: FlussoAnno[],
+  fin: InputFinanziamento
+): FlussoAnno[] {
+  const anticipo = fin.anticipo_eur ?? 0;
+  const out: FlussoAnno[] = [];
+  let cumulato = 0;
+
+  for (const f of cassaCash) {
+    let flusso: number;
+    if (f.anno === 0) {
+      flusso = anticipo > 0 ? -anticipo : 0; // niente -0
+    } else {
+      const mesiInizioAnno = (f.anno - 1) * 12;
+      const mesiRataNellAnno = Math.max(
+        0,
+        Math.min(12, fin.durata_mesi - mesiInizioAnno)
+      );
+      flusso = f.flusso - fin.rata_mensile_eur * mesiRataNellAnno;
+    }
+    cumulato += flusso;
+    out.push({ ...f, flusso: round2(flusso), cumulato: round2(cumulato) });
+  }
+
+  return out;
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function round1(n: number): number {
