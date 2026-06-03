@@ -1,6 +1,9 @@
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { emitPlatformEvent, PLATFORM_EVENTS } from "../_shared/platformAutomation.ts";
+import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
 interface OrderStatusTemplate {
   name: string;
@@ -281,6 +284,39 @@ Deno.serve(async (req) => {
         "azienda.created_at": companyData.created_at,
       },
     });
+
+    // Email di BENVENUTO all'admin (1.1 — subito). Best-effort: un errore di invio
+    // NON annulla la creazione dell'azienda (già committata sopra).
+    try {
+      const siteUrl =
+        (await getPlatformSetting("site_url", "SITE_URL")) ||
+        Deno.env.get("SITE_URL") ||
+        "";
+      const loginUrl = siteUrl ? `${siteUrl.replace(/\/$/, "")}/login` : "";
+      const rendered = await renderEmailTemplate({
+        templateName: "welcome",
+        companyId,
+        adminClient: supabaseAdmin,
+        props: {
+          recipientName: adminFirstName || "Admin",
+          loginUrl,
+          roleLabel: "Amministratore",
+        },
+      });
+      await sendEmailUnified({
+        companyId,
+        stream: "transactional",
+        to: [trimmedAdminEmail],
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        templateName: "welcome",
+        skipCredits: true,
+        adminClient: supabaseAdmin,
+      });
+    } catch (emailErr) {
+      console.error("[create-company] invio email benvenuto fallito:", emailErr);
+    }
 
     return jsonResponse({
       success: true,
