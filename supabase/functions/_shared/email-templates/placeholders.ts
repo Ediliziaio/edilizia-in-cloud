@@ -609,6 +609,79 @@ export const TEMPLATE_META: Record<string, TemplateMeta> = {
       ...BRANDING_MOCK,
     },
   },
+
+  setup_incomplete: {
+    label: "Setup non completato (+48h)",
+    description: "Promemoria condizionale a chi ha creato l'account ma non ha completato il setup dopo 48h.",
+    category: "onboarding",
+    iconName: "ListChecks",
+    placeholders: [
+      { key: "recipientName", label: "Nome destinatario", example: "Marco", required: true, category: "destinatario" },
+      { key: "setupUrl", label: "URL ripresa setup", example: "https://app.ediliziaincloud.it/setup", required: true, category: "link" },
+      ...BRANDING_PLACEHOLDERS,
+    ],
+    mockProps: { recipientName: "Marco", setupUrl: "https://app.ediliziaincloud.it/setup", ...BRANDING_MOCK },
+  },
+
+  password_changed: {
+    label: "Password modificata",
+    description: "Email di sicurezza inviata subito dopo il cambio password. Dà un canale se non è stato l'utente.",
+    category: "account",
+    iconName: "ShieldCheck",
+    placeholders: [
+      { key: "recipientName", label: "Nome destinatario", example: "Marco", required: true, category: "destinatario" },
+      { key: "changedDate", label: "Data del cambio", example: "12/04/2026", required: true, category: "contenuto" },
+      { key: "changedTime", label: "Ora del cambio", example: "14:32", required: true, category: "contenuto" },
+      { key: "supportEmail", label: "Email di supporto", example: "support@ediliziaincloud.it", required: true, category: "contenuto" },
+      ...BRANDING_PLACEHOLDERS,
+    ],
+    mockProps: { recipientName: "Marco", changedDate: "12/04/2026", changedTime: "14:32", supportEmail: "support@ediliziaincloud.it", ...BRANDING_MOCK },
+  },
+
+  invite_reminder: {
+    label: "Promemoria invito (+48h)",
+    description: "Promemoria condizionale a chi è stato invitato ma non ha ancora accettato dopo 48h.",
+    category: "onboarding",
+    iconName: "MailWarning",
+    placeholders: [
+      { key: "recipientName", label: "Nome destinatario", example: "Luca", required: true, category: "destinatario" },
+      { key: "inviterName", label: "Nome di chi ha invitato", example: "Marco", required: true, category: "destinatario" },
+      { key: "inviteUrl", label: "URL accetta invito", example: "https://app.ediliziaincloud.it/invito?token=abc", required: true, category: "link" },
+      ...BRANDING_PLACEHOLDERS,
+    ],
+    mockProps: { recipientName: "Luca", inviterName: "Marco", inviteUrl: "https://app.ediliziaincloud.it/invito?token=abc", ...BRANDING_MOCK },
+  },
+
+  terms_accepted: {
+    label: "Conferma accettazione termini",
+    description: "Copia dei documenti accettati alla registrazione (prova legale B2B): T&C, Privacy, DPA, Cookie + modulo operai.",
+    category: "legal",
+    iconName: "FileCheck",
+    placeholders: [
+      { key: "recipientName", label: "Nome destinatario", example: "Marco", required: true, category: "destinatario" },
+      { key: "acceptedDate", label: "Data accettazione", example: "12/04/2026", required: true, category: "contenuto" },
+      { key: "acceptedTime", label: "Ora accettazione", example: "14:32", required: true, category: "contenuto" },
+      { key: "tcUrl", label: "URL Termini e Condizioni", example: "https://ediliziaincloud.it/legal/termini-v3.pdf", required: true, category: "link" },
+      { key: "tcVersion", label: "Versione T&C", example: "3.0", required: true, category: "contenuto" },
+      { key: "privacyUrl", label: "URL Privacy Policy", example: "https://ediliziaincloud.it/legal/privacy-v3.pdf", required: true, category: "link" },
+      { key: "privacyVersion", label: "Versione Privacy", example: "3.0", required: true, category: "contenuto" },
+      { key: "dpaUrl", label: "URL DPA", example: "https://ediliziaincloud.it/legal/dpa-v2.pdf", required: true, category: "link" },
+      { key: "dpaVersion", label: "Versione DPA", example: "2.0", required: true, category: "contenuto" },
+      { key: "cookieUrl", label: "URL Cookie Policy", example: "https://ediliziaincloud.it/legal/cookie-v1.pdf", required: true, category: "link" },
+      { key: "cookieVersion", label: "Versione Cookie", example: "1.0", required: true, category: "contenuto" },
+      { key: "moduloOperaiUrl", label: "URL Modulo Privacy Operai", example: "https://ediliziaincloud.it/legal/modulo-operai.pdf", required: true, category: "link" },
+      ...BRANDING_PLACEHOLDERS,
+    ],
+    mockProps: {
+      recipientName: "Marco", acceptedDate: "12/04/2026", acceptedTime: "14:32",
+      tcUrl: "https://ediliziaincloud.it/legal/termini-v3.pdf", tcVersion: "3.0",
+      privacyUrl: "https://ediliziaincloud.it/legal/privacy-v3.pdf", privacyVersion: "3.0",
+      dpaUrl: "https://ediliziaincloud.it/legal/dpa-v2.pdf", dpaVersion: "2.0",
+      cookieUrl: "https://ediliziaincloud.it/legal/cookie-v1.pdf", cookieVersion: "1.0",
+      moduloOperaiUrl: "https://ediliziaincloud.it/legal/modulo-operai.pdf",
+      ...BRANDING_MOCK,
+    },
+  },
 };
 
 /** Tutti i template_key supportati dall'editor. */
