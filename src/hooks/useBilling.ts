@@ -246,3 +246,36 @@ export function useOpenBillingPortal() {
     },
   });
 }
+
+// ─── HOOK: AGGIUNGI CARTA (setup) — funziona anche senza customer Stripe ───────
+// Avvia un Stripe Checkout in modalità "setup": crea il customer se manca,
+// raccoglie la carta (nessun addebito). Al termine il webhook setta
+// companies.payment_method = "stripe" → gli strumenti a costo si sbloccano.
+
+export function useStartCardSetup() {
+  const { effectiveCompany } = useAuth();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("create-checkout-session", {
+        body: {
+          company_id: effectiveCompany?.id,
+          type: "setup_card",
+          return_to: typeof window !== "undefined" ? window.location.pathname : undefined,
+        },
+      });
+      if (error) throw error;
+      const res = data as { url?: string; error?: string };
+      if (res?.error) throw new Error(res.error);
+      if (!res?.url) throw new Error("URL checkout non disponibile");
+      return res as { url: string };
+    },
+    onSuccess: ({ url }) => {
+      safeRedirect(url);
+    },
+    onError: (error: Error) => {
+      toast.error("Impossibile avviare l'aggiunta carta", {
+        description: error.message,
+      });
+    },
+  });
+}

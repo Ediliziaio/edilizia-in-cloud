@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendViaProviderWithFailover, loadProviderSettings, sanitizeFromName } from "../_shared/emailProvider.ts";
 import { addEmailCredits, deductEmailCredits } from "../_shared/emailCredits.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
+import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 import { logEmailDelivery } from "../_shared/email-log.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
 import {
@@ -295,6 +296,15 @@ Deno.serve(async (req) => {
     }
 
     const companyId = campaign.company_id;
+
+    // Gate "carta obbligatoria": blocca l'invio email se l'azienda non ha un metodo di pagamento valido.
+    const pmCheck = await checkPaymentMethod(adminClient, companyId);
+    if (!pmCheck.allowed) {
+      return new Response(
+        JSON.stringify({ error: pmCheck.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE, code: "payment_method_required" }),
+        { status: 402, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } },
+      );
+    }
 
     // Mark campaign as sending with optimistic locking. This blocks duplicate
     // browser submits while still allowing cron/service-role resume from sending.

@@ -2,6 +2,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
+import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
@@ -63,6 +64,15 @@ Deno.serve(async (req: Request) => {
     }
 
     const company_id = profile.company_id;
+
+    // Gate "carta obbligatoria": la firma digitale (FEA + OTP SMS/email) ha un costo.
+    const pmCheck = await checkPaymentMethod(supabaseAdmin, company_id);
+    if (!pmCheck.allowed) {
+      return new Response(
+        JSON.stringify({ error: pmCheck.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE, code: "payment_method_required" }),
+        { status: 402, headers: { ...corsH, "Content-Type": "application/json" } }
+      );
+    }
 
     // Carica nome azienda
     const { data: company } = await supabaseAdmin

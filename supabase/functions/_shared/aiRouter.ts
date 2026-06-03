@@ -36,6 +36,8 @@
  *   - OPENROUTER_API_KEY: chiave API OpenRouter (sk-or-v1-...)
  */
 
+import { checkPaymentMethod } from "./requirePaymentMethod.ts";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SupabaseClient = any;
 
@@ -756,6 +758,16 @@ export async function aiRouterComplete(
   const idempotencyKey = opts.idempotencyKey ?? generateIdempotencyKey(opts.taskKey);
 
   if (!skipCharge && opts.companyId) {
+    // Gate "carta obbligatoria": l'AI a consumo richiede un metodo di pagamento valido.
+    // La Demo Azienda è esente (gestito dentro checkPaymentMethod).
+    const pmGate = await checkPaymentMethod(opts.supabase, opts.companyId);
+    if (!pmGate.allowed) {
+      throw new AiRouterError(
+        pmGate.message ?? "Registra una carta di pagamento aziendale per usare l'AI.",
+        opts.taskKey,
+        [],
+      );
+    }
     const estCost = opts.estimatedCostEur ?? 0.10;
     const precheck = await precheckCredit(opts.supabase, opts.companyId, estCost);
     if (!precheck.ok) {

@@ -33,7 +33,9 @@ export function useRichiediFirma() {
           expires_giorni: input.scadenza_giorni,
         },
       });
-      if (error) throw new Error(error.message);
+      // Ri-lancio l'errore originale (FunctionsHttpError) invece di trasformarlo:
+      // così l'handler globale può rilevare lo status 402 (gate "carta obbligatoria").
+      if (error) throw error;
       if (!data?.token) throw new Error("Risposta server non valida (token mancante)");
       const origin = window.location.origin;
       return {

@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 
 type SendType = "text" | "interactive" | "template";
 type TemplateLanguageInput = string | { code?: string } | undefined;
@@ -127,6 +128,15 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       serviceKey,
     );
+
+    // Gate "carta obbligatoria": blocca l'invio se l'azienda non ha un metodo di pagamento valido.
+    const pmCheck = await checkPaymentMethod(adminClient, companyId);
+    if (!pmCheck.allowed) {
+      return new Response(
+        JSON.stringify({ error: pmCheck.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE, code: "payment_method_required" }),
+        { status: 402, headers: jsonHeaders },
+      );
+    }
 
     let phoneNumberId: string | null = null;
     let accessTokenEncrypted: string | null = null;

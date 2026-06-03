@@ -15,6 +15,7 @@ import { requireAuth } from "../_shared/auth.ts";
 import { captureRealCost } from "../_shared/renderCost.ts";
 import { prepareInputImage } from "../_shared/renderImage.ts";
 import { canAccessCompany } from "../_shared/effectiveCompany.ts";
+import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 import {
   deductRenderCreditSafe,
   refundRenderCreditSafe,
@@ -338,6 +339,15 @@ Deno.serve(async (req) => {
           status: 403,
           headers: { ...CORS, "Content-Type": "application/json" },
         },
+      );
+    }
+
+    // Gate "carta obbligatoria": il render documenti/infissi ha un costo (AI image).
+    const pmCheck = await checkPaymentMethod(supabase, session.company_id as string);
+    if (!pmCheck.allowed) {
+      return new Response(
+        JSON.stringify({ error: pmCheck.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE, code: "payment_method_required" }),
+        { status: 402, headers: { ...CORS, "Content-Type": "application/json" } },
       );
     }
 
