@@ -17,6 +17,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { isInternalRequest, requireInternalSecret, requireAuth } from "../_shared/auth.ts";
 import { buildBrandedImagePrompt, aspectToOpenAiSize } from "../_shared/brandCreativeRules.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
 const OPENAI_IMAGE_MODEL = Deno.env.get("OPENAI_IMAGE_MODEL") || "gpt-image-1";
@@ -91,11 +92,11 @@ Deno.serve(async (req: Request) => {
         const reqBody = isGptImage
           ? { model: OPENAI_IMAGE_MODEL, prompt, size, n: 1 }
           : { model: OPENAI_IMAGE_MODEL, prompt, size, n: 1, quality: "standard", response_format: "b64_json" };
-        const resp = await fetch("https://api.openai.com/v1/images/generations", {
+        const resp = await fetchWithRetry("https://api.openai.com/v1/images/generations", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
           body: JSON.stringify(reqBody),
-        });
+        }, { timeoutMs: 90_000, retries: 1, label: "openai-image" });
         if (!resp.ok) throw new Error(`openai ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
         const data = await resp.json() as { data?: Array<{ b64_json: string }> };
         const b64 = data.data?.[0]?.b64_json;

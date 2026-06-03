@@ -19,6 +19,7 @@
  * Provider: OpenRouter (default Claude Haiku 4.5 — veloce + economico).
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -156,7 +157,7 @@ async function callClaude(
   options: CallClaudeOptions = {},
 ): Promise<string> {
   const { jsonMode = false, maxTokens = 900, temperature = 0.3 } = options;
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const res = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${OPENROUTER_KEY}`,

@@ -20,6 +20,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -69,7 +70,7 @@ Deno.serve(async (req) => {
 
     // ─── Passo A: intent parsing (Haiku) ──────────────────────────────────
     const today = new Date().toISOString().slice(0, 10);
-    const planResp = await fetch("https://api.anthropic.com/v1/messages", {
+    const planResp = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
@@ -136,7 +137,7 @@ Deno.serve(async (req) => {
       const contesto = risultati.slice(0, 12).map((r, i) =>
         `[${i + 1}] ${r.subject || "(no subject)"} — da ${r.from_email} (${r.received_at}) [${r.categoria}]`
       ).join("\n");
-      const sResp = await fetch("https://api.anthropic.com/v1/messages", {
+      const sResp = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
         body: JSON.stringify({
@@ -176,7 +177,7 @@ Deno.serve(async (req) => {
 async function generateEmbedding(text: string): Promise<number[] | null> {
   if (!OPENAI_API_KEY) return null;
   try {
-    const resp = await fetch("https://api.openai.com/v1/embeddings", {
+    const resp = await fetchWithRetry("https://api.openai.com/v1/embeddings", {
       method: "POST",
       headers: { "Authorization": `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: "text-embedding-3-small", input: text.slice(0, 8000) }),
