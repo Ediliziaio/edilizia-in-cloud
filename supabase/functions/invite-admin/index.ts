@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
+import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
+import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
@@ -111,8 +113,45 @@ Deno.serve(async (req) => {
       details: { email, invite_url: inviteUrl },
     });
 
+    // Invia l'email d'invito (best-effort: un errore di invio NON annulla l'invito).
+    // Bug-fix: prima l'email non partiva, veniva salvato solo il token + l'URL.
+    let emailSent = false;
+    try {
+      const recipientName = String(email).split("@")[0] || "";
+      const inviterName =
+        (user.user_metadata?.full_name as string | undefined) ||
+        user.email ||
+        "EdiliziaInCloud";
+      const rendered = await renderEmailTemplate({
+        templateName: "user_invited",
+        companyId: null,
+        adminClient: supabaseAdmin,
+        props: {
+          recipientName,
+          invitedByName: inviterName,
+          roleLabel: "Amministratore",
+          inviteUrl,
+          ttlHours: 168,
+        },
+      });
+      await sendEmailUnified({
+        companyId: null,
+        stream: "transactional",
+        to: [email],
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        templateName: "user_invited",
+        skipCredits: true,
+        adminClient: supabaseAdmin,
+      });
+      emailSent = true;
+    } catch (emailErr) {
+      console.error("[invite-admin] invio email invito fallito:", emailErr);
+    }
+
     return new Response(
-      JSON.stringify({ ok: true, inviteUrl }),
+      JSON.stringify({ ok: true, inviteUrl, emailSent }),
       { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (err: any) {
