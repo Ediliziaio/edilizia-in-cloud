@@ -55,10 +55,11 @@ export async function resolveModelConfig(
     .maybeSingle();
   if (defaultConf) return normalize(defaultConf as DbConfigRow);
 
-  // 3. Emergency hardcoded
+  // 3. Emergency hardcoded — openrouter/auto come ultimissima rete: anche se il
+  //    DB config è irraggiungibile, OpenRouter instrada comunque un modello vivo.
   return {
     primary_model: "openai/gpt-4o-mini",
-    fallback_chain: ["anthropic/claude-haiku-4.5"],
+    fallback_chain: ["anthropic/claude-haiku-4.5", "openrouter/auto"],
     max_cost_usd_per_call: 0.2,
     temperature: 0.5,
     max_tokens: 800,
