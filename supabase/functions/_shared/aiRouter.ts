@@ -462,10 +462,36 @@ async function callOpenRouter(
   const effectiveMaxTokens = params.max_tokens
     ?? (isReasoningModel ? 6000 : 2000);
 
+  // ── Prompt caching Anthropic ──
+  // Il system prompt è grande e 100% statico per persona (preambolo + playbook +
+  // regole). Su Anthropic aggiungiamo un breakpoint cache_control "ephemeral" sul
+  // system → ~90% di sconto sugli input token in cache, enorme nei loop-tool
+  // (silvio fa fino a 12 iterazioni col solito system). Solo Anthropic: gli altri
+  // provider rifiutano il content-array, quindi restano col system come stringa.
+  // NON muta l'array in ingresso (riusato dal loop di fallback su altri modelli).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let finalMessages: any[] = messages;
+  const sys0 = messages[0];
+  // Kill-switch: imposta AI_PROMPT_CACHE_DISABLED=true per disattivare al volo
+  // (senza redeploy) se un provider dovesse rifiutare il formato content-array.
+  const promptCacheEnabled = Deno.env.get("AI_PROMPT_CACHE_DISABLED") !== "true";
+  if (
+    promptCacheEnabled &&
+    model.startsWith("anthropic/") &&
+    sys0?.role === "system" &&
+    typeof sys0.content === "string" &&
+    sys0.content.length > 800
+  ) {
+    finalMessages = [
+      { role: "system", content: [{ type: "text", text: sys0.content, cache_control: { type: "ephemeral" } }] },
+      ...messages.slice(1),
+    ];
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body: Record<string, any> = {
     model,
-    messages,
+    messages: finalMessages,
     max_tokens: effectiveMaxTokens,
   };
   if (!skipTemperature) {
@@ -492,41 +518,61 @@ async function callOpenRouter(
   const SLOW_MODEL_PROVIDERS = ["deepseek", "x-ai", "meta-llama", "qwen", "thudm", "z-ai"];
   const isSlowModel = SLOW_MODEL_PROVIDERS.some((p) => model.startsWith(`${p}/`));
   const FETCH_TIMEOUT_MS = isReasoningModel ? 120_000 : (isSlowModel ? 50_000 : 30_000);
-  let res: Response;
-  try {
-    res = await fetch(OPENROUTER_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        // OpenRouter rankings (best practice — qualifica il traffico)
-        "HTTP-Referer": "https://www.ediliziaincloud.com",
-        "X-Title": "Edilizia in Cloud",
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-  } catch (fetchErr) {
-    // AbortError (timeout) o network error → re-throw con messaggio chiaro
-    const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-    if (errMsg.includes("aborted") || errMsg.includes("timeout") || errMsg.includes("abort")) {
-      throw new Error(`OpenRouter timeout (>${FETCH_TIMEOUT_MS / 1000}s) — modello ${model} non risponde`);
+  // Retry su errori TRANSITORI (timeout / 429 / 5xx) prima di passare al modello
+  // di fallback. I reasoning model hanno già budget 120s → 1 solo tentativo per
+  // non sforare il cap edge (~150s); i modelli veloci ne fanno fino a 2 con
+  // backoff breve. Gli errori 4xx (≠429) NON si ritentano (config/input errati).
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const MAX_ATTEMPTS = isReasoningModel ? 1 : 2;
+  let lastErr: Error | null = null;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          // OpenRouter rankings (best practice — qualifica il traffico)
+          "HTTP-Referer": "https://www.ediliziaincloud.com",
+          "X-Title": "Edilizia in Cloud",
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+    } catch (fetchErr) {
+      const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+      const isTimeout = /abort|timeout/i.test(errMsg);
+      lastErr = isTimeout
+        ? new Error(`OpenRouter timeout (>${FETCH_TIMEOUT_MS / 1000}s) — modello ${model} non risponde`)
+        : new Error(`OpenRouter network error: ${errMsg.slice(0, 300)}`);
+      if (attempt < MAX_ATTEMPTS) { await sleep(300 * attempt + Math.floor(Math.random() * 250)); continue; }
+      throw lastErr;
     }
-    throw new Error(`OpenRouter network error: ${errMsg.slice(0, 300)}`);
-  }
 
-  const durationMs = Date.now() - start;
+    if (!res.ok) {
+      const errText = await res.text();
+      lastErr = new Error(`OpenRouter ${res.status}: ${errText.slice(0, 500)}`);
+      const retriable = res.status === 429 || res.status >= 500;
+      if (retriable && attempt < MAX_ATTEMPTS) { await sleep(450 * attempt + Math.floor(Math.random() * 300)); continue; }
+      throw lastErr;
+    }
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`OpenRouter ${res.status}: ${errText.slice(0, 500)}`);
+    const durationMs = Date.now() - start;
+    const data = await res.json();
+    if (data.error) {
+      const em = data.error.message ?? JSON.stringify(data.error);
+      lastErr = new Error(`OpenRouter error: ${em}`);
+      // alcuni provider rispondono 200 con un errore transitorio nel body
+      if (/rate|overload|temporar|timeout|unavailable/i.test(String(em)) && attempt < MAX_ATTEMPTS) {
+        await sleep(450 * attempt); continue;
+      }
+      throw lastErr;
+    }
+    return { data, durationMs };
   }
-
-  const data = await res.json();
-  if (data.error) {
-    throw new Error(`OpenRouter error: ${data.error.message ?? JSON.stringify(data.error)}`);
-  }
-  return { data, durationMs };
+  throw lastErr ?? new Error(`OpenRouter: tentativi esauriti per ${model}`);
 }
 
 /** Logga su ai_router_usage_log (best-effort, non blocca su errore). */
