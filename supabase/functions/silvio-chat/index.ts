@@ -22,6 +22,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
+import { CHART_RULES } from "../_shared/chartRules.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { getToolsForChannel, toolsToOpenAISpec, type ToolContext } from "../_shared/silvioTools.ts";
@@ -654,7 +655,7 @@ serve(async (req: Request) => {
       // Passa il flag cosi STRUCTURED_OUTPUT_SYSTEM_RULES non finisce nel prompt
       disableStructuredOutput: isWeakForcedModel,
     });
-    const enrichedSystemPrompt = builtPrompt.systemPrompt;
+    const enrichedSystemPrompt = builtPrompt.systemPrompt + CHART_RULES;
     const preamboloVersion = builtPrompt.preamboloVersion;
     const useStructured = builtPrompt.useStructured;
     if (!preamboloVersion) {

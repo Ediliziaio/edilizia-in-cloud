@@ -35,6 +35,30 @@ interface Props {
   sources?: ChatMarkdownSource[];
 }
 
+// Grafico in chat: lazy → recharts entra nel bundle solo se un grafico appare.
+const SilvioChartBlock = React.lazy(() => import("@/components/silvio/SilvioChartBlock"));
+
+/**
+ * ChartFence — rende un blocco ```chart``` come grafico. Se il JSON non è
+ * valido, ricade su un code-block (mostra comunque i dati, niente crash).
+ */
+function ChartFence({ raw }: { raw: string }) {
+  let spec: unknown = null;
+  try { spec = JSON.parse(raw); } catch { spec = null; }
+  if (!spec || typeof spec !== "object") {
+    return (
+      <pre className="my-2 px-3 py-2 bg-slate-900 text-slate-100 rounded-md text-[11px] overflow-x-auto whitespace-pre-wrap">
+        <code>{raw}</code>
+      </pre>
+    );
+  }
+  return (
+    <React.Suspense fallback={<div className="my-3 h-[240px] rounded-lg border border-slate-200 bg-slate-50 animate-pulse" />}>
+      <SilvioChartBlock spec={spec as React.ComponentProps<typeof SilvioChartBlock>["spec"]} />
+    </React.Suspense>
+  );
+}
+
 // Context per passare le sources ai render inline (evita prop drilling)
 const SourcesCtx = React.createContext<ChatMarkdownSource[] | undefined>(undefined);
 
@@ -71,9 +95,10 @@ function renderBlocks(text: string): React.ReactNode[] {
     const line = lines[i];
     const trimmed = line.trim();
 
-    // Code fence
+    // Code fence (con lingua: ```chart / ```grafico → grafico, altrimenti code)
     if (/^```/.test(trimmed)) {
       flushPara(para); para = [];
+      const lang = trimmed.slice(3).trim().toLowerCase();
       const codeLines: string[] = [];
       i++;
       while (i < lines.length && !/^```/.test(lines[i].trim())) {
@@ -81,11 +106,16 @@ function renderBlocks(text: string): React.ReactNode[] {
         i++;
       }
       i++; // skip closing fence
-      out.push(
-        <pre key={`code-${key++}`} className="my-2 px-3 py-2 bg-slate-900 text-slate-100 rounded-md text-[11px] overflow-x-auto whitespace-pre-wrap">
-          <code>{codeLines.join("\n")}</code>
-        </pre>,
-      );
+      const raw = codeLines.join("\n");
+      if (lang === "chart" || lang === "grafico") {
+        out.push(<ChartFence key={`chart-${key++}`} raw={raw} />);
+      } else {
+        out.push(
+          <pre key={`code-${key++}`} className="my-2 px-3 py-2 bg-slate-900 text-slate-100 rounded-md text-[11px] overflow-x-auto whitespace-pre-wrap">
+            <code>{raw}</code>
+          </pre>,
+        );
+      }
       continue;
     }
 

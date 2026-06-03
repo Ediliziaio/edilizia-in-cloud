@@ -12,6 +12,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { CHART_RULES } from "../_shared/chartRules.ts";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
 // di salvare in internal_chat_messages (chat di Florin con Silvio Superadmin).
 import { sanitizeAnswer } from "../_shared/structuredOutput.ts";
@@ -990,7 +991,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const fullSystemPrompt = `${PREAMBOLO_COSTITUZIONALE}\n\n${SYSTEM_PROMPT_BASE}${cardinalBlock}${pageContextAddendum}${personaAddendum}${strictFormatAddendum}`;
+    const fullSystemPrompt = `${PREAMBOLO_COSTITUZIONALE}\n\n${SYSTEM_PROMPT_BASE}${cardinalBlock}${pageContextAddendum}${personaAddendum}${strictFormatAddendum}${CHART_RULES}`;
     const aiMessages: AIMessage[] = [
       { role: "system", content: fullSystemPrompt },
     ];
