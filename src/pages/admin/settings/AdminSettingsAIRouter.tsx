@@ -476,8 +476,36 @@ function EditTaskDialog({
   const [primary, setPrimary] = useState(task.primary_model);
   const [fallbacks, setFallbacks] = useState<string[]>(task.fallback_models ?? []);
 
+  // Catalogo modelli validi (active + whitelisted) per validare la config al salvataggio.
+  const { data: validModels } = useQuery({
+    queryKey: ["admin", "ai-model-catalog-valid"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from("ai_model_catalog" as any)
+        .select("model_id")
+        .eq("status", "active")
+        .eq("whitelisted", true);
+      if (error) throw error;
+      return ((data ?? []) as { model_id: string }[]).map((r) => r.model_id);
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   const save = useMutation({
     mutationFn: async () => {
+      // Validazione: ogni modello dev'essere nel catalogo (active+whitelisted) oppure
+      // la rete di sicurezza "openrouter/auto". Fail-open se il catalogo non è caricato.
+      if (validModels && validModels.length > 0) {
+        const ok = new Set([...validModels, "openrouter/auto"]);
+        const invalid = [...new Set([primary, ...fallbacks].filter((m) => m && !ok.has(m)))];
+        if (invalid.length > 0) {
+          throw new Error(
+            `Modelli non validi (non attivi/whitelisted nel catalogo): ${invalid.join(", ")}. ` +
+              `Correggili o usa "openrouter/auto" come rete di sicurezza.`,
+          );
+        }
+      }
       const { error } = await supabase
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .from("ai_router_config" as any)
