@@ -17,6 +17,12 @@ export default defineConfig(() => ({
       overlay: false,
     },
   },
+  preview: {
+    host: "::",
+    // Onora la porta assegnata dall'harness (PORT env) per evitare conflitti
+    // quando 4173 è già occupata da un'altra preview; fallback al default vite.
+    port: process.env.PORT ? parseInt(process.env.PORT) : 4173,
+  },
   define: {
     __APP_MODE__: JSON.stringify(process.env.VITE_APP_MODE || "full"),
   },

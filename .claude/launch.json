@@ -11,8 +11,9 @@
     {
       "name": "edilizia-prod-preview",
       "runtimeExecutable": "bunx",
-      "runtimeArgs": ["vite", "preview", "--port", "4173", "--host", "0.0.0.0"],
-      "port": 4173
+      "runtimeArgs": ["vite", "preview"],
+      "port": 4173,
+      "autoPort": true
     }
   ]
 }
