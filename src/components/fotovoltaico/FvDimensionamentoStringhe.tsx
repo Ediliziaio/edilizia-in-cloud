@@ -5,7 +5,12 @@
  * planning) — qui versione minima con specifiche standard.
  */
 import { Cable, AlertTriangle, CheckCircle2 } from "lucide-react";
-import { dimensionaStringhe, INVERTER_DEFAULT } from "@/lib/fotovoltaico/stringhe";
+import {
+  dimensionaStringhe,
+  INVERTER_DEFAULT,
+  type SpecModulo,
+  type SpecInverter,
+} from "@/lib/fotovoltaico/stringhe";
 import { cn } from "@/lib/utils";
 
 function Cell({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -20,13 +25,19 @@ function Cell({ label, value, hint }: { label: string; value: string; hint?: str
 
 export function FvDimensionamentoStringhe({
   numeroModuli,
+  modulo,
+  inverter,
   className,
 }: {
   numeroModuli: number;
+  /** Specifiche modulo reali (dal pannello scelto). Default: modulo standard ~540 Wp. */
+  modulo?: SpecModulo;
+  /** Specifiche inverter reali. Default: inverter residenziale generico. */
+  inverter?: SpecInverter;
   className?: string;
 }) {
   if (!numeroModuli || numeroModuli < 1) return null;
-  const r = dimensionaStringhe(numeroModuli);
+  const r = dimensionaStringhe(numeroModuli, modulo, inverter);
 
   return (
     <div

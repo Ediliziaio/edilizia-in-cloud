@@ -170,6 +170,23 @@ function parseImageryDate(d: { year?: number; month?: number; day?: number } | u
   return `${d.year}-${String(d.month ?? 1).padStart(2, "0")}-${String(d.day ?? 1).padStart(2, "0")}`;
 }
 
+// ─── Helper orientamento falde — MIRROR di src/lib/fotovoltaico/tetto.ts ─────
+// (corretti per equivalenza al codice coperto da unit test; Deno-puro)
+const PUNTI_CARDINALI = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
+function norm360(deg: number): number {
+  return ((deg % 360) + 360) % 360;
+}
+function etichettaAzimut(azGradiDaNord: number): string {
+  const g = Math.round(norm360(azGradiDaNord));
+  return `${PUNTI_CARDINALI[Math.round(norm360(g) / 45) % 8]} ${g}°`;
+}
+function segmentoTettoDominante(
+  segs: Array<{ area_mq: number; azimuth_deg: number; pitch_deg: number }>,
+): { area_mq: number; azimuth_deg: number; pitch_deg: number } | null {
+  if (!segs.length) return null;
+  return segs.reduce((best, s) => (s.area_mq > best.area_mq ? s : best), segs[0]);
+}
+
 function parseSolarResponse(json: Record<string, unknown>, quality: string | null, imagery_date: string | null, fonte: string) {
   const sp = (json.solarPotential as Record<string, unknown>) ?? {};
   const numero_pannelli_max = (sp.maxArrayPanelsCount as number) ?? 0;
@@ -179,18 +196,36 @@ function parseSolarResponse(json: Record<string, unknown>, quality: string | nul
   const POTENZA_PANNELLO_W = 540;
   const potenza_max_kwp = (numero_pannelli_max * POTENZA_PANNELLO_W) / 1000;
 
-  // Layout suggerito: prima configurazione candidata
+  // Falde reali (roofSegmentStats): azimut/pendenza per segmento.
+  const roofSegs = (sp.roofSegmentStats as Array<Record<string, unknown>>) ?? [];
+  const segByIndex = new Map<number, { azimuth_deg: number; pitch_deg: number; area_mq: number }>();
+  const segList: Array<{ area_mq: number; azimuth_deg: number; pitch_deg: number }> = [];
+  roofSegs.forEach((s, i) => {
+    const azimuth_deg = (s.azimuthDegrees as number) ?? 180;
+    const pitch_deg = (s.pitchDegrees as number) ?? 30;
+    const area_mq = ((s.stats as { areaMeters2?: number } | undefined)?.areaMeters2) ?? 0;
+    segByIndex.set(i, { azimuth_deg, pitch_deg, area_mq });
+    segList.push({ area_mq, azimuth_deg, pitch_deg });
+  });
+
+  // Layout suggerito: azimut/pendenza REALI per pannello (dalla sua falda).
   const configs = (sp.solarPanelConfigs as Array<Record<string, unknown>>) ?? [];
   const panels = (sp.solarPanels as Array<Record<string, unknown>>) ?? [];
-  const layout_suggerito = panels.slice(0, Math.min(panels.length, 50)).map((p, i) => ({
-    centro_lat: ((p.center as { latitude: number })?.latitude) ?? 0,
-    centro_lng: ((p.center as { longitude: number })?.longitude) ?? 0,
-    azimuth_deg: 180,
-    tilt_deg: 30,
-    orientamento: ((p.orientation as string) ?? "LANDSCAPE") as "LANDSCAPE" | "PORTRAIT",
-    produzione_annua_kwh: (p.yearlyEnergyDcKwh as number) ?? 0,
-    segment_index: (p.segmentIndex as number) ?? 0,
-  }));
+  const layout_suggerito = panels.slice(0, Math.min(panels.length, 50)).map((p) => {
+    const segIdx = (p.segmentIndex as number) ?? 0;
+    const seg = segByIndex.get(segIdx);
+    return {
+      centro_lat: ((p.center as { latitude: number })?.latitude) ?? 0,
+      centro_lng: ((p.center as { longitude: number })?.longitude) ?? 0,
+      azimuth_deg: seg ? Math.round(seg.azimuth_deg) : 180,
+      tilt_deg: seg ? Math.round(seg.pitch_deg) : 30,
+      orientamento: ((p.orientation as string) ?? "LANDSCAPE") as "LANDSCAPE" | "PORTRAIT",
+      produzione_annua_kwh: (p.yearlyEnergyDcKwh as number) ?? 0,
+      segment_index: segIdx,
+    };
+  });
+
+  const faldaDominante = segmentoTettoDominante(segList);
 
   const qualitaMap: Record<string, string> = {
     HIGH: "high",
@@ -208,6 +243,9 @@ function parseSolarResponse(json: Record<string, unknown>, quality: string | nul
     numero_pannelli_max,
     potenza_max_kwp,
     layout_suggerito,
+    azimut_dominante: faldaDominante ? etichettaAzimut(faldaDominante.azimuth_deg) : null,
+    azimut_dominante_deg: faldaDominante ? Math.round(faldaDominante.azimuth_deg) : null,
+    tilt_dominante_deg: faldaDominante ? Math.round(faldaDominante.pitch_deg) : null,
     configs_disponibili: configs.length,
   };
 }
@@ -256,6 +294,9 @@ function buildMockResponse(lat: number, lng: number) {
       numero_pannelli_max,
       potenza_max_kwp,
       layout_suggerito: layout,
+      azimut_dominante: "S 180°",
+      azimut_dominante_deg: 180,
+      tilt_dominante_deg: 30,
       configs_disponibili: 1,
       _mock: true,
     },

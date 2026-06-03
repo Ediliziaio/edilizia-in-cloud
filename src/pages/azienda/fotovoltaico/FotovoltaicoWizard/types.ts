@@ -55,6 +55,10 @@ export interface WizardData {
     orientamento?: "LANDSCAPE" | "PORTRAIT";
     segment_index?: number;
   }> | null;
+  /** Orientamento prevalente reale del tetto (etichetta "SE 152°") da Solar API. */
+  azimut_tetto: string | null;
+  /** Inclinazione (pendenza) reale della falda prevalente, in gradi. */
+  inclinazione_tetto: number | null;
   // Step 5: Configurazione
   numero_pannelli_scelti: number;
   potenza_kwp: number;

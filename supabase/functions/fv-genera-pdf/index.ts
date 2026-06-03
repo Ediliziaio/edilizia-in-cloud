@@ -40,6 +40,17 @@ import {
 interface Payload {
   progetto_id: string;
   tipo?: "vendita" | "tecnico" | "mobile";
+  /** Layout reale pannelli (coordinate Google Solar API) — opzionale; passato dal
+   *  wizard per la vista zenitale reale nel PDF. Se assente, si usa il mock. */
+  layout_pannelli?: Array<{
+    centro_lat: number;
+    centro_lng: number;
+    orientamento?: "LANDSCAPE" | "PORTRAIT";
+    segment_index?: number;
+  }> | null;
+  /** Orientamento prevalente reale (etichetta "SE 152°") + inclinazione falda. */
+  azimut?: string | null;
+  inclinazione_tetto?: number | null;
 }
 
 type FvListinoMacroForPdf =
@@ -357,6 +368,7 @@ Deno.serve(async (req: Request) => {
         venditore: venditoreNome,
         potenza_kwp: Number(prog.potenza_kwp) || 0,
         numero_pannelli: Number(prog.numero_pannelli_scelti) || 0,
+        layout_pannelli: p.layout_pannelli ?? null,
         has_accumulo: prog.con_accumulo ?? false,
         capacita_accumulo_kwh: Number(prog.capacita_accumulo_kwh) || 0,
         consumo_annuo_kwh: Number(prog.consumo_annuo_kwh) || 0,
@@ -368,8 +380,8 @@ Deno.serve(async (req: Request) => {
         tetto_mock: String(prog.qualita_dati_tetto ?? "").toLowerCase() === "mock",
         ore_sole_annue: Number(prog.ore_sole_annue) || null,
         superficie_tetto_disponibile_mq: Number(prog.superficie_tetto_disponibile_mq) || null,
-        azimut: null,
-        inclinazione_tetto: null,
+        azimut: p.azimut ?? null,
+        inclinazione_tetto: p.inclinazione_tetto ?? null,
       },
       costi: {
         prezzo_vendita_iva_inclusa: Number(prog.prezzo_vendita_iva_inclusa) || 0,

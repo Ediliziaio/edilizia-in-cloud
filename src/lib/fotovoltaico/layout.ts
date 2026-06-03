@@ -128,6 +128,74 @@ export function proiettaLayout(
   };
 }
 
+/** Riquadro di destinazione (in unità SVG) in cui inscrivere il layout. */
+export interface Riquadro {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Proietta i pannelli inscrivendoli in un RIQUADRO dato (es. l'area-tetto del
+ * PDF), centrati e con proporzioni reali preservate (scala = min su X/Y).
+ * Variante usata dalla vista zenitale del PDF (mirror nell'edge fvSvgCharts).
+ */
+export function proiettaLayoutInRiquadro(
+  panels: PannelloGeo[],
+  box: Riquadro,
+  opts: { panelLongM?: number; panelShortM?: number } = {},
+): RettangoloPannello[] {
+  if (panels.length === 0) return [];
+  const panelLongM = opts.panelLongM ?? 1.72;
+  const panelShortM = opts.panelShortM ?? 1.13;
+
+  const meanLat = panels.reduce((s, p) => s + p.centro_lat, 0) / panels.length;
+  const mPerLng = metriPerGradoLng(meanLat);
+
+  const pts = panels.map((p) => {
+    const xm = p.centro_lng * mPerLng;
+    const ym = p.centro_lat * M_PER_GRADO_LAT;
+    const landscape = p.orientamento !== "PORTRAIT";
+    return {
+      xm,
+      ym,
+      wM: landscape ? panelLongM : panelShortM,
+      hM: landscape ? panelShortM : panelLongM,
+      segment: p.segment_index ?? 0,
+    };
+  });
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    minX = Math.min(minX, p.xm - p.wM / 2);
+    maxX = Math.max(maxX, p.xm + p.wM / 2);
+    minY = Math.min(minY, p.ym - p.hM / 2);
+    maxY = Math.max(maxY, p.ym + p.hM / 2);
+  }
+  const spanX = Math.max(1e-6, maxX - minX);
+  const spanY = Math.max(1e-6, maxY - minY);
+  const scale = Math.min(box.w / spanX, box.h / spanY);
+  const drawW = spanX * scale;
+  const drawH = spanY * scale;
+  const offX = box.x + (box.w - drawW) / 2;
+  const offY = box.y + (box.h - drawH) / 2;
+
+  return pts.map((p) => {
+    const cx = offX + (p.xm - minX) * scale;
+    const cy = offY + (maxY - p.ym) * scale; // flip Y (nord in alto)
+    const w = p.wM * scale;
+    const h = p.hM * scale;
+    return {
+      x: round1(cx - w / 2),
+      y: round1(cy - h / 2),
+      w: round1(w),
+      h: round1(h),
+      segment: p.segment,
+    };
+  });
+}
+
 /** Palette per colorare le diverse falde. */
 const PALETTE_FALDE = ["#1e3a5f", "#2c5184", "#3b6ba5", "#f59e0b", "#10b981", "#8b5cf6"];
 

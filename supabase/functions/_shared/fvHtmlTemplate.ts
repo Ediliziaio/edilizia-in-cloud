@@ -28,6 +28,7 @@ import {
   svgForbice,
   svgRataRisparmio,
   svgVistaSatellitareMock,
+  svgVistaLayoutReale,
   svgProdottoIcona,
 } from "./fvSvgCharts.ts";
 
@@ -74,6 +75,15 @@ export interface FvPdfTemplateData {
     qualita_dati_tetto?: string | null;
     imagery_date?: string | null;
     tetto_mock?: boolean | null;
+    /** Layout reale pannelli (coordinate Google Solar API) — opzionale; se presente
+     *  abilita la vista zenitale REALE al posto del mock. Da popolare in
+     *  fv-genera-pdf quando il layout è persistito. */
+    layout_pannelli?: Array<{
+      centro_lat: number;
+      centro_lng: number;
+      orientamento?: "LANDSCAPE" | "PORTRAIT";
+      segment_index?: number;
+    }> | null;
   };
   costi: {
     prezzo_vendita_iva_inclusa: number;
@@ -916,7 +926,7 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
       <p class="page-subtitle">Vista dall'alto del tuo tetto in ${escHtml(d.cliente.indirizzo)}. Ecco esattamente come saranno disposti i ${np} pannelli.</p>
       <div class="sat-grid">
         <div class="sat-view">${svgVistaSatellitareMock("nord", np)}<div class="sat-label">📍 Vista nord</div><div class="sat-zoom">zoom 19</div></div>
-        <div class="sat-view">${svgVistaSatellitareMock("zenitale", np)}<div class="sat-label">📍 Vista zenitale tetto</div><div class="sat-zoom">zoom 21</div></div>
+        <div class="sat-view">${d.progetto.layout_pannelli && d.progetto.layout_pannelli.length ? svgVistaLayoutReale(d.progetto.layout_pannelli) : svgVistaSatellitareMock("zenitale", np)}<div class="sat-label">📍 Vista zenitale tetto</div><div class="sat-zoom">zoom 21</div></div>
         <div class="sat-view">${svgVistaSatellitareMock("3d", np)}<div class="sat-label">📍 Vista 3D sud-ovest</div><div class="sat-zoom">3D · 60°</div></div>
         <div class="sat-view">${svgVistaSatellitareMock("panoramica", np)}<div class="sat-label">📍 Panoramica quartiere</div><div class="sat-zoom">zoom 18</div></div>
       </div>

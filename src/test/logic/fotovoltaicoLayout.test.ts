@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   proiettaLayout,
+  proiettaLayoutInRiquadro,
   layoutToSvg,
   metriPerGradoLng,
   type PannelloGeo,
@@ -97,5 +98,46 @@ describe("layoutToSvg — generazione SVG", () => {
     // 3 pannelli + 1 sfondo = 4 <rect
     expect(svg.match(/<rect/g) ?? []).toHaveLength(4);
     expect(svg).toContain("</svg>");
+  });
+});
+
+describe("proiettaLayoutInRiquadro — inscrive il layout in un box (vista tetto PDF)", () => {
+  const box = { x: 60, y: 55, w: 280, h: 135 };
+  const griglia = (cols: number, rows: number): PannelloGeo[] => {
+    const out: PannelloGeo[] = [];
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        out.push({ centro_lat: 45 + r * 0.00002, centro_lng: 9 + c * 0.00003 });
+    return out;
+  };
+
+  it("lista vuota → nessun rettangolo", () => {
+    expect(proiettaLayoutInRiquadro([], box)).toEqual([]);
+  });
+
+  it("tutti i rettangoli stanno DENTRO il riquadro", () => {
+    const rects = proiettaLayoutInRiquadro(griglia(4, 3), box);
+    expect(rects).toHaveLength(12);
+    for (const r of rects) {
+      expect(r.x).toBeGreaterThanOrEqual(box.x - 0.5);
+      expect(r.y).toBeGreaterThanOrEqual(box.y - 0.5);
+      expect(r.x + r.w).toBeLessThanOrEqual(box.x + box.w + 0.5);
+      expect(r.y + r.h).toBeLessThanOrEqual(box.y + box.h + 0.5);
+    }
+  });
+
+  it("preserva il segment_index e centra il contenuto nel box", () => {
+    const rects = proiettaLayoutInRiquadro(
+      [
+        { centro_lat: 45, centro_lng: 9, segment_index: 1 },
+        { centro_lat: 45, centro_lng: 9.00003, segment_index: 2 },
+      ],
+      box,
+    );
+    expect(rects.map((r) => r.segment)).toEqual([1, 2]);
+    // centratura orizzontale: margine sinistro ~ margine destro
+    const left = Math.min(...rects.map((r) => r.x)) - box.x;
+    const right = box.x + box.w - Math.max(...rects.map((r) => r.x + r.w));
+    expect(Math.abs(left - right)).toBeLessThan(1);
   });
 });

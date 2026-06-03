@@ -89,6 +89,7 @@ import { FvLayoutTetto } from "@/components/fotovoltaico/FvLayoutTetto";
 import { FvSimulatoreInterattivo } from "@/components/fotovoltaico/FvSimulatoreInterattivo";
 import { FvDimensionamentoStringhe } from "@/components/fotovoltaico/FvDimensionamentoStringhe";
 import { inputBaseDaContesto, type ContestoVariantiVicine } from "@/lib/fotovoltaico/varianti";
+import { derivaSpecModuloDaPotenza } from "@/lib/fotovoltaico/catalogoProdotti";
 
 // MP-MKT-001: TOTAL_STEPS + TABS estratti in ./FotovoltaicoWizard/constants.ts
 import { TOTAL_STEPS, TABS } from "./FotovoltaicoWizard/constants";
@@ -563,6 +564,9 @@ export default function FotovoltaicoWizard() {
           ? ((result.layout_suggerito as WizardData["layout_tetto"]) ?? null)
           : null,
       );
+      // Orientamento prevalente reale della falda (azimut + pendenza) da Solar API
+      update("azimut_tetto", (result.azimut_dominante as string) ?? null);
+      update("inclinazione_tetto", (result.tilt_dominante_deg as number) ?? null);
 
       await aggiornaProgetto.mutateAsync({
         id: progettoId,
@@ -941,7 +945,15 @@ export default function FotovoltaicoWizard() {
     try {
       const { data: result, error } = await supabase.functions.invoke(
         "fv-genera-pdf",
-        { body: { progetto_id: progettoId, tipo: "vendita" } },
+        {
+          body: {
+            progetto_id: progettoId,
+            tipo: "vendita",
+            layout_pannelli: data.layout_tetto ?? null,
+            azimut: data.azimut_tetto ?? null,
+            inclinazione_tetto: data.inclinazione_tetto ?? null,
+          },
+        },
       );
       if (error) throw error;
       if (!result || (result as { url?: string }).url === undefined) {
@@ -1409,6 +1421,46 @@ function Step2Immobile({
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
 }) {
+  const [geoLoading, setGeoLoading] = useState(false);
+
+  // Geocoding indirizzo→coordinate (edge fv-geocode). Se non configurato,
+  // l'utente resta sull'inserimento manuale (fallback graceful).
+  const cercaCoordinate = async () => {
+    const indirizzo = [data.indirizzo, data.comune, data.provincia, data.cap]
+      .filter(Boolean)
+      .join(", ")
+      .trim();
+    if (indirizzo.length < 4) {
+      toast.error("Inserisci prima l'indirizzo");
+      return;
+    }
+    setGeoLoading(true);
+    try {
+      const { data: r, error } = await supabase.functions.invoke("fv-geocode", {
+        body: { indirizzo },
+      });
+      if (error) throw error;
+      const res = r as {
+        lat?: number; lng?: number; comune?: string | null;
+        provincia?: string | null; cap?: string | null; in_italia?: boolean;
+      };
+      if (res?.lat == null || res?.lng == null) {
+        toast.error("Indirizzo non trovato. Inserisci lat/lng manualmente.");
+        return;
+      }
+      update("latitudine", Math.round(res.lat * 1e6) / 1e6);
+      update("longitudine", Math.round(res.lng * 1e6) / 1e6);
+      if (res.comune && !data.comune) update("comune", res.comune);
+      if (res.provincia && !data.provincia) update("provincia", res.provincia);
+      if (res.cap && !data.cap) update("cap", res.cap);
+      toast.success(`Coordinate trovate: ${res.lat.toFixed(5)}, ${res.lng.toFixed(5)}`);
+    } catch (e) {
+      toast.error(`Geocoding non disponibile (${describeError(e)}). Inserisci lat/lng a mano.`);
+    } finally {
+      setGeoLoading(false);
+    }
+  };
+
   return (
     <>
       <FvPanelTitle
@@ -1418,7 +1470,7 @@ function Step2Immobile({
         subtitle={
           <>
             Indirizzo dove sarà installato l'impianto e geolocalizzazione (necessaria per Solar API/PVGIS).
-            Geocoding Google Places previsto in <strong>Wave 2</strong>.
+            Usa <strong>"Trova coordinate"</strong> per ricavarle dall'indirizzo.
           </>
         }
       />
@@ -1434,6 +1486,15 @@ function Step2Immobile({
               autoComplete="street-address"
             />
           </div>
+          <button
+            type="button"
+            onClick={cercaCoordinate}
+            disabled={geoLoading}
+            className="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-60"
+          >
+            {geoLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span aria-hidden>📍</span>}
+            {geoLoading ? "Ricerca coordinate…" : "Trova coordinate dall'indirizzo"}
+          </button>
           <div className="grid sm:grid-cols-3 gap-3 mb-3">
             <div>
               <Label>Comune</Label>
@@ -1900,6 +1961,10 @@ function Step4Tetto({
             Dati acquisiti dalla sorgente <strong>{data.fonte_dati_tetto === "solar_api" ? "Google Solar API" : data.fonte_dati_tetto === "pvgis" ? "PVGIS" : "manuale"}</strong>.
             {data.qualita_dati_tetto && <> Qualità dati: <strong>{data.qualita_dati_tetto}</strong>.</>}
             {data.imagery_date && <> Immagine satellitare del <strong>{data.imagery_date}</strong>.</>}
+            {data.azimut_tetto && (
+              <> Orientamento prevalente: <strong>{data.azimut_tetto}</strong>
+                {data.inclinazione_tetto != null && <> · inclinazione <strong>{data.inclinazione_tetto}°</strong></>}.</>
+            )}
             {" "}Procedi alla configurazione impianto per dimensionare l'investimento.
           </FvCallout>
           {/* Fix #16 Sprint 3: warning persistente se dati sono mock dev */}
@@ -2027,6 +2092,12 @@ function Step5Configurazione({
         ? "Da rivedere"
         : "Pronto offerta";
 
+  // Specifiche modulo derivate dal pannello scelto (catalogo) → dimensionamento stringhe
+  const pannelloSelStringhe = pannelli.find((p) => (p as { id?: string }).id === data.pannello_id);
+  const moduloSpecStringhe = derivaSpecModuloDaPotenza(
+    pannelloSelStringhe ? Number((pannelloSelStringhe as { potenza_w?: number }).potenza_w) || 540 : 540,
+  );
+
   return (
     <>
       <FvPanelTitle
@@ -2061,7 +2132,11 @@ function Step5Configurazione({
       </div>
 
       {/* Progettazione elettrica: dimensionamento stringhe/MPPT (gap vs Reonic/Autarc) */}
-      <FvDimensionamentoStringhe numeroModuli={data.numero_pannelli_scelti} className="mb-4" />
+      <FvDimensionamentoStringhe
+        numeroModuli={data.numero_pannelli_scelti}
+        modulo={moduloSpecStringhe}
+        className="mb-4"
+      />
 
       <div className="mb-4">
         <FvCallout

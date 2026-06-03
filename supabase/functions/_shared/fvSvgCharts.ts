@@ -410,6 +410,66 @@ export function svgRataRisparmio(rata: number, risparmio: number, netto: number)
 // ─── 8. PLACEHOLDER VISTA SATELLITARE (mock SVG) ───────────────────────────
 // W2: sostituire con Google Maps Static API. Per ora illustrazione.
 
+/**
+ * Vista zenitale con il LAYOUT REALE dei pannelli (coordinate Google Solar API).
+ * Mirror ESATTO di `proiettaLayoutInRiquadro`/`layoutToSvg` testati in
+ * src/lib/fotovoltaico/layout.ts (correttezza per equivalenza al codice coperto
+ * da unit test). Se non ci sono coordinate, ricade sul mock zenitale.
+ *
+ * DORMIENTE: attivo solo quando fv-genera-pdf passa `layout_pannelli`; finché
+ * non viene popolato+deployato, il PDF mostra il mock come prima.
+ */
+export function svgVistaLayoutReale(
+  panels: Array<{
+    centro_lat: number;
+    centro_lng: number;
+    orientamento?: "LANDSCAPE" | "PORTRAIT";
+    segment_index?: number;
+  }>,
+): string {
+  const W = 400, H = 300;
+  if (!panels || panels.length === 0) return svgVistaSatellitareMock("zenitale", 0);
+
+  const box = { x: 55, y: 52, w: 290, h: 140 }; // area-tetto entro il poligono mock
+  const panelLongM = 1.72, panelShortM = 1.13;
+  const meanLat = panels.reduce((s, p) => s + p.centro_lat, 0) / panels.length;
+  const mPerLng = 111320 * Math.cos((meanLat * Math.PI) / 180);
+
+  const pts = panels.map((p) => {
+    const xm = p.centro_lng * mPerLng;
+    const ym = p.centro_lat * 110540;
+    const land = p.orientamento !== "PORTRAIT";
+    return { xm, ym, wM: land ? panelLongM : panelShortM, hM: land ? panelShortM : panelLongM, seg: p.segment_index ?? 0 };
+  });
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of pts) {
+    minX = Math.min(minX, p.xm - p.wM / 2); maxX = Math.max(maxX, p.xm + p.wM / 2);
+    minY = Math.min(minY, p.ym - p.hM / 2); maxY = Math.max(maxY, p.ym + p.hM / 2);
+  }
+  const spanX = Math.max(1e-6, maxX - minX), spanY = Math.max(1e-6, maxY - minY);
+  const scale = Math.min(box.w / spanX, box.h / spanY);
+  const offX = box.x + (box.w - spanX * scale) / 2;
+  const offY = box.y + (box.h - spanY * scale) / 2;
+  const colors = ["#0F1A2E", "#1E3A5F", "#2C5184", "#F97316", "#16A34A", "#7C3AED"];
+
+  const rects = pts
+    .map((p) => {
+      const cx = offX + (p.xm - minX) * scale;
+      const cy = offY + (maxY - p.ym) * scale; // flip Y: nord in alto
+      const w = p.wM * scale, h = p.hM * scale;
+      return `<rect x="${(cx - w / 2).toFixed(1)}" y="${(cy - h / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${colors[p.seg % colors.length]}" stroke="#1E3A5F" stroke-width="0.5"/>`;
+    })
+    .join("");
+
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+      <rect width="${W}" height="${H}" fill="#5D8A4E"/>
+      <polygon points="40,200 360,200 360,290 40,290" fill="#D4D4D4" stroke="#9CA3AF"/>
+      <polygon points="40,40 360,40 360,200 40,200" fill="#A0623F" stroke="#5C3A22" stroke-width="2"/>
+      ${rects}
+    </svg>`;
+}
+
 export function svgVistaSatellitareMock(
   view: "nord" | "zenitale" | "3d" | "panoramica",
   numPannelli: number,
