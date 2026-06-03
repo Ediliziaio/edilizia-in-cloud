@@ -113,7 +113,7 @@ Deno.serve(async (req: Request) => {
       insertPayload.sessione_id = documento_id;
     } else if (tipo_documento === "fv") {
       // Preventivo Fotovoltaico (fv_progetti). Richiede colonna fv_progetto_id
-      // su signature_requests (migration 20270618000000_signature_requests_fv_progetto).
+      // su signature_requests (migration 20270618030000_signature_requests_fv_progetto).
       insertPayload.fv_progetto_id = documento_id;
     }
     // odv: nessun ID specifico (fallback)
