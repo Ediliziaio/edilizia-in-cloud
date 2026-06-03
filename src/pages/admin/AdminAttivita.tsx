@@ -33,9 +33,10 @@ import {
 } from "date-fns";
 import { it } from "date-fns/locale";
 import {
-  CloudSun, ChevronLeft, ChevronRight, CalendarDays, Droplets, Thermometer,
+  CloudSun, ChevronLeft, ChevronRight, CalendarDays, Droplets,
   MapPin, ClipboardCheck, AlertCircle, Circle, ArrowUpCircle, Users,
   CheckCircle2, ExternalLink, Loader2, ListChecks, LayoutDashboard, Plus,
+  Clock, MoreHorizontal, Pencil, Trash2,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NewTaskDialog, type TaskTypeValue } from "@/components/admin/tasks/NewTaskDialog";
@@ -56,6 +57,14 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
 // Lazy load del gestore completo task — evita di pagare il bundle iniziale
@@ -94,6 +103,7 @@ interface CSTask {
   company_id: string | null;
   completed_at: string | null;
   created_at: string;
+  task_type: string | null;
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────
@@ -106,8 +116,8 @@ function AdminAttivitaHeader() {
 
   return (
     <div>
-      <p className="text-muted-foreground text-sm capitalize">{oggi}</p>
-      <h1 className="text-2xl font-bold">
+      <p className="text-muted-foreground text-xs sm:text-sm capitalize">{oggi}</p>
+      <h1 className="text-xl sm:text-2xl font-bold">
         {saluto}, {nome}
       </h1>
     </div>
@@ -150,56 +160,41 @@ function AdminMeteoWidget() {
 
   return (
     <Card className="overflow-hidden">
-      <CardContent className="p-0">
-        <div className="bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/30 dark:to-sky-950/30 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <MapPin className="h-3 w-3" />
-              <span>{DEFAULT_CITY}</span>
-            </div>
-            <span className="text-xs text-muted-foreground">Oggi</span>
+      <CardContent className="bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-950/30 dark:to-sky-950/30 p-2.5">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-2xl leading-none">{weatherCodeToEmoji(todayWeather.code)}</span>
+          <div className="min-w-0">
+            <p className="text-lg font-bold leading-none">
+              {todayWeather.maxTemp}°<span className="text-xs font-normal text-muted-foreground"> / {todayWeather.minTemp}°</span>
+            </p>
+            <p className="text-[10px] text-muted-foreground leading-none mt-0.5 flex items-center gap-1 truncate">
+              <MapPin className="h-2.5 w-2.5 shrink-0" />{DEFAULT_CITY} · {weatherCodeToLabel(todayWeather.code)}
+            </p>
           </div>
-          <div className="flex items-center gap-3 mt-2">
-            <span className="text-4xl leading-none">{weatherCodeToEmoji(todayWeather.code)}</span>
-            <div>
-              <p className="text-2xl font-bold leading-none">{todayWeather.maxTemp}°C</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{weatherCodeToLabel(todayWeather.code)}</p>
-            </div>
-            <div className="ml-auto text-right space-y-0.5">
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Thermometer className="h-3 w-3" />
-                <span>{todayWeather.minTemp}° / {todayWeather.maxTemp}°</span>
-              </div>
-              {todayWeather.precip > 0 && (
-                <div className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
-                  <Droplets className="h-3 w-3" />
-                  <span>{todayWeather.precip}mm</span>
+          {todayWeather.precip > 0 && (
+            <span className="flex items-center gap-0.5 text-[11px] text-blue-600 dark:text-blue-400">
+              <Droplets className="h-3 w-3" />{todayWeather.precip}mm
+            </span>
+          )}
+          {forecastDays.length > 0 && (
+            <div className="ml-auto flex items-center gap-3">
+              {forecastDays.map(({ date, weather }) => (
+                <div key={date} className="flex items-center gap-1 text-[10px]">
+                  <span className="capitalize text-muted-foreground">{format(new Date(date), "EEE", { locale: it })}</span>
+                  <span className="text-base leading-none">{weatherCodeToEmoji(weather.code)}</span>
+                  <span className="font-medium tabular-nums">{weather.maxTemp}°</span>
                 </div>
-              )}
+              ))}
             </div>
-          </div>
+          )}
         </div>
-        {forecastDays.length > 0 && (
-          <div className="grid grid-cols-3 divide-x border-t">
-            {forecastDays.map(({ date, weather }) => (
-              <div key={date} className="p-2 text-center">
-                <p className="text-[10px] text-muted-foreground capitalize">
-                  {format(new Date(date), "EEE d", { locale: it })}
-                </p>
-                <p className="text-lg leading-none mt-0.5">{weatherCodeToEmoji(weather.code)}</p>
-                <p className="text-xs font-medium mt-0.5">{weather.minTemp}° / {weather.maxTemp}°</p>
-                {weather.precip > 0 && <p className="text-[10px] text-blue-500">{weather.precip}mm</p>}
-              </div>
-            ))}
-          </div>
-        )}
       </CardContent>
     </Card>
   );
 }
 
 // ─── Mini Calendario ──────────────────────────────────────────────────────
-function AdminMiniCalendario({ tasks }: { tasks: CSTask[] }) {
+function AdminMiniCalendario({ tasks, onAddTask }: { tasks: CSTask[]; onAddTask?: (dateIso: string) => void }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
 
@@ -311,10 +306,22 @@ function AdminMiniCalendario({ tasks }: { tasks: CSTask[] }) {
         </div>
         {selectedDate && (
           <div className="mt-3 border-t pt-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              {isToday(selectedDate) ? "Oggi" : format(selectedDate, "d MMMM", { locale: it })}
-              {selectedTasks.length > 0 && ` — ${selectedTasks.length} attività`}
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {isToday(selectedDate) ? "Oggi" : format(selectedDate, "d MMMM", { locale: it })}
+                {selectedTasks.length > 0 && ` — ${selectedTasks.length} attività`}
+              </p>
+              {onAddTask && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 gap-1 text-[11px] text-primary hover:text-primary"
+                  onClick={() => onAddTask(format(selectedDate, "yyyy-MM-dd"))}
+                >
+                  <Plus className="h-3 w-3" /> Nuovo
+                </Button>
+              )}
+            </div>
             {selectedTasks.length === 0 ? (
               <p className="text-xs text-muted-foreground italic">Nessuna scadenza per questo giorno</p>
             ) : (
@@ -343,11 +350,14 @@ function AdminMiniCalendario({ tasks }: { tasks: CSTask[] }) {
 
 // ─── Le mie attività ──────────────────────────────────────────────────────
 function MieAttivitaAdmin({
-  tasks, onComplete, onCreateTask,
+  tasks, onComplete, onCreateTask, onEdit, onDelete, onSetStatus,
 }: {
   tasks: CSTask[];
   onComplete: (id: string) => void;
   onCreateTask: () => void;
+  onEdit: (task: CSTask) => void;
+  onDelete: (task: CSTask) => void;
+  onSetStatus: (id: string, status: string) => void;
 }) {
   const [filter, setFilter] = useState<"open" | "today" | "overdue" | "all">("open");
   const today = startOfDay(new Date());
@@ -450,6 +460,40 @@ function MieAttivitaAdmin({
                       )}
                     </div>
                   </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100 text-muted-foreground hover:text-foreground transition-opacity p-1 rounded"
+                        aria-label="Azioni attività"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuItem onClick={() => onEdit(t)}>
+                        <Pencil className="h-3.5 w-3.5 mr-2" /> Modifica
+                      </DropdownMenuItem>
+                      {t.status !== "todo" && (
+                        <DropdownMenuItem onClick={() => onSetStatus(t.id, "todo")}>
+                          <Circle className="h-3.5 w-3.5 mr-2" /> Segna da fare
+                        </DropdownMenuItem>
+                      )}
+                      {t.status !== "in_progress" && (
+                        <DropdownMenuItem onClick={() => onSetStatus(t.id, "in_progress")}>
+                          <Clock className="h-3.5 w-3.5 mr-2" /> Segna in corso
+                        </DropdownMenuItem>
+                      )}
+                      {t.status !== "completed" && (
+                        <DropdownMenuItem onClick={() => onComplete(t.id)}>
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-2" /> Segna completata
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => onDelete(t)} className="text-red-600 focus:text-red-600">
+                        <Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               );
             })}
@@ -580,26 +624,70 @@ function TaskTeamAdmin({
   );
 }
 
+// ─── Pulse del team (riepilogo stato) ─────────────────────────────────────
+/** Barra statistiche stato dei task del team — colpo d'occhio (come
+ *  TeamTaskPulse di /azienda/attivita). Conta su TUTTI i task del team. */
+function TeamPulseAdmin({ tasks }: { tasks: CSTask[] }) {
+  const today = startOfDay(new Date());
+  const stats = useMemo(() => {
+    let todo = 0, inProgress = 0, done = 0, overdue = 0;
+    for (const t of tasks) {
+      if (t.status === "completed") done++;
+      else if (t.status === "in_progress") inProgress++;
+      else todo++;
+      if (t.status !== "completed" && t.due_date && isBefore(new Date(t.due_date), today)) overdue++;
+    }
+    return { todo, inProgress, done, overdue };
+  }, [tasks, today]);
+
+  const tiles = [
+    { label: "Da fare", value: stats.todo, icon: Circle, cls: "text-slate-600 dark:text-slate-300", bg: "bg-slate-500/10" },
+    { label: "In corso", value: stats.inProgress, icon: Clock, cls: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10" },
+    { label: "Completate", value: stats.done, icon: CheckCircle2, cls: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10" },
+    { label: "In ritardo", value: stats.overdue, icon: AlertCircle, cls: "text-red-600 dark:text-red-400", bg: "bg-red-500/10" },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {tiles.map((tile) => (
+        <Card key={tile.label}>
+          <CardContent className="p-3 flex items-center gap-3">
+            <span className={cn("inline-flex h-9 w-9 items-center justify-center rounded-lg shrink-0", tile.bg, tile.cls)}>
+              <tile.icon className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xl font-bold leading-none tabular-nums">{tile.value}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{tile.label}</p>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 // ─── Dashboard tab content ────────────────────────────────────────────────
 /** Tab "Dashboard" — vista riassuntiva personalizzata.
  *  Niente permission check qui: il wrapper `AdminAttivita` la fa già. */
 function AttivitaDashboardTab() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  // Dialog "Nuovo Task" condiviso tra le card della dashboard.
-  // Con prefill opzionale per assegnare default a un assignee specifico
-  // (es: "Le mie attività" → assegna a me; "Task del Team" → lascia vuoto).
-  const [taskDialogPrefill, setTaskDialogPrefill] = useState<
-    { assignedTo?: string; type?: TaskTypeValue } | null
+  // Dialog task: "new" (con prefill opzionale) oppure "edit" (task esistente).
+  const [dialogState, setDialogState] = useState<
+    | { mode: "new"; prefill?: { assignedTo?: string; dueDate?: string } }
+    | { mode: "edit"; task: CSTask }
+    | null
   >(null);
+  // Task in attesa di conferma eliminazione.
+  const [deletingTask, setDeletingTask] = useState<CSTask | null>(null);
 
   // Tutte le cs_tasks (verranno splittate in "mie" e "team")
-  const { data: allTasks = [], isLoading } = useQuery({
+  const { data: allTasks = [], isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ["admin-attivita-tasks"],
     queryFn: async (): Promise<CSTask[]> => {
       const { data, error } = await supabase
         .from("cs_tasks" as never)
-        .select("id, title, description, status, priority, due_date, assigned_to, company_id, completed_at, created_at")
+        .select("id, title, description, status, priority, due_date, assigned_to, company_id, completed_at, created_at, task_type")
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(500);
       if (error) throw error;
@@ -638,68 +726,152 @@ function AttivitaDashboardTab() {
     return map;
   }, [profiles]);
 
-  // Split: mie vs team
+  // Split: mie · team-lista (aperte) · team-pulse (tutti gli stati)
   const myTasks = useMemo(() => allTasks.filter((t) => t.assigned_to === user?.id), [allTasks, user?.id]);
-  const teamTasks = useMemo(() => allTasks.filter((t) => t.assigned_to && t.assigned_to !== user?.id && t.status !== "completed"), [allTasks, user?.id]);
+  const allTeamTasks = useMemo(() => allTasks.filter((t) => t.assigned_to && t.assigned_to !== user?.id), [allTasks, user?.id]);
+  const teamTasks = useMemo(() => allTeamTasks.filter((t) => t.status !== "completed"), [allTeamTasks]);
 
-  // Mutation: completa task
-  const completeMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("cs_tasks" as never)
-        .update({ status: "completed", completed_at: new Date().toISOString() } as never)
-        .eq("id", id as never);
+  // Mutation: cambia stato (completa / in corso / da fare)
+  const setStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const patch: Record<string, unknown> =
+        status === "completed"
+          ? { status, completed_at: new Date().toISOString() }
+          : { status, completed_at: null };
+      const { error } = await supabase.from("cs_tasks" as never).update(patch as never).eq("id", id as never);
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("Attività completata");
+    onSuccess: (_d, vars) => {
+      toast.success(vars.status === "completed" ? "Attività completata" : "Stato aggiornato");
       queryClient.invalidateQueries({ queryKey: ["admin-attivita-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["admin-sidebar-badges"] });
     },
-    onError: (err: Error) => {
-      toast.error("Errore: " + err.message);
-    },
+    onError: (err: Error) => toast.error("Errore: " + err.message),
   });
 
+  // Mutation: elimina task
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("cs_tasks" as never).delete().eq("id", id as never);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Attività eliminata");
+      setDeletingTask(null);
+      queryClient.invalidateQueries({ queryKey: ["admin-attivita-tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-sidebar-badges"] });
+    },
+    onError: (err: Error) => toast.error("Errore: " + err.message),
+  });
+
+  const completeTask = (id: string) => setStatusMutation.mutate({ id, status: "completed" });
+
+  // Caricamento → skeleton coerente con il layout (come /azienda/attivita)
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-24 text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin mr-2" />
-        Caricamento attività…
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
+          <div className="lg:col-span-2 space-y-3 sm:space-y-6">
+            <Skeleton className="h-16 w-full rounded-xl" />
+            <Skeleton className="h-72 w-full rounded-xl" />
+          </div>
+          <Skeleton className="h-72 w-full rounded-xl" />
+        </div>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+        </div>
+        <Skeleton className="h-48 w-full rounded-xl" />
       </div>
+    );
+  }
+
+  // Errore → messaggio + Riprova (prima: schermo vuoto silenzioso)
+  if (isError) {
+    return (
+      <Card className="border-red-200 dark:border-red-900/40">
+        <CardContent className="py-12 text-center">
+          <AlertCircle className="h-10 w-10 mx-auto mb-3 text-red-500/70" />
+          <p className="text-sm font-medium mb-1">Impossibile caricare le attività</p>
+          <p className="text-xs text-muted-foreground mb-4">Si è verificato un errore nel recupero dei task.</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5">
+            <Loader2 className={cn("h-3.5 w-3.5", isRefetching && "animate-spin")} /> Riprova
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Riga 1: Meteo (1/3) + Task del Team (2/3) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <AdminMeteoWidget />
-        <div className="lg:col-span-2">
-          <TaskTeamAdmin
-            tasks={teamTasks}
-            profilesById={profilesById}
-            onCreateTask={() => setTaskDialogPrefill({ /* no assignee default → admin sceglie */ })}
+      {/* Sinistra: Meteo + Calendario impilati (2/3) · Destra: le mie attività
+          (1/3). Stesso layout di /azienda/attivita (AttivitaStaff › TabAttivita). */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6">
+        <div className="lg:col-span-2 space-y-3 sm:space-y-6">
+          <AdminMeteoWidget />
+          <AdminMiniCalendario
+            tasks={myTasks}
+            onAddTask={(date) => setDialogState({ mode: "new", prefill: { assignedTo: user?.id, dueDate: date } })}
           />
         </div>
-      </div>
-
-      {/* Riga 2: Calendario (1/2) + Le mie attività (1/2) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <AdminMiniCalendario tasks={myTasks} />
         <MieAttivitaAdmin
           tasks={myTasks}
-          onComplete={(id) => completeMutation.mutate(id)}
-          onCreateTask={() => setTaskDialogPrefill({ assignedTo: user?.id })}
+          onComplete={completeTask}
+          onCreateTask={() => setDialogState({ mode: "new", prefill: { assignedTo: user?.id } })}
+          onEdit={(task) => setDialogState({ mode: "edit", task })}
+          onDelete={(task) => setDeletingTask(task)}
+          onSetStatus={(id, status) => setStatusMutation.mutate({ id, status })}
         />
       </div>
 
-      {/* Dialog Nuovo Task — condiviso, montato lazy on demand */}
-      <NewTaskDialog
-        open={!!taskDialogPrefill}
-        onOpenChange={(open) => { if (!open) setTaskDialogPrefill(null); }}
-        prefill={taskDialogPrefill ?? undefined}
+      {/* Strumenti del team, a tutta larghezza sotto (come la "Regia" azienda) */}
+      <TeamPulseAdmin tasks={allTeamTasks} />
+      <TaskTeamAdmin
+        tasks={teamTasks}
+        profilesById={profilesById}
+        onCreateTask={() => setDialogState({ mode: "new" })}
       />
+
+      {/* Dialog Nuovo / Modifica Task — condiviso */}
+      <NewTaskDialog
+        open={!!dialogState}
+        onOpenChange={(open) => { if (!open) setDialogState(null); }}
+        prefill={dialogState?.mode === "new" ? dialogState.prefill : undefined}
+        editTask={
+          dialogState?.mode === "edit"
+            ? {
+                id: dialogState.task.id,
+                title: dialogState.task.title,
+                description: dialogState.task.description,
+                type: (dialogState.task.task_type as TaskTypeValue | null) ?? undefined,
+                priority: dialogState.task.priority as "low" | "medium" | "high",
+                companyId: dialogState.task.company_id,
+                assignedTo: dialogState.task.assigned_to,
+                dueDate: dialogState.task.due_date ? dialogState.task.due_date.slice(0, 10) : null,
+              }
+            : undefined
+        }
+      />
+
+      {/* Conferma eliminazione */}
+      <AlertDialog open={!!deletingTask} onOpenChange={(o) => { if (!o) setDeletingTask(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare l'attività?</AlertDialogTitle>
+            <AlertDialogDescription>
+              «{deletingTask?.title}» verrà eliminata definitivamente. L'azione non è reversibile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingTask && deleteMutation.mutate(deletingTask.id)}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -733,18 +905,17 @@ export default function AdminAttivita() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
       <AdminAttivitaHeader />
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="max-w-[400px]">
-          <TabsTrigger value="dashboard" className="gap-1.5">
+        <TabsList className="grid w-full max-w-full sm:max-w-md grid-cols-2 h-auto">
+          <TabsTrigger value="dashboard" className="gap-1.5 text-xs sm:text-sm py-2">
             <LayoutDashboard className="h-4 w-4" />
-            <span className="hidden sm:inline">Dashboard</span>
+            <span>Dashboard</span>
           </TabsTrigger>
-          <TabsTrigger value="tutte" className="gap-1.5">
+          <TabsTrigger value="tutte" className="gap-1.5 text-xs sm:text-sm py-2">
             <ListChecks className="h-4 w-4" />
-            <span className="hidden sm:inline">Tutte le attività</span>
-            <span className="sm:hidden">Tutte</span>
+            <span className="truncate"><span className="hidden sm:inline">Tutte le </span>attività</span>
           </TabsTrigger>
         </TabsList>
         <TabsContent value="dashboard" className="mt-6">

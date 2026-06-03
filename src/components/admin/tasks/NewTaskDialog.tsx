@@ -87,16 +87,32 @@ export interface NewTaskDialogProps {
     type?: TaskTypeValue;
     priority?: "low" | "medium" | "high";
     assignedTo?: string;
+    dueDate?: string;
   };
-  /** Callback dopo creazione (es. invalidazione query custom) */
+  /** Se presente → modalità MODIFICA: il dialog fa UPDATE invece di INSERT. */
+  editTask?: NewTaskEditInput;
+  /** Callback dopo creazione/modifica (es. invalidazione query custom) */
   onCreated?: (taskId: string | null) => void;
 }
 
+/** Input modalità modifica per NewTaskDialog. */
+export interface NewTaskEditInput {
+  id: string;
+  title?: string;
+  description?: string | null;
+  type?: TaskTypeValue;
+  priority?: "low" | "medium" | "high";
+  companyId?: string | null;
+  assignedTo?: string | null;
+  dueDate?: string | null;
+}
+
 // ─── Component ───────────────────────────────────────────────────────────
-export function NewTaskDialog({ open, onOpenChange, prefill, onCreated }: NewTaskDialogProps) {
+export function NewTaskDialog({ open, onOpenChange, prefill, editTask, onCreated }: NewTaskDialogProps) {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const todayIso = new Date().toISOString().slice(0, 10);
+  const isEdit = !!editTask;
 
   // ─── Form state ────────────────────────────────────────────────────────
   const [title, setTitle] = useState(prefill?.title ?? "");
@@ -107,18 +123,27 @@ export function NewTaskDialog({ open, onOpenChange, prefill, onCreated }: NewTas
   const [assignedTo, setAssignedTo] = useState<string>(prefill?.assignedTo ?? user?.id ?? "");
   const [dueDate, setDueDate] = useState("");
 
-  // Reset on open con nuovi prefill
+  // Reset on open con nuovi prefill / valori del task in modifica
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    if (editTask) {
+      setTitle(editTask.title ?? "");
+      setDescription(editTask.description ?? "");
+      setType(editTask.type ?? "manual");
+      setPriority(editTask.priority ?? "medium");
+      setCompanyId(editTask.companyId ?? "");
+      setAssignedTo(editTask.assignedTo ?? user?.id ?? "");
+      setDueDate(editTask.dueDate ?? "");
+    } else {
       setTitle(prefill?.title ?? "");
       setDescription(prefill?.description ?? "");
       setType(prefill?.type ?? "manual");
       setPriority(prefill?.priority ?? "medium");
       setCompanyId(prefill?.companyId ?? "");
       setAssignedTo(prefill?.assignedTo ?? user?.id ?? "");
-      setDueDate("");
+      setDueDate(prefill?.dueDate ?? "");
     }
-  }, [open, prefill, user?.id]);
+  }, [open, prefill, editTask, user?.id]);
 
   // ─── Companies (opzionale: il task può essere "interno" senza azienda) ───
   const { data: companies = [] } = useQuery({
@@ -176,8 +201,25 @@ export function NewTaskDialog({ open, onOpenChange, prefill, onCreated }: NewTas
       const t = title.trim();
       if (!user?.id) throw new Error("Sessione admin non disponibile.");
       if (!t) throw new Error("Inserisci un titolo.");
-      if (dueDate && dueDate < todayIso) {
+      if (!isEdit && dueDate && dueDate < todayIso) {
         throw new Error("La scadenza non può essere nel passato.");
+      }
+      // Modalità modifica → UPDATE del task esistente (niente created_by).
+      if (isEdit && editTask) {
+        const { error } = await supabase
+          .from("cs_tasks" as never)
+          .update({
+            company_id: companyId || null,
+            title: t,
+            description: description.trim() || null,
+            task_type: type,
+            priority,
+            due_date: dueDate || null,
+            assigned_to: assignedTo || user.id,
+          } as never)
+          .eq("id", editTask.id as never);
+        if (error) throw error;
+        return editTask.id;
       }
       const payload = {
         company_id: companyId || null,
@@ -201,7 +243,7 @@ export function NewTaskDialog({ open, onOpenChange, prefill, onCreated }: NewTas
       queryClient.invalidateQueries({ queryKey: queryKeys.csTasks.all });
       queryClient.invalidateQueries({ queryKey: ["admin-attivita-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["admin-sidebar-badges"] });
-      toast.success("Task creato", { description: title.trim() });
+      toast.success(isEdit ? "Task aggiornato" : "Task creato", { description: title.trim() });
       onCreated?.(id);
       onOpenChange(false);
     },
@@ -228,7 +270,7 @@ export function NewTaskDialog({ open, onOpenChange, prefill, onCreated }: NewTas
         <DialogHeader className="px-5 pt-5 pb-3 border-b">
           <DialogTitle className="text-base flex items-center gap-2">
             <ListChecks className="h-4 w-4 text-primary" />
-            Nuovo Task
+            {isEdit ? "Modifica Task" : "Nuovo Task"}
           </DialogTitle>
         </DialogHeader>
 
@@ -362,7 +404,7 @@ export function NewTaskDialog({ open, onOpenChange, prefill, onCreated }: NewTas
               <Input
                 type="date"
                 value={dueDate}
-                min={todayIso}
+                min={isEdit ? undefined : todayIso}
                 onChange={(e) => setDueDate(e.target.value)}
                 className="h-9"
               />
@@ -425,7 +467,7 @@ export function NewTaskDialog({ open, onOpenChange, prefill, onCreated }: NewTas
             </div>
           )}
 
-          {dueDate && dueDate < todayIso && (
+          {!isEdit && dueDate && dueDate < todayIso && (
             <p className="text-xs text-red-600">⚠️ Data nel passato — non valida</p>
           )}
         </div>
@@ -442,13 +484,13 @@ export function NewTaskDialog({ open, onOpenChange, prefill, onCreated }: NewTas
             <Button
               size="sm"
               onClick={() => createTask.mutate()}
-              disabled={!title.trim() || createTask.isPending || (dueDate && dueDate < todayIso) || false}
+              disabled={!title.trim() || createTask.isPending || (!isEdit && !!dueDate && dueDate < todayIso)}
               className="gap-1.5"
             >
               {createTask.isPending ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Creazione…</>
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {isEdit ? "Salvataggio…" : "Creazione…"}</>
               ) : (
-                <>Crea Task</>
+                <>{isEdit ? "Salva" : "Crea Task"}</>
               )}
             </Button>
           </div>
