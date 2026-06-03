@@ -132,6 +132,10 @@ export function ChangePasswordForm() {
         .update({ password_changed_at: new Date().toISOString() })
         .eq("id", user.id);
 
+      // Email di sicurezza "La tua password è stata cambiata" (2.2). Best-effort:
+      // non blocca l'esito né mostra errori all'utente se l'invio fallisce.
+      supabase.functions.invoke("notify-password-changed").catch(() => {});
+
       toast.success("Password cambiata con successo!");
       
       // Reset form

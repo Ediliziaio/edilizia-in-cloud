@@ -50,7 +50,8 @@ Deno.serve(async (req) => {
   }
 
   const siteUrl = ((await getPlatformSetting("site_url", "SITE_URL")) || Deno.env.get("SITE_URL") || "").replace(/\/$/, "");
-  const result = { setup_incomplete: 0, invite_reminder: 0, errors: [] as string[] };
+  const result = { setup_incomplete: 0, invite_reminder: 0, purchase_confirmed: 0, errors: [] as string[] };
+  const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
 
   // dedup-then-send: inserisce il guard PRIMA dell'invio (no doppioni in caso di
   // run concorrenti); se l'invio fallisce rimuove il guard (così si ritenta).
@@ -123,6 +124,35 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     result.errors.push(`invite_reminder job: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // ── Job C — Conferma acquisto (prima attivazione a pagamento) ───────────────
+  try {
+    const { data: cands, error } = await admin.rpc("system_emails_purchase_confirmed_candidates", { p_hours: 25 });
+    if (error) throw error;
+    for (const c of (cands ?? []) as Array<{ company_id: string; company_name: string; admin_email: string; admin_name: string; plan_name: string | null; price_monthly: number | null; price_yearly: number | null }>) {
+      const monthly = Number(c.price_monthly ?? 0);
+      const yearly = Number(c.price_yearly ?? 0);
+      const amountFormatted = monthly > 0 ? eur(monthly) : yearly > 0 ? eur(yearly) : undefined;
+      const periodicity = monthly > 0 ? "mensile" : yearly > 0 ? "annuale" : undefined;
+      const ok = await guardedSend("purchase_confirmed", c.company_id, c.company_id, c.admin_email, () =>
+        renderEmailTemplate({
+          templateName: "purchase_confirmed",
+          companyId: c.company_id,
+          adminClient: admin,
+          props: {
+            recipientName: c.admin_name || "Admin",
+            planName: c.plan_name || "il tuo piano",
+            amountFormatted,
+            periodicity,
+            appUrl: siteUrl ? `${siteUrl}/azienda` : "",
+          },
+        }),
+      );
+      if (ok) result.purchase_confirmed++;
+    }
+  } catch (e) {
+    result.errors.push(`purchase_confirmed job: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   return new Response(JSON.stringify({ ok: true, ...result }), {

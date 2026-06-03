@@ -60,3 +60,29 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
 $$;
 REVOKE ALL ON FUNCTION public.system_emails_invite_reminder_candidates(int,int) FROM public, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.system_emails_invite_reminder_candidates(int,int) TO service_role;
+
+-- 4) Candidati "conferma acquisto": aziende passate a status active (prima
+--    attivazione a pagamento) nelle ultime p_hours, non già confermate.
+--    DISTINCT ON (c.id) + dedup per company → una sola conferma per azienda.
+CREATE OR REPLACE FUNCTION public.system_emails_purchase_confirmed_candidates(
+  p_hours int DEFAULT 25
+) RETURNS TABLE(company_id uuid, company_name text, admin_email text, admin_name text,
+                plan_name text, price_monthly numeric, price_yearly numeric)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+  SELECT DISTINCT ON (c.id)
+    c.id, c.name, p.email, coalesce(NULLIF(p.first_name, ''), 'Admin'),
+    sp.name, sp.price_monthly, sp.price_yearly
+  FROM subscription_logs sl
+  JOIN companies c   ON c.id = sl.company_id
+  JOIN profiles p    ON p.company_id = c.id
+  JOIN user_roles ur ON ur.user_id = p.id AND ur.role = 'company_admin'
+  LEFT JOIN subscription_plans sp ON sp.id = coalesce(sl.plan_id, c.subscription_plan_id)
+  WHERE sl.new_status = 'active' AND coalesce(sl.old_status, '') <> 'active'
+    AND sl.created_at > now() - make_interval(hours => greatest(p_hours, 1))
+    AND p.email IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM system_email_sends s
+                    WHERE s.email_key = 'purchase_confirmed' AND s.ref_id = c.id::text)
+  ORDER BY c.id, sl.created_at DESC;
+$$;
+REVOKE ALL ON FUNCTION public.system_emails_purchase_confirmed_candidates(int) FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.system_emails_purchase_confirmed_candidates(int) TO service_role;

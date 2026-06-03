@@ -318,6 +318,37 @@ Deno.serve(async (req) => {
       console.error("[create-company] invio email benvenuto fallito:", emailErr);
     }
 
+    // Email 6 — copia dei documenti/termini accettati (prova legale B2B). Best-effort.
+    try {
+      const baseUrl = (await getPlatformSetting("site_url", "SITE_URL")) || Deno.env.get("SITE_URL") || "";
+      const legalBase = baseUrl ? `${baseUrl.replace(/\/$/, "")}/legal` : "";
+      const now = new Date();
+      const dz = (opts: Intl.DateTimeFormatOptions) =>
+        new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", ...opts }).format(now);
+      const rendered = await renderEmailTemplate({
+        templateName: "terms_accepted",
+        companyId,
+        adminClient: supabaseAdmin,
+        props: {
+          recipientName: adminFirstName || "Admin",
+          acceptedDate: dz({ day: "2-digit", month: "2-digit", year: "numeric" }),
+          acceptedTime: dz({ hour: "2-digit", minute: "2-digit" }),
+          tcUrl: legalBase ? `${legalBase}/termini.pdf` : "", tcVersion: "1.0",
+          privacyUrl: legalBase ? `${legalBase}/privacy.pdf` : "", privacyVersion: "1.0",
+          dpaUrl: legalBase ? `${legalBase}/dpa.pdf` : "", dpaVersion: "1.0",
+          cookieUrl: legalBase ? `${legalBase}/cookie.pdf` : "", cookieVersion: "1.0",
+          moduloOperaiUrl: legalBase ? `${legalBase}/modulo-privacy-lavoratori.pdf` : "",
+        },
+      });
+      await sendEmailUnified({
+        companyId, stream: "transactional", to: [trimmedAdminEmail],
+        subject: rendered.subject, html: rendered.html, text: rendered.text,
+        templateName: "terms_accepted", skipCredits: true, adminClient: supabaseAdmin,
+      });
+    } catch (emailErr) {
+      console.error("[create-company] invio email termini fallito:", emailErr);
+    }
+
     return jsonResponse({
       success: true,
       message: "Company created successfully",

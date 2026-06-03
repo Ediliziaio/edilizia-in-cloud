@@ -682,6 +682,28 @@ export const TEMPLATE_META: Record<string, TemplateMeta> = {
       ...BRANDING_MOCK,
     },
   },
+
+  purchase_confirmed: {
+    label: "Conferma acquisto (abbonamento attivato)",
+    description: "Inviata alla prima attivazione a pagamento dell'abbonamento. Dettagli piano + importo + rinnovo.",
+    category: "billing",
+    iconName: "BadgeCheck",
+    placeholders: [
+      { key: "recipientName", label: "Nome destinatario", example: "Marco", required: true, category: "destinatario" },
+      { key: "planName", label: "Nome piano", example: "Pro", required: true, category: "contenuto" },
+      { key: "amountFormatted", label: "Importo formattato", example: "49,00 €", required: false, category: "contenuto" },
+      { key: "periodicity", label: "Periodicità", example: "mensile", required: false, category: "contenuto" },
+      { key: "renewalDate", label: "Prossimo rinnovo", example: "12/05/2026", required: false, category: "contenuto" },
+      { key: "invoiceUrl", label: "URL fattura", example: "https://app.ediliziaincloud.it/fattura/123", required: false, category: "link" },
+      { key: "appUrl", label: "URL app", example: "https://app.ediliziaincloud.it/azienda", required: true, category: "link" },
+      ...BRANDING_PLACEHOLDERS,
+    ],
+    mockProps: {
+      recipientName: "Marco", planName: "Pro", amountFormatted: "49,00 €", periodicity: "mensile",
+      renewalDate: "12/05/2026", invoiceUrl: "https://app.ediliziaincloud.it/fattura/123",
+      appUrl: "https://app.ediliziaincloud.it/azienda", ...BRANDING_MOCK,
+    },
+  },
 };
 
 /** Tutti i template_key supportati dall'editor. */

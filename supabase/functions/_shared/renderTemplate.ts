@@ -15,6 +15,7 @@ import * as setupIncomplete from "./email-templates/setup-incomplete.ts";
 import * as passwordChanged from "./email-templates/password-changed.ts";
 import * as inviteReminder from "./email-templates/invite-reminder.ts";
 import * as termsAccepted from "./email-templates/terms-accepted.ts";
+import * as purchaseConfirmed from "./email-templates/purchase-confirmed.ts";
 import { renderLayout } from "./email-templates/layout.ts";
 import { resolveTemplate } from "./email-templates/resolveTemplate.ts";
 import { applyPlaceholders, htmlToPlainText } from "./email-templates/applyPlaceholders.ts";
@@ -34,6 +35,7 @@ const TEMPLATE_REGISTRY = {
   password_changed: passwordChanged.render,
   invite_reminder: inviteReminder.render,
   terms_accepted: termsAccepted.render,
+  purchase_confirmed: purchaseConfirmed.render,
 } as const;
 
 export type TemplateName = keyof typeof TEMPLATE_REGISTRY;
@@ -52,6 +54,7 @@ export const AVAILABLE_TEMPLATES: TemplateName[] = [
   "password_changed",
   "invite_reminder",
   "terms_accepted",
+  "purchase_confirmed",
 ];
 
 /**
