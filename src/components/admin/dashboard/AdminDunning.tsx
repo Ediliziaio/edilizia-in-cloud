@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CreditCard, DollarSign, Users } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import type { CompanyHealthScore } from "@/hooks/useAdminRevenueData";
@@ -44,6 +45,8 @@ const DUNNING_BADGE_CLASS: Record<string, string> = {
 };
 
 export function AdminDunning({ healthScores }: AdminDunningProps) {
+  const navigate = useNavigate();
+  const openCompany = (id: string) => navigate(`/admin/aziende/${id}`);
   const expired = healthScores.filter((h) => h.status === "expired");
   const atRiskOrCritical = healthScores.filter(
     (h) => h.health === "at_risk" || h.health === "critical"
@@ -147,7 +150,15 @@ export function AdminDunning({ healthScores }: AdminDunningProps) {
             </p>
             <div className="space-y-2">
               {dunningCompanies.map((c) => (
-                <div key={c.id} className="flex items-center justify-between text-sm gap-2">
+                <div
+                  key={c.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openCompany(c.id)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCompany(c.id); } }}
+                  title="Apri azienda"
+                  className="flex items-center justify-between text-sm gap-2 cursor-pointer rounded-md -mx-1 px-1 py-1 hover:bg-muted transition-colors"
+                >
                   <span className="truncate flex-1 font-medium">{c.name}</span>
                   <span className="text-xs text-muted-foreground shrink-0">
                     ×{c.payment_failure_count} falliti
@@ -177,7 +188,12 @@ export function AdminDunning({ healthScores }: AdminDunningProps) {
               {expired.slice(0, 5).map((c) => (
                 <div
                   key={c.companyId}
-                  className="flex items-center justify-between text-sm"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openCompany(c.companyId)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCompany(c.companyId); } }}
+                  title="Apri azienda"
+                  className="flex items-center justify-between text-sm cursor-pointer rounded-md -mx-1 px-1 py-0.5 hover:bg-muted transition-colors"
                 >
                   <span className="truncate">{c.companyName}</span>
                   <Badge variant="destructive" className="text-xs">

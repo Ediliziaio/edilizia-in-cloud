@@ -1,11 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
-import { Building, Users, ClipboardList, MessageSquare, TrendingUp, TrendingDown, Minus, Activity, CalendarDays, Zap, Gift } from "lucide-react";
+import { Building, Euro, Hourglass, MessageSquare, TrendingUp, TrendingDown, Minus, Activity, CalendarDays, CreditCard, Gift } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
-import type { AdminDashboardStats } from "@/hooks/useAdminDashboardData";
+import type { AdminDashboardStats, AdminMrrStats } from "@/hooks/useAdminDashboardData";
 
 interface Props {
   stats: AdminDashboardStats;
+  mrrStats: AdminMrrStats;
   previousStats?: AdminDashboardStats | null;
 }
 
@@ -37,7 +38,7 @@ function DeltaBadge({ delta }: { delta: number | null }) {
   );
 }
 
-export function AdminStatCards({ stats, previousStats }: Props) {
+export function AdminStatCards({ stats, mrrStats, previousStats }: Props) {
   const navigate = useNavigate();
 
   const statCards = [
@@ -62,24 +63,28 @@ export function AdminStatCards({ stats, previousStats }: Props) {
       iconBg: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
     },
     {
-      title: "Ordini Totali",
-      value: stats.totalOrders,
-      delta: getDelta(stats.totalOrders, previousStats?.totalOrders),
-      icon: ClipboardList,
-      description: formatCurrency(stats.totalOrdersValue) + " valore totale",
-      href: "/admin/aziende",
-      accent: "from-emerald-500/10 to-emerald-500/5 dark:from-emerald-500/20 dark:to-emerald-500/10",
-      iconBg: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+      title: "MRR Attuale",
+      value: formatCurrency(mrrStats.mrr),
+      delta: null,
+      icon: Euro,
+      description: `${mrrStats.activeCount} aziende attive · churn mese ${mrrStats.churnRate}%`,
+      href: "/admin/aziende?revenue=paying",
+      accent: "from-blue-500/10 to-blue-500/5 dark:from-blue-500/20 dark:to-blue-500/10",
+      iconBg: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
     },
     {
-      title: "Clienti Totali",
-      value: stats.totalCustomers,
-      delta: getDelta(stats.totalCustomers, previousStats?.totalCustomers),
-      icon: Users,
-      description: "Utenti registrati",
-      href: "/admin/aziende",
-      accent: "from-violet-500/10 to-violet-500/5 dark:from-violet-500/20 dark:to-violet-500/10",
-      iconBg: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+      title: "Trial in scadenza",
+      value: mrrStats.trialExpiringSoon,
+      delta: null,
+      icon: Hourglass,
+      description: `${mrrStats.trialCount} trial totali · da convertire`,
+      href: "/admin/aziende?status=trial",
+      accent: mrrStats.trialExpiringSoon > 0
+        ? "from-amber-500/10 to-amber-500/5 dark:from-amber-500/20 dark:to-amber-500/10"
+        : "from-blue-500/10 to-blue-500/5 dark:from-blue-500/20 dark:to-blue-500/10",
+      iconBg: mrrStats.trialExpiringSoon > 0
+        ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+        : "bg-blue-500/10 text-blue-600 dark:text-blue-400",
     },
     {
       title: "Supporto Aperto",
@@ -102,8 +107,8 @@ export function AdminStatCards({ stats, previousStats }: Props) {
       icon: Activity,
       description: "Aziende attive oggi",
       href: "/admin/aziende",
-      accent: "from-cyan-500/10 to-cyan-500/5 dark:from-cyan-500/20 dark:to-cyan-500/10",
-      iconBg: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
+      accent: "from-blue-500/10 to-blue-500/5 dark:from-blue-500/20 dark:to-blue-500/10",
+      iconBg: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
     },
     {
       title: "WAC (ultimi 7gg)",
@@ -112,18 +117,22 @@ export function AdminStatCards({ stats, previousStats }: Props) {
       icon: CalendarDays,
       description: "Aziende attive questa settimana",
       href: "/admin/aziende",
-      accent: "from-indigo-500/10 to-indigo-500/5 dark:from-indigo-500/20 dark:to-indigo-500/10",
-      iconBg: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+      accent: "from-primary/10 to-primary/5 dark:from-primary/20 dark:to-primary/10",
+      iconBg: "bg-primary/10 text-primary",
     },
     {
-      title: "Engagement Rate",
-      value: `${stats.engagementRate ?? 0}%`,
+      title: "Aziende senza carta",
+      value: stats.noPaymentMethodActive,
       delta: null,
-      icon: Zap,
-      description: "DAC / accessi attivi",
-      href: "/admin/aziende",
-      accent: "from-amber-500/10 to-amber-500/5 dark:from-amber-500/20 dark:to-amber-500/10",
-      iconBg: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+      icon: CreditCard,
+      description: "Attive senza metodo di pagamento",
+      href: "/admin/aziende?noPayment=1",
+      accent: stats.noPaymentMethodActive > 0
+        ? "from-rose-500/10 to-rose-500/5 dark:from-rose-500/20 dark:to-rose-500/10"
+        : "from-emerald-500/10 to-emerald-500/5 dark:from-emerald-500/20 dark:to-emerald-500/10",
+      iconBg: stats.noPaymentMethodActive > 0
+        ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     },
   ];
 

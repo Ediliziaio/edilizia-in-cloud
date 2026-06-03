@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Activity, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useNavigate } from "react-router-dom";
 import type { CompanyHealthScore } from "@/hooks/useAdminRevenueData";
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function AdminHealthSummary({ healthSummary, topAtRisk }: Props) {
+  const navigate = useNavigate();
   const total = healthSummary.healthy + healthSummary.atRisk + healthSummary.critical;
   const healthyPct = total > 0 ? Math.round((healthSummary.healthy / total) * 100) : 0;
 
@@ -57,7 +59,15 @@ export function AdminHealthSummary({ healthSummary, topAtRisk }: Props) {
               Aziende a rischio
             </p>
             {topAtRisk.slice(0, 4).map((c) => (
-              <div key={c.companyId} className="flex items-center justify-between text-sm">
+              <div
+                key={c.companyId}
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/admin/aziende/${c.companyId}`)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate(`/admin/aziende/${c.companyId}`); } }}
+                title="Apri azienda"
+                className="flex items-center justify-between text-sm cursor-pointer rounded-md -mx-1 px-1 py-0.5 hover:bg-muted transition-colors"
+              >
                 <span className="truncate flex-1">{c.companyName}</span>
                 <Badge
                   variant={c.health === "critical" ? "destructive" : "secondary"}

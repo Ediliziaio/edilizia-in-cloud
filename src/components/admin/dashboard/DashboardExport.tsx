@@ -42,7 +42,7 @@ export function DashboardExport({ data }: { data: ExportData }) {
       ["MRR Pagante", formatCurrency(data.mrrStats.mrr)],
       ["Trial Attivi", String(data.mrrStats.trialCount)],
       ["Trial In Scadenza", String(data.mrrStats.trialExpiringSoon)],
-      ["Churn Rate", `${data.mrrStats.churnRate}%`],
+      ["Churn Mensile", `${data.mrrStats.churnRate}%`],
       ["Aziende Paganti (plan)", String(data.mrrStats.activeCount)],
       ["Aziende Scadute", String(data.mrrStats.expiredCount)],
     ];
@@ -88,7 +88,7 @@ export function DashboardExport({ data }: { data: ExportData }) {
         ["MRR Pagante (€)", data.mrrStats.mrr],
         ["Trial Attivi", data.mrrStats.trialCount],
         ["Trial In Scadenza", data.mrrStats.trialExpiringSoon],
-        ["Churn Rate (%)", data.mrrStats.churnRate],
+        ["Churn Mensile (%)", data.mrrStats.churnRate],
         ["Aziende Paganti", data.mrrStats.activeCount],
         ["Aziende Scadute", data.mrrStats.expiredCount],
       ];

@@ -23,6 +23,7 @@ export interface AdminDashboardStats {
   dac: number;
   wac: number;
   engagementRate: number;
+  noPaymentMethodActive: number;
 }
 
 export interface AdminMrrStats {
@@ -191,6 +192,13 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
       ? Math.round((dac / activeCompanies.length) * 100)
       : 0;
 
+  // Aziende ATTIVE senza metodo di pagamento: col gate carta sono bloccate sui
+  // tool a costo (email/AI/WhatsApp/render/firma). Metrica azionabile per il super admin.
+  const noPaymentMethodActive = activeCompanies.filter((c) => {
+    const m = String(c.payment_method ?? "none").toLowerCase().trim();
+    return m === "" || m === "none";
+  }).length;
+
   const mrr = revenueBreakdown.mrr;
 
   const now = new Date();
@@ -201,11 +209,17 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
     return end <= threeDaysFromNow && end >= now;
   }).length;
 
-  const totalActive = payingCompanies.length;
+  // Churn MENSILE (logo churn): aziende il cui trial/abbonamento è scaduto nel
+  // mese corrente, sul totale (paganti + scaduti del mese). Più onesto del
+  // precedente rapporto storico (scaduti totali / paganti+scaduti).
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const churnedThisMonth = expiredCompanies.filter((c) => {
+    const end = c.trial_ends_at ? new Date(c.trial_ends_at) : null;
+    return end !== null && end >= monthStart && end <= now;
+  }).length;
+  const churnBase = payingCompanies.length + churnedThisMonth;
   const churnRate =
-    totalActive > 0
-      ? (expiredCompanies.length / (totalActive + expiredCompanies.length)) * 100
-      : 0;
+    churnBase > 0 ? Math.round((churnedThisMonth / churnBase) * 1000) / 10 : 0;
 
   const mrrChartData: MrrChartData[] = [];
   for (let i = 5; i >= 0; i--) {
@@ -250,6 +264,7 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
       dac,
       wac,
       engagementRate,
+      noPaymentMethodActive,
     },
     mrrStats: {
       mrr,

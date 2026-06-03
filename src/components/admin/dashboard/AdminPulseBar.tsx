@@ -1,8 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { Users, Building2, TrendingUp, Zap } from "lucide-react";
-import { formatCurrency } from "@/lib/formatters";
+import { Users, Building2, Hourglass, Zap } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /** Compact pulse bar showing real-time platform vitals */
@@ -28,9 +27,10 @@ export function AdminPulseBar() {
           .select("id", { count: "exact", head: true })
           .gte("last_login_at", last24h),
         supabase
-          .from("orders")
-          .select("id, total_amount", { count: "exact" })
-          .gte("created_at", todayStart),
+          .from("companies")
+          .select("id", { count: "exact", head: true })
+          .eq("is_platform_admin_company", false)
+          .eq("status", "trial"),
         supabase
           .from("tickets")
           .select("id", { count: "exact", head: true })
@@ -46,19 +46,13 @@ export function AdminPulseBar() {
 
       const signupsRes = pick<unknown>(0);
       const activeUsersRes = pick<unknown>(1);
-      const ordersRes = pick<{ id: string; total_amount: number | null }[]>(2);
+      const trialsRes = pick<unknown>(2);
       const ticketsRes = pick<unknown>(3);
-
-      const todayOrdersValue = (ordersRes.data ?? []).reduce(
-        (sum, o) => sum + (Number(o.total_amount) || 0),
-        0
-      );
 
       return {
         signupsToday: signupsRes.count || 0,
         activeUsers24h: activeUsersRes.count || 0,
-        ordersToday: ordersRes.count || 0,
-        ordersValueToday: todayOrdersValue,
+        activeTrials: trialsRes.count || 0,
         ticketsToday: ticketsRes.count || 0,
       };
     },
@@ -92,12 +86,11 @@ export function AdminPulseBar() {
       highlight: false,
     },
     {
-      icon: TrendingUp,
-      label: "Ordini oggi",
-      value: `${data?.ordersToday || 0}`,
-      suffix: data?.ordersValueToday ? ` · ${formatCurrency(data.ordersValueToday)}` : "",
-      isZero: (data?.ordersToday || 0) === 0,
-      highlight: (data?.ordersToday || 0) > 0,
+      icon: Hourglass,
+      label: "Trial attivi",
+      value: `${data?.activeTrials || 0}`,
+      isZero: (data?.activeTrials || 0) === 0,
+      highlight: (data?.activeTrials || 0) > 0,
     },
     {
       icon: Zap,
@@ -135,7 +128,6 @@ export function AdminPulseBar() {
             <span className="text-muted-foreground whitespace-nowrap">{m.label}:</span>
             <span className={`font-semibold ${m.isZero ? "text-muted-foreground" : "text-foreground"}`}>
               {m.value}
-              {"suffix" in m && m.suffix}
             </span>
           </Badge>
         );

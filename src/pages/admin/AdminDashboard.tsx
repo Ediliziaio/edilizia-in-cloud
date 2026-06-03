@@ -13,6 +13,7 @@ import { AdminRevenueBySector } from "@/components/admin/dashboard/AdminRevenueB
 import { AdminHealthSummary } from "@/components/admin/dashboard/AdminHealthSummary";
 import { AdminTrialIntelligence } from "@/components/admin/dashboard/AdminTrialIntelligence";
 import { AdminDunning } from "@/components/admin/dashboard/AdminDunning";
+import { AdminConsumptionWidget } from "@/components/admin/dashboard/AdminConsumptionWidget";
 import { AdminFeatureUsage } from "@/components/admin/dashboard/AdminFeatureUsage";
 import { AdminSystemHealth, IntegrationHealthSection } from "@/components/admin/dashboard/AdminSystemHealth";
 import { AdminNpsSection } from "@/components/admin/dashboard/AdminNpsSection";
@@ -145,7 +146,7 @@ export default function AdminDashboard() {
   function renderWidget(widgetId: string) {
     switch (widgetId) {
       case "stat-cards":
-        return <AdminStatCards stats={stats} />;
+        return <AdminStatCards stats={stats} mrrStats={mrrStats} />;
       case "growth-analytics":
         return <AdminGrowthAnalytics />;
       case "command-center":
@@ -187,6 +188,8 @@ export default function AdminDashboard() {
         return revenueData ? <AdminUpsellAlerts alerts={revenueData.upsellAlerts} /> : null;
       case "dunning":
         return revenueData ? <AdminDunning healthScores={revenueData.healthScores} /> : null;
+      case "consumption":
+        return <AdminConsumptionWidget />;
       case "feature-usage":
         return <AdminFeatureUsage />;
       case "system-health":
