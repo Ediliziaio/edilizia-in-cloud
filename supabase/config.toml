@@ -13,6 +13,11 @@ verify_jwt = false
 [functions.create-company]
 verify_jwt = false
 
+# Cron email di sistema ritardate (setup+48h, promemoria invito+48h). Auth via
+# x-cron-secret == INTERNAL_CRON_SECRET oppure JWT super_admin (trigger manuale).
+[functions.system-emails-tick]
+verify_jwt = false
+
 [functions.create-super-admin]
 verify_jwt = false
 
