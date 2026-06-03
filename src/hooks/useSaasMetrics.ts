@@ -41,27 +41,15 @@ export function useSaasMetrics() {
     },
   });
 
-  const { data: latestSnapshot, isLoading: isLoadingMrr } = useQuery({
-    queryKey: ["mrr-snapshots-latest"],
+  // MRR + churn calcolati dalla fonte reale (companies + piani).
+  // NB: la vecchia tabella `mrr_snapshots` non esiste → la query falliva sempre e
+  // MRR/ARPU finivano a 0. Ora usiamo getAdminRevenueBreakdown (stessa fonte della
+  // Revenue Dashboard) sui dati companies+piani già caricati qui.
+  const { data: churnData, isLoading: isLoadingChurn } = useQuery({
+    queryKey: ["saas-churn-mrr"],
     staleTime: 5 * 60 * 1_000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("mrr_snapshots")
-        .select("mrr_stripe_cents, mrr_interno_cents, aziende_attive_stripe, data")
-        .order("data", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw new Error(error.message);
-      return data;
-    },
-  });
-
-  const { data: churnData } = useQuery({
-    queryKey: ["churn-data"],
-    staleTime: 5 * 60 * 1_000,
-    queryFn: async () => {
-      // Count cancellazioni nell'ultimo mese. Il webhook Stripe registra
-      // "subscription_canceled"; teniamo anche le varianti legacy.
+      // Cancellazioni ultimi 30 giorni (webhook Stripe + varianti legacy).
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const { count: cancellazioni } = await supabase
@@ -73,20 +61,26 @@ export function useSaasMetrics() {
         .from("companies")
         .select("id, status, payment_method, stripe_customer_id, stripe_subscription_status, is_platform_admin_company, subscription_plans:subscription_plan_id(price_monthly, price_yearly)")
         .eq("is_platform_admin_company", false);
-      const payingCount = getAdminRevenueBreakdown(companies ?? []).payingCompanies;
-      return { cancellazioni: cancellazioni ?? 0, activeCount: payingCount || 1 };
+      const breakdown = getAdminRevenueBreakdown(companies ?? []);
+      return {
+        cancellazioni: cancellazioni ?? 0,
+        payingCount: breakdown.payingCompanies,
+        mrr: breakdown.mrr,
+      };
     },
   });
 
   // Calcolo metriche derivate
   const metrics: SaasMetrics = (() => {
-    const mrrStripe = (latestSnapshot?.mrr_stripe_cents ?? 0) / 100;
-    const activeCompanies = latestSnapshot?.aziende_attive_stripe ?? churnData?.activeCount ?? 1;
+    const mrrStripe = churnData?.mrr ?? 0;
+    const activeCompanies = churnData?.payingCount ?? 0;
     const arpu = activeCompanies > 0 ? mrrStripe / activeCompanies : 0;
-    const churnRate =
-      churnData && churnData.activeCount > 0
-        ? (churnData.cancellazioni / churnData.activeCount) * 100
-        : 0;
+    // Churn mensile CORRETTO: persi nel periodo / attivi a INIZIO periodo.
+    // Gli attivi a inizio ≈ ancora-attivi-ora + quelli persi nel periodo.
+    // (Usare gli attivi attuali come denominatore gonfiava il churn.)
+    const persi = churnData?.cancellazioni ?? 0;
+    const churnBase = activeCompanies + persi;
+    const churnRate = churnBase > 0 ? (persi / churnBase) * 100 : 0;
     const ltv = churnRate > 0 ? arpu / (churnRate / 100) : arpu * 24;
     // CAC: media degli ultimi 3 mesi
     const recentCac = (cacInputs ?? []).slice(0, 3);
@@ -115,7 +109,7 @@ export function useSaasMetrics() {
   return {
     metrics,
     cacInputs: cacInputs ?? [],
-    isLoading: isLoadingCac || isLoadingMrr,
+    isLoading: isLoadingCac || isLoadingChurn,
     salvaInputCac,
   };
 }
