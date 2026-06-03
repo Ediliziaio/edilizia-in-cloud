@@ -25,6 +25,7 @@ import {
   Loader2,
   Trash2,
   AlertTriangle,
+  FileSignature,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +37,12 @@ import {
   useEliminaProgetto,
 } from "@/lib/fotovoltaico/queries";
 import { FvCard, FvKpi, FvChip, FvCallout } from "@/lib/fotovoltaico/wizardUI";
+import {
+  SendSignatureDialog,
+  type SendSignatureResult,
+} from "@/components/marketing/preventivi/SendSignatureDialog";
+import { useRichiediFirma } from "@/hooks/useRichiediFirma";
+import type { SendSignatureParams } from "@/hooks/useSignatureActions";
 import { toast } from "sonner";
 
 const STATI_LABEL = {
@@ -57,6 +64,22 @@ export default function FotovoltaicoDettaglio() {
   const { data: manodopera = [] } = useManodoperaProgetto(id);
   const { data: servizi = [] } = useServiziProgetto(id);
   const elimina = useEliminaProgetto();
+  const [firmaOpen, setFirmaOpen] = useState(false);
+  const richiediFirma = useRichiediFirma();
+
+  // Riusa la firma elettronica (FEA) esistente — stesso flusso del preventivo.
+  const handleSendFirma = async (params: SendSignatureParams): Promise<SendSignatureResult> => {
+    if (!progetto) throw new Error("Progetto non disponibile");
+    const res = await richiediFirma.mutateAsync({
+      tipo_documento: "fv",
+      documento_id: progetto.id,
+      tipo_firmatario: String(progetto.archetipo ?? "").startsWith("privato") ? "b2c" : "b2b",
+      signer_email: params.recipientEmail,
+      signer_name: params.recipientName,
+      scadenza_giorni: params.expiresDays,
+    });
+    return { signature_link: res.firma_link };
+  };
 
   const [scaricando, setScaricando] = useState<string | null>(null);
 
@@ -215,6 +238,23 @@ export default function FotovoltaicoDettaglio() {
                   <Trash2 className="h-4 w-4 mr-1.5" /> Annulla
                 </Button>
               )}
+              {progetto.stato === "emesso" && (
+                <Button
+                  onClick={() => setFirmaOpen(true)}
+                  className="bg-white text-orange-700 hover:bg-orange-50 shadow border-0"
+                >
+                  <FileSignature className="h-4 w-4 mr-1.5" /> Richiedi firma
+                </Button>
+              )}
+              <SendSignatureDialog
+                open={firmaOpen}
+                onOpenChange={setFirmaOpen}
+                clientEmail={null}
+                clientName={null}
+                quoteNumber={progetto.numero}
+                onSend={handleSendFirma}
+                isSending={richiediFirma.isPending}
+              />
             </div>
           </div>
         </div>

@@ -34,7 +34,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (!["order", "quote", "sessione", "odv"].includes(tipo_documento)) {
+    if (!["order", "quote", "sessione", "odv", "fv"].includes(tipo_documento)) {
       return new Response(
         JSON.stringify({ error: "tipo_documento non valido" }),
         { status: 400, headers: { ...corsH, "Content-Type": "application/json" } }
@@ -101,6 +101,10 @@ Deno.serve(async (req: Request) => {
       insertPayload.quote_id = documento_id;
     } else if (tipo_documento === "sessione") {
       insertPayload.sessione_id = documento_id;
+    } else if (tipo_documento === "fv") {
+      // Preventivo Fotovoltaico (fv_progetti). Richiede colonna fv_progetto_id
+      // su signature_requests (migration 20270618000000_signature_requests_fv_progetto).
+      insertPayload.fv_progetto_id = documento_id;
     }
     // odv: nessun ID specifico (fallback)
 
