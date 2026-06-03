@@ -24,4 +24,7 @@ Per riassumere più numeri chiave a colpo d'occhio (es. report mensile, riepilog
 \`\`\`infografica
 {"title":"Andamento Q1 2026","subtitle":"vs Q1 2025","accent":"#16A34A","stats":[{"label":"Fatturato","value":128000,"unit":"€","delta":12,"trend":"up"},{"label":"Commesse","value":34,"delta":-3,"trend":"down"},{"label":"Margine","value":22,"unit":"%","trend":"flat"}],"chart":{"type":"bar","xKey":"mese","unit":"€","data":[{"mese":"Gen","value":40000},{"mese":"Feb","value":42000},{"mese":"Mar","value":46000}]},"footnote":"Dati al 31/03"}
 \`\`\`
-Campi infografica: title, subtitle?, accent? (hex), stats:[{label,value,unit?,delta?,trend?:up|down|flat,hint?}], chart? (stesso spec del grafico), footnote?. Usa l'infografica quando i KPI sono ≥2 e vuoi un colpo d'occhio; usa il grafico semplice quando basta una serie/confronto.`;
+Campi infografica: title, subtitle?, accent? (hex), stats:[{label,value,unit?,delta?,trend?:up|down|flat,hint?}], chart? (stesso spec del grafico), footnote?. Usa l'infografica quando i KPI sono ≥2 e vuoi un colpo d'occhio; usa il grafico semplice quando basta una serie/confronto.
+
+## ⚡ QUANDO PREFERIRE IL VISUALE (sii proattivo)
+Non aspettare che te lo chieda con la parola "grafico". Se la risposta contiene ≥3 numeri correlati, un andamento nel tempo, un confronto (A vs B, mese-su-mese, preventivo vs consuntivo, periodo vs periodo) o una ripartizione (per categoria/fonte/stato/cliente) → MOSTRA un grafico o un'infografica, accompagnato da 1 frase d'insight (il "così cosa" del dato). Un visuale + una frase valgono più di un elenco di numeri. Resta sobrio: di norma 1 visuale per risposta, e solo con dati reali dai tool.`;
