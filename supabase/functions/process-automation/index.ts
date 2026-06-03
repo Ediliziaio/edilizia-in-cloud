@@ -19,6 +19,42 @@ import {
   PLATFORM_TRIGGER_EVENT_MAP,
 } from "../_shared/platformAutomation.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { loadBranding } from "../_shared/renderTemplate.ts";
+import { renderLayout, plainTextFooter } from "../_shared/email-templates/layout.ts";
+
+/**
+ * Avvolge il corpo dell'azione email nel layout brandizzato EiC (header con
+ * logo/colori + footer) SE è un frammento. Se l'autore ha incollato un
+ * documento HTML completo (<html>/<!doctype>), lo lascia intatto per non
+ * doppiare il wrapper. Genera anche un plain-text di fallback per la
+ * deliverability. Best-effort: in caso di errore branding, ritorna il corpo grezzo.
+ */
+async function brandPlatformEmailBody(
+  supabase: any,
+  companyId: string | null,
+  bodyHtml: string,
+  preheader: string,
+): Promise<{ html: string; text: string }> {
+  const raw = String(bodyHtml || "");
+  const isFullDoc = /<!doctype|<html[\s>]/i.test(raw);
+  const text =
+    raw
+      .replace(/<\s*br\s*\/?>/gi, "\n")
+      .replace(/<\/\s*(p|div|h[1-6]|li|tr)\s*>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  if (isFullDoc) return { html: raw, text };
+  try {
+    const branding = await loadBranding(companyId, supabase);
+    const html = renderLayout({ branding, innerBodyHtml: raw, preheaderText: preheader });
+    return { html, text: `${text}\n\n${plainTextFooter(branding)}` };
+  } catch (_e) {
+    return { html: raw, text };
+  }
+}
 
 interface AutomationNode {
   id: string;
@@ -1332,12 +1368,15 @@ Istruzione: ${aiPrompt}`;
         to = String(comp?.email || "").trim();
       }
       if (!to) return { success: false, error: "Email admin azienda non determinabile" };
+      const subject = rv(cfg.oggetto) || "Comunicazione dalla piattaforma";
+      const branded = await brandPlatformEmailBody(supabase, subjectCompanyId, rv(cfg.corpo) || "", subject);
       const res = await sendEmailUnified({
         companyId: subjectCompanyId,
         stream: "transactional",
         to,
-        subject: rv(cfg.oggetto) || "Comunicazione dalla piattaforma",
-        html: rv(cfg.corpo) || "",
+        subject,
+        html: branded.html,
+        text: branded.text,
         adminClient: supabase,
         metadata: { source: "platform_automation", action: "invia_email_admin_azienda" },
       });

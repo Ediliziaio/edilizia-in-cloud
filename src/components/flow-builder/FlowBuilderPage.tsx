@@ -93,11 +93,16 @@ export function FlowBuilderPage() {
     if (requestedPanel === "ai") setLeftPanel("ai");
   }, [searchParams]);
 
-  // Sync DB → ReactFlow (only on initial load)
+  // Sync DB → ReactFlow (only on initial load).
+  // Si aspetta che TUTTE le query siano finite (`!isLoading`) e si legge dai DATI
+  // GREZZI `dbNodes`/`dbConnections` (non dagli state `nodes`/`connections`, che si
+  // sincronizzano un render dopo). Così nodi ED edge vengono disegnati insieme: senza
+  // questo, una race disegnava i nodi ma con `connections` ancora vuoto → niente linee.
   useEffect(() => {
     if (initializedRef.current) return;
-    if (builder.nodes.length > 0 || builder.connections.length > 0) {
-      const rfNodesData = nodesToReactFlow(builder.nodes);
+    if (isLoading) return; // attendi flow + nodi + connessioni
+    if (builder.dbNodes.length > 0 || builder.dbConnections.length > 0) {
+      const rfNodesData = nodesToReactFlow(builder.dbNodes);
       // Inject onOpenCatalog on empty triggers
       setRfNodes(rfNodesData.map(n => {
         if (n.type === "trigger" && !n.data?.itemId) {
@@ -109,14 +114,18 @@ export function FlowBuilderPage() {
         return n;
       }));
       // Inject onAddStep callback into all edges loaded from DB
-      const rfEdgesData = connectionsToEdges(builder.connections);
+      const rfEdgesData = connectionsToEdges(builder.dbConnections);
       setRfEdges(rfEdgesData.map(e => ({
         ...e,
         data: { ...e.data, onAddStep: (edgeId: string) => openCatalogForEdge(edgeId) },
       })));
       initializedRef.current = true;
-    } else if (!isLoading && builder.nodes.length === 0 && (flowId || isNewFlowRoute)) {
-      // Empty canvas placeholder: trigger + end node
+    } else if (builder.remoteEmpty && (flowId || isNewFlowRoute)) {
+      // Empty canvas placeholder: trigger + end node.
+      // Si usa `remoteEmpty` (derivato dai DATI GREZZI della query) e NON
+      // `builder.nodes.length === 0`: lo state `nodes` si sincronizza un render
+      // dopo che `isLoading` diventa false, e quella finestra faceva scattare il
+      // placeholder (con lock permanente) su flussi che in realtà hanno nodi.
       const triggerId = "placeholder-trigger";
       const endId = "placeholder-end";
       setRfNodes([
@@ -146,7 +155,7 @@ export function FlowBuilderPage() {
       ]);
       initializedRef.current = true;
     }
-  }, [builder.nodes, builder.connections, setRfNodes, setRfEdges, flowId, isLoading]);
+  }, [builder.dbNodes, builder.dbConnections, builder.remoteEmpty, setRfNodes, setRfEdges, flowId, isNewFlowRoute, isLoading]);
 
   // Create flow if new
   useEffect(() => {

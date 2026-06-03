@@ -150,15 +150,25 @@ export function computeAutoLayout(nodes: Node[], edges: Edge[]): AutoLayoutResul
     }
   }
 
-  // ── 3) Normalizza in coordinate positive ──
+  // ── 3) Converti i CENTRI (xPos) in coordinate top-left, poi normalizza ──
+  // xPos rappresenta il centro desiderato di ogni nodo. Per avere connettori
+  // DRITTI e VERTICALI (stile GHL) i nodi vanno centrati sullo stesso asse, non
+  // allineati a sinistra: senza questo, nodi di larghezza diversa (es. la pill
+  // "Attendi" vs le card) hanno centri sfalsati e lo smoothstep fa lo "scalino".
+  // Converto center→top-left sottraendo metà larghezza reale misurata da ReactFlow.
+  const widthOf = (n: Node) =>
+    (n as { measured?: { width?: number } }).measured?.width ?? (n.width ?? 260);
+  const topLeftX = new Map<string, number>();
+  for (const n of layoutNodes) topLeftX.set(n.id, (xPos.get(n.id) ?? 0) - widthOf(n) / 2);
+
   let minX = Number.POSITIVE_INFINITY;
-  for (const n of layoutNodes) minX = Math.min(minX, xPos.get(n.id) ?? 0);
+  for (const n of layoutNodes) minX = Math.min(minX, topLeftX.get(n.id) ?? 0);
   if (!Number.isFinite(minX)) minX = 0;
 
   const positions: Record<string, { x: number; y: number }> = {};
   let movedCount = 0;
   for (const n of layoutNodes) {
-    const x = Math.round((xPos.get(n.id) ?? 0) - minX + ORIGIN_X);
+    const x = Math.round((topLeftX.get(n.id) ?? 0) - minX + ORIGIN_X);
     const y = Math.round(level.get(n.id)! * VERTICAL_GAP + ORIGIN_Y);
     positions[n.id] = { x, y };
     if (Math.round(n.position.x) !== x || Math.round(n.position.y) !== y) movedCount++;

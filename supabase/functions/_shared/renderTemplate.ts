@@ -104,7 +104,7 @@ export async function loadBranding(
 
   const fallbackCompanyName = platformDefaults.email_default_from_name || "EdiliziaInCloud";
   const fallbackFooter = platformDefaults.email_default_footer_text || null;
-  const fallbackSupport = platformDefaults.email_default_support_mail || "support@ediliziaincloud.it";
+  const fallbackSupport = platformDefaults.email_default_support_mail || "supporto@ediliziaincloud.com";
 
   // Default branding EiC (company senza id)
   const defaultBranding: Branding = {

@@ -635,7 +635,7 @@ export const TEMPLATE_META: Record<string, TemplateMeta> = {
       { key: "supportEmail", label: "Email di supporto", example: "support@ediliziaincloud.it", required: true, category: "contenuto" },
       ...BRANDING_PLACEHOLDERS,
     ],
-    mockProps: { recipientName: "Marco", changedDate: "12/04/2026", changedTime: "14:32", supportEmail: "support@ediliziaincloud.it", ...BRANDING_MOCK },
+    mockProps: { recipientName: "Marco", changedDate: "12/04/2026", changedTime: "14:32", supportEmail: "supporto@ediliziaincloud.com", ...BRANDING_MOCK },
   },
 
   invite_reminder: {

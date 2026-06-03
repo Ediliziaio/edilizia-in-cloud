@@ -453,8 +453,18 @@ export function useAutomationBuilder(flowId: string | undefined) {
   const isLoading = flowLoading || nodesLoading || connectionsLoading;
   const selectedNode = nodes.find(n => n.id === selectedNodeId) || null;
 
+  // `remoteEmpty` è calcolato sui DATI GREZZI della query (dbNodes/dbConnections),
+  // non sullo state `nodes` che viene sincronizzato un render dopo. Serve al builder
+  // per distinguere "il flusso è davvero vuoto" da "i nodi stanno ancora arrivando":
+  // senza questo, una race mostrava il placeholder vuoto su flussi che HANNO nodi.
+  const remoteEmpty =
+    !isLoading && (dbNodes?.length ?? 0) === 0 && (dbConnections?.length ?? 0) === 0;
+
   return {
-    flow, nodes, connections, isLoading, isSaving, hasUnsavedChanges, canPersist,
+    flow, nodes, connections, isLoading, remoteEmpty, isSaving, hasUnsavedChanges, canPersist,
+    // Dati GREZZI della query (non lo state sincronizzato un render dopo): il builder
+    // li usa per il PRIMO paint del canvas, così nodi ED edge appaiono insieme.
+    dbNodes: dbNodes ?? [], dbConnections: dbConnections ?? [],
     selectedNodeId, selectedNode, setSelectedNodeId,
     addNode, updateNode, updateNodePositions, removeNode,
     addConnection, removeConnection,
