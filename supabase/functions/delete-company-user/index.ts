@@ -267,6 +267,12 @@ Deno.serve(async (req) => {
       .select("role")
       .eq("user_id", caller.id);
 
+    // super_admin (con email in allowlist) gestisce la piattaforma: può eliminare
+    // anche l'ultimo amministratore di un'azienda. Per i company_admin resta il
+    // blocco anti-lockout (vedi guardia "ultimo admin" più sotto).
+    const callerIsSuperAdmin = (callerRoles?.some((r: RoleRow) => r.role === "super_admin") ?? false)
+      && isSuperAdminEmailAllowed(caller.email);
+
     const isAuthorized = await hasCompanyAdminAccess(
       adminClient,
       caller.id,
@@ -310,7 +316,7 @@ Deno.serve(async (req) => {
       targetRoles,
       targetCompanyId,
     );
-    if (targetIsCompanyAdmin) {
+    if (targetIsCompanyAdmin && !callerIsSuperAdmin) {
       const adminCount = await countCompanyAdmins(adminClient, targetCompanyId);
       if (adminCount <= 1) {
         return jsonResponse(req, { error: "Impossibile eliminare l'ultimo amministratore aziendale" }, 400);

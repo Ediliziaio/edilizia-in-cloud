@@ -67,9 +67,10 @@ export function SubscriptionBanner() {
       btn: "bg-orange-600 hover:bg-orange-700 text-white border-orange-600",
     },
     danger: {
-      bg: "bg-destructive/10 border-destructive/30",
-      text: "text-destructive",
-      btn: "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-destructive",
+      // Errore pagamento: barra ROSSA PIENA + testo bianco grassetto (massima evidenza, desktop+mobile).
+      bg: "bg-destructive border-destructive",
+      text: "text-destructive-foreground font-bold",
+      btn: "bg-white hover:bg-white/90 text-destructive border-white",
     },
   };
   const s = styles[config.variant];
@@ -78,7 +79,7 @@ export function SubscriptionBanner() {
     <div className={`px-4 py-2.5 flex items-center justify-between gap-3 border-b flex-wrap ${s.bg}`}>
       <div className={`flex items-center gap-2 min-w-0 ${s.text}`}>
         {config.icon}
-        <span className="text-sm font-medium truncate">{config.message}</span>
+        <span className="text-sm font-semibold">{config.message}</span>
       </div>
       {config.ctaLabel && config.ctaAction && (
         <Button
@@ -133,25 +134,25 @@ function resolveBannerConfig(
     return {
       variant: "danger",
       icon: <CreditCard className="h-4 w-4 shrink-0" />,
-      message: "Pagamento non riuscito. Aggiorna il metodo di pagamento per evitare la sospensione.",
+      message: "Errore pagamento — pagamento non riuscito. Aggiorna il metodo entro 7 giorni per evitare la sospensione.",
       ctaLabel: "Aggiorna pagamento",
       ctaAction: "portal",
     };
   }
   if (status === "suspended") {
     return {
-      variant: "warning",
+      variant: "danger",
       icon: <AlertTriangle className="h-4 w-4 shrink-0" />,
-      message: "Il tuo abbonamento è sospeso.",
-      ctaLabel: "Contatta supporto",
-      ctaAction: "support",
+      message: "Errore pagamento — abbonamento sospeso. Email, WhatsApp, AI, render e firma sono disattivati: rinnova per riattivarli.",
+      ctaLabel: "Rinnova",
+      ctaAction: "renew",
     };
   }
   if (status === "expired" || status === "canceled") {
     return {
       variant: "danger",
       icon: <XCircle className="h-4 w-4 shrink-0" />,
-      message: "Il tuo abbonamento è scaduto. Rinnova per continuare a usare la piattaforma.",
+      message: "Errore pagamento — abbonamento scaduto. Rinnova per riattivare la piattaforma.",
       ctaLabel: "Rinnova",
       ctaAction: "renew",
     };

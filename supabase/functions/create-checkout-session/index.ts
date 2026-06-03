@@ -69,6 +69,62 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
+    // ─── SETUP CARD (aggiungi carta senza addebito: sblocca gli strumenti a costo) ───
+    // Funziona anche per aziende FREE senza stripe_customer_id: lo crea al volo.
+    if (type === "setup_card") {
+      const { data: company } = await supabaseAdmin
+        .from("companies")
+        .select("id, name, email, stripe_customer_id")
+        .eq("id", company_id)
+        .single();
+      if (!company) {
+        return new Response(JSON.stringify({ error: "Azienda non trovata" }), {
+          status: 404, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      let stripeCustomerId: string;
+      try {
+        stripeCustomerId = await createOrGetStripeCustomer(supabaseAdmin, stripeSecretKey, company);
+      } catch (err) {
+        return new Response(JSON.stringify({ error: (err as Error).message }), {
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      const appUrl = Deno.env.get("SITE_URL") ?? "https://app.ediliziaincloud.com";
+      const returnTo = typeof body.return_to === "string" && body.return_to.startsWith("/")
+        ? body.return_to
+        : "/azienda/impostazioni/abbonamento";
+
+      const sessionRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${stripeSecretKey}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          customer: stripeCustomerId,
+          mode: "setup",
+          "payment_method_types[0]": "card",
+          success_url: `${appUrl}${returnTo}?card=success`,
+          cancel_url: `${appUrl}${returnTo}?card=cancelled`,
+          "metadata[company_id]": company_id,
+          "metadata[type]": "setup_card",
+        }),
+      });
+      const session = await sessionRes.json();
+      if (session.error) {
+        return new Response(JSON.stringify({ error: session.error.message }), {
+          status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+      return new Response(
+        JSON.stringify({ url: session.url, session_id: session.id }),
+        { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+      );
+    }
+
     // ─── AI SUBSCRIPTION ───
     if (type === "ai_subscription") {
       const { data: profile } = await supabaseAdmin

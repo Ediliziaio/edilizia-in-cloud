@@ -93,6 +93,14 @@ interface OrderData {
   assigned_to: string | null;
 }
 
+// Default STABILI (riferimento costante a livello di modulo). Con il default
+// inline `= []`, react-query restituisce un NUOVO array ad ogni render finché la
+// query è in caricamento → la dipendenza dell'useEffect [order, dbInstallments]
+// cambia ad ogni render → setInstallments → re-render → loop infinito
+// (React #185 "Maximum update depth exceeded") sulla pagina di modifica commessa.
+const EMPTY_DB_INSTALLMENTS: (Installment & { id: string })[] = [];
+const EMPTY_ORDER_ITEMS: OrderItemData[] = [];
+
 function EditOrderInner() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -202,7 +210,7 @@ function EditOrderInner() {
   });
 
   // Fetch order installments
-  const { data: dbInstallments = [] } = useQuery({
+  const { data: dbInstallments = EMPTY_DB_INSTALLMENTS } = useQuery({
     queryKey: ["order-installments", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -217,7 +225,7 @@ function EditOrderInner() {
   });
 
   // Fetch order items
-  const { data: existingItems = [] } = useQuery({
+  const { data: existingItems = EMPTY_ORDER_ITEMS } = useQuery({
     queryKey: ["order-items", id],
     queryFn: async () => {
       const { data, error } = await supabase

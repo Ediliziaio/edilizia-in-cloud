@@ -129,19 +129,11 @@ const ALL_COLUMNS: { key: ColKey; label: string }[] = [
 ];
 const DEFAULT_COLS: ColKey[] = ["sector", "plan", "mrr", "users", "orders", "lastAccess", "trial", "health", "tags"];
 const VALID_COLS = new Set<ColKey>(ALL_COLUMNS.map((column) => column.key));
-const NO_PAYMENT_METHODS = new Set([
-  "",
-  "none",
-  "free",
-  "trial",
-  "gift",
-  "gifted",
-  "gratis",
-  "omaggio",
-  "manual_free",
-  "complimentary",
-  "comp",
-]);
+// Valori che indicano "azienda attiva/trial SENZA metodo di pagamento reale"
+// (segnale di billing da rivedere). NB: i metodi "regalo" (comped + sinonimi
+// legacy, vedi GIFTED_EXEMPT_METHODS in src/lib/paymentStatus.ts) NON sono qui:
+// sono gratuiti per policy, non un problema di incasso — quindi non vanno segnalati.
+const NO_PAYMENT_METHODS = new Set(["", "none", "free", "trial"]);
 const STATUS_LABELS_MAP: Record<string, string> = {
   trial: "Trial",
   active: "Attivo",

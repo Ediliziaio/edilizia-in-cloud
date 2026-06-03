@@ -172,7 +172,9 @@ NON inventare dati: usa solo quello che hai.`,
               ritenuta_legge_296: ritenutaLegge296,
               ritenute_garanzia: ritenuteGaranzia,
               importo_netto: importoNetto,
-              pct_avanzamento_totale: 15 * (numProgressivo + 1),
+              // Stima lineare grezza (15% per periodo): cap a 100% per non
+              // generare avanzamenti impossibili (>100%) dal 7° SAL in poi.
+              pct_avanzamento_totale: Math.min(100, 15 * (numProgressivo + 1)),
             })
             .select("id")
             .maybeSingle();

@@ -20,6 +20,7 @@ import {
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePaymentGateStore } from "@/store/paymentGateStore";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -717,6 +718,14 @@ export default function RenderNewV2() {
         return;
       }
 
+      // 402 = gate "carta obbligatoria": apri il dialog "Aggiungi carta" invece
+      // di un errore rosso (invoke diretto → non passa dal MutationCache globale).
+      if ((error as { context?: { status?: number } } | null)?.context?.status === 402) {
+        stopPolling();
+        setGenerating(false);
+        usePaymentGateStore.getState().show();
+        return;
+      }
       if (error || data?.error) {
         throw new Error(
           await resolveEdgeFunctionErrorMessage({

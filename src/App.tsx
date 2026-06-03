@@ -26,6 +26,8 @@ import { createIdbPersister, shouldPersistQuery } from "@/lib/queryPersister";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { usePaymentGateStore } from "@/store/paymentGateStore";
+import { PaymentGateDialog } from "@/components/billing/PaymentGateDialog";
 import { AnalyticsProvider } from "@/contexts/AnalyticsProvider";
 import { Force2FAGuard } from "@/components/auth/Force2FAGuard";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -319,6 +321,15 @@ const queryClient = new QueryClient({
       const silent = (mutation.meta as { silent?: boolean } | undefined)?.silent;
       if (silent) return;
 
+      // Gate "carta obbligatoria": qualsiasi tool a costo risponde HTTP 402
+      // (code "payment_method_required"). Mostra il dialog role-aware invece
+      // del toast tecnico. Copre tutti i tool da un unico punto.
+      const httpStatus = (error as { context?: { status?: number } } | null)?.context?.status;
+      if (httpStatus === 402) {
+        usePaymentGateStore.getState().show();
+        return;
+      }
+
       try {
         captureVelocityError("mutation", error, {
           mutationKey: mutation.options.mutationKey
@@ -457,6 +468,7 @@ const App = () => (
         <ScrollToTop />
         <MobileBootstrap />
         <AuthProvider>
+          <PaymentGateDialog />
           <AnalyticsProvider>
           <Force2FAGuard>
           <BillingModeProvider>

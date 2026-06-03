@@ -3,6 +3,7 @@ import { verifyCompanyAccess } from "../_shared/companyAuth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { generateXML } from "../_shared/generateXML.ts";
 import { utf8ToBase64 } from "../_shared/base64.ts";
+import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 
 /** Validate Italian P.IVA (11 digits, with Luhn-like check) */
 function isValidPartitaIva(piva: string | null | undefined): boolean {
@@ -74,6 +75,15 @@ Deno.serve(async (req) => {
       await verifyCompanyAccess(supabase, userId, doc.company_id);
     } catch {
       return new Response(JSON.stringify({ error: "Non autorizzato: accesso negato a questo documento" }), { status: 403, headers: getCorsHeaders(req) });
+    }
+
+    // Gate "carta obbligatoria": l'invio della fattura elettronica a SDI ha un costo per documento.
+    const pmCheck = await checkPaymentMethod(supabase, doc.company_id);
+    if (!pmCheck.allowed) {
+      return new Response(
+        JSON.stringify({ error: pmCheck.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE, code: "payment_method_required" }),
+        { status: 402, headers: getCorsHeaders(req) },
+      );
     }
 
     // Verify stato

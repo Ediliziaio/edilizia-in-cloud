@@ -111,6 +111,41 @@ async function handleCheckoutCompleted(
   const metadataType = session.metadata?.type;
   if (!companyId) return;
 
+  // ── Setup Card (aggiunta carta senza addebito → sblocca gli strumenti a costo) ──
+  if (metadataType === "setup_card") {
+    let pmId: string | null = null;
+    if (session.setup_intent) {
+      try {
+        const siRes = await fetch(
+          `https://api.stripe.com/v1/setup_intents/${session.setup_intent}`,
+          { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
+        );
+        const si = await siRes.json();
+        pmId = si.payment_method ?? null;
+      } catch (e) {
+        console.error("Failed to read setup_intent:", e);
+      }
+    }
+    // Imposta la carta come metodo di pagamento di default del customer (addebiti futuri).
+    if (pmId && session.customer) {
+      try {
+        await fetch(`https://api.stripe.com/v1/customers/${session.customer}`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${stripeSecretKey}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({ "invoice_settings[default_payment_method]": pmId }),
+        });
+      } catch (e) {
+        console.error("Failed to set default payment method:", e);
+      }
+    }
+    // Sblocca gli strumenti a costo: payment_method = "stripe" sull'azienda.
+    await supabase.from("companies").update({ payment_method: "stripe" }).eq("id", companyId);
+    return;
+  }
+
   // ── Email Credits Purchase ──
   if (metadataType === "email_credits") {
     const amountEur = parseFloat(session.metadata?.amount_eur || "0");

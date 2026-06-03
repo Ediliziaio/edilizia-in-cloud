@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, Building2, Loader2, Users, Copy, Check, RefreshCw, Eye, FileText, CreditCard, Activity, StickyNote, Blocks, History, Mail, MailCheck, Ticket, ListChecks, ShieldAlert, Palette } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
+import { edgeErrorMessage } from "@/lib/edgeFunctionError";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatCurrency } from "@/lib/formatters";
@@ -235,7 +236,7 @@ export default function CompanyDetail() {
     setIsDeletingUser(true);
     try {
       const { error } = await supabase.functions.invoke("delete-company-user", { body: { userId } });
-      if (error) throw error;
+      if (error) throw new Error(await edgeErrorMessage(error, "Errore eliminazione utente"));
       toast.success(`${name} eliminato`);
       await h.refreshTeamData();
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.companiesFull });
@@ -252,12 +253,14 @@ export default function CompanyDetail() {
   const handleResetPassword = async (userId: string, name: string) => {
     setIsResettingPassword(true);
     try {
-      // Ci interessa solo verificare `error`; il body di risposta è ignorato
-      // (la password è inviata via email dal servizio server-side).
-      const { error } = await supabase.functions.invoke("manage-super-admins", {
-        body: { action: "reset-password", userId },
+      // reset-customer-password genera una password sicura lato server e la invia
+      // via email all'utente. Un super_admin può resettare un company_admin.
+      // (Prima si chiamava manage-super-admins, che però pretende una newPassword
+      //  e non invia email → falliva sempre con 400.)
+      const { error } = await supabase.functions.invoke("reset-customer-password", {
+        body: { userId },
       });
-      if (error) throw error;
+      if (error) throw new Error(await edgeErrorMessage(error, "Errore reset password"));
       toast.success(`Password resettata per ${name}`, { description: "La nuova password è stata inviata via email." });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Errore sconosciuto";

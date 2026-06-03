@@ -59,9 +59,15 @@ export function Force2FAGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user?.id) return;
     let alive = true;
+    // Sicurezza: timeout esteso a 15s per coprire i cold-start dell'edge fn.
+    // A 6s si faceva fail-open troppo presto, lasciando passare admin che
+    // DEVONO avere il 2FA. Con 15s nella stragrande maggioranza dei casi si
+    // ottiene lo stato 2FA REALE (enforce corretto). La app resta usabile
+    // durante il check (children sono già renderizzati), quindi nessun blocco
+    // percepito. Fail-open residuo solo se l'edge resta irraggiungibile >15s.
     const timeoutId = window.setTimeout(() => {
-      if (alive) setHasMFA(true); // fail-open su timeout
-    }, 6000);
+      if (alive) setHasMFA(true);
+    }, 15000);
     void supabase.functions
       .invoke("manage-totp", { body: { action: "status" } })
       .then(({ data, error }) => {
