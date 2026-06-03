@@ -35,8 +35,27 @@ interface Props {
   sources?: ChatMarkdownSource[];
 }
 
-// Grafico in chat: lazy → recharts entra nel bundle solo se un grafico appare.
+// Grafico/infografica in chat: lazy → recharts entra nel bundle solo se servono.
 const SilvioChartBlock = React.lazy(() => import("@/components/silvio/SilvioChartBlock"));
+const SilvioInfographicBlock = React.lazy(() => import("@/components/silvio/SilvioInfographicBlock"));
+
+/** InfographicFence — rende un blocco ```infografica``` come card KPI brandizzata. */
+function InfographicFence({ raw }: { raw: string }) {
+  let spec: unknown = null;
+  try { spec = JSON.parse(raw); } catch { spec = null; }
+  if (!spec || typeof spec !== "object") {
+    return (
+      <pre className="my-2 px-3 py-2 bg-slate-900 text-slate-100 rounded-md text-[11px] overflow-x-auto whitespace-pre-wrap">
+        <code>{raw}</code>
+      </pre>
+    );
+  }
+  return (
+    <React.Suspense fallback={<div className="my-3 h-[120px] rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />}>
+      <SilvioInfographicBlock spec={spec as React.ComponentProps<typeof SilvioInfographicBlock>["spec"]} />
+    </React.Suspense>
+  );
+}
 
 /**
  * ChartFence — rende un blocco ```chart``` come grafico. Se il JSON non è
@@ -109,6 +128,8 @@ function renderBlocks(text: string): React.ReactNode[] {
       const raw = codeLines.join("\n");
       if (lang === "chart" || lang === "grafico") {
         out.push(<ChartFence key={`chart-${key++}`} raw={raw} />);
+      } else if (lang === "infografica" || lang === "infographic") {
+        out.push(<InfographicFence key={`info-${key++}`} raw={raw} />);
       } else {
         out.push(
           <pre key={`code-${key++}`} className="my-2 px-3 py-2 bg-slate-900 text-slate-100 rounded-md text-[11px] overflow-x-auto whitespace-pre-wrap">
