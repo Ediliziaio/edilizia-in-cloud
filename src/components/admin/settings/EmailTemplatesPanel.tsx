@@ -73,6 +73,7 @@ import {
 import {
   FileText,
   Eye,
+  Send,
   Save,
   RotateCcw,
   Loader2,
@@ -131,6 +132,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { formatError } from "@/lib/errors";
+import { toast } from "sonner";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const CATEGORY_LABELS: Record<string, string> = {
@@ -957,6 +959,8 @@ export function EmailTemplatesPanel() {
 
   // Form state
   const [subject, setSubject] = useState("");
+  const [testEmail, setTestEmail] = useState("");
+  const [sendingTest, setSendingTest] = useState(false);
   const [htmlBody, setHtmlBody] = useState("");
   const [textBody, setTextBody] = useState("");
   const [notes, setNotes] = useState("");
@@ -1637,6 +1641,50 @@ export function EmailTemplatesPanel() {
                   })}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Invia email di prova — usa send-transactional-v2 (super_admin).
+                Funziona per i template già deployati; i template nuovi solo dopo deploy. */}
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <Send className="h-4 w-4 text-muted-foreground" />
+              <Label className="text-xs text-muted-foreground mr-1">Invia prova a:</Label>
+              <Input
+                type="email"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                placeholder="tua@email.com"
+                className="w-[240px] h-8 text-xs"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={sendingTest || !testEmail.trim()}
+                onClick={async () => {
+                  const to = testEmail.trim();
+                  if (!to) { toast.error("Inserisci un'email di prova"); return; }
+                  setSendingTest(true);
+                  try {
+                    const { data, error } = await supabase.functions.invoke("send-transactional-v2", {
+                      body: {
+                        templateName: selectedKey,
+                        props: getPreviewMockProps(selectedMeta),
+                        to,
+                        companyId: null,
+                      },
+                    });
+                    if (error) throw error;
+                    const errMsg = (data as { error?: string } | null)?.error;
+                    if (errMsg) throw new Error(errMsg);
+                    toast.success(`Email di prova "${selectedMeta?.label ?? selectedKey}" inviata a ${to}`);
+                  } catch (e) {
+                    toast.error(`Invio non riuscito: ${e instanceof Error ? e.message : String(e)}`);
+                  } finally {
+                    setSendingTest(false);
+                  }
+                }}
+              >
+                {sendingTest ? "Invio…" : "Invia prova"}
+              </Button>
             </div>
           </CardHeader>
 
