@@ -246,6 +246,25 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "get_serie_grafico",
+      description: "Serie di dati REALI di piattaforma già pronti per essere disegnati come grafico ```chart```. Metriche: 'nuove_aziende_mensili' (n. nuove aziende/mese), 'aziende_per_stato' (active/trial), 'mrr_movimenti_mensili' (variazione MRR netta €/mese). Ritorna {titolo, unita, x_label, data:[{label,value}]}. IMPORTANTE: dopo aver ricevuto i dati DISEGNA il grafico emettendo un blocco ```chart``` (type 'line'/'area' per gli andamenti nel tempo, 'bar' per le ripartizioni) con ESATTAMENTE i data ricevuti. Usa per 'mostrami la crescita aziende', 'grafico MRR', 'quante aziende attive vs trial'.",
+      parameters: {
+        type: "object",
+        properties: {
+          metric: {
+            type: "string",
+            enum: ["nuove_aziende_mensili", "aziende_per_stato", "mrr_movimenti_mensili"],
+            description: "Quale serie di piattaforma restituire",
+          },
+          mesi: { type: "integer", description: "Mesi da includere per le serie temporali (default 12, max 36)", minimum: 3, maximum: 36 },
+        },
+        required: ["metric"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "get_mrr_breakdown",
       description: "Ritorna MRR, ARR, ARPU, n. clienti paying/trial/unpaid + nuovi MRR del periodo specificato",
       parameters: {
@@ -603,6 +622,8 @@ async function executeTool(
     get_problem_radar:           { rpc: "sa_get_problem_radar",               argMap: (a) => ({ p_area: a.area ?? "tutte", p_severita_min: a.severita_min ?? "warning", p_limite: a.limite ?? 15 }) },
     get_company_dossier:         { rpc: "sa_get_company_dossier",             argMap: (a) => ({ p_company_id: a.company_id }) },
     get_pipeline_per_pacchetto:  { rpc: "sa_get_pipeline_per_pacchetto",      argMap: () => ({}) },
+    // Grafici-dati di piattaforma (serie pronte per ```chart```)
+    get_serie_grafico:           { rpc: "silvio_admin_serie_grafico",         argMap: (a) => ({ p_metric: a.metric ?? "nuove_aziende_mensili", p_mesi: a.mesi ?? 12 }) },
   };
 
   const cfg = RPC_MAP[toolName];
