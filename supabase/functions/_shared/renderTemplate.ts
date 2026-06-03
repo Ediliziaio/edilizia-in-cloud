@@ -11,6 +11,10 @@ import * as invoiceDueSoon from "./email-templates/invoice-due-soon.ts";
 import * as userInvited from "./email-templates/user-invited.ts";
 import * as accountVerify from "./email-templates/account-verify.ts";
 import * as paymentReceived from "./email-templates/payment-received.ts";
+import * as setupIncomplete from "./email-templates/setup-incomplete.ts";
+import * as passwordChanged from "./email-templates/password-changed.ts";
+import * as inviteReminder from "./email-templates/invite-reminder.ts";
+import * as termsAccepted from "./email-templates/terms-accepted.ts";
 import { renderLayout } from "./email-templates/layout.ts";
 import { resolveTemplate } from "./email-templates/resolveTemplate.ts";
 import { applyPlaceholders, htmlToPlainText } from "./email-templates/applyPlaceholders.ts";
@@ -26,6 +30,10 @@ const TEMPLATE_REGISTRY = {
   user_invited: userInvited.render,
   account_verify: accountVerify.render,
   payment_received: paymentReceived.render,
+  setup_incomplete: setupIncomplete.render,
+  password_changed: passwordChanged.render,
+  invite_reminder: inviteReminder.render,
+  terms_accepted: termsAccepted.render,
 } as const;
 
 export type TemplateName = keyof typeof TEMPLATE_REGISTRY;
@@ -40,6 +48,10 @@ export const AVAILABLE_TEMPLATES: TemplateName[] = [
   "user_invited",
   "account_verify",
   "payment_received",
+  "setup_incomplete",
+  "password_changed",
+  "invite_reminder",
+  "terms_accepted",
 ];
 
 /**
