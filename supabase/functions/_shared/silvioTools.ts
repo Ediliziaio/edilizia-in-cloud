@@ -243,13 +243,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "get_serie_grafico",
-        description: "Ritorna una SERIE di dati REALI dell'azienda già pronta per essere disegnata come grafico. Metriche: 'fatturato_mensile' (€/mese), 'incassi_mensili' (€/mese), 'cantieri_per_stato' (n. commesse per stato), 'documenti_per_tipo'. Ritorna {titolo, unita, x_label, data:[{label,value}]}. IMPORTANTE: dopo aver ricevuto i dati, DISEGNA il grafico emettendo un blocco ```chart``` (es. type 'bar' per i confronti/ripartizioni, 'line' o 'area' per gli andamenti nel tempo) usando esattamente i data ricevuti + titolo/unita. Usa per richieste tipo 'mostrami il fatturato per mese', 'grafico incassi', 'commesse per stato', 'andamento del fatturato', 'quanto ho incassato'.",
+        description: "Ritorna una SERIE di dati REALI dell'azienda già pronta per essere disegnata come grafico. Metriche: 'fatturato_mensile' (€/mese), 'incassi_mensili' (€/mese), 'cantieri_per_stato' (n. commesse per stato), 'documenti_per_tipo', 'preventivi_per_stato' (n. preventivi per stato: vinto/perso/in attesa…), 'lead_per_fonte' (contatti marketing per canale: google_ads, referral, fiera…), 'scadenze_incassi' (€ attesi nei prossimi mesi dalle scadenze fatture non saldate). Ritorna {titolo, unita, x_label, data:[{label,value}]}. IMPORTANTE: dopo aver ricevuto i dati, DISEGNA il grafico emettendo un blocco ```chart``` (es. type 'bar' per i confronti/ripartizioni, 'line' o 'area' per gli andamenti nel tempo) usando esattamente i data ricevuti + titolo/unita. Usa per richieste tipo 'mostrami il fatturato per mese', 'grafico incassi', 'commesse per stato', 'da dove arrivano i lead', 'quanto incasso nei prossimi mesi', 'preventivi vinti/persi'.",
         parameters: {
           type: "object",
           properties: {
             metric: {
               type: "string",
-              enum: ["fatturato_mensile", "incassi_mensili", "cantieri_per_stato", "documenti_per_tipo"],
+              enum: ["fatturato_mensile", "incassi_mensili", "cantieri_per_stato", "documenti_per_tipo", "preventivi_per_stato", "lead_per_fonte", "scadenze_incassi"],
               description: "Quale serie restituire.",
             },
             mesi: { type: "integer", minimum: 3, maximum: 36, default: 12, description: "Mesi indietro (solo per le serie mensili)." },

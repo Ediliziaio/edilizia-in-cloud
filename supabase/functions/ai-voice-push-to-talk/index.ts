@@ -37,6 +37,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
 interface Payload {
   audio_url: string;
@@ -94,7 +95,7 @@ Deno.serve(async (req) => {
       form.append("file", audioBlob, "audio.webm");
       form.append("model", "whisper-1");
       form.append("language", "it");
-      const sttRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      const sttRes = await fetchWithRetry("https://api.openai.com/v1/audio/transcriptions", {
         method: "POST",
         headers: { "Authorization": `Bearer ${openaiKey}` },
         body: form,
@@ -114,7 +115,7 @@ Deno.serve(async (req) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let intents: any = null;
     try {
-      const nluRes = await fetch("https://api.anthropic.com/v1/messages", {
+      const nluRes = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
           "x-api-key": anthropicKey,

@@ -641,6 +641,48 @@ async function estimateWholesaleCostUsd(
 }
 
 /**
+ * Estrazione tollerante di JSON da una risposta del modello. Gestisce i casi
+ * tipici: JSON puro, JSON dentro un fence ```json ... ```, o JSON preceduto/
+ * seguito da prosa. Ritorna il valore parsato oppure `undefined` se non è
+ * recuperabile alcun JSON valido. Usata per decidere se ritentare su un altro
+ * modello quando il chiamante ha chiesto un output strutturato.
+ */
+function extractJson(text: string): unknown | undefined {
+  if (!text) return undefined;
+  const raw = text.trim();
+  // 1) parse diretto
+  try { return JSON.parse(raw); } catch { /* continua */ }
+  // 2) fence ```json ... ``` oppure ``` ... ```
+  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) {
+    try { return JSON.parse(fence[1].trim()); } catch { /* continua */ }
+  }
+  // 3) primo blocco bilanciato { ... } oppure [ ... ] (string-aware)
+  const start = raw.search(/[[{]/);
+  if (start >= 0) {
+    const open = raw[start];
+    const close = open === "{" ? "}" : "]";
+    let depth = 0, inStr = false, esc = false;
+    for (let i = start; i < raw.length; i++) {
+      const ch = raw[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === "\\") esc = true;
+        else if (ch === '"') inStr = false;
+      } else if (ch === '"') inStr = true;
+      else if (ch === open) depth++;
+      else if (ch === close) {
+        depth--;
+        if (depth === 0) {
+          try { return JSON.parse(raw.slice(start, i + 1)); } catch { return undefined; }
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
  * Entry point principale: completa un task usando il router OpenRouter.
  * Tenta primary_model, poi fallback_models in ordine. Logga sempre.
  */
@@ -838,6 +880,17 @@ export async function aiRouterComplete(
         throw new Error(
           `Empty content from model (finish_reason=${finishReason}, completion_tokens=${data.usage?.completion_tokens ?? 0}). Likely reasoning budget exhausted.`,
         );
+      }
+      // ── Structured-output guard (repair via fallback) ──
+      // Se il chiamante ha chiesto un output JSON e il modello restituisce testo
+      // non parsabile (anche dopo strip di fence/prosa), trattalo come fallimento
+      // e passa al modello SUCCESSIVO. Solo se restano fallback: sull'ultimo
+      // modello si restituisce comunque il content (back-compat, mai peggio di prima).
+      const _rf = opts.responseFormat as { type?: string } | undefined;
+      const _wantsJson = !!_rf && (_rf.type === "json_object" || _rf.type === "json_schema");
+      if (_wantsJson && content.trim() && !hasToolCalls && i < modelsToTry.length - 1
+          && extractJson(content) === undefined) {
+        throw new Error("Structured output non-JSON dal modello — retry su modello di fallback");
       }
       const usage = data.usage ?? {};
       const promptTokens = usage.prompt_tokens ?? 0;

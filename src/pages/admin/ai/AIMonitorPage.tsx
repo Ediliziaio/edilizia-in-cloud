@@ -21,6 +21,7 @@ import { AIPageHeader } from "@/components/admin/ai-shared/AIPageHeader";
 import { AITabsList } from "@/components/admin/ai-shared/AITabsList";
 import { SectionAlert } from "@/components/admin/ai-shared/SectionIntro";
 import { useAIHubNested } from "@/components/admin/ai-shared/AIHubNestedContext";
+import { AICostHealthPanel } from "@/components/admin/ai-monitor/AICostHealthPanel";
 
 const AIUsageMonitor = lazy(() =>
   import("@/components/admin/settings/AIUsageMonitor").then((m) => ({ default: m.AIUsageMonitor })),
@@ -116,6 +117,7 @@ export default function AIMonitorPage() {
                   "Soglie alert per piano (configurabili)",
                 ]}
               />
+              <AICostHealthPanel />
               <Suspense fallback={fallback}>
                 <AIUsageMonitor />
               </Suspense>
