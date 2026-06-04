@@ -246,10 +246,17 @@ export function EmailAiCommandCenter({
     <div className="hidden md:block border-b border-orange-100 bg-white px-3 py-2">
       <div className="rounded-2xl border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-orange-50/40 shadow-sm">
         {/* Header sempre visibile, clickable per toggle. Smista + refresh stoppano la propagazione. */}
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           onClick={() => setExpanded((current) => !current)}
-          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setExpanded((current) => !current);
+            }
+          }}
+          className="flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-2 text-left"
           aria-expanded={showBody}
           aria-controls="email-ai-command-body"
         >
@@ -313,7 +320,7 @@ export function EmailAiCommandCenter({
               )}
             />
           </div>
-        </button>
+        </div>
 
         {showBody && (
           <div id="email-ai-command-body" className="border-t border-orange-100 p-3">

@@ -78,8 +78,7 @@ export function AIAssistantInterface({
           A cosa stai pensando{userName ? `, ${userName}` : ""}?
         </h1>
         <p className="text-slate-500 text-[15px]">
-          Chiedi a <span className="font-medium text-orange-600">Silvio</span> di cantieri, finanza, clienti — o allega un
-          documento.
+          Chiedi a <span className="font-medium text-orange-600">Silvio</span> di cantieri, finanza, clienti e molto altro.
         </p>
       </motion.div>
 
@@ -92,6 +91,7 @@ export function AIAssistantInterface({
       >
         <input
           ref={inputRef}
+          autoFocus
           type="text"
           placeholder="Fai una domanda a Silvio…"
           value={inputValue}

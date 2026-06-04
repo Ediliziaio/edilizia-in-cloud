@@ -35,9 +35,10 @@ function isDone(j: GenJob | null | undefined): boolean {
 export function SilvioImageJob({ jobId }: { jobId: string }) {
   const [timedOut, setTimedOut] = useState(false);
   useEffect(() => {
+    setTimedOut(false); // nuovo job → riparte il conteggio (evita errore "ereditato")
     const t = window.setTimeout(() => setTimedOut(true), TIMEOUT_MS);
     return () => window.clearTimeout(t);
-  }, []);
+  }, [jobId]);
 
   const { data: job } = useQuery({
     queryKey: ["silvio-gen-job", jobId],
@@ -75,7 +76,7 @@ export function SilvioImageJob({ jobId }: { jobId: string }) {
         {url ? (
           <img src={url} alt="Grafica generata da Silvio" className={`w-full ${aspect} object-cover`} />
         ) : (
-          <div className={`w-full ${aspect} bg-slate-100`} />
+          <div className={`w-full ${aspect} bg-slate-100 animate-pulse`} />
         )}
       </ImageGeneration>
       {url && (

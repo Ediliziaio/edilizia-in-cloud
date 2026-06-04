@@ -262,7 +262,13 @@ export default function SilvioAIPage() {
       "silvio_pin_conversazione" as never,
       { p_channel_id: id, p_pinned: pinned } as never,
     );
-    if (error) toast.error("Pin non disponibile (richiede l'aggiornamento del database).");
+    if (error) {
+      // rollback dell'aggiornamento ottimistico
+      qc.setQueryData<Conversazione[]>(["silvio-conversazioni", userId], (prev) =>
+        prev ? prev.map((c) => (c.id === id ? { ...c, pinned: !pinned } : c)) : prev,
+      );
+      toast.error("Non sono riuscito a salvare. Riprova tra poco.");
+    }
     void refetchConvs();
   };
 
@@ -507,6 +513,7 @@ export default function SilvioAIPage() {
   // Evita che resti bloccato se il drag finisce fuori area o si cambia conversazione.
   useEffect(() => {
     setDragOver(false); // cambio chat → nessun overlay residuo
+    setDraft(""); // evita che la bozza "scappi" in un'altra conversazione
     const reset = () => setDragOver(false);
     window.addEventListener("drop", reset);
     window.addEventListener("dragend", reset);
@@ -533,6 +540,9 @@ export default function SilvioAIPage() {
     }) => {
       const trimmed = text.trim();
       if ((!trimmed && atts.length === 0) || !userId || !companyId) return;
+      // Abort pronto SUBITO: così "Stop" annulla anche durante upload/insert pre-invoke.
+      const ac = new AbortController();
+      sendAbortRef.current = ac;
       if (insertUser) {
         const first = atts[0];
         let firstUrl: string | null = null;
@@ -563,8 +573,7 @@ export default function SilvioAIPage() {
         if (insErr) throw new Error(insErr.message);
         qc.invalidateQueries({ queryKey: ["silvio-ai-messages", channelId] });
       }
-      const ac = new AbortController();
-      sendAbortRef.current = ac;
+      if (ac.signal.aborted) return; // "Stop" premuto durante gli await pre-invoke
       const res = await supabase.functions.invoke("silvio-chat", {
         body: {
           channel_id: channelId,
@@ -587,7 +596,8 @@ export default function SilvioAIPage() {
     onError: (e: Error, variables) => {
       const isAbort = e.name === "AbortError" || /abort/i.test(e.message);
       if (!isAbort) {
-        toast.error(`Silvio: ${e.message}`);
+        console.error("[silvio-chat]", e);
+        toast.error("Silvio non è riuscito a rispondere. Riprova.");
         if (variables?.text?.trim()) setLastFailed({ text: variables.text });
       }
     },
@@ -614,7 +624,7 @@ export default function SilvioAIPage() {
       { p_titolo: titolo } as never,
     );
     if (error || !data) {
-      toast.error("Conversazioni multiple non ancora attive: applica l'aggiornamento del database (migration).");
+      toast.error("Non riesco ad avviare una nuova conversazione. Riprova tra poco.");
       return null;
     }
     await refetchConvs();
@@ -702,7 +712,7 @@ export default function SilvioAIPage() {
     if (!window.confirm("Eliminare questa conversazione e tutti i suoi messaggi?")) return;
     const { error } = await supabase.rpc("silvio_elimina_conversazione" as never, { p_channel_id: id } as never);
     if (error) {
-      toast.error("Eliminazione non disponibile (richiede l'aggiornamento del database).");
+      toast.error("Non sono riuscito a eliminare la conversazione. Riprova.");
       return;
     }
     if (activeId === id) setActiveId(null);
@@ -1183,7 +1193,7 @@ export default function SilvioAIPage() {
 
         {/* Composer (nascosto nell'hero senza conversazione) */}
         {!showHero && (
-          <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3">
+          <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <div className="max-w-3xl mx-auto">
               {/* Azioni che Silvio può eseguire nel sistema (agentico) */}
               <ActionsInlineBar />
@@ -1313,7 +1323,7 @@ export default function SilvioAIPage() {
                       "h-9 w-9 shrink-0 flex items-center justify-center rounded-full transition-colors",
                       draft.trim() || attachments.some((a) => a.storagePath)
                         ? "bg-orange-500 text-white hover:bg-orange-600"
-                        : "bg-slate-100 text-slate-400",
+                        : "bg-slate-100 text-slate-400 cursor-not-allowed",
                     )}
                     aria-label="Invia"
                   >
@@ -1322,7 +1332,8 @@ export default function SilvioAIPage() {
                 )}
               </div>
               <p className="mt-1 text-center text-[10px] text-slate-400">
-                Silvio può sbagliare. Verifica le informazioni importanti. ⌘K per nuova conversazione.
+                Silvio può sbagliare. Verifica le informazioni importanti.
+                <span className="hidden md:inline"> ⌘K per nuova conversazione.</span>
               </p>
             </div>
           </div>
@@ -1516,7 +1527,7 @@ const MessaggioSilvio = memo(function MessaggioSilvio({
           )}
           <AiMessageMetaBottom meta={meta} onAskFollowup={onFollowup} />
         </div>
-        <div className="flex items-center gap-1 mt-1 pl-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 mt-1 pl-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
           <button onClick={copia} className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-700 px-1.5 py-0.5 rounded hover:bg-slate-100" title="Copia">
             <Copy className="h-3 w-3" /> Copia
           </button>
@@ -1567,7 +1578,7 @@ const MessaggioUtente = memo(function MessaggioUtente({
         <div className="flex items-center justify-end gap-2 mt-1 pr-1">
           <button
             onClick={() => onEdit(m.content)}
-            className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition"
+            className="opacity-100 md:opacity-0 md:group-hover:opacity-100 inline-flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition"
             title="Modifica e reinvia"
           >
             <Pencil className="h-3 w-3" /> Modifica
