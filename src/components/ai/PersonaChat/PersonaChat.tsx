@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { useAIChat, type AIChatChannel } from "@/components/ai/shared/useAIChat";
 import { ToolExecutionViewer } from "@/components/ai/ToolExecution/ToolExecutionViewer";
+import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
 import { ActionProposalCard } from "@/components/ai/ActionProposals/ActionProposalCard";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -123,7 +124,11 @@ export function PersonaChat({
                 }`}
               >
                 {m.content && (
-                  <p className="whitespace-pre-wrap text-sm">{m.content}</p>
+                  m.role === "user" ? (
+                    <p className="whitespace-pre-wrap text-sm">{m.content}</p>
+                  ) : (
+                    <ChatMarkdown content={m.content} className="text-sm" />
+                  )
                 )}
                 {m.toolCalls && m.toolCalls.length > 0 && (
                   <ToolExecutionViewer toolCalls={m.toolCalls} />
