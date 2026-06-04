@@ -38,6 +38,32 @@ interface Props {
 // Grafico/infografica in chat: lazy → recharts entra nel bundle solo se servono.
 const SilvioChartBlock = React.lazy(() => import("@/components/silvio/SilvioChartBlock"));
 const SilvioInfographicBlock = React.lazy(() => import("@/components/silvio/SilvioInfographicBlock"));
+const SilvioImageJob = React.lazy(() => import("@/components/silvio/SilvioImageJob"));
+
+/** ImageFence — rende un blocco ```silvio-image``` (con {"job_id":"…"} o un uuid)
+ *  come immagine generata live da Silvio (polling sul job). */
+function ImageFence({ raw }: { raw: string }) {
+  let jobId = "";
+  const t = raw.trim();
+  try {
+    const o = JSON.parse(t) as { job_id?: string; jobId?: string; id?: string };
+    jobId = String(o?.job_id ?? o?.jobId ?? o?.id ?? "");
+  } catch {
+    jobId = t.replace(/["'`]/g, "").trim();
+  }
+  if (!/^[0-9a-f-]{20,}$/i.test(jobId)) {
+    return (
+      <pre className="my-2 px-3 py-2 bg-slate-900 text-slate-100 rounded-md text-[11px] overflow-x-auto whitespace-pre-wrap">
+        <code>{raw}</code>
+      </pre>
+    );
+  }
+  return (
+    <React.Suspense fallback={<div className="my-3 h-[220px] max-w-md rounded-xl border border-slate-200 bg-slate-50 animate-pulse" />}>
+      <SilvioImageJob jobId={jobId} />
+    </React.Suspense>
+  );
+}
 
 /** InfographicFence — rende un blocco ```infografica``` come card KPI brandizzata. */
 function InfographicFence({ raw }: { raw: string }) {
@@ -130,6 +156,8 @@ function renderBlocks(text: string): React.ReactNode[] {
         out.push(<ChartFence key={`chart-${key++}`} raw={raw} />);
       } else if (lang === "infografica" || lang === "infographic") {
         out.push(<InfographicFence key={`info-${key++}`} raw={raw} />);
+      } else if (lang === "silvio-image" || lang === "immagine") {
+        out.push(<ImageFence key={`img-${key++}`} raw={raw} />);
       } else {
         out.push(
           <pre key={`code-${key++}`} className="my-2 px-3 py-2 bg-slate-900 text-slate-100 rounded-md text-[11px] overflow-x-auto whitespace-pre-wrap">
