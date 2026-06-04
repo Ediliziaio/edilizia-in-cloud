@@ -503,6 +503,21 @@ export default function SilvioAIPage() {
     });
   };
 
+  // Drag-and-drop allegati: reset robusto dell'overlay "Rilascia per allegare".
+  // Evita che resti bloccato se il drag finisce fuori area o si cambia conversazione.
+  useEffect(() => {
+    setDragOver(false); // cambio chat → nessun overlay residuo
+    const reset = () => setDragOver(false);
+    window.addEventListener("drop", reset);
+    window.addEventListener("dragend", reset);
+    window.addEventListener("mouseup", reset);
+    return () => {
+      window.removeEventListener("drop", reset);
+      window.removeEventListener("dragend", reset);
+      window.removeEventListener("mouseup", reset);
+    };
+  }, [activeId]);
+
   // ── Invio / rigenera / stop ──────────────────────────────────────────────────
   const sendMutation = useMutation({
     mutationFn: async ({
@@ -983,13 +998,15 @@ export default function SilvioAIPage() {
       <main
         className="relative flex-1 flex flex-col min-w-0"
         onDragOver={(e) => {
-          if (activeId) {
-            e.preventDefault();
-            setDragOver(true);
-          }
+          // Overlay solo per il drag di FILE reali (non testo/selezioni/link).
+          if (!activeId) return;
+          if (!Array.from(e.dataTransfer?.types ?? []).includes("Files")) return;
+          e.preventDefault();
+          setDragOver(true);
         }}
         onDragLeave={(e) => {
-          if (e.currentTarget === e.target) setDragOver(false);
+          // Reset SOLO quando il puntatore lascia davvero l'area (non passando sui figli).
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
         }}
         onDrop={handleDrop}
       >
