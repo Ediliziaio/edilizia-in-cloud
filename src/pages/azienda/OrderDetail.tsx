@@ -39,6 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 // ── New sub-components ──────────────────────────────────────────
 import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
+import { ChiediASilvio } from "@/components/silvio/ChiediASilvio";
 import { OrdineStatusStrip } from "@/components/orders/OrdineStatusStrip";
 import { OrdineArticoli } from "@/components/orders/OrdineArticoli";
 import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
@@ -978,6 +979,15 @@ function OrderDetailInner() {
         canEdit={permissions.canEditOrders}
         canDelete={permissions.canEditOrders}
       />
+
+      {/* ── Chiedi a Silvio (contestuale alla commessa) ───────── */}
+      <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-2 flex justify-end">
+        <ChiediASilvio
+          ask={`Analizza la commessa ${order.order_code ? `"${order.order_code}" ` : ""}${
+            order.customer ? `del cliente ${order.customer.first_name} ${order.customer.last_name} ` : ""
+          }(${order.description || "senza descrizione"}): stato avanzamento, costi vs preventivo, scadenze, margine e criticità. Cosa devo sapere e quali sono le prossime mosse?`}
+        />
+      </div>
 
       {/* ── Status strip ──────────────────────────────────────── */}
       <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-3">

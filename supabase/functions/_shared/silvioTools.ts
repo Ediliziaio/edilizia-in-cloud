@@ -238,6 +238,103 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "kpi",
   },
 
+  get_manutenzione_overview: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_manutenzione_overview",
+        description: "Panoramica MANUTENZIONE / ASSISTENZA: ticket aperti (totali, in lavorazione, urgenti + lista con cliente e priorità), contratti di manutenzione in scadenza nei prossimi 90 giorni (con canone), garanzie impianti in scadenza. Usa per 'ticket aperti', 'assistenza', 'interventi da fare o da pianificare', 'contratti manutenzione in scadenza', 'garanzie impianti', 'come va l'assistenza/manutenzione'.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_manutenzione_overview", {
+      p_company_id: ctx.companyId,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "pm_cantiere", "capocantiere", "assistente_imprenditore", "amministrazione", "tecnico", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "cantiere",
+  },
+
+  get_fotovoltaico_overview: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_fotovoltaico_overview",
+        description: "Panoramica FOTOVOLTAICO: totali progetti attivi (potenza kWp totale, valore €, margine medio, n. firmati), pipeline per stato (bozza/emesso/firmato…) con valore e potenza, e progetti recenti (numero, titolo/cliente, comune, kWp, prezzo, payback, stato). Usa per 'progetti fotovoltaico', 'pipeline FV', 'offerte fotovoltaiche', 'quanti kWp ho venduto/in pipeline', 'preventivi fotovoltaico'. NB: margine_pct è una frazione (0.37 = 37%).",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_fotovoltaico_overview", {
+      p_company_id: ctx.companyId,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "sales", "assistente_imprenditore", "amministrazione", "tecnico", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "preventivi",
+  },
+
+  get_marginalita_commesse: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_marginalita_commesse",
+        description: "Marginalità per COMMESSA: preventivato vs consuntivo (costi reali) → margine e scostamento per commessa, con KPI aggregati (n. commesse, margine totale, n. in perdita). Usa per 'margine commesse', 'scostamento preventivo/consuntivo', 'quali commesse erodono margine', 'commesse in perdita', 'come va il margine'. Parametri opzionali: anno (default corrente), status (filtro stato commessa).",
+        parameters: {
+          type: "object",
+          properties: {
+            anno: { type: "integer", description: "Anno di riferimento (es. 2026). Default: anno corrente." },
+            status: { type: "string", description: "Filtro stato commessa (opzionale)." },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const res = await callRpc(ctx.supabase, "cg_get_marginalita_commesse", {
+        p_company_id: ctx.companyId,
+        p_anno: Number(args?.anno) || new Date().getFullYear(),
+        p_status_filter: args?.status ?? null,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const r = res as any;
+      if (!r || r.error) return r;
+      // Token-efficient: KPI aggregati + le 15 commesse a margine più basso (le azionabili).
+      const righe: unknown[] = Array.isArray(r.righe) ? r.righe : [];
+      const critiche = [...righe]
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .sort((a: any, b: any) => (Number(a?.margine) || 0) - (Number(b?.margine) || 0))
+        .slice(0, 15);
+      return { kpi: r.kpi, meta: r.meta, n_commesse: righe.length, commesse_a_margine_piu_basso: critiche };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "pm_cantiere", "assistente_imprenditore", "amministrazione", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "kpi",
+  },
+
+  get_sdi_overview: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_sdi_overview",
+        description: "Stato SDI fatturazione elettronica attiva: ripartizione per stato di trasmissione (scartata/consegnata/mancata consegna/trasmessa/non inviata) con totali €, elenco fatture e note di credito SCARTATE da correggere (con errori SDI), conteggio documenti da inviare, note di credito recenti. Usa per 'fatture scartate', 'stato SDI', 'cosa devo trasmettere allo SDI', 'note di credito', 'fatture consegnate/non inviate'.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_tool_sdi_overview", {
+      p_company_id: ctx.companyId,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione", "assistente_imprenditore", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "fattura",
+  },
+
   get_serie_grafico: {
     schema: {
       type: "function",

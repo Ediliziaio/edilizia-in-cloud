@@ -38,6 +38,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useState } from "react";
+import { ChiediASilvio } from "@/components/silvio/ChiediASilvio";
 import { CustomerProfileCard } from "@/components/clients/CustomerProfileCard";
 import { CustomerActivityTimeline } from "@/components/clients/CustomerActivityTimeline";
 import { CustomerComposeBar } from "@/components/clients/CustomerComposeBar";
@@ -693,6 +694,9 @@ export default function CompanyCustomerDetail() {
 
           {/* Quick actions (stessi colori marketing) */}
           <div className="hidden md:flex shrink-0 items-center gap-1.5">
+            <ChiediASilvio
+              ask={`Analizza il cliente ${fullName}: commesse/lavori, fatturato, crediti aperti, preventivi in corso e prossime azioni consigliate. Cosa devo sapere?`}
+            />
             {customer.phone && (
               <Button asChild variant="outline" size="sm" className="gap-1.5 h-9 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
                 <a href={`tel:${customer.phone}`}><Phone className="h-3.5 w-3.5" /> Chiama</a>
