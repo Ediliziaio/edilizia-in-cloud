@@ -1398,8 +1398,6 @@ Deno.serve(async (req) => {
 
         const tags = Array.from(new Set(["lead-scraper", l.source, l.ai_label, l.ateco ? `ateco:${l.ateco}` : null, ...extraTags].filter(Boolean)));
         const noteBits = [
-          l.website ? `Sito: ${l.website}` : null,
-          l.partita_iva ? `P.IVA: ${l.partita_iva}` : null,
           l.ateco_desc ? `ATECO: ${l.ateco_desc}` : null,
           l.rating != null ? `Rating: ${l.rating}★ (${l.reviews_count || 0})` : null,
           l.ai_score != null ? `AI: ${l.ai_score}/100 — ${l.ai_reason || ""}` : null,
@@ -1414,6 +1412,12 @@ Deno.serve(async (req) => {
             phone: l.phone || null,
             email: l.email || null,
             company_name: l.business_name || null,
+            website: l.website || null,
+            address: l.address || null,
+            city: l.city || null,
+            province: l.region || null,
+            vat_number: l.partita_iva || null,
+            country: l.country || "IT",
             tags,
             notes: noteBits.join(" · ") || null,
             source: `lead_scraper:${l.source}`,
@@ -1547,6 +1551,77 @@ Deno.serve(async (req) => {
       });
 
       return jsonResponse({ enriched, attempted: (leads || []).length }, 200, corsH);
+    }
+
+    // ═══════ ENRICH COMPANY (ad-hoc: dati liberi → tutte le info, gratis) ═══════
+    // Input { business_name?, website?, partita_iva?, vies?, contactId? }. Non
+    // richiede una riga lead. Se contactId è fornito, riempie i campi vuoti del
+    // contatto CRM (così "arricchisci l'azienda di un'opportunità" è closed-loop).
+    if (action === "enrich_company") {
+      const website: string | null = typeof body.website === "string" ? body.website.trim() : null;
+      let piva: string | null = typeof body.partita_iva === "string" ? body.partita_iva.replace(/\s/g, "") : null;
+      const businessName: string | null = typeof body.business_name === "string" ? body.business_name.trim() : null;
+      const doVies = body.vies !== false;
+      const contactId: string | null = typeof body.contactId === "string" ? body.contactId : null;
+      if (!website && !piva && !businessName) {
+        return errorResponse("Fornisci almeno sito, P.IVA o ragione sociale.", 400, corsH);
+      }
+
+      const openapiToken = await getPlatformSetting("openapi_it_token", "OPENAPI_IT_TOKEN");
+      const result: Record<string, unknown> = {
+        input: { website, partita_iva: piva, business_name: businessName },
+      };
+
+      // 1) Scraping sito (gratis): email, telefoni, P.IVA, social, segnali
+      const deep = website ? await scrapeWebsiteDeep(website) : null;
+      if (deep) {
+        result.emails = deep.emails;
+        result.phones = deep.phones;
+        result.facebook_url = deep.facebook_url;
+        result.instagram_url = deep.instagram_url;
+        result.linkedin_url = deep.linkedin_url;
+        result.intent_signals = deep.intent_signals;
+        result.site_excerpt = deep.excerpt;
+        if (deep.partita_iva && !piva) piva = deep.partita_iva;
+      }
+      result.partita_iva = piva;
+
+      // 2) VIES (gratis): valida P.IVA → ragione sociale + indirizzo ufficiali
+      if (doVies && piva) {
+        const vies = await viesValidate(piva);
+        if (vies) result.vies = vies;
+      }
+
+      // 3) Firmografici + PEC (opzionale, openapi.it solo se token configurato)
+      if (openapiToken && piva) {
+        const firmo = await fetchFirmografici(piva, openapiToken, await openapiBase());
+        if (firmo) result.firmografici = firmo;
+      }
+
+      // 4) Opzionale: riempi i campi vuoti del contatto CRM
+      if (contactId) {
+        const { data: c } = await supabaseAdmin
+          .from("marketing_contacts").select("*")
+          .eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID).maybeSingle();
+        if (c) {
+          const firmo = (result.firmografici || {}) as Record<string, unknown>;
+          const viesName = (result.vies as { name?: string } | undefined)?.name;
+          const bestEmail = c.email || deep?.emails?.[0] || (firmo.pec as string | undefined) || null;
+          const bestPhone = c.phone || deep?.phones?.[0] || null;
+          const patch: Record<string, unknown> = {};
+          if (!c.email && bestEmail) patch.email = bestEmail;
+          if (!c.phone && bestPhone) patch.phone = bestPhone;
+          if (!c.website && website) patch.website = website;
+          if (!c.vat_number && piva) patch.vat_number = piva;
+          if (!c.company_name && (businessName || viesName)) patch.company_name = businessName || viesName;
+          if (Object.keys(patch).length) {
+            await supabaseAdmin.from("marketing_contacts").update(patch).eq("id", contactId);
+            result.contact_updated = Object.keys(patch);
+          }
+        }
+      }
+
+      return jsonResponse(result, 200, corsH);
     }
 
     // ════════════════════ FIND EMAIL (pattern + MX, gratis) ════════════════════

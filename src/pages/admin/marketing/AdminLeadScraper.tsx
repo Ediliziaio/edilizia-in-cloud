@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminMarketing } from "@/hooks/useAdminMarketing";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { formatRelativeTime } from "@/lib/formatters";
 import { escapeCsvCell } from "@/lib/csvExport";
@@ -10,7 +11,7 @@ import {
   Globe, Star, Download, UserPlus, Trash2, Target, ChevronRight,
   Wand2, Facebook, Instagram, Flame, FileText, Grid3x3, Upload, MessageSquareQuote, ShieldBan, EyeOff,
   MessageCircle, Send, Pencil, SlidersHorizontal, Rocket, Bot, BadgeCheck, ChevronDown, Database, Zap,
-  BarChart3,
+  BarChart3, MoreVertical,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,7 @@ interface LeadResult {
   ai_summary: string | null;
   ai_icebreaker: string | null;
   crm_opportunity_id: string | null;
+  crm_contact_id: string | null;
   // v5
   buying_score: number | null;
   buying_signals: Record<string, boolean> | null;
@@ -438,9 +440,119 @@ function AutopilotSheet({ open, onClose }: { open: boolean; onClose: () => void 
   );
 }
 
+// ── Arricchisci azienda: dati liberi (nome/sito/P.IVA) → tutte le info (gratis) ──
+interface EnrichResult {
+  emails?: string[];
+  phones?: string[];
+  partita_iva?: string | null;
+  facebook_url?: string | null;
+  instagram_url?: string | null;
+  linkedin_url?: string | null;
+  site_excerpt?: string;
+  vies?: { valid: boolean; name?: string; address?: string };
+  firmografici?: Record<string, unknown>;
+}
+function EnrichCompanySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [businessName, setBusinessName] = useState("");
+  const [website, setWebsite] = useState("");
+  const [piva, setPiva] = useState("");
+  const [result, setResult] = useState<EnrichResult | null>(null);
+
+  const enrich = useMutation({
+    mutationFn: async (): Promise<EnrichResult> => {
+      const { data, error } = await supabase.functions.invoke("lead-scraper", {
+        body: {
+          action: "enrich_company",
+          business_name: businessName.trim() || undefined,
+          website: website.trim() || undefined,
+          partita_iva: piva.trim() || undefined,
+        },
+      });
+      if (error) throw new Error(error.message);
+      return (data || {}) as EnrichResult;
+    },
+    onSuccess: (d) => setResult(d),
+    onError: (e: Error) => toast.error("Arricchimento fallito", { description: e.message }),
+  });
+
+  const canRun = !!(businessName.trim() || website.trim() || piva.trim());
+  const copy = (t: string) => { navigator.clipboard?.writeText(t); toast.success("Copiato"); };
+  const empty = result && !result.emails?.length && !result.phones?.length && !result.partita_iva && !result.vies?.valid;
+
+  return (
+    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+        <SheetHeader><SheetTitle className="text-base flex items-center gap-2"><Sparkles className="h-4 w-4" /> Arricchisci un'azienda</SheetTitle></SheetHeader>
+        <p className="mt-1 text-xs text-muted-foreground">Inserisci ciò che sai (anche solo il sito o la P.IVA): trovo email, telefono, P.IVA, social e dati ufficiali. Gratis.</p>
+        <div className="mt-4 space-y-3">
+          <div><Label className="text-xs">Ragione sociale</Label><Input value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Es. Rossi Costruzioni Srl" /></div>
+          <div><Label className="text-xs">Sito web</Label><Input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="rossicostruzioni.it" /></div>
+          <div><Label className="text-xs">P.IVA</Label><Input value={piva} onChange={(e) => setPiva(e.target.value)} placeholder="01234567890" /></div>
+          <Button className="w-full gap-1.5" disabled={!canRun || enrich.isPending} onClick={() => enrich.mutate()}>
+            {enrich.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Trova tutte le info
+          </Button>
+        </div>
+
+        {result && (
+          <div className="mt-5 space-y-3 text-sm">
+            {result.vies?.valid && result.vies.name && (
+              <div className="rounded-lg border bg-muted/40 p-3">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-0.5">Ragione sociale (VIES)</div>
+                <div className="font-medium">{result.vies.name}</div>
+                {result.vies.address && <div className="text-xs text-muted-foreground">{result.vies.address}</div>}
+              </div>
+            )}
+            {result.partita_iva && (
+              <div>
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">P.IVA</div>
+                <button type="button" onClick={() => copy(result.partita_iva!)} className="flex items-center gap-1.5 hover:text-primary"><FileText className="h-3 w-3" />{result.partita_iva}</button>
+              </div>
+            )}
+            {!!result.emails?.length && (
+              <div>
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Email</div>
+                <div className="space-y-1">{result.emails.map((e) => (
+                  <button key={e} type="button" onClick={() => copy(e)} className="flex w-full items-center gap-1.5 text-left hover:text-primary"><Mail className="h-3 w-3 shrink-0" />{e}</button>
+                ))}</div>
+              </div>
+            )}
+            {!!result.phones?.length && (
+              <div>
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Telefoni</div>
+                <div className="space-y-1">{result.phones.map((p) => (
+                  <button key={p} type="button" onClick={() => copy(p)} className="flex w-full items-center gap-1.5 text-left hover:text-primary"><Phone className="h-3 w-3 shrink-0" />{p}</button>
+                ))}</div>
+              </div>
+            )}
+            {(result.linkedin_url || result.facebook_url || result.instagram_url) && (
+              <div className="flex items-center gap-3 pt-1">
+                {result.linkedin_url && <a href={result.linkedin_url} target="_blank" rel="noopener noreferrer" title="LinkedIn"><Linkedin className="h-4 w-4 text-[#0a66c2]" /></a>}
+                {result.facebook_url && <a href={result.facebook_url} target="_blank" rel="noopener noreferrer" title="Facebook"><Facebook className="h-4 w-4 text-[#1877f2]" /></a>}
+                {result.instagram_url && <a href={result.instagram_url} target="_blank" rel="noopener noreferrer" title="Instagram"><Instagram className="h-4 w-4 text-[#e1306c]" /></a>}
+              </div>
+            )}
+            {result.firmografici && Object.keys(result.firmografici).length > 0 && (
+              <details className="rounded-lg border p-3 text-xs">
+                <summary className="cursor-pointer text-[11px] uppercase tracking-wide text-muted-foreground">Dati ufficiali (Registro Imprese)</summary>
+                <pre className="mt-2 whitespace-pre-wrap break-words text-[11px]">{JSON.stringify(result.firmografici, null, 2)}</pre>
+              </details>
+            )}
+            {empty && (
+              <div className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
+                Nessuna info trovata. Prova ad aggiungere il sito web.
+              </div>
+            )}
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 export default function AdminLeadScraper() {
   const { hasAccess, permLoading } = useAdminMarketing();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const confirm = useConfirm();
 
   const [source, setSource] = useState<string>("google_maps");
@@ -473,6 +585,7 @@ export default function AdminLeadScraper() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [autopilotOpen, setAutopilotOpen] = useState(false);
+  const [enrichOpen, setEnrichOpen] = useState(false);
 
   // ── ricerche salvate ───────────────────────────────────────────────────────
   const { data: searches = [] } = useQuery({
@@ -937,6 +1050,45 @@ export default function AdminLeadScraper() {
     onError: (e: Error) => toast.error("Salvataggio fallito", { description: e.message }),
   });
 
+  // ── Azioni per-riga (singolo lead): converti, arricchisci, elimina ──────────
+  const rowConvertMutation = useMutation({
+    mutationFn: ({ id, createOpportunity }: { id: string; createOpportunity: boolean }) =>
+      invoke({ action: "push_crm", resultIds: [id], createOpportunity }),
+    onSuccess: (data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      if (data.duplicates) toast.info("Già presente nel CRM");
+      else if (data.suppressed) toast.warning("In opt-out: non importato (GDPR)");
+      else toast.success(vars.createOpportunity ? "Convertito in opportunità" : "Convertito in contatto");
+    },
+    onError: (e: Error) => toast.error("Conversione fallita", { description: e.message }),
+  });
+
+  // "Trova tutte le info": deep_enrich (sito → email/telefono/P.IVA/social/firmografici) + find_email — gratis
+  const rowEnrichMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await invoke({ action: "deep_enrich", resultIds: [id] });
+      await invoke({ action: "find_email", resultIds: [id] });
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      toast.success("Info azienda aggiornate");
+    },
+    onError: (e: Error) => toast.error("Arricchimento fallito", { description: e.message }),
+  });
+
+  const deleteLeadMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await fromLS("lead_scraper_results").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      toast.success("Lead eliminato");
+    },
+    onError: (e: Error) => toast.error("Eliminazione fallita", { description: e.message }),
+  });
+
   const busy = searchMutation.isPending || qualifyMutation.isPending || deepEnrichMutation.isPending ||
     findEmailMutation.isPending || findLinkedinMutation.isPending || pushMutation.isPending ||
     outreachMutation.isPending || suppressMutation.isPending || importMutation.isPending ||
@@ -1087,6 +1239,9 @@ export default function AdminLeadScraper() {
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setAutopilotOpen(true)}>
             <Bot className="h-4 w-4" /> Autopilot
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEnrichOpen(true)}>
+            <Sparkles className="h-4 w-4" /> Arricchisci azienda
           </Button>
         </div>
       </div>
@@ -1655,9 +1810,58 @@ export default function AdminLeadScraper() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {r.pushed_to_crm ? (
-                              <Badge variant="outline" className="gap-1 text-[10px]"><ChevronRight className="h-3 w-3" />CRM</Badge>
-                            ) : null}
+                            <div className="flex items-center justify-end gap-1">
+                              {r.pushed_to_crm && (
+                                r.crm_contact_id ? (
+                                  <button type="button" onClick={() => navigate(`/admin/marketing/contatti/${r.crm_contact_id}`)} title="Apri il contatto nel CRM">
+                                    <Badge variant="outline" className="gap-1 text-[10px] hover:bg-primary/10 cursor-pointer"><ChevronRight className="h-3 w-3" />CRM</Badge>
+                                  </button>
+                                ) : (
+                                  <Badge variant="outline" className="gap-1 text-[10px]"><ChevronRight className="h-3 w-3" />CRM</Badge>
+                                )
+                              )}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Azioni lead">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-56">
+                                  <DropdownMenuLabel className="text-[11px] truncate">{r.business_name}</DropdownMenuLabel>
+                                  <DropdownMenuItem disabled={r.pushed_to_crm || rowConvertMutation.isPending} onClick={() => rowConvertMutation.mutate({ id: r.id, createOpportunity: false })}>
+                                    <UserPlus className="h-3.5 w-3.5 mr-2" /> Converti in contatto
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem disabled={r.pushed_to_crm || rowConvertMutation.isPending} onClick={() => rowConvertMutation.mutate({ id: r.id, createOpportunity: true })}>
+                                    <Target className="h-3.5 w-3.5 mr-2" /> Converti in opportunità
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem disabled={rowEnrichMutation.isPending} onClick={() => rowEnrichMutation.mutate(r.id)}>
+                                    <Wand2 className="h-3.5 w-3.5 mr-2" /> Trova tutte le info
+                                  </DropdownMenuItem>
+                                  {r.website && (
+                                    <DropdownMenuItem onClick={() => window.open(r.website!.startsWith("http") ? r.website! : `https://${r.website}`, "_blank", "noopener")}>
+                                      <Globe className="h-3.5 w-3.5 mr-2" /> Apri sito
+                                    </DropdownMenuItem>
+                                  )}
+                                  {r.pushed_to_crm && r.crm_contact_id && (
+                                    <DropdownMenuItem onClick={() => navigate(`/admin/marketing/contatti/${r.crm_contact_id}`)}>
+                                      <ChevronRight className="h-3.5 w-3.5 mr-2" /> Apri nel CRM
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-rose-600 focus:text-rose-600"
+                                    onClick={async () => {
+                                      if (await confirm({ title: "Eliminare questo lead?", description: `"${r.business_name}" verrà rimosso da questa lista.`, confirmLabel: "Elimina", variant: "destructive" })) {
+                                        deleteLeadMutation.mutate(r.id);
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Elimina lead
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1690,6 +1894,7 @@ export default function AdminLeadScraper() {
       />
       <AnalyticsSheet open={analyticsOpen} onClose={() => setAnalyticsOpen(false)} />
       <AutopilotSheet open={autopilotOpen} onClose={() => setAutopilotOpen(false)} />
+      <EnrichCompanySheet open={enrichOpen} onClose={() => setEnrichOpen(false)} />
     </div>
   );
 }
