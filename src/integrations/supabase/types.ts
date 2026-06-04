@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.4"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       _audit_pre_migration_snapshots: {
@@ -63,6 +38,507 @@ export type Database = {
           sample_rows?: Json | null
           table_name?: string
           taken_at?: string | null
+        }
+        Relationships: []
+      }
+      accountant_audit_log: {
+        Row: {
+          action: string
+          company_id: string
+          created_at: string
+          firm_id: string | null
+          id: string
+          metadata: Json | null
+          resource_id: string | null
+          resource_type: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          company_id: string
+          created_at?: string
+          firm_id?: string | null
+          id?: string
+          metadata?: Json | null
+          resource_id?: string | null
+          resource_type?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          company_id?: string
+          created_at?: string
+          firm_id?: string | null
+          id?: string
+          metadata?: Json | null
+          resource_id?: string | null
+          resource_type?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accountant_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "accountant_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accountant_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "accountant_audit_log_firm_id_fkey"
+            columns: ["firm_id"]
+            isOneToOne: false
+            referencedRelation: "accountant_firms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accountant_change_requests: {
+        Row: {
+          company_id: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          expires_at: string
+          firm_id: string | null
+          id: string
+          operation: string
+          payload: Json
+          requested_by: string
+          resource_id: string | null
+          resource_type: string
+          status: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          expires_at?: string
+          firm_id?: string | null
+          id?: string
+          operation: string
+          payload?: Json
+          requested_by: string
+          resource_id?: string | null
+          resource_type: string
+          status?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          expires_at?: string
+          firm_id?: string | null
+          id?: string
+          operation?: string
+          payload?: Json
+          requested_by?: string
+          resource_id?: string | null
+          resource_type?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accountant_change_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "accountant_change_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accountant_change_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "accountant_change_requests_firm_id_fkey"
+            columns: ["firm_id"]
+            isOneToOne: false
+            referencedRelation: "accountant_firms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accountant_company_access: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          access_mode: string
+          company_id: string
+          created_at: string
+          firm_id: string
+          granted_by: string | null
+          id: string
+          invited_at: string | null
+          invited_email: string | null
+          notes: string | null
+          permissions: Json
+          revoked_at: string | null
+          revoked_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          access_mode?: string
+          company_id: string
+          created_at?: string
+          firm_id: string
+          granted_by?: string | null
+          id?: string
+          invited_at?: string | null
+          invited_email?: string | null
+          notes?: string | null
+          permissions?: Json
+          revoked_at?: string | null
+          revoked_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          access_mode?: string
+          company_id?: string
+          created_at?: string
+          firm_id?: string
+          granted_by?: string | null
+          id?: string
+          invited_at?: string | null
+          invited_email?: string | null
+          notes?: string | null
+          permissions?: Json
+          revoked_at?: string | null
+          revoked_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accountant_company_access_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "accountant_company_access_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accountant_company_access_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "accountant_company_access_firm_id_fkey"
+            columns: ["firm_id"]
+            isOneToOne: false
+            referencedRelation: "accountant_firms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accountant_company_requests: {
+        Row: {
+          area: string
+          assigned_to_user_id: string | null
+          blocker_kind: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          firm_id: string
+          id: string
+          priority: string
+          resolved_at: string | null
+          source_context: Json
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          area?: string
+          assigned_to_user_id?: string | null
+          blocker_kind?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          firm_id: string
+          id?: string
+          priority?: string
+          resolved_at?: string | null
+          source_context?: Json
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          area?: string
+          assigned_to_user_id?: string | null
+          blocker_kind?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          firm_id?: string
+          id?: string
+          priority?: string
+          resolved_at?: string | null
+          source_context?: Json
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accountant_company_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "accountant_company_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accountant_company_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "accountant_company_requests_firm_id_fkey"
+            columns: ["firm_id"]
+            isOneToOne: false
+            referencedRelation: "accountant_firms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accountant_firm_members: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          firm_id: string
+          id: string
+          invited_by: string | null
+          role: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          firm_id: string
+          id?: string
+          invited_by?: string | null
+          role?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          firm_id?: string
+          id?: string
+          invited_by?: string | null
+          role?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accountant_firm_members_firm_id_fkey"
+            columns: ["firm_id"]
+            isOneToOne: false
+            referencedRelation: "accountant_firms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accountant_firms: {
+        Row: {
+          brand_logo_url: string | null
+          brand_name: string | null
+          brand_primary_color: string | null
+          contract_status: string
+          created_at: string
+          dpa_status: string
+          email: string | null
+          fiscal_code: string | null
+          id: string
+          name: string
+          owner_user_id: string | null
+          phone: string | null
+          status: string
+          updated_at: string
+          vat_number: string | null
+        }
+        Insert: {
+          brand_logo_url?: string | null
+          brand_name?: string | null
+          brand_primary_color?: string | null
+          contract_status?: string
+          created_at?: string
+          dpa_status?: string
+          email?: string | null
+          fiscal_code?: string | null
+          id?: string
+          name: string
+          owner_user_id?: string | null
+          phone?: string | null
+          status?: string
+          updated_at?: string
+          vat_number?: string | null
+        }
+        Update: {
+          brand_logo_url?: string | null
+          brand_name?: string | null
+          brand_primary_color?: string | null
+          contract_status?: string
+          created_at?: string
+          dpa_status?: string
+          email?: string | null
+          fiscal_code?: string | null
+          id?: string
+          name?: string
+          owner_user_id?: string | null
+          phone?: string | null
+          status?: string
+          updated_at?: string
+          vat_number?: string | null
+        }
+        Relationships: []
+      }
+      accountant_notifications: {
+        Row: {
+          action_url: string | null
+          body: string | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          firm_id: string
+          id: string
+          is_dismissed: boolean
+          is_read: boolean
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          action_url?: string | null
+          body?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          firm_id: string
+          id?: string
+          is_dismissed?: boolean
+          is_read?: boolean
+          read_at?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          action_url?: string | null
+          body?: string | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          firm_id?: string
+          id?: string
+          is_dismissed?: boolean
+          is_read?: boolean
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accountant_notifications_firm_id_fkey"
+            columns: ["firm_id"]
+            isOneToOne: false
+            referencedRelation: "accountant_firms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accountant_signup_attempts: {
+        Row: {
+          attempted_at: string
+          email: string | null
+          error_reason: string | null
+          id: string
+          ip_address: string
+          success: boolean
+          user_agent: string | null
+        }
+        Insert: {
+          attempted_at?: string
+          email?: string | null
+          error_reason?: string | null
+          id?: string
+          ip_address: string
+          success?: boolean
+          user_agent?: string | null
+        }
+        Update: {
+          attempted_at?: string
+          email?: string | null
+          error_reason?: string | null
+          id?: string
+          ip_address?: string
+          success?: boolean
+          user_agent?: string | null
         }
         Relationships: []
       }
@@ -156,6 +632,360 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "active_impersonations_target_company_id_fkey"
+            columns: ["target_company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      ad_audit_log: {
+        Row: {
+          action: string
+          changes: Json | null
+          company_id: string
+          created_at: string
+          entity_id: string | null
+          entity_name: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          is_automatic: boolean
+          notes: string | null
+          performed_by: string | null
+          performed_by_name: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          changes?: Json | null
+          company_id: string
+          created_at?: string
+          entity_id?: string | null
+          entity_name?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          is_automatic?: boolean
+          notes?: string | null
+          performed_by?: string | null
+          performed_by_name?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          changes?: Json | null
+          company_id?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_name?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          is_automatic?: boolean
+          notes?: string | null
+          performed_by?: string | null
+          performed_by_name?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ad_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      ad_automation_rules: {
+        Row: {
+          action: Json
+          company_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_enabled: boolean
+          last_evaluated_at: string | null
+          last_triggered_at: string | null
+          name: string
+          requires_confirmation: boolean
+          scope_filter: Json | null
+          scope_type: string
+          trigger: Json
+          trigger_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          action: Json
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_enabled?: boolean
+          last_evaluated_at?: string | null
+          last_triggered_at?: string | null
+          name: string
+          requires_confirmation?: boolean
+          scope_filter?: Json | null
+          scope_type?: string
+          trigger: Json
+          trigger_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          action?: Json
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_enabled?: boolean
+          last_evaluated_at?: string | null
+          last_triggered_at?: string | null
+          name?: string
+          requires_confirmation?: boolean
+          scope_filter?: Json | null
+          scope_type?: string
+          trigger?: Json
+          trigger_count?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_automation_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ad_automation_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_automation_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      ad_media: {
+        Row: {
+          ai_cost_eur_cents: number | null
+          ai_model: string | null
+          ai_prompt: string | null
+          ai_provider: string | null
+          aspect_ratio: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          duration_seconds: number | null
+          file_size_bytes: number | null
+          height_px: number | null
+          id: string
+          kind: string
+          meta_image_hash: string | null
+          meta_video_id: string | null
+          mime_type: string | null
+          name: string
+          public_url: string | null
+          source: string
+          storage_bucket: string | null
+          storage_path: string | null
+          tags: string[] | null
+          thumbnail_url: string | null
+          updated_at: string
+          uploaded_to_meta_at: string | null
+          width_px: number | null
+        }
+        Insert: {
+          ai_cost_eur_cents?: number | null
+          ai_model?: string | null
+          ai_prompt?: string | null
+          ai_provider?: string | null
+          aspect_ratio?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          duration_seconds?: number | null
+          file_size_bytes?: number | null
+          height_px?: number | null
+          id?: string
+          kind?: string
+          meta_image_hash?: string | null
+          meta_video_id?: string | null
+          mime_type?: string | null
+          name: string
+          public_url?: string | null
+          source?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          uploaded_to_meta_at?: string | null
+          width_px?: number | null
+        }
+        Update: {
+          ai_cost_eur_cents?: number | null
+          ai_model?: string | null
+          ai_prompt?: string | null
+          ai_provider?: string | null
+          aspect_ratio?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          duration_seconds?: number | null
+          file_size_bytes?: number | null
+          height_px?: number | null
+          id?: string
+          kind?: string
+          meta_image_hash?: string | null
+          meta_video_id?: string | null
+          mime_type?: string | null
+          name?: string
+          public_url?: string | null
+          source?: string
+          storage_bucket?: string | null
+          storage_path?: string | null
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          uploaded_to_meta_at?: string | null
+          width_px?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ad_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      ad_spend_guard: {
+        Row: {
+          ad_account_id: string | null
+          alert_email: string | null
+          alert_threshold_pct: number
+          autopause_on_daily_cap: boolean
+          autopause_on_monthly_cap: boolean
+          campaign_approval_threshold_cents: number
+          company_id: string
+          created_at: string
+          daily_cap_cents: number
+          id: string
+          is_active: boolean
+          last_alert_at: string | null
+          last_autopause_at: string | null
+          last_autopause_reason: string | null
+          monthly_cap_cents: number
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id?: string | null
+          alert_email?: string | null
+          alert_threshold_pct?: number
+          autopause_on_daily_cap?: boolean
+          autopause_on_monthly_cap?: boolean
+          campaign_approval_threshold_cents?: number
+          company_id: string
+          created_at?: string
+          daily_cap_cents?: number
+          id?: string
+          is_active?: boolean
+          last_alert_at?: string | null
+          last_autopause_at?: string | null
+          last_autopause_reason?: string | null
+          monthly_cap_cents?: number
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string | null
+          alert_email?: string | null
+          alert_threshold_pct?: number
+          autopause_on_daily_cap?: boolean
+          autopause_on_monthly_cap?: boolean
+          campaign_approval_threshold_cents?: number
+          company_id?: string
+          created_at?: string
+          daily_cap_cents?: number
+          id?: string
+          is_active?: boolean
+          last_alert_at?: string | null
+          last_autopause_at?: string | null
+          last_autopause_reason?: string | null
+          monthly_cap_cents?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_spend_guard_ad_account_id_fkey"
+            columns: ["ad_account_id"]
+            isOneToOne: false
+            referencedRelation: "meta_ad_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_spend_guard_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ad_spend_guard_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_spend_guard_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       adempimenti_fiscali: {
@@ -219,6 +1049,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "adempimenti_fiscali_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       adempimenti_sicurezza: {
@@ -269,6 +1106,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "adempimenti_sicurezza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "adempimenti_sicurezza_order_id_fkey"
@@ -361,6 +1205,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_credit_adjustments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -717,6 +1568,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ai_action_proposals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "ai_action_proposals_message_id_fkey"
             columns: ["message_id"]
             isOneToOne: false
@@ -774,6 +1632,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -850,6 +1715,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_branches_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -941,6 +1813,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ai_agent_conversations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "ai_agent_conversations_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -999,6 +1878,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_agent_credits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_agent_knowledge_docs: {
@@ -1056,6 +1942,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_knowledge_docs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -1168,6 +2061,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_phone_numbers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "ai_agent_phone_numbers_internal_agent_id_fkey"
@@ -1330,6 +2230,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_agent_tests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_agents: {
@@ -1461,6 +2368,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -1604,6 +2518,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ai_agents_v2_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "ai_agents_v2_whatsapp_numero_id_fkey"
             columns: ["whatsapp_numero_id"]
             isOneToOne: false
@@ -1680,6 +2601,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ai_brain_chat_summaries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "ai_brain_chat_summaries_promoted_to_fkey"
             columns: ["promoted_to"]
             isOneToOne: false
@@ -1713,7 +2641,9 @@ export type Database = {
           id: string
           ingested_at: string
           is_universal_for_vertical: boolean | null
+          kb_priority: string | null
           kb_section: string | null
+          kb_source_book: string | null
           kb_subsection: string | null
           language: string
           last_used_at: string | null
@@ -1749,7 +2679,9 @@ export type Database = {
           id?: string
           ingested_at?: string
           is_universal_for_vertical?: boolean | null
+          kb_priority?: string | null
           kb_section?: string | null
+          kb_source_book?: string | null
           kb_subsection?: string | null
           language?: string
           last_used_at?: string | null
@@ -1785,7 +2717,9 @@ export type Database = {
           id?: string
           ingested_at?: string
           is_universal_for_vertical?: boolean | null
+          kb_priority?: string | null
           kb_section?: string | null
+          kb_source_book?: string | null
           kb_subsection?: string | null
           language?: string
           last_used_at?: string | null
@@ -1818,6 +2752,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_brain_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "ai_brain_documents_replaces_doc_id_fkey"
@@ -1971,6 +2912,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_brain_facts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_call_ledger: {
@@ -2066,6 +3014,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_call_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "ai_call_ledger_pricing_override_id_fkey"
@@ -2265,6 +3220,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_campaigns_v2_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_chat_messages: {
@@ -2365,6 +3327,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ai_chat_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "ai_chat_sessions_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -2440,6 +3409,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_company_action_permissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -2578,6 +3554,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ai_conversations_v2_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "ai_conversations_v2_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -2672,6 +3655,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_council_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_credit_topups: {
@@ -2731,6 +3721,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_credit_topups_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -2795,6 +3792,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_credit_transactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -2877,6 +3881,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_credit_usage_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "ai_credit_usage_conversation_id_fkey"
@@ -2972,6 +3983,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_credits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_demo_default_models: {
@@ -3016,6 +4034,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_demo_default_models_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -3140,6 +4165,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_elevenlabs_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_kb_categories: {
@@ -3181,6 +4213,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_kb_categories_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -3271,6 +4310,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_kb_external_sources_target_company_id_fkey"
+            columns: ["target_company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "ai_kb_external_sources_target_doc_id_fkey"
@@ -3424,6 +4470,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_knowledge_base_v2_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -3596,6 +4649,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_model_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_model_config_archive_mp05fix: {
@@ -3743,6 +4803,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_model_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_payg_topups: {
@@ -3808,6 +4875,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_payg_topups_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -3877,6 +4951,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_persona_memory_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -4031,6 +5112,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_persona_permissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_persona_prompt_ab_test: {
@@ -4111,6 +5199,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_persona_prompt_ab_test_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "ai_persona_prompt_ab_test_variant_proposal_id_fkey"
@@ -4210,6 +5305,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ai_persona_prompt_proposals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "ai_persona_prompt_proposals_persona_key_fkey"
             columns: ["persona_key"]
             isOneToOne: false
@@ -4288,6 +5390,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_persona_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -4518,6 +5627,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_phone_numbers_v2_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_pricing_markup: {
@@ -4634,6 +5750,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_pricing_overrides_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "ai_pricing_overrides_tier_key_fkey"
@@ -4765,6 +5888,95 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_prompt_feedback_aggregates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      ai_prompt_templates: {
+        Row: {
+          category: string
+          company_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          is_official: boolean
+          last_used_at: string | null
+          name: string
+          segment: string | null
+          system_prompt: string
+          tone: string | null
+          updated_at: string
+          usage_count: number
+          user_prompt_template: string | null
+          variables: Json | null
+        }
+        Insert: {
+          category?: string
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_official?: boolean
+          last_used_at?: string | null
+          name: string
+          segment?: string | null
+          system_prompt: string
+          tone?: string | null
+          updated_at?: string
+          usage_count?: number
+          user_prompt_template?: string | null
+          variables?: Json | null
+        }
+        Update: {
+          category?: string
+          company_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_official?: boolean
+          last_used_at?: string | null
+          name?: string
+          segment?: string | null
+          system_prompt?: string
+          tone?: string | null
+          updated_at?: string
+          usage_count?: number
+          user_prompt_template?: string | null
+          variables?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_prompt_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_prompt_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_prompt_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_provider_reconciliation: {
@@ -4885,6 +6097,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_rbac_violations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_router_config: {
@@ -5002,6 +6221,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_router_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_subscriptions: {
@@ -5052,6 +6278,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_subscriptions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -5185,6 +6418,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_test_quota_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_test_runs: {
@@ -5269,6 +6509,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_test_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_usage_alerts_log: {
@@ -5310,6 +6557,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_alerts_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -5372,6 +6626,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ai_usage_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "ai_usage_logs_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -5394,6 +6655,7 @@ export type Database = {
           id: string
           messaggio_benvenuto: string | null
           messaggio_fuori_orario: string | null
+          messaging_limit_tier: string | null
           nome_account: string | null
           numero: string
           operational_settings: Json | null
@@ -5401,6 +6663,7 @@ export type Database = {
           phone_number_id: string | null
           provider: string | null
           purpose: string
+          quality_rating: string | null
           stato: string | null
           updated_at: string
           waba_id: string | null
@@ -5419,6 +6682,7 @@ export type Database = {
           id?: string
           messaggio_benvenuto?: string | null
           messaggio_fuori_orario?: string | null
+          messaging_limit_tier?: string | null
           nome_account?: string | null
           numero: string
           operational_settings?: Json | null
@@ -5426,6 +6690,7 @@ export type Database = {
           phone_number_id?: string | null
           provider?: string | null
           purpose?: string
+          quality_rating?: string | null
           stato?: string | null
           updated_at?: string
           waba_id?: string | null
@@ -5444,6 +6709,7 @@ export type Database = {
           id?: string
           messaggio_benvenuto?: string | null
           messaggio_fuori_orario?: string | null
+          messaging_limit_tier?: string | null
           nome_account?: string | null
           numero?: string
           operational_settings?: Json | null
@@ -5451,6 +6717,7 @@ export type Database = {
           phone_number_id?: string | null
           provider?: string | null
           purpose?: string
+          quality_rating?: string | null
           stato?: string | null
           updated_at?: string
           waba_id?: string | null
@@ -5477,6 +6744,192 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_whatsapp_numbers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      ai_workflow_runs: {
+        Row: {
+          attempts: number
+          company_id: string
+          completed_at: string | null
+          context: Json
+          current_step_idx: number
+          id: string
+          last_error: string | null
+          related_entity_id: string | null
+          related_entity_type: string | null
+          resume_at: string | null
+          started_at: string
+          status: string
+          workflow_id: string
+        }
+        Insert: {
+          attempts?: number
+          company_id: string
+          completed_at?: string | null
+          context?: Json
+          current_step_idx?: number
+          id?: string
+          last_error?: string | null
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          resume_at?: string | null
+          started_at?: string
+          status?: string
+          workflow_id: string
+        }
+        Update: {
+          attempts?: number
+          company_id?: string
+          completed_at?: string | null
+          context?: Json
+          current_step_idx?: number
+          id?: string
+          last_error?: string | null
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          resume_at?: string | null
+          started_at?: string
+          status?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_workflow_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_workflow_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_workflow_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_workflow_runs_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "ai_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_workflow_steps_log: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          result: Json | null
+          run_id: string
+          status: string
+          step_idx: number
+          step_kind: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          result?: Json | null
+          run_id: string
+          status: string
+          step_idx: number
+          step_kind: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          result?: Json | null
+          run_id?: string
+          status?: string
+          step_idx?: number
+          step_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_workflow_steps_log_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "ai_workflow_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_workflows: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          steps: Json
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          steps?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          steps?: Json
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_workflows_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "ai_workflows_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_workflows_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -5676,6 +7129,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "anagrafica_azienda_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       anagrafica_reconciliation_log: {
@@ -5737,6 +7197,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anagrafica_reconciliation_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -5904,6 +7371,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "anagrafiche_native_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       anomalies: {
@@ -5969,6 +7443,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "anomalies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "anomalies_order_id_fkey"
@@ -6053,6 +7534,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "api_keys_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       api_usage_daily: {
@@ -6107,6 +7595,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "api_usage_daily_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -6166,6 +7661,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "api_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       apple_calendar_busy_slots: {
@@ -6219,6 +7721,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apple_calendar_busy_slots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -6282,6 +7791,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apple_calendar_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -6360,6 +7876,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "apple_calendar_event_map_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       apple_calendar_settings: {
@@ -6421,6 +7944,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "apple_calendar_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "apple_calendar_settings_connection_id_fkey"
             columns: ["connection_id"]
             isOneToOne: false
@@ -6479,22 +8009,38 @@ export type Database = {
           appointment_type: string
           assigned_to: string | null
           calendar_id: string | null
+          capi_schedule_sent_at: string | null
           company_id: string
           contact_id: string | null
           created_at: string
           created_by: string
           description: string | null
+          fbc: string | null
+          fbp: string | null
           formatted_address: string | null
+          gbraid: string | null
+          gclid: string | null
+          google_ad_group_id: string | null
+          google_ad_id: string | null
+          google_appointment_sent_at: string | null
+          google_campaign_id: string | null
+          google_customer_id: string | null
           id: string
           internal_notes: string | null
           is_blocked_slot: boolean
           is_completed: boolean
+          last_capi_event_at: string | null
+          last_google_conversion_event_at: string | null
           lat: number | null
           lng: number | null
           meeting_created_at: string | null
           meeting_provider: string
           meeting_status: string
           meeting_url: string | null
+          meta_ad_id: string | null
+          meta_adset_id: string | null
+          meta_campaign_id: string | null
+          opportunity_id: string | null
           order_id: string | null
           place_id: string | null
           reminder_minutes: number | null
@@ -6502,6 +8048,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          wbraid: string | null
         }
         Insert: {
           address_city?: string | null
@@ -6516,22 +8063,38 @@ export type Database = {
           appointment_type?: string
           assigned_to?: string | null
           calendar_id?: string | null
+          capi_schedule_sent_at?: string | null
           company_id: string
           contact_id?: string | null
           created_at?: string
           created_by: string
           description?: string | null
+          fbc?: string | null
+          fbp?: string | null
           formatted_address?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          google_ad_group_id?: string | null
+          google_ad_id?: string | null
+          google_appointment_sent_at?: string | null
+          google_campaign_id?: string | null
+          google_customer_id?: string | null
           id?: string
           internal_notes?: string | null
           is_blocked_slot?: boolean
           is_completed?: boolean
+          last_capi_event_at?: string | null
+          last_google_conversion_event_at?: string | null
           lat?: number | null
           lng?: number | null
           meeting_created_at?: string | null
           meeting_provider?: string
           meeting_status?: string
           meeting_url?: string | null
+          meta_ad_id?: string | null
+          meta_adset_id?: string | null
+          meta_campaign_id?: string | null
+          opportunity_id?: string | null
           order_id?: string | null
           place_id?: string | null
           reminder_minutes?: number | null
@@ -6539,6 +8102,7 @@ export type Database = {
           status?: string
           title: string
           updated_at?: string
+          wbraid?: string | null
         }
         Update: {
           address_city?: string | null
@@ -6553,22 +8117,38 @@ export type Database = {
           appointment_type?: string
           assigned_to?: string | null
           calendar_id?: string | null
+          capi_schedule_sent_at?: string | null
           company_id?: string
           contact_id?: string | null
           created_at?: string
           created_by?: string
           description?: string | null
+          fbc?: string | null
+          fbp?: string | null
           formatted_address?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          google_ad_group_id?: string | null
+          google_ad_id?: string | null
+          google_appointment_sent_at?: string | null
+          google_campaign_id?: string | null
+          google_customer_id?: string | null
           id?: string
           internal_notes?: string | null
           is_blocked_slot?: boolean
           is_completed?: boolean
+          last_capi_event_at?: string | null
+          last_google_conversion_event_at?: string | null
           lat?: number | null
           lng?: number | null
           meeting_created_at?: string | null
           meeting_provider?: string
           meeting_status?: string
           meeting_url?: string | null
+          meta_ad_id?: string | null
+          meta_adset_id?: string | null
+          meta_campaign_id?: string | null
+          opportunity_id?: string | null
           order_id?: string | null
           place_id?: string | null
           reminder_minutes?: number | null
@@ -6576,6 +8156,7 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
+          wbraid?: string | null
         }
         Relationships: [
           {
@@ -6600,6 +8181,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "appointments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "appointments_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -6611,6 +8199,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_opportunities"
             referencedColumns: ["id"]
           },
           {
@@ -6683,6 +8278,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "archivio_sostitutivo_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -6833,6 +8435,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "article_families_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "article_families_macrocategoria_id_fkey"
             columns: ["macrocategoria_id"]
             isOneToOne: false
@@ -6915,6 +8524,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "article_family_axes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "article_family_axes_family_id_fkey"
             columns: ["family_id"]
             isOneToOne: false
@@ -6990,6 +8606,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_family_axis_values_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -7262,6 +8885,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "article_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "article_templates_family_id_fkey"
             columns: ["family_id"]
             isOneToOne: false
@@ -7391,6 +9021,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "articoli_native_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       attribution_sessions: {
@@ -7506,6 +9143,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "attribution_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "attribution_sessions_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -7563,6 +9207,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "automation_connections_flow_id_fkey"
@@ -7658,6 +9309,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "automation_dead_letter_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "automation_dead_letter_enrollment_id_fkey"
             columns: ["enrollment_id"]
             isOneToOne: false
@@ -7723,6 +9381,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "automation_enrollments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "automation_enrollments_flow_id_fkey"
             columns: ["flow_id"]
             isOneToOne: false
@@ -7785,6 +9450,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_execution_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "automation_execution_log_enrollment_id_fkey"
@@ -7863,6 +9535,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_flow_versions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "automation_flow_versions_flow_id_fkey"
@@ -7971,6 +9650,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "automation_flows_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "automation_flows_folder_id_fkey"
             columns: ["folder_id"]
             isOneToOne: false
@@ -8017,6 +9703,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "automation_folders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "automation_folders_parent_id_fkey"
             columns: ["parent_id"]
             isOneToOne: false
@@ -8055,6 +9748,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_global_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -8152,6 +9852,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "automation_nodes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "automation_nodes_flow_id_fkey"
             columns: ["flow_id"]
             isOneToOne: false
@@ -8226,6 +9933,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_queue_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "automation_queue_current_node_id_fkey"
@@ -8339,6 +10053,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "automation_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "automation_rules_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
@@ -8392,6 +10113,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_trigger_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -8452,6 +10180,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -8529,6 +10264,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bank_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "bank_accounts_connection_id_fkey"
             columns: ["connection_id"]
             isOneToOne: false
@@ -8589,6 +10331,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bank_alert_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       bank_categorization_rules: {
@@ -8645,6 +10394,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_categorization_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -8720,6 +10476,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -8821,6 +10584,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bank_reconciliations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "bank_reconciliations_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -8890,6 +10660,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_sync_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "bank_sync_logs_connection_id_fkey"
@@ -9026,6 +10803,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bank_transactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "bank_transactions_reconciled_invoice_id_fkey"
             columns: ["reconciled_invoice_id"]
             isOneToOne: false
@@ -9113,6 +10897,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "billing_integrations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       billing_sync_log: {
@@ -9171,11 +10962,73 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "billing_sync_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "billing_sync_log_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      bonifica_azioni: {
+        Row: {
+          annullabile: boolean
+          azione: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          email_ids: string[]
+          gruppo: string
+          id: string
+        }
+        Insert: {
+          annullabile?: boolean
+          azione: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          email_ids?: string[]
+          gruppo: string
+          id?: string
+        }
+        Update: {
+          annullabile?: boolean
+          azione?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          email_ids?: string[]
+          gruppo?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bonifica_azioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "bonifica_azioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bonifica_azioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -9241,6 +11094,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bulk_scheduler_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "bulk_scheduler_runs_flow_id_fkey"
             columns: ["flow_id"]
             isOneToOne: false
@@ -9300,6 +11160,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bundle_prodotti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -9493,6 +11360,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "call_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "call_logs_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -9554,6 +11428,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "campaign_costs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       campaign_events: {
@@ -9605,6 +11486,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "campaign_events_variant_id_fkey"
@@ -9835,6 +11723,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "campo_rapportini_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "campo_rapportini_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -9921,6 +11816,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campo_timbrature_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "campo_timbrature_order_id_fkey"
@@ -10028,6 +11930,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_allocations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "cantiere_allocations_conflict_with_fkey"
@@ -10188,6 +12097,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cantiere_camera_devices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       cantiere_risk_predictions: {
@@ -10292,6 +12208,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cantiere_risk_predictions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       cantiere_segnalazioni: {
@@ -10357,6 +12280,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cantiere_segnalazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "cantiere_segnalazioni_employee_id_fkey"
@@ -10506,6 +12436,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "cantieri_geofence_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "cantieri_geofence_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -10629,6 +12566,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "capomastro_briefings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       cashflow_forecast_snapshots: {
@@ -10707,6 +12651,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cashflow_forecast_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ce_riclassificato_overrides: {
@@ -10760,6 +12711,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ce_riclassificato_overrides_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -10829,6 +12787,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cedolini_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "cedolini_employee_id_fkey"
@@ -10976,6 +12941,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "cespiti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "cespiti_sede_id_fkey"
             columns: ["sede_id"]
             isOneToOne: false
@@ -11060,6 +13032,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cfo_weekly_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       cg_aliquote_imposte: {
@@ -11107,6 +13086,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cg_aliquote_imposte_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -11158,6 +13144,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cg_budget_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -11222,6 +13215,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cg_cash_flow_manuali_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       cg_classificazione_voci: {
@@ -11285,6 +13285,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cg_classificazione_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       cg_exports_log: {
@@ -11332,6 +13339,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cg_exports_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -11408,6 +13422,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cg_loans_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       cg_note_voci: {
@@ -11459,6 +13480,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cg_note_voci_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       cg_piano_snapshots: {
@@ -11506,6 +13534,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cg_piano_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -11570,6 +13605,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cg_rating_snapshot_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       cg_riconciliazione_commercialista: {
@@ -11627,6 +13669,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cg_riconciliazione_commercialista_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       chat_notifications: {
@@ -11681,6 +13730,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_notifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "chat_notifications_message_id_fkey"
@@ -11754,6 +13810,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_sicurezza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "checklist_sicurezza_operaio_id_fkey"
@@ -11841,6 +13904,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_margin_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "client_margin_history_customer_id_fkey"
@@ -11959,6 +14029,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercial_proposals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "commercial_proposals_quote_id_fkey"
@@ -12103,6 +14180,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "commercial_visit_debriefs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "commercial_visit_debriefs_related_order_id_fkey"
             columns: ["related_order_id"]
             isOneToOne: false
@@ -12142,6 +14226,92 @@ export type Database = {
             columns: ["visited_contact_id"]
             isOneToOne: false
             referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      commission_rules: {
+        Row: {
+          action: Json
+          ai_prompt: string | null
+          basis: string
+          company_id: string
+          condition: Json
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          priority: number
+          salesperson_id: string | null
+          scope: string
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          action?: Json
+          ai_prompt?: string | null
+          basis?: string
+          company_id: string
+          condition?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          priority?: number
+          salesperson_id?: string | null
+          scope?: string
+          trigger_type: string
+          updated_at?: string
+        }
+        Update: {
+          action?: Json
+          ai_prompt?: string | null
+          basis?: string
+          company_id?: string
+          condition?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          priority?: number
+          salesperson_id?: string | null
+          scope?: string
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "commission_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "commission_rules_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "salespeople"
             referencedColumns: ["id"]
           },
         ]
@@ -12747,6 +14917,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "company_activity_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       company_activity_summary: {
@@ -12815,6 +14992,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "company_activity_summary_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       company_addons_log: {
@@ -12869,6 +15053,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "company_addons_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       company_ai_usage: {
@@ -12916,6 +15107,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_ai_usage_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -12973,6 +15171,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_auto_topup_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -13048,6 +15253,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_billing_details_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -13126,6 +15338,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_billing_overrides_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -13268,6 +15487,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "company_branding_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       company_costs: {
@@ -13357,6 +15583,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_costs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "company_costs_order_id_fkey"
@@ -13459,6 +15692,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_data_network_consent_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -13580,6 +15820,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "company_email_domains_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       company_email_preferences: {
@@ -13645,6 +15892,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_email_preferences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "company_email_preferences_marketing_domain_id_fkey"
@@ -13729,6 +15983,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "company_feature_overrides_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       company_features: {
@@ -13767,6 +16028,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_features_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -13821,6 +16089,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_flag_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -13882,6 +16157,103 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "company_health_scores_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      company_kb_overrides: {
+        Row: {
+          company_id: string
+          created_at: string | null
+          created_by: string | null
+          effective_from: string | null
+          effective_to: string | null
+          embedding: string | null
+          id: string
+          is_active: boolean | null
+          kb_section: string | null
+          kb_subsection: string | null
+          original_excerpt: string | null
+          override_text: string
+          rationale: string | null
+          source_doc_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string | null
+          created_by?: string | null
+          effective_from?: string | null
+          effective_to?: string | null
+          embedding?: string | null
+          id?: string
+          is_active?: boolean | null
+          kb_section?: string | null
+          kb_subsection?: string | null
+          original_excerpt?: string | null
+          override_text: string
+          rationale?: string | null
+          source_doc_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          effective_from?: string | null
+          effective_to?: string | null
+          embedding?: string | null
+          id?: string
+          is_active?: boolean | null
+          kb_section?: string | null
+          kb_subsection?: string | null
+          original_excerpt?: string | null
+          override_text?: string
+          rationale?: string | null
+          source_doc_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_kb_overrides_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_kb_overrides_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_kb_overrides_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "company_kb_overrides_source_doc_id_fkey"
+            columns: ["source_doc_id"]
+            isOneToOne: false
+            referencedRelation: "ai_brain_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_kb_overrides_source_doc_id_fkey"
+            columns: ["source_doc_id"]
+            isOneToOne: false
+            referencedRelation: "v_kb_quality_alerts"
+            referencedColumns: ["id"]
+          },
         ]
       }
       company_notes: {
@@ -13920,6 +16292,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_notes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -13965,6 +16344,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_onboarding_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "company_onboarding_template_id_fkey"
@@ -14016,6 +16402,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "company_onboarding_completions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "company_onboarding_completions_step_id_fkey"
             columns: ["step_id"]
             isOneToOne: false
@@ -14060,6 +16453,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_onboarding_progress_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -14132,6 +16532,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_photo_library_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -14211,6 +16618,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "company_qr_codes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       company_qr_scan_logs: {
@@ -14266,6 +16680,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "company_qr_scan_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "company_qr_scan_logs_qr_code_id_fkey"
             columns: ["qr_code_id"]
             isOneToOne: false
@@ -14310,6 +16731,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_role_dashboards_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "company_role_dashboards_dashboard_id_fkey"
@@ -14391,6 +16819,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "company_subscriptions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "company_subscriptions_plan_id_fkey"
             columns: ["plan_id"]
             isOneToOne: false
@@ -14435,6 +16870,211 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_tags_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      compensation_beneficiaries: {
+        Row: {
+          company_id: string
+          created_at: string
+          default_compensation_type: string | null
+          default_compensation_value: number
+          display_name: string
+          email: string | null
+          id: string
+          is_active: boolean
+          metadata: Json
+          phone: string | null
+          role: string
+          source_id: string | null
+          source_type: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          default_compensation_type?: string | null
+          default_compensation_value?: number
+          display_name: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          metadata?: Json
+          phone?: string | null
+          role?: string
+          source_id?: string | null
+          source_type?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          default_compensation_type?: string | null
+          default_compensation_value?: number
+          display_name?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          metadata?: Json
+          phone?: string | null
+          role?: string
+          source_id?: string | null
+          source_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compensation_beneficiaries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "compensation_beneficiaries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compensation_beneficiaries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      compensation_settlement_items: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          order_variable_compensation_id: string
+          settlement_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          id?: string
+          order_variable_compensation_id: string
+          settlement_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          order_variable_compensation_id?: string
+          settlement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compensation_settlement_items_order_variable_compensation__fkey"
+            columns: ["order_variable_compensation_id"]
+            isOneToOne: false
+            referencedRelation: "order_variable_compensations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compensation_settlement_items_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "compensation_settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compensation_settlements: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          beneficiary_id: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          deductions_total: number
+          gross_total: number
+          id: string
+          net_total: number
+          notes: string | null
+          paid_date: string | null
+          period_end: string
+          period_start: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          beneficiary_id?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          deductions_total?: number
+          gross_total?: number
+          id?: string
+          net_total?: number
+          notes?: string | null
+          paid_date?: string | null
+          period_end: string
+          period_start: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          beneficiary_id?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          deductions_total?: number
+          gross_total?: number
+          id?: string
+          net_total?: number
+          notes?: string | null
+          paid_date?: string | null
+          period_end?: string
+          period_start?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compensation_settlements_beneficiary_id_fkey"
+            columns: ["beneficiary_id"]
+            isOneToOne: false
+            referencedRelation: "compensation_beneficiaries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compensation_settlements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "compensation_settlements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compensation_settlements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -14504,6 +17144,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_pricing_signals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -14634,6 +17281,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "computo_uploads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "computo_uploads_quote_id_fkey"
             columns: ["quote_id"]
             isOneToOne: false
@@ -14762,6 +17416,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "computo_voci_estratte_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "computo_voci_estratte_computo_upload_id_fkey"
             columns: ["computo_upload_id"]
             isOneToOne: false
@@ -14880,6 +17541,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "contact_attributions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "contact_attributions_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: true
@@ -14960,6 +17628,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "contact_messages_contact_id_fkey"
@@ -15109,6 +17784,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "contratti_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "contratti_documents_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
@@ -15193,6 +17875,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "contratti_manutenzione_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "contratti_manutenzione_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
@@ -15273,6 +17962,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "contratti_subappalto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "contratti_subappalto_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -15342,6 +18038,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cost_budgets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       cost_categories: {
@@ -15380,6 +18083,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_categories_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -15497,6 +18207,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cs_tasks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -15697,6 +18414,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "customer_complaints_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "customer_complaints_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -15796,11 +18520,179 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "customer_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "customer_documents_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_health_history: {
+        Row: {
+          company_id: string
+          created_at: string
+          features_used_30d: number
+          health_label: string
+          health_score: number
+          id: string
+          login_freq_30d: number
+          mrr_current: number
+          notes: string | null
+          nps_last: number | null
+          payment_status: string | null
+          score_delta_30d: number | null
+          score_delta_7d: number | null
+          snapshot_date: string
+          tickets_open: number
+          tickets_resolved_avg_hours: number | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          features_used_30d?: number
+          health_label: string
+          health_score: number
+          id?: string
+          login_freq_30d?: number
+          mrr_current?: number
+          notes?: string | null
+          nps_last?: number | null
+          payment_status?: string | null
+          score_delta_30d?: number | null
+          score_delta_7d?: number | null
+          snapshot_date?: string
+          tickets_open?: number
+          tickets_resolved_avg_hours?: number | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          features_used_30d?: number
+          health_label?: string
+          health_score?: number
+          id?: string
+          login_freq_30d?: number
+          mrr_current?: number
+          notes?: string | null
+          nps_last?: number | null
+          payment_status?: string | null
+          score_delta_30d?: number | null
+          score_delta_7d?: number | null
+          snapshot_date?: string
+          tickets_open?: number
+          tickets_resolved_avg_hours?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_health_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "customer_health_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_health_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      customer_interactions: {
+        Row: {
+          ai_persona_key: string | null
+          body: string | null
+          channel: string
+          company_id: string
+          contact_user_id: string | null
+          created_at: string
+          direction: string
+          external_message_id: string | null
+          external_thread_id: string | null
+          id: string
+          metadata: Json
+          occurred_at: string
+          related_ticket_id: string | null
+          sentiment: string | null
+          sentiment_confidence: number | null
+          staff_user_id: string | null
+          subject: string | null
+        }
+        Insert: {
+          ai_persona_key?: string | null
+          body?: string | null
+          channel: string
+          company_id: string
+          contact_user_id?: string | null
+          created_at?: string
+          direction: string
+          external_message_id?: string | null
+          external_thread_id?: string | null
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          related_ticket_id?: string | null
+          sentiment?: string | null
+          sentiment_confidence?: number | null
+          staff_user_id?: string | null
+          subject?: string | null
+        }
+        Update: {
+          ai_persona_key?: string | null
+          body?: string | null
+          channel?: string
+          company_id?: string
+          contact_user_id?: string | null
+          created_at?: string
+          direction?: string
+          external_message_id?: string | null
+          external_thread_id?: string | null
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          related_ticket_id?: string | null
+          sentiment?: string | null
+          sentiment_confidence?: number | null
+          staff_user_id?: string | null
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_interactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "customer_interactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_interactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -15883,6 +18775,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "customer_ltv_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       customer_messages: {
@@ -15942,6 +18841,138 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      customer_onboarding: {
+        Row: {
+          churn_reason: string | null
+          churned_at: string | null
+          company_id: string
+          current_blockers: Json
+          current_phase: string
+          florin_check_in_due: string | null
+          graduated_at: string | null
+          milestones: Json
+          started_at: string
+          updated_at: string
+        }
+        Insert: {
+          churn_reason?: string | null
+          churned_at?: string | null
+          company_id: string
+          current_blockers?: Json
+          current_phase?: string
+          florin_check_in_due?: string | null
+          graduated_at?: string | null
+          milestones?: Json
+          started_at?: string
+          updated_at?: string
+        }
+        Update: {
+          churn_reason?: string | null
+          churned_at?: string | null
+          company_id?: string
+          current_blockers?: Json
+          current_phase?: string
+          florin_check_in_due?: string | null
+          graduated_at?: string | null
+          milestones?: Json
+          started_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_onboarding_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "customer_onboarding_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_onboarding_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      customer_usage_daily: {
+        Row: {
+          company_id: string
+          created_at: string
+          errors_count: number
+          features_used: Json
+          first_login_at: string | null
+          last_login_at: string | null
+          login_count: number
+          modules_used: Json
+          total_session_minutes: number
+          unique_users_active: number
+          usage_date: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          errors_count?: number
+          features_used?: Json
+          first_login_at?: string | null
+          last_login_at?: string | null
+          login_count?: number
+          modules_used?: Json
+          total_session_minutes?: number
+          unique_users_active?: number
+          usage_date?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          errors_count?: number
+          features_used?: Json
+          first_login_at?: string | null
+          last_login_at?: string | null
+          login_count?: number
+          modules_used?: Json
+          total_session_minutes?: number
+          unique_users_active?: number
+          usage_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_usage_daily_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "customer_usage_daily_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_usage_daily_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -16063,6 +19094,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "customer_weekly_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "customer_weekly_reports_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
@@ -16070,6 +19108,146 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      customer_workflow_runs: {
+        Row: {
+          approval_id: string | null
+          approval_resolved_at: string | null
+          company_id: string | null
+          completed_at: string | null
+          cost_usd: number | null
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          output: Json | null
+          started_at: string
+          status: string
+          tokens_input: number | null
+          tokens_output: number | null
+          trigger_payload: Json | null
+          triggered_by: string
+          workflow_key: string
+        }
+        Insert: {
+          approval_id?: string | null
+          approval_resolved_at?: string | null
+          company_id?: string | null
+          completed_at?: string | null
+          cost_usd?: number | null
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          output?: Json | null
+          started_at?: string
+          status?: string
+          tokens_input?: number | null
+          tokens_output?: number | null
+          trigger_payload?: Json | null
+          triggered_by: string
+          workflow_key: string
+        }
+        Update: {
+          approval_id?: string | null
+          approval_resolved_at?: string | null
+          company_id?: string | null
+          completed_at?: string | null
+          cost_usd?: number | null
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          output?: Json | null
+          started_at?: string
+          status?: string
+          tokens_input?: number | null
+          tokens_output?: number | null
+          trigger_payload?: Json | null
+          triggered_by?: string
+          workflow_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_workflow_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "customer_workflow_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_workflow_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "customer_workflow_runs_workflow_key_fkey"
+            columns: ["workflow_key"]
+            isOneToOne: false
+            referencedRelation: "customer_workflows"
+            referencedColumns: ["workflow_key"]
+          },
+        ]
+      }
+      customer_workflows: {
+        Row: {
+          created_at: string
+          cron_schedule: string | null
+          default_mode: string
+          description: string | null
+          display_name: string
+          edge_function_name: string
+          enabled: boolean
+          max_cost_usd_per_run: number | null
+          max_runs_per_day: number | null
+          owner_persona_key: string
+          risk_level: string
+          trigger_event: string | null
+          trigger_type: string
+          updated_at: string
+          workflow_key: string
+        }
+        Insert: {
+          created_at?: string
+          cron_schedule?: string | null
+          default_mode?: string
+          description?: string | null
+          display_name: string
+          edge_function_name: string
+          enabled?: boolean
+          max_cost_usd_per_run?: number | null
+          max_runs_per_day?: number | null
+          owner_persona_key: string
+          risk_level?: string
+          trigger_event?: string | null
+          trigger_type: string
+          updated_at?: string
+          workflow_key: string
+        }
+        Update: {
+          created_at?: string
+          cron_schedule?: string | null
+          default_mode?: string
+          description?: string | null
+          display_name?: string
+          edge_function_name?: string
+          enabled?: boolean
+          max_cost_usd_per_run?: number | null
+          max_runs_per_day?: number | null
+          owner_persona_key?: string
+          risk_level?: string
+          trigger_event?: string | null
+          trigger_type?: string
+          updated_at?: string
+          workflow_key?: string
+        }
+        Relationships: []
       }
       dashboard_templates: {
         Row: {
@@ -16149,6 +19327,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dashboard_user_access_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "dashboard_user_access_dashboard_id_fkey"
@@ -16277,6 +19462,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dashboards_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -16429,6 +19621,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ddt_ricezione_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "ddt_ricezione_purchase_order_id_fkey"
             columns: ["purchase_order_id"]
             isOneToOne: false
@@ -16441,6 +19640,55 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "warehouses"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      deliverability_metriche: {
+        Row: {
+          bounce: number
+          company_id: string
+          consegnate: number
+          giorno: string
+          inviate: number
+          spam_report: number
+        }
+        Insert: {
+          bounce?: number
+          company_id: string
+          consegnate?: number
+          giorno: string
+          inviate?: number
+          spam_report?: number
+        }
+        Update: {
+          bounce?: number
+          company_id?: string
+          consegnate?: number
+          giorno?: string
+          inviate?: number
+          spam_report?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deliverability_metriche_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "deliverability_metriche_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deliverability_metriche_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -16507,6 +19755,59 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demand_index_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      digest_log: {
+        Row: {
+          company_id: string
+          contenuto: Json
+          generato_at: string
+          id: string
+          utente_id: string
+        }
+        Insert: {
+          company_id: string
+          contenuto?: Json
+          generato_at?: string
+          id?: string
+          utente_id: string
+        }
+        Update: {
+          company_id?: string
+          contenuto?: Json
+          generato_at?: string
+          id?: string
+          utente_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "digest_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "digest_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "digest_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -16579,6 +19880,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discount_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "discount_rules_salesperson_id_fkey"
@@ -16751,6 +20059,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "document_analysis_results_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       document_link_policy: {
@@ -16872,6 +20187,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "document_link_suggestions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "document_link_suggestions_resulting_attachment_id_fkey"
             columns: ["resulting_attachment_id"]
             isOneToOne: false
@@ -16931,6 +20253,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documenti_dipendenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "documenti_dipendenti_user_id_fkey"
@@ -17265,6 +20594,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "documenti_fiscali_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "documenti_fiscali_ddt_fattura_id_fkey"
             columns: ["ddt_fattura_id"]
             isOneToOne: false
@@ -17367,6 +20703,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "documenti_operai_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "documenti_operai_operaio_id_fkey"
             columns: ["operaio_id"]
             isOneToOne: false
@@ -17433,6 +20776,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documenti_subappaltatore_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "documenti_subappaltatore_subappaltatore_id_fkey"
@@ -17516,6 +20866,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documento_sessioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "documento_sessioni_contact_id_fkey"
@@ -17627,6 +20984,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "documento_template_fields_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "documento_template_fields_template_id_fkey"
             columns: ["template_id"]
             isOneToOne: false
@@ -17695,6 +21059,80 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documento_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      domini_invio: {
+        Row: {
+          company_id: string
+          created_at: string
+          dkim_ok: boolean | null
+          dkim_selector: string | null
+          dmarc_ok: boolean | null
+          dmarc_policy: string | null
+          dominio: string
+          id: string
+          spf_ok: boolean | null
+          ultimo_check_at: string | null
+          updated_at: string
+          warmup_stato: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          dkim_ok?: boolean | null
+          dkim_selector?: string | null
+          dmarc_ok?: boolean | null
+          dmarc_policy?: string | null
+          dominio: string
+          id?: string
+          spf_ok?: boolean | null
+          ultimo_check_at?: string | null
+          updated_at?: string
+          warmup_stato?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          dkim_ok?: boolean | null
+          dkim_selector?: string | null
+          dmarc_ok?: boolean | null
+          dmarc_policy?: string | null
+          dominio?: string
+          id?: string
+          spf_ok?: boolean | null
+          ultimo_check_at?: string | null
+          updated_at?: string
+          warmup_stato?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "domini_invio_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "domini_invio_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "domini_invio_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -17778,6 +21216,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "dunning_actions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "dunning_actions_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
@@ -17858,6 +21303,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dunning_attempts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -17963,6 +21415,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dunning_policies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -18079,6 +21538,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "durc_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "durc_documents_superseded_by_fkey"
             columns: ["superseded_by"]
             isOneToOne: false
@@ -18153,6 +21619,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "duvri_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "duvri_documents_order_id_fkey"
@@ -18252,6 +21725,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "eic_finanziarie_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       eic_tabelle_finanziamento: {
@@ -18343,6 +21823,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "eic_tabelle_finanziamento_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "eic_tabelle_finanziamento_finanziaria_id_fkey"
             columns: ["finanziaria_id"]
             isOneToOne: false
@@ -18431,11 +21918,70 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "eic_tabelle_finanziamento_righe_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "eic_tabelle_finanziamento_righe_tabella_id_fkey"
             columns: ["tabella_id"]
             isOneToOne: false
             referencedRelation: "eic_tabelle_finanziamento"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_accessi: {
+        Row: {
+          company_id: string
+          created_at: string
+          email_id: string | null
+          id: string
+          thread_id: string | null
+          user_id: string
+          via: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          email_id?: string | null
+          id?: string
+          thread_id?: string | null
+          user_id: string
+          via: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          email_id?: string | null
+          id?: string
+          thread_id?: string | null
+          user_id?: string
+          via?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_accessi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_accessi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_accessi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -18492,10 +22038,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "email_attachments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "email_attachments_inbox_id_fkey"
             columns: ["inbox_id"]
             isOneToOne: false
             referencedRelation: "email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_attachments_inbox_id_fkey"
+            columns: ["inbox_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_inbox_classified"
             referencedColumns: ["id"]
           },
           {
@@ -18566,6 +22126,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_billing_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -18703,6 +22270,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "email_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "email_campaigns_folder_id_fkey"
             columns: ["folder_id"]
             isOneToOne: false
@@ -18715,6 +22289,155 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "email_templates"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_collegamenti: {
+        Row: {
+          collegato_da: string | null
+          company_id: string
+          confidenza: number | null
+          created_at: string
+          email_id: string
+          id: string
+          oggetto_id: string
+          oggetto_tipo: string
+          origine: string
+          thread_id: string | null
+        }
+        Insert: {
+          collegato_da?: string | null
+          company_id: string
+          confidenza?: number | null
+          created_at?: string
+          email_id: string
+          id?: string
+          oggetto_id: string
+          oggetto_tipo: string
+          origine?: string
+          thread_id?: string | null
+        }
+        Update: {
+          collegato_da?: string | null
+          company_id?: string
+          confidenza?: number | null
+          created_at?: string
+          email_id?: string
+          id?: string
+          oggetto_id?: string
+          oggetto_tipo?: string
+          origine?: string
+          thread_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_collegamenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_collegamenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_collegamenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_collegamenti_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_collegamenti_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_inbox_classified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_collegamenti_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_email_inbox"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_correzioni: {
+        Row: {
+          categoria_dopo: string | null
+          categoria_prima: string | null
+          classificato_da_prima: string | null
+          company_id: string
+          created_at: string
+          email_id: string
+          entita_id_dopo: string | null
+          entita_tipo_dopo: string | null
+          evento: string
+          id: string
+          mittente_email: string
+          user_id: string | null
+        }
+        Insert: {
+          categoria_dopo?: string | null
+          categoria_prima?: string | null
+          classificato_da_prima?: string | null
+          company_id: string
+          created_at?: string
+          email_id: string
+          entita_id_dopo?: string | null
+          entita_tipo_dopo?: string | null
+          evento: string
+          id?: string
+          mittente_email: string
+          user_id?: string | null
+        }
+        Update: {
+          categoria_dopo?: string | null
+          categoria_prima?: string | null
+          classificato_da_prima?: string | null
+          company_id?: string
+          created_at?: string
+          email_id?: string
+          entita_id_dopo?: string | null
+          entita_tipo_dopo?: string | null
+          evento?: string
+          id?: string
+          mittente_email?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_correzioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_correzioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_correzioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -18776,6 +22499,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "email_credits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       email_credits_log: {
@@ -18835,6 +22565,136 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_credits_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      email_ddt_carico: {
+        Row: {
+          company_id: string
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          created_by: string | null
+          ddt_data: string | null
+          ddt_numero: string | null
+          documento_estratto_id: string | null
+          email_id: string | null
+          fornitore_match_id: string | null
+          id: string
+          movimento_created: boolean
+          purchase_order_id: string | null
+          purchase_order_numero: string | null
+          righe: Json
+          scostamenti_totali: number
+          senza_ordine: boolean
+          stato: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          ddt_data?: string | null
+          ddt_numero?: string | null
+          documento_estratto_id?: string | null
+          email_id?: string | null
+          fornitore_match_id?: string | null
+          id?: string
+          movimento_created?: boolean
+          purchase_order_id?: string | null
+          purchase_order_numero?: string | null
+          righe?: Json
+          scostamenti_totali?: number
+          senza_ordine?: boolean
+          stato?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          ddt_data?: string | null
+          ddt_numero?: string | null
+          documento_estratto_id?: string | null
+          email_id?: string | null
+          fornitore_match_id?: string | null
+          id?: string
+          movimento_created?: boolean
+          purchase_order_id?: string | null
+          purchase_order_numero?: string | null
+          righe?: Json
+          scostamenti_totali?: number
+          senza_ordine?: boolean
+          stato?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_ddt_carico_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_ddt_carico_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_ddt_carico_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_ddt_carico_documento_estratto_id_fkey"
+            columns: ["documento_estratto_id"]
+            isOneToOne: false
+            referencedRelation: "email_documento_estratto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_ddt_carico_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_ddt_carico_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_inbox_classified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_ddt_carico_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_ddt_carico_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -18940,10 +22800,264 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "email_delivery_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "email_delivery_log_from_domain_id_fkey"
             columns: ["from_domain_id"]
             isOneToOne: false
             referencedRelation: "company_email_domains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_documento_estratto: {
+        Row: {
+          attachment_id: string | null
+          campi: Json
+          company_id: string
+          confidenza_tipo: number | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          created_by: string | null
+          dati_incerti: string[]
+          dedup_fattura_id: string | null
+          documento_creato_id: string | null
+          documento_creato_tipo: string | null
+          email_id: string | null
+          fornitore_match_id: string | null
+          fornitore_match_tipo: string | null
+          iban_alert: boolean
+          iban_estratto: string | null
+          id: string
+          note: string | null
+          pdf_storage_bucket: string | null
+          pdf_storage_path: string | null
+          stato: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          attachment_id?: string | null
+          campi?: Json
+          company_id: string
+          confidenza_tipo?: number | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          dati_incerti?: string[]
+          dedup_fattura_id?: string | null
+          documento_creato_id?: string | null
+          documento_creato_tipo?: string | null
+          email_id?: string | null
+          fornitore_match_id?: string | null
+          fornitore_match_tipo?: string | null
+          iban_alert?: boolean
+          iban_estratto?: string | null
+          id?: string
+          note?: string | null
+          pdf_storage_bucket?: string | null
+          pdf_storage_path?: string | null
+          stato?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          attachment_id?: string | null
+          campi?: Json
+          company_id?: string
+          confidenza_tipo?: number | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          dati_incerti?: string[]
+          dedup_fattura_id?: string | null
+          documento_creato_id?: string | null
+          documento_creato_tipo?: string | null
+          email_id?: string | null
+          fornitore_match_id?: string | null
+          fornitore_match_tipo?: string | null
+          iban_alert?: boolean
+          iban_estratto?: string | null
+          id?: string
+          note?: string | null
+          pdf_storage_bucket?: string | null
+          pdf_storage_path?: string | null
+          stato?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_documento_estratto_attachment_id_fkey"
+            columns: ["attachment_id"]
+            isOneToOne: false
+            referencedRelation: "email_attachments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_documento_estratto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_documento_estratto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_documento_estratto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_documento_estratto_dedup_fattura_id_fkey"
+            columns: ["dedup_fattura_id"]
+            isOneToOne: false
+            referencedRelation: "fatture_ricevute"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_documento_estratto_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_documento_estratto_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_inbox_classified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_documento_estratto_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_email_inbox"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_evento_bozza: {
+        Row: {
+          ambiguo: boolean
+          cantiere_id: string | null
+          company_id: string
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          created_by: string | null
+          email_id: string | null
+          fine: string | null
+          id: string
+          inizio: string | null
+          luogo: string | null
+          nota: string | null
+          partecipanti: string[]
+          promemoria_minuti: number | null
+          stato: string
+          titolo: string | null
+          tutto_il_giorno: boolean
+          updated_at: string
+        }
+        Insert: {
+          ambiguo?: boolean
+          cantiere_id?: string | null
+          company_id: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          email_id?: string | null
+          fine?: string | null
+          id?: string
+          inizio?: string | null
+          luogo?: string | null
+          nota?: string | null
+          partecipanti?: string[]
+          promemoria_minuti?: number | null
+          stato?: string
+          titolo?: string | null
+          tutto_il_giorno?: boolean
+          updated_at?: string
+        }
+        Update: {
+          ambiguo?: boolean
+          cantiere_id?: string | null
+          company_id?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          email_id?: string | null
+          fine?: string | null
+          id?: string
+          inizio?: string | null
+          luogo?: string | null
+          nota?: string | null
+          partecipanti?: string[]
+          promemoria_minuti?: number | null
+          stato?: string
+          titolo?: string | null
+          tutto_il_giorno?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_evento_bozza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_evento_bozza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_evento_bozza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_evento_bozza_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_evento_bozza_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_inbox_classified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_evento_bozza_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_email_inbox"
             referencedColumns: ["id"]
           },
         ]
@@ -18998,6 +23112,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "email_folders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "email_folders_parent_id_fkey"
             columns: ["parent_id"]
             isOneToOne: false
@@ -19017,25 +23138,48 @@ export type Database = {
           ai_suggested_action: string | null
           ai_summary: string | null
           attachments: Json | null
+          bcc_emails: string[] | null
+          categoria: Database["public"]["Enums"]["email_categoria_v2"] | null
+          cc_emails: string[] | null
+          classificato_at: string | null
+          classificato_da: string | null
           company_id: string
+          confidenza: number | null
+          conservazione_legale: boolean
           created_at: string
+          da_rivedere: boolean
+          embedding: string | null
+          embedding_at: string | null
+          entita_id: string | null
+          entita_tipo: string | null
           folder_id: string | null
           from_email: string
           from_name: string | null
+          headers: Json | null
           id: string
           in_reply_to: string | null
           is_archived: boolean
+          is_pec: boolean
+          is_personale: boolean
           is_read: boolean
           is_starred: boolean
           is_trashed: boolean
+          mailbox_folder: string
           matched_contact_id: string | null
           matched_order_id: string | null
           message_id: string | null
           oauth_connection_id: string | null
+          pec_messaggio_id: string | null
+          pec_stato: string | null
+          pec_tipo: string | null
+          provider_message_id: string | null
+          provider_thread_id: string | null
           raw_html: string | null
           raw_text: string | null
           received_at: string
           references_ids: string[] | null
+          rischio_livello: string | null
+          rischio_segnali: Json | null
           status: string
           subject: string | null
           thread_id: string | null
@@ -19053,25 +23197,48 @@ export type Database = {
           ai_suggested_action?: string | null
           ai_summary?: string | null
           attachments?: Json | null
+          bcc_emails?: string[] | null
+          categoria?: Database["public"]["Enums"]["email_categoria_v2"] | null
+          cc_emails?: string[] | null
+          classificato_at?: string | null
+          classificato_da?: string | null
           company_id: string
+          confidenza?: number | null
+          conservazione_legale?: boolean
           created_at?: string
+          da_rivedere?: boolean
+          embedding?: string | null
+          embedding_at?: string | null
+          entita_id?: string | null
+          entita_tipo?: string | null
           folder_id?: string | null
           from_email: string
           from_name?: string | null
+          headers?: Json | null
           id?: string
           in_reply_to?: string | null
           is_archived?: boolean
+          is_pec?: boolean
+          is_personale?: boolean
           is_read?: boolean
           is_starred?: boolean
           is_trashed?: boolean
+          mailbox_folder?: string
           matched_contact_id?: string | null
           matched_order_id?: string | null
           message_id?: string | null
           oauth_connection_id?: string | null
+          pec_messaggio_id?: string | null
+          pec_stato?: string | null
+          pec_tipo?: string | null
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
           raw_html?: string | null
           raw_text?: string | null
           received_at?: string
           references_ids?: string[] | null
+          rischio_livello?: string | null
+          rischio_segnali?: Json | null
           status?: string
           subject?: string | null
           thread_id?: string | null
@@ -19089,25 +23256,48 @@ export type Database = {
           ai_suggested_action?: string | null
           ai_summary?: string | null
           attachments?: Json | null
+          bcc_emails?: string[] | null
+          categoria?: Database["public"]["Enums"]["email_categoria_v2"] | null
+          cc_emails?: string[] | null
+          classificato_at?: string | null
+          classificato_da?: string | null
           company_id?: string
+          confidenza?: number | null
+          conservazione_legale?: boolean
           created_at?: string
+          da_rivedere?: boolean
+          embedding?: string | null
+          embedding_at?: string | null
+          entita_id?: string | null
+          entita_tipo?: string | null
           folder_id?: string | null
           from_email?: string
           from_name?: string | null
+          headers?: Json | null
           id?: string
           in_reply_to?: string | null
           is_archived?: boolean
+          is_pec?: boolean
+          is_personale?: boolean
           is_read?: boolean
           is_starred?: boolean
           is_trashed?: boolean
+          mailbox_folder?: string
           matched_contact_id?: string | null
           matched_order_id?: string | null
           message_id?: string | null
           oauth_connection_id?: string | null
+          pec_messaggio_id?: string | null
+          pec_stato?: string | null
+          pec_tipo?: string | null
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
           raw_html?: string | null
           raw_text?: string | null
           received_at?: string
           references_ids?: string[] | null
+          rischio_livello?: string | null
+          rischio_segnali?: Json | null
           status?: string
           subject?: string | null
           thread_id?: string | null
@@ -19136,6 +23326,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "email_inbox_matched_contact_id_fkey"
@@ -19223,6 +23420,13 @@ export type Database = {
             foreignKeyName: "email_inbox_labels_inbox_id_fkey"
             columns: ["inbox_id"]
             isOneToOne: false
+            referencedRelation: "v_email_inbox_classified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_labels_inbox_id_fkey"
+            columns: ["inbox_id"]
+            isOneToOne: false
             referencedRelation: "v_my_email_inbox"
             referencedColumns: ["id"]
           },
@@ -19283,6 +23487,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_labels_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -19388,6 +23599,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "email_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "email_logs_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -19410,6 +23628,106 @@ export type Database = {
           },
         ]
       }
+      email_message_activity: {
+        Row: {
+          action: string
+          company_id: string
+          created_at: string
+          email_address: string | null
+          id: string
+          message_id: string
+          oauth_connection_id: string | null
+          thread_id: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          company_id: string
+          created_at?: string
+          email_address?: string | null
+          id?: string
+          message_id: string
+          oauth_connection_id?: string | null
+          thread_id?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          company_id?: string
+          created_at?: string
+          email_address?: string | null
+          id?: string
+          message_id?: string
+          oauth_connection_id?: string | null
+          thread_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      email_metriche_giorno: {
+        Row: {
+          aggiornato_at: string
+          company_id: string
+          da_embedding: number
+          da_haiku: number
+          da_manuale: number
+          da_regola: number
+          da_rivedere: number
+          giorno: string
+          haiku_token_input: number
+          haiku_token_output: number
+          totale: number
+        }
+        Insert: {
+          aggiornato_at?: string
+          company_id: string
+          da_embedding?: number
+          da_haiku?: number
+          da_manuale?: number
+          da_regola?: number
+          da_rivedere?: number
+          giorno: string
+          haiku_token_input?: number
+          haiku_token_output?: number
+          totale?: number
+        }
+        Update: {
+          aggiornato_at?: string
+          company_id?: string
+          da_embedding?: number
+          da_haiku?: number
+          da_manuale?: number
+          da_regola?: number
+          da_rivedere?: number
+          giorno?: string
+          haiku_token_input?: number
+          haiku_token_output?: number
+          totale?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_metriche_giorno_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_metriche_giorno_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_metriche_giorno_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       email_oauth_connections: {
         Row: {
           access_token_enc: string | null
@@ -19424,12 +23742,16 @@ export type Database = {
           imap_port: number | null
           imap_secure: boolean | null
           imap_username: string | null
+          is_pec: boolean
           last_sync_error: string | null
           last_synced_at: string | null
           last_test_at: string | null
           last_test_error: string | null
           last_test_ok: boolean | null
           password_enc: string | null
+          password_nonce: string | null
+          pec_certificata: boolean
+          pec_provider: string | null
           poll_enabled: boolean
           poll_interval_minutes: number
           provider: string
@@ -19437,6 +23759,8 @@ export type Database = {
           provider_metadata: Json | null
           refresh_token_enc: string | null
           scopes: string[] | null
+          signature_html: string | null
+          signature_text: string | null
           smtp_host: string | null
           smtp_port: number | null
           smtp_secure: boolean | null
@@ -19458,12 +23782,16 @@ export type Database = {
           imap_port?: number | null
           imap_secure?: boolean | null
           imap_username?: string | null
+          is_pec?: boolean
           last_sync_error?: string | null
           last_synced_at?: string | null
           last_test_at?: string | null
           last_test_error?: string | null
           last_test_ok?: boolean | null
           password_enc?: string | null
+          password_nonce?: string | null
+          pec_certificata?: boolean
+          pec_provider?: string | null
           poll_enabled?: boolean
           poll_interval_minutes?: number
           provider: string
@@ -19471,6 +23799,8 @@ export type Database = {
           provider_metadata?: Json | null
           refresh_token_enc?: string | null
           scopes?: string[] | null
+          signature_html?: string | null
+          signature_text?: string | null
           smtp_host?: string | null
           smtp_port?: number | null
           smtp_secure?: boolean | null
@@ -19492,12 +23822,16 @@ export type Database = {
           imap_port?: number | null
           imap_secure?: boolean | null
           imap_username?: string | null
+          is_pec?: boolean
           last_sync_error?: string | null
           last_synced_at?: string | null
           last_test_at?: string | null
           last_test_error?: string | null
           last_test_ok?: boolean | null
           password_enc?: string | null
+          password_nonce?: string | null
+          pec_certificata?: boolean
+          pec_provider?: string | null
           poll_enabled?: boolean
           poll_interval_minutes?: number
           provider?: string
@@ -19505,6 +23839,8 @@ export type Database = {
           provider_metadata?: Json | null
           refresh_token_enc?: string | null
           scopes?: string[] | null
+          signature_html?: string | null
+          signature_text?: string | null
           smtp_host?: string | null
           smtp_port?: number | null
           smtp_secure?: boolean | null
@@ -19526,6 +23862,128 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_oauth_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      email_opportunita_bozza: {
+        Row: {
+          allegati: Json
+          cliente_match_id: string | null
+          cliente_match_tipo: string | null
+          cliente_nuovo: Json | null
+          company_id: string
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          created_by: string | null
+          dedup_opportunita_id: string | null
+          email_id: string | null
+          id: string
+          indirizzo: string | null
+          opportunita_creata_id: string | null
+          quote_id: string | null
+          richiesta_sintesi: string | null
+          stato: string
+          tempistiche: string | null
+          tipo_lavoro: string | null
+          updated_at: string
+          vincoli: string | null
+        }
+        Insert: {
+          allegati?: Json
+          cliente_match_id?: string | null
+          cliente_match_tipo?: string | null
+          cliente_nuovo?: Json | null
+          company_id: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          dedup_opportunita_id?: string | null
+          email_id?: string | null
+          id?: string
+          indirizzo?: string | null
+          opportunita_creata_id?: string | null
+          quote_id?: string | null
+          richiesta_sintesi?: string | null
+          stato?: string
+          tempistiche?: string | null
+          tipo_lavoro?: string | null
+          updated_at?: string
+          vincoli?: string | null
+        }
+        Update: {
+          allegati?: Json
+          cliente_match_id?: string | null
+          cliente_match_tipo?: string | null
+          cliente_nuovo?: Json | null
+          company_id?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          dedup_opportunita_id?: string | null
+          email_id?: string | null
+          id?: string
+          indirizzo?: string | null
+          opportunita_creata_id?: string | null
+          quote_id?: string | null
+          richiesta_sintesi?: string | null
+          stato?: string
+          tempistiche?: string | null
+          tipo_lavoro?: string | null
+          updated_at?: string
+          vincoli?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_opportunita_bozza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_opportunita_bozza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_opportunita_bozza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_opportunita_bozza_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_opportunita_bozza_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_inbox_classified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_opportunita_bozza_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_email_inbox"
             referencedColumns: ["id"]
           },
         ]
@@ -19575,6 +24033,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_optin_tokens_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "email_optin_tokens_contact_id_fkey"
@@ -19723,10 +24188,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "email_outbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "email_outbox_in_reply_to_id_fkey"
             columns: ["in_reply_to_id"]
             isOneToOne: false
             referencedRelation: "email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_outbox_in_reply_to_id_fkey"
+            columns: ["in_reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_inbox_classified"
             referencedColumns: ["id"]
           },
           {
@@ -19802,6 +24281,205 @@ export type Database = {
         }
         Relationships: []
       }
+      email_regole: {
+        Row: {
+          approvata_da: string | null
+          azioni: Json
+          combinatore: string
+          company_id: string
+          condizioni: Json
+          creata_da: string | null
+          created_at: string
+          id: string
+          match_count: number
+          nome: string
+          origine: string
+          priorita: number
+          stato: string
+          supporto: number | null
+          ultimo_match_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          approvata_da?: string | null
+          azioni?: Json
+          combinatore?: string
+          company_id: string
+          condizioni?: Json
+          creata_da?: string | null
+          created_at?: string
+          id?: string
+          match_count?: number
+          nome: string
+          origine?: string
+          priorita?: number
+          stato?: string
+          supporto?: number | null
+          ultimo_match_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approvata_da?: string | null
+          azioni?: Json
+          combinatore?: string
+          company_id?: string
+          condizioni?: Json
+          creata_da?: string | null
+          created_at?: string
+          id?: string
+          match_count?: number
+          nome?: string
+          origine?: string
+          priorita?: number
+          stato?: string
+          supporto?: number | null
+          ultimo_match_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_regole_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_regole_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_regole_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      email_scadenza_bozza: {
+        Row: {
+          amount: number
+          company_id: string
+          confirmed_at: string | null
+          confirmed_by: string | null
+          controparte_id: string | null
+          controparte_tipo: string | null
+          created_at: string
+          created_by: string | null
+          dedup_scadenza_id: string | null
+          descrizione: string | null
+          direzione: string
+          documento_estratto_id: string | null
+          due_date: string
+          email_id: string | null
+          id: string
+          scadenza_creata_id: string | null
+          stato: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          company_id: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          controparte_id?: string | null
+          controparte_tipo?: string | null
+          created_at?: string
+          created_by?: string | null
+          dedup_scadenza_id?: string | null
+          descrizione?: string | null
+          direzione?: string
+          documento_estratto_id?: string | null
+          due_date: string
+          email_id?: string | null
+          id?: string
+          scadenza_creata_id?: string | null
+          stato?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          controparte_id?: string | null
+          controparte_tipo?: string | null
+          created_at?: string
+          created_by?: string | null
+          dedup_scadenza_id?: string | null
+          descrizione?: string | null
+          direzione?: string
+          documento_estratto_id?: string | null
+          due_date?: string
+          email_id?: string | null
+          id?: string
+          scadenza_creata_id?: string | null
+          stato?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_scadenza_bozza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_scadenza_bozza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_scadenza_bozza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_scadenza_bozza_documento_estratto_id_fkey"
+            columns: ["documento_estratto_id"]
+            isOneToOne: false
+            referencedRelation: "email_documento_estratto"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_scadenza_bozza_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_scadenza_bozza_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_inbox_classified"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_scadenza_bozza_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_email_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_scadenza_bozza_scadenza_creata_id_fkey"
+            columns: ["scadenza_creata_id"]
+            isOneToOne: false
+            referencedRelation: "scadenze"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_suppressions: {
         Row: {
           company_id: string | null
@@ -19856,6 +24534,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_suppressions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -19918,6 +24603,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "email_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "email_templates_folder_id_fkey"
             columns: ["folder_id"]
             isOneToOne: false
@@ -19930,15 +24622,19 @@ export type Database = {
         Row: {
           company_id: string
           created_at: string
+          entita_id: string | null
+          entita_tipo: string | null
           first_received_at: string
           has_attachments: boolean
           has_starred: boolean
           id: string
           last_received_at: string
           message_count: number
+          oggetto_canonico: string | null
           participants: string[]
           preview: string | null
           subject_normalized: string
+          thread_key: string | null
           unread_count: number
           updated_at: string
           user_id: string
@@ -19946,15 +24642,19 @@ export type Database = {
         Insert: {
           company_id: string
           created_at?: string
+          entita_id?: string | null
+          entita_tipo?: string | null
           first_received_at?: string
           has_attachments?: boolean
           has_starred?: boolean
           id?: string
           last_received_at?: string
           message_count?: number
+          oggetto_canonico?: string | null
           participants?: string[]
           preview?: string | null
           subject_normalized: string
+          thread_key?: string | null
           unread_count?: number
           updated_at?: string
           user_id: string
@@ -19962,15 +24662,19 @@ export type Database = {
         Update: {
           company_id?: string
           created_at?: string
+          entita_id?: string | null
+          entita_tipo?: string | null
           first_received_at?: string
           has_attachments?: boolean
           has_starred?: boolean
           id?: string
           last_received_at?: string
           message_count?: number
+          oggetto_canonico?: string | null
           participants?: string[]
           preview?: string | null
           subject_normalized?: string
+          thread_key?: string | null
           unread_count?: number
           updated_at?: string
           user_id?: string
@@ -19989,6 +24693,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_threads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -20111,6 +24822,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "employee_dpi_consegne_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "employee_dpi_consegne_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -20183,6 +24901,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_formations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "employee_formations_employee_id_fkey"
@@ -20262,6 +24987,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "employee_skills_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "employee_skills_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -20331,6 +25063,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_visite_mediche_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "employee_visite_mediche_employee_id_fkey"
@@ -20499,6 +25238,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "employees_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       entity_attachments: {
@@ -20583,6 +25329,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "entity_attachments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       entity_custom_field_values: {
@@ -20627,6 +25380,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entity_custom_field_values_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "entity_custom_field_values_field_id_fkey"
@@ -20697,6 +25457,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entity_embeddings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -20876,6 +25643,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "expense_report_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "expense_report_items_report_id_fkey"
             columns: ["report_id"]
             isOneToOne: false
@@ -20953,6 +25727,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -21058,6 +25839,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "external_teams_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       f24_entries: {
@@ -21124,6 +25912,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "f24_entries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       failure_alerts: {
@@ -21171,6 +25966,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "failure_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -21285,6 +26087,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "fatt_zero_touch_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "fatt_zero_touch_runs_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
@@ -21359,6 +26168,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fattura_ordine_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "fattura_ordine_fattura_id_fkey"
@@ -21530,6 +26346,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "fatture_ricevute_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "fatture_ricevute_order_id_suggerito_fkey"
             columns: ["order_id_suggerito"]
             isOneToOne: false
@@ -21635,6 +26458,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fea_configurazione_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       feature_bundles: {
@@ -21703,6 +26533,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feature_bundles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -21806,6 +26643,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "feature_unlock_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       financial_anomalies: {
@@ -21894,6 +26738,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "financial_anomalies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "financial_anomalies_transaction_id_fkey"
             columns: ["transaction_id"]
             isOneToOne: false
@@ -21978,6 +26829,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fiscal_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       flow_execution_runs: {
@@ -22042,6 +26900,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "flow_execution_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "flow_execution_runs_enrollment_id_fkey"
             columns: ["enrollment_id"]
             isOneToOne: false
@@ -22065,6 +26930,7 @@ export type Database = {
           device_type: string | null
           fbclid: string | null
           form_id: string
+          gbraid: string | null
           gclid: string | null
           id: string
           ip_hash: string | null
@@ -22079,6 +26945,7 @@ export type Database = {
           utm_medium: string | null
           utm_source: string | null
           utm_term: string | null
+          wbraid: string | null
         }
         Insert: {
           company_id: string
@@ -22087,6 +26954,7 @@ export type Database = {
           device_type?: string | null
           fbclid?: string | null
           form_id: string
+          gbraid?: string | null
           gclid?: string | null
           id?: string
           ip_hash?: string | null
@@ -22101,6 +26969,7 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          wbraid?: string | null
         }
         Update: {
           company_id?: string
@@ -22109,6 +26978,7 @@ export type Database = {
           device_type?: string | null
           fbclid?: string | null
           form_id?: string
+          gbraid?: string | null
           gclid?: string | null
           id?: string
           ip_hash?: string | null
@@ -22123,6 +26993,7 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          wbraid?: string | null
         }
         Relationships: [
           {
@@ -22138,6 +27009,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "form_submissions_contact_id_fkey"
@@ -22212,11 +27090,82 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "form_views_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "form_views_form_id_fkey"
             columns: ["form_id"]
             isOneToOne: false
             referencedRelation: "lead_forms"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      fornitori_iban_storico: {
+        Row: {
+          company_id: string
+          confermato: boolean
+          confermato_at: string | null
+          confermato_da: string | null
+          created_at: string
+          fonte: string | null
+          fornitore_id: string
+          fornitore_tipo: string | null
+          iban: string
+          id: string
+          visto_la_prima_volta: string
+        }
+        Insert: {
+          company_id: string
+          confermato?: boolean
+          confermato_at?: string | null
+          confermato_da?: string | null
+          created_at?: string
+          fonte?: string | null
+          fornitore_id: string
+          fornitore_tipo?: string | null
+          iban: string
+          id?: string
+          visto_la_prima_volta?: string
+        }
+        Update: {
+          company_id?: string
+          confermato?: boolean
+          confermato_at?: string | null
+          confermato_da?: string | null
+          created_at?: string
+          fonte?: string | null
+          fornitore_id?: string
+          fornitore_tipo?: string | null
+          iban?: string
+          id?: string
+          visto_la_prima_volta?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fornitori_iban_storico_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "fornitori_iban_storico_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fornitori_iban_storico_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -22310,6 +27259,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "foto_cantiere_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "foto_cantiere_order_id_fkey"
@@ -22425,6 +27381,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "foto_cantiere_analysis_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "foto_cantiere_analysis_foto_id_fkey"
@@ -22706,6 +27669,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fv_eventi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "fv_eventi_progetto_id_fkey"
@@ -23364,6 +28334,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "fv_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "fv_progetti_finanziamento_tabella_id_fkey"
             columns: ["finanziamento_tabella_id"]
             isOneToOne: false
@@ -23531,6 +28508,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fv_servizi_catalogo_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       fv_servizi_progetto: {
@@ -23666,77 +28650,204 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fv_solar_api_usage_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       fv_template_pdf: {
         Row: {
           acconto_pct: number | null
           cantieri_galleria: Json | null
+          capacita_installazioni_mese: number | null
+          categorie_prodotto_media: Json | null
           certificazioni: Json | null
+          chi_siamo_titolo: string | null
           colore_accento: string | null
           colore_primario: string | null
           company_id: string
+          condizioni_legali_attivo: boolean | null
+          condizioni_legali_testo: string | null
+          consulente_descrizione_default: string | null
           contatto_email: string | null
           contatto_telefono: string | null
           contatto_whatsapp: string | null
+          costo_accumulo_kwh: number | null
+          costo_kwp_base: number | null
+          costo_pratiche_default: number | null
+          cpl_max_sostenibile: number | null
+          faq_items: Json | null
           font_corpo: string | null
           font_titoli: string | null
           foto_team_url: string | null
+          garanzie_conversione: Json | null
           id: string
           logo_url: string | null
+          manutenzione_annua_eur: number | null
+          margine_target_pct: number | null
+          noleggio_aliquota_fiscale_pct: number | null
+          noleggio_durata_default_mesi: number | null
+          noleggio_fattore_default: number | null
+          noleggio_note_legali: string | null
+          noleggio_operativo_attivo: boolean | null
+          pdf_cover_bg_color: string | null
+          pdf_cover_eyebrow: string | null
+          pdf_cover_hero: string | null
+          pdf_cover_image_url: string | null
+          pdf_cover_logo_position: string | null
+          pdf_cover_overlay_opacity: number | null
+          pdf_cover_show_client_card: boolean | null
+          pdf_cover_subhero: string | null
+          pdf_cover_subhero_template: string | null
+          pdf_cover_text_align: string | null
+          pdf_cover_text_color: string | null
+          pdf_cta_finale_testo: string | null
+          pdf_cta_finale_titolo: string | null
+          pdf_pages_order: Json | null
+          percorso_cliente_intro: string | null
           presentazione_impresa_html: string | null
           recensioni: Json | null
           recesso_giorni: number | null
+          render_disclaimer: string | null
           scadenza_validita_preventivo_giorni: number | null
           testimonial_video_url: string | null
           updated_at: string | null
+          urgenza_attiva: boolean | null
+          urgenza_descrizione: string | null
+          urgenza_titolo: string | null
           url_sito: string | null
+          valore_proposta_html: string | null
+          zona_servita_note: string | null
         }
         Insert: {
           acconto_pct?: number | null
           cantieri_galleria?: Json | null
+          capacita_installazioni_mese?: number | null
+          categorie_prodotto_media?: Json | null
           certificazioni?: Json | null
+          chi_siamo_titolo?: string | null
           colore_accento?: string | null
           colore_primario?: string | null
           company_id: string
+          condizioni_legali_attivo?: boolean | null
+          condizioni_legali_testo?: string | null
+          consulente_descrizione_default?: string | null
           contatto_email?: string | null
           contatto_telefono?: string | null
           contatto_whatsapp?: string | null
+          costo_accumulo_kwh?: number | null
+          costo_kwp_base?: number | null
+          costo_pratiche_default?: number | null
+          cpl_max_sostenibile?: number | null
+          faq_items?: Json | null
           font_corpo?: string | null
           font_titoli?: string | null
           foto_team_url?: string | null
+          garanzie_conversione?: Json | null
           id?: string
           logo_url?: string | null
+          manutenzione_annua_eur?: number | null
+          margine_target_pct?: number | null
+          noleggio_aliquota_fiscale_pct?: number | null
+          noleggio_durata_default_mesi?: number | null
+          noleggio_fattore_default?: number | null
+          noleggio_note_legali?: string | null
+          noleggio_operativo_attivo?: boolean | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string | null
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subhero_template?: string | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cta_finale_testo?: string | null
+          pdf_cta_finale_titolo?: string | null
+          pdf_pages_order?: Json | null
+          percorso_cliente_intro?: string | null
           presentazione_impresa_html?: string | null
           recensioni?: Json | null
           recesso_giorni?: number | null
+          render_disclaimer?: string | null
           scadenza_validita_preventivo_giorni?: number | null
           testimonial_video_url?: string | null
           updated_at?: string | null
+          urgenza_attiva?: boolean | null
+          urgenza_descrizione?: string | null
+          urgenza_titolo?: string | null
           url_sito?: string | null
+          valore_proposta_html?: string | null
+          zona_servita_note?: string | null
         }
         Update: {
           acconto_pct?: number | null
           cantieri_galleria?: Json | null
+          capacita_installazioni_mese?: number | null
+          categorie_prodotto_media?: Json | null
           certificazioni?: Json | null
+          chi_siamo_titolo?: string | null
           colore_accento?: string | null
           colore_primario?: string | null
           company_id?: string
+          condizioni_legali_attivo?: boolean | null
+          condizioni_legali_testo?: string | null
+          consulente_descrizione_default?: string | null
           contatto_email?: string | null
           contatto_telefono?: string | null
           contatto_whatsapp?: string | null
+          costo_accumulo_kwh?: number | null
+          costo_kwp_base?: number | null
+          costo_pratiche_default?: number | null
+          cpl_max_sostenibile?: number | null
+          faq_items?: Json | null
           font_corpo?: string | null
           font_titoli?: string | null
           foto_team_url?: string | null
+          garanzie_conversione?: Json | null
           id?: string
           logo_url?: string | null
+          manutenzione_annua_eur?: number | null
+          margine_target_pct?: number | null
+          noleggio_aliquota_fiscale_pct?: number | null
+          noleggio_durata_default_mesi?: number | null
+          noleggio_fattore_default?: number | null
+          noleggio_note_legali?: string | null
+          noleggio_operativo_attivo?: boolean | null
+          pdf_cover_bg_color?: string | null
+          pdf_cover_eyebrow?: string | null
+          pdf_cover_hero?: string | null
+          pdf_cover_image_url?: string | null
+          pdf_cover_logo_position?: string | null
+          pdf_cover_overlay_opacity?: number | null
+          pdf_cover_show_client_card?: boolean | null
+          pdf_cover_subhero?: string | null
+          pdf_cover_subhero_template?: string | null
+          pdf_cover_text_align?: string | null
+          pdf_cover_text_color?: string | null
+          pdf_cta_finale_testo?: string | null
+          pdf_cta_finale_titolo?: string | null
+          pdf_pages_order?: Json | null
+          percorso_cliente_intro?: string | null
           presentazione_impresa_html?: string | null
           recensioni?: Json | null
           recesso_giorni?: number | null
+          render_disclaimer?: string | null
           scadenza_validita_preventivo_giorni?: number | null
           testimonial_video_url?: string | null
           updated_at?: string | null
+          urgenza_attiva?: boolean | null
+          urgenza_descrizione?: string | null
+          urgenza_titolo?: string | null
           url_sito?: string | null
+          valore_proposta_html?: string | null
+          zona_servita_note?: string | null
         }
         Relationships: [
           {
@@ -23751,6 +28862,249 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: true
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fv_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      gbp_connections: {
+        Row: {
+          access_token_encrypted: string | null
+          company_id: string
+          created_at: string
+          gbp_account_id: string | null
+          gbp_account_name: string | null
+          gbp_location_address: string | null
+          gbp_location_id: string | null
+          gbp_location_name: string | null
+          google_account_email: string | null
+          google_sub: string | null
+          granted_scopes: Json | null
+          id: string
+          last_error: string | null
+          last_sync_at: string | null
+          last_sync_review_count: number | null
+          refresh_token_encrypted: string | null
+          status: string
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          company_id: string
+          created_at?: string
+          gbp_account_id?: string | null
+          gbp_account_name?: string | null
+          gbp_location_address?: string | null
+          gbp_location_id?: string | null
+          gbp_location_name?: string | null
+          google_account_email?: string | null
+          google_sub?: string | null
+          granted_scopes?: Json | null
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          last_sync_review_count?: number | null
+          refresh_token_encrypted?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          company_id?: string
+          created_at?: string
+          gbp_account_id?: string | null
+          gbp_account_name?: string | null
+          gbp_location_address?: string | null
+          gbp_location_id?: string | null
+          gbp_location_name?: string | null
+          google_account_email?: string | null
+          google_sub?: string | null
+          granted_scopes?: Json | null
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          last_sync_review_count?: number | null
+          refresh_token_encrypted?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gbp_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "gbp_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gbp_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      gbp_locations_cache: {
+        Row: {
+          address: string | null
+          connection_id: string
+          display_name: string | null
+          fetched_at: string
+          gbp_account_id: string
+          gbp_location_id: string
+          id: string
+          primary_category: string | null
+          primary_phone: string | null
+          raw: Json | null
+        }
+        Insert: {
+          address?: string | null
+          connection_id: string
+          display_name?: string | null
+          fetched_at?: string
+          gbp_account_id: string
+          gbp_location_id: string
+          id?: string
+          primary_category?: string | null
+          primary_phone?: string | null
+          raw?: Json | null
+        }
+        Update: {
+          address?: string | null
+          connection_id?: string
+          display_name?: string | null
+          fetched_at?: string
+          gbp_account_id?: string
+          gbp_location_id?: string
+          id?: string
+          primary_category?: string | null
+          primary_phone?: string | null
+          raw?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gbp_locations_cache_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "gbp_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gbp_reviews: {
+        Row: {
+          comment: string | null
+          company_id: string
+          connection_id: string
+          create_time: string | null
+          created_at: string
+          gbp_location_id: string
+          gbp_review_id: string
+          id: string
+          raw: Json | null
+          replied_via_eic: boolean | null
+          reply_comment: string | null
+          reply_update_time: string | null
+          reviewer_name: string | null
+          reviewer_profile_photo: string | null
+          star_rating: number | null
+          triage_assigned_to: string | null
+          triage_notes: string | null
+          triage_status: string | null
+          update_time: string | null
+          updated_at: string
+        }
+        Insert: {
+          comment?: string | null
+          company_id: string
+          connection_id: string
+          create_time?: string | null
+          created_at?: string
+          gbp_location_id: string
+          gbp_review_id: string
+          id?: string
+          raw?: Json | null
+          replied_via_eic?: boolean | null
+          reply_comment?: string | null
+          reply_update_time?: string | null
+          reviewer_name?: string | null
+          reviewer_profile_photo?: string | null
+          star_rating?: number | null
+          triage_assigned_to?: string | null
+          triage_notes?: string | null
+          triage_status?: string | null
+          update_time?: string | null
+          updated_at?: string
+        }
+        Update: {
+          comment?: string | null
+          company_id?: string
+          connection_id?: string
+          create_time?: string | null
+          created_at?: string
+          gbp_location_id?: string
+          gbp_review_id?: string
+          id?: string
+          raw?: Json | null
+          replied_via_eic?: boolean | null
+          reply_comment?: string | null
+          reply_update_time?: string | null
+          reviewer_name?: string | null
+          reviewer_profile_photo?: string | null
+          star_rating?: number | null
+          triage_assigned_to?: string | null
+          triage_notes?: string | null
+          triage_status?: string | null
+          update_time?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gbp_reviews_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "gbp_reviews_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gbp_reviews_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "gbp_reviews_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "gbp_connections"
             referencedColumns: ["id"]
           },
         ]
@@ -23797,6 +29151,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gdpr_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -23851,6 +29212,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gdpr_consents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -23911,6 +29279,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gdpr_data_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "gdpr_data_requests_user_id_fkey"
@@ -23976,6 +29351,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "geocoded_locations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       giornale_foto: {
@@ -24026,6 +29408,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "giornale_foto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "giornale_foto_giornale_id_fkey"
@@ -24158,6 +29547,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "giornale_lavori_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "giornale_lavori_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -24244,6 +29640,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "goods_receipts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "goods_receipts_ddt_ricezione_id_fkey"
             columns: ["ddt_ricezione_id"]
             isOneToOne: false
@@ -24277,6 +29680,836 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "warehouses"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_ad_groups: {
+        Row: {
+          ad_group_type: string | null
+          audience_targets: Json | null
+          campaign_id: string
+          company_id: string
+          cpc_bid_micros: number | null
+          created_at: string
+          demographic_targets: Json | null
+          google_ad_group_id: string | null
+          id: string
+          keywords: Json | null
+          last_published_at: string | null
+          last_synced_at: string | null
+          name: string
+          negative_keywords: Json | null
+          publish_error: string | null
+          raw: Json | null
+          status: string
+          target_cpa_micros: number | null
+          target_roas: number | null
+          updated_at: string
+        }
+        Insert: {
+          ad_group_type?: string | null
+          audience_targets?: Json | null
+          campaign_id: string
+          company_id: string
+          cpc_bid_micros?: number | null
+          created_at?: string
+          demographic_targets?: Json | null
+          google_ad_group_id?: string | null
+          id?: string
+          keywords?: Json | null
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          name: string
+          negative_keywords?: Json | null
+          publish_error?: string | null
+          raw?: Json | null
+          status?: string
+          target_cpa_micros?: number | null
+          target_roas?: number | null
+          updated_at?: string
+        }
+        Update: {
+          ad_group_type?: string | null
+          audience_targets?: Json | null
+          campaign_id?: string
+          company_id?: string
+          cpc_bid_micros?: number | null
+          created_at?: string
+          demographic_targets?: Json | null
+          google_ad_group_id?: string | null
+          id?: string
+          keywords?: Json | null
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          name?: string
+          negative_keywords?: Json | null
+          publish_error?: string | null
+          raw?: Json | null
+          status?: string
+          target_cpa_micros?: number | null
+          target_roas?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ad_groups_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "google_ads_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ad_groups_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "google_ad_groups_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ad_groups_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      google_ads: {
+        Row: {
+          ad_group_id: string
+          ad_type: string
+          company_id: string
+          created_at: string
+          descriptions: Json | null
+          display_url: string | null
+          final_urls: string[] | null
+          google_ad_id: string | null
+          headlines: Json | null
+          id: string
+          image_asset_ids: string[] | null
+          last_published_at: string | null
+          last_synced_at: string | null
+          logo_asset_ids: string[] | null
+          name: string
+          path1: string | null
+          path2: string | null
+          publish_error: string | null
+          raw: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          ad_group_id: string
+          ad_type: string
+          company_id: string
+          created_at?: string
+          descriptions?: Json | null
+          display_url?: string | null
+          final_urls?: string[] | null
+          google_ad_id?: string | null
+          headlines?: Json | null
+          id?: string
+          image_asset_ids?: string[] | null
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          logo_asset_ids?: string[] | null
+          name: string
+          path1?: string | null
+          path2?: string | null
+          publish_error?: string | null
+          raw?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          ad_group_id?: string
+          ad_type?: string
+          company_id?: string
+          created_at?: string
+          descriptions?: Json | null
+          display_url?: string | null
+          final_urls?: string[] | null
+          google_ad_id?: string | null
+          headlines?: Json | null
+          id?: string
+          image_asset_ids?: string[] | null
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          logo_asset_ids?: string[] | null
+          name?: string
+          path1?: string | null
+          path2?: string | null
+          publish_error?: string | null
+          raw?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ads_ad_group_id_fkey"
+            columns: ["ad_group_id"]
+            isOneToOne: false
+            referencedRelation: "google_ad_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "google_ads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      google_ads_accounts: {
+        Row: {
+          company_id: string
+          created_at: string
+          currency: string | null
+          customer_id: string
+          customer_name: string | null
+          id: string
+          integration_id: string | null
+          is_manager: boolean
+          is_test_account: boolean
+          manager_customer_id: string | null
+          selected: boolean
+          time_zone: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          currency?: string | null
+          customer_id: string
+          customer_name?: string | null
+          id?: string
+          integration_id?: string | null
+          is_manager?: boolean
+          is_test_account?: boolean
+          manager_customer_id?: string | null
+          selected?: boolean
+          time_zone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          currency?: string | null
+          customer_id?: string
+          customer_name?: string | null
+          id?: string
+          integration_id?: string | null
+          is_manager?: boolean
+          is_test_account?: boolean
+          manager_customer_id?: string | null
+          selected?: boolean
+          time_zone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ads_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "google_ads_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ads_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "google_ads_accounts_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_ads_assets: {
+        Row: {
+          ad_media_id: string | null
+          company_id: string
+          created_at: string
+          google_account_id: string | null
+          google_asset_id: string | null
+          id: string
+          last_published_at: string | null
+          last_synced_at: string | null
+          name: string | null
+          performance_label: string | null
+          raw: Json | null
+          text_content: string | null
+          type: string
+          updated_at: string
+          youtube_video_id: string | null
+        }
+        Insert: {
+          ad_media_id?: string | null
+          company_id: string
+          created_at?: string
+          google_account_id?: string | null
+          google_asset_id?: string | null
+          id?: string
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          name?: string | null
+          performance_label?: string | null
+          raw?: Json | null
+          text_content?: string | null
+          type: string
+          updated_at?: string
+          youtube_video_id?: string | null
+        }
+        Update: {
+          ad_media_id?: string | null
+          company_id?: string
+          created_at?: string
+          google_account_id?: string | null
+          google_asset_id?: string | null
+          id?: string
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          name?: string | null
+          performance_label?: string | null
+          raw?: Json | null
+          text_content?: string | null
+          type?: string
+          updated_at?: string
+          youtube_video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ads_assets_ad_media_id_fkey"
+            columns: ["ad_media_id"]
+            isOneToOne: false
+            referencedRelation: "ad_media"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ads_assets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "google_ads_assets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ads_assets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "google_ads_assets_google_account_id_fkey"
+            columns: ["google_account_id"]
+            isOneToOne: false
+            referencedRelation: "google_ads_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_ads_campaigns: {
+        Row: {
+          advertising_channel: string
+          bidding_strategy_type: string | null
+          builder_state: Json | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          daily_budget_cents: number | null
+          end_date: string | null
+          geo_targets: Json | null
+          google_account_id: string | null
+          google_campaign_id: string | null
+          id: string
+          integration_id: string | null
+          language_targets: string[] | null
+          last_published_at: string | null
+          last_synced_at: string | null
+          name: string
+          publish_error: string | null
+          raw: Json | null
+          shared_budget_id: string | null
+          start_date: string | null
+          status: string
+          target_content_network: boolean | null
+          target_cpa_micros: number | null
+          target_google_search: boolean | null
+          target_partner_search_network: boolean | null
+          target_roas: number | null
+          target_search_network: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          advertising_channel: string
+          bidding_strategy_type?: string | null
+          builder_state?: Json | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          daily_budget_cents?: number | null
+          end_date?: string | null
+          geo_targets?: Json | null
+          google_account_id?: string | null
+          google_campaign_id?: string | null
+          id?: string
+          integration_id?: string | null
+          language_targets?: string[] | null
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          name: string
+          publish_error?: string | null
+          raw?: Json | null
+          shared_budget_id?: string | null
+          start_date?: string | null
+          status?: string
+          target_content_network?: boolean | null
+          target_cpa_micros?: number | null
+          target_google_search?: boolean | null
+          target_partner_search_network?: boolean | null
+          target_roas?: number | null
+          target_search_network?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          advertising_channel?: string
+          bidding_strategy_type?: string | null
+          builder_state?: Json | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          daily_budget_cents?: number | null
+          end_date?: string | null
+          geo_targets?: Json | null
+          google_account_id?: string | null
+          google_campaign_id?: string | null
+          id?: string
+          integration_id?: string | null
+          language_targets?: string[] | null
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          name?: string
+          publish_error?: string | null
+          raw?: Json | null
+          shared_budget_id?: string | null
+          start_date?: string | null
+          status?: string
+          target_content_network?: boolean | null
+          target_cpa_micros?: number | null
+          target_google_search?: boolean | null
+          target_partner_search_network?: boolean | null
+          target_roas?: number | null
+          target_search_network?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ads_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "google_ads_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ads_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "google_ads_campaigns_google_account_id_fkey"
+            columns: ["google_account_id"]
+            isOneToOne: false
+            referencedRelation: "google_ads_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ads_campaigns_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_ads_connections: {
+        Row: {
+          access_token_encrypted: string | null
+          company_id: string
+          created_at: string
+          customer_currency_code: string | null
+          customer_descriptive_name: string | null
+          customer_id: string | null
+          customer_time_zone: string | null
+          google_account_email: string | null
+          google_sub: string | null
+          granted_scopes: Json | null
+          id: string
+          is_manager: boolean | null
+          is_test_account: boolean | null
+          last_error: string | null
+          last_sync_at: string | null
+          last_sync_campaign_count: number | null
+          manager_customer_id: string | null
+          refresh_token_encrypted: string | null
+          status: string
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          company_id: string
+          created_at?: string
+          customer_currency_code?: string | null
+          customer_descriptive_name?: string | null
+          customer_id?: string | null
+          customer_time_zone?: string | null
+          google_account_email?: string | null
+          google_sub?: string | null
+          granted_scopes?: Json | null
+          id?: string
+          is_manager?: boolean | null
+          is_test_account?: boolean | null
+          last_error?: string | null
+          last_sync_at?: string | null
+          last_sync_campaign_count?: number | null
+          manager_customer_id?: string | null
+          refresh_token_encrypted?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          company_id?: string
+          created_at?: string
+          customer_currency_code?: string | null
+          customer_descriptive_name?: string | null
+          customer_id?: string | null
+          customer_time_zone?: string | null
+          google_account_email?: string | null
+          google_sub?: string | null
+          granted_scopes?: Json | null
+          id?: string
+          is_manager?: boolean | null
+          is_test_account?: boolean | null
+          last_error?: string | null
+          last_sync_at?: string | null
+          last_sync_campaign_count?: number | null
+          manager_customer_id?: string | null
+          refresh_token_encrypted?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ads_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "google_ads_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ads_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      google_ads_customers_cache: {
+        Row: {
+          connection_id: string
+          currency_code: string | null
+          customer_id: string
+          descriptive_name: string | null
+          fetched_at: string
+          id: string
+          is_manager: boolean | null
+          is_test_account: boolean | null
+          manager_customer_id: string | null
+          raw: Json | null
+          time_zone: string | null
+        }
+        Insert: {
+          connection_id: string
+          currency_code?: string | null
+          customer_id: string
+          descriptive_name?: string | null
+          fetched_at?: string
+          id?: string
+          is_manager?: boolean | null
+          is_test_account?: boolean | null
+          manager_customer_id?: string | null
+          raw?: Json | null
+          time_zone?: string | null
+        }
+        Update: {
+          connection_id?: string
+          currency_code?: string | null
+          customer_id?: string
+          descriptive_name?: string | null
+          fetched_at?: string
+          id?: string
+          is_manager?: boolean | null
+          is_test_account?: boolean | null
+          manager_customer_id?: string | null
+          raw?: Json | null
+          time_zone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ads_customers_cache_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "google_ads_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_ads_insights_cache: {
+        Row: {
+          ad_group_id: string | null
+          ad_id: string | null
+          average_cpc_micros: number | null
+          campaign_id: string | null
+          clicks: number | null
+          company_id: string
+          conversion_value: number | null
+          conversions: number | null
+          cost_micros: number | null
+          cost_per_conversion_micros: number | null
+          ctr: number | null
+          date_start: string
+          date_stop: string
+          fetched_at: string
+          id: string
+          impressions: number | null
+          raw: Json | null
+          search_impression_share: number | null
+          search_top_impression_share: number | null
+        }
+        Insert: {
+          ad_group_id?: string | null
+          ad_id?: string | null
+          average_cpc_micros?: number | null
+          campaign_id?: string | null
+          clicks?: number | null
+          company_id: string
+          conversion_value?: number | null
+          conversions?: number | null
+          cost_micros?: number | null
+          cost_per_conversion_micros?: number | null
+          ctr?: number | null
+          date_start: string
+          date_stop: string
+          fetched_at?: string
+          id?: string
+          impressions?: number | null
+          raw?: Json | null
+          search_impression_share?: number | null
+          search_top_impression_share?: number | null
+        }
+        Update: {
+          ad_group_id?: string | null
+          ad_id?: string | null
+          average_cpc_micros?: number | null
+          campaign_id?: string | null
+          clicks?: number | null
+          company_id?: string
+          conversion_value?: number | null
+          conversions?: number | null
+          cost_micros?: number | null
+          cost_per_conversion_micros?: number | null
+          ctr?: number | null
+          date_start?: string
+          date_stop?: string
+          fetched_at?: string
+          id?: string
+          impressions?: number | null
+          raw?: Json | null
+          search_impression_share?: number | null
+          search_top_impression_share?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ads_insights_cache_ad_group_id_fkey"
+            columns: ["ad_group_id"]
+            isOneToOne: false
+            referencedRelation: "google_ad_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ads_insights_cache_ad_id_fkey"
+            columns: ["ad_id"]
+            isOneToOne: false
+            referencedRelation: "google_ads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ads_insights_cache_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "google_ads_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ads_insights_cache_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "google_ads_insights_cache_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ads_insights_cache_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      google_ads_offline_conversion_events: {
+        Row: {
+          attempt_count: number
+          company_id: string
+          conversion_name: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          event_id: string
+          event_kind: string
+          id: string
+          last_error: string | null
+          payload: Json
+          response_payload: Json | null
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          company_id: string
+          conversion_name: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          event_id: string
+          event_kind: string
+          id?: string
+          last_error?: string | null
+          payload?: Json
+          response_payload?: Json | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          company_id?: string
+          conversion_name?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          event_id?: string
+          event_kind?: string
+          id?: string
+          last_error?: string | null
+          payload?: Json
+          response_payload?: Json | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_ads_offline_conversion_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "google_ads_offline_conversion_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_ads_offline_conversion_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -24341,6 +30574,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "google_ads_stats_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       google_calendar_busy_slots: {
@@ -24394,6 +30634,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_calendar_busy_slots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -24475,6 +30722,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_calendar_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -24559,6 +30813,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "google_calendar_event_map_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       google_calendar_settings: {
@@ -24568,6 +30829,7 @@ export type Database = {
           connection_id: string | null
           create_contacts_from_guests: boolean
           created_at: string
+          event_privacy: string
           id: string
           import_google_events_to_crm: boolean
           primary_calendar_id: string | null
@@ -24581,6 +30843,7 @@ export type Database = {
           connection_id?: string | null
           create_contacts_from_guests?: boolean
           created_at?: string
+          event_privacy?: string
           id?: string
           import_google_events_to_crm?: boolean
           primary_calendar_id?: string | null
@@ -24594,6 +30857,7 @@ export type Database = {
           connection_id?: string | null
           create_contacts_from_guests?: boolean
           created_at?: string
+          event_privacy?: string
           id?: string
           import_google_events_to_crm?: boolean
           primary_calendar_id?: string | null
@@ -24615,6 +30879,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_calendar_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "google_calendar_settings_connection_id_fkey"
@@ -24719,6 +30990,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "gps_positions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       health_score_history: {
@@ -24757,6 +31035,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "health_score_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -24823,6 +31108,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_assenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "hr_assenze_employee_id_fkey"
@@ -24968,6 +31260,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "hr_cedolini_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "hr_cedolini_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -25022,6 +31321,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_festivita_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -25103,6 +31409,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_giornate_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "hr_giornate_profilo_id_fkey"
@@ -25364,6 +31677,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "hr_profili_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "hr_profili_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -25464,6 +31784,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "hr_richieste_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "hr_richieste_profilo_id_fkey"
             columns: ["profilo_id"]
             isOneToOne: false
@@ -25528,6 +31855,370 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_sedi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      hr_talent_answers: {
+        Row: {
+          answer_value: string
+          answered_at: string
+          assessment_version: string
+          candidate_id: string
+          company_id: string
+          created_at: string
+          id: string
+          question_id: number
+        }
+        Insert: {
+          answer_value: string
+          answered_at?: string
+          assessment_version?: string
+          candidate_id: string
+          company_id: string
+          created_at?: string
+          id?: string
+          question_id: number
+        }
+        Update: {
+          answer_value?: string
+          answered_at?: string
+          assessment_version?: string
+          candidate_id?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          question_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_talent_answers_assessment_version_question_id_fkey"
+            columns: ["assessment_version", "question_id"]
+            isOneToOne: false
+            referencedRelation: "hr_talent_questions"
+            referencedColumns: ["assessment_version", "question_id"]
+          },
+          {
+            foreignKeyName: "hr_talent_answers_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "hr_talent_candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_talent_answers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_talent_answers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_talent_answers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      hr_talent_candidates: {
+        Row: {
+          assessment_version: string
+          cognome: string
+          company_id: string
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          expires_at: string | null
+          funzione: string | null
+          hr_profilo_id: string | null
+          id: string
+          invite_sent_at: string | null
+          metadata: Json
+          nome: string
+          notes: string | null
+          privacy_accepted_at: string | null
+          ruolo_richiesto: string
+          seniority: string | null
+          source: string
+          started_at: string | null
+          status: string
+          telefono: string | null
+          token_hash: string | null
+          updated_at: string
+        }
+        Insert: {
+          assessment_version?: string
+          cognome: string
+          company_id: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          expires_at?: string | null
+          funzione?: string | null
+          hr_profilo_id?: string | null
+          id?: string
+          invite_sent_at?: string | null
+          metadata?: Json
+          nome: string
+          notes?: string | null
+          privacy_accepted_at?: string | null
+          ruolo_richiesto?: string
+          seniority?: string | null
+          source?: string
+          started_at?: string | null
+          status?: string
+          telefono?: string | null
+          token_hash?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assessment_version?: string
+          cognome?: string
+          company_id?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          expires_at?: string | null
+          funzione?: string | null
+          hr_profilo_id?: string | null
+          id?: string
+          invite_sent_at?: string | null
+          metadata?: Json
+          nome?: string
+          notes?: string | null
+          privacy_accepted_at?: string | null
+          ruolo_richiesto?: string
+          seniority?: string | null
+          source?: string
+          started_at?: string | null
+          status?: string
+          telefono?: string | null
+          token_hash?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_talent_candidates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_talent_candidates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_talent_candidates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_talent_candidates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_talent_candidates_hr_profilo_id_fkey"
+            columns: ["hr_profilo_id"]
+            isOneToOne: false
+            referencedRelation: "hr_profili"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hr_talent_questions: {
+        Row: {
+          active: boolean
+          assessment_version: string
+          created_at: string
+          custom_answers: Json | null
+          display_order: number
+          polarity: string
+          question_id: number
+          question_text: string
+          theme_block: number
+          trait_code: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          assessment_version?: string
+          created_at?: string
+          custom_answers?: Json | null
+          display_order: number
+          polarity: string
+          question_id: number
+          question_text: string
+          theme_block: number
+          trait_code: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          assessment_version?: string
+          created_at?: string
+          custom_answers?: Json | null
+          display_order?: number
+          polarity?: string
+          question_id?: number
+          question_text?: string
+          theme_block?: number
+          trait_code?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      hr_talent_reports: {
+        Row: {
+          action_plan: Json | null
+          all_roles: Json
+          assessment_version: string
+          cache_version: number
+          candidate_id: string
+          colloquio_areas: Json | null
+          company_id: string
+          control_unexpected_count: number
+          created_at: string
+          generated_at: string
+          generated_by: string | null
+          growth_plan: Json | null
+          id: string
+          improvements: string[]
+          macro_areas: Json
+          management_closing: string | null
+          management_tips: Json | null
+          mappa_interiore: Json | null
+          profile_type: string
+          reliability_index: string
+          role_match: Json
+          role_requested: string | null
+          strengths: string[]
+          syndromes_detected: Json
+          trait_narratives: Json | null
+          traits_v5: Json
+          updated_at: string
+          valleys: string[]
+        }
+        Insert: {
+          action_plan?: Json | null
+          all_roles?: Json
+          assessment_version?: string
+          cache_version?: number
+          candidate_id: string
+          colloquio_areas?: Json | null
+          company_id: string
+          control_unexpected_count?: number
+          created_at?: string
+          generated_at?: string
+          generated_by?: string | null
+          growth_plan?: Json | null
+          id?: string
+          improvements?: string[]
+          macro_areas?: Json
+          management_closing?: string | null
+          management_tips?: Json | null
+          mappa_interiore?: Json | null
+          profile_type: string
+          reliability_index: string
+          role_match?: Json
+          role_requested?: string | null
+          strengths?: string[]
+          syndromes_detected?: Json
+          trait_narratives?: Json | null
+          traits_v5?: Json
+          updated_at?: string
+          valleys?: string[]
+        }
+        Update: {
+          action_plan?: Json | null
+          all_roles?: Json
+          assessment_version?: string
+          cache_version?: number
+          candidate_id?: string
+          colloquio_areas?: Json | null
+          company_id?: string
+          control_unexpected_count?: number
+          created_at?: string
+          generated_at?: string
+          generated_by?: string | null
+          growth_plan?: Json | null
+          id?: string
+          improvements?: string[]
+          macro_areas?: Json
+          management_closing?: string | null
+          management_tips?: Json | null
+          mappa_interiore?: Json | null
+          profile_type?: string
+          reliability_index?: string
+          role_match?: Json
+          role_requested?: string | null
+          strengths?: string[]
+          syndromes_detected?: Json
+          trait_narratives?: Json | null
+          traits_v5?: Json
+          updated_at?: string
+          valleys?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_talent_reports_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "hr_talent_candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_talent_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_talent_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_talent_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_talent_reports_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -25601,6 +32292,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_timbrature_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "hr_timbrature_profilo_id_fkey"
@@ -25681,6 +32379,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "impianti_cliente_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "impianti_cliente_customer_id_fkey"
@@ -25770,6 +32475,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "installations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "installations_order_item_id_fkey"
             columns: ["order_item_id"]
             isOneToOne: false
@@ -25830,6 +32542,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -25930,6 +32649,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "integration_field_mappings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "integration_field_mappings_integration_id_fkey"
             columns: ["integration_id"]
             isOneToOne: false
@@ -25980,6 +32706,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_health_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -26040,6 +32773,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_sync_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "integration_sync_jobs_integration_id_fkey"
@@ -26115,6 +32855,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "integration_webhook_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "integration_webhook_events_integration_id_fkey"
             columns: ["integration_id"]
             isOneToOne: false
@@ -26177,6 +32924,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integration_webhook_subscriptions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "integration_webhook_subscriptions_integration_id_fkey"
@@ -26251,6 +33005,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "integrations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       internal_agent_actions: {
@@ -26317,6 +33078,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_agent_actions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -26406,6 +33174,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "internal_ai_agents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "internal_ai_agents_phone_number_id_fkey"
             columns: ["phone_number_id"]
             isOneToOne: false
@@ -26456,6 +33231,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "internal_automation_connections_flow_id_fkey"
@@ -26533,6 +33315,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "internal_automation_enrollments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "internal_automation_enrollments_current_node_id_fkey"
             columns: ["current_node_id"]
             isOneToOne: false
@@ -26602,6 +33391,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_execution_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "internal_automation_execution_log_enrollment_id_fkey"
@@ -26693,6 +33489,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "internal_automation_flows_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       internal_automation_nodes: {
@@ -26746,6 +33549,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_nodes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "internal_automation_nodes_flow_id_fkey"
@@ -26822,6 +33632,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_automation_queue_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "internal_automation_queue_enrollment_id_fkey"
@@ -26934,6 +33751,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "internal_call_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "internal_call_logs_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -27010,6 +33834,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "internal_chat_channels_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       internal_chat_members: {
@@ -27070,6 +33901,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "internal_chat_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -27190,6 +34028,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "internal_chat_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "internal_chat_messages_reply_to_id_fkey"
             columns: ["reply_to_id"]
             isOneToOne: false
@@ -27293,6 +34138,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "internal_outbound_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       inventory_audits: {
@@ -27346,6 +34198,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_audits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "inventory_audits_stock_item_id_fkey"
@@ -27469,6 +34328,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "invoice_payments_invoice_id_fkey"
@@ -27661,6 +34527,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "invoices_credited_invoice_id_fkey"
@@ -27873,6 +34746,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "lead_first_touch_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       lead_forms: {
@@ -27941,6 +34821,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_forms_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -28014,7 +34901,456 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "lead_scoring_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
+      }
+      lead_scraper_api_usage: {
+        Row: {
+          count: number
+          day: string
+          provider: string
+        }
+        Insert: {
+          count?: number
+          day?: string
+          provider: string
+        }
+        Update: {
+          count?: number
+          day?: string
+          provider?: string
+        }
+        Relationships: []
+      }
+      lead_scraper_autopilot: {
+        Row: {
+          cities: string[]
+          created_at: string
+          created_by: string | null
+          cursor: number
+          enabled: boolean
+          engine: string
+          id: string
+          last_result: Json | null
+          last_run_at: string | null
+          per_run: number
+          sectors: string[]
+          updated_at: string
+        }
+        Insert: {
+          cities?: string[]
+          created_at?: string
+          created_by?: string | null
+          cursor?: number
+          enabled?: boolean
+          engine?: string
+          id?: string
+          last_result?: Json | null
+          last_run_at?: string | null
+          per_run?: number
+          sectors?: string[]
+          updated_at?: string
+        }
+        Update: {
+          cities?: string[]
+          created_at?: string
+          created_by?: string | null
+          cursor?: number
+          enabled?: boolean
+          engine?: string
+          id?: string
+          last_result?: Json | null
+          last_run_at?: string | null
+          per_run?: number
+          sectors?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      lead_scraper_jobs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          params: Json
+          processed: number
+          results_count: number
+          search_id: string | null
+          started_at: string | null
+          status: string
+          total: number
+          type: string
+          worker_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          params?: Json
+          processed?: number
+          results_count?: number
+          search_id?: string | null
+          started_at?: string | null
+          status?: string
+          total?: number
+          type?: string
+          worker_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          params?: Json
+          processed?: number
+          results_count?: number
+          search_id?: string | null
+          started_at?: string | null
+          status?: string
+          total?: number
+          type?: string
+          worker_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_scraper_jobs_search_id_fkey"
+            columns: ["search_id"]
+            isOneToOne: false
+            referencedRelation: "lead_scraper_searches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_scraper_outreach: {
+        Row: {
+          bounced_at: string | null
+          channel: string
+          click_count: number
+          clicked_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          lead_id: string
+          message_id: string | null
+          meta: Json | null
+          oauth_connection_id: string | null
+          open_count: number
+          opened_at: string | null
+          replied_at: string | null
+          status: string
+          step: number
+          subject: string | null
+          to_addr: string | null
+        }
+        Insert: {
+          bounced_at?: string | null
+          channel?: string
+          click_count?: number
+          clicked_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lead_id: string
+          message_id?: string | null
+          meta?: Json | null
+          oauth_connection_id?: string | null
+          open_count?: number
+          opened_at?: string | null
+          replied_at?: string | null
+          status?: string
+          step?: number
+          subject?: string | null
+          to_addr?: string | null
+        }
+        Update: {
+          bounced_at?: string | null
+          channel?: string
+          click_count?: number
+          clicked_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lead_id?: string
+          message_id?: string | null
+          meta?: Json | null
+          oauth_connection_id?: string | null
+          open_count?: number
+          opened_at?: string | null
+          replied_at?: string | null
+          status?: string
+          step?: number
+          subject?: string | null
+          to_addr?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_scraper_outreach_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "lead_scraper_results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_scraper_outreach_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "email_oauth_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_scraper_outreach_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_oauth_connections_meta"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_scraper_place_cache: {
+        Row: {
+          data: Json
+          fetched_at: string
+          place_id: string
+        }
+        Insert: {
+          data: Json
+          fetched_at?: string
+          place_id: string
+        }
+        Update: {
+          data?: Json
+          fetched_at?: string
+          place_id?: string
+        }
+        Relationships: []
+      }
+      lead_scraper_results: {
+        Row: {
+          address: string | null
+          ai_icebreaker: string | null
+          ai_label: string | null
+          ai_reason: string | null
+          ai_score: number | null
+          ai_sequence: Json | null
+          ai_summary: string | null
+          anno_fondazione: number | null
+          ateco: string | null
+          ateco_desc: string | null
+          business_name: string
+          buying_score: number | null
+          buying_signals: Json
+          city: string | null
+          company_size: string | null
+          contact_name: string | null
+          country: string
+          created_at: string
+          crm_contact_id: string | null
+          crm_opportunity_id: string | null
+          dedupe_key: string | null
+          dipendenti: number | null
+          email: string | null
+          email_status: string | null
+          enriched: boolean
+          enrichment: Json
+          facebook_url: string | null
+          fatturato: number | null
+          forma_giuridica: string | null
+          id: string
+          instagram_url: string | null
+          intent_score: number | null
+          intent_signals: Json
+          is_existing_customer: boolean
+          linkedin_url: string | null
+          partita_iva: string | null
+          phone: string | null
+          place_id: string | null
+          pushed_to_crm: boolean
+          rating: number | null
+          raw: Json | null
+          region: string | null
+          reviews_count: number | null
+          role: string | null
+          search_id: string
+          seen_before: boolean
+          source: string
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          ai_icebreaker?: string | null
+          ai_label?: string | null
+          ai_reason?: string | null
+          ai_score?: number | null
+          ai_sequence?: Json | null
+          ai_summary?: string | null
+          anno_fondazione?: number | null
+          ateco?: string | null
+          ateco_desc?: string | null
+          business_name: string
+          buying_score?: number | null
+          buying_signals?: Json
+          city?: string | null
+          company_size?: string | null
+          contact_name?: string | null
+          country?: string
+          created_at?: string
+          crm_contact_id?: string | null
+          crm_opportunity_id?: string | null
+          dedupe_key?: string | null
+          dipendenti?: number | null
+          email?: string | null
+          email_status?: string | null
+          enriched?: boolean
+          enrichment?: Json
+          facebook_url?: string | null
+          fatturato?: number | null
+          forma_giuridica?: string | null
+          id?: string
+          instagram_url?: string | null
+          intent_score?: number | null
+          intent_signals?: Json
+          is_existing_customer?: boolean
+          linkedin_url?: string | null
+          partita_iva?: string | null
+          phone?: string | null
+          place_id?: string | null
+          pushed_to_crm?: boolean
+          rating?: number | null
+          raw?: Json | null
+          region?: string | null
+          reviews_count?: number | null
+          role?: string | null
+          search_id: string
+          seen_before?: boolean
+          source?: string
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          ai_icebreaker?: string | null
+          ai_label?: string | null
+          ai_reason?: string | null
+          ai_score?: number | null
+          ai_sequence?: Json | null
+          ai_summary?: string | null
+          anno_fondazione?: number | null
+          ateco?: string | null
+          ateco_desc?: string | null
+          business_name?: string
+          buying_score?: number | null
+          buying_signals?: Json
+          city?: string | null
+          company_size?: string | null
+          contact_name?: string | null
+          country?: string
+          created_at?: string
+          crm_contact_id?: string | null
+          crm_opportunity_id?: string | null
+          dedupe_key?: string | null
+          dipendenti?: number | null
+          email?: string | null
+          email_status?: string | null
+          enriched?: boolean
+          enrichment?: Json
+          facebook_url?: string | null
+          fatturato?: number | null
+          forma_giuridica?: string | null
+          id?: string
+          instagram_url?: string | null
+          intent_score?: number | null
+          intent_signals?: Json
+          is_existing_customer?: boolean
+          linkedin_url?: string | null
+          partita_iva?: string | null
+          phone?: string | null
+          place_id?: string | null
+          pushed_to_crm?: boolean
+          rating?: number | null
+          raw?: Json | null
+          region?: string | null
+          reviews_count?: number | null
+          role?: string | null
+          search_id?: string
+          seen_before?: boolean
+          source?: string
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_scraper_results_crm_contact_id_fkey"
+            columns: ["crm_contact_id"]
+            isOneToOne: false
+            referencedRelation: "callcenter_lead_journey"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "lead_scraper_results_crm_contact_id_fkey"
+            columns: ["crm_contact_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_scraper_results_search_id_fkey"
+            columns: ["search_id"]
+            isOneToOne: false
+            referencedRelation: "lead_scraper_searches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_scraper_searches: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          credits_used: number
+          error: string | null
+          id: string
+          label: string | null
+          query: Json
+          results_count: number
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          credits_used?: number
+          error?: string | null
+          id?: string
+          label?: string | null
+          query?: Json
+          results_count?: number
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          credits_used?: number
+          error?: string | null
+          id?: string
+          label?: string | null
+          query?: Json
+          results_count?: number
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       leave_balances: {
         Row: {
@@ -28070,6 +35406,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_balances_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "leave_balances_employee_id_fkey"
@@ -28155,6 +35498,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "leave_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "leave_requests_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -28216,6 +35566,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "lifecycle_email_sends_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       lifecycle_events_log: {
@@ -28254,6 +35611,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lifecycle_events_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -28308,6 +35672,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lifecycle_notifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -28400,6 +35771,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "listino_categorie_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "listino_categorie_macrocategoria_id_fkey"
             columns: ["macrocategoria_id"]
             isOneToOne: false
@@ -28468,6 +35846,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listino_griglia_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "listino_griglia_family_id_fkey"
@@ -28670,6 +36055,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "listino_macrocategorie_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       listino_override_cliente: {
@@ -28721,6 +36113,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listino_override_cliente_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "listino_override_cliente_listino_prezzo_id_fkey"
@@ -28791,6 +36190,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "listino_prezzi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "listino_prezzi_tipo_impianto_id_fkey"
@@ -28881,6 +36287,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "lucia_conversations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       marketing_calendar_availability: {
@@ -28938,6 +36351,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_calendar_availability_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -29001,6 +36421,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_calendar_preferences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -29101,6 +36528,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "marketing_calendars_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       marketing_contact_activities: {
@@ -29155,6 +36589,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_contact_activities_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "marketing_contact_activities_contact_id_fkey"
@@ -29301,6 +36742,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "marketing_contact_lists_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       marketing_contact_notes: {
@@ -29354,6 +36802,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "marketing_contact_notes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "marketing_contact_notes_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -29405,17 +36860,32 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           email: string | null
+          fbc: string | null
+          fbclid: string | null
+          fbp: string | null
           first_name: string
           fiscal_code: string | null
           follower_id: string | null
+          gbraid: string | null
+          gclid: string | null
+          google_ad_group_id: string | null
+          google_ad_id: string | null
+          google_campaign_id: string | null
+          google_customer_id: string | null
           icp_score: number | null
           icp_tier: string | null
           id: string
           is_decision_maker: boolean | null
           last_activity_at: string | null
+          last_capi_event_at: string | null
+          last_google_conversion_event_at: string | null
           last_name: string | null
           last_score_update: string | null
           lead_score: number | null
+          meta_ad_id: string | null
+          meta_adset_id: string | null
+          meta_campaign_id: string | null
+          meta_lead_id: string | null
           notes: string | null
           opt_out: boolean | null
           opt_out_at: string | null
@@ -29441,6 +36911,7 @@ export type Database = {
           unsubscribed_at: string | null
           updated_at: string
           vat_number: string | null
+          wbraid: string | null
           website: string | null
         }
         Insert: {
@@ -29471,17 +36942,32 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           email?: string | null
+          fbc?: string | null
+          fbclid?: string | null
+          fbp?: string | null
           first_name: string
           fiscal_code?: string | null
           follower_id?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          google_ad_group_id?: string | null
+          google_ad_id?: string | null
+          google_campaign_id?: string | null
+          google_customer_id?: string | null
           icp_score?: number | null
           icp_tier?: string | null
           id?: string
           is_decision_maker?: boolean | null
           last_activity_at?: string | null
+          last_capi_event_at?: string | null
+          last_google_conversion_event_at?: string | null
           last_name?: string | null
           last_score_update?: string | null
           lead_score?: number | null
+          meta_ad_id?: string | null
+          meta_adset_id?: string | null
+          meta_campaign_id?: string | null
+          meta_lead_id?: string | null
           notes?: string | null
           opt_out?: boolean | null
           opt_out_at?: string | null
@@ -29507,6 +36993,7 @@ export type Database = {
           unsubscribed_at?: string | null
           updated_at?: string
           vat_number?: string | null
+          wbraid?: string | null
           website?: string | null
         }
         Update: {
@@ -29537,17 +37024,32 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           email?: string | null
+          fbc?: string | null
+          fbclid?: string | null
+          fbp?: string | null
           first_name?: string
           fiscal_code?: string | null
           follower_id?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          google_ad_group_id?: string | null
+          google_ad_id?: string | null
+          google_campaign_id?: string | null
+          google_customer_id?: string | null
           icp_score?: number | null
           icp_tier?: string | null
           id?: string
           is_decision_maker?: boolean | null
           last_activity_at?: string | null
+          last_capi_event_at?: string | null
+          last_google_conversion_event_at?: string | null
           last_name?: string | null
           last_score_update?: string | null
           lead_score?: number | null
+          meta_ad_id?: string | null
+          meta_adset_id?: string | null
+          meta_campaign_id?: string | null
+          meta_lead_id?: string | null
           notes?: string | null
           opt_out?: boolean | null
           opt_out_at?: string | null
@@ -29573,6 +37075,7 @@ export type Database = {
           unsubscribed_at?: string | null
           updated_at?: string
           vat_number?: string | null
+          wbraid?: string | null
           website?: string | null
         }
         Relationships: [
@@ -29589,6 +37092,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_contacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "marketing_contacts_customer_profile_id_fkey"
@@ -29658,6 +37168,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "marketing_custom_field_folders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       marketing_custom_fields: {
@@ -29722,76 +37239,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "marketing_custom_fields_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "marketing_custom_fields_folder_id_fkey"
             columns: ["folder_id"]
             isOneToOne: false
             referencedRelation: "marketing_custom_field_folders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      media_library_folders: {
-        Row: {
-          archived_at: string | null
-          archived_by: string | null
-          color: string
-          company_id: string
-          created_at: string
-          created_by: string | null
-          description: string | null
-          icon: string
-          id: string
-          match_query: string | null
-          name: string
-          slug: string
-          sort_order: number
-          updated_at: string
-        }
-        Insert: {
-          archived_at?: string | null
-          archived_by?: string | null
-          color?: string
-          company_id: string
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          icon?: string
-          id?: string
-          match_query?: string | null
-          name: string
-          slug: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Update: {
-          archived_at?: string | null
-          archived_by?: string | null
-          color?: string
-          company_id?: string
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          icon?: string
-          id?: string
-          match_query?: string | null
-          name?: string
-          slug?: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "media_library_folders_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "admin_company_features"
-            referencedColumns: ["company_id"]
-          },
-          {
-            foreignKeyName: "media_library_folders_company_id_fkey"
-            columns: ["company_id"]
-            isOneToOne: false
-            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -29861,6 +37319,7 @@ export type Database = {
         Row: {
           assigned_to: string | null
           call_center_id: string | null
+          capi_purchase_sent_at: string | null
           company_id: string
           company_name: string | null
           competitor_won: string | null
@@ -29869,14 +37328,29 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           expected_close_date: string | null
+          fbc: string | null
+          fbp: string | null
           follower_id: string | null
           fv_progetto_id: string | null
+          gbraid: string | null
+          gclid: string | null
+          google_ad_group_id: string | null
+          google_ad_id: string | null
+          google_campaign_id: string | null
+          google_customer_id: string | null
+          google_sale_sent_at: string | null
           id: string
           last_activity_at: string | null
+          last_capi_event_at: string | null
+          last_google_conversion_event_at: string | null
           loss_notes: string | null
           loss_reason: string | null
           lost_reason: string | null
           lost_reason_category: string | null
+          meta_ad_id: string | null
+          meta_adset_id: string | null
+          meta_campaign_id: string | null
+          meta_lead_id: string | null
           name: string
           next_action: string | null
           next_action_date: string | null
@@ -29893,10 +37367,12 @@ export type Database = {
           tipo_opportunita: string | null
           updated_at: string
           value: number
+          wbraid: string | null
         }
         Insert: {
           assigned_to?: string | null
           call_center_id?: string | null
+          capi_purchase_sent_at?: string | null
           company_id: string
           company_name?: string | null
           competitor_won?: string | null
@@ -29905,14 +37381,29 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           expected_close_date?: string | null
+          fbc?: string | null
+          fbp?: string | null
           follower_id?: string | null
           fv_progetto_id?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          google_ad_group_id?: string | null
+          google_ad_id?: string | null
+          google_campaign_id?: string | null
+          google_customer_id?: string | null
+          google_sale_sent_at?: string | null
           id?: string
           last_activity_at?: string | null
+          last_capi_event_at?: string | null
+          last_google_conversion_event_at?: string | null
           loss_notes?: string | null
           loss_reason?: string | null
           lost_reason?: string | null
           lost_reason_category?: string | null
+          meta_ad_id?: string | null
+          meta_adset_id?: string | null
+          meta_campaign_id?: string | null
+          meta_lead_id?: string | null
           name: string
           next_action?: string | null
           next_action_date?: string | null
@@ -29929,10 +37420,12 @@ export type Database = {
           tipo_opportunita?: string | null
           updated_at?: string
           value?: number
+          wbraid?: string | null
         }
         Update: {
           assigned_to?: string | null
           call_center_id?: string | null
+          capi_purchase_sent_at?: string | null
           company_id?: string
           company_name?: string | null
           competitor_won?: string | null
@@ -29941,14 +37434,29 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           expected_close_date?: string | null
+          fbc?: string | null
+          fbp?: string | null
           follower_id?: string | null
           fv_progetto_id?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          google_ad_group_id?: string | null
+          google_ad_id?: string | null
+          google_campaign_id?: string | null
+          google_customer_id?: string | null
+          google_sale_sent_at?: string | null
           id?: string
           last_activity_at?: string | null
+          last_capi_event_at?: string | null
+          last_google_conversion_event_at?: string | null
           loss_notes?: string | null
           loss_reason?: string | null
           lost_reason?: string | null
           lost_reason_category?: string | null
+          meta_ad_id?: string | null
+          meta_adset_id?: string | null
+          meta_campaign_id?: string | null
+          meta_lead_id?: string | null
           name?: string
           next_action?: string | null
           next_action_date?: string | null
@@ -29965,6 +37473,7 @@ export type Database = {
           tipo_opportunita?: string | null
           updated_at?: string
           value?: number
+          wbraid?: string | null
         }
         Relationships: [
           {
@@ -29980,6 +37489,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_opportunities_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "marketing_opportunities_contact_id_fkey"
@@ -30097,6 +37613,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "marketing_opportunity_lists_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "marketing_opportunity_lists_pipeline_id_fkey"
             columns: ["pipeline_id"]
             isOneToOne: false
@@ -30144,6 +37667,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_opportunity_notes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "marketing_opportunity_notes_opportunity_id_fkey"
@@ -30213,6 +37743,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "marketing_pipeline_stages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "marketing_pipeline_stages_pipeline_id_fkey"
             columns: ["pipeline_id"]
             isOneToOne: false
@@ -30261,6 +37798,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "marketing_pipelines_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       marketing_tags: {
@@ -30299,6 +37843,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_tags_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -30362,6 +37913,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_consumption_daily_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "material_consumption_daily_order_id_fkey"
@@ -30438,6 +37996,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "material_predictions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "material_predictions_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -30492,6 +38057,79 @@ export type Database = {
         }
         Relationships: []
       }
+      media_library_folders: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          color: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          icon: string
+          id: string
+          match_query: string | null
+          name: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          color?: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          icon?: string
+          id?: string
+          match_query?: string | null
+          name: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          color?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          icon?: string
+          id?: string
+          match_query?: string | null
+          name?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_library_folders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "media_library_folders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_library_folders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       message_templates: {
         Row: {
           body: string
@@ -30540,6 +38178,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -30600,6 +38245,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messaging_ai_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "messaging_ai_runs_message_id_fkey"
@@ -30668,6 +38320,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "messaging_conversations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       messaging_daily_reports: {
@@ -30721,6 +38380,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messaging_daily_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "messaging_daily_reports_order_id_fkey"
@@ -30886,6 +38552,94 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "messaging_whatsapp_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      meta_ab_tests: {
+        Row: {
+          base_campaign_id: string
+          company_id: string
+          created_by: string | null
+          decided_at: string | null
+          hypothesis: string | null
+          id: string
+          new_value: Json | null
+          started_at: string
+          status: string
+          variable: string
+          variant_campaign_id: string | null
+          winner: string | null
+        }
+        Insert: {
+          base_campaign_id: string
+          company_id: string
+          created_by?: string | null
+          decided_at?: string | null
+          hypothesis?: string | null
+          id?: string
+          new_value?: Json | null
+          started_at?: string
+          status?: string
+          variable: string
+          variant_campaign_id?: string | null
+          winner?: string | null
+        }
+        Update: {
+          base_campaign_id?: string
+          company_id?: string
+          created_by?: string | null
+          decided_at?: string | null
+          hypothesis?: string | null
+          id?: string
+          new_value?: Json | null
+          started_at?: string
+          status?: string
+          variable?: string
+          variant_campaign_id?: string | null
+          winner?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_ab_tests_base_campaign_id_fkey"
+            columns: ["base_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "meta_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_ab_tests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "meta_ab_tests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_ab_tests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "meta_ab_tests_variant_campaign_id_fkey"
+            columns: ["variant_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "meta_campaigns"
+            referencedColumns: ["id"]
+          },
         ]
       }
       meta_ad_accounts: {
@@ -30940,6 +38694,219 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "meta_ad_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      meta_ad_sets: {
+        Row: {
+          attribution_spec: Json | null
+          bid_amount_cents: number | null
+          bid_strategy: string | null
+          billing_event: string | null
+          campaign_id: string
+          company_id: string
+          created_at: string
+          daily_budget_cents: number | null
+          end_time: string | null
+          facebook_positions: string[] | null
+          id: string
+          instagram_positions: string[] | null
+          last_published_at: string | null
+          last_synced_at: string | null
+          lifetime_budget_cents: number | null
+          meta_adset_id: string | null
+          name: string
+          optimization_goal: string | null
+          promoted_object: Json | null
+          publish_error: string | null
+          publisher_platforms: string[] | null
+          raw: Json | null
+          start_time: string | null
+          status: string
+          targeting: Json
+          updated_at: string
+        }
+        Insert: {
+          attribution_spec?: Json | null
+          bid_amount_cents?: number | null
+          bid_strategy?: string | null
+          billing_event?: string | null
+          campaign_id: string
+          company_id: string
+          created_at?: string
+          daily_budget_cents?: number | null
+          end_time?: string | null
+          facebook_positions?: string[] | null
+          id?: string
+          instagram_positions?: string[] | null
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          lifetime_budget_cents?: number | null
+          meta_adset_id?: string | null
+          name: string
+          optimization_goal?: string | null
+          promoted_object?: Json | null
+          publish_error?: string | null
+          publisher_platforms?: string[] | null
+          raw?: Json | null
+          start_time?: string | null
+          status?: string
+          targeting?: Json
+          updated_at?: string
+        }
+        Update: {
+          attribution_spec?: Json | null
+          bid_amount_cents?: number | null
+          bid_strategy?: string | null
+          billing_event?: string | null
+          campaign_id?: string
+          company_id?: string
+          created_at?: string
+          daily_budget_cents?: number | null
+          end_time?: string | null
+          facebook_positions?: string[] | null
+          id?: string
+          instagram_positions?: string[] | null
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          lifetime_budget_cents?: number | null
+          meta_adset_id?: string | null
+          name?: string
+          optimization_goal?: string | null
+          promoted_object?: Json | null
+          publish_error?: string | null
+          publisher_platforms?: string[] | null
+          raw?: Json | null
+          start_time?: string | null
+          status?: string
+          targeting?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_ad_sets_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "meta_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_ad_sets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "meta_ad_sets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_ad_sets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      meta_ads: {
+        Row: {
+          adset_id: string
+          company_id: string
+          conversion_specs: Json | null
+          created_at: string
+          creative_id: string
+          id: string
+          last_published_at: string | null
+          last_synced_at: string | null
+          meta_ad_id: string | null
+          name: string
+          publish_error: string | null
+          raw: Json | null
+          status: string
+          tracking_specs: Json | null
+          updated_at: string
+        }
+        Insert: {
+          adset_id: string
+          company_id: string
+          conversion_specs?: Json | null
+          created_at?: string
+          creative_id: string
+          id?: string
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          meta_ad_id?: string | null
+          name: string
+          publish_error?: string | null
+          raw?: Json | null
+          status?: string
+          tracking_specs?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          adset_id?: string
+          company_id?: string
+          conversion_specs?: Json | null
+          created_at?: string
+          creative_id?: string
+          id?: string
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          meta_ad_id?: string | null
+          name?: string
+          publish_error?: string | null
+          raw?: Json | null
+          status?: string
+          tracking_specs?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_ads_adset_id_fkey"
+            columns: ["adset_id"]
+            isOneToOne: false
+            referencedRelation: "meta_ad_sets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_ads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "meta_ads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_ads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "meta_ads_creative_id_fkey"
+            columns: ["creative_id"]
+            isOneToOne: false
+            referencedRelation: "meta_creatives"
+            referencedColumns: ["id"]
+          },
         ]
       }
       meta_api_rate_limit: {
@@ -30987,6 +38954,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_api_rate_limit_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "meta_api_rate_limit_integration_id_fkey"
@@ -31050,6 +39024,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "meta_assets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "meta_assets_integration_id_fkey"
             columns: ["integration_id"]
             isOneToOne: false
@@ -31057,6 +39038,524 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      meta_campaign_versions: {
+        Row: {
+          builder_state: Json | null
+          campaign_id: string
+          change_note: string | null
+          company_id: string
+          created_at: string
+          daily_budget_cents: number | null
+          id: string
+          modified_by: string | null
+          name: string | null
+          status: string | null
+          version_number: number
+        }
+        Insert: {
+          builder_state?: Json | null
+          campaign_id: string
+          change_note?: string | null
+          company_id: string
+          created_at?: string
+          daily_budget_cents?: number | null
+          id?: string
+          modified_by?: string | null
+          name?: string | null
+          status?: string | null
+          version_number: number
+        }
+        Update: {
+          builder_state?: Json | null
+          campaign_id?: string
+          change_note?: string | null
+          company_id?: string
+          created_at?: string
+          daily_budget_cents?: number | null
+          id?: string
+          modified_by?: string | null
+          name?: string | null
+          status?: string | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_campaign_versions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "meta_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_campaign_versions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "meta_campaign_versions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_campaign_versions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      meta_campaigns: {
+        Row: {
+          ad_account_id: string | null
+          budget_mode: string
+          builder_state: Json | null
+          buying_type: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          daily_budget_cents: number | null
+          id: string
+          integration_id: string | null
+          last_published_at: string | null
+          last_synced_at: string | null
+          lifetime_budget_cents: number | null
+          meta_campaign_id: string | null
+          name: string
+          objective: string
+          publish_error: string | null
+          raw: Json | null
+          special_ad_categories: string[] | null
+          special_ad_category_country: string | null
+          start_time: string | null
+          status: string
+          stop_time: string | null
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id?: string | null
+          budget_mode?: string
+          builder_state?: Json | null
+          buying_type?: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          daily_budget_cents?: number | null
+          id?: string
+          integration_id?: string | null
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          lifetime_budget_cents?: number | null
+          meta_campaign_id?: string | null
+          name: string
+          objective: string
+          publish_error?: string | null
+          raw?: Json | null
+          special_ad_categories?: string[] | null
+          special_ad_category_country?: string | null
+          start_time?: string | null
+          status?: string
+          stop_time?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string | null
+          budget_mode?: string
+          builder_state?: Json | null
+          buying_type?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          daily_budget_cents?: number | null
+          id?: string
+          integration_id?: string | null
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          lifetime_budget_cents?: number | null
+          meta_campaign_id?: string | null
+          name?: string
+          objective?: string
+          publish_error?: string | null
+          raw?: Json | null
+          special_ad_categories?: string[] | null
+          special_ad_category_country?: string | null
+          start_time?: string | null
+          status?: string
+          stop_time?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_campaigns_ad_account_id_fkey"
+            columns: ["ad_account_id"]
+            isOneToOne: false
+            referencedRelation: "meta_ad_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "meta_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "meta_campaigns_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_conversion_pixel: {
+        Row: {
+          ad_account_id: string | null
+          capi_events_last_24h: number | null
+          capi_token_encrypted: string | null
+          company_id: string
+          created_at: string
+          deduplication_rate: number | null
+          event_match_quality_score: number | null
+          events_last_7d: number | null
+          id: string
+          is_active: boolean
+          last_event_at: string | null
+          pixel_events_last_24h: number | null
+          pixel_id: string
+          pixel_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id?: string | null
+          capi_events_last_24h?: number | null
+          capi_token_encrypted?: string | null
+          company_id: string
+          created_at?: string
+          deduplication_rate?: number | null
+          event_match_quality_score?: number | null
+          events_last_7d?: number | null
+          id?: string
+          is_active?: boolean
+          last_event_at?: string | null
+          pixel_events_last_24h?: number | null
+          pixel_id: string
+          pixel_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string | null
+          capi_events_last_24h?: number | null
+          capi_token_encrypted?: string | null
+          company_id?: string
+          created_at?: string
+          deduplication_rate?: number | null
+          event_match_quality_score?: number | null
+          events_last_7d?: number | null
+          id?: string
+          is_active?: boolean
+          last_event_at?: string | null
+          pixel_events_last_24h?: number | null
+          pixel_id?: string
+          pixel_name?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_conversion_pixel_ad_account_id_fkey"
+            columns: ["ad_account_id"]
+            isOneToOne: false
+            referencedRelation: "meta_ad_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_conversion_pixel_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "meta_conversion_pixel_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_conversion_pixel_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      meta_creatives: {
+        Row: {
+          ad_account_id: string | null
+          ai_model: string | null
+          ai_prompt: string | null
+          asset_feed_spec: Json | null
+          body: string | null
+          call_to_action_type: string | null
+          company_id: string
+          created_at: string
+          format: string
+          goal: string | null
+          hook: string | null
+          id: string
+          image_hash: string | null
+          last_published_at: string | null
+          last_synced_at: string | null
+          link_url: string | null
+          media_id: string | null
+          meta_creative_id: string | null
+          name: string
+          object_story_spec: Json | null
+          raw: Json | null
+          status: string
+          title: string | null
+          updated_at: string
+          video_id: string | null
+        }
+        Insert: {
+          ad_account_id?: string | null
+          ai_model?: string | null
+          ai_prompt?: string | null
+          asset_feed_spec?: Json | null
+          body?: string | null
+          call_to_action_type?: string | null
+          company_id: string
+          created_at?: string
+          format?: string
+          goal?: string | null
+          hook?: string | null
+          id?: string
+          image_hash?: string | null
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          link_url?: string | null
+          media_id?: string | null
+          meta_creative_id?: string | null
+          name: string
+          object_story_spec?: Json | null
+          raw?: Json | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          video_id?: string | null
+        }
+        Update: {
+          ad_account_id?: string | null
+          ai_model?: string | null
+          ai_prompt?: string | null
+          asset_feed_spec?: Json | null
+          body?: string | null
+          call_to_action_type?: string | null
+          company_id?: string
+          created_at?: string
+          format?: string
+          goal?: string | null
+          hook?: string | null
+          id?: string
+          image_hash?: string | null
+          last_published_at?: string | null
+          last_synced_at?: string | null
+          link_url?: string | null
+          media_id?: string | null
+          meta_creative_id?: string | null
+          name?: string
+          object_story_spec?: Json | null
+          raw?: Json | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_creatives_ad_account_id_fkey"
+            columns: ["ad_account_id"]
+            isOneToOne: false
+            referencedRelation: "meta_ad_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_creatives_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "meta_creatives_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_creatives_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "meta_creatives_media_id_fkey"
+            columns: ["media_id"]
+            isOneToOne: false
+            referencedRelation: "ad_media"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_crm_conversion_events: {
+        Row: {
+          attempt_count: number
+          company_id: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          event_id: string
+          event_kind: string
+          event_name: string
+          id: string
+          last_error: string | null
+          payload: Json
+          response_payload: Json | null
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          company_id: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          event_id: string
+          event_kind: string
+          event_name: string
+          id?: string
+          last_error?: string | null
+          payload?: Json
+          response_payload?: Json | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          company_id?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          event_id?: string
+          event_kind?: string
+          event_name?: string
+          id?: string
+          last_error?: string | null
+          payload?: Json
+          response_payload?: Json | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_crm_conversion_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "meta_crm_conversion_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_crm_conversion_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      meta_data_deletion_requests: {
+        Row: {
+          associated_email: string | null
+          completed_at: string | null
+          confirmation_code: string
+          created_at: string
+          deleted_record_count: number | null
+          deleted_user_ids: string[] | null
+          error_message: string | null
+          facebook_user_id: string
+          id: string
+          ip_address: unknown
+          processed_at: string | null
+          signed_request_raw: string | null
+          status: string
+          user_agent: string | null
+        }
+        Insert: {
+          associated_email?: string | null
+          completed_at?: string | null
+          confirmation_code: string
+          created_at?: string
+          deleted_record_count?: number | null
+          deleted_user_ids?: string[] | null
+          error_message?: string | null
+          facebook_user_id: string
+          id?: string
+          ip_address?: unknown
+          processed_at?: string | null
+          signed_request_raw?: string | null
+          status?: string
+          user_agent?: string | null
+        }
+        Update: {
+          associated_email?: string | null
+          completed_at?: string | null
+          confirmation_code?: string
+          created_at?: string
+          deleted_record_count?: number | null
+          deleted_user_ids?: string[] | null
+          error_message?: string | null
+          facebook_user_id?: string
+          id?: string
+          ip_address?: unknown
+          processed_at?: string | null
+          signed_request_raw?: string | null
+          status?: string
+          user_agent?: string | null
+        }
+        Relationships: []
       }
       meta_insights_cache: {
         Row: {
@@ -31106,6 +39605,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_insights_cache_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -31174,6 +39680,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "meta_lead_forms_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "meta_lead_forms_integration_id_fkey"
             columns: ["integration_id"]
             isOneToOne: false
@@ -31233,6 +39746,79 @@ export type Database = {
           value_type?: string
         }
         Relationships: []
+      }
+      mittenti_noti: {
+        Row: {
+          categoria: Database["public"]["Enums"]["email_categoria_v2"]
+          company_id: string
+          confidenza: number
+          created_at: string
+          dominio: string | null
+          email: string
+          entita_id: string | null
+          entita_tipo: string | null
+          fonte: string
+          hit_count: number
+          id: string
+          is_blacklist: boolean
+          last_seen_at: string
+          updated_at: string
+        }
+        Insert: {
+          categoria: Database["public"]["Enums"]["email_categoria_v2"]
+          company_id: string
+          confidenza?: number
+          created_at?: string
+          dominio?: string | null
+          email: string
+          entita_id?: string | null
+          entita_tipo?: string | null
+          fonte: string
+          hit_count?: number
+          id?: string
+          is_blacklist?: boolean
+          last_seen_at?: string
+          updated_at?: string
+        }
+        Update: {
+          categoria?: Database["public"]["Enums"]["email_categoria_v2"]
+          company_id?: string
+          confidenza?: number
+          created_at?: string
+          dominio?: string | null
+          email?: string
+          entita_id?: string | null
+          entita_tipo?: string | null
+          fonte?: string
+          hit_count?: number
+          id?: string
+          is_blacklist?: boolean
+          last_seen_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mittenti_noti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "mittenti_noti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mittenti_noti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
       }
       modulo_richieste_attivazione: {
         Row: {
@@ -31298,6 +39884,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "modulo_richieste_attivazione_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       movimenti_cassa_native: {
@@ -31351,6 +39944,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimenti_cassa_native_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "movimenti_cassa_native_documento_id_fkey"
@@ -31407,6 +40007,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "multi_company_access_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "multi_company_access_user_id_fkey"
@@ -31475,6 +40082,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "notifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       notifiche_portale: {
@@ -31533,6 +40147,123 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "notifiche_portale_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      notifiche_preferenze: {
+        Row: {
+          canali: string[]
+          company_id: string
+          digest_mattino: string | null
+          digest_sera: string | null
+          giorni_scadenza: number
+          soglia_urgenza: string
+          updated_at: string
+          utente_id: string
+          vip_mittenti: string[]
+        }
+        Insert: {
+          canali?: string[]
+          company_id: string
+          digest_mattino?: string | null
+          digest_sera?: string | null
+          giorni_scadenza?: number
+          soglia_urgenza?: string
+          updated_at?: string
+          utente_id: string
+          vip_mittenti?: string[]
+        }
+        Update: {
+          canali?: string[]
+          company_id?: string
+          digest_mattino?: string | null
+          digest_sera?: string | null
+          giorni_scadenza?: number
+          soglia_urgenza?: string
+          updated_at?: string
+          utente_id?: string
+          vip_mittenti?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifiche_preferenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "notifiche_preferenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifiche_preferenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      nps_responses: {
+        Row: {
+          comment: string | null
+          company_id: string
+          created_at: string
+          id: string
+          score: number
+          triggered_at_phase: string | null
+          user_id: string | null
+        }
+        Insert: {
+          comment?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          score: number
+          triggered_at_phase?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          comment?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          score?: number
+          triggered_at_phase?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nps_responses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "nps_responses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nps_responses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       nps_surveys: {
@@ -31586,6 +40317,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nps_surveys_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -31742,6 +40480,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "opportunity_loss_reasons_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       order_attachments: {
@@ -31858,6 +40603,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "order_campo_assignments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "order_campo_assignments_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -31876,6 +40628,107 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_commission_ledger: {
+        Row: {
+          amount_delta: number
+          balance_after: number
+          company_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          effective_date: string
+          entry_type: string
+          id: string
+          metadata: Json
+          order_id: string
+          order_salesperson_id: string
+          salesperson_id: string
+          source: string
+        }
+        Insert: {
+          amount_delta?: number
+          balance_after?: number
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          effective_date?: string
+          entry_type: string
+          id?: string
+          metadata?: Json
+          order_id: string
+          order_salesperson_id: string
+          salesperson_id: string
+          source?: string
+        }
+        Update: {
+          amount_delta?: number
+          balance_after?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          effective_date?: string
+          entry_type?: string
+          id?: string
+          metadata?: Json
+          order_id?: string
+          order_salesperson_id?: string
+          salesperson_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_commission_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "order_commission_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_commission_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "order_commission_ledger_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_commission_ledger_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_commission_ledger_order_salesperson_id_fkey"
+            columns: ["order_salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "order_salespeople"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_commission_ledger_salesperson_id_fkey"
+            columns: ["salesperson_id"]
+            isOneToOne: false
+            referencedRelation: "salespeople"
             referencedColumns: ["id"]
           },
         ]
@@ -32089,6 +40942,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "order_events_order_id_fkey"
@@ -32316,6 +41176,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_item_timeline_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "order_item_timeline_order_item_id_fkey"
@@ -32621,6 +41488,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "order_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "order_messages_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -32803,6 +41677,141 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_statuses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      order_variable_compensations: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          basis: string
+          beneficiary_id: string
+          bonus_amount: number
+          company_id: string
+          compensation_type: string
+          compensation_value: number
+          created_at: string
+          created_by: string | null
+          deduction_amount: number
+          expected_payment_date: string | null
+          gross_amount: number
+          id: string
+          legacy_order_salesperson_id: string | null
+          maturity_reason: string | null
+          net_amount: number
+          order_id: string
+          paid_date: string | null
+          role: string
+          rule_snapshot: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          basis?: string
+          beneficiary_id: string
+          bonus_amount?: number
+          company_id: string
+          compensation_type: string
+          compensation_value?: number
+          created_at?: string
+          created_by?: string | null
+          deduction_amount?: number
+          expected_payment_date?: string | null
+          gross_amount?: number
+          id?: string
+          legacy_order_salesperson_id?: string | null
+          maturity_reason?: string | null
+          net_amount?: number
+          order_id: string
+          paid_date?: string | null
+          role?: string
+          rule_snapshot?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          basis?: string
+          beneficiary_id?: string
+          bonus_amount?: number
+          company_id?: string
+          compensation_type?: string
+          compensation_value?: number
+          created_at?: string
+          created_by?: string | null
+          deduction_amount?: number
+          expected_payment_date?: string | null
+          gross_amount?: number
+          id?: string
+          legacy_order_salesperson_id?: string | null
+          maturity_reason?: string | null
+          net_amount?: number
+          order_id?: string
+          paid_date?: string | null
+          role?: string
+          rule_snapshot?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_variable_compensations_beneficiary_id_fkey"
+            columns: ["beneficiary_id"]
+            isOneToOne: false
+            referencedRelation: "compensation_beneficiaries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_variable_compensations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "order_variable_compensations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_variable_compensations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "order_variable_compensations_legacy_order_salesperson_id_fkey"
+            columns: ["legacy_order_salesperson_id"]
+            isOneToOne: true
+            referencedRelation: "order_salespeople"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_variable_compensations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_variable_compensations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
             referencedColumns: ["id"]
           },
         ]
@@ -33020,6 +42029,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "orders_current_status_id_fkey"
             columns: ["current_status_id"]
             isOneToOne: false
@@ -33136,6 +42152,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "ordini_variazione_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "ordini_variazione_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -33147,6 +42170,257 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outlook_calendar_connections: {
+        Row: {
+          access_token_encrypted: string | null
+          company_id: string
+          created_at: string
+          granted_scopes: Json | null
+          id: string
+          last_error: string | null
+          last_sync_at: string | null
+          last_sync_event_count: number | null
+          microsoft_account_email: string | null
+          microsoft_oid: string | null
+          primary_calendar_id: string | null
+          primary_calendar_name: string | null
+          refresh_token_encrypted: string | null
+          status: string
+          synced_calendar_ids: Json | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+          webhook_expires_at: string | null
+          webhook_subscription_id: string | null
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          company_id: string
+          created_at?: string
+          granted_scopes?: Json | null
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          last_sync_event_count?: number | null
+          microsoft_account_email?: string | null
+          microsoft_oid?: string | null
+          primary_calendar_id?: string | null
+          primary_calendar_name?: string | null
+          refresh_token_encrypted?: string | null
+          status?: string
+          synced_calendar_ids?: Json | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+          webhook_expires_at?: string | null
+          webhook_subscription_id?: string | null
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          company_id?: string
+          created_at?: string
+          granted_scopes?: Json | null
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          last_sync_event_count?: number | null
+          microsoft_account_email?: string | null
+          microsoft_oid?: string | null
+          primary_calendar_id?: string | null
+          primary_calendar_name?: string | null
+          refresh_token_encrypted?: string | null
+          status?: string
+          synced_calendar_ids?: Json | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+          webhook_expires_at?: string | null
+          webhook_subscription_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outlook_calendar_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outlook_calendar_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outlook_calendar_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      outlook_calendar_events: {
+        Row: {
+          attendees: Json | null
+          body_preview: string | null
+          company_id: string
+          connection_id: string
+          created_at: string
+          eic_link_type: string | null
+          eic_meeting_id: string | null
+          end_time: string | null
+          id: string
+          is_all_day: boolean | null
+          is_cancelled: boolean | null
+          location_display_name: string | null
+          organizer_email: string | null
+          outlook_calendar_id: string
+          outlook_event_id: string
+          outlook_ical_uid: string | null
+          raw: Json | null
+          series_master_id: string | null
+          show_as: string | null
+          start_time: string | null
+          subject: string | null
+          updated_at: string
+          user_id: string
+          web_link: string | null
+        }
+        Insert: {
+          attendees?: Json | null
+          body_preview?: string | null
+          company_id: string
+          connection_id: string
+          created_at?: string
+          eic_link_type?: string | null
+          eic_meeting_id?: string | null
+          end_time?: string | null
+          id?: string
+          is_all_day?: boolean | null
+          is_cancelled?: boolean | null
+          location_display_name?: string | null
+          organizer_email?: string | null
+          outlook_calendar_id: string
+          outlook_event_id: string
+          outlook_ical_uid?: string | null
+          raw?: Json | null
+          series_master_id?: string | null
+          show_as?: string | null
+          start_time?: string | null
+          subject?: string | null
+          updated_at?: string
+          user_id: string
+          web_link?: string | null
+        }
+        Update: {
+          attendees?: Json | null
+          body_preview?: string | null
+          company_id?: string
+          connection_id?: string
+          created_at?: string
+          eic_link_type?: string | null
+          eic_meeting_id?: string | null
+          end_time?: string | null
+          id?: string
+          is_all_day?: boolean | null
+          is_cancelled?: boolean | null
+          location_display_name?: string | null
+          organizer_email?: string | null
+          outlook_calendar_id?: string
+          outlook_event_id?: string
+          outlook_ical_uid?: string | null
+          raw?: Json | null
+          series_master_id?: string | null
+          show_as?: string | null
+          start_time?: string | null
+          subject?: string | null
+          updated_at?: string
+          user_id?: string
+          web_link?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outlook_calendar_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outlook_calendar_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outlook_calendar_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "outlook_calendar_events_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "outlook_calendar_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outlook_calendars_cache: {
+        Row: {
+          can_edit: boolean | null
+          color: string | null
+          connection_id: string
+          fetched_at: string
+          id: string
+          is_default_calendar: boolean | null
+          name: string | null
+          outlook_calendar_id: string
+          owner_address: string | null
+          owner_name: string | null
+          raw: Json | null
+        }
+        Insert: {
+          can_edit?: boolean | null
+          color?: string | null
+          connection_id: string
+          fetched_at?: string
+          id?: string
+          is_default_calendar?: boolean | null
+          name?: string | null
+          outlook_calendar_id: string
+          owner_address?: string | null
+          owner_name?: string | null
+          raw?: Json | null
+        }
+        Update: {
+          can_edit?: boolean | null
+          color?: string | null
+          connection_id?: string
+          fetched_at?: string
+          id?: string
+          is_default_calendar?: boolean | null
+          name?: string | null
+          outlook_calendar_id?: string
+          owner_address?: string | null
+          owner_name?: string | null
+          raw?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outlook_calendars_cache_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "outlook_calendar_connections"
             referencedColumns: ["id"]
           },
         ]
@@ -33332,6 +42606,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "patrimonio_netto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       permission_templates: {
@@ -33383,6 +42664,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "permission_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       phone_number_sms_usage: {
@@ -33433,6 +42721,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "phone_number_sms_usage_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "phone_number_sms_usage_phone_number_id_fkey"
@@ -33497,6 +42792,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "piani_manutenzione_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "piani_manutenzione_contratto_id_fkey"
@@ -33590,6 +42892,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "piano_industriale_assumptions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       pipeline_forecasts: {
@@ -33658,6 +42967,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_forecasts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -34270,11 +43586,442 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "playbook_executions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "playbook_executions_playbook_id_fkey"
             columns: ["playbook_id"]
             isOneToOne: false
             referencedRelation: "lifecycle_playbooks"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      portal_course_activity: {
+        Row: {
+          actor_id: string | null
+          company_id: string
+          course_id: string | null
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json
+        }
+        Insert: {
+          actor_id?: string | null
+          company_id: string
+          course_id?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json
+        }
+        Update: {
+          actor_id?: string | null
+          company_id?: string
+          course_id?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_course_activity_company_id_course_id_fkey"
+            columns: ["company_id", "course_id"]
+            isOneToOne: false
+            referencedRelation: "portal_courses"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "portal_course_activity_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "portal_course_activity_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_course_activity_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      portal_course_assets: {
+        Row: {
+          company_id: string
+          content_text: string | null
+          course_id: string
+          created_at: string
+          duration: string
+          external_url: string | null
+          file_name: string | null
+          file_size: number | null
+          id: string
+          is_downloadable: boolean
+          mime_type: string | null
+          module_id: string | null
+          sort_order: number
+          storage_path: string | null
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          content_text?: string | null
+          course_id: string
+          created_at?: string
+          duration?: string
+          external_url?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          id: string
+          is_downloadable?: boolean
+          mime_type?: string | null
+          module_id?: string | null
+          sort_order?: number
+          storage_path?: string | null
+          title: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          content_text?: string | null
+          course_id?: string
+          created_at?: string
+          duration?: string
+          external_url?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          id?: string
+          is_downloadable?: boolean
+          mime_type?: string | null
+          module_id?: string | null
+          sort_order?: number
+          storage_path?: string | null
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_course_assets_company_id_course_id_fkey"
+            columns: ["company_id", "course_id"]
+            isOneToOne: false
+            referencedRelation: "portal_courses"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "portal_course_assets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "portal_course_assets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_course_assets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      portal_course_enrollments: {
+        Row: {
+          assigned_by: string | null
+          company_id: string
+          completed_at: string | null
+          course_id: string
+          created_at: string
+          due_at: string | null
+          id: string
+          progress_percent: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          company_id: string
+          completed_at?: string | null
+          course_id: string
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          progress_percent?: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assigned_by?: string | null
+          company_id?: string
+          completed_at?: string | null
+          course_id?: string
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          progress_percent?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_course_enrollments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "portal_course_enrollments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_course_enrollments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      portal_course_grants: {
+        Row: {
+          course_id: string
+          granted_at: string
+          granted_by: string | null
+          id: string
+          notes: string | null
+          revoked_at: string | null
+          source_company_id: string
+          status: string
+          target_company_id: string
+        }
+        Insert: {
+          course_id: string
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          notes?: string | null
+          revoked_at?: string | null
+          source_company_id: string
+          status?: string
+          target_company_id: string
+        }
+        Update: {
+          course_id?: string
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          notes?: string | null
+          revoked_at?: string | null
+          source_company_id?: string
+          status?: string
+          target_company_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_course_grants_source_company_id_course_id_fkey"
+            columns: ["source_company_id", "course_id"]
+            isOneToOne: false
+            referencedRelation: "portal_courses"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "portal_course_grants_target_company_id_fkey"
+            columns: ["target_company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "portal_course_grants_target_company_id_fkey"
+            columns: ["target_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_course_grants_target_company_id_fkey"
+            columns: ["target_company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      portal_course_modules: {
+        Row: {
+          company_id: string
+          completed_rate: number
+          course_id: string
+          created_at: string
+          description: string
+          duration: string
+          id: string
+          lessons: number
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          completed_rate?: number
+          course_id: string
+          created_at?: string
+          description?: string
+          duration?: string
+          id: string
+          lessons?: number
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          completed_rate?: number
+          course_id?: string
+          created_at?: string
+          description?: string
+          duration?: string
+          id?: string
+          lessons?: number
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_course_modules_company_id_course_id_fkey"
+            columns: ["company_id", "course_id"]
+            isOneToOne: false
+            referencedRelation: "portal_courses"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "portal_course_modules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "portal_course_modules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_course_modules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      portal_courses: {
+        Row: {
+          area: string
+          audience: string
+          company_id: string
+          completion_percent: number
+          created_at: string
+          created_by: string | null
+          description: string
+          enrolled_count: number
+          id: string
+          owner: string
+          published_at: string | null
+          sort_order: number
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          area: string
+          audience: string
+          company_id: string
+          completion_percent?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          enrolled_count?: number
+          id: string
+          owner?: string
+          published_at?: string | null
+          sort_order?: number
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          area?: string
+          audience?: string
+          company_id?: string
+          completion_percent?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          enrolled_count?: number
+          id?: string
+          owner?: string
+          published_at?: string | null
+          sort_order?: number
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_courses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "portal_courses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_courses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -34336,6 +44083,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portale_approvazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "portale_approvazioni_quote_id_fkey"
@@ -34410,6 +44164,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "portale_clienti_tokens_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       portale_richieste: {
@@ -34479,6 +44240,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portale_richieste_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "portale_richieste_impianto_id_fkey"
@@ -34645,6 +44413,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "pos_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "pos_documents_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -34768,6 +44543,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pratiche_edilizie_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -34908,6 +44690,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "preventivo_da_foto_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "preventivo_da_foto_runs_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
@@ -35030,6 +44819,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "preventivo_impostazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       preventivo_manodopera_assegnazioni: {
@@ -35092,6 +44888,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "preventivo_manodopera_assegnazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "preventivo_manodopera_assegnazioni_created_by_fkey"
@@ -35182,6 +44985,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prezzari_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -35327,6 +45137,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "pricing_suggestions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "pricing_suggestions_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
@@ -35469,6 +45286,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "prima_nota_entries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "prima_nota_entries_cost_id_fkey"
             columns: ["cost_id"]
             isOneToOne: false
@@ -35595,6 +45419,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "product_aliases_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "product_aliases_family_id_fkey"
             columns: ["family_id"]
             isOneToOne: false
@@ -35607,6 +45438,67 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "tariffe_aziendali"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_events: {
+        Row: {
+          category: string
+          company_id: string
+          event_name: string
+          id: string
+          occurred_at: string
+          page_url: string | null
+          properties: Json
+          session_id: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          category?: string
+          company_id: string
+          event_name: string
+          id?: string
+          occurred_at?: string
+          page_url?: string | null
+          properties?: Json
+          session_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          category?: string
+          company_id?: string
+          event_name?: string
+          id?: string
+          occurred_at?: string
+          page_url?: string | null
+          properties?: Json
+          session_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "product_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -35751,6 +45643,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "profiles_marketing_contact_id_fkey"
@@ -35904,6 +45803,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposed_purchase_orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "proposed_purchase_orders_external_po_id_fkey"
@@ -36075,6 +45981,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "public_chat_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "public_chat_sessions_marketing_contact_id_fkey"
             columns: ["marketing_contact_id"]
             isOneToOne: false
@@ -36156,6 +46069,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "public_chatbot_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -36250,6 +46170,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "purchase_order_items_order_item_id_fkey"
@@ -36370,6 +46297,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_verifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "purchase_order_verifications_order_id_fkey"
@@ -36495,6 +46429,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "purchase_orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "purchase_orders_delivery_warehouse_id_fkey"
             columns: ["delivery_warehouse_id"]
             isOneToOne: false
@@ -36584,6 +46525,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "push_subscriptions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       quote_approvals: {
@@ -36649,6 +46597,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_approvals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "quote_approvals_quote_id_fkey"
@@ -36720,6 +46675,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_clause_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -36798,6 +46760,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_generation_audit_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -36928,6 +46897,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "quote_items_computo_voce_id_fkey"
@@ -37095,6 +47071,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "quote_pdf_materials_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       quote_render_attachments: {
@@ -37160,6 +47143,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_render_attachments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "quote_render_attachments_quote_id_fkey"
@@ -37280,6 +47270,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_salespeople_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "quote_salespeople_quote_id_fkey"
@@ -37449,6 +47446,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "quote_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       quote_versions: {
@@ -37496,6 +47500,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_versions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "quote_versions_quote_id_fkey"
@@ -37801,6 +47812,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "quotes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "quotes_computo_upload_id_fkey"
             columns: ["computo_upload_id"]
             isOneToOne: false
@@ -37953,6 +47971,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "rapportini_intervento_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "rapportini_intervento_impianto_id_fkey"
             columns: ["impianto_id"]
             isOneToOne: false
@@ -38043,6 +48068,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "rapportini_vocali_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "rapportini_vocali_operaio_id_fkey"
             columns: ["operaio_id"]
             isOneToOne: false
@@ -38113,6 +48145,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rapportino_materiali_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "rapportino_materiali_rapportino_id_fkey"
@@ -38196,6 +48235,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_clicks_converted_company_id_fkey"
+            columns: ["converted_company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "referral_clicks_referrer_id_fkey"
@@ -38288,6 +48334,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "referral_commission_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "referral_commission_ledger_payout_id_fkey"
             columns: ["payout_id"]
             isOneToOne: false
@@ -38356,6 +48409,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_companies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "referral_companies_referrer_id_fkey"
@@ -38434,6 +48494,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_conversions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "referral_conversions_referrer_id_fkey"
@@ -38526,6 +48593,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "referral_events_referrer_id_fkey"
@@ -38735,6 +48809,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      referral_signup_attempts: {
+        Row: {
+          attempted_at: string
+          email: string | null
+          error_reason: string | null
+          id: string
+          ip_address: string
+          success: boolean
+          user_agent: string | null
+        }
+        Insert: {
+          attempted_at?: string
+          email?: string | null
+          error_reason?: string | null
+          id?: string
+          ip_address: string
+          success?: boolean
+          user_agent?: string | null
+        }
+        Update: {
+          attempted_at?: string
+          email?: string | null
+          error_reason?: string | null
+          id?: string
+          ip_address?: string
+          success?: boolean
+          user_agent?: string | null
+        }
+        Relationships: []
       }
       referral_tiers: {
         Row: {
@@ -39022,6 +49126,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "render_bagno_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "render_bagno_sessions_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -39098,6 +49209,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_credit_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -39199,6 +49317,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "render_credit_purchases_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "render_credit_purchases_pack_id_fkey"
             columns: ["pack_id"]
             isOneToOne: false
@@ -39254,6 +49379,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "render_credits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       render_credits_log: {
@@ -39307,6 +49439,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_credits_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -39376,6 +49515,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_economics_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -39468,6 +49614,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "render_facciata_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "render_facciata_sessions_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -39544,6 +49697,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_gallery_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "render_gallery_session_id_fkey"
@@ -39685,6 +49845,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "render_pavimento_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "render_pavimento_sessions_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -39796,6 +49963,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "render_pergole_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "render_pergole_sessions_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -39899,6 +50073,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_persiane_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "render_persiane_sessions_contact_id_fkey"
@@ -40010,6 +50191,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_piscine_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "render_piscine_sessions_contact_id_fkey"
@@ -40267,6 +50455,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "render_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "render_sessions_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -40379,6 +50574,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "render_stanza_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "render_stanza_sessions_contact_id_fkey"
@@ -40504,6 +50706,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "render_technical_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "render_technical_sessions_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -40612,6 +50821,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "render_tetto_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "render_tetto_sessions_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -40689,6 +50905,404 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "reporting_preferences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      reputation_automation_settings: {
+        Row: {
+          company_id: string
+          created_at: string
+          delay_days: number
+          enabled: boolean
+          follow_up_after_days: number
+          id: string
+          min_rating_alert: number
+          require_approval: boolean
+          trigger_key: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          delay_days?: number
+          enabled?: boolean
+          follow_up_after_days?: number
+          id?: string
+          min_rating_alert?: number
+          require_approval?: boolean
+          trigger_key?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          delay_days?: number
+          enabled?: boolean
+          follow_up_after_days?: number
+          id?: string
+          min_rating_alert?: number
+          require_approval?: boolean
+          trigger_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reputation_automation_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "reputation_automation_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reputation_automation_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      reputation_campaigns: {
+        Row: {
+          channel: string
+          clicked_count: number
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          message_template: string | null
+          name: string
+          opened_count: number
+          review_count: number
+          segment: string
+          sent_count: number
+          status: string
+          target_customer_id: string | null
+          target_label: string | null
+          target_order_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          channel?: string
+          clicked_count?: number
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message_template?: string | null
+          name: string
+          opened_count?: number
+          review_count?: number
+          segment?: string
+          sent_count?: number
+          status?: string
+          target_customer_id?: string | null
+          target_label?: string | null
+          target_order_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          clicked_count?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          message_template?: string | null
+          name?: string
+          opened_count?: number
+          review_count?: number
+          segment?: string
+          sent_count?: number
+          status?: string
+          target_customer_id?: string | null
+          target_label?: string | null
+          target_order_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reputation_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "reputation_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reputation_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "reputation_campaigns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reputation_campaigns_target_customer_id_fkey"
+            columns: ["target_customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reputation_campaigns_target_order_id_fkey"
+            columns: ["target_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reputation_campaigns_target_order_id_fkey"
+            columns: ["target_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reputation_events: {
+        Row: {
+          actor: string
+          company_id: string
+          created_at: string
+          detail: string
+          id: string
+          kind: string
+          title: string
+          tone: string
+        }
+        Insert: {
+          actor?: string
+          company_id: string
+          created_at?: string
+          detail?: string
+          id?: string
+          kind: string
+          title: string
+          tone?: string
+        }
+        Update: {
+          actor?: string
+          company_id?: string
+          created_at?: string
+          detail?: string
+          id?: string
+          kind?: string
+          title?: string
+          tone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reputation_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "reputation_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reputation_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      reputation_public_links: {
+        Row: {
+          active: boolean
+          company_id: string
+          created_at: string
+          id: string
+          public_slug: string
+          settings: Json
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          company_id: string
+          created_at?: string
+          id?: string
+          public_slug: string
+          settings?: Json
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          company_id?: string
+          created_at?: string
+          id?: string
+          public_slug?: string
+          settings?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reputation_public_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "reputation_public_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reputation_public_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      reputation_reviews: {
+        Row: {
+          ai_reply: string | null
+          author: string
+          body: string
+          campaign_id: string | null
+          company_id: string
+          created_at: string
+          customer_id: string | null
+          id: string
+          metadata: Json
+          order_id: string | null
+          project: string
+          rating: number
+          replied_at: string | null
+          review_date: string
+          sentiment: string
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          ai_reply?: string | null
+          author: string
+          body: string
+          campaign_id?: string | null
+          company_id: string
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          metadata?: Json
+          order_id?: string | null
+          project?: string
+          rating: number
+          replied_at?: string | null
+          review_date?: string
+          sentiment?: string
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          ai_reply?: string | null
+          author?: string
+          body?: string
+          campaign_id?: string | null
+          company_id?: string
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          metadata?: Json
+          order_id?: string | null
+          project?: string
+          rating?: number
+          replied_at?: string | null
+          review_date?: string
+          sentiment?: string
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reputation_reviews_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "reputation_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reputation_reviews_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "reputation_reviews_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reputation_reviews_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "reputation_reviews_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reputation_reviews_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reputation_reviews_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
         ]
       }
       ritenute_garanzia: {
@@ -40745,6 +51359,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ritenute_garanzia_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "ritenute_garanzia_contratto_id_fkey"
@@ -40846,6 +51467,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "route_plans_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "route_plans_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -40874,6 +51502,201 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sa_company_intel: {
+        Row: {
+          aggiornato_al: string
+          company_id: string
+          dolore_principale: string | null
+          health_score: number | null
+          intensita: number
+          motivazione: string | null
+          priorita_contatto: number
+          servizio_consigliato: string | null
+          top_aree: Json
+        }
+        Insert: {
+          aggiornato_al?: string
+          company_id: string
+          dolore_principale?: string | null
+          health_score?: number | null
+          intensita?: number
+          motivazione?: string | null
+          priorita_contatto?: number
+          servizio_consigliato?: string | null
+          top_aree?: Json
+        }
+        Update: {
+          aggiornato_al?: string
+          company_id?: string
+          dolore_principale?: string | null
+          health_score?: number | null
+          intensita?: number
+          motivazione?: string | null
+          priorita_contatto?: number
+          servizio_consigliato?: string | null
+          top_aree?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sa_company_intel_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sa_company_intel_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sa_company_intel_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      sa_company_problems: {
+        Row: {
+          area: string
+          company_id: string
+          da_quanti_giorni: number | null
+          dettaglio_anonimo: string | null
+          fonte: string
+          id: string
+          problema: string
+          rilevato_al: string
+          severita: string
+        }
+        Insert: {
+          area: string
+          company_id: string
+          da_quanti_giorni?: number | null
+          dettaglio_anonimo?: string | null
+          fonte: string
+          id?: string
+          problema: string
+          rilevato_al?: string
+          severita: string
+        }
+        Update: {
+          area?: string
+          company_id?: string
+          da_quanti_giorni?: number | null
+          dettaglio_anonimo?: string | null
+          fonte?: string
+          id?: string
+          problema?: string
+          rilevato_al?: string
+          severita?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sa_company_problems_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sa_company_problems_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sa_company_problems_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      sa_conversation_signals: {
+        Row: {
+          area: string
+          company_id: string
+          created_at: string
+          esempio_anonimo: string | null
+          giorno: string
+          id: string
+          intento: string
+          peso: number
+        }
+        Insert: {
+          area: string
+          company_id: string
+          created_at?: string
+          esempio_anonimo?: string | null
+          giorno: string
+          id?: string
+          intento: string
+          peso?: number
+        }
+        Update: {
+          area?: string
+          company_id?: string
+          created_at?: string
+          esempio_anonimo?: string | null
+          giorno?: string
+          id?: string
+          intento?: string
+          peso?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sa_conversation_signals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sa_conversation_signals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sa_conversation_signals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      sa_problem_to_package: {
+        Row: {
+          area: string
+          attivo: boolean
+          id: string
+          note: string | null
+          pacchetto: string
+        }
+        Insert: {
+          area: string
+          attivo?: boolean
+          id?: string
+          note?: string | null
+          pacchetto: string
+        }
+        Update: {
+          area?: string
+          attivo?: boolean
+          id?: string
+          note?: string | null
+          pacchetto?: string
+        }
+        Relationships: []
       }
       sal: {
         Row: {
@@ -41003,6 +51826,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sal_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "sal_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -41069,6 +51899,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_auto_generation_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "sal_auto_generation_runs_order_id_fkey"
@@ -41146,6 +51983,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sal_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "sal_records_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -41209,6 +52053,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_signature_tokens_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "sal_signature_tokens_sal_id_fkey"
@@ -41297,6 +52148,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sal_subappaltatori_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "sal_subappaltatori_contratto_id_fkey"
@@ -41430,6 +52288,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sales_playbook_completions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "sales_playbook_completions_opportunity_id_fkey"
             columns: ["opportunity_id"]
             isOneToOne: false
@@ -41515,6 +52380,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sales_targets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       salespeople: {
@@ -41584,6 +52456,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "salespeople_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       scadenza_alert_prefs: {
@@ -41641,6 +52520,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "scadenza_alert_prefs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       scadenze: {
@@ -41657,9 +52543,12 @@ export type Database = {
           description: string
           direction: string | null
           due_date: string
+          email_documento_estratto_id: string | null
+          email_id: string | null
           id: string
           invoice_id: string | null
           is_auto_generated: boolean | null
+          is_previsionale: boolean
           is_recurring: boolean
           notes: string | null
           order_id: string | null
@@ -41687,9 +52576,12 @@ export type Database = {
           description: string
           direction?: string | null
           due_date: string
+          email_documento_estratto_id?: string | null
+          email_id?: string | null
           id?: string
           invoice_id?: string | null
           is_auto_generated?: boolean | null
+          is_previsionale?: boolean
           is_recurring?: boolean
           notes?: string | null
           order_id?: string | null
@@ -41717,9 +52609,12 @@ export type Database = {
           description?: string
           direction?: string | null
           due_date?: string
+          email_documento_estratto_id?: string | null
+          email_id?: string | null
           id?: string
           invoice_id?: string | null
           is_auto_generated?: boolean | null
+          is_previsionale?: boolean
           is_recurring?: boolean
           notes?: string | null
           order_id?: string | null
@@ -41748,6 +52643,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scadenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "scadenze_contact_id_fkey"
@@ -41868,6 +52770,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sconti_quantita_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "sconti_quantita_prodotto_id_fkey"
             columns: ["prodotto_id"]
             isOneToOne: false
@@ -41926,6 +52835,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "scorte_furgone_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "scorte_furgone_tecnico_id_fkey"
             columns: ["tecnico_id"]
             isOneToOne: false
@@ -41933,6 +52849,138 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      scraped_companies: {
+        Row: {
+          address: string | null
+          business_name: string
+          categories: string[]
+          city: string | null
+          country: string
+          dedupe_key: string
+          email: string | null
+          first_scraped_at: string
+          id: string
+          last_scraped_at: string
+          lat: number | null
+          lng: number | null
+          partita_iva: string | null
+          phone: string | null
+          place_id: string | null
+          rating: number | null
+          raw: Json | null
+          region: string | null
+          reviews_count: number | null
+          scrape_count: number
+          source: string | null
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          business_name: string
+          categories?: string[]
+          city?: string | null
+          country?: string
+          dedupe_key: string
+          email?: string | null
+          first_scraped_at?: string
+          id?: string
+          last_scraped_at?: string
+          lat?: number | null
+          lng?: number | null
+          partita_iva?: string | null
+          phone?: string | null
+          place_id?: string | null
+          rating?: number | null
+          raw?: Json | null
+          region?: string | null
+          reviews_count?: number | null
+          scrape_count?: number
+          source?: string | null
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          business_name?: string
+          categories?: string[]
+          city?: string | null
+          country?: string
+          dedupe_key?: string
+          email?: string | null
+          first_scraped_at?: string
+          id?: string
+          last_scraped_at?: string
+          lat?: number | null
+          lng?: number | null
+          partita_iva?: string | null
+          phone?: string | null
+          place_id?: string | null
+          rating?: number | null
+          raw?: Json | null
+          region?: string | null
+          reviews_count?: number | null
+          scrape_count?: number
+          source?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
+      sdi_cedente_config: {
+        Row: {
+          codice_destinatario: string | null
+          company_id: string
+          created_at: string
+          delega_stato: string
+          email: string | null
+          fiscal_id: string | null
+          id: string
+          last_checked_at: string | null
+          last_error: string | null
+          meta: Json | null
+          name: string | null
+          provider: string
+          provider_config_id: string | null
+          registered_at: string | null
+          stato: string
+          updated_at: string
+        }
+        Insert: {
+          codice_destinatario?: string | null
+          company_id: string
+          created_at?: string
+          delega_stato?: string
+          email?: string | null
+          fiscal_id?: string | null
+          id?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          meta?: Json | null
+          name?: string | null
+          provider?: string
+          provider_config_id?: string | null
+          registered_at?: string | null
+          stato?: string
+          updated_at?: string
+        }
+        Update: {
+          codice_destinatario?: string | null
+          company_id?: string
+          created_at?: string
+          delega_stato?: string
+          email?: string | null
+          fiscal_id?: string | null
+          id?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          meta?: Json | null
+          name?: string | null
+          provider?: string
+          provider_config_id?: string | null
+          registered_at?: string | null
+          stato?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       sdi_log: {
         Row: {
@@ -41985,6 +53033,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdi_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "sdi_log_documento_id_fkey"
@@ -42050,6 +53105,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdi_provider_responses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -42141,6 +53203,300 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sedi_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      sequenze: {
+        Row: {
+          approvata_at: string | null
+          approvata_da: string | null
+          attiva: boolean
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          limite_invii_giorno: number
+          modalita_invio: string
+          nome: string
+          oauth_connection_id: string | null
+          step: Json
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          approvata_at?: string | null
+          approvata_da?: string | null
+          attiva?: boolean
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          limite_invii_giorno?: number
+          modalita_invio?: string
+          nome: string
+          oauth_connection_id?: string | null
+          step?: Json
+          tipo?: string
+          updated_at?: string
+        }
+        Update: {
+          approvata_at?: string | null
+          approvata_da?: string | null
+          attiva?: boolean
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          limite_invii_giorno?: number
+          modalita_invio?: string
+          nome?: string
+          oauth_connection_id?: string | null
+          step?: Json
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sequenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sequenze_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sequenze_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "email_oauth_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sequenze_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_oauth_connections_meta"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sequenze_esecuzioni: {
+        Row: {
+          ancora_at: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          destinatario: string
+          destinatario_nome: string | null
+          entita_id: string | null
+          entita_tipo: string | null
+          fermata_motivo: string | null
+          id: string
+          oauth_connection_id: string | null
+          optout_token: string
+          prossimo_invio_at: string | null
+          sequenza_id: string
+          stato: string
+          step_corrente: number
+          thread_id: string | null
+          ultimo_invio_at: string | null
+          updated_at: string
+          variabili: Json
+        }
+        Insert: {
+          ancora_at?: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          destinatario: string
+          destinatario_nome?: string | null
+          entita_id?: string | null
+          entita_tipo?: string | null
+          fermata_motivo?: string | null
+          id?: string
+          oauth_connection_id?: string | null
+          optout_token?: string
+          prossimo_invio_at?: string | null
+          sequenza_id: string
+          stato?: string
+          step_corrente?: number
+          thread_id?: string | null
+          ultimo_invio_at?: string | null
+          updated_at?: string
+          variabili?: Json
+        }
+        Update: {
+          ancora_at?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          destinatario?: string
+          destinatario_nome?: string | null
+          entita_id?: string | null
+          entita_tipo?: string | null
+          fermata_motivo?: string | null
+          id?: string
+          oauth_connection_id?: string | null
+          optout_token?: string
+          prossimo_invio_at?: string | null
+          sequenza_id?: string
+          stato?: string
+          step_corrente?: number
+          thread_id?: string | null
+          ultimo_invio_at?: string | null
+          updated_at?: string
+          variabili?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequenze_esecuzioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sequenze_esecuzioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sequenze_esecuzioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sequenze_esecuzioni_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "email_oauth_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sequenze_esecuzioni_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_oauth_connections_meta"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sequenze_esecuzioni_sequenza_id_fkey"
+            columns: ["sequenza_id"]
+            isOneToOne: false
+            referencedRelation: "sequenze"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sequenze_invii: {
+        Row: {
+          company_id: string
+          corpo_anteprima: string | null
+          creato_at: string
+          errore: string | null
+          esecuzione_id: string
+          id: string
+          inviato_at: string | null
+          oggetto: string | null
+          outbox_id: string | null
+          sequenza_id: string
+          stato: string
+          step_index: number
+        }
+        Insert: {
+          company_id: string
+          corpo_anteprima?: string | null
+          creato_at?: string
+          errore?: string | null
+          esecuzione_id: string
+          id?: string
+          inviato_at?: string | null
+          oggetto?: string | null
+          outbox_id?: string | null
+          sequenza_id: string
+          stato?: string
+          step_index: number
+        }
+        Update: {
+          company_id?: string
+          corpo_anteprima?: string | null
+          creato_at?: string
+          errore?: string | null
+          esecuzione_id?: string
+          id?: string
+          inviato_at?: string | null
+          oggetto?: string | null
+          outbox_id?: string | null
+          sequenza_id?: string
+          stato?: string
+          step_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequenze_invii_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sequenze_invii_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sequenze_invii_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sequenze_invii_esecuzione_id_fkey"
+            columns: ["esecuzione_id"]
+            isOneToOne: false
+            referencedRelation: "sequenze_esecuzioni"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sequenze_invii_outbox_id_fkey"
+            columns: ["outbox_id"]
+            isOneToOne: false
+            referencedRelation: "email_outbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sequenze_invii_sequenza_id_fkey"
+            columns: ["sequenza_id"]
+            isOneToOne: false
+            referencedRelation: "sequenze"
+            referencedColumns: ["id"]
+          },
         ]
       }
       shipments_to_site: {
@@ -42211,6 +53567,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "shipments_to_site_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "shipments_to_site_destination_warehouse_id_fkey"
             columns: ["destination_warehouse_id"]
             isOneToOne: false
@@ -42249,6 +53612,7 @@ export type Database = {
           firma_lat: number | null
           firma_lng: number | null
           firma_user_agent: string | null
+          fv_progetto_id: string | null
           id: string
           order_id: string | null
           otp_canale: string
@@ -42285,6 +53649,7 @@ export type Database = {
           firma_lat?: number | null
           firma_lng?: number | null
           firma_user_agent?: string | null
+          fv_progetto_id?: string | null
           id?: string
           order_id?: string | null
           otp_canale?: string
@@ -42321,6 +53686,7 @@ export type Database = {
           firma_lat?: number | null
           firma_lng?: number | null
           firma_user_agent?: string | null
+          fv_progetto_id?: string | null
           id?: string
           order_id?: string | null
           otp_canale?: string
@@ -42355,6 +53721,27 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "signature_requests_fv_progetto_id_fkey"
+            columns: ["fv_progetto_id"]
+            isOneToOne: false
+            referencedRelation: "fv_progetti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_fv_progetto_id_fkey"
+            columns: ["fv_progetto_id"]
+            isOneToOne: false
+            referencedRelation: "v_fv_progetti_dashboard"
             referencedColumns: ["id"]
           },
           {
@@ -43615,6 +55002,92 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "silvio_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      silvio_audit: {
+        Row: {
+          approvata_da: string | null
+          autonomia: string
+          azione_chiave: string
+          company_id: string
+          created_at: string
+          esito: string
+          id: string
+          motivo: string | null
+          oggetto_id: string | null
+          oggetto_tipo: string | null
+          origine: string | null
+          origine_id: string | null
+          parametri: Json
+          per_conto_di: string | null
+          ref_audit_id: string | null
+          reversibile: boolean
+        }
+        Insert: {
+          approvata_da?: string | null
+          autonomia?: string
+          azione_chiave: string
+          company_id: string
+          created_at?: string
+          esito?: string
+          id?: string
+          motivo?: string | null
+          oggetto_id?: string | null
+          oggetto_tipo?: string | null
+          origine?: string | null
+          origine_id?: string | null
+          parametri?: Json
+          per_conto_di?: string | null
+          ref_audit_id?: string | null
+          reversibile?: boolean
+        }
+        Update: {
+          approvata_da?: string | null
+          autonomia?: string
+          azione_chiave?: string
+          company_id?: string
+          created_at?: string
+          esito?: string
+          id?: string
+          motivo?: string | null
+          oggetto_id?: string | null
+          oggetto_tipo?: string | null
+          origine?: string | null
+          origine_id?: string | null
+          parametri?: Json
+          per_conto_di?: string | null
+          ref_audit_id?: string | null
+          reversibile?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_audit_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_audit_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_audit_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       silvio_automation_policies: {
@@ -43652,6 +55125,229 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      silvio_azioni: {
+        Row: {
+          ambito: string
+          attiva: boolean
+          autorizzazione: string
+          azione_inversa: string | null
+          categoria_rischio: string
+          chiave: string
+          created_at: string
+          descrizione: string
+          funzione_target: string
+          input_schema: Json
+          modulo: string
+          reversibilita: string
+          ruoli_consentiti: string[]
+          updated_at: string
+          versione: number
+        }
+        Insert: {
+          ambito?: string
+          attiva?: boolean
+          autorizzazione: string
+          azione_inversa?: string | null
+          categoria_rischio: string
+          chiave: string
+          created_at?: string
+          descrizione: string
+          funzione_target: string
+          input_schema?: Json
+          modulo: string
+          reversibilita: string
+          ruoli_consentiti?: string[]
+          updated_at?: string
+          versione?: number
+        }
+        Update: {
+          ambito?: string
+          attiva?: boolean
+          autorizzazione?: string
+          azione_inversa?: string | null
+          categoria_rischio?: string
+          chiave?: string
+          created_at?: string
+          descrizione?: string
+          funzione_target?: string
+          input_schema?: Json
+          modulo?: string
+          reversibilita?: string
+          ruoli_consentiti?: string[]
+          updated_at?: string
+          versione?: number
+        }
+        Relationships: []
+      }
+      silvio_azioni_override: {
+        Row: {
+          attiva: boolean | null
+          autorizzazione: string | null
+          chiave: string
+          company_id: string
+          ruoli_consentiti: string[] | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          attiva?: boolean | null
+          autorizzazione?: string | null
+          chiave: string
+          company_id: string
+          ruoli_consentiti?: string[] | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          attiva?: boolean | null
+          autorizzazione?: string | null
+          chiave?: string
+          company_id?: string
+          ruoli_consentiti?: string[] | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_azioni_override_chiave_fkey"
+            columns: ["chiave"]
+            isOneToOne: false
+            referencedRelation: "silvio_azioni"
+            referencedColumns: ["chiave"]
+          },
+          {
+            foreignKeyName: "silvio_azioni_override_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_azioni_override_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_azioni_override_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      silvio_budget: {
+        Row: {
+          company_id: string
+          mese_corrente: string
+          modalita: string
+          tetto_token_mese: number
+          token_usati_mese: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          mese_corrente?: string
+          modalita?: string
+          tetto_token_mese?: number
+          token_usati_mese?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          mese_corrente?: string
+          modalita?: string
+          tetto_token_mese?: number
+          token_usati_mese?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_budget_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_budget_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_budget_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      silvio_canali_identita: {
+        Row: {
+          canale: string
+          codice: string | null
+          codice_scadenza: string | null
+          company_id: string
+          created_at: string
+          id: string
+          identificativo: string
+          utente_id: string
+          verificato: boolean
+          verificato_at: string | null
+        }
+        Insert: {
+          canale: string
+          codice?: string | null
+          codice_scadenza?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          identificativo: string
+          utente_id: string
+          verificato?: boolean
+          verificato_at?: string | null
+        }
+        Update: {
+          canale?: string
+          codice?: string | null
+          codice_scadenza?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          identificativo?: string
+          utente_id?: string
+          verificato?: boolean
+          verificato_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_canali_identita_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_canali_identita_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_canali_identita_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
       }
       silvio_chief_of_staff_briefs: {
         Row: {
@@ -43703,6 +55399,89 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      silvio_coda_conferme: {
+        Row: {
+          anteprima: string | null
+          azione_chiave: string
+          company_id: string
+          created_at: string
+          esecuzione_id: string | null
+          id: string
+          note: string | null
+          origine: string | null
+          parametri: Json
+          parametri_modificati: Json | null
+          risolto_at: string | null
+          risolto_da: string | null
+          scadenza_at: string | null
+          stato: string
+          task_id: string | null
+        }
+        Insert: {
+          anteprima?: string | null
+          azione_chiave: string
+          company_id: string
+          created_at?: string
+          esecuzione_id?: string | null
+          id?: string
+          note?: string | null
+          origine?: string | null
+          parametri?: Json
+          parametri_modificati?: Json | null
+          risolto_at?: string | null
+          risolto_da?: string | null
+          scadenza_at?: string | null
+          stato?: string
+          task_id?: string | null
+        }
+        Update: {
+          anteprima?: string | null
+          azione_chiave?: string
+          company_id?: string
+          created_at?: string
+          esecuzione_id?: string | null
+          id?: string
+          note?: string | null
+          origine?: string | null
+          parametri?: Json
+          parametri_modificati?: Json | null
+          risolto_at?: string | null
+          risolto_da?: string | null
+          scadenza_at?: string | null
+          stato?: string
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_coda_conferme_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_coda_conferme_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_coda_conferme_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_coda_conferme_esecuzione_id_fkey"
+            columns: ["esecuzione_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_esecuzioni"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       silvio_decision_log: {
         Row: {
@@ -43874,11 +55653,241 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "silvio_decision_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "silvio_decision_log_executed_action_id_fkey"
             columns: ["executed_action_id"]
             isOneToOne: false
             referencedRelation: "ai_action_proposals"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_decision_rules: {
+        Row: {
+          attiva: boolean
+          azione: string
+          company_id: string
+          condizione: Json
+          created_at: string
+          dominio: string
+          id: string
+          origine: string
+          user_id: string | null
+        }
+        Insert: {
+          attiva?: boolean
+          azione: string
+          company_id: string
+          condizione: Json
+          created_at?: string
+          dominio: string
+          id?: string
+          origine?: string
+          user_id?: string | null
+        }
+        Update: {
+          attiva?: boolean
+          azione?: string
+          company_id?: string
+          condizione?: Json
+          created_at?: string
+          dominio?: string
+          id?: string
+          origine?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_decision_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_decision_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_decision_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_decision_rules_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_esecuzioni: {
+        Row: {
+          company_id: string
+          costo_stimato: number
+          created_at: string
+          esito: Json | null
+          gradino_max: number
+          id: string
+          intento: string | null
+          origine: string
+          origine_id: string | null
+          piano: Json
+          stato: string
+          token_input: number
+          token_output: number
+          updated_at: string
+          utente_id: string | null
+        }
+        Insert: {
+          company_id: string
+          costo_stimato?: number
+          created_at?: string
+          esito?: Json | null
+          gradino_max?: number
+          id?: string
+          intento?: string | null
+          origine?: string
+          origine_id?: string | null
+          piano?: Json
+          stato?: string
+          token_input?: number
+          token_output?: number
+          updated_at?: string
+          utente_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          costo_stimato?: number
+          created_at?: string
+          esito?: Json | null
+          gradino_max?: number
+          id?: string
+          intento?: string | null
+          origine?: string
+          origine_id?: string | null
+          piano?: Json
+          stato?: string
+          token_input?: number
+          token_output?: number
+          updated_at?: string
+          utente_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_esecuzioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_esecuzioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_esecuzioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      silvio_generation_jobs: {
+        Row: {
+          brief: string | null
+          commessa_id: string | null
+          company_id: string
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          doc_tipo: string | null
+          error: string | null
+          eta_seconds: number | null
+          formato: string | null
+          id: string
+          pratica_id: string | null
+          public_url: string | null
+          result: Json | null
+          status: string
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          brief?: string | null
+          commessa_id?: string | null
+          company_id: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          doc_tipo?: string | null
+          error?: string | null
+          eta_seconds?: number | null
+          formato?: string | null
+          id?: string
+          pratica_id?: string | null
+          public_url?: string | null
+          result?: Json | null
+          status?: string
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          brief?: string | null
+          commessa_id?: string | null
+          company_id?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          doc_tipo?: string | null
+          error?: string | null
+          eta_seconds?: number | null
+          formato?: string | null
+          id?: string
+          pratica_id?: string | null
+          public_url?: string | null
+          result?: Json | null
+          status?: string
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_generation_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_generation_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_generation_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -43984,6 +55993,67 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_silvio_agent_performance"
             referencedColumns: ["agent_key"]
+          },
+        ]
+      }
+      silvio_kb_citation_log: {
+        Row: {
+          company_id: string | null
+          created_at: string | null
+          doc_ids: string[]
+          id: string
+          override_ids: string[]
+          persona_key: string | null
+          session_id: string | null
+          similarity_scores: number[] | null
+          used_in_response: boolean | null
+          user_query: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string | null
+          doc_ids?: string[]
+          id?: string
+          override_ids?: string[]
+          persona_key?: string | null
+          session_id?: string | null
+          similarity_scores?: number[] | null
+          used_in_response?: boolean | null
+          user_query?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string | null
+          doc_ids?: string[]
+          id?: string
+          override_ids?: string[]
+          persona_key?: string | null
+          session_id?: string | null
+          similarity_scores?: number[] | null
+          used_in_response?: boolean | null
+          user_query?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_kb_citation_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_kb_citation_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_kb_citation_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -44114,6 +56184,7 @@ export type Database = {
       }
       silvio_morning_briefings: {
         Row: {
+          actions: Json
           brief_date: string
           company_id: string
           content: string
@@ -44129,6 +56200,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          actions?: Json
           brief_date?: string
           company_id: string
           content: string
@@ -44144,6 +56216,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          actions?: Json
           brief_date?: string
           company_id?: string
           content?: string
@@ -44172,6 +56245,98 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_morning_briefings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      silvio_outbound_messages: {
+        Row: {
+          attempts: number
+          canale: string
+          claimed_at: string | null
+          company_id: string
+          corpo: string
+          created_at: string
+          created_by: string | null
+          dest_id: string | null
+          dest_tipo: string | null
+          doc_id: string | null
+          error: string | null
+          id: string
+          oggetto: string | null
+          provider_message_id: string | null
+          scopo: string | null
+          sent_at: string | null
+          status: string
+          thread_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          canale?: string
+          claimed_at?: string | null
+          company_id: string
+          corpo: string
+          created_at?: string
+          created_by?: string | null
+          dest_id?: string | null
+          dest_tipo?: string | null
+          doc_id?: string | null
+          error?: string | null
+          id?: string
+          oggetto?: string | null
+          provider_message_id?: string | null
+          scopo?: string | null
+          sent_at?: string | null
+          status?: string
+          thread_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          canale?: string
+          claimed_at?: string | null
+          company_id?: string
+          corpo?: string
+          created_at?: string
+          created_by?: string | null
+          dest_id?: string | null
+          dest_tipo?: string | null
+          doc_id?: string | null
+          error?: string | null
+          id?: string
+          oggetto?: string | null
+          provider_message_id?: string | null
+          scopo?: string | null
+          sent_at?: string | null
+          status?: string
+          thread_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_outbound_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_outbound_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_outbound_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -44278,6 +56443,67 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "silvio_admin_personas"
             referencedColumns: ["persona_key"]
+          },
+        ]
+      }
+      silvio_playbook: {
+        Row: {
+          attivo: boolean
+          chiave: string
+          company_id: string | null
+          created_at: string
+          id: string
+          innesco: string
+          nome: string
+          passi: Json
+          updated_at: string
+          versione: number
+        }
+        Insert: {
+          attivo?: boolean
+          chiave: string
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          innesco: string
+          nome: string
+          passi?: Json
+          updated_at?: string
+          versione?: number
+        }
+        Update: {
+          attivo?: boolean
+          chiave?: string
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          innesco?: string
+          nome?: string
+          passi?: Json
+          updated_at?: string
+          versione?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_playbook_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_playbook_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_playbook_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -44482,6 +56708,176 @@ export type Database = {
           },
         ]
       }
+      silvio_task: {
+        Row: {
+          archiviato: boolean
+          company_id: string
+          contesto: Json
+          created_at: string
+          creato_da: string | null
+          esecuzione_id: string | null
+          id: string
+          origine: string
+          origine_id: string | null
+          passo_corrente: number
+          playbook_chiave: string | null
+          stato: string
+          titolo: string | null
+          updated_at: string
+        }
+        Insert: {
+          archiviato?: boolean
+          company_id: string
+          contesto?: Json
+          created_at?: string
+          creato_da?: string | null
+          esecuzione_id?: string | null
+          id?: string
+          origine?: string
+          origine_id?: string | null
+          passo_corrente?: number
+          playbook_chiave?: string | null
+          stato?: string
+          titolo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          archiviato?: boolean
+          company_id?: string
+          contesto?: Json
+          created_at?: string
+          creato_da?: string | null
+          esecuzione_id?: string | null
+          id?: string
+          origine?: string
+          origine_id?: string | null
+          passo_corrente?: number
+          playbook_chiave?: string | null
+          stato?: string
+          titolo?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_task_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_task_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_task_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_task_esecuzione_id_fkey"
+            columns: ["esecuzione_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_esecuzioni"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_task_passi: {
+        Row: {
+          azione_chiave: string
+          eseguito_at: string | null
+          esito: Json | null
+          id: string
+          ordine: number
+          parametri: Json
+          stato: string
+          task_id: string
+        }
+        Insert: {
+          azione_chiave: string
+          eseguito_at?: string | null
+          esito?: Json | null
+          id?: string
+          ordine: number
+          parametri?: Json
+          stato?: string
+          task_id: string
+        }
+        Update: {
+          azione_chiave?: string
+          eseguito_at?: string | null
+          esito?: Json | null
+          id?: string
+          ordine?: number
+          parametri?: Json
+          stato?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_task_passi_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "silvio_task"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      silvio_trigger_log: {
+        Row: {
+          chiave_evento: string
+          company_id: string
+          created_at: string
+          esecuzione_id: string | null
+          id: string
+          tipo: string
+        }
+        Insert: {
+          chiave_evento: string
+          company_id: string
+          created_at?: string
+          esecuzione_id?: string | null
+          id?: string
+          tipo: string
+        }
+        Update: {
+          chiave_evento?: string
+          company_id?: string
+          created_at?: string
+          esecuzione_id?: string | null
+          id?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "silvio_trigger_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "silvio_trigger_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_trigger_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       silvio_user_preferences: {
         Row: {
           alert_types: Json
@@ -44539,6 +56935,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_user_preferences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -44705,6 +57108,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "site_deliveries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "site_deliveries_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -44784,6 +57194,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sms_automation_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "sms_automation_logs_sms_message_id_fkey"
             columns: ["sms_message_id"]
             isOneToOne: false
@@ -44858,6 +57275,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_automations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -44947,6 +57371,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sms_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "sms_campaigns_telnyx_account_id_fkey"
             columns: ["telnyx_account_id"]
             isOneToOne: false
@@ -45018,6 +57449,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_contacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -45105,6 +57543,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sms_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "sms_log_contatto_id_fkey"
             columns: ["contatto_id"]
             isOneToOne: false
@@ -45176,6 +57621,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "sms_logs_contact_id_fkey"
@@ -45268,6 +57720,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -45389,6 +57848,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sms_provider_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       sms_telnyx_accounts: {
@@ -45439,6 +57905,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_telnyx_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -45507,6 +57980,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sms_telnyx_numbers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "sms_telnyx_numbers_telnyx_account_id_fkey"
             columns: ["telnyx_account_id"]
             isOneToOne: false
@@ -45564,6 +58044,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sms_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       sms_wallet: {
@@ -45611,6 +58098,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_wallet_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -45661,6 +58155,491 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_wallet_transazioni_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      social_account_tokens: {
+        Row: {
+          access_token_encrypted: string
+          account_id: string
+          company_id: string
+          created_at: string
+          id: string
+          provider_payload: Json
+          refresh_token_encrypted: string | null
+          scopes: string[]
+          token_expires_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token_encrypted: string
+          account_id: string
+          company_id: string
+          created_at?: string
+          id?: string
+          provider_payload?: Json
+          refresh_token_encrypted?: string | null
+          scopes?: string[]
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token_encrypted?: string
+          account_id?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          provider_payload?: Json
+          refresh_token_encrypted?: string | null
+          scopes?: string[]
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_account_tokens_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "social_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_account_tokens_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "social_account_tokens_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_account_tokens_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      social_accounts: {
+        Row: {
+          company_id: string
+          connected_at: string
+          connected_by: string | null
+          followers: number | null
+          id: string
+          is_active: boolean
+          page_id: string
+          page_name: string
+          platform_id: string
+          scopes: string[]
+          token_expires_at: string | null
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          company_id: string
+          connected_at?: string
+          connected_by?: string | null
+          followers?: number | null
+          id?: string
+          is_active?: boolean
+          page_id: string
+          page_name: string
+          platform_id: string
+          scopes?: string[]
+          token_expires_at?: string | null
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          company_id?: string
+          connected_at?: string
+          connected_by?: string | null
+          followers?: number | null
+          id?: string
+          is_active?: boolean
+          page_id?: string
+          page_name?: string
+          platform_id?: string
+          scopes?: string[]
+          token_expires_at?: string | null
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "social_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      social_inbox_items: {
+        Row: {
+          account_id: string | null
+          author_avatar: string | null
+          author_name: string
+          company_id: string
+          created_at: string
+          external_created_at: string | null
+          external_id: string
+          id: string
+          message: string
+          platform_id: string
+          post_preview: string | null
+          sentiment: string | null
+          starred: boolean
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          account_id?: string | null
+          author_avatar?: string | null
+          author_name: string
+          company_id: string
+          created_at?: string
+          external_created_at?: string | null
+          external_id: string
+          id?: string
+          message: string
+          platform_id: string
+          post_preview?: string | null
+          sentiment?: string | null
+          starred?: boolean
+          status?: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string | null
+          author_avatar?: string | null
+          author_name?: string
+          company_id?: string
+          created_at?: string
+          external_created_at?: string | null
+          external_id?: string
+          id?: string
+          message?: string
+          platform_id?: string
+          post_preview?: string | null
+          sentiment?: string | null
+          starred?: boolean
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_inbox_items_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "social_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_inbox_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "social_inbox_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_inbox_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      social_media_items: {
+        Row: {
+          ai_generated: boolean
+          category: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          file_size_bytes: number | null
+          file_size_label: string | null
+          format: string
+          gradient: string | null
+          id: string
+          media_type: string
+          metadata: Json
+          public_url: string | null
+          storage_path: string | null
+          tags: string[]
+          thumbnail_url: string | null
+          title: string
+          updated_at: string
+          used_in_ads: number
+          used_in_posts: number
+        }
+        Insert: {
+          ai_generated?: boolean
+          category?: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          file_size_bytes?: number | null
+          file_size_label?: string | null
+          format?: string
+          gradient?: string | null
+          id?: string
+          media_type?: string
+          metadata?: Json
+          public_url?: string | null
+          storage_path?: string | null
+          tags?: string[]
+          thumbnail_url?: string | null
+          title: string
+          updated_at?: string
+          used_in_ads?: number
+          used_in_posts?: number
+        }
+        Update: {
+          ai_generated?: boolean
+          category?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          file_size_bytes?: number | null
+          file_size_label?: string | null
+          format?: string
+          gradient?: string | null
+          id?: string
+          media_type?: string
+          metadata?: Json
+          public_url?: string | null
+          storage_path?: string | null
+          tags?: string[]
+          thumbnail_url?: string | null
+          title?: string
+          updated_at?: string
+          used_in_ads?: number
+          used_in_posts?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_media_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "social_media_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_media_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      social_posts: {
+        Row: {
+          company_id: string
+          content_type: string
+          created_at: string
+          created_by: string | null
+          first_comment: string | null
+          hashtags: string[]
+          id: string
+          image_url: string | null
+          media_item_id: string | null
+          platform_texts: Json
+          platforms: string[]
+          publish_result: Json
+          review_note: string | null
+          scheduled_at: string | null
+          status: string
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          content_type?: string
+          created_at?: string
+          created_by?: string | null
+          first_comment?: string | null
+          hashtags?: string[]
+          id?: string
+          image_url?: string | null
+          media_item_id?: string | null
+          platform_texts?: Json
+          platforms?: string[]
+          publish_result?: Json
+          review_note?: string | null
+          scheduled_at?: string | null
+          status?: string
+          text?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          content_type?: string
+          created_at?: string
+          created_by?: string | null
+          first_comment?: string | null
+          hashtags?: string[]
+          id?: string
+          image_url?: string | null
+          media_item_id?: string | null
+          platform_texts?: Json
+          platforms?: string[]
+          publish_result?: Json
+          review_note?: string | null
+          scheduled_at?: string | null
+          status?: string
+          text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_posts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "social_posts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_posts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "social_posts_media_item_id_fkey"
+            columns: ["media_item_id"]
+            isOneToOne: false
+            referencedRelation: "social_media_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_publish_jobs: {
+        Row: {
+          attempts: number
+          company_id: string
+          created_at: string
+          external_post_id: string | null
+          id: string
+          last_error: string | null
+          platform_id: string
+          post_id: string
+          processed_at: string | null
+          scheduled_for: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          company_id: string
+          created_at?: string
+          external_post_id?: string | null
+          id?: string
+          last_error?: string | null
+          platform_id: string
+          post_id: string
+          processed_at?: string | null
+          scheduled_for?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          company_id?: string
+          created_at?: string
+          external_post_id?: string | null
+          id?: string
+          last_error?: string | null
+          platform_id?: string
+          post_id?: string
+          processed_at?: string | null
+          scheduled_for?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_publish_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "social_publish_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "social_publish_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "social_publish_jobs_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "social_posts"
             referencedColumns: ["id"]
           },
         ]
@@ -45752,6 +58731,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_accessori_progetto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "sr_accessori_progetto_family_id_fkey"
@@ -45885,6 +58871,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sr_calcolo_risparmio_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "sr_calcolo_risparmio_progetto_id_fkey"
             columns: ["progetto_id"]
             isOneToOne: false
@@ -45976,6 +58969,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sr_cantieri_referenza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "sr_cantieri_referenza_progetto_origine_id_fkey"
             columns: ["progetto_origine_id"]
             isOneToOne: false
@@ -46041,6 +59041,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_pdf_generation_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "sr_pdf_generation_log_progetto_id_fkey"
@@ -46344,6 +59351,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sr_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "sr_progetti_consulente_id_fkey"
             columns: ["consulente_id"]
             isOneToOne: false
@@ -46417,6 +59431,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sr_progetti_audit_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "sr_progetti_audit_progetto_id_fkey"
             columns: ["progetto_id"]
             isOneToOne: false
@@ -46482,6 +59503,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_progetti_media_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "sr_progetti_media_pair_situazione_id_fkey"
@@ -46631,6 +59659,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "sr_serramenti_progetto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "sr_serramenti_progetto_macrocategoria_override_id_fkey"
             columns: ["macrocategoria_override_id"]
             isOneToOne: false
@@ -46729,6 +59764,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sr_manodopera_progetto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "sr_manodopera_progetto_progetto_id_fkey"
@@ -47006,6 +60048,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sr_template_pdf_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       staff_permissions: {
@@ -47246,6 +60295,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "staff_permissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       stock_lotti: {
@@ -47317,6 +60373,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_lotti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "stock_lotti_stock_item_id_fkey"
@@ -47458,6 +60521,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "stock_units_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "stock_units_delivered_order_item_id_fkey"
             columns: ["delivered_order_item_id"]
             isOneToOne: false
@@ -47589,6 +60659,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "stripe_events_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       subappaltatori: {
@@ -47654,6 +60731,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subappaltatori_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -47753,6 +60837,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subappaltatori_documenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "subappaltatori_documenti_subappaltatore_id_fkey"
@@ -47865,6 +60956,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "subappaltatori_sicurezza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "subappaltatori_sicurezza_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -47947,6 +61045,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "subscription_invoices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       subscription_logs: {
@@ -48000,6 +61105,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "subscription_logs_plan_id_fkey"
@@ -48234,6 +61346,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "superadmin_override_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       superadmin_preview_tokens: {
@@ -48285,6 +61404,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "superadmin_preview_tokens_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       supplier_catalogs: {
@@ -48335,6 +61461,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_catalogs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -48395,6 +61528,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_product_lines_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "supplier_product_lines_manodopera_tariffa_id_fkey"
@@ -48524,6 +61664,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "suppliers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       support_canned_responses: {
@@ -48626,6 +61773,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "support_conversations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       support_messages: {
@@ -48667,6 +61821,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -48736,6 +61897,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "support_tickets_contact_id_fkey"
@@ -49080,6 +62248,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "survey_template_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "survey_template_settings_template_id_fkey"
             columns: ["template_id"]
             isOneToOne: false
@@ -49154,6 +62329,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "survey_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -49297,6 +62479,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "surveys_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "surveys_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -49423,6 +62612,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tariffa_costi_varianti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "tariffa_costi_varianti_tariffa_id_fkey"
             columns: ["tariffa_id"]
             isOneToOne: false
@@ -49518,6 +62714,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tariffe_aziendali_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -49644,6 +62847,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_automation_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "task_automation_rules_created_by_fkey"
@@ -49821,6 +63031,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "task_tags_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       task_templates: {
@@ -49874,6 +63091,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -49982,6 +63206,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tasks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "tasks_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
@@ -50087,6 +63318,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "team_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "team_members_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
@@ -50161,6 +63399,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "team_performance_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       teams: {
@@ -50212,6 +63457,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "teams_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       tecnico_gps_consent: {
@@ -50253,6 +63505,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tecnico_gps_consent_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -50316,6 +63575,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telegram_bot_configs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -50476,6 +63742,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "telegram_user_mappings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -50700,6 +63973,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tickets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "tickets_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
@@ -50798,6 +64078,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "tipi_documento_operaio_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       tipi_impianto: {
@@ -50842,6 +64129,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tipi_impianto_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -50890,6 +64184,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tipi_intervento_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -50967,6 +64268,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tool_execution_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "tool_execution_log_proposal_id_fkey"
             columns: ["proposal_id"]
             isOneToOne: false
@@ -51029,6 +64337,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "topup_outbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -51133,6 +64448,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "treasury_categories_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "treasury_categories_parent_id_fkey"
             columns: ["parent_id"]
             isOneToOne: false
@@ -51190,6 +64512,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "user_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       user_availability: {
@@ -51231,6 +64560,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_availability_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "user_availability_user_id_fkey"
@@ -51370,6 +64706,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "user_calendar_preferences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "user_calendar_preferences_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
@@ -51444,6 +64787,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_messaging_channels_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -51674,6 +65024,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "user_notification_preferences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "user_notification_preferences_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
@@ -51803,6 +65160,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "user_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       varianti_cliente: {
@@ -51859,6 +65223,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "varianti_cliente_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "varianti_cliente_order_id_fkey"
@@ -51927,6 +65298,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verbali_sicurezza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "verbali_sicurezza_order_id_fkey"
@@ -52022,6 +65400,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "verification_discrepancies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "verification_discrepancies_verification_id_fkey"
@@ -52284,6 +65669,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "virtual_phone_numbers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       wa_ai_daily_budget: {
@@ -52331,6 +65723,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_ai_daily_budget_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -52385,6 +65784,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_meta_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "wa_meta_templates_wa_number_id_fkey"
@@ -52467,6 +65873,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "wa_notifiche_event_queue_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       wa_notifiche_log: {
@@ -52520,6 +65933,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_notifiche_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "wa_notifiche_log_trigger_id_fkey"
@@ -52592,7 +66012,102 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "wa_notifiche_triggers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "wa_notifiche_triggers_wa_number_id_fkey"
+            columns: ["wa_number_id"]
+            isOneToOne: false
+            referencedRelation: "ai_whatsapp_numbers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_operational_reminder_log: {
+        Row: {
+          company_id: string
+          created_at: string
+          employee_user_id: string | null
+          error_detail: string | null
+          id: string
+          order_id: string | null
+          phone: string
+          reminder_date: string
+          reminder_kind: string
+          sent_at: string | null
+          status: string
+          wa_number_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          employee_user_id?: string | null
+          error_detail?: string | null
+          id?: string
+          order_id?: string | null
+          phone: string
+          reminder_date?: string
+          reminder_kind?: string
+          sent_at?: string | null
+          status?: string
+          wa_number_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          employee_user_id?: string | null
+          error_detail?: string | null
+          id?: string
+          order_id?: string | null
+          phone?: string
+          reminder_date?: string
+          reminder_kind?: string
+          sent_at?: string | null
+          status?: string
+          wa_number_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_operational_reminder_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "wa_operational_reminder_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_operational_reminder_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "wa_operational_reminder_log_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_operational_reminder_log_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_operational_reminder_log_wa_number_id_fkey"
             columns: ["wa_number_id"]
             isOneToOne: false
             referencedRelation: "ai_whatsapp_numbers"
@@ -52602,6 +66117,7 @@ export type Database = {
       }
       wa_routing_errors: {
         Row: {
+          company_id: string | null
           error_detail: string | null
           error_kind: string
           id: string
@@ -52613,6 +66129,7 @@ export type Database = {
           wa_message_id: string | null
         }
         Insert: {
+          company_id?: string | null
           error_detail?: string | null
           error_kind: string
           id?: string
@@ -52624,6 +66141,7 @@ export type Database = {
           wa_message_id?: string | null
         }
         Update: {
+          company_id?: string | null
           error_detail?: string | null
           error_kind?: string
           id?: string
@@ -52634,7 +66152,29 @@ export type Database = {
           ts?: string | null
           wa_message_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "wa_routing_errors_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "wa_routing_errors_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_routing_errors_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
       }
       wa_tool_calls: {
         Row: {
@@ -52699,6 +66239,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_tool_calls_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "wa_tool_calls_wa_message_id_fkey"
@@ -52787,6 +66334,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "warehouse_assignments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "warehouse_assignments_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -52856,6 +66410,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_lot_batches_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "warehouse_lot_batches_stock_item_id_fkey"
@@ -52935,6 +66496,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "warehouse_lotti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       warehouse_movements: {
@@ -52997,6 +66565,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_movements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "warehouse_movements_order_id_fkey"
@@ -53086,6 +66661,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_referenti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "warehouse_referenti_employee_id_fkey"
@@ -53210,6 +66792,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "warehouse_scan_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "warehouse_scan_events_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -53314,6 +66903,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "warehouse_sections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "warehouse_sections_warehouse_id_fkey"
             columns: ["warehouse_id"]
             isOneToOne: false
@@ -53415,6 +67011,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_stock_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "warehouse_stock_section_id_fkey"
@@ -53547,6 +67150,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "warehouse_transfers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "warehouse_transfers_from_warehouse_id_fkey"
             columns: ["from_warehouse_id"]
             isOneToOne: false
@@ -53634,6 +67244,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "warehouses_linked_order_id_fkey"
@@ -53829,6 +67446,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "webhooks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "webhooks_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
@@ -53973,6 +67597,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "whatsapp_broadcasts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "whatsapp_broadcasts_wa_number_id_fkey"
             columns: ["wa_number_id"]
             isOneToOne: false
@@ -54039,6 +67670,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "whatsapp_credit_topups_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       whatsapp_credits: {
@@ -54099,6 +67737,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "whatsapp_credits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       whatsapp_credits_log: {
@@ -54152,6 +67797,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_credits_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -54268,6 +67920,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "whatsapp_messages_operaio_id_fkey"
@@ -54391,6 +68050,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "whatsapp_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "whatsapp_sessions_current_cantiere_id_fkey"
             columns: ["current_cantiere_id"]
             isOneToOne: false
@@ -54462,6 +68128,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whitelabel_audit_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -54627,6 +68300,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "winback_campaigns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "winback_campaigns_customer_id_fkey"
@@ -54834,6 +68514,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_elevenlabs_config_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       ai_personas_public: {
@@ -54969,6 +68656,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "cantiere_allocations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "cantiere_allocations_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
@@ -55016,6 +68710,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "marketing_contacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       company_ai_usage_by_persona_month: {
@@ -55041,6 +68742,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_call_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -55075,6 +68783,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_call_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -55111,6 +68826,79 @@ export type Database = {
           type: string | null
         }
         Relationships: []
+      }
+      customer_profile: {
+        Row: {
+          angry_msgs_30d: number | null
+          company_created_at: string | null
+          company_id: string | null
+          company_status: string | null
+          days_since_signup: number | null
+          email: string | null
+          emails_received_30d: number | null
+          errors_30d: number | null
+          features_used_30d_count: number | null
+          health_delta_30d: number | null
+          health_delta_7d: number | null
+          health_label_latest: string | null
+          health_score_latest: number | null
+          health_snapshot_date: string | null
+          is_at_risk: boolean | null
+          is_upsell_candidate: boolean | null
+          last_interaction_at: string | null
+          last_login_at: string | null
+          last_nps_date: string | null
+          last_nps_score: number | null
+          login_count_30d: number | null
+          name: string | null
+          onboarding_graduated_at: string | null
+          onboarding_phase: string | null
+          onboarding_started_at: string | null
+          payment_method: string | null
+          phone: string | null
+          plan_name: string | null
+          plan_price_monthly: number | null
+          sentiment_avg_30d: number | null
+          session_minutes_30d: number | null
+          stripe_subscription_status: string | null
+          subscription_plan_id: string | null
+          team_size: number | null
+          tickets_opened_30d: number | null
+          unique_users_30d: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "companies_subscription_plan_id_fkey"
+            columns: ["subscription_plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_workflow_daily_stats: {
+        Row: {
+          avg_duration_ms: number | null
+          awaiting: number | null
+          completed: number | null
+          failed: number | null
+          run_date: string | null
+          skipped: number | null
+          total_cost_usd: number | null
+          total_runs: number | null
+          total_tokens_input: number | null
+          total_tokens_output: number | null
+          workflow_key: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_workflow_runs_workflow_key_fkey"
+            columns: ["workflow_key"]
+            isOneToOne: false
+            referencedRelation: "customer_workflows"
+            referencedColumns: ["workflow_key"]
+          },
+        ]
       }
       employee_safety_status: {
         Row: {
@@ -55158,6 +68946,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "employees_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       fattura_pagamento_stato: {
@@ -55186,7 +68981,80 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "documenti_fiscali_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
+      }
+      lead_scraper_funnel_source: {
+        Row: {
+          existing_customers: number | null
+          hot: number | null
+          in_crm: number | null
+          opportunities: number | null
+          qualified: number | null
+          source: string | null
+          total: number | null
+          with_email: number | null
+          with_phone: number | null
+        }
+        Relationships: []
+      }
+      lead_scraper_outreach_by_lead: {
+        Row: {
+          clicked: boolean | null
+          clicks: number | null
+          last_send_at: string | null
+          lead_id: string | null
+          opened: boolean | null
+          opens: number | null
+          replied: boolean | null
+          sends: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_scraper_outreach_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "lead_scraper_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_scraper_provider_usage: {
+        Row: {
+          calls_30d: number | null
+          calls_today: number | null
+          calls_total: number | null
+          last_used: string | null
+          provider: string | null
+        }
+        Relationships: []
+      }
+      lead_scraper_source_analytics: {
+        Row: {
+          avg_ai_score: number | null
+          avg_buying_score: number | null
+          contactable: number | null
+          existing_customers: number | null
+          high_intent: number | null
+          hot: number | null
+          in_crm: number | null
+          last_lead_at: string | null
+          opportunities: number | null
+          qualified: number | null
+          source: string | null
+          total: number | null
+          with_email: number | null
+          with_pec: number | null
+          with_phone: number | null
+          with_piva: number | null
+        }
+        Relationships: []
       }
       monthly_billing_summary: {
         Row: {
@@ -55215,6 +69083,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_credit_usage_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -55286,6 +69161,28 @@ export type Database = {
           },
         ]
       }
+      portal_courses_available: {
+        Row: {
+          area: string | null
+          audience: string | null
+          company_id: string | null
+          completion_percent: number | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          enrolled_count: number | null
+          granted_to_company_id: string | null
+          id: string | null
+          owner: string | null
+          published_at: string | null
+          sort_order: number | null
+          source_type: string | null
+          status: string | null
+          title: string | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
       public_appointment_slots: {
         Row: {
           appointment_date: string | null
@@ -55335,6 +69232,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -55408,6 +69312,37 @@ export type Database = {
         }
         Relationships: []
       }
+      sa_company_problem_score: {
+        Row: {
+          company_id: string | null
+          n_critici: number | null
+          n_problemi: number | null
+          problem_score: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sa_company_problems_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "sa_company_problems_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sa_company_problems_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
       subappaltatore_compliance_status: {
         Row: {
           cassa_edile_ok: boolean | null
@@ -55439,6 +69374,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subappaltatori_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -55483,6 +69425,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "suppliers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       unified_calendar_busy_slots: {
@@ -55498,6 +69447,82 @@ export type Database = {
           user_id: string | null
         }
         Relationships: []
+      }
+      v_accountant_hr_cedolini_aggregate: {
+        Row: {
+          anno: number | null
+          company_id: string | null
+          mese: number | null
+          num_bozze: number | null
+          num_cedolini: number | null
+          num_dipendenti: number | null
+          num_pagati: number | null
+          periodo: string | null
+          totale_contributi_dipendente: number | null
+          totale_indennita_trasferta: number | null
+          totale_lordo: number | null
+          totale_netto: number | null
+          totale_ore_lavorate: number | null
+          totale_ore_straordinario: number | null
+          totale_ritenute_irpef: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_cedolini_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_cedolini_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_cedolini_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      v_accountant_hr_timbrature_aggregate: {
+        Row: {
+          company_id: string | null
+          mese: string | null
+          num_dipendenti_attivi: number | null
+          num_timbrature: number | null
+          num_timbrature_validate: number | null
+          prima_data: string | null
+          ultima_data: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hr_timbrature_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "hr_timbrature_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hr_timbrature_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
       }
       v_active_render_packs: {
         Row: {
@@ -55655,6 +69680,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_model_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       v_council_daily_cost: {
@@ -55683,7 +69715,44 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ai_council_usage_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
+      }
+      v_customer_os_cron_status: {
+        Row: {
+          active: boolean | null
+          command: string | null
+          database: string | null
+          jobid: number | null
+          jobname: string | null
+          schedule: string | null
+          username: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          command?: string | null
+          database?: string | null
+          jobid?: number | null
+          jobname?: string | null
+          schedule?: string | null
+          username?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          command?: string | null
+          database?: string | null
+          jobid?: number | null
+          jobname?: string | null
+          schedule?: string | null
+          username?: string | null
+        }
+        Relationships: []
       }
       v_decision_log_kpis: {
         Row: {
@@ -55713,6 +69782,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_decision_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -55769,6 +69845,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "silvio_decision_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -55830,6 +69913,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "silvio_decision_log_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       v_decision_log_playbook_performance: {
@@ -55874,6 +69964,263 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "document_analysis_results_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      v_email_inbox_classified: {
+        Row: {
+          ai_action_proposal_id: string | null
+          ai_category: string | null
+          ai_error: string | null
+          ai_extracted: Json | null
+          ai_priority: string | null
+          ai_processed_at: string | null
+          ai_suggested_action: string | null
+          ai_summary: string | null
+          attachments: Json | null
+          bcc_emails: string[] | null
+          categoria: Database["public"]["Enums"]["email_categoria_v2"] | null
+          categoria_ui: string | null
+          cc_emails: string[] | null
+          classificato_at: string | null
+          classificato_da: string | null
+          company_id: string | null
+          confidenza: number | null
+          created_at: string | null
+          da_rivedere: boolean | null
+          embedding: string | null
+          embedding_at: string | null
+          entita_id: string | null
+          entita_nome: string | null
+          entita_tipo: string | null
+          folder_id: string | null
+          from_email: string | null
+          from_name: string | null
+          headers: Json | null
+          id: string | null
+          in_reply_to: string | null
+          is_archived: boolean | null
+          is_personale: boolean | null
+          is_read: boolean | null
+          is_starred: boolean | null
+          is_trashed: boolean | null
+          mailbox_folder: string | null
+          matched_contact_id: string | null
+          matched_order_id: string | null
+          message_id: string | null
+          oauth_connection_id: string | null
+          provider_message_id: string | null
+          provider_thread_id: string | null
+          raw_html: string | null
+          raw_text: string | null
+          received_at: string | null
+          references_ids: string[] | null
+          status: string | null
+          subject: string | null
+          thread_id: string | null
+          to_email: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          ai_action_proposal_id?: string | null
+          ai_category?: string | null
+          ai_error?: string | null
+          ai_extracted?: Json | null
+          ai_priority?: string | null
+          ai_processed_at?: string | null
+          ai_suggested_action?: string | null
+          ai_summary?: string | null
+          attachments?: Json | null
+          bcc_emails?: string[] | null
+          categoria?: Database["public"]["Enums"]["email_categoria_v2"] | null
+          categoria_ui?: never
+          cc_emails?: string[] | null
+          classificato_at?: string | null
+          classificato_da?: string | null
+          company_id?: string | null
+          confidenza?: number | null
+          created_at?: string | null
+          da_rivedere?: boolean | null
+          embedding?: string | null
+          embedding_at?: string | null
+          entita_id?: string | null
+          entita_nome?: never
+          entita_tipo?: string | null
+          folder_id?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          headers?: Json | null
+          id?: string | null
+          in_reply_to?: string | null
+          is_archived?: boolean | null
+          is_personale?: boolean | null
+          is_read?: boolean | null
+          is_starred?: boolean | null
+          is_trashed?: boolean | null
+          mailbox_folder?: string | null
+          matched_contact_id?: string | null
+          matched_order_id?: string | null
+          message_id?: string | null
+          oauth_connection_id?: string | null
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
+          raw_html?: string | null
+          raw_text?: string | null
+          received_at?: string | null
+          references_ids?: string[] | null
+          status?: string | null
+          subject?: string | null
+          thread_id?: string | null
+          to_email?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          ai_action_proposal_id?: string | null
+          ai_category?: string | null
+          ai_error?: string | null
+          ai_extracted?: Json | null
+          ai_priority?: string | null
+          ai_processed_at?: string | null
+          ai_suggested_action?: string | null
+          ai_summary?: string | null
+          attachments?: Json | null
+          bcc_emails?: string[] | null
+          categoria?: Database["public"]["Enums"]["email_categoria_v2"] | null
+          categoria_ui?: never
+          cc_emails?: string[] | null
+          classificato_at?: string | null
+          classificato_da?: string | null
+          company_id?: string | null
+          confidenza?: number | null
+          created_at?: string | null
+          da_rivedere?: boolean | null
+          embedding?: string | null
+          embedding_at?: string | null
+          entita_id?: string | null
+          entita_nome?: never
+          entita_tipo?: string | null
+          folder_id?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          headers?: Json | null
+          id?: string | null
+          in_reply_to?: string | null
+          is_archived?: boolean | null
+          is_personale?: boolean | null
+          is_read?: boolean | null
+          is_starred?: boolean | null
+          is_trashed?: boolean | null
+          mailbox_folder?: string | null
+          matched_contact_id?: string | null
+          matched_order_id?: string | null
+          message_id?: string | null
+          oauth_connection_id?: string | null
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
+          raw_html?: string | null
+          raw_text?: string | null
+          received_at?: string | null
+          references_ids?: string[] | null
+          status?: string | null
+          subject?: string | null
+          thread_id?: string | null
+          to_email?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_inbox_ai_action_proposal_id_fkey"
+            columns: ["ai_action_proposal_id"]
+            isOneToOne: false
+            referencedRelation: "ai_action_proposals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "admin_company_features"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_inbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "email_inbox_matched_contact_id_fkey"
+            columns: ["matched_contact_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_matched_order_id_fkey"
+            columns: ["matched_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_matched_order_id_fkey"
+            columns: ["matched_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_ordine_marginalita"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "email_oauth_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_oauth_connection_id_fkey"
+            columns: ["oauth_connection_id"]
+            isOneToOne: false
+            referencedRelation: "v_email_oauth_connections_meta"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_email_inbox_folder"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "email_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_email_inbox_thread"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "email_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_email_inbox_thread"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "v_my_email_threads"
+            referencedColumns: ["id"]
+          },
         ]
       }
       v_email_inbox_pending_count: {
@@ -55897,6 +70244,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -55923,6 +70277,8 @@ export type Database = {
           poll_interval_minutes: number | null
           provider: string | null
           provider_label: string | null
+          signature_html: string | null
+          signature_text: string | null
           smtp_host: string | null
           smtp_port: number | null
           smtp_secure: boolean | null
@@ -55953,6 +70309,8 @@ export type Database = {
           poll_interval_minutes?: number | null
           provider?: string | null
           provider_label?: string | null
+          signature_html?: string | null
+          signature_text?: string | null
           smtp_host?: string | null
           smtp_port?: number | null
           smtp_secure?: boolean | null
@@ -55983,6 +70341,8 @@ export type Database = {
           poll_interval_minutes?: number | null
           provider?: string | null
           provider_label?: string | null
+          signature_html?: string | null
+          signature_text?: string | null
           smtp_host?: string | null
           smtp_port?: number | null
           smtp_secure?: boolean | null
@@ -56006,7 +70366,28 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "email_oauth_connections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
+      }
+      v_email_thread_activity: {
+        Row: {
+          action: string | null
+          avatar_url: string | null
+          company_id: string | null
+          created_at: string | null
+          email_address: string | null
+          oauth_connection_id: string | null
+          thread_id: string | null
+          user_id: string | null
+          user_name: string | null
+        }
+        Relationships: []
       }
       v_fv_progetti_dashboard: {
         Row: {
@@ -56044,6 +70425,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fv_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       v_fv_stats_azienda: {
@@ -56073,6 +70461,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fv_progetti_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -56113,6 +70508,19 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      v_kb_imprenditore_edile_stats: {
+        Row: {
+          kb_priority: string | null
+          kb_section: string | null
+          kb_source_book: string | null
+          last_updated: string | null
+          n_chunks: number | null
+          n_personas_assigned: number | null
+          total_chars: number | null
+          total_hits: number | null
+        }
+        Relationships: []
       }
       v_kb_quality_alerts: {
         Row: {
@@ -56169,6 +70577,8 @@ export type Database = {
           ai_priority: string | null
           ai_summary: string | null
           attachments: Json | null
+          bcc_emails: string[] | null
+          cc_emails: string[] | null
           company_id: string | null
           folder_id: string | null
           from_email: string | null
@@ -56179,9 +70589,12 @@ export type Database = {
           is_read: boolean | null
           is_starred: boolean | null
           is_trashed: boolean | null
+          mailbox_folder: string | null
           message_id: string | null
           oauth_connection_id: string | null
           preview: string | null
+          provider_message_id: string | null
+          provider_thread_id: string | null
           received_at: string | null
           status: string | null
           subject: string | null
@@ -56194,6 +70607,8 @@ export type Database = {
           ai_priority?: string | null
           ai_summary?: string | null
           attachments?: Json | null
+          bcc_emails?: string[] | null
+          cc_emails?: string[] | null
           company_id?: string | null
           folder_id?: string | null
           from_email?: string | null
@@ -56204,9 +70619,12 @@ export type Database = {
           is_read?: boolean | null
           is_starred?: boolean | null
           is_trashed?: boolean | null
+          mailbox_folder?: string | null
           message_id?: string | null
           oauth_connection_id?: string | null
           preview?: never
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
           received_at?: string | null
           status?: string | null
           subject?: string | null
@@ -56219,6 +70637,8 @@ export type Database = {
           ai_priority?: string | null
           ai_summary?: string | null
           attachments?: Json | null
+          bcc_emails?: string[] | null
+          cc_emails?: string[] | null
           company_id?: string | null
           folder_id?: string | null
           from_email?: string | null
@@ -56229,9 +70649,12 @@ export type Database = {
           is_read?: boolean | null
           is_starred?: boolean | null
           is_trashed?: boolean | null
+          mailbox_folder?: string | null
           message_id?: string | null
           oauth_connection_id?: string | null
           preview?: never
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
           received_at?: string | null
           status?: string | null
           subject?: string | null
@@ -56253,6 +70676,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_inbox_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
           {
             foreignKeyName: "email_inbox_oauth_connection_id_fkey"
@@ -56302,7 +70732,9 @@ export type Database = {
           last_from_name: string | null
           last_received_at: string | null
           last_subject: string | null
+          mailbox_folders: string[] | null
           message_count: number | null
+          oauth_connection_ids: string[] | null
           participants: string[] | null
           preview: string | null
           subject_normalized: string | null
@@ -56319,7 +70751,9 @@ export type Database = {
           last_from_name?: never
           last_received_at?: string | null
           last_subject?: never
+          mailbox_folders?: never
           message_count?: number | null
+          oauth_connection_ids?: never
           participants?: string[] | null
           preview?: string | null
           subject_normalized?: string | null
@@ -56336,7 +70770,9 @@ export type Database = {
           last_from_name?: never
           last_received_at?: string | null
           last_subject?: never
+          mailbox_folders?: never
           message_count?: number | null
+          oauth_connection_ids?: never
           participants?: string[] | null
           preview?: string | null
           subject_normalized?: string | null
@@ -56357,6 +70793,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_threads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -56394,6 +70837,13 @@ export type Database = {
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "orders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
         ]
       }
       v_preventivo_analisi: {
@@ -56429,6 +70879,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
           },
         ]
       }
@@ -56576,6 +71033,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "subappaltatori_sicurezza_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customer_profile"
+            referencedColumns: ["company_id"]
+          },
+          {
             foreignKeyName: "subappaltatori_sicurezza_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -56626,6 +71090,16 @@ export type Database = {
         Args: { p_table: string; p_user_id: string }
         Returns: number
       }
+      accountant_accessible_company_ids: {
+        Args: never
+        Returns: {
+          access_id: string
+          access_mode: string
+          company_id: string
+          created_at: string
+          status: string
+        }[]
+      }
       activity_category_for_event: {
         Args: { p_event_type: string; p_target_table: string }
         Returns: string
@@ -56639,6 +71113,18 @@ export type Database = {
           p_type?: string
         }
         Returns: Json
+      }
+      add_order_commission_ledger_entry: {
+        Args: {
+          p_amount_delta?: number
+          p_description?: string
+          p_effective_date?: string
+          p_entry_type: string
+          p_metadata?: Json
+          p_order_salesperson_id: string
+          p_source?: string
+        }
+        Returns: string
       }
       add_user_to_order_channel: {
         Args: { p_company_id: string; p_order_id: string; p_user_id: string }
@@ -56673,6 +71159,7 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_ai_cost_health: { Args: { p_days?: number }; Returns: Json }
       aedix_brain_compute_snapshot: {
         Args: { p_company_id: string }
         Returns: Json
@@ -56705,6 +71192,10 @@ export type Database = {
         Returns: Json
       }
       aggiorna_stati_documenti_operai: { Args: never; Returns: number }
+      aggrega_metriche_email_giorno: {
+        Args: { p_giorno?: string }
+        Returns: number
+      }
       ai_ab_test_increment: {
         Args: {
           p_csat_score?: number
@@ -56787,6 +71278,21 @@ export type Database = {
           total_rejections: number
         }[]
       }
+      apply_inventory_audit_adjustment: {
+        Args: { p_audit_id: string; p_company_id: string }
+        Returns: undefined
+      }
+      apply_referral_commission_policy: {
+        Args: {
+          p_base_amount: number
+          p_error_rate?: number
+          p_has_fraud?: boolean
+          p_months_active?: number
+          p_quality_score?: number
+          p_volume_deals?: number
+        }
+        Returns: Json
+      }
       approve_leave_request: {
         Args: {
           p_approved: boolean
@@ -56819,6 +71325,18 @@ export type Database = {
           created_units: number
           errors: Json
           updated_items: number
+        }[]
+      }
+      bonifica_annulla: { Args: { p_azione_id: string }; Returns: Json }
+      bonifica_archivia_categoria: {
+        Args: { p_categoria: string }
+        Returns: Json
+      }
+      bonifica_overview: {
+        Args: never
+        Returns: {
+          categoria: string
+          n: number
         }[]
       }
       brain_age_facts: { Args: { p_company_id?: string }; Returns: Json }
@@ -56909,12 +71427,25 @@ export type Database = {
           user_id: string
         }[]
       }
+      bump_email_regola_match: {
+        Args: { p_regola_id: string }
+        Returns: undefined
+      }
       bump_persona_memory_hit: {
         Args: { p_memory_id: string }
         Returns: undefined
       }
       calculate_monthly_commissions: {
         Args: { p_month: number; p_year: number }
+        Returns: number
+      }
+      calculate_order_salesperson_commission: {
+        Args: {
+          p_commission_type: string
+          p_commission_value: number
+          p_order_id: string
+          p_salesperson_id: string
+        }
         Returns: number
       }
       calculate_sublevel_commissions: {
@@ -56933,9 +71464,21 @@ export type Database = {
         Args: { p_name: string }
         Returns: boolean
       }
+      can_accountant_access_company: {
+        Args: { p_company_id: string; p_permission?: string }
+        Returns: boolean
+      }
+      can_manage_company_people: {
+        Args: { p_company_id: string }
+        Returns: boolean
+      }
       can_user_use_persona: {
         Args: { p_persona_key: string; p_user_id: string }
         Returns: Json
+      }
+      can_view_company_people: {
+        Args: { p_company_id: string }
+        Returns: boolean
       }
       cg_get_aging: {
         Args: { p_company_id?: string; p_direction?: string }
@@ -57141,6 +71684,14 @@ export type Database = {
         }
         Returns: Json
       }
+      check_accountant_signup_rate_limit: {
+        Args: {
+          p_ip_address: string
+          p_max_attempts?: number
+          p_window_minutes?: number
+        }
+        Returns: boolean
+      }
       check_ai_credits_available: {
         Args: {
           p_company_id: string
@@ -57195,6 +71746,14 @@ export type Database = {
         }
         Returns: Json
       }
+      check_referral_signup_rate_limit: {
+        Args: {
+          p_ip_address: string
+          p_max_attempts?: number
+          p_window_minutes?: number
+        }
+        Returns: boolean
+      }
       check_staff_visibility: {
         Args: { _assigned_to: string; _user_id: string }
         Returns: boolean
@@ -57214,6 +71773,8 @@ export type Database = {
       }
       cleanup_meta_rate_limit: { Args: never; Returns: undefined }
       cleanup_notifiche_cooldown: { Args: never; Returns: undefined }
+      cleanup_old_accountant_signup_attempts: { Args: never; Returns: number }
+      cleanup_old_referral_signup_attempts: { Args: never; Returns: number }
       cleanup_rate_limits: { Args: never; Returns: undefined }
       clone_survey_template: {
         Args: { p_new_name: string; p_source_id: string }
@@ -57225,6 +71786,18 @@ export type Database = {
       }
       complete_onboarding_step: {
         Args: { p_company_id: string; p_step_key: string }
+        Returns: undefined
+      }
+      complete_workflow_run: {
+        Args: {
+          p_cost_usd?: number
+          p_error_message?: string
+          p_output?: Json
+          p_run_id: string
+          p_status: string
+          p_tokens_input?: number
+          p_tokens_output?: number
+        }
         Returns: undefined
       }
       compute_client_margin_history: {
@@ -57345,6 +71918,17 @@ export type Database = {
         }[]
       }
       create_task_due_notifications: { Args: never; Returns: number }
+      create_warehouse_transfer_atomic: {
+        Args: {
+          p_company_id: string
+          p_from_warehouse_id: string
+          p_items?: Json
+          p_notes?: string
+          p_to_warehouse_id: string
+          p_transfer_date?: string
+        }
+        Returns: string
+      }
       data_network_etl_run: { Args: never; Returns: Json }
       data_network_set_consent: {
         Args: {
@@ -57464,6 +72048,10 @@ export type Database = {
         Returns: Json
       }
       delete_dashboard: { Args: { p_dashboard_id: string }; Returns: undefined }
+      delete_order_cascading: {
+        Args: { p_company_id: string; p_order_id: string }
+        Returns: undefined
+      }
       diag_list_policies: {
         Args: { p_table: string }
         Returns: {
@@ -57491,6 +72079,27 @@ export type Database = {
       do_recalculate_quote_totals: {
         Args: { p_quote_id: string }
         Returns: undefined
+      }
+      email_ai_cascade_stats: {
+        Args: { p_days?: number }
+        Returns: {
+          da_haiku: number
+          da_manuale: number
+          da_regola: number
+          da_rivedere: number
+          non_classificate: number
+          perc_l1: number
+          totale: number
+        }[]
+      }
+      email_folder_counts: {
+        Args: { p_account_ids?: string[] }
+        Returns: {
+          folder_key: string
+          oauth_connection_id: string
+          total: number
+          unread: number
+        }[]
       }
       email_imap_get_credentials: {
         Args: { p_connection_id: string }
@@ -57532,6 +72141,42 @@ export type Database = {
         Args: { p_email_id: string; p_flag: string; p_value: boolean }
         Returns: boolean
       }
+      email_learning_dashboard: { Args: { p_days?: number }; Returns: Json }
+      email_list_threads: {
+        Args: {
+          p_account_id?: string
+          p_after?: string
+          p_before?: string
+          p_category?: string
+          p_folder?: string
+          p_from?: string
+          p_has_attachment?: boolean
+          p_has_star?: boolean
+          p_is_unread?: boolean
+          p_limit?: number
+          p_offset?: number
+          p_search_text?: string
+          p_subject?: string
+          p_to?: string
+        }
+        Returns: {
+          ai_category: string
+          ai_priority: string
+          has_attachments: boolean
+          has_starred: boolean
+          id: string
+          last_from_email: string
+          last_from_name: string
+          last_received_at: string
+          last_subject: string
+          message_count: number
+          participants: string[]
+          preview: string
+          subject_normalized: string
+          total_count: number
+          unread_count: number
+        }[]
+      }
       email_mark_thread_read: { Args: { p_thread_id: string }; Returns: number }
       email_oauth_decrypt_token: { Args: { p_enc: string }; Returns: string }
       email_oauth_encrypt_token: { Args: { p_token: string }; Returns: string }
@@ -57546,6 +72191,7 @@ export type Database = {
           provider_metadata: Json
           refresh_token: string
           scopes: string[]
+          user_id: string
         }[]
       }
       email_oauth_list_due_for_poll: {
@@ -57579,9 +72225,50 @@ export type Database = {
         }
         Returns: string
       }
+      email_scadenza_conferma: { Args: { p_bozza_id: string }; Returns: string }
+      email_search_recipients: {
+        Args: { p_company_id: string; p_limit?: number; p_query: string }
+        Returns: {
+          display_name: string
+          email: string
+          hit_count: number
+          last_used_at: string
+          source: string
+          source_label: string
+        }[]
+      }
       email_seed_user_folders: {
         Args: { p_company_id: string; p_user_id: string }
         Returns: undefined
+      }
+      email_semantic_search: {
+        Args: { p_limit?: number; p_query_embedding: string }
+        Returns: {
+          categoria: string
+          email_id: string
+          from_email: string
+          received_at: string
+          score: number
+          subject: string
+          thread_id: string
+        }[]
+      }
+      email_structured_search: {
+        Args: {
+          p_a?: string
+          p_categoria?: string
+          p_da?: string
+          p_entita_nome?: string
+          p_limit?: number
+        }
+        Returns: {
+          categoria: string
+          email_id: string
+          from_email: string
+          received_at: string
+          subject: string
+          thread_id: string
+        }[]
       }
       email_thread_increment: {
         Args: {
@@ -57594,6 +72281,44 @@ export type Database = {
           p_unread_delta?: number
         }
         Returns: undefined
+      }
+      email_track_activity: {
+        Args: {
+          p_action?: string
+          p_company_id: string
+          p_email_address?: string
+          p_message_ids: string[]
+          p_oauth_connection_id?: string
+          p_thread_id: string
+        }
+        Returns: number
+      }
+      enqueue_customer_workflow: {
+        Args: {
+          p_company_id: string
+          p_trigger_payload?: Json
+          p_triggered_by?: string
+          p_workflow_key: string
+        }
+        Returns: string
+      }
+      enqueue_google_ads_offline_conversion_event: {
+        Args: {
+          p_company_id: string
+          p_entity_id: string
+          p_entity_type: string
+          p_event_kind: string
+        }
+        Returns: string
+      }
+      enqueue_meta_crm_conversion_event: {
+        Args: {
+          p_company_id: string
+          p_entity_id: string
+          p_entity_type: string
+          p_event_kind: string
+        }
+        Returns: string
       }
       ensure_referral_link: {
         Args: { p_base_url?: string; p_referrer_id: string }
@@ -57620,6 +72345,7 @@ export type Database = {
         Returns: undefined
       }
       expire_old_action_proposals: { Args: never; Returns: number }
+      fe_operations_stats: { Args: never; Returns: Json }
       fn_suggest_markup: {
         Args: {
           p_min_calls?: number
@@ -57841,6 +72567,17 @@ export type Database = {
           valore: number
         }[]
       }
+      get_cardinal_principles: {
+        Args: { p_company_id?: string; p_persona_key?: string }
+        Returns: {
+          content: string
+          doc_id: string
+          kb_section: string
+          override_id: string
+          override_text: string
+          title: string
+        }[]
+      }
       get_cash_flow_by_month: {
         Args: { p_company_id: string; p_months?: number }
         Returns: {
@@ -57932,6 +72669,7 @@ export type Database = {
         Args: { p_company_id: string; p_date_from: string; p_date_to: string }
         Returns: Json
       }
+      get_customer_context: { Args: { p_company_id: string }; Returns: Json }
       get_customer_stats: { Args: { p_company_id: string }; Returns: Json }
       get_customers_paginated: {
         Args: {
@@ -58043,6 +72781,14 @@ export type Database = {
           roles: string[]
         }[]
       }
+      get_internal_chat_sidebar_state: {
+        Args: { p_company_id: string; p_user_id?: string }
+        Returns: {
+          channel_id: string
+          last_message: Json
+          unread_count: number
+        }[]
+      }
       get_leave_summary: {
         Args: { p_company_id: string; p_year?: number }
         Returns: {
@@ -58143,6 +72889,14 @@ export type Database = {
         }[]
       }
       get_platform_admin_company_id: { Args: never; Returns: string }
+      get_platform_consumption_summary: {
+        Args: { p_since: string }
+        Returns: {
+          credit_type: string
+          total_eur: number
+          tx_count: number
+        }[]
+      }
       get_platform_email_stats: {
         Args: { p_date_from?: string; p_date_to?: string }
         Returns: {
@@ -58171,6 +72925,7 @@ export type Database = {
         Args: { p_company_id: string; p_from_date?: string; p_to_date?: string }
         Returns: Json
       }
+      get_referral_commission_policy: { Args: never; Returns: Json }
       get_render_economics_by_company: {
         Args: { _from?: string; _to?: string }
         Returns: {
@@ -58220,11 +72975,9 @@ export type Database = {
         Returns: {
           avg_cycle_days: number
           avg_deal_size: number
-          lost_in_period: number
           open_opportunities: number
           sales_velocity: number
           win_rate: number
-          won_in_period: number
         }[]
       }
       get_scadenzario: {
@@ -58249,7 +73002,7 @@ export type Database = {
           assigned_to: string
           contact_name: string
           days_stalled: number
-          last_activity: string
+          last_activity_at: string
           opportunity_id: string
           opportunity_name: string
           stage_name: string
@@ -58386,6 +73139,14 @@ export type Database = {
           total_spend_today: number
         }[]
       }
+      grant_admin_portal_course_to_companies: {
+        Args: {
+          p_notes?: string
+          p_source_course_id: string
+          p_target_company_ids: string[]
+        }
+        Returns: Json
+      }
       grant_render_credits_for_active_subs: { Args: never; Returns: Json }
       grant_render_credits_for_subscription: {
         Args: { p_subscription_id: string }
@@ -58408,6 +73169,33 @@ export type Database = {
         Returns: boolean
       }
       hash_otp_code: { Args: { p_code: string }; Returns: string }
+      hr_talent_company_allowed: {
+        Args: { p_company_id: string }
+        Returns: boolean
+      }
+      hr_talent_issue_public_link: {
+        Args: { p_candidate_id: string; p_expires_at?: string }
+        Returns: Json
+      }
+      hr_talent_public_save_answers: {
+        Args: {
+          p_answers?: Json
+          p_completed?: boolean
+          p_privacy_accepted?: boolean
+          p_token: string
+        }
+        Returns: Json
+      }
+      hr_talent_public_session: { Args: { p_token: string }; Returns: Json }
+      hr_talent_token_hash: { Args: { p_token: string }; Returns: string }
+      hr_update_richiesta_stato: {
+        Args: {
+          p_note_risposta?: string
+          p_richiesta_id: string
+          p_stato: string
+        }
+        Returns: Json
+      }
       import_article_family_template: {
         Args: {
           p_company_id: string
@@ -58456,11 +73244,48 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: string
       }
+      internal_chat_can_manage_members: {
+        Args: { p_channel_id: string; p_company_id: string; p_user_id?: string }
+        Returns: boolean
+      }
+      internal_chat_company_allowed: {
+        Args: { p_company_id: string }
+        Returns: boolean
+      }
+      internal_chat_membership_allowed: {
+        Args: { p_channel_id: string; p_company_id: string; p_user_id?: string }
+        Returns: boolean
+      }
+      is_accountant_firm_admin: {
+        Args: { p_firm_id: string }
+        Returns: boolean
+      }
+      is_accountant_firm_member: {
+        Args: { p_firm_id: string }
+        Returns: boolean
+      }
       is_assigned_to_warehouse: {
         Args: { p_warehouse_id: string }
         Returns: boolean
       }
       is_cg_enabled: { Args: { p_company_id?: string }; Returns: boolean }
+      is_email_staff_interno: { Args: never; Returns: boolean }
+      is_marketing_contact_google_attributed: {
+        Args: { p_contact_id: string }
+        Returns: boolean
+      }
+      is_marketing_contact_meta_attributed: {
+        Args: { p_contact_id: string }
+        Returns: boolean
+      }
+      is_referrer_payout_compliant: {
+        Args: {
+          p_has_accepted_terms: boolean
+          p_payout_details: Json
+          p_payout_method?: string
+        }
+        Returns: boolean
+      }
       is_scopri_plan: { Args: { p_company_id: string }; Returns: boolean }
       is_silvio_superadmin: { Args: { p_user_id?: string }; Returns: boolean }
       is_super_admin: { Args: { p_user_id?: string }; Returns: boolean }
@@ -58574,6 +73399,52 @@ export type Database = {
         Args: { p_doc_id: string; p_similarity: number }
         Returns: undefined
       }
+      lead_scraper_bump_usage: {
+        Args: { p_n: number; p_provider: string }
+        Returns: number
+      }
+      lead_scraper_claim_job: {
+        Args: { p_worker: string }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          params: Json
+          processed: number
+          results_count: number
+          search_id: string | null
+          started_at: string | null
+          status: string
+          total: number
+          type: string
+          worker_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "lead_scraper_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      list_company_accountant_invites: {
+        Args: { p_company_id: string }
+        Returns: {
+          accepted_at: string
+          access_id: string
+          access_mode: string
+          firm_id: string
+          firm_name: string
+          firm_vat: string
+          invited_at: string
+          invited_email: string
+          notes: string
+          owner_email: string
+          permissions: Json
+          status: string
+        }[]
+      }
       list_company_members: {
         Args: never
         Returns: {
@@ -58649,6 +73520,16 @@ export type Database = {
         }
         Returns: string
       }
+      log_accountant_signup_attempt: {
+        Args: {
+          p_email: string
+          p_error_reason?: string
+          p_ip_address: string
+          p_success: boolean
+          p_user_agent: string
+        }
+        Returns: string
+      }
       log_activity: {
         Args: {
           p_actor_user_id: string
@@ -58681,6 +73562,23 @@ export type Database = {
         }
         Returns: string
       }
+      log_email_accesso: {
+        Args: { p_email_id: string; p_thread_id: string; p_via: string }
+        Returns: undefined
+      }
+      log_kb_citation: {
+        Args: {
+          p_company_id: string
+          p_doc_ids: string[]
+          p_override_ids: string[]
+          p_persona_key: string
+          p_session_id: string
+          p_similarity_scores: number[]
+          p_used_in_response?: boolean
+          p_user_query: string
+        }
+        Returns: string
+      }
       log_rbac_violation: {
         Args: {
           p_attempted_message: string
@@ -58708,6 +73606,17 @@ export type Database = {
         }
         Returns: string
       }
+      log_referral_signup_attempt: {
+        Args: {
+          p_email: string
+          p_error_reason?: string
+          p_ip_address: string
+          p_success: boolean
+          p_user_agent: string
+        }
+        Returns: string
+      }
+      lookup_user_by_email: { Args: { p_email: string }; Returns: string }
       mark_all_notifications_read: {
         Args: { p_company_id: string }
         Returns: undefined
@@ -58931,6 +73840,28 @@ export type Database = {
         Args: { _order_id: string; _user_id: string }
         Returns: boolean
       }
+      partner_sign_referral_contract: {
+        Args: {
+          p_contract_version?: string
+          p_ip_address: string
+          p_signed_name: string
+          p_user_agent: string
+        }
+        Returns: Json
+      }
+      partner_submit_referral_payout_details: {
+        Args: {
+          p_account_holder: string
+          p_bank: string
+          p_fiscal_code: string
+          p_iban: string
+          p_name: string
+          p_partner_type: string
+          p_payout_method: string
+          p_phone: string
+        }
+        Returns: Json
+      }
       pick_silvio_admin_persona: {
         Args: { p_query: string }
         Returns: {
@@ -59003,6 +73934,15 @@ export type Database = {
           shipped_items: number
         }[]
       }
+      reclassify_email_manuale: {
+        Args: {
+          p_categoria: Database["public"]["Enums"]["email_categoria_v2"]
+          p_email_id: string
+          p_entita_id?: string
+          p_entita_tipo?: string
+        }
+        Returns: undefined
+      }
       record_persona_memory: {
         Args: {
           p_company_id: string
@@ -59043,6 +73983,10 @@ export type Database = {
         Returns: string
       }
       refresh_mv_cg_storico_24m: { Args: never; Returns: undefined }
+      refresh_order_salespeople_commissions: {
+        Args: { p_order_id: string }
+        Returns: undefined
+      }
       refund_email_credit_on_bounce: {
         Args: { p_provider_message_id: string; p_reason?: string }
         Returns: Json
@@ -59053,6 +73997,16 @@ export type Database = {
           _reason_meta?: Json
           _session_id: string
           _user_id?: string
+        }
+        Returns: Json
+      }
+      registra_correzione_email: {
+        Args: {
+          p_categoria?: Database["public"]["Enums"]["email_categoria_v2"]
+          p_email_id: string
+          p_entita_id?: string
+          p_entita_tipo?: string
+          p_evento: string
         }
         Returns: Json
       }
@@ -59071,6 +74025,10 @@ export type Database = {
       release_token_refresh_lock: {
         Args: { p_integration_id: string }
         Returns: undefined
+      }
+      reputation_company_allowed: {
+        Args: { p_company_id: string }
+        Returns: boolean
       }
       request_quote_approval: {
         Args: {
@@ -59138,9 +74096,53 @@ export type Database = {
         }
       }
       restore_record: { Args: { p_id: string; p_table: string }; Returns: Json }
+      revoke_admin_portal_course_from_companies: {
+        Args: { p_source_course_id: string; p_target_company_ids: string[] }
+        Returns: Json
+      }
       rilascia_numero_documento: {
         Args: { p_documento_id: string }
         Returns: boolean
+      }
+      sa_aggregate_all_problems: { Args: never; Returns: Json }
+      sa_aggregate_company_problems: {
+        Args: { p_company_id: string }
+        Returns: number
+      }
+      sa_alert_type_to_area: { Args: { p_alert_type: string }; Returns: string }
+      sa_companies_with_recent_silvio_msgs: {
+        Args: { p_hours?: number; p_limit?: number }
+        Returns: {
+          company_id: string
+        }[]
+      }
+      sa_compute_company_intel: {
+        Args: { p_company_id: string }
+        Returns: string
+      }
+      sa_domain_aliases: { Args: { p_tool_domain: string }; Returns: string[] }
+      sa_get_company_dossier: { Args: { p_company_id: string }; Returns: Json }
+      sa_get_company_intel: { Args: { p_company_id: string }; Returns: Json }
+      sa_get_pipeline_per_pacchetto: { Args: never; Returns: Json }
+      sa_get_problem_radar: {
+        Args: { p_area?: string; p_limite?: number; p_severita_min?: string }
+        Returns: Json
+      }
+      sa_get_trend_aggregato: { Args: { p_giorni?: number }; Returns: Json }
+      sa_get_upsell_radar: {
+        Args: { p_limite?: number; p_servizio?: string }
+        Returns: Json
+      }
+      sa_intel_area_to_servizio: { Args: { p_area: string }; Returns: string }
+      sa_recent_silvio_user_messages: {
+        Args: { p_company_id: string; p_hours?: number; p_limit?: number }
+        Returns: {
+          content: string
+        }[]
+      }
+      sa_signalarea_to_problemarea: {
+        Args: { p_area: string }
+        Returns: string
       }
       sanitize_customer_profile: {
         Args: { p_customer_id: string }
@@ -59186,6 +74188,7 @@ export type Database = {
         Returns: Json
       }
       scan_customers_issues: { Args: { p_company_id: string }; Returns: Json }
+      scraped_companies_upsert: { Args: { p_rows: Json }; Returns: number }
       search_cantieri_by_trigram: {
         Args: { p_company_id: string; p_limit?: number; p_query: string }
         Returns: {
@@ -59261,6 +74264,32 @@ export type Database = {
           title: string
         }[]
       }
+      search_silvio_knowledge_v2: {
+        Args: {
+          p_company_id?: string
+          p_kb_sections?: string[]
+          p_min_similarity?: number
+          p_persona_key?: string
+          p_query_embedding: string
+          p_top_k?: number
+        }
+        Returns: {
+          chunk_id: string
+          content: string
+          doc_id: string
+          kb_priority: string
+          kb_section: string
+          kb_source_book: string
+          kb_subsection: string
+          override_id: string
+          override_rationale: string
+          persona_keys: string[]
+          result_type: string
+          similarity: number
+          source_path: string
+          title: string
+        }[]
+      }
       seed_default_auto_topup: {
         Args: { p_company_id: string }
         Returns: undefined
@@ -59272,6 +74301,134 @@ export type Database = {
       seed_tipi_documento_operaio: {
         Args: { p_company_id: string }
         Returns: undefined
+      }
+      sequenza_approva_attiva: {
+        Args: { p_attiva?: boolean; p_sequenza_id: string }
+        Returns: {
+          approvata_at: string | null
+          approvata_da: string | null
+          attiva: boolean
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          limite_invii_giorno: number
+          modalita_invio: string
+          nome: string
+          oauth_connection_id: string | null
+          step: Json
+          tipo: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sequenze"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      sequenza_enroll: {
+        Args: {
+          p_ancora_at?: string
+          p_destinatario: string
+          p_destinatario_nome?: string
+          p_entita_id?: string
+          p_entita_tipo?: string
+          p_oauth_connection_id?: string
+          p_sequenza_id: string
+          p_thread_id?: string
+          p_variabili?: Json
+        }
+        Returns: {
+          ancora_at: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          destinatario: string
+          destinatario_nome: string | null
+          entita_id: string | null
+          entita_tipo: string | null
+          fermata_motivo: string | null
+          id: string
+          oauth_connection_id: string | null
+          optout_token: string
+          prossimo_invio_at: string | null
+          sequenza_id: string
+          stato: string
+          step_corrente: number
+          thread_id: string | null
+          ultimo_invio_at: string | null
+          updated_at: string
+          variabili: Json
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sequenze_esecuzioni"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      sequenza_esecuzione_stato: {
+        Args: { p_esecuzione_id: string; p_stato: string }
+        Returns: {
+          ancora_at: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          destinatario: string
+          destinatario_nome: string | null
+          entita_id: string | null
+          entita_tipo: string | null
+          fermata_motivo: string | null
+          id: string
+          oauth_connection_id: string | null
+          optout_token: string
+          prossimo_invio_at: string | null
+          sequenza_id: string
+          stato: string
+          step_corrente: number
+          thread_id: string | null
+          ultimo_invio_at: string | null
+          updated_at: string
+          variabili: Json
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sequenze_esecuzioni"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      sequenza_invio_conferma: {
+        Args: { p_azione: string; p_invio_id: string }
+        Returns: {
+          ancora_at: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          destinatario: string
+          destinatario_nome: string | null
+          entita_id: string | null
+          entita_tipo: string | null
+          fermata_motivo: string | null
+          id: string
+          oauth_connection_id: string | null
+          optout_token: string
+          prossimo_invio_at: string | null
+          sequenza_id: string
+          stato: string
+          step_corrente: number
+          thread_id: string | null
+          ultimo_invio_at: string | null
+          updated_at: string
+          variabili: Json
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sequenze_esecuzioni"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_ai_action_permission: {
         Args: {
@@ -59339,6 +74496,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      silvio_admin_serie_grafico: {
+        Args: { p_mesi?: number; p_metric?: string }
+        Returns: Json
+      }
       silvio_admin_update_queue_action: {
         Args: { p_action_id: string; p_operation: string }
         Returns: undefined
@@ -59363,6 +74524,35 @@ export type Database = {
         Returns: Json
       }
       silvio_alerts_stats: { Args: { p_company_id: string }; Returns: Json }
+      silvio_ambiti_utente: { Args: never; Returns: string[] }
+      silvio_ambito_consentito: { Args: { p_ambito: string }; Returns: boolean }
+      silvio_azione_override_set: {
+        Args: {
+          p_attiva?: boolean
+          p_autorizzazione?: string
+          p_chiave: string
+        }
+        Returns: undefined
+      }
+      silvio_brief_promote_alert: {
+        Args: { p_alert_id: string; p_company_id: string; p_user_id: string }
+        Returns: string
+      }
+      silvio_budget_consuma: {
+        Args: { p_company: string; p_token_in: number; p_token_out: number }
+        Returns: string
+      }
+      silvio_canale_avvia_verifica: {
+        Args: { p_identificativo: string }
+        Returns: Json
+      }
+      silvio_canale_risolvi_utente: {
+        Args: { p_canale: string; p_identificativo: string }
+        Returns: {
+          company_id: string
+          utente_id: string
+        }[]
+      }
       silvio_cashflow_forecast_90d: {
         Args: {
           p_apply_delay?: boolean
@@ -59370,6 +74560,22 @@ export type Database = {
           p_weeks?: number
         }
         Returns: Json
+      }
+      silvio_catalogo: {
+        Args: never
+        Returns: {
+          ambito: string
+          attiva: boolean
+          autorizzazione_default: string
+          autorizzazione_effettiva: string
+          categoria_rischio: string
+          chiave: string
+          descrizione: string
+          funzione_target: string
+          modulo: string
+          reversibilita: string
+          ruoli_consentiti: string[]
+        }[]
       }
       silvio_cleanup_old_alerts: { Args: never; Returns: number }
       silvio_cleanup_old_uploads: {
@@ -59382,6 +74588,37 @@ export type Database = {
       silvio_cluster_tickets: {
         Args: { p_min_cluster?: number; p_period?: string }
         Returns: Json
+      }
+      silvio_coda_risolvi: {
+        Args: {
+          p_azione: string
+          p_id: string
+          p_note?: string
+          p_parametri_modificati?: Json
+        }
+        Returns: {
+          anteprima: string | null
+          azione_chiave: string
+          company_id: string
+          created_at: string
+          esecuzione_id: string | null
+          id: string
+          note: string | null
+          origine: string | null
+          parametri: Json
+          parametri_modificati: Json | null
+          risolto_at: string | null
+          risolto_da: string | null
+          scadenza_at: string | null
+          stato: string
+          task_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "silvio_coda_conferme"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       silvio_compliance_status_export: { Args: never; Returns: Json }
       silvio_compute_customer_ltv: {
@@ -59545,6 +74782,14 @@ export type Database = {
         Args: { p_ticket_id: string; p_tone?: string }
         Returns: Json
       }
+      silvio_email_dispatch_fatture: {
+        Args: { p_cron_secret: string; p_limit?: number }
+        Returns: Json
+      }
+      silvio_email_dispatch_opportunita: {
+        Args: { p_cron_secret: string; p_limit?: number }
+        Returns: Json
+      }
       silvio_employees_workload: {
         Args: { p_company_id: string }
         Returns: Json
@@ -59648,6 +74893,30 @@ export type Database = {
         }
         Returns: undefined
       }
+      silvio_match_decision_rule: {
+        Args: { p_company_id: string; p_dominio: string; p_payload: Json }
+        Returns: Json
+      }
+      silvio_ops_health: {
+        Args: { p_company_id?: string; p_user_id?: string }
+        Returns: Json
+      }
+      silvio_outbound_enqueue: {
+        Args: {
+          p_canale: string
+          p_company_id: string
+          p_corpo: string
+          p_dest_id: string
+          p_dest_tipo: string
+          p_scopo: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      silvio_outbound_resolve_recipient: {
+        Args: { p_company_id: string; p_dest_id: string; p_dest_tipo: string }
+        Returns: Json
+      }
       silvio_payment_delay_pattern: {
         Args: { p_company_id: string }
         Returns: Json
@@ -59705,6 +74974,7 @@ export type Database = {
         Args: { p_alert_id: string }
         Returns: string
       }
+      silvio_puo_eseguire: { Args: { p_chiave: string }; Returns: string }
       silvio_rate_response: {
         Args: { p_message_id: string; p_rating: number }
         Returns: Json
@@ -59946,6 +75216,16 @@ export type Database = {
         Args: { p_company_id: string; p_employee_id: string; p_reason: string }
         Returns: Json
       }
+      silvio_tool_blocca_slot_calendario: {
+        Args: {
+          p_company_id: string
+          p_fine?: string
+          p_inizio?: string
+          p_motivo?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       silvio_tool_calcola_costo_ritardo: {
         Args: {
           p_cantiere_id: string
@@ -59966,6 +75246,17 @@ export type Database = {
       }
       silvio_tool_cashflow_status: {
         Args: { p_company_id: string; p_days_back?: number }
+        Returns: Json
+      }
+      silvio_tool_cerca_email: {
+        Args: {
+          p_company_id: string
+          p_days_back?: number
+          p_limit?: number
+          p_mittente?: string
+          p_query?: string
+          p_user_id: string
+        }
         Returns: Json
       }
       silvio_tool_checklist_documenti_pratica: {
@@ -59998,8 +75289,31 @@ export type Database = {
         }
         Returns: Json
       }
+      silvio_tool_componi_e_invia_messaggio: {
+        Args: {
+          p_canale?: string
+          p_company_id: string
+          p_corpo?: string
+          p_dest_id: string
+          p_dest_tipo: string
+          p_oggetto?: string
+          p_scopo?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       silvio_tool_compute_prompt_feedback: {
         Args: { p_company_id: string; p_days_back?: number }
+        Returns: Json
+      }
+      silvio_tool_convoca_formazione_operaio: {
+        Args: {
+          p_canale?: string
+          p_company_id: string
+          p_dipendente_id?: string
+          p_formazione?: string
+          p_user_id: string
+        }
         Returns: Json
       }
       silvio_tool_crea_lead_first_touch: {
@@ -60114,6 +75428,21 @@ export type Database = {
         Args: { p_company_id: string; p_user_id: string }
         Returns: Json
       }
+      silvio_tool_enqueue_creativita: {
+        Args: {
+          p_brief: string
+          p_commessa_id?: string
+          p_company_id: string
+          p_formato?: string
+          p_tipo: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_fatture_da_registrare: {
+        Args: { p_company_id: string; p_limit?: number; p_user_id: string }
+        Returns: Json
+      }
       silvio_tool_fatture_restanti: {
         Args: {
           p_company_id: string
@@ -60160,6 +75489,16 @@ export type Database = {
       }
       silvio_tool_genera_cu_anno: {
         Args: { p_company_id: string; p_year: number }
+        Returns: Json
+      }
+      silvio_tool_genera_documento_router: {
+        Args: {
+          p_commessa_id?: string
+          p_company_id: string
+          p_pratica_id?: string
+          p_tipo: string
+          p_user_id: string
+        }
         Returns: Json
       }
       silvio_tool_genera_duvri_cantiere: {
@@ -60270,6 +75609,15 @@ export type Database = {
           user_id: string
         }[]
       }
+      silvio_tool_guida_a: {
+        Args: {
+          p_company_id: string
+          p_entita_id?: string
+          p_operazione: string
+          p_precompila?: boolean
+        }
+        Returns: Json
+      }
       silvio_tool_identifica_conflitti_allocazione: {
         Args: { p_company_id: string }
         Returns: {
@@ -60311,8 +75659,39 @@ export type Database = {
         }
         Returns: Json
       }
+      silvio_tool_invia_cedolino: {
+        Args: {
+          p_canale?: string
+          p_cedolino_id?: string
+          p_company_id: string
+          p_dipendente_id?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_invia_followup_preventivo: {
+        Args: {
+          p_canale?: string
+          p_cliente_id?: string
+          p_company_id: string
+          p_quote_id?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       silvio_tool_invia_lipe_ade: {
         Args: { p_company_id: string; p_report_id: string }
+        Returns: Json
+      }
+      silvio_tool_invia_ordine_fornitore: {
+        Args: {
+          p_articolo_id?: string
+          p_canale?: string
+          p_company_id: string
+          p_fornitore_id?: string
+          p_quantita?: number
+          p_user_id: string
+        }
         Returns: Json
       }
       silvio_tool_invia_proposal_cliente: {
@@ -60329,6 +75708,27 @@ export type Database = {
           p_channels?: string[]
           p_company_id: string
           p_report_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_invia_sollecito_pagamento: {
+        Args: {
+          p_canale?: string
+          p_cliente_id?: string
+          p_company_id: string
+          p_fattura_id?: string
+          p_tono?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_lancia_winback: {
+        Args: {
+          p_canale?: string
+          p_cliente_id?: string
+          p_company_id: string
+          p_offerta?: string
+          p_user_id: string
         }
         Returns: Json
       }
@@ -60658,6 +76058,15 @@ export type Database = {
         }
         Returns: Json
       }
+      silvio_tool_posta_da_lavorare: {
+        Args: {
+          p_company_id: string
+          p_days_back?: number
+          p_limit?: number
+          p_user_id: string
+        }
+        Returns: Json
+      }
       silvio_tool_predici_consumo_materiali: {
         Args: {
           p_company_id: string
@@ -60803,6 +76212,31 @@ export type Database = {
         }
         Returns: Json
       }
+      silvio_tool_richieste_preventivo: {
+        Args: { p_company_id: string; p_limit?: number; p_user_id: string }
+        Returns: Json
+      }
+      silvio_tool_rispondi_a_email: {
+        Args: {
+          p_company_id: string
+          p_corpo: string
+          p_doc_id?: string
+          p_thread_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_salva_regola_decisionale: {
+        Args: {
+          p_azione: string
+          p_company_id: string
+          p_condizione: Json
+          p_dominio: string
+          p_origine?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       silvio_tool_save_cashflow_snapshot: {
         Args: {
           p_ai_confidence?: number
@@ -60839,6 +76273,10 @@ export type Database = {
         Args: { p_company_id: string; p_query: string }
         Returns: Json
       }
+      silvio_tool_serie_grafico: {
+        Args: { p_company_id: string; p_mesi?: number; p_metric?: string }
+        Returns: Json
+      }
       silvio_tool_simula_intervento_cashflow: {
         Args: {
           p_amount: number
@@ -60847,6 +76285,15 @@ export type Database = {
           p_intervention_type: string
           p_target_date: string
           p_user_id: string
+        }
+        Returns: Json
+      }
+      silvio_tool_simula_scenario: {
+        Args: {
+          p_company_id: string
+          p_ipotesi: string
+          p_orizzonte?: number
+          p_variabili?: Json
         }
         Returns: Json
       }
@@ -61038,6 +76485,33 @@ export type Database = {
         Args: { p_company_id: string; p_limit?: number }
         Returns: Json
       }
+      silvio_undo: {
+        Args: { p_audit_id: string }
+        Returns: {
+          approvata_da: string | null
+          autonomia: string
+          azione_chiave: string
+          company_id: string
+          created_at: string
+          esito: string
+          id: string
+          motivo: string | null
+          oggetto_id: string | null
+          oggetto_tipo: string | null
+          origine: string | null
+          origine_id: string | null
+          parametri: Json
+          per_conto_di: string | null
+          ref_audit_id: string | null
+          reversibile: boolean
+        }
+        SetofOptions: {
+          from: "*"
+          to: "silvio_audit"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       silvio_universal_search: {
         Args: { p_company_id: string; p_limit?: number; p_query: string }
         Returns: Json
@@ -61127,6 +76601,20 @@ export type Database = {
         Args: { p_company_id: string; p_movimento_id: string }
         Returns: undefined
       }
+      submit_public_reputation_review: {
+        Args: {
+          p_author?: string
+          p_body?: string
+          p_campaign_id?: string
+          p_company_id: string
+          p_customer_id?: string
+          p_order_id?: string
+          p_project?: string
+          p_public_slug: string
+          p_rating?: number
+        }
+        Returns: Json
+      }
       superadmin_can_access_company: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
@@ -61190,6 +76678,14 @@ export type Database = {
         Args: { p_dashboard_id: string; p_scope: string }
         Returns: undefined
       }
+      update_interaction_sentiment: {
+        Args: {
+          p_confidence: number
+          p_interaction_id: string
+          p_sentiment: string
+        }
+        Returns: undefined
+      }
       update_kb_sync_status: {
         Args: {
           p_doc_id: string
@@ -61206,6 +76702,32 @@ export type Database = {
       update_referrer_tier: {
         Args: { p_referrer_id: string }
         Returns: undefined
+      }
+      upsert_mittente_noto: {
+        Args: {
+          p_categoria: Database["public"]["Enums"]["email_categoria_v2"]
+          p_email: string
+          p_entita_id?: string
+          p_entita_tipo?: string
+          p_fonte?: string
+        }
+        Returns: string
+      }
+      upsert_portal_course: {
+        Args: { p_company_id: string; p_course: Json }
+        Returns: undefined
+      }
+      user_can_read_accountant_company: {
+        Args: { p_company_id: string }
+        Returns: boolean
+      }
+      user_can_write_accountant_company: {
+        Args: { p_company_id: string }
+        Returns: boolean
+      }
+      user_is_active_firm_member: {
+        Args: { p_firm_id: string }
+        Returns: boolean
       }
       valida_portale_token: { Args: { p_token: string }; Returns: Json }
       verifica_firma_intervento: {
@@ -61229,6 +76751,7 @@ export type Database = {
           warehouse_name: string
         }[]
       }
+      warmup_postgres_pool: { Args: never; Returns: undefined }
       wh_get_lotti_in_scadenza: {
         Args: { p_company_id?: string; p_days_ahead?: number }
         Returns: Json
@@ -61252,7 +76775,6 @@ export type Database = {
         | "salesperson"
         | "call_center"
         | "referrer"
-        | "accountant"
         | "platform_manager"
         | "platform_sales"
         | "platform_support"
@@ -61261,6 +76783,7 @@ export type Database = {
         | "multi_company_user"
         | "subcontractor"
         | "worker"
+        | "accountant"
       company_sector:
         | "serramenti"
         | "infissi"
@@ -61269,6 +76792,20 @@ export type Database = {
         | "fotovoltaico"
         | "pittura"
         | "ristrutturazioni"
+        | "altro"
+      email_categoria_v2:
+        | "cliente"
+        | "fornitore"
+        | "operaio"
+        | "preventivo"
+        | "fattura"
+        | "opportunita"
+        | "supporto"
+        | "pratica"
+        | "newsletter"
+        | "social"
+        | "notifica"
+        | "spam"
         | "altro"
       feature_access_level: "disabled" | "preview" | "enabled"
       message_channel: "email" | "sms" | "whatsapp" | "nota_interna"
@@ -61459,9 +76996,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       app_role: [
@@ -61473,7 +77007,6 @@ export const Constants = {
         "salesperson",
         "call_center",
         "referrer",
-        "accountant",
         "platform_manager",
         "platform_sales",
         "platform_support",
@@ -61482,6 +77015,7 @@ export const Constants = {
         "multi_company_user",
         "subcontractor",
         "worker",
+        "accountant",
       ],
       company_sector: [
         "serramenti",
@@ -61491,6 +77025,21 @@ export const Constants = {
         "fotovoltaico",
         "pittura",
         "ristrutturazioni",
+        "altro",
+      ],
+      email_categoria_v2: [
+        "cliente",
+        "fornitore",
+        "operaio",
+        "preventivo",
+        "fattura",
+        "opportunita",
+        "supporto",
+        "pratica",
+        "newsletter",
+        "social",
+        "notifica",
+        "spam",
         "altro",
       ],
       feature_access_level: ["disabled", "preview", "enabled"],
