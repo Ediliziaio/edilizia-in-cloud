@@ -335,6 +335,67 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "fattura",
   },
 
+  crea_bozza_campagna_ads: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_bozza_campagna_ads",
+        description: "Crea e SALVA una BOZZA di campagna pubblicitaria (Meta o Google) — NON la pubblica (la pubblicazione richiede di collegare gli account, arriverà dopo). Tu componi obiettivo, pubblico/targeting, budget giornaliero consigliato, 2-3 varianti di copy (titolo+testo+CTA) e il concept della creatività, basandoti sui dati reali dell'azienda (clienti, area, servizi, budget), poi salvi qui. Usa quando l'utente chiede 'preparami una campagna/sponsorizzata Facebook/Instagram/Google'. Ritorna l'id della bozza salvata.",
+        parameters: {
+          type: "object",
+          properties: {
+            platform: { type: "string", enum: ["meta", "google"], description: "Piattaforma. Default 'meta' (Facebook/Instagram)." },
+            obiettivo: { type: "string", description: "Obiettivo: lead, vendite, traffico, notorieta, contatti." },
+            budget_giornaliero_eur: { type: "number", description: "Budget giornaliero consigliato in €." },
+            durata_giorni: { type: "integer", description: "Durata campagna in giorni." },
+            area_geografica: { type: "string", description: "Area target (comune/provincia/raggio km)." },
+            target: { type: "object", description: "Targeting: {eta, interessi, raggio_km, comuni, ...}." },
+            copy_varianti: { type: "array", items: { type: "object" }, description: "2-3 varianti: [{titolo, testo, cta}]." },
+            creativita_concept: { type: "string", description: "Concept visual / immagine suggerita." },
+            note: { type: "string", description: "Note opzionali." },
+          },
+          required: ["platform", "obiettivo", "copy_varianti"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_crea_bozza_campagna_ads", {
+      p_company_id: ctx.companyId,
+      p_platform: args?.platform ?? "meta",
+      p_obiettivo: args?.obiettivo ?? null,
+      p_budget_giornaliero: args?.budget_giornaliero_eur != null ? Number(args.budget_giornaliero_eur) : null,
+      p_durata_giorni: args?.durata_giorni != null ? Number(args.durata_giorni) : null,
+      p_area: args?.area_geografica ?? null,
+      p_target: args?.target ?? {},
+      p_copy: args?.copy_varianti ?? [],
+      p_concept: args?.creativita_concept ?? null,
+      p_note: args?.note ?? null,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "sales", "assistente_imprenditore", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "generative",
+  },
+
+  lista_bozze_campagne_ads: {
+    schema: {
+      type: "function",
+      function: {
+        name: "lista_bozze_campagne_ads",
+        description: "Elenca le bozze di campagne pubblicitarie salvate (Meta/Google): piattaforma, obiettivo, budget, durata, area, stato. Usa per 'mostrami le campagne preparate', 'bozze sponsorizzate', 'che campagne ho pronto'.",
+        parameters: { type: "object", properties: {}, required: [] },
+      },
+    },
+    executor: async (_args, ctx) => callRpc(ctx.supabase, "silvio_lista_bozze_campagne_ads", {
+      p_company_id: ctx.companyId,
+    }),
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "sales", "assistente_imprenditore", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice"],
+    riskLevel: "safe",
+    domain: "generative",
+  },
+
   get_serie_grafico: {
     schema: {
       type: "function",
