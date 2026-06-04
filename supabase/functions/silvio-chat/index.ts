@@ -703,7 +703,13 @@ serve(async (req: Request) => {
       { role: "system", content: enrichedSystemPrompt },
       ...history.map((m) => ({
         role: m.sender_id === SILVIO_SENDER_ID ? "assistant" : "user",
-        content: m.content,
+        // Token guard: messaggi history molto lunghi (doc incollati, risposte
+        // chilometriche) troncati SOLO nel contesto LLM (non nel DB). Il messaggio
+        // corrente dell'utente è inviato integralmente più sotto.
+        content:
+          typeof m.content === "string" && m.content.length > 4000
+            ? `${m.content.slice(0, 4000)} …[troncato]`
+            : m.content,
       })),
     ];
 
@@ -935,6 +941,32 @@ serve(async (req: Request) => {
       risk_level?: string | null;
     }> = [];
 
+    // ── #10 Tool-step live (additivo, isolato): un passo leggibile per ogni tool
+    // eseguito. Scrittura fire-and-forget su silvio_tool_steps → MAI bloccante per
+    // la risposta. Il frontend li mostra in tempo reale sotto "Silvio sta pensando".
+    const stepLabel = (name: string): string => {
+      const n = (name ?? "").toLowerCase();
+      if (/fattur|invoice|credit|unpaid|overdue|sollecit|payment|pagament/.test(n)) return "Controllo fatture e pagamenti";
+      if (/cashflow|cassa|flusso|forecast|tesorer/.test(n)) return "Calcolo il flusso di cassa";
+      if (/cantier|commessa|project|margin|budget/.test(n)) return "Analizzo i cantieri";
+      if (/quote|preventiv|offer/.test(n)) return "Preparo il preventivo";
+      if (/client|customer|lead|crm|opportun/.test(n)) return "Guardo clienti e opportunità";
+      if (/email|mail|posta/.test(n)) return "Leggo le email";
+      if (/stock|magazzino|inventory|riordin|purchase|ordine|fornitore/.test(n)) return "Controllo magazzino e ordini";
+      if (/employee|operai|personale|\bhr\b|ferie/.test(n)) return "Controllo il personale";
+      if (/doc|ddt|bolletta|allegat|file|ocr|estrai|extract/.test(n)) return "Leggo il documento";
+      if (/create|crea|draft|bozza|propose|action/.test(n)) return "Preparo un'azione";
+      return `Eseguo: ${name}`;
+    };
+    const emitStep = (name: string) => {
+      void supabaseAdmin
+        .from("silvio_tool_steps")
+        .insert({ channel_id: channelId, company_id: companyId, label: stepLabel(name) })
+        .then(() => {}, () => {});
+    };
+    // Pulisco gli step del giro precedente (non bloccante)
+    void supabaseAdmin.from("silvio_tool_steps").delete().eq("channel_id", channelId).then(() => {}, () => {});
+
     // MP-09: se il council ha già prodotto la synthesis, usa quella come finalContent
     // e salta il tool-calling loop. Manteniamo gli altri flow (citation check, evidence,
     // structured output check) che girano normalmente più sotto.
@@ -1030,6 +1062,7 @@ serve(async (req: Request) => {
         // Esegui ogni tool e aggiungi tool message
         for (const tc of toolCalls) {
           const toolName = tc.function?.name;
+          emitStep(toolName ?? "tool"); // #10 step live (non bloccante)
           let toolArgs: Record<string, unknown> = {};
           try {
             toolArgs = JSON.parse(tc.function?.arguments ?? "{}");
@@ -1366,6 +1399,10 @@ serve(async (req: Request) => {
         proposalErr instanceof Error ? proposalErr.message : String(proposalErr),
       );
     }
+
+    // #10 Pulizia step live: la risposta finale è stata postata, il frontend li
+    // nasconde già all'arrivo del messaggio. Cleanup DB non bloccante.
+    void supabaseAdmin.from("silvio_tool_steps").delete().eq("channel_id", channelId).then(() => {}, () => {});
 
     // ── 12) FIX 9 (C5): trigger memory extract periodico ─────────────────
     // Ogni MEMORY_EXTRACT_THRESHOLD messaggi nel canale, lancia in background

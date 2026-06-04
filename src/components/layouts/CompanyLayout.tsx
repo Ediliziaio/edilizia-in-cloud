@@ -60,6 +60,8 @@ import {
   Brain,
   Bell,
   Settings as SettingsIcon,
+  PanelLeft,
+  PanelLeftClose,
 } from "lucide-react";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 import ediliziaLogoSmall from "@/assets/edilizia-in-cloud-logo-small.webp";
@@ -479,7 +481,7 @@ function MacroAreaCollapsible({ area, visibleItems, pathname, open, onOpenChange
                 side="right"
                 align="start"
                 sideOffset={8}
-                className="w-52 p-1.5 bg-sidebar border border-sidebar-border shadow-lg rounded-lg"
+                className="z-50 w-52 p-1.5 bg-sidebar border border-sidebar-border shadow-lg rounded-lg"
               >
                 <p className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                   {area.title}
@@ -1221,7 +1223,7 @@ const CompanySidebar = memo(function CompanySidebar() {
     return () => window.clearTimeout(timer);
   }, [gatingLoading]);
 
-  const { state: sidebarState } = useSidebar();
+  const { state: sidebarState, toggleSidebar } = useSidebar();
   const isCollapsed = sidebarState === "collapsed";
   const showMenuSkeleton = gatingLoading && !menuLoadingFallback;
 
@@ -1320,6 +1322,20 @@ const CompanySidebar = memo(function CompanySidebar() {
               <div className={cn("p-3", isCollapsed && "p-2 flex flex-col items-center gap-2")}>
                 {isCollapsed ? (
                   <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          onClick={toggleSidebar}
+                          aria-label="Espandi menu"
+                        >
+                          <PanelLeft className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">Espandi menu</TooltipContent>
+                    </Tooltip>
                     {showDriveLink && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -1393,6 +1409,15 @@ const CompanySidebar = memo(function CompanySidebar() {
                           {isImpersonating ? "Super Admin" : "Admin"}
                         </p>
                       </div>
+                      <button
+                        type="button"
+                        onClick={toggleSidebar}
+                        className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors"
+                        aria-label="Comprimi menu a icone"
+                        title="Comprimi a icone"
+                      >
+                        <PanelLeftClose className="h-4 w-4" />
+                      </button>
                     </div>
                     <div className="flex flex-col gap-0.5">
                       {showDriveLink && (

@@ -256,6 +256,7 @@ const RenderTechnicalModuleNew = lazy(() => import("@/pages/azienda/RenderTechni
 const RenderTechnicalModuleGallery = lazy(() => import("@/pages/azienda/RenderTechnicalModuleGallery"));
 const RenderTechnicalModuleGalleryDetail = lazy(() => import("@/pages/azienda/RenderTechnicalModuleGalleryDetail"));
 const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
+const SilvioAIPage = lazy(() => import("@/pages/azienda/SilvioAIPage"));
 const ContenutiMultimediali = lazy(() => import("@/pages/azienda/ContenutiMultimediali"));
 // MP-AIE-03: pagina dedicata azioni proposte AI
 const AzioniProposteAi = lazy(() => import("@/pages/azienda/AzioniProposteAi"));
@@ -507,6 +508,7 @@ export default function CompanyRoutesContainer() {
         <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
         {/* MP-CLEANUP: rotta messaggistica-beta rimossa — dominio eliminato. */}
         <Route path="chat" element={withCompanyPermission("canViewPersone", <InternalChat />)} />
+        <Route path="silvio-ai" element={withCompanyPermission("canViewPersone", <SilvioAIPage />)} />
         <Route path="contenuti-multimediali" element={withCompanyPermission("canViewMarketing", <ContenutiMultimediali />)} />
         {/* MP-AIE-03: Azioni proposte AI (yellow/red da Silvio + 18 personas).
             2026-05-27 (audit role-based): gated dietro canViewMarketing — le

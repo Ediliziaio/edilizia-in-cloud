@@ -34,6 +34,7 @@ import {
   ContactRound,
   UserCheck,
   MessagesSquare,
+  Sparkles,
   PieChart,
   Workflow,
   LayoutGrid,
@@ -79,6 +80,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Email", url: "/azienda/email", icon: Mail, featureKey: "email_client", isBeta: true },
       { title: "Cruscotto", url: "/azienda/cruscotto", icon: LayoutGrid, permissionKey: "canViewCruscotto" },
       { title: "Chat Team", url: "/azienda/chat", icon: MessagesSquare }, // no gate — accessible to all authenticated users
+      { title: "Silvio AI", url: "/azienda/silvio-ai", icon: Sparkles, isBeta: true }, // nuova interfaccia multi-conversazione
     ],
   },
 
@@ -240,6 +242,7 @@ export const internalNavItems: NavItem[] = [
   
   // MP-CLEANUP: "Messaggi Esterni" rimosso
   { title: "Chat Team", url: "/azienda/chat", icon: MessageCircle, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
+  { title: "Silvio AI", url: "/azienda/silvio-ai", icon: Sparkles, isBeta: true, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Personale & HR", url: "/azienda/personale", icon: Users, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewAutomazioni", category: "internal", subcategory: "gi_automation" },
