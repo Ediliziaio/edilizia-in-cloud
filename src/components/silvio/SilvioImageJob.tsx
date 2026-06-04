@@ -1,9 +1,10 @@
 /**
  * SilvioImageJob — mostra in chat l'immagine generata da Silvio (tool
- * genera_creativita → job in silvio_generation_jobs). Fa polling finché il job
- * non è completo, poi rivela l'immagine con l'animazione ImageGeneration.
- * Nessun gergo tecnico: l'utente vede "Sto creando l'immagine…" → l'immagine.
+ * genera_creativita → job in silvio_generation_jobs). Polling finché il job non
+ * è pronto ('ready' + public_url), poi rivela l'immagine con ImageGeneration.
+ * Niente gergo tecnico; niente loader infinito (timeout di sicurezza).
  */
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ImageGeneration } from "@/components/ui/ai-chat-image-generation";
@@ -24,16 +25,24 @@ const ASPECT: Record<string, string> = {
   "16:9": "aspect-video",
 };
 
+// Oltre questo tempo senza immagine → messaggio onesto invece di girare all'infinito.
+const TIMEOUT_MS = 200_000;
+
+function isDone(j: GenJob | null | undefined): boolean {
+  return !!j && (!!j.public_url || j.status === "ready" || j.status === "completed" || j.status === "failed" || !!j.error);
+}
+
 export function SilvioImageJob({ jobId }: { jobId: string }) {
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setTimedOut(true), TIMEOUT_MS);
+    return () => window.clearTimeout(t);
+  }, []);
+
   const { data: job } = useQuery({
     queryKey: ["silvio-gen-job", jobId],
-    enabled: !!jobId,
-    // Polling finché non è pronto/errore; poi stop.
-    refetchInterval: (query) => {
-      const j = query.state.data as GenJob | null | undefined;
-      if (j && (j.public_url || j.error || j.status === "completed" || j.status === "failed")) return false;
-      return 2500;
-    },
+    enabled: !!jobId && !timedOut,
+    refetchInterval: (query) => (isDone(query.state.data as GenJob | null | undefined) ? false : 2500),
     staleTime: 0,
     queryFn: async (): Promise<GenJob | null> => {
       const { data } = await supabase
@@ -49,11 +58,13 @@ export function SilvioImageJob({ jobId }: { jobId: string }) {
   const failed = !!job?.error || job?.status === "failed";
   const aspect = ASPECT[job?.formato ?? "4:5"] ?? "aspect-[4/5]";
 
-  if (failed) {
+  if (failed || (timedOut && !url)) {
     return (
       <div className="my-2 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
         <ImageOff className="h-4 w-4 shrink-0" />
-        Non sono riuscito a creare l'immagine. Riprova tra poco.
+        {failed
+          ? "Non sono riuscito a creare l'immagine. Riprova tra poco."
+          : "L'immagine ci sta mettendo più del previsto. Riprova tra qualche minuto."}
       </div>
     );
   }
