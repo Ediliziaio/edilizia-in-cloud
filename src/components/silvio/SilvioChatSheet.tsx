@@ -1434,7 +1434,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
           )}
           {sending && (
             <div className="flex gap-2 justify-start">
-              <SilvioAvatar size={28} className="rounded-full" />
+              <SilvioAvatar size={28} animated="thinking" className="rounded-full" />
               <div className="flex flex-col gap-1.5 min-w-0">
                 <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-3 py-2.5 flex items-center gap-2 max-w-fit">
                   <div className="flex gap-1">

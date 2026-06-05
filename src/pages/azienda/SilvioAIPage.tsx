@@ -1379,7 +1379,7 @@ export default function SilvioAIPage() {
                 )}
                 {sending && (
                   <div className="flex gap-3">
-                    <SilvioAvatar size={32} className="rounded-lg" />
+                    <SilvioAvatar size={32} animated="thinking" className="rounded-lg" />
                     <div className="flex-1 min-w-0 pt-1">
                       {toolSteps.length > 0 && (
                         <div className="mb-1.5 space-y-1">

@@ -152,6 +152,18 @@ export default {
           "50%": { top: "100%" },
           "100%": { top: "0%" },
         },
+        "silvio-breathe": {
+          "0%, 100%": { transform: "scale(1)" },
+          "50%": { transform: "scale(1.06)" },
+        },
+        "silvio-bob": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-2px)" },
+        },
+        "silvio-ring": {
+          "0%": { transform: "scale(1)", opacity: "0.5" },
+          "70%, 100%": { transform: "scale(1.65)", opacity: "0" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -169,6 +181,9 @@ export default {
         "sidebar-slide-down": "sidebar-slide-down 200ms ease-out forwards",
         "sidebar-slide-up": "sidebar-slide-up 200ms ease-out forwards",
         "scan": "scan 2s ease-in-out infinite",
+        "silvio-breathe": "silvio-breathe 3.5s ease-in-out infinite",
+        "silvio-bob": "silvio-bob 1.4s ease-in-out infinite",
+        "silvio-ring": "silvio-ring 1.8s ease-out infinite",
       },
     },
   },
