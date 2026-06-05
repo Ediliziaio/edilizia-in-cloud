@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { slug } from "@/components/flow-builder/config-panels/EmailBodyEditor";
+import { slug } from "@/components/flow-builder/config-panels/emailVariableCatalog";
 
 /**
  * GUARD anti-regressione del bug "picker bugiardo":

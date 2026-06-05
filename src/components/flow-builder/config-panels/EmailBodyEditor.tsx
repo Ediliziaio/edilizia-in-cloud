@@ -19,22 +19,13 @@ import { RichTextEditor, type RichTextEditorHandle } from "@/components/ui/rich-
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCatalogItem } from "@/lib/flow-node-catalog";
-import { buildVariableCategories, type PickerVariable, type PickerCategory } from "./emailVariableCatalog";
+import { buildVariableCategories, slug, type PickerVariable, type PickerCategory } from "./emailVariableCatalog";
 
 export interface EmailVariable {
   key: string;
   label: string;
   group?: string;
 }
-
-/**
- * Genera la chiave snake_case del campo personalizzato per il merge-tag.
- * DEVE restare allineata a `toSnakeCase` di _shared/contactCustomFields.ts
- * (resolver lato motore), altrimenti la variabile inserita dal picker non viene
- * risolta nell'invio. Coperto da src/test/logic/customFieldKey.test.ts.
- */
-export const slug = (s: string) =>
-  s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 
 interface EmailBodyEditorProps {
   value: string | null | undefined;
