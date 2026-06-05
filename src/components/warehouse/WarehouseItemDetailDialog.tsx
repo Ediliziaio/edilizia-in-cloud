@@ -528,8 +528,8 @@ export default function WarehouseItemDetailDialog({
                       Ordine
                     </p>
                     <p className="text-sm font-medium truncate mt-0.5">
-                      {item.order.order_code || "Ordine"} — {item.order.customer.first_name}{" "}
-                      {item.order.customer.last_name}
+                      {item.order.order_code || "Ordine"} — {item.order.customer?.first_name ?? ""}{" "}
+                      {item.order.customer?.last_name ?? ""}
                     </p>
                   </div>
                 </div>

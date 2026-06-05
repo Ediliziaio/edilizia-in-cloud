@@ -157,6 +157,7 @@ Deno.serve(async (req) => {
         // Matching
         for (const tx of txsToMatch) {
           let bestMatch: { invoice: any; score: number } | null = null;
+          let secondScore = 0; // per il guard anti-ambiguità
 
           for (const inv of unpaidInvoices) {
             const remaining = (inv.total || 0) - (inv.paid_amount || 0);
@@ -168,12 +169,21 @@ Deno.serve(async (req) => {
               client_company_name: inv.client_company_name,
             });
 
-            if (score >= 50 && (!bestMatch || score > bestMatch.score)) {
+            if (score < 50) continue;
+            if (!bestMatch || score > bestMatch.score) {
+              if (bestMatch) secondScore = Math.max(secondScore, bestMatch.score);
               bestMatch = { invoice: inv, score };
+            } else if (score > secondScore) {
+              secondScore = score;
             }
           }
 
-          if (bestMatch && bestMatch.score >= 80) {
+          // Guard anti-ambiguità (come pickAutoMatch lato UI): se un secondo
+          // candidato è a ≤15 punti dal migliore, NON auto-applicare (rischio di
+          // pagare la fattura sbagliata) → declassa a proposta a media confidenza.
+          const ambiguo = bestMatch != null && secondScore >= bestMatch.score - 15;
+
+          if (bestMatch && bestMatch.score >= 80 && !ambiguo) {
             // Auto-match
             const matchedAmount = Math.min(
               Math.abs(tx.amount),
@@ -200,14 +210,15 @@ Deno.serve(async (req) => {
               notes: `Auto-riconciliato (score: ${bestMatch.score}/100)`,
             });
 
-            // Aggiorna paid_amount sulla fattura
+            // paid_amount è ricalcolato dai trigger su invoice_payments → NON
+            // sovrascriverlo a mano (doppia scrittura = importi incoerenti).
+            // Impostiamo solo status/paid_at quando la fattura risulta saldata.
             const newPaidAmount = (bestMatch.invoice.paid_amount || 0) + matchedAmount;
-            const updateData: any = { paid_amount: newPaidAmount };
             if (newPaidAmount >= (bestMatch.invoice.total || 0)) {
-              updateData.status = "paid";
-              updateData.paid_at = new Date().toISOString();
+              await supabase.from("invoices")
+                .update({ status: "paid", paid_at: new Date().toISOString() })
+                .eq("id", bestMatch.invoice.id);
             }
-            await supabase.from("invoices").update(updateData).eq("id", bestMatch.invoice.id);
 
             // Aggiorna il paid_amount locale per non matchare la stessa fattura due volte
             bestMatch.invoice.paid_amount = newPaidAmount;

@@ -1058,6 +1058,8 @@ export default function AdminLeadScraper() {
       queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
       if (data.duplicates) toast.info("Già presente nel CRM");
       else if (data.suppressed) toast.warning("In opt-out: non importato (GDPR)");
+      else if (data.skipped) toast.info("Lead già convertito in precedenza");
+      else if (!data.pushed) toast.error("Non sono riuscito a convertire il lead. Riprova.");
       else toast.success(vars.createOpportunity ? "Convertito in opportunità" : "Convertito in contatto");
     },
     onError: (e: Error) => toast.error("Conversione fallita", { description: e.message }),

@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { getCorsHeaders } from '../_shared/headers.ts'
+import { requireAuth, requireCompanyAccess } from '../_shared/auth.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -16,10 +17,11 @@ Deno.serve(async (req) => {
       )
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
+    // SEC (P0): l'utente DEVE appartenere alla company richiesta — niente
+    // lettura cross-tenant dei dati finanziari per sede.
+    const { userId, supabaseAdmin } = await requireAuth(req, getCorsHeaders(req))
+    await requireCompanyAccess(supabaseAdmin, userId, company_id, getCorsHeaders(req))
+    const supabase = supabaseAdmin
 
     // Query KPI per sede dalla vista materializzata
     let query = supabase
@@ -113,6 +115,7 @@ Deno.serve(async (req) => {
     )
 
   } catch (err) {
+    if (err instanceof Response) return err
     console.error('[get-sede-analytics] unexpected error:', err)
     return new Response(
       JSON.stringify({ error: 'Errore interno del server' }),

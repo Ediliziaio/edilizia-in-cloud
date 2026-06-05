@@ -31,7 +31,7 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSe
   const isCritical = isItemCritical(item);
   const overdue = isItemOverdue(item);
 
-  const customerName = `${item.order.customer.first_name} ${item.order.customer.last_name}`;
+  const customerName = `${item.order.customer?.first_name ?? ""} ${item.order.customer?.last_name ?? ""}`.trim() || "Cliente non disponibile";
   const expectedDate = item.order.expected_date || item.order.work_start_date;
   const formattedDate = expectedDate
     ? format(new Date(expectedDate), "d MMM", { locale: it })

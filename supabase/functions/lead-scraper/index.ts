@@ -158,6 +158,17 @@ async function scrapeWebsiteDeep(website: string): Promise<DeepEnrich | null> {
   } catch {
     return null;
   }
+  // SSRF guard: solo http/https e nessun host interno/privato/metadata (literal
+  // IP/hostname). Il fetch server-side non deve mai puntare a risorse interne.
+  if (base.protocol !== "http:" && base.protocol !== "https:") return null;
+  const ssrfHost = base.hostname.toLowerCase();
+  if (
+    ssrfHost === "localhost" || ssrfHost === "0.0.0.0" || ssrfHost === "metadata.google.internal" ||
+    ssrfHost.endsWith(".local") || ssrfHost.endsWith(".internal") ||
+    /^127\./.test(ssrfHost) || /^10\./.test(ssrfHost) || /^192\.168\./.test(ssrfHost) ||
+    /^169\.254\./.test(ssrfHost) || ssrfHost === "[::1]" || ssrfHost === "::1" ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(ssrfHost)
+  ) return null;
   const domain = base.hostname.replace(/^www\./, "");
   const pages = [base.href, `${base.origin}/contatti`, `${base.origin}/chi-siamo`, `${base.origin}/azienda`];
   let combined = "";
@@ -1381,7 +1392,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      let pushed = 0, skipped = 0, suppressed = 0, duplicates = 0, opportunities = 0;
+      let pushed = 0, skipped = 0, suppressed = 0, duplicates = 0, opportunities = 0, failed = 0;
       for (const l of rows) {
         if (l.pushed_to_crm) { skipped++; continue; }
         // GDPR
@@ -1415,7 +1426,11 @@ Deno.serve(async (req) => {
             website: l.website || null,
             address: l.address || null,
             city: l.city || null,
-            province: l.region || null,
+            // `region` è il NOME regione (es. "Lombardia"); `province` vuole la
+            // sigla (MI/RM). Salva solo se sembra una sigla, altrimenti null.
+            province: (l.region && String(l.region).trim().length <= 3)
+              ? String(l.region).trim().toUpperCase()
+              : null,
             vat_number: l.partita_iva || null,
             country: l.country || "IT",
             tags,
@@ -1453,9 +1468,11 @@ Deno.serve(async (req) => {
             .update({ pushed_to_crm: true, crm_contact_id: contact.id, crm_opportunity_id: oppId })
             .eq("id", l.id);
           pushed++;
+        } else {
+          failed++;
         }
       }
-      return jsonResponse({ pushed, skipped, suppressed, duplicates, opportunities }, 200, corsH);
+      return jsonResponse({ pushed, skipped, suppressed, duplicates, opportunities, failed }, 200, corsH);
     }
 
     // ════════════════════ DEEP ENRICH (sito → tutto, gratis) ════════════════════
@@ -1615,7 +1632,8 @@ Deno.serve(async (req) => {
           if (!c.vat_number && piva) patch.vat_number = piva;
           if (!c.company_name && (businessName || viesName)) patch.company_name = businessName || viesName;
           if (Object.keys(patch).length) {
-            await supabaseAdmin.from("marketing_contacts").update(patch).eq("id", contactId);
+            await supabaseAdmin.from("marketing_contacts").update(patch)
+              .eq("id", contactId).eq("company_id", PLATFORM_ADMIN_COMPANY_ID);
             result.contact_updated = Object.keys(patch);
           }
         }

@@ -55,7 +55,7 @@ export default function WarehouseCalendarView({ items }: WarehouseCalendarViewPr
         orderMap.set(orderId, {
           orderId,
           orderCode: item.order.order_code,
-          customerName: `${item.order.customer.first_name} ${item.order.customer.last_name}`,
+          customerName: `${item.order.customer?.first_name ?? ""} ${item.order.customer?.last_name ?? ""}`.trim() || "Cliente non disponibile",
           expectedDate,
           items: [],
           readyCount: 0,

@@ -150,7 +150,7 @@ const WarehouseItemRow = React.memo(function WarehouseItemRow({
           {(supplierName || (isSupplierGroup && item.order.order_code)) && (
             <p className="text-xs text-muted-foreground truncate">
               {isSupplierGroup
-                ? `${item.order.order_code || "Ordine"} - ${item.order.customer.first_name} ${item.order.customer.last_name}`
+                ? `${item.order.order_code || "Ordine"} - ${item.order.customer?.first_name ?? ""} ${item.order.customer?.last_name ?? ""}`.trim()
                 : supplierName}
             </p>
           )}

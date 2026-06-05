@@ -77,20 +77,21 @@ export default function InvoicesList() {
 
   const markPaidMutation = useMutation({
     mutationFn: async (inv: { id: string; total: number }) => {
+      // Salda il RESIDUO (totale − già incassato): evita di sovra-pagare il
+      // ledger se esistono acconti. paid_amount e status='paid' sono ricalcolati
+      // dai trigger su invoice_payments → NON aggiornarli a mano (doppia scrittura).
+      const { data: cur } = await supabase
+        .from("invoices").select("paid_amount").eq("id", inv.id).maybeSingle();
+      const residuo = Math.round((inv.total - Number(cur?.paid_amount ?? 0)) * 100) / 100;
+      if (residuo <= 0) return; // già saldata
       const { error } = await supabase.from("invoice_payments").insert({
         invoice_id: inv.id,
         company_id: companyId!,
-        amount: inv.total,
+        amount: residuo,
         payment_date: new Date().toISOString().split("T")[0],
         payment_method: "bank_transfer",
       });
       if (error) throw error;
-      const { error: updateError } = await supabase.from("invoices").update({
-        status: "paid",
-        paid_amount: inv.total,
-        updated_at: new Date().toISOString(),
-      }).eq("id", inv.id);
-      if (updateError) throw updateError;
     },
     onSuccess: () => {
       toast.success("Fattura segnata come pagata");

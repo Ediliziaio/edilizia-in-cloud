@@ -480,7 +480,7 @@ export function useWarehouseData() {
         grouped.set(orderId, {
           orderId,
           orderCode: item.order.order_code,
-          customerName: `${item.order.customer.first_name} ${item.order.customer.last_name}`,
+          customerName: `${item.order.customer?.first_name ?? ""} ${item.order.customer?.last_name ?? ""}`.trim() || "Cliente non disponibile",
           expectedDate: item.order.expected_date || item.order.work_start_date,
           items: [],
         });
@@ -617,7 +617,7 @@ export function useWarehouseData() {
       stato: STATUS_CONFIG[item.status].label,
       fornitore: getSupplierName(item.supplier_id) || "",
       ordine: item.order.order_code || "",
-      cliente: `${item.order.customer.first_name} ${item.order.customer.last_name}`,
+      cliente: `${item.order.customer?.first_name ?? ""} ${item.order.customer?.last_name ?? ""}`.trim() || "Cliente non disponibile",
       data_posa: item.order.expected_date || item.order.work_start_date || "",
     }));
     exportCsvUtil(rows, columns, `magazzino_${format(new Date(), "yyyy-MM-dd")}.csv`);
