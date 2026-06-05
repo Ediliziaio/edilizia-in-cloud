@@ -62,6 +62,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
       setTitolo("");
       setData("");
       qc.invalidateQueries({ queryKey: ["silvio-reminders", companyId] });
+      qc.invalidateQueries({ queryKey: ["silvio-reminders-count"] });
       toast.success("Promemoria creato");
     },
     onError: (e: Error) => toast.error("Creazione fallita", { description: e.message }),
@@ -72,7 +73,10 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
       const { error } = await supabase.from("silvio_reminders" as never).update({ status } as never).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["silvio-reminders", companyId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["silvio-reminders", companyId] });
+      qc.invalidateQueries({ queryKey: ["silvio-reminders-count"] });
+    },
     onError: (e: Error) => toast.error("Operazione fallita", { description: e.message }),
   });
 

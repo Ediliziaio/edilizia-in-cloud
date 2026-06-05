@@ -309,6 +309,21 @@ export default function SilvioAIPage() {
     },
   });
 
+  // Conteggio promemoria in sospeso → badge sul bottone "Programmate".
+  const { data: programmateCount = 0 } = useQuery({
+    queryKey: ["silvio-reminders-count", companyId],
+    enabled: !!companyId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<number> => {
+      const { count } = await supabase
+        .from("silvio_reminders" as never)
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("status", "pending");
+      return count ?? 0;
+    },
+  });
+
   const toggleFolder = (id: string) =>
     setCollapsedFolders((prev) => {
       const next = new Set(prev);
@@ -1061,9 +1076,14 @@ export default function SilvioAIPage() {
           onClick={() => setProgrammateOpen(true)}
           title="Attività programmate"
           aria-label="Attività programmate"
-          className="h-9 w-9 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+          className="relative h-9 w-9 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
         >
           <CalendarClock className="h-5 w-5" />
+          {programmateCount > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 min-w-[16px] h-4 px-1 rounded-full bg-orange-500 text-white text-[9px] font-bold flex items-center justify-center">
+              {programmateCount > 9 ? "9+" : programmateCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -1124,6 +1144,11 @@ export default function SilvioAIPage() {
                 className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 <CalendarClock className="h-4 w-4 text-orange-500" /> Programmate
+                {programmateCount > 0 && (
+                  <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-orange-100 text-orange-700 text-[10px] font-semibold flex items-center justify-center">
+                    {programmateCount}
+                  </span>
+                )}
               </button>
               <button
                 onClick={() => void handleNuovaCartella()}
