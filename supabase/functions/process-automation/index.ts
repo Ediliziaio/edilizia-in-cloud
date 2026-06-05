@@ -20,6 +20,7 @@ import {
 } from "../_shared/platformAutomation.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { brandEmailBody } from "../_shared/brandEmailBody.ts";
+import { loadContactCustomFieldResolver, applyContactCustomFields } from "../_shared/contactCustomFields.ts";
 
 interface AutomationNode {
   id: string;
@@ -943,10 +944,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "send_sms": {
-      // Get contact phone
+      // Get contact (telefono + dati per la personalizzazione)
       const { data: smsContact } = await supabase
         .from("marketing_contacts")
-        .select("phone")
+        .select("id, phone, first_name, last_name, email, city, province, company_name, source")
         .eq("id", entityId)
         .eq("company_id", companyId)
         .maybeSingle();
@@ -955,7 +956,13 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         return { success: false, error: "Contatto senza numero di telefono" };
       }
 
-      const smsBody = ncfg.sms_body || ncfg.message || "Messaggio automatico";
+      // Personalizza il testo SMS (prima era inviato grezzo, con i {{...}} letterali).
+      const smsBody = await resolveContactText(
+        supabase,
+        ncfg.sms_body || ncfg.message || "Messaggio automatico",
+        smsContact,
+        companyId,
+      );
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const cronKey = Deno.env.get("INTERNAL_CRON_SECRET") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -1899,7 +1906,7 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
     // Get contact info
     const { data: contact } = await supabase
       .from("marketing_contacts")
-      .select("id, email, first_name, last_name, phone, city, province, company_name, unsubscribed, optout_email")
+      .select("id, email, first_name, last_name, phone, city, province, company_name, source, unsubscribed, optout_email")
       .eq("id", entityId)
       .single();
 
@@ -1930,20 +1937,12 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
 
     // Build email content
     let html = cfg.email_body || cfg.html || "<p>No content</p>";
-    const subject = cfg.email_subject || cfg.subject || "Messaggio";
+    let subject = cfg.email_subject || cfg.subject || "Messaggio";
 
-    // Personalization — support both {{var}} and {{contact.var}} formats (GAP-14)
-    html = html
-      .replace(/\{\{first_name\}\}/g, contact.first_name || "")
-      .replace(/\{\{last_name\}\}/g, contact.last_name || "")
-      .replace(/\{\{email\}\}/g, contact.email || "")
-      .replace(/\{\{contact\.first_name\}\}/g, contact.first_name || "")
-      .replace(/\{\{contact\.last_name\}\}/g, contact.last_name || "")
-      .replace(/\{\{contact\.email\}\}/g, contact.email || "")
-      .replace(/\{\{phone\}\}/g, contact.phone || "")
-      .replace(/\{\{city\}\}/g, contact.city || "")
-      .replace(/\{\{province\}\}/g, contact.province || "")
-      .replace(/\{\{contact_company\}\}/g, contact.company_name || "");
+    // Personalizzazione completa: {{contatto.X}} (picker IT), {{contact.X}} (EN),
+    // nomi nudi e CAMPI PERSONALIZZATI. Anche l'oggetto viene personalizzato.
+    html = await resolveContactText(supabase, html, contact, companyId);
+    subject = await resolveContactText(supabase, subject, contact, companyId);
 
     // Inject tracking pixel and unsubscribe link for marketing emails.
     // SEC: link firmati HMAC (vedi emailTrackingSignature.ts). L'URL di unsub
@@ -2095,7 +2094,7 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
   // 2. Get contact phone + DND check
   const { data: contact } = await supabase
     .from("marketing_contacts")
-    .select("phone, first_name, last_name, email, optout_whatsapp")
+    .select("id, phone, first_name, last_name, email, city, province, company_name, source, optout_whatsapp")
     .eq("id", entityId)
     .single();
 
@@ -2119,7 +2118,7 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
     // Template message (Meta-approved)
     const components: any[] = [];
     if (cfg.whatsapp_text) {
-      const resolvedText = resolveVariables(cfg.whatsapp_text, contact);
+      const resolvedText = await resolveContactText(supabase, cfg.whatsapp_text, contact, companyId);
       components.push({
         type: "body",
         parameters: [{ type: "text", text: resolvedText }],
@@ -2137,7 +2136,7 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
     };
   } else {
     // Free-text message (only for open 24h conversations)
-    const resolvedText = resolveVariables(cfg.whatsapp_text || "", contact);
+    const resolvedText = await resolveContactText(supabase, cfg.whatsapp_text || "", contact, companyId);
     if (!resolvedText) {
       return { success: false, error: "Nessun testo configurato per il messaggio WhatsApp" };
     }
@@ -2190,13 +2189,64 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
   return { success: true, output: { whatsapp_message_id: result.messages?.[0]?.id } };
 }
 
-function resolveVariables(text: string, contact: any): string {
-  return text
-    .replace(/\{\{contact\.name\}\}/g, `${contact.first_name || ""} ${contact.last_name || ""}`.trim())
-    .replace(/\{\{contact\.first_name\}\}/g, contact.first_name || "")
-    .replace(/\{\{contact\.last_name\}\}/g, contact.last_name || "")
-    .replace(/\{\{contact\.email\}\}/g, contact.email || "")
-    .replace(/\{\{contact\.phone\}\}/g, contact.phone || "");
+/**
+ * Risolve i placeholder nei contenuti dei messaggi (email/WhatsApp/SMS) usando i
+ * dati del contatto + i CAMPI PERSONALIZZATI. Accetta TUTTI i formati che il
+ * picker del builder può inserire:
+ *   • {{contatto.X}}  (italiano, formato standard del picker)
+ *   • {{contact.X}}   (inglese, retro-compatibilità)
+ *   • {{X}}           (nome nudo: first_name, full_name, ecc.)
+ *   • {{contact.<campo_personalizzato>}}  (via marketing_contact_field_values)
+ * Fail-safe: non lancia mai; le variabili sconosciute diventano stringa vuota
+ * (coerente con il resolver rv() di piattaforma).
+ */
+async function resolveContactText(
+  supabase: any,
+  text: string,
+  contact: Record<string, any>,
+  companyId: string,
+): Promise<string> {
+  if (!text) return text ?? "";
+  let out = String(text);
+  const contactId = contact?.id;
+
+  // 1) Campi personalizzati ({{contact.<key>}}) — no-op se non referenziati.
+  if (out.includes("{{") && contactId) {
+    try {
+      const resolver = await loadContactCustomFieldResolver(supabase, companyId, [contactId], [out]);
+      out = applyContactCustomFields(out, contactId, resolver);
+    } catch { /* fail-open: non bloccare l'invio per i custom field */ }
+  }
+
+  // 2) Campi standard del contatto.
+  const fullName = [contact?.first_name, contact?.last_name]
+    .filter((x) => x != null && String(x).trim() !== "")
+    .map((x) => String(x).trim())
+    .join(" ")
+    .trim();
+  const map: Record<string, string> = {
+    id: contact?.id != null ? String(contact.id) : "",
+    first_name: contact?.first_name ?? "",
+    last_name: contact?.last_name ?? "",
+    full_name: fullName,
+    name: fullName,
+    email: contact?.email ?? "",
+    phone: contact?.phone ?? "",
+    city: contact?.city ?? "",
+    province: contact?.province ?? "",
+    company_name: contact?.company_name ?? "",
+    contact_company: contact?.company_name ?? "",
+    source: contact?.source ?? "",
+  };
+  // {{contatto.X}} / {{contact.X}} → valore mappato (sconosciuto → "").
+  out = out.replace(/\{\{\s*(?:contatto|contact)\.(\w+)\s*\}\}/g, (_m, k: string) =>
+    Object.prototype.hasOwnProperty.call(map, k) ? map[k] : "");
+  // Nomi nudi noti (non tocca {{unsubscribe_url}} o altri token speciali).
+  out = out.replace(
+    /\{\{\s*(first_name|last_name|full_name|name|email|phone|city|province|company_name|contact_company)\s*\}\}/g,
+    (_m, k: string) => map[k] ?? "",
+  );
+  return out;
 }
 
 // ────────────────────────────────────────────────────
