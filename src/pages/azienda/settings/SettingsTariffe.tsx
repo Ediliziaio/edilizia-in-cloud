@@ -74,6 +74,12 @@ import ListinoManutenzione from "@/pages/azienda/settings/ListinoManutenzione";
  * vertical aziendale.
  */
 
+// Fallback STABILE per gruppi vuoti: senza, `byGroup[g] ?? []` creava un nuovo
+// array ad ogni render → l'effect di reset selezione (dep su tariffeForActiveGroup)
+// ri-scattava all'infinito → "Maximum update depth exceeded" (#185) quando un
+// filtro svuotava il tab attivo. Vedi system_health_metrics /impostazioni/tariffe.
+const EMPTY_TARIFFE: Tariffa[] = [];
+
 const TIPO_DEFS: TipoDef[] = [
   { value: "posa", label: "Posa", group: "lavorazione", hint: "Installazione prodotti (finestre, porte, pavimenti)" },
   { value: "manodopera", label: "Manodopera", group: "lavorazione", hint: "Lavorazione generica a ore o a corpo" },
@@ -1560,7 +1566,7 @@ export default function SettingsTariffe() {
   }, [filtered]);
 
   const tariffeForActiveGroup = useMemo(
-    () => (activeGroup === "all" ? filtered : byGroup[activeGroup] ?? []),
+    () => (activeGroup === "all" ? filtered : byGroup[activeGroup] ?? EMPTY_TARIFFE),
     [activeGroup, filtered, byGroup],
   );
 
