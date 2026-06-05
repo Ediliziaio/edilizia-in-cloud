@@ -14,60 +14,27 @@ export async function checkBudget(
   supabase: SupabaseClient,
   companyId: string,
 ): Promise<BudgetCheckResult> {
-  // Reset se cambio giorno
-  await supabase.rpc("reset_daily_budget_if_needed", { p_company_id: companyId });
-
-  const { data: b } = await supabase
-    .from("wa_ai_daily_budget")
-    .select("*")
-    .eq("company_id", companyId)
-    .maybeSingle();
-
-  if (!b) {
-    await supabase.from("wa_ai_daily_budget").insert({
-      company_id: companyId,
-      daily_limit_eur: Number(Deno.env.get("WA_AI_DAILY_LIMIT_EUR") ?? 5.0),
-      hard_limit_eur: Number(Deno.env.get("WA_AI_HARD_LIMIT_EUR") ?? 10.0),
-    });
-    return { ok: true, model_override: null, user_message: "" };
-  }
-
-  if (b.suspended) {
-    return {
-      ok: false,
-      model_override: null,
-      user_message:
-        "Il servizio AI è sospeso per oggi (budget esaurito). Riattivo domani.",
-    };
-  }
-
-  if (Number(b.current_spend_eur) >= Number(b.hard_limit_eur)) {
-    await supabase
+  // Limiti WhatsApp DISABILITATI (richiesta titolare): nessun blocco né degrado
+  // del modello. Manteniamo SOLO il tracciamento della spesa (reset giornaliero +
+  // riga) così resta la visibilità dei costi; consumeBudget continua a incrementare
+  // current_spend_eur. Per ri-attivare un tetto: impostare i limiti sulla riga.
+  try {
+    await supabase.rpc("reset_daily_budget_if_needed", { p_company_id: companyId });
+    const { data: b } = await supabase
       .from("wa_ai_daily_budget")
-      .update({ suspended: true })
-      .eq("company_id", companyId);
-    return {
-      ok: false,
-      model_override: null,
-      user_message:
-        "Budget AI giornaliero esaurito. Servizio riattivo domani o contatta il titolare.",
-    };
-  }
-
-  if (Number(b.current_spend_eur) >= Number(b.daily_limit_eur)) {
-    if (!b.degraded_mode) {
-      await supabase
-        .from("wa_ai_daily_budget")
-        .update({ degraded_mode: true })
-        .eq("company_id", companyId);
+      .select("company_id")
+      .eq("company_id", companyId)
+      .maybeSingle();
+    if (!b) {
+      await supabase.from("wa_ai_daily_budget").insert({
+        company_id: companyId,
+        daily_limit_eur: Number(Deno.env.get("WA_AI_DAILY_LIMIT_EUR") ?? 1000000),
+        hard_limit_eur: Number(Deno.env.get("WA_AI_HARD_LIMIT_EUR") ?? 1000000),
+      });
     }
-    return {
-      ok: true,
-      model_override: Deno.env.get("OPENAI_MODEL_FALLBACK") ?? "gpt-4o-mini",
-      user_message: "",
-    };
+  } catch {
+    // tracciamento best-effort: non bloccare MAI per un errore di budget
   }
-
   return { ok: true, model_override: null, user_message: "" };
 }
 
