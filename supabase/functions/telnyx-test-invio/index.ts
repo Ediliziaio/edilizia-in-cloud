@@ -5,6 +5,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
+import { requireCompanyAccess } from "../_shared/auth.ts";
 
 interface RequestBody {
   company_id: string;
@@ -38,6 +39,13 @@ Deno.serve(async (req: Request) => {
     if (!user) return json({ error: "Non autorizzato" }, 401);
 
     const { company_id, telefono_destinatario, messaggio_test } = await req.json() as RequestBody;
+    // SEC (P0): l'utente deve appartenere alla company richiesta (no cross-tenant)
+    try {
+      await requireCompanyAccess(adminClient, user.id, company_id, corsHeaders);
+    } catch (e) {
+      if (e instanceof Response) return e;
+      throw e;
+    }
     if (!company_id || !telefono_destinatario || !messaggio_test) {
       return json({ error: "Parametri obbligatori mancanti" }, 400);
     }

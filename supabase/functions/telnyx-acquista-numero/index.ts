@@ -5,6 +5,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
+import { requireCompanyAccess } from "../_shared/auth.ts";
 
 interface RequestBody { company_id: string; numero_e164: string }
 
@@ -43,6 +44,14 @@ Deno.serve(async (req: Request) => {
 
     const { company_id, numero_e164 } = await req.json() as RequestBody;
     if (!company_id || !numero_e164) return json({ error: "Parametri obbligatori mancanti" }, 400);
+
+    // SEC (P0): l'utente deve appartenere alla company (acquisto numero = soldi reali)
+    try {
+      await requireCompanyAccess(adminClient, user.id, company_id, corsHeaders);
+    } catch (e) {
+      if (e instanceof Response) return e;
+      throw e;
+    }
 
     // Verifica che l'azienda non abbia già un numero attivo
     const { data: existing } = await adminClient

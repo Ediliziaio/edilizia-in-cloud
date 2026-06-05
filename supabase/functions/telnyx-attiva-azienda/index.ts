@@ -5,6 +5,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 
 interface RequestBody { company_id: string }
 interface TelnyxAttivaResponse { success: boolean; telnyx_account_id: string }
@@ -30,6 +31,15 @@ Deno.serve(async (req: Request) => {
 
     const { company_id } = await req.json() as RequestBody;
     if (!company_id) return json({ error: "company_id obbligatorio" }, 400);
+
+    // SEC (P0): solo un membro della company (admin) può attivarla — no cross-tenant
+    try {
+      const { userId } = await requireAuth(req, corsHeaders);
+      await requireCompanyAccess(adminClient, userId, company_id, corsHeaders, { allowedRoles: ["company_admin", "super_admin"] });
+    } catch (e) {
+      if (e instanceof Response) return e;
+      throw e;
+    }
 
     // Verifica che non esista già un account attivo
     const { data: existing } = await adminClient

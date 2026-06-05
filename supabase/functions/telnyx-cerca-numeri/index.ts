@@ -5,6 +5,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
+import { requireCompanyAccess } from "../_shared/auth.ts";
 
 interface RequestBody {
   company_id: string;
@@ -77,6 +78,14 @@ Deno.serve(async (req: Request) => {
 
     const { company_id, prefisso_area } = await req.json() as RequestBody;
     if (!company_id) return json({ error: "company_id obbligatorio" }, 400);
+
+    // SEC (P0): l'utente deve appartenere alla company richiesta (no cross-tenant)
+    try {
+      await requireCompanyAccess(adminClient, user.id, company_id, corsHeaders);
+    } catch (e) {
+      if (e instanceof Response) return e;
+      throw e;
+    }
 
     // Verifica account Telnyx per questa azienda
     const { data: account } = await adminClient

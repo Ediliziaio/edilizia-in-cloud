@@ -6,6 +6,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 
 interface RequestBody {
   to_number: string;
@@ -41,6 +42,15 @@ Deno.serve(async (req: Request) => {
 
     if (!to_number || !msgBody || !company_id) {
       return json({ error: "Parametri obbligatori: to_number, body, company_id" }, 400);
+    }
+
+    // SEC (P0): l'utente deve appartenere alla company richiesta (no cross-tenant)
+    try {
+      const { userId } = await requireAuth(req, corsHeaders);
+      await requireCompanyAccess(admin, userId, company_id, corsHeaders);
+    } catch (e) {
+      if (e instanceof Response) return e;
+      throw e;
     }
 
     // ── Leggi numero mittente attivo ─────────────────────────────

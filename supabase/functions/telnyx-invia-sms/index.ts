@@ -6,6 +6,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 
 interface RequestBody { campagna_id: string; company_id: string }
 
@@ -47,6 +48,15 @@ Deno.serve(async (req: Request) => {
 
     const { campagna_id, company_id } = await req.json() as RequestBody;
     if (!campagna_id || !company_id) return json({ error: "Parametri mancanti" }, 400);
+
+    // SEC (P0): l'utente deve appartenere alla company richiesta (no cross-tenant)
+    try {
+      const { userId } = await requireAuth(req, corsHeaders);
+      await requireCompanyAccess(adminClient, userId, company_id, corsHeaders);
+    } catch (e) {
+      if (e instanceof Response) return e;
+      throw e;
+    }
 
     // Leggi campagna
     const { data: campagna, error: campErr } = await adminClient
