@@ -20,6 +20,7 @@
 type SupabaseClient = any;
 
 import { chargeDirectAiCall, estimateEmbeddingUsage } from "./directAiLedger.ts";
+import { buildDdtCarico } from "./ddtCarico.ts";
 
 /**
  * MP-AIE-01 v2 — canali AI supportati. Ogni tool dichiara su quali può essere
@@ -3348,6 +3349,139 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp"],
     riskLevel: "safe",
     domain: "meta",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // MP-DDT-CHAT — Registra un DDT fornitore caricato in chat (PDF/foto)
+  // Riusa la pipeline provata (email_documento_estratto + buildDdtCarico →
+  // bozza email_ddt_carico) che il titolare conferma nel pannello "DDT da
+  // registrare" (Regia). Giacenza MAI toccata senza conferma umana. Chat-only:
+  // il path WhatsApp ha già il suo tool carica_ddt e resta INTATTO.
+  // ═════════════════════════════════════════════════════════════════════════
+  carica_ddt: {
+    schema: {
+      type: "function",
+      function: {
+        name: "carica_ddt",
+        description:
+          "Registra un DDT/bolla di consegna FORNITORE caricato in chat (PDF o foto). Estrae numero, fornitore, data e le RIGHE (descrizione, codice, quantità, unità), cerca l'ordine d'acquisto del fornitore, confronta le quantità consegnate con quelle ordinate e prepara una BOZZA di carico che il titolare conferma nel pannello 'DDT da registrare'. La giacenza NON viene toccata finché il titolare non conferma. Chiamalo SOLO dopo aver mostrato all'utente i dati estratti (numero, fornitore, righe) e averne ottenuto conferma. Servono almeno il fornitore e una o più righe leggibili. NON usarlo per fatture o preventivi.",
+        parameters: {
+          type: "object",
+          properties: {
+            numero_ddt: { type: "string", description: "Numero del DDT, se leggibile" },
+            fornitore: { type: "string", description: "Ragione sociale del fornitore — OBBLIGATORIO" },
+            data_ddt: { type: "string", description: "Data DDT in formato YYYY-MM-DD (o gg/mm/aaaa) se leggibile" },
+            righe: {
+              type: "array",
+              description: "Righe articolo del DDT — almeno una",
+              items: {
+                type: "object",
+                properties: {
+                  descrizione: { type: "string" },
+                  codice: { type: "string", description: "Codice articolo/SKU se presente" },
+                  quantita: { type: "number" },
+                  unita_misura: { type: "string" },
+                },
+                required: ["descrizione"],
+              },
+            },
+            riferimento_ordine: { type: "string", description: "Numero ordine d'acquisto citato sul DDT (es. 'Rif. Vs ordine 2025/128'), se presente" },
+            note: { type: "string" },
+          },
+          required: ["fornitore", "righe"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const numero = (args?.numero_ddt ?? "").toString().trim();
+      const fornitore = (args?.fornitore ?? "").toString().trim();
+      if (!fornitore) return { error: "Mi serve la ragione sociale del fornitore per registrare il DDT." };
+      const righeArg: any[] = Array.isArray(args?.righe) ? args.righe : [];
+      if (righeArg.length === 0) {
+        return { error: "Non vedo righe articolo leggibili nel DDT. Caricane uno più nitido (meglio un PDF) oppure registralo a mano nel gestionale." };
+      }
+      // Normalizza data libera (gg/mm/aaaa o aaaa-mm-gg) → ISO YYYY-MM-DD.
+      const toIso = (raw?: string): string | null => {
+        if (!raw) return null;
+        const s = raw.toString().trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        const m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+        if (m) { const [, d, mo, y] = m; const yyyy = y.length === 2 ? `20${y}` : y; return `${yyyy}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`; }
+        return null;
+      };
+      const dataIso = toIso(args?.data_ddt);
+      // Match fornitore (suppliers per ragione sociale).
+      let fornitoreMatchId: string | null = null;
+      try {
+        const { data: sup } = await ctx.supabase
+          .from("suppliers").select("id")
+          .eq("company_id", ctx.companyId).ilike("name", fornitore).limit(1).maybeSingle();
+        fornitoreMatchId = sup?.id ?? null;
+      } catch { fornitoreMatchId = null; }
+      // Campi canonici (schema MP-06) attesi da buildDdtCarico.
+      const campi: Record<string, unknown> = {
+        numero: { valore: numero || null, conf: numero ? 0.8 : 0.3 },
+        data: { valore: dataIso, conf: dataIso ? 0.7 : 0.2 },
+        fornitore_ragione_sociale: { valore: fornitore, conf: 0.8 },
+        riferimento_ordine: { valore: args?.riferimento_ordine ? args.riferimento_ordine.toString().trim() : null, conf: args?.riferimento_ordine ? 0.6 : 0.0 },
+        righe: righeArg.map((r: any) => ({
+          descrizione: (r?.descrizione ?? "").toString().trim(),
+          codice: r?.codice ? r.codice.toString().trim() : null,
+          qta: typeof r?.quantita === "number" ? r.quantita : null,
+          unita_misura: r?.unita_misura ? r.unita_misura.toString().trim() : null,
+        })),
+        note_libere: args?.note ?? null,
+        sorgente: "silvio_chat",
+      };
+      // Documento estratto (email_id NULL = sorgente non-email → pannello Regia).
+      const { data: doc, error: docErr } = await ctx.supabase
+        .from("email_documento_estratto")
+        .insert({
+          company_id: ctx.companyId,
+          email_id: null,
+          attachment_id: null,
+          tipo: "ddt",
+          confidenza_tipo: 0.8,
+          campi,
+          dati_incerti: [],
+          note: args?.note ?? null,
+          stato: "da_confermare",
+          fornitore_match_id: fornitoreMatchId,
+          fornitore_match_tipo: fornitoreMatchId ? "supplier" : null,
+          iban_alert: false,
+          created_by: ctx.userId,
+        })
+        .select("id, company_id, email_id, campi, fornitore_match_id")
+        .single();
+      if (docErr || !doc) return { error: `Errore salvando il DDT: ${docErr?.message ?? "insert non riuscita"}` };
+      // Bozza di carico (match ODA + confronto righe) — helper condiviso.
+      let caricoOk = false, ordineCollegato = false, scostamenti = 0; let caricoId: string | null = null;
+      try {
+        const carico = await buildDdtCarico(ctx.supabase, {
+          id: doc.id, company_id: doc.company_id, email_id: doc.email_id,
+          campi: (doc.campi ?? {}) as Record<string, unknown>, fornitore_match_id: doc.fornitore_match_id,
+        }, ctx.userId);
+        if (carico.ok) { caricoOk = true; ordineCollegato = !!carico.ordine_collegato; scostamenti = carico.scostamenti ?? 0; caricoId = carico.carico?.id ?? null; }
+      } catch { /* bozza non generata: il documento resta comunque da confermare in Regia */ }
+      return {
+        ok: true,
+        documento_estratto_id: doc.id,
+        carico_id: caricoId,
+        numero_ddt: numero || null,
+        fornitore,
+        fornitore_riconosciuto: !!fornitoreMatchId,
+        ordine_collegato: caricoOk ? ordineCollegato : false,
+        scostamenti: caricoOk ? scostamenti : null,
+        message: caricoOk
+          ? `DDT ${numero ? "#" + numero : ""} di ${fornitore} registrato come BOZZA${ordineCollegato ? " (ordine collegato)" : " (nessun ordine collegato)"}${scostamenti > 0 ? `, ${scostamenti} righe con scostamento da verificare` : ", quantità coerenti"}. Confermalo in 'DDT da registrare' (Regia) per aggiornare la giacenza.`
+          : `DDT ${numero ? "#" + numero : ""} di ${fornitore} salvato come bozza. Completa il carico in 'DDT da registrare' (Regia).`,
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "filiera",
   },
 
   // ═════════════════════════════════════════════════════════════════════════
