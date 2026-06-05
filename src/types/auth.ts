@@ -160,6 +160,7 @@ export type CompanyStatus = "trial" | "active" | "suspended" | "expired" | "free
  */
 export type CompanyVertical =
   | "serramentista"
+  | "fotovoltaico"
   | "tetti"
   | "bagno"
   | "ristrutturazione"

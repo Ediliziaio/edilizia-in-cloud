@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export type Vertical =
   | "serramentista"
+  | "fotovoltaico"
   | "tetti"
   | "bagno"
   | "ristrutturazione"
@@ -38,6 +39,12 @@ export const VERTICAL_META: Record<Vertical, VerticalMeta> = {
     icon: "DoorOpen",
     enabled: true,
     description: "Finestre, porte finestre, scorrevoli, persiane, zanzariere",
+  },
+  fotovoltaico: {
+    label: "Fotovoltaico e accumulo",
+    icon: "Sun",
+    enabled: true,
+    description: "Impianti FV residenziali e commerciali, accumulo, colonnine",
   },
   tetti: {
     label: "Coperture e tetti",
@@ -92,6 +99,7 @@ export const VERTICAL_META: Record<Vertical, VerticalMeta> = {
 /** Array ordinato dei vertical per griglia UI 3x3 (ordine stabile). */
 export const VERTICAL_ORDER: Vertical[] = [
   "serramentista",
+  "fotovoltaico",
   "tetti",
   "bagno",
   "ristrutturazione",
