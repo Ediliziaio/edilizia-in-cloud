@@ -37,6 +37,7 @@ import {
   Route,
   FileText,
 } from "lucide-react";
+import { SilvioAvatar } from "@/components/silvio/SilvioAvatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 // Lazy load: il SmartDocumentImportModal e il SilvioChatSheet sono pesanti
 // (chat ha 1k LOC + supabase realtime + framer-motion + audio recording).
@@ -373,7 +374,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
                   exit={{ scale: 0.5, opacity: 0 }}
                   className="relative z-10 flex items-center gap-2"
                 >
-                  <BrainCircuit className="h-7 w-7" strokeWidth={2.2} />
+                  <SilvioAvatar size={28} bg="none" className="text-white" />
                   <span className="hidden text-sm font-semibold sm:inline">Silvio</span>
                 </motion.span>
 	              )}
@@ -394,9 +395,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
         >
           <div className="shrink-0 border-b border-orange-100 bg-gradient-to-br from-orange-50 via-white to-amber-50 px-4 py-3">
             <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-lg shadow-orange-200">
-                <Brain className="h-5 w-5" />
-              </span>
+              <SilvioAvatar size={40} className="rounded-2xl shadow-lg shadow-orange-200" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-black leading-tight text-slate-950">Regia Silvio</p>

@@ -56,6 +56,7 @@ import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components
 import { SilvioRatingButtons } from "@/components/silvio/SilvioRatingButtons";
 import { SilvioActionProposals } from "@/components/silvio/SilvioActionProposals";
 import { SilvioProgrammatePanel } from "@/components/silvio/SilvioProgrammatePanel";
+import { SilvioAvatar } from "@/components/silvio/SilvioAvatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -1270,9 +1271,7 @@ export default function SilvioAIPage() {
           >
             {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
           </button>
-          <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shrink-0">
-            <Sparkles className="h-4 w-4 text-white" />
-          </div>
+          <SilvioAvatar size={28} className="rounded-lg" />
           {renaming ? (
             <div className="flex items-center gap-1 min-w-0">
               <input
@@ -1361,9 +1360,7 @@ export default function SilvioAIPage() {
                   <SkeletonThread />
                 ) : threadVuoto ? (
                   <div className="text-center text-slate-400 py-16">
-                    <div className="h-12 w-12 mx-auto rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center mb-3">
-                      <Sparkles className="h-6 w-6 text-white" />
-                    </div>
+                    <SilvioAvatar size={48} className="mx-auto mb-3" />
                     <p className="text-sm">Nuova conversazione — scrivi un messaggio o allega un documento (DDT, fattura, bolletta…).</p>
                     <div className="mt-5 flex flex-wrap justify-center gap-2">
                       {QUICK_PROMPTS.map((q) => (
@@ -1382,9 +1379,7 @@ export default function SilvioAIPage() {
                 )}
                 {sending && (
                   <div className="flex gap-3">
-                    <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center">
-                      <Sparkles className="h-4 w-4 text-white" />
-                    </div>
+                    <SilvioAvatar size={32} className="rounded-lg" />
                     <div className="flex-1 min-w-0 pt-1">
                       {toolSteps.length > 0 && (
                         <div className="mb-1.5 space-y-1">
@@ -1746,9 +1741,7 @@ const MessaggioSilvio = memo(function MessaggioSilvio({
 
   return (
     <div className="group flex gap-3">
-      <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center mt-0.5">
-        <Sparkles className="h-4 w-4 text-white" />
-      </div>
+      <SilvioAvatar size={32} className="rounded-lg mt-0.5" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-sm font-semibold text-slate-800">Silvio</span>

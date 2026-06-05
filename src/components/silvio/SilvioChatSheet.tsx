@@ -56,6 +56,7 @@ import {
   MoreVertical,
   Trash2,
 } from "lucide-react";
+import { SilvioAvatar } from "@/components/silvio/SilvioAvatar";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
@@ -1227,8 +1228,8 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
         {/* Header migliorato 2026-05-10 con menu kebab + quick actions */}
         <SheetHeader className="px-3 sm:px-4 py-2 sm:py-3 border-b bg-white/95 backdrop-blur">
           <SheetTitle className="flex items-center gap-2 text-base">
-            <div className="relative h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shadow-sm shrink-0">
-              <Brain className="h-4 w-4 text-white" />
+            <div className="relative shrink-0">
+              <SilvioAvatar size={36} className="rounded-full" />
               <span className="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" />
             </div>
             <div className="flex-1 text-left min-w-0">
@@ -1374,9 +1375,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
             </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-4 py-8">
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center mb-3 shadow-lg">
-                <Sparkles className="h-6 w-6 text-white" fill="currentColor" />
-              </div>
+              <SilvioAvatar size={48} className="mb-3 rounded-full shadow-lg" />
               <p className="text-sm font-semibold text-slate-800 mb-1">Ciao! Sono Silvio.</p>
               <p className="text-xs text-muted-foreground mb-4">
                 Posso aiutarti su finanza, cantieri, vendite, personale, strategia.
@@ -1435,9 +1434,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
           )}
           {sending && (
             <div className="flex gap-2 justify-start">
-              <div className="h-7 w-7 shrink-0 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center">
-                <Brain className="h-3.5 w-3.5 text-white" />
-              </div>
+              <SilvioAvatar size={28} className="rounded-full" />
               <div className="flex flex-col gap-1.5 min-w-0">
                 <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-3 py-2.5 flex items-center gap-2 max-w-fit">
                   <div className="flex gap-1">
@@ -2071,9 +2068,7 @@ function MessageBubble({
       className={`flex gap-2 ${isMe ? "justify-end" : "justify-start"}`}
     >
       {isSilvio && (
-        <div className="h-7 w-7 shrink-0 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shadow-sm">
-          <Brain className="h-3.5 w-3.5 text-white" />
-        </div>
+        <SilvioAvatar size={28} className="rounded-full shadow-sm" />
       )}
       <div
         ref={bubbleRef}
