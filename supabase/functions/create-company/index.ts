@@ -282,6 +282,11 @@ Deno.serve(async (req) => {
         "azienda.name": companyData.name,
         "azienda.email": companyData.email,
         "azienda.created_at": companyData.created_at,
+        // Variabili personali per le sequenze email (saluti personalizzati):
+        // {{nome}} = nome dell'admin, {{cognome}}, {{azienda}} = nome azienda.
+        "nome": adminFirstName || "",
+        "cognome": adminLastName || "",
+        "azienda": companyData.name,
       },
     });
 

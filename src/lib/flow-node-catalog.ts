@@ -1008,8 +1008,11 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     categoria: 'piattaforma',
     dbEvent: 'PLATFORM_COMPANY_CREATED',
     outputVariables: [
+      { id: 'nome', label: 'Nome admin (per i saluti)', type: 'string', example: 'Marco' },
+      { id: 'cognome', label: 'Cognome admin', type: 'string', example: 'Rossi' },
+      { id: 'azienda', label: 'Nome azienda', type: 'string', example: 'Costruzioni Rossi' },
       { id: 'azienda.id', label: 'ID Azienda', type: 'uuid' },
-      { id: 'azienda.name', label: 'Nome azienda', type: 'string' },
+      { id: 'azienda.name', label: 'Nome azienda (alt.)', type: 'string' },
       { id: 'azienda.email', label: 'Email admin', type: 'string' },
       { id: 'azienda.piano', label: 'Piano attuale', type: 'string' },
       { id: 'azienda.created_at', label: 'Data creazione', type: 'date' },

@@ -541,9 +541,22 @@ async function executeNode(supabase: any, node: AutomationNode, queueItem: any) 
 
 // ── Delay ──
 function executeDelay(cfg: Record<string, any>) {
-  const value = parseInt(cfg.delay_value) || 1;
-  const unit = cfg.delay_unit || "hours";
-  const delayMs = unit === "days" ? value * 86400000 : value * 3600000;
+  // Schema UI del nodo "Attendi": giorni/ore/minuti (catalogo). Si sommano.
+  const giorni = parseInt(cfg.giorni) || 0;
+  const ore = parseInt(cfg.ore) || 0;
+  const minuti = parseInt(cfg.minuti) || 0;
+  let delayMs = giorni * 86400000 + ore * 3600000 + minuti * 60000;
+
+  // Retro-compat con il vecchio schema delay_value/delay_unit (e usato come
+  // fallback se i campi giorni/ore/minuti sono tutti a zero/assenti).
+  if (delayMs <= 0 && (cfg.delay_value != null || cfg.delay_unit != null)) {
+    const value = parseInt(cfg.delay_value) || 1;
+    const unit = cfg.delay_unit || "hours";
+    delayMs = unit === "days" ? value * 86400000
+      : unit === "minutes" ? value * 60000
+      : value * 3600000;
+  }
+  if (delayMs <= 0) delayMs = 3600000; // default difensivo: 1 ora
 
   return {
     success: true,
