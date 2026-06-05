@@ -3063,6 +3063,134 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "filiera",
   },
 
+  importa_fornitori: {
+    schema: {
+      type: "function",
+      function: {
+        name: "importa_fornitori",
+        description:
+          "Importa nel gestionale un elenco di FORNITORI letto da un file (Excel/CSV) caricato dall'utente. Usalo quando l'utente carica un elenco fornitori e chiede di inserirli/importarli. Leggi il file, mappa le colonne ai campi sotto e passa TUTTE le righe. È yellow: l'utente conferma prima dell'inserimento. PRIMA di chiamarlo, di' quanti fornitori hai letto.",
+        parameters: {
+          type: "object",
+          properties: {
+            fornitori: {
+              type: "array",
+              description: "Tutte le righe fornitore lette dal file (mappa le colonne su questi campi).",
+              items: {
+                type: "object",
+                properties: {
+                  nome: { type: "string", description: "Ragione sociale — OBBLIGATORIO" },
+                  partita_iva: { type: "string" },
+                  codice_fiscale: { type: "string" },
+                  email: { type: "string" },
+                  telefono: { type: "string" },
+                  indirizzo: { type: "string" },
+                  citta: { type: "string" },
+                  provincia: { type: "string", description: "Sigla, es. MI" },
+                  categoria: { type: "string", description: "Categoria merceologica" },
+                  sito: { type: "string" },
+                  note: { type: "string" },
+                },
+                required: ["nome"],
+              },
+            },
+          },
+          required: ["fornitori"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const rows: Array<Record<string, unknown>> = Array.isArray(args?.fornitori) ? args.fornitori : [];
+      if (rows.length === 0) return { error: "Nessun fornitore da importare." };
+      if (rows.length > 2000) return { error: "Troppe righe (max 2000): dividi il file." };
+      const str = (v: unknown): string | null =>
+        v === null || v === undefined ? null : (String(v).trim() || null);
+
+      const clean = rows
+        .map((r) => ({
+          nome: (str(r?.nome) ?? "").slice(0, 300),
+          partita_iva: str(r?.partita_iva),
+          codice_fiscale: str(r?.codice_fiscale),
+          email: str(r?.email),
+          telefono: str(r?.telefono),
+          indirizzo: str(r?.indirizzo),
+          citta: str(r?.citta),
+          provincia: str(r?.provincia)?.slice(0, 4).toUpperCase() ?? null,
+          categoria: str(r?.categoria),
+          sito: str(r?.sito),
+          note: str(r?.note),
+        }))
+        .filter((r) => r.nome.length > 0);
+
+      const scartati = rows.length - clean.length;
+      if (clean.length === 0) return { error: "Nessuna riga valida: manca la ragione sociale." };
+
+      // De-dup intra-file: P.IVA se presente, altrimenti nome.
+      const seen = new Set<string>();
+      const deduped: typeof clean = [];
+      let duplicatiFile = 0;
+      for (const r of clean) {
+        const key = (r.partita_iva ? `p:${r.partita_iva}` : `n:${r.nome}`).toLowerCase();
+        if (seen.has(key)) { duplicatiFile++; continue; }
+        seen.add(key); deduped.push(r);
+      }
+
+      let importati = 0, giaEsistenti = 0, falliti = 0;
+      const errori: string[] = [];
+      const isDupErr = (m: string) => /duplicate key|already exists|unique/i.test(m);
+
+      for (let i = 0; i < deduped.length; i += 100) {
+        const part = deduped.slice(i, i + 100).map((r) => ({
+          company_id: ctx.companyId,
+          name: r.nome,
+          vat_number: r.partita_iva,
+          fiscal_code: r.codice_fiscale,
+          email: r.email,
+          phone: r.telefono,
+          address: r.indirizzo,
+          city: r.citta,
+          province: r.provincia,
+          product_category: r.categoria,
+          website: r.sito,
+          notes: r.note,
+          country: "IT",
+          is_active: true,
+        }));
+        const { data, error } = await ctx.supabase.from("suppliers").insert(part).select("id");
+        if (!error) { importati += data?.length ?? 0; continue; }
+        // fallback riga-per-riga: un fornitore duplicato non fa perdere gli altri
+        for (const row of part) {
+          const { data: d2, error: e2 } = await ctx.supabase.from("suppliers").insert([row]).select("id");
+          if (e2) {
+            if (isDupErr(e2.message)) giaEsistenti++;
+            else { falliti++; if (errori.length < 5) errori.push(e2.message); }
+          } else importati += d2?.length ?? 0;
+        }
+      }
+
+      return {
+        ok: true,
+        importati,
+        gia_esistenti_saltati: giaEsistenti,
+        righe_duplicate_nel_file: duplicatiFile,
+        righe_senza_nome_ignorate: scartati,
+        falliti,
+        errori: errori.slice(0, 5),
+        messaggio:
+          `Importati ${importati} fornitori` +
+          (giaEsistenti ? ` · ${giaEsistenti} già presenti saltati` : "") +
+          (duplicatiFile ? ` · ${duplicatiFile} duplicati nel file` : "") +
+          (scartati ? ` · ${scartati} righe senza nome ignorate` : "") +
+          (falliti ? ` · ${falliti} falliti` : "") + ".",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "acquisti"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "filiera",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-SALES-01 — Lead First-Touch < 60s
   // ═════════════════════════════════════════════════════════════════════════
