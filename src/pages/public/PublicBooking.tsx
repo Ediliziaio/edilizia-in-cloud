@@ -510,14 +510,14 @@ export default function PublicBooking() {
             {availabilityLoading && (
               <p className="flex items-center gap-2 rounded-lg border bg-muted/20 p-3 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Carico disponibilita' e regole del calendario...
+                Carico disponibilità e regole del calendario...
               </p>
             )}
             {availabilityError && (
               <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                 {availabilityLoadError instanceof Error
                   ? availabilityLoadError.message
-                  : "Non riesco a caricare la disponibilita' del calendario."}
+                  : "Non riesco a caricare la disponibilità del calendario."}
               </div>
             )}
             {!availabilityLoading && !availabilityError && availability.length === 0 && (
@@ -547,7 +547,7 @@ export default function PublicBooking() {
                 {slotsLoading ? (
                   <div className="flex items-center gap-2 rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Controllo appuntamenti gia' fissati e calendari collegati...
+                    Controllo appuntamenti già fissati e calendari collegati...
                   </div>
                 ) : slots.length === 0 ? (
                   <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
