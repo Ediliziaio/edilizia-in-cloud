@@ -53,17 +53,17 @@ const talentRpc = supabase as unknown as {
 };
 
 const answerOptions = [
-  { value: "A" as const, label: "Vero / Si" },
+  { value: "A" as const, label: "Vero / Sì" },
   { value: "B" as const, label: "A volte / Incerto" },
   { value: "C" as const, label: "Falso / No" },
 ];
 
 function reasonLabel(reason?: string) {
-  if (reason === "expired") return "Questo link e scaduto. Chiedi all'azienda un nuovo invito.";
+  if (reason === "expired") return "Questo link è scaduto. Chiedi all'azienda un nuovo invito.";
   if (reason === "token_missing") return "Link incompleto.";
   if (reason === "privacy_required") return "Prima devi accettare l'informativa privacy.";
   if (reason === "incomplete") return "Rispondi a tutte le domande prima di completare il test.";
-  return "Link non valido o non piu disponibile.";
+  return "Link non valido o non più disponibile.";
 }
 
 export default function TalentProfilePublic() {
@@ -494,7 +494,7 @@ export default function TalentProfilePublic() {
                 <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-3">
                   <div className="flex items-baseline gap-3">
                     <span className="text-xs font-bold tabular-nums text-orange-600">
-                      #{question.question_id}
+                      {currentPageStartNum + qIdx}.
                     </span>
                     <p className="text-base font-semibold leading-snug text-slate-950 sm:text-lg">
                       {question.question_text}
@@ -509,6 +509,8 @@ export default function TalentProfilePublic() {
                       <motion.button
                         key={option.value}
                         type="button"
+                        aria-pressed={active}
+                        aria-label={`${question.question_text} — ${label}`}
                         whileTap={{ scale: 0.96 }}
                         whileHover={{ y: -2 }}
                         onClick={() => {
