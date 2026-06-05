@@ -2,7 +2,8 @@
 
 import type React from "react";
 import { useState, useRef } from "react";
-import { Mic, ArrowUp, HardHat, Wallet, Users, Sparkles, TrendingUp, Loader2, Square } from "lucide-react";
+import { Mic, ArrowUp, HardHat, Wallet, Users, TrendingUp, Loader2, Square } from "lucide-react";
+import { SilvioAvatar } from "@/components/silvio/SilvioAvatar";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
@@ -63,9 +64,9 @@ export function AIAssistantInterface({
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="mb-5 h-16 w-16 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-400 flex items-center justify-center shadow-lg shadow-orange-500/25"
+        className="mb-5"
       >
-        <Sparkles className="h-8 w-8 text-white" />
+        <SilvioAvatar size={64} bg="white" className="shadow-lg" />
       </motion.div>
 
       <motion.div
