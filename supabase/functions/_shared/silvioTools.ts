@@ -2890,6 +2890,180 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   },
 
   // ═════════════════════════════════════════════════════════════════════════
+  // MP-DATI-01 — Import guidato: Excel/CSV → gestionale (prodotti/articoli)
+  // ═════════════════════════════════════════════════════════════════════════
+
+  importa_prodotti: {
+    schema: {
+      type: "function",
+      function: {
+        name: "importa_prodotti",
+        description:
+          "Importa nel gestionale un elenco di prodotti/articoli letto da un file (Excel/CSV) caricato dall'utente. Usalo quando l'utente carica un file con prodotti/articoli/listino e chiede di inserirli/caricarli/importarli a sistema. Leggi il contenuto del file fornito nel messaggio, mappa le colonne dell'utente ai campi sotto e passa TUTTE le righe. destinazione='catalogo' → listino articoli per i preventivi; destinazione='magazzino' → giacenze/inventario. È yellow: l'utente conferma prima che venga scritto qualcosa. PRIMA di chiamarlo riassumi all'utente quante righe hai letto e come hai mappato le colonne.",
+        parameters: {
+          type: "object",
+          properties: {
+            destinazione: {
+              type: "string",
+              enum: ["catalogo", "magazzino"],
+              description: "catalogo = listino articoli per preventivi; magazzino = giacenze/inventario",
+            },
+            prodotti: {
+              type: "array",
+              description: "Tutte le righe prodotto lette dal file (mappa le colonne dell'utente su questi campi).",
+              items: {
+                type: "object",
+                properties: {
+                  nome: { type: "string", description: "Nome/descrizione articolo — OBBLIGATORIO" },
+                  descrizione: { type: "string" },
+                  prezzo: { type: "number", description: "Prezzo di vendita in €" },
+                  prezzo_acquisto: { type: "number", description: "Costo/prezzo d'acquisto in €" },
+                  unita_misura: { type: "string", description: "Es. pz, mq, ml, kg, h" },
+                  categoria: { type: "string" },
+                  codice: { type: "string", description: "Codice / SKU / barcode" },
+                  fornitore: { type: "string", description: "Nome fornitore, se presente" },
+                  iva: { type: "number", description: "Aliquota IVA % (default 22)" },
+                  quantita: { type: "number", description: "Solo magazzino: giacenza iniziale" },
+                },
+                required: ["nome"],
+              },
+            },
+          },
+          required: ["destinazione", "prodotti"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const dest = args?.destinazione === "magazzino" ? "magazzino" : "catalogo";
+      const rows: Array<Record<string, unknown>> = Array.isArray(args?.prodotti) ? args.prodotti : [];
+      if (rows.length === 0) return { error: "Nessun prodotto da importare." };
+      if (rows.length > 2000) return { error: "Troppe righe in un'unica volta (max 2000): dividi il file." };
+
+      const toNum = (v: unknown): number | null => {
+        if (v === null || v === undefined || v === "") return null;
+        const n = typeof v === "number"
+          ? v
+          : parseFloat(String(v).replace(/[^0-9,.-]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", "."));
+        return Number.isFinite(n) ? n : null;
+      };
+      const str = (v: unknown): string | null =>
+        v === null || v === undefined ? null : (String(v).trim() || null);
+
+      const clean = rows
+        .map((r) => ({
+          nome: (str(r?.nome) ?? "").slice(0, 300),
+          descrizione: str(r?.descrizione),
+          prezzo: toNum(r?.prezzo),
+          prezzo_acquisto: toNum(r?.prezzo_acquisto),
+          unita_misura: str(r?.unita_misura),
+          categoria: str(r?.categoria),
+          codice: str(r?.codice),
+          iva: toNum(r?.iva),
+          quantita: toNum(r?.quantita),
+        }))
+        .filter((r) => r.nome.length > 0);
+
+      const scartati = rows.length - clean.length;
+      if (clean.length === 0) return { error: "Nessuna riga valida: manca il nome del prodotto." };
+
+      // De-dup intra-file: catalogo→chiave nome; magazzino→codice (se presente)
+      // altrimenti nome. Evita conteggi gonfiati e conflitti sugli indici unici.
+      const seen = new Set<string>();
+      const deduped: typeof clean = [];
+      let duplicatiFile = 0;
+      for (const r of clean) {
+        const key = (dest === "magazzino" && r.codice ? `c:${r.codice}` : `n:${r.nome}`).toLowerCase();
+        if (seen.has(key)) { duplicatiFile++; continue; }
+        seen.add(key);
+        deduped.push(r);
+      }
+
+      let importati = 0;
+      let giaEsistenti = 0;
+      let falliti = 0;
+      const errori: string[] = [];
+      const isDupErr = (m: string) => /duplicate key|already exists|unique/i.test(m);
+
+      // Inserisce un batch; se il chunk fallisce (es. un codice duplicato),
+      // ricade riga-per-riga così un singolo record non fa perdere gli altri 99.
+      const insertBatch = async (table: string, payload: Record<string, unknown>[], upsertOnName: boolean) => {
+        const run = (rs: Record<string, unknown>[]) =>
+          upsertOnName
+            ? ctx.supabase.from(table).upsert(rs, { onConflict: "company_id,name", ignoreDuplicates: true }).select("id")
+            : ctx.supabase.from(table).insert(rs).select("id");
+        const { data, error } = await run(payload);
+        if (!error) {
+          const ins = data?.length ?? 0;
+          importati += ins;
+          if (upsertOnName) giaEsistenti += Math.max(0, payload.length - ins);
+          return;
+        }
+        for (const row of payload) {
+          const { data: d2, error: e2 } = await run([row]);
+          if (e2) {
+            if (isDupErr(e2.message)) giaEsistenti++;
+            else { falliti++; if (errori.length < 5) errori.push(e2.message); }
+          } else if ((d2?.length ?? 0) > 0) importati++;
+          else giaEsistenti++;
+        }
+      };
+
+      for (let i = 0; i < deduped.length; i += 100) {
+        const part = deduped.slice(i, i + 100);
+        if (dest === "catalogo") {
+          await insertBatch("article_templates", part.map((r) => ({
+            company_id: ctx.companyId,
+            name: r.nome,
+            description: r.descrizione,
+            category: r.categoria,
+            sku: r.codice,
+            unit_of_measure: r.unita_misura,
+            unit_price: r.prezzo,
+            prezzo_vendita: r.prezzo,
+            prezzo_acquisto_netto: r.prezzo_acquisto,
+            standard_cost: r.prezzo_acquisto,
+            vat_rate: r.iva ?? 22,
+            modalita_prezzo: "pz",
+            attivo: true,
+          })), true);
+        } else {
+          await insertBatch("warehouse_stock", part.map((r) => ({
+            company_id: ctx.companyId,
+            name: r.nome,
+            description: r.descrizione,
+            quantity: Math.round(r.quantita ?? 0),
+            unit_cost: r.prezzo_acquisto ?? r.prezzo ?? 0,
+            vat_rate: r.iva ?? 22,
+            internal_code: r.codice,
+          })), false);
+        }
+      }
+
+      return {
+        ok: true,
+        destinazione: dest,
+        importati,
+        gia_esistenti_saltati: giaEsistenti,
+        righe_duplicate_nel_file: duplicatiFile,
+        righe_senza_nome_ignorate: scartati,
+        falliti,
+        errori: errori.slice(0, 5),
+        messaggio:
+          `Importati ${importati} prodotti in ${dest === "catalogo" ? "catalogo articoli" : "magazzino"}` +
+          (giaEsistenti ? ` · ${giaEsistenti} già presenti saltati` : "") +
+          (duplicatiFile ? ` · ${duplicatiFile} duplicati nel file` : "") +
+          (scartati ? ` · ${scartati} righe senza nome ignorate` : "") +
+          (falliti ? ` · ${falliti} falliti` : "") + ".",
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "yellow",
+    domain: "filiera",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
   // MP-SALES-01 — Lead First-Touch < 60s
   // ═════════════════════════════════════════════════════════════════════════
 

@@ -807,10 +807,10 @@ serve(async (req: Request) => {
         } else if (att.kind === "text-doc") {
           // .txt / .csv / .md / .json / .log / .xml — leggi come testo
           try {
-            const docText = await downloadAsText(supabaseAdmin, att.storage_path, 30_000);
+            const docText = await downloadAsText(supabaseAdmin, att.storage_path, 60_000);
             parts.push({
               type: "text",
-              text: `[CONTENUTO DOCUMENTO "${att.file_name}" (${att.mime_type})]\n\n${docText}\n\n[FINE DOCUMENTO]`,
+              text: `[CONTENUTO DOCUMENTO "${att.file_name}" (${att.mime_type})]\n\n${docText}\n\n[FINE DOCUMENTO]\n[Se è un elenco di prodotti/articoli da caricare nel gestionale, usa il tool importa_prodotti dopo aver riassunto le righe e ottenuto conferma dall'utente.]`,
             });
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
@@ -830,7 +830,7 @@ serve(async (req: Request) => {
             );
             parts.push({
               type: "text",
-              text: `[CONTENUTO OFFICE "${att.file_name}"]\n\n${officeText.substring(0, 30_000)}\n\n[FINE OFFICE]`,
+              text: `[CONTENUTO OFFICE "${att.file_name}"]\n\n${officeText.substring(0, 60_000)}\n\n[FINE OFFICE]\n[Se è un elenco di prodotti/articoli da caricare nel gestionale, usa il tool importa_prodotti dopo aver riassunto le righe e ottenuto conferma dall'utente.]`,
             });
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
