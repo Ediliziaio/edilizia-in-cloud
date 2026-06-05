@@ -1,9 +1,9 @@
 /**
  * SilvioProgrammatePanel — "Attività programmate" di Silvio.
  * Promemoria/follow-up datati (silvio_reminders). Funzioni: crea (preset data +
- * nota), completa, annulla, POSTICIPA (snooze), MODIFICA inline, UNDO, e tab
- * STORICO ("Fatte") con ripristino. Alla scadenza il cron promuove i pending ad
- * alert (campanella + briefing). Company-scoped via RLS; create via RPC SECURITY DEFINER.
+ * nota + RICORRENZA), completa, posticipa (snooze), modifica inline, undo, e tab
+ * STORICO con ripristino. Le RICORRENTI, alla scadenza, vengono riprogrammate
+ * dal cron alla prossima occorrenza (restano pending). Company-scoped via RLS.
  */
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -17,7 +17,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { CalendarClock, Check, X, Plus, Loader2, AlertTriangle, Clock, Pencil, RotateCcw, MoreVertical } from "lucide-react";
+import { CalendarClock, Check, X, Plus, Loader2, AlertTriangle, Clock, Pencil, RotateCcw, MoreVertical, Repeat } from "lucide-react";
 
 interface Reminder {
   id: string;
@@ -25,6 +25,7 @@ interface Reminder {
   note: string | null;
   remind_on: string;
   status: string;
+  recurrence: string | null;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -61,6 +62,30 @@ const SNOOZE: { label: string; days: number }[] = [
   { label: "Tra 3 giorni", days: 3 },
   { label: "Tra 1 settimana", days: 7 },
 ];
+const RECURRENCE_OPTS: { value: string; label: string }[] = [
+  { value: "none", label: "Mai" },
+  { value: "daily", label: "Ogni giorno" },
+  { value: "weekly", label: "Ogni settimana" },
+  { value: "monthly", label: "Ogni mese" },
+  { value: "yearly", label: "Ogni anno" },
+];
+const recLabel = (r?: string | null) => RECURRENCE_OPTS.find((o) => o.value === r)?.label ?? "";
+const stepDate = (d: Date, rec: string) => {
+  if (rec === "daily") d.setDate(d.getDate() + 1);
+  else if (rec === "weekly") d.setDate(d.getDate() + 7);
+  else if (rec === "monthly") d.setMonth(d.getMonth() + 1);
+  else if (rec === "yearly") d.setFullYear(d.getFullYear() + 1);
+};
+const nextOccurrence = (iso: string, rec: string) => {
+  const d = new Date(`${iso}T00:00:00`);
+  const today = todayISO();
+  let guard = 0;
+  do {
+    stepDate(d, rec);
+    guard++;
+  } while (d.toISOString().slice(0, 10) <= today && guard < 120 && rec !== "none");
+  return d.toISOString().slice(0, 10);
+};
 
 export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { effectiveCompany, user } = useAuth();
@@ -69,6 +94,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
   const [titolo, setTitolo] = useState("");
   const [nota, setNota] = useState("");
   const [data, setData] = useState("");
+  const [ricorrenza, setRicorrenza] = useState("none");
   const [tab, setTab] = useState<"todo" | "done">("todo");
   const [editId, setEditId] = useState<string | null>(null);
   const [eTitle, setETitle] = useState("");
@@ -88,7 +114,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
     queryFn: async (): Promise<Reminder[]> => {
       const { data, error } = await supabase
         .from("silvio_reminders" as never)
-        .select("id, title, note, remind_on, status")
+        .select("id, title, note, remind_on, status, recurrence")
         .eq("company_id", companyId).eq("status", "pending")
         .order("remind_on", { ascending: true }).limit(100);
       if (error) return [];
@@ -103,7 +129,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
     queryFn: async (): Promise<Reminder[]> => {
       const { data, error } = await supabase
         .from("silvio_reminders" as never)
-        .select("id, title, note, remind_on, status")
+        .select("id, title, note, remind_on, status, recurrence")
         .eq("company_id", companyId).in("status", ["done", "cancelled", "promoted"])
         .order("remind_on", { ascending: false }).limit(60);
       if (error) return [];
@@ -122,13 +148,22 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
 
   const createMut = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.rpc("silvio_tool_crea_promemoria" as never, {
+      const { data: res, error } = await supabase.rpc("silvio_tool_crea_promemoria" as never, {
         p_company_id: companyId, p_user_id: user?.id ?? null,
         p_title: titolo.trim(), p_note: nota.trim() || null, p_remind_on: data || null,
       } as never);
       if (error) throw error;
+      // recurrence impostata con UPDATE (consentito dalla RLS company_update)
+      const newId = (res as { reminder_id?: string } | null)?.reminder_id;
+      if (newId && ricorrenza !== "none") {
+        await supabase.from("silvio_reminders" as never).update({ recurrence: ricorrenza } as never).eq("id", newId);
+      }
     },
-    onSuccess: () => { setTitolo(""); setNota(""); setData(""); invalidaTutto(); toast.success("Promemoria creato"); },
+    onSuccess: () => {
+      setTitolo(""); setNota(""); setData(""); setRicorrenza("none");
+      invalidaTutto();
+      toast.success("Promemoria creato");
+    },
     onError: (e: Error) => toast.error("Creazione fallita", { description: e.message }),
   });
 
@@ -153,6 +188,18 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
     const iso = addDaysISO(days);
     updateMut.mutate({ id, patch: { remind_on: iso, status: "pending" } });
     toast.success(`Posticipato a ${relLabel(iso).toLowerCase()}`);
+  };
+  // "Fatto": se ricorrente → riprogramma alla prossima occorrenza (resta pending); altrimenti chiude.
+  const completa = (r: Reminder) => {
+    if (r.recurrence && r.recurrence !== "none") {
+      const next = nextOccurrence(r.remind_on, r.recurrence);
+      updateMut.mutate({ id: r.id, patch: { remind_on: next } });
+      toast.success(`Fatto · prossima ${relLabel(next).toLowerCase()}`, {
+        action: { label: "Annulla", onClick: () => updateMut.mutate({ id: r.id, patch: { remind_on: r.remind_on } }) },
+      });
+    } else {
+      setStatus(r.id, "done", { undo: true, label: "Segnato come fatto" });
+    }
   };
 
   const startEdit = (r: Reminder) => { setEditId(r.id); setETitle(r.title); setENote(r.note ?? ""); setEDate(r.remind_on); };
@@ -181,18 +228,26 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
       );
     }
     const done = tone === "done";
+    const isRec = !!r.recurrence && r.recurrence !== "none";
     return (
       <div className={cn("rounded-xl border p-3", tone === "overdue" ? "border-rose-200 bg-rose-50/40" : "border-slate-200", done && "opacity-70")}>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className={cn("text-sm font-medium text-slate-800", r.status === "cancelled" && "line-through")}>{r.title}</div>
             {r.note && <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{r.note}</div>}
-            <div className={cn(
-              "mt-1 inline-flex items-center gap-1 text-[11px] font-medium",
-              done ? "text-slate-400" : tone === "overdue" ? "text-rose-600" : tone === "today" ? "text-orange-600" : "text-slate-500",
-            )}>
-              {tone === "overdue" ? <AlertTriangle className="h-3 w-3" /> : <CalendarClock className="h-3 w-3" />}
-              {done ? `${r.status === "cancelled" ? "Annullato" : r.status === "promoted" ? "Notificato" : "Fatto"} · ${fmtDate(r.remind_on)}` : relLabel(r.remind_on)}
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className={cn(
+                "inline-flex items-center gap-1 text-[11px] font-medium",
+                done ? "text-slate-400" : tone === "overdue" ? "text-rose-600" : tone === "today" ? "text-orange-600" : "text-slate-500",
+              )}>
+                {tone === "overdue" ? <AlertTriangle className="h-3 w-3" /> : <CalendarClock className="h-3 w-3" />}
+                {done ? `${r.status === "cancelled" ? "Annullato" : r.status === "promoted" ? "Notificato" : "Fatto"} · ${fmtDate(r.remind_on)}` : relLabel(r.remind_on)}
+              </span>
+              {isRec && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-600">
+                  <Repeat className="h-3 w-3" /> {recLabel(r.recurrence)}
+                </span>
+              )}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -201,7 +256,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
                 className="rounded-md p-1 text-slate-400 transition hover:bg-orange-50 hover:text-orange-600"><RotateCcw className="h-4 w-4" /></button>
             ) : (
               <>
-                <button onClick={() => setStatus(r.id, "done", { undo: true, label: "Segnato come fatto" })} title="Segna come fatto"
+                <button onClick={() => completa(r)} title="Segna come fatto"
                   className="rounded-md p-1 text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-600"><Check className="h-4 w-4" /></button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -210,7 +265,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuLabel className="text-xs flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Posticipa</DropdownMenuLabel>
+                    <DropdownMenuLabel className="flex items-center gap-1.5 text-xs"><Clock className="h-3.5 w-3.5" /> Posticipa</DropdownMenuLabel>
                     {SNOOZE.map((s) => (
                       <DropdownMenuItem key={s.days} onClick={() => snooze(r.id, s.days)}>{s.label}</DropdownMenuItem>
                     ))}
@@ -247,7 +302,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
             {groups.overdue.length > 0 && <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">{groups.overdue.length} in ritardo</span>}
           </SheetTitle>
         </SheetHeader>
-        <p className="mt-1 text-xs text-muted-foreground">Promemoria e follow-up datati. Alla scadenza riappaiono come avviso (campanella + briefing).</p>
+        <p className="mt-1 text-xs text-muted-foreground">Promemoria e follow-up datati. Alla scadenza riappaiono come avviso (campanella + briefing); le ricorrenti si rinnovano da sole.</p>
 
         {/* Nuovo promemoria */}
         <div className="mt-4 space-y-2 rounded-xl border border-slate-200 p-3">
@@ -267,6 +322,16 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
               );
             })}
           </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 text-[11px] text-slate-500"><Repeat className="h-3 w-3" /> Ripeti:</span>
+            {RECURRENCE_OPTS.map((o) => (
+              <button key={o.value} type="button" onClick={() => setRicorrenza(o.value)}
+                className={cn("rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
+                  ricorrenza === o.value ? "border-violet-300 bg-violet-50 text-violet-700" : "border-slate-200 text-slate-600 hover:bg-slate-50")}>
+                {o.label}
+              </button>
+            ))}
+          </div>
           <div className="flex gap-2">
             <Input type="date" value={data} min={todayISO()} onChange={(e) => setData(e.target.value)} className="flex-1" />
             <Button className="gap-1.5" disabled={!canAdd} onClick={submit}>
@@ -275,7 +340,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
           </div>
         </div>
 
-        {/* Tab Da fare / Fatte */}
+        {/* Tab Da fare / Storico */}
         <div className="mt-4 flex gap-1 rounded-lg bg-slate-100 p-1 text-sm">
           {([["todo", "Da fare"], ["done", "Storico"]] as const).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
