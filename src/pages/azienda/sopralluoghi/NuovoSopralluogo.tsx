@@ -79,14 +79,19 @@ export default function NuovoSopralluogo() {
     queryKey: ["company-orders-for-surveys"],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("orders")
-        .select("id, order_number, customer_id, customer_name, address")
+        .select("id, order_code, customer_id, client_name, work_address, indirizzo_lavori, client_address")
         .order("created_at", { ascending: false })
         .limit(50);
+      if (error) {
+        console.error("[NuovoSopralluogo] query orders fallita", error);
+        throw error;
+      }
       return (data ?? []) as Array<{
-        id: string; order_number: string | null; customer_id: string | null;
-        customer_name: string | null; address: string | null;
+        id: string; order_code: string | null; customer_id: string | null;
+        client_name: string | null; work_address: string | null;
+        indirizzo_lavori: string | null; client_address: string | null;
       }>;
     },
   });
@@ -230,7 +235,8 @@ export default function NuovoSopralluogo() {
                   const order = orders?.find((o) => o.id === v);
                   if (order) {
                     if (order.customer_id) setClientId(order.customer_id);
-                    if (order.address && !address) setAddress(order.address);
+                    const orderAddr = order.work_address ?? order.indirizzo_lavori ?? order.client_address;
+                    if (orderAddr && !address) setAddress(orderAddr);
                   }
                 }
               }}>
@@ -241,7 +247,7 @@ export default function NuovoSopralluogo() {
                   <SelectItem value="none">Nessuna commessa</SelectItem>
                   {(orders ?? []).map((o) => (
                     <SelectItem key={o.id} value={o.id}>
-                      {o.order_number ?? o.id.slice(0, 8)} — {o.customer_name ?? "Cliente"}
+                      {o.order_code ?? o.id.slice(0, 8)} — {o.client_name ?? "Cliente"}
                     </SelectItem>
                   ))}
                 </SelectContent>
