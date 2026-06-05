@@ -333,7 +333,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount }: SalTabProps) {
               </CardHeader>
               {sal.sal_voci?.length > 0 && (
                 <CardContent className="pt-0">
-                  <div className="border rounded overflow-hidden">
+                  <div className="border rounded overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="bg-muted/50 border-b">
