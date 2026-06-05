@@ -20,7 +20,6 @@ import { cn } from "@/lib/utils";
 import {
   MessageSquare,
   Brain,
-  BrainCircuit,
   Search,
   X,
   Lightbulb,

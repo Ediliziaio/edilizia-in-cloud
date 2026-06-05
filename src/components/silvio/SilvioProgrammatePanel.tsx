@@ -213,10 +213,10 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
   const canAdd = !!titolo.trim() && !!data && !createMut.isPending;
   const submit = () => { if (canAdd) createMut.mutate(); };
 
-  const Riga = ({ r, tone }: { r: Reminder; tone: "overdue" | "today" | "upcoming" | "done" }) => {
+  const riga = (r: Reminder, tone: "overdue" | "today" | "upcoming" | "done") => {
     if (editId === r.id) {
       return (
-        <div className="space-y-2 rounded-xl border border-orange-200 bg-orange-50/30 p-3">
+        <div key={r.id} className="space-y-2 rounded-xl border border-orange-200 bg-orange-50/30 p-3">
           <Input value={eTitle} onChange={(e) => setETitle(e.target.value)} placeholder="Titolo" />
           <Input value={eNote} onChange={(e) => setENote(e.target.value)} placeholder="Nota (opzionale)" className="text-sm" />
           <div className="flex gap-2">
@@ -230,7 +230,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
     const done = tone === "done";
     const isRec = !!r.recurrence && r.recurrence !== "none";
     return (
-      <div className={cn("rounded-xl border p-3", tone === "overdue" ? "border-rose-200 bg-rose-50/40" : "border-slate-200", done && "opacity-70")}>
+      <div key={r.id} className={cn("rounded-xl border p-3", tone === "overdue" ? "border-rose-200 bg-rose-50/40" : "border-slate-200", done && "opacity-70")}>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className={cn("text-sm font-medium text-slate-800", r.status === "cancelled" && "line-through")}>{r.title}</div>
@@ -284,11 +284,11 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
     );
   };
 
-  const Sezione = ({ titolo: t, items, tone, accent }: { titolo: string; items: Reminder[]; tone: "overdue" | "today" | "upcoming"; accent?: string }) =>
+  const sezione = (t: string, items: Reminder[], tone: "overdue" | "today" | "upcoming", accent?: string) =>
     items.length === 0 ? null : (
       <div className="space-y-1.5">
         <div className={cn("px-1 text-[11px] font-semibold uppercase tracking-wide", accent ?? "text-slate-400")}>{t} · {items.length}</div>
-        {items.map((r) => <Riga key={r.id} r={r} tone={tone} />)}
+        {items.map((r) => riga(r, tone))}
       </div>
     );
 
@@ -361,9 +361,9 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
               </div>
             ) : (
               <>
-                <Sezione titolo="In ritardo" items={groups.overdue} tone="overdue" accent="text-rose-500" />
-                <Sezione titolo="Oggi" items={groups.today} tone="today" accent="text-orange-500" />
-                <Sezione titolo="Prossimi" items={groups.upcoming} tone="upcoming" />
+                {sezione("In ritardo", groups.overdue, "overdue", "text-rose-500")}
+                {sezione("Oggi", groups.today, "today", "text-orange-500")}
+                {sezione("Prossimi", groups.upcoming, "upcoming")}
               </>
             )
           ) : loadingStorico ? (
@@ -371,7 +371,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
           ) : storico.length === 0 ? (
             <div className="rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground">Nessuna attività passata.</div>
           ) : (
-            <div className="space-y-1.5">{storico.map((r) => <Riga key={r.id} r={r} tone="done" />)}</div>
+            <div className="space-y-1.5">{storico.map((r) => riga(r, "done"))}</div>
           )}
         </div>
       </SheetContent>
