@@ -955,6 +955,7 @@ serve(async (req: Request) => {
     let finalContent = "";
     let lastResult: Awaited<ReturnType<typeof aiRouterComplete>> | null = null;
     let iteration = 0;
+    let totalCostEur = 0;
     const toolCallsLog: Array<{
       name: string;
       args: unknown;
@@ -1043,6 +1044,7 @@ serve(async (req: Request) => {
           forceModel: aiTestLabForceModel ?? persona.recommended_model ?? undefined,
         });
         lastResult = result;
+        totalCostEur += result?.costBilledEur ?? 0;
       } catch (aiErr) {
         const errMsg = aiErr instanceof Error ? aiErr.message : String(aiErr);
         console.error("[silvio-chat] aiRouter iter", iteration, "error:", errMsg);
@@ -1121,6 +1123,16 @@ serve(async (req: Request) => {
 
     if (!finalContent && iteration >= MAX_TOOL_ITERATIONS) {
       finalContent = "⚠️ Non sono riuscito a completare l'analisi. Riformula la domanda in modo più specifico.";
+    }
+
+    // SICUREZZA/COSTI (scelta "solo tracciamento", nessun blocco): la spesa AI per
+    // azienda è già registrata in platform_ai_usage_log via aiRouter. Qui alziamo un
+    // alert se UN turno costa in modo anomalo (possibile loop/abuso) → monitorabile.
+    if (totalCostEur > 1.0) {
+      console.warn("[silvio-chat][COST-ALERT] turno AI anomalo", JSON.stringify({
+        company_id: companyId, user_id: userId,
+        cost_eur: Math.round(totalCostEur * 1000) / 1000, iterations: iteration,
+      }));
     }
     // ── MP-04: Tenta parsing structured output (per tier balanced/premium) ──
     let structured: StructuredAiResponse | null = null;

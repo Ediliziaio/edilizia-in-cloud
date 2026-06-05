@@ -101,6 +101,11 @@ export async function resolveIdentity(
     const displayName = `${matchEmp.first_name ?? ""} ${matchEmp.last_name ?? ""}`.trim() ||
       "Operaio";
 
+    if (isAdmin) {
+      console.warn("[whatsapp-identity][SECURITY] poteri ADMIN concessi via match-telefono SENZA verifica OTP (dipendente)",
+        JSON.stringify({ company_id: companyId, user_id: matchEmp.user_id, employee_id: matchEmp.id }));
+    }
+
     return {
       matched: true,
       kind,
@@ -149,6 +154,11 @@ export async function resolveIdentity(
         const grants = kind === "admin"
           ? [...ROLE_GRANTS.titolare, "users.manage", "company.manage"]
           : ROLE_GRANTS.titolare;
+
+        if (kind === "admin") {
+          console.warn("[whatsapp-identity][SECURITY] poteri ADMIN concessi via match-telefono SENZA verifica OTP (profilo)",
+            JSON.stringify({ company_id: companyId, user_id: matchProfile.id }));
+        }
 
         return {
           matched: true,
