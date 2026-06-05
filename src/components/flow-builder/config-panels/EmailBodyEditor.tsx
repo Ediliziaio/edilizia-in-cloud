@@ -18,7 +18,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { RichTextEditor, type RichTextEditorHandle } from "@/components/ui/rich-text-editor";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { buildVariableCategories, type PickerVariable } from "./emailVariableCatalog";
+import { getCatalogItem } from "@/lib/flow-node-catalog";
+import { buildVariableCategories, type PickerVariable, type PickerCategory } from "./emailVariableCatalog";
 
 export interface EmailVariable {
   key: string;
@@ -34,16 +35,20 @@ interface EmailBodyEditorProps {
   onChange: (html: string) => void;
   /** Variabili extra specifiche del nodo (fuse nelle categorie giuste). */
   variables?: EmailVariable[];
+  /** item_id del trigger del flusso: le sue variabili sono quelle che si COMPILANO
+   *  davvero → mostrate in cima ("Disponibili in questo flusso"). */
+  triggerItemId?: string;
   placeholder?: string;
   minHeight?: number;
 }
 
 export function EmailBodyEditor({
-  value, onChange, variables = [], placeholder, minHeight = 200,
+  value, onChange, variables = [], triggerItemId, placeholder, minHeight = 200,
 }: EmailBodyEditorProps) {
   const editorRef = useRef<RichTextEditorHandle>(null);
   const [search, setSearch] = useState("");
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // La categoria "Disponibili in questo flusso" è espansa di default.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({ _flow: true });
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
@@ -71,7 +76,18 @@ export function EmailBodyEditor({
     () => [...variables.map((v) => ({ key: v.key, label: v.label })), ...customFields],
     [variables, customFields],
   );
-  const categories = useMemo(() => buildVariableCategories(extra), [extra]);
+
+  // Variabili del trigger del flusso = quelle che si compilano davvero.
+  const triggerVars: PickerVariable[] = useMemo(() => {
+    const item = triggerItemId ? getCatalogItem(triggerItemId) : null;
+    return (item?.outputVariables ?? []).map((v) => ({ key: v.id, label: v.label }));
+  }, [triggerItemId]);
+
+  const categories: PickerCategory[] = useMemo(() => {
+    const base = buildVariableCategories(extra);
+    if (triggerVars.length === 0) return base;
+    return [{ id: "_flow", label: "Disponibili in questo flusso", variables: triggerVars }, ...base];
+  }, [extra, triggerVars]);
 
   const q = search.trim().toLowerCase();
   const searchHits = useMemo(() => {

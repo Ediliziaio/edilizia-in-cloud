@@ -18,9 +18,10 @@ const COMPANY_EMAIL_VARIABLES: EmailVariable[] = [
 interface EmailConfigPanelProps {
   config: Record<string, any>;
   onChange: (field: string, value: any) => void;
+  triggerItemId?: string;
 }
 
-export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps>(function EmailConfigPanel({ config, onChange }, ref) {
+export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps>(function EmailConfigPanel({ config, onChange, triggerItemId }, ref) {
   return (
     <div ref={ref} className="space-y-4">
       {/* Sender */}
@@ -86,6 +87,7 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
           value={config.corpo}
           onChange={(html) => onChange("corpo", html)}
           variables={COMPANY_EMAIL_VARIABLES}
+          triggerItemId={triggerItemId}
         />
       </div>
 

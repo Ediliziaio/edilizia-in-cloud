@@ -247,7 +247,7 @@ export function FlowBuilderConfigPanel({
             <TaskConfigPanel config={nodeData} onChange={handleChange} />
           )}
           {itemId === "invia_email" && (
-            <EmailConfigPanel config={nodeData} onChange={handleChange} />
+            <EmailConfigPanel config={nodeData} onChange={handleChange} triggerItemId={triggerItemId} />
           )}
           {(itemId === "aggiungi_tag" || itemId === "rimuovi_tag") && (
             <TagActionPanel
@@ -267,6 +267,7 @@ export function FlowBuilderConfigPanel({
               onChange={(v) => handleChange(field.id, v)}
               triggerProvidesContact={triggerProvidesContact}
               companyId={companyId}
+              triggerItemId={triggerItemId}
             />
           ))}
 
@@ -467,12 +468,14 @@ function ConfigField({
   onChange,
   triggerProvidesContact,
   companyId,
+  triggerItemId,
 }: {
   field: ConfigFieldSchema;
   value: any;
   onChange: (v: any) => void;
   triggerProvidesContact?: boolean;
   companyId?: string;
+  triggerItemId?: string;
 }) {
   const [overrideAutoFill, setOverrideAutoFill] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -555,6 +558,7 @@ function ConfigField({
         <EmailBodyEditor
           value={value ?? field.defaultValue ?? ""}
           onChange={(html) => onChange(html)}
+          triggerItemId={triggerItemId}
         />
       )}
 
