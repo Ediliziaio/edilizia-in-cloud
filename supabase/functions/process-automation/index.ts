@@ -701,6 +701,23 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
   // Payload del trigger (chiavi namespacing es. "azienda.id") + resolver {{var}}.
   // Usati dalle azioni di piattaforma per risolvere i placeholder.
   const pPayload: Record<string, any> = (queueItem?.context_json?.payload as Record<string, any>) || {};
+  // Chiavi derivate "nome completo": se il trigger non le emette, le ricaviamo da
+  // first_name+last_name (es. contatto.full_name) e da nome+cognome (nome_completo),
+  // così {{contatto.full_name}} / {{nome_completo}} si risolvono sempre.
+  const setFullName = (firstKey: string, lastKey: string, targetKey: string) => {
+    if (pPayload[targetKey] != null && String(pPayload[targetKey]).trim() !== "") return;
+    const full = [pPayload[firstKey], pPayload[lastKey]]
+      .filter((x) => x != null && String(x).trim() !== "")
+      .map((x) => String(x).trim())
+      .join(" ")
+      .trim();
+    if (full) pPayload[targetKey] = full;
+  };
+  for (const k of Object.keys(pPayload)) {
+    const m = k.match(/^(.+)\.first_name$/);
+    if (m) setFullName(`${m[1]}.first_name`, `${m[1]}.last_name`, `${m[1]}.full_name`);
+  }
+  setFullName("nome", "cognome", "nome_completo");
   const rv = (s: any): any =>
     typeof s === "string"
       ? s.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m: string, k: string) => {

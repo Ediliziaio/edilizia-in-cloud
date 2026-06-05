@@ -9,6 +9,9 @@ describe("buildVariableCategories", () => {
     expect(labels).toContain("Contatto");
     expect(labels).toContain("Azienda");
     expect(labels).toContain("Opportunità");
+    // "Nome completo" (full_name) deve esistere nella categoria Contatto.
+    const contatto = cats.find((c) => c.id === "contatto");
+    expect(contatto?.variables.some((v) => v.key === "contatto.full_name")).toBe(true);
     // Ogni categoria ha variabili, dedupe per chiave.
     for (const c of cats) {
       expect(c.variables.length).toBeGreaterThan(0);

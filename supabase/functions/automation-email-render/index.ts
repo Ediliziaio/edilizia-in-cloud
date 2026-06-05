@@ -19,11 +19,13 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 const SAMPLE_VARS: Record<string, string> = {
   nome: "Marco",
   cognome: "Rossi",
+  nome_completo: "Marco Rossi",
   azienda: "Costruzioni Rossi",
   "azienda.name": "Costruzioni Rossi",
   "azienda.email": "marco@costruzionirossi.it",
   "contatto.first_name": "Marco",
   "contatto.last_name": "Rossi",
+  "contatto.full_name": "Marco Rossi",
   "contatto.email": "marco@costruzionirossi.it",
   "contatto.company_name": "Costruzioni Rossi",
   "opportunita.name": "Ristrutturazione Via Roma",
