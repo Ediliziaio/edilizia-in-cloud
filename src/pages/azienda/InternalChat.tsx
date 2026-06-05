@@ -780,7 +780,7 @@ const ChatListItem = React.memo(function ChatListItem({
       {/* Avatar */}
       <div className="relative shrink-0">
         {isSilvio ? (
-          <SilvioAvatar size={48} bg="orange" className="ring-2 ring-orange-300/40 shadow-lg shadow-orange-300/30" />
+          <SilvioAvatar size={48} bg="white" />
         ) : isDm && dmProfile ? (
           <Avatar className="h-12 w-12">
             {dmProfile.avatar_url && <AvatarImage src={dmProfile.avatar_url} alt={profileName(dmProfile)} />}
@@ -974,7 +974,7 @@ const MessageBubble = React.memo(function MessageBubble({
             (isSilvioMsg || isSilvioAdminMsg) ? (
               // Silvio (cliente o Admin): stesso avatar arancione — visivamente identico
               // La differenza vive solo nel sender_id e nell'edge function chiamata
-              <SilvioAvatar size={28} bg="orange" className="ring-1 ring-orange-300/40 shadow-sm shadow-orange-300/30" />
+              <SilvioAvatar size={28} bg="white" />
             ) : isAIMsg ? (
               <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
                 <Bot className="h-3.5 w-3.5 text-white" />
@@ -2416,7 +2416,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                     (bot viola) rimosso. Resta Silvio (brain arancio), DM,
                     gruppo verde. */}
                 {(isSilvioChannel || isSilvioAdminChannel) ? (
-                  <SilvioAvatar size={40} bg="orange" className="shrink-0 ring-1 ring-orange-300/40 shadow-sm shadow-orange-300/30" />
+                  <SilvioAvatar size={40} bg="white" className="shrink-0" />
                 ) : selectedChannel.is_dm ? (
                   <Avatar className="h-10 w-10 shrink-0">
                     {getDmProfile(selectedChannel)?.avatar_url && <AvatarImage src={getDmProfile(selectedChannel)!.avatar_url!} />}
