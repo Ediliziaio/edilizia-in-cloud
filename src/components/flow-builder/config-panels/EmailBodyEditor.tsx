@@ -27,7 +27,13 @@ export interface EmailVariable {
   group?: string;
 }
 
-const slug = (s: string) =>
+/**
+ * Genera la chiave snake_case del campo personalizzato per il merge-tag.
+ * DEVE restare allineata a `toSnakeCase` di _shared/contactCustomFields.ts
+ * (resolver lato motore), altrimenti la variabile inserita dal picker non viene
+ * risolta nell'invio. Coperto da src/test/logic/customFieldKey.test.ts.
+ */
+export const slug = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 
 interface EmailBodyEditorProps {
