@@ -1,0 +1,83 @@
+-- Performance RLS: init-plan caching delle funzioni auth.* / current_setting().
+--
+-- CAUSA (advisor Supabase 0003_auth_rls_initplan, 68 policy)
+--   Le policy chiamavano auth.uid()/auth.role()/current_setting(...) "nude":
+--   Postgres le rivaluta UNA VOLTA PER RIGA → query RLS lente a scala.
+--
+-- FIX (ufficiale Supabase): wrappare ogni chiamata in (select ...), così viene
+--   valutata UNA SOLA VOLTA per query (InitPlan) e riusata su tutte le righe.
+--   https://supabase.com/docs/guides/database/postgres/row-level-security#call-functions-with-select
+--
+-- SEMANTICA INVARIATA: stesso accesso identico, solo più veloce. Nessuna funzione
+--   non-auth (get_my_company_id, has_role, is_super_admin, get_effective_company_id…)
+--   è stata toccata; cast/ARRAY/sottoquery preservati. Generato da pg_get_expr e
+--   verificato applicando tutte e 68 in transazione con rollback (0 errori).
+
+ALTER POLICY accountant_notifications_service_role_all ON public.accountant_notifications USING (((select current_setting('role'::text, true)) = 'service_role'::text)) WITH CHECK (((select current_setting('role'::text, true)) = 'service_role'::text));
+ALTER POLICY service_role_all_access ON public.accountant_signup_attempts USING (((select current_setting('role'::text, true)) = 'service_role'::text)) WITH CHECK (((select current_setting('role'::text, true)) = 'service_role'::text));
+ALTER POLICY service_role_admin_invites ON public.admin_invites USING (((select auth.role()) = 'service_role'::text));
+ALTER POLICY compliance_read_all ON public.ai_act_compliance_status USING (((select auth.role()) = ANY (ARRAY['authenticated'::text, 'service_role'::text])));
+ALTER POLICY aiclass_read_all ON public.ai_system_classification USING (((select auth.role()) = ANY (ARRAY['authenticated'::text, 'service_role'::text])));
+ALTER POLICY bonifica_azioni_super_admin ON public.bonifica_azioni USING (is_super_admin((select auth.uid())));
+ALTER POLICY digest_log_self ON public.digest_log USING (((utente_id = (select auth.uid())) AND (company_id = get_effective_company_id())));
+ALTER POLICY domini_invio_super_admin ON public.domini_invio USING (is_super_admin((select auth.uid())));
+ALTER POLICY email_accessi_super_admin ON public.email_accessi USING (has_role((select auth.uid()), 'super_admin'::app_role));
+ALTER POLICY email_collegamenti_super_admin ON public.email_collegamenti USING (is_super_admin((select auth.uid())));
+ALTER POLICY email_correzioni_super_admin ON public.email_correzioni USING (has_role((select auth.uid()), 'super_admin'::app_role));
+ALTER POLICY email_ddt_carico_super_admin ON public.email_ddt_carico USING (is_super_admin((select auth.uid())));
+ALTER POLICY service_role_email_log ON public.email_delivery_log USING (((select auth.role()) = 'service_role'::text));
+ALTER POLICY email_doc_estratto_super_admin ON public.email_documento_estratto USING (is_super_admin((select auth.uid())));
+ALTER POLICY email_evento_bozza_super_admin ON public.email_evento_bozza USING (is_super_admin((select auth.uid())));
+ALTER POLICY email_inbox_select ON public.email_inbox USING (((user_id = (select auth.uid())) OR ((user_id IS NULL) AND (company_id = get_my_company_id()) AND is_email_staff_interno())));
+ALTER POLICY email_metriche_super_admin ON public.email_metriche_giorno USING (has_role((select auth.uid()), 'super_admin'::app_role));
+ALTER POLICY email_opp_bozza_super_admin ON public.email_opportunita_bozza USING (is_super_admin((select auth.uid())));
+ALTER POLICY email_regole_super_admin ON public.email_regole USING (has_role((select auth.uid()), 'super_admin'::app_role));
+ALTER POLICY email_scad_bozza_super_admin ON public.email_scadenza_bozza USING (is_super_admin((select auth.uid())));
+ALTER POLICY fornitori_iban_storico_super_admin ON public.fornitori_iban_storico USING (is_super_admin((select auth.uid())));
+ALTER POLICY benchmarks_read_all ON public.kb_aggregated_benchmarks USING (((select auth.role()) = ANY (ARRAY['authenticated'::text, 'service_role'::text])));
+ALTER POLICY "super_admin read api_usage" ON public.lead_scraper_api_usage USING (has_role((select auth.uid()), 'super_admin'::app_role));
+ALTER POLICY "super_admin manage autopilot" ON public.lead_scraper_autopilot USING (has_role((select auth.uid()), 'super_admin'::app_role)) WITH CHECK (has_role((select auth.uid()), 'super_admin'::app_role));
+ALTER POLICY "super_admin manage lss_jobs" ON public.lead_scraper_jobs USING (has_role((select auth.uid()), 'super_admin'::app_role)) WITH CHECK (has_role((select auth.uid()), 'super_admin'::app_role));
+ALTER POLICY "super_admin read outreach" ON public.lead_scraper_outreach USING (has_role((select auth.uid()), 'super_admin'::app_role));
+ALTER POLICY "super_admin read place_cache" ON public.lead_scraper_place_cache USING (has_role((select auth.uid()), 'super_admin'::app_role));
+ALTER POLICY "super_admin manage lss_results" ON public.lead_scraper_results USING (has_role((select auth.uid()), 'super_admin'::app_role)) WITH CHECK (has_role((select auth.uid()), 'super_admin'::app_role));
+ALTER POLICY "super_admin manage lss_searches" ON public.lead_scraper_searches USING (has_role((select auth.uid()), 'super_admin'::app_role)) WITH CHECK (has_role((select auth.uid()), 'super_admin'::app_role));
+ALTER POLICY mittenti_noti_super_admin ON public.mittenti_noti USING (has_role((select auth.uid()), 'super_admin'::app_role));
+ALTER POLICY notifiche_pref_self ON public.notifiche_preferenze USING (((utente_id = (select auth.uid())) AND (company_id = get_effective_company_id()))) WITH CHECK (((utente_id = (select auth.uid())) AND (company_id = get_effective_company_id())));
+ALTER POLICY platform_ai_usage_log_service_insert ON public.platform_ai_usage_log WITH CHECK (((select auth.role()) = 'service_role'::text));
+ALTER POLICY qi_anon_sel ON public.quote_items USING ((EXISTS ( SELECT 1 FROM quotes q WHERE ((q.id = quote_items.quote_id) AND (q.signature_token IS NOT NULL) AND (q.status = ANY (ARRAY['inviata'::text, 'accettata'::text, 'rifiutata'::text, 'scaduta'::text])) AND (q.signature_token = ((select current_setting('request.header.x-quote-token'::text, true)))::uuid)))));
+ALTER POLICY q_anon_sel ON public.quotes USING (((signature_token IS NOT NULL) AND (status = ANY (ARRAY['inviata'::text, 'accettata'::text, 'rifiutata'::text, 'scaduta'::text])) AND (signature_token = ((select current_setting('request.header.x-quote-token'::text, true)))::uuid)));
+ALTER POLICY service_role_all_access ON public.referral_signup_attempts USING (((select current_setting('role'::text, true)) = 'service_role'::text)) WITH CHECK (((select current_setting('role'::text, true)) = 'service_role'::text));
+ALTER POLICY rps_service_role_all ON public.render_persiane_sessions USING (((select auth.role()) = 'service_role'::text));
+ALTER POLICY sa_company_intel_super ON public.sa_company_intel USING (is_super_admin((select auth.uid())));
+ALTER POLICY sa_problems_super ON public.sa_company_problems USING (is_super_admin((select auth.uid())));
+ALTER POLICY sa_conv_signals_super ON public.sa_conversation_signals USING (is_super_admin((select auth.uid())));
+ALTER POLICY sa_pkg_super ON public.sa_problem_to_package USING (is_super_admin((select auth.uid())));
+ALTER POLICY "super_admin manage scraped_companies" ON public.scraped_companies USING (has_role((select auth.uid()), 'super_admin'::app_role)) WITH CHECK (has_role((select auth.uid()), 'super_admin'::app_role));
+ALTER POLICY "company reads own sdi config" ON public.sdi_cedente_config USING (((company_id = get_user_company_id((select auth.uid()))) OR has_role((select auth.uid()), 'super_admin'::app_role)));
+ALTER POLICY sequenze_super ON public.sequenze USING (is_super_admin((select auth.uid())));
+ALTER POLICY seq_esec_super ON public.sequenze_esecuzioni USING (is_super_admin((select auth.uid())));
+ALTER POLICY seq_invii_super ON public.sequenze_invii USING (is_super_admin((select auth.uid())));
+ALTER POLICY public_read_by_token ON public.signature_requests USING (((token IS NOT NULL) AND (token = (select current_setting('request.header.x-signature-token'::text, true)))));
+ALTER POLICY public_update_by_token ON public.signature_requests USING (((status = 'pending'::text) AND (token IS NOT NULL) AND (token = (select current_setting('request.header.x-signature-token'::text, true))))) WITH CHECK ((status = 'signed'::text));
+ALTER POLICY silvio_ads_campaigns_read ON public.silvio_ads_campaigns USING ((company_id = ( SELECT p.company_id FROM profiles p WHERE (p.id = (select auth.uid())))));
+ALTER POLICY silvio_audit_super ON public.silvio_audit USING (is_super_admin((select auth.uid())));
+ALTER POLICY silvio_azioni_super ON public.silvio_azioni USING (is_super_admin((select auth.uid()))) WITH CHECK (is_super_admin((select auth.uid())));
+ALTER POLICY silvio_ovr_super ON public.silvio_azioni_override USING (is_super_admin((select auth.uid())));
+ALTER POLICY silvio_budget_super ON public.silvio_budget USING (is_super_admin((select auth.uid())));
+ALTER POLICY silvio_canali_proprietario_del ON public.silvio_canali_identita USING (((utente_id = (select auth.uid())) AND (company_id = get_effective_company_id())));
+ALTER POLICY silvio_canali_proprietario_sel ON public.silvio_canali_identita USING (((utente_id = (select auth.uid())) AND (company_id = get_effective_company_id())));
+ALTER POLICY silvio_canali_super ON public.silvio_canali_identita USING (is_super_admin((select auth.uid())));
+ALTER POLICY silvio_coda_super ON public.silvio_coda_conferme USING (is_super_admin((select auth.uid())));
+ALTER POLICY silvio_decision_rules_super ON public.silvio_decision_rules USING (is_super_admin((select auth.uid())));
+ALTER POLICY silvio_esec_super ON public.silvio_esecuzioni USING (is_super_admin((select auth.uid())));
+ALTER POLICY silvio_gen_jobs_super ON public.silvio_generation_jobs USING (is_super_admin((select auth.uid())));
+ALTER POLICY silvio_outbound_super ON public.silvio_outbound_messages USING (is_super_admin((select auth.uid())));
+ALTER POLICY silvio_playbook_super ON public.silvio_playbook USING (is_super_admin((select auth.uid())));
+ALTER POLICY playbook_def_read ON public.silvio_playbook_definitions USING (((select auth.role()) = ANY (ARRAY['authenticated'::text, 'service_role'::text])));
+ALTER POLICY silvio_task_super ON public.silvio_task USING (is_super_admin((select auth.uid())));
+ALTER POLICY silvio_task_passi_super ON public.silvio_task_passi USING (is_super_admin((select auth.uid())));
+ALTER POLICY silvio_tool_steps_read ON public.silvio_tool_steps USING ((EXISTS ( SELECT 1 FROM internal_chat_channels c WHERE ((c.id = silvio_tool_steps.channel_id) AND (c.dm_user_ids @> ARRAY[(select auth.uid())])))));
+ALTER POLICY silvio_trigger_super ON public.silvio_trigger_log USING (is_super_admin((select auth.uid())));
+ALTER POLICY sr_progetti_public_token_read ON public.sr_progetti USING (((public_token IS NOT NULL) AND (stato = ANY (ARRAY['da_consegnare'::sr_stato_progetto, 'consegnato'::sr_stato_progetto, 'in_valutazione'::sr_stato_progetto, 'accettato'::sr_stato_progetto])) AND ((((select current_setting('request.jwt.claims'::text, true)))::jsonb ->> 'sr_public_token'::text) = public_token)));
+ALTER POLICY service_role_manage_invoices ON public.subscription_invoices USING (((select auth.role()) = 'service_role'::text));
