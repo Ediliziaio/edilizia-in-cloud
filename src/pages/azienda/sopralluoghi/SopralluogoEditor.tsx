@@ -416,6 +416,8 @@ export default function SopralluogoEditor() {
 
   const { survey, template, areas, elements, media } = detail;
   const statusCfg = STATUS_LABEL[survey.status] ?? STATUS_LABEL.draft;
+  // Media a livello sopralluogo (né area né elemento): foto generali + audio generale.
+  const generalMedia = media.filter((m) => !m.area_id && !m.element_id);
 
   return (
     <div className="pb-[calc(6rem+env(safe-area-inset-bottom))]">
@@ -592,21 +594,21 @@ export default function SopralluogoEditor() {
               <PhotoChecklist
                 items={template.schema.general_required_photos}
                 surveyId={survey.id}
-                media={media.filter((m) => !m.area_id && !m.element_id)}
+                media={generalMedia}
                 onMediaAdded={onMediaChange}
                 onMediaDeleted={onMediaChange}
               />
             )}
             <FreePhotoUpload
               surveyId={survey.id}
-              media={media.filter((m) => !m.area_id && !m.element_id)}
+              media={generalMedia}
               onMediaAdded={onMediaChange}
               onMediaDeleted={onMediaChange}
               label="Foto generali"
             />
             <AudioRecorder
               surveyId={survey.id}
-              existingAudio={media.find((m) => m.type === "audio" && !m.area_id && !m.element_id) ?? null}
+              existingAudio={generalMedia.find((m) => m.type === "audio") ?? null}
               onAudioAdded={onMediaChange}
               onAudioDeleted={onMediaChange}
               autoTranscribe

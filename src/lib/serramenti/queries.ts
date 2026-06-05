@@ -29,7 +29,7 @@ import type {
   SrStatoProgetto,
 } from "@/types/serramenti";
 import { toast } from "sonner";
-import { updateSurvey } from "@/lib/api/surveys";
+import { markSurveyConverted } from "@/lib/api/surveys";
 
 export const SR_QK = {
   progetti: (stato?: SrStatoProgetto) => ["sr-progetti", stato ?? "all"] as const,
@@ -521,7 +521,7 @@ export function useImportDaSopralluogo(progettoId: string | undefined) {
       // preventivo → marca il sopralluogo come "Convertito". Best-effort: un errore
       // qui non deve invalidare un import gia riuscito.
       try {
-        await updateSurvey(sopralluogo_id, { status: "converted" });
+        await markSurveyConverted(sopralluogo_id);
       } catch (e) {
         console.warn("[serramenti] mark sopralluogo 'converted' fallito (import comunque ok)", e);
       }

@@ -67,10 +67,14 @@ export default function NuovoSopralluogo() {
     queryKey: ["company-members-for-surveys"],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("profiles")
         .select("id, first_name, last_name, email")
         .order("first_name");
+      if (error) {
+        console.error("[NuovoSopralluogo] query membri fallita", error);
+        throw error;
+      }
       return (data ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }>;
     },
   });

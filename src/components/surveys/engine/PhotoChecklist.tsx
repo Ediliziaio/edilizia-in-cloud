@@ -11,7 +11,7 @@
 import { useState, useRef } from "react";
 import type { PhotoChecklistItem, SurveyMediaRow } from "@/types/surveys";
 import { Camera, Trash2, AlertCircle, Loader2, Plus, ImageIcon } from "lucide-react";
-import { uploadMedia, deleteMedia } from "@/lib/api/surveys";
+import { uploadMedia, deleteMedia, validateSurveyPhoto } from "@/lib/api/surveys";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -42,11 +42,14 @@ export function PhotoChecklist({
   }, {} as Record<string, SurveyMediaRow[]>);
 
   const handleUpload = async (item: PhotoChecklistItem, files: FileList | null) => {
-    if (!files || files.length === 0) return;
+    const list = Array.from(files ?? []);
+    if (list.length === 0) return;
     setUploading(item.key);
     try {
-      for (let i = 0; i < files.length; i++) {
-        const m = await uploadMedia(surveyId, files[i], {
+      for (const file of list) {
+        const invalid = validateSurveyPhoto(file);
+        if (invalid) { toast.error("File non valido", { description: invalid }); continue; }
+        const m = await uploadMedia(surveyId, file, {
           type: "photo",
           areaId: areaId ?? null,
           elementId: elementId ?? null,
@@ -141,7 +144,7 @@ export function PhotoChecklist({
                   </p>
                   <div className="grid grid-cols-2 gap-1">
                     {photos.map((p) => (
-                      <div key={p.id} className="relative group aspect-square">
+                      <div key={p.id} className="relative aspect-square">
                         <img loading="lazy"
                           src={p.url}
                           alt={p.checklist_label ?? "Foto"}

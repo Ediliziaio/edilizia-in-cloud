@@ -13,7 +13,7 @@
 import { useState, useRef } from "react";
 import type { SurveyMediaRow } from "@/types/surveys";
 import { Camera, Images, Trash2, Loader2, ImageIcon } from "lucide-react";
-import { uploadMedia, deleteMedia } from "@/lib/api/surveys";
+import { uploadMedia, deleteMedia, validateSurveyPhoto } from "@/lib/api/surveys";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -41,11 +41,15 @@ export function FreePhotoUpload({
   const photos = media.filter((m) => m.type === "photo" && !m.checklist_key);
 
   const handleFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
+    // Snapshot immediato: la FileList è "live" e viene azzerata da value="".
+    const list = Array.from(files ?? []);
+    if (list.length === 0) return;
     setUploading(true);
     try {
-      for (let i = 0; i < files.length; i++) {
-        const m = await uploadMedia(surveyId, files[i], {
+      for (const file of list) {
+        const invalid = validateSurveyPhoto(file);
+        if (invalid) { toast.error("File non valido", { description: invalid }); continue; }
+        const m = await uploadMedia(surveyId, file, {
           type: "photo",
           areaId: areaId ?? null,
           elementId: elementId ?? null,

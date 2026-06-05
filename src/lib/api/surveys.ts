@@ -185,6 +185,24 @@ export async function updateSurvey(id: string, patch: Partial<SurveyRow>): Promi
   }
 }
 
+/**
+ * Marca un sopralluogo come 'converted' SOLO se non è già in uno stato terminale.
+ * Evita che importare le misure da un sopralluogo archiviato/annullato lo
+ * "resusciti"; è anche idempotente (salta i già 'converted').
+ */
+export async function markSurveyConverted(id: string): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("surveys")
+    .update({ status: "converted" })
+    .eq("id", id)
+    .not("status", "in", "(converted,archived,cancelled)");
+  if (error) {
+    console.error("[surveys] markSurveyConverted failed", error);
+    throw new Error("Aggiornamento stato sopralluogo fallito");
+  }
+}
+
 export async function listMySurveys(opts?: { status?: string; limit?: number }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let q = (supabase as any)
@@ -289,6 +307,18 @@ export async function deleteElement(id: string): Promise<void> {
 }
 
 // ─── MEDIA UPLOAD ───────────────────────────────────────────────────────────
+
+/** Limite dimensione media allineato al bucket storage 'surveys' (25MB). */
+export const SURVEY_MEDIA_MAX_BYTES = 25 * 1024 * 1024;
+
+/** Valida un file foto prima dell'upload. Ritorna un messaggio d'errore o null se ok. */
+export function validateSurveyPhoto(file: File): string | null {
+  if (!file.type.startsWith("image/")) return `"${file.name}" non è un'immagine.`;
+  if (file.size > SURVEY_MEDIA_MAX_BYTES) {
+    return `"${file.name}" supera i 25MB (${(file.size / 1024 / 1024).toFixed(1)}MB).`;
+  }
+  return null;
+}
 
 export interface UploadMediaOpts {
   type: SurveyMediaType;
