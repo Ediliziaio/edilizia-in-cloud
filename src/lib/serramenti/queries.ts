@@ -29,6 +29,7 @@ import type {
   SrStatoProgetto,
 } from "@/types/serramenti";
 import { toast } from "sonner";
+import { updateSurvey } from "@/lib/api/surveys";
 
 export const SR_QK = {
   progetti: (stato?: SrStatoProgetto) => ["sr-progetti", stato ?? "all"] as const,
@@ -513,12 +514,24 @@ export function useConvertiInOrdine(progettoId: string | undefined) {
 export function useImportDaSopralluogo(progettoId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ sopralluogo_id, replace }: { sopralluogo_id: string; replace?: boolean }) => {
+    mutationFn: async ({ sopralluogo_id, replace }: { sopralluogo_id: string; replace?: boolean }) => {
       if (!progettoId) throw new Error("Progetto id mancante");
-      return importDaSopralluogo({ progetto_id: progettoId, sopralluogo_id, replace });
+      const result = await importDaSopralluogo({ progetto_id: progettoId, sopralluogo_id, replace });
+      // Chiude il cerchio lato Sopralluoghi: le misure rilevate sono confluite nel
+      // preventivo → marca il sopralluogo come "Convertito". Best-effort: un errore
+      // qui non deve invalidare un import gia riuscito.
+      try {
+        await updateSurvey(sopralluogo_id, { status: "converted" });
+      } catch (e) {
+        console.warn("[serramenti] mark sopralluogo 'converted' fallito (import comunque ok)", e);
+      }
+      return { ...result, sopralluogo_id };
     },
     onSuccess: (data) => {
       if (progettoId) qc.invalidateQueries({ queryKey: SR_QK.progetto(progettoId) });
+      // Riflette subito lo stato "Convertito" in lista e dettaglio sopralluoghi.
+      qc.invalidateQueries({ queryKey: ["sopralluoghi-list"] });
+      qc.invalidateQueries({ queryKey: ["sopralluogo", data.sopralluogo_id] });
       toast.success("Sopralluogo importato", {
         description: `${data.imported_count} serramenti e ${data.accessori_imported} accessori aggiunti.`,
       });
