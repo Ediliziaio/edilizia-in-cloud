@@ -9,7 +9,7 @@
  * essere più".
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { ChatMarkdown, type ChatMarkdownSource } from "@/components/ui/ChatMarkdown";
 import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components/silvio/AiMessageMeta";
 import { SilvioRatingButtons } from "@/components/silvio/SilvioRatingButtons";
@@ -1224,6 +1224,7 @@ interface InternalChatProps {
 
 export default function InternalChat({ companyIdOverride }: InternalChatProps = {}) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { role } = useAuth();
   const isCompanyAdmin = role === "company_admin" || role === "super_admin";
   const {
@@ -2444,6 +2445,14 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                 </div>
               </div>
               <div className="flex items-center gap-0.5">
+                {(isSilvioChannel || isSilvioAdminChannel) && (
+                  <Button variant="ghost" size="sm"
+                    className="h-9 gap-1.5 rounded-full px-3 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+                    onClick={() => navigate("/azienda/silvio-ai")}
+                    title="Apri Silvio AI — conversazioni complete, documenti, attività">
+                    <Sparkles className="h-4 w-4" /> <span className="hidden sm:inline">Apri Silvio AI</span>
+                  </Button>
+                )}
                 <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-[#54656f] dark:text-gray-400"
                   onClick={() => { setShowSearch((s) => !s); setMsgSearch(""); }} aria-label="Cerca nei messaggi">
                   <Search className="h-5 w-5" />
