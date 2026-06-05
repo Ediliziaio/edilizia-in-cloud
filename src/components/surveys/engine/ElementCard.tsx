@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import type { ElementTypeDefinition, SurveyElementRow, SurveyMediaRow } from "@/types/surveys";
 import { SectionRenderer } from "./SectionRenderer";
 import { PhotoChecklist } from "./PhotoChecklist";
+import { FreePhotoUpload } from "./FreePhotoUpload";
 import { AudioRecorder } from "./AudioRecorder";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -133,6 +134,15 @@ export function ElementCard({
             onMediaDeleted={onMediaDeleted}
           />
         )}
+
+        <FreePhotoUpload
+          surveyId={surveyId}
+          elementId={element.id}
+          media={elementMedia}
+          onMediaAdded={onMediaAdded}
+          onMediaDeleted={onMediaDeleted}
+          label="Altre foto"
+        />
 
         <AudioRecorder
           surveyId={surveyId}

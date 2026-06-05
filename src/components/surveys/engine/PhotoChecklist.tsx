@@ -150,10 +150,11 @@ export function PhotoChecklist({
                         <button
                           type="button"
                           onClick={() => handleDelete(p.id)}
-                          className="absolute top-0.5 right-0.5 bg-rose-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute top-0.5 right-0.5 bg-black/60 hover:bg-rose-600 text-white rounded-full p-1.5"
                           title="Elimina"
+                          aria-label="Elimina foto"
                         >
-                          <Trash2 className="h-2.5 w-2.5" />
+                          <Trash2 className="h-3 w-3" />
                         </button>
                       </div>
                     ))}

@@ -8,6 +8,7 @@ import type {
 } from "@/types/surveys";
 import { SectionRenderer } from "./SectionRenderer";
 import { PhotoChecklist } from "./PhotoChecklist";
+import { FreePhotoUpload } from "./FreePhotoUpload";
 import { ElementCard } from "./ElementCard";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -113,6 +114,15 @@ export function AreaCard({
               onMediaDeleted={onMediaDeleted}
             />
           )}
+
+          <FreePhotoUpload
+            surveyId={surveyId}
+            areaId={area.id}
+            media={areaMedia}
+            onMediaAdded={onMediaAdded}
+            onMediaDeleted={onMediaDeleted}
+            label="Altre foto area"
+          />
 
           {/* Lista elementi */}
           {elements.length > 0 && (

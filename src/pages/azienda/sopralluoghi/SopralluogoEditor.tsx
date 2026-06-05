@@ -46,6 +46,8 @@ import { cn } from "@/lib/utils";
 import { SectionRenderer } from "@/components/surveys/engine/SectionRenderer";
 import { AreaCard } from "@/components/surveys/engine/AreaCard";
 import { AudioRecorder } from "@/components/surveys/engine/AudioRecorder";
+import { PhotoChecklist } from "@/components/surveys/engine/PhotoChecklist";
+import { FreePhotoUpload } from "@/components/surveys/engine/FreePhotoUpload";
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   draft:       { label: "Bozza",       color: "bg-slate-100 text-slate-700" },
@@ -416,7 +418,7 @@ export default function SopralluogoEditor() {
   const statusCfg = STATUS_LABEL[survey.status] ?? STATUS_LABEL.draft;
 
   return (
-    <div className="pb-24">
+    <div className="pb-[calc(6rem+env(safe-area-inset-bottom))]">
       {/* Sticky header */}
       <div className="sticky top-0 z-30 bg-background border-b">
         <div className="container mx-auto p-3 flex items-center gap-3 flex-wrap">
@@ -579,12 +581,28 @@ export default function SopralluogoEditor() {
           <CardHeader className="p-3 pb-2">
             <CardTitle className="text-sm">Note generali</CardTitle>
           </CardHeader>
-          <CardContent className="p-3 pt-0 space-y-2">
+          <CardContent className="p-3 pt-0 space-y-3">
             <Textarea
               value={generalNotes}
               onChange={(e) => setGeneralNotes(e.target.value)}
               placeholder="Osservazioni, vincoli, contesto…"
               rows={3}
+            />
+            {(template.schema.general_required_photos?.length ?? 0) > 0 && (
+              <PhotoChecklist
+                items={template.schema.general_required_photos}
+                surveyId={survey.id}
+                media={media.filter((m) => !m.area_id && !m.element_id)}
+                onMediaAdded={onMediaChange}
+                onMediaDeleted={onMediaChange}
+              />
+            )}
+            <FreePhotoUpload
+              surveyId={survey.id}
+              media={media.filter((m) => !m.area_id && !m.element_id)}
+              onMediaAdded={onMediaChange}
+              onMediaDeleted={onMediaChange}
+              label="Foto generali"
             />
             <AudioRecorder
               surveyId={survey.id}
@@ -710,33 +728,33 @@ export default function SopralluogoEditor() {
         </div>
       )}
 
-      {/* Bottom action bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 bg-background border-t p-3 flex gap-2 flex-wrap">
+      {/* Bottom action bar — safe-area (home indicator iPhone), 3 pulsanti in riga, touch 44px */}
+      <div className="fixed bottom-0 left-0 right-0 z-20 bg-background border-t px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex gap-2">
         <Button
           variant="outline"
-          className="flex-1 gap-2 min-w-[120px]"
+          className="flex-1 min-w-0 h-11 gap-2"
           onClick={() => navigate(`/azienda/sopralluoghi/${id}/firma`)}
         >
-          <FileSignature className="h-4 w-4" />
+          <FileSignature className="h-4 w-4 shrink-0" />
           Firma
         </Button>
         <Button
           variant="outline"
-          className="flex-1 gap-2 min-w-[120px]"
+          className="flex-1 min-w-0 h-11 gap-2"
           onClick={() => generatePdfMut.mutate()}
           disabled={generatePdfMut.isPending}
         >
-          {generatePdfMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+          {generatePdfMut.isPending ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <FileText className="h-4 w-4 shrink-0" />}
           PDF
         </Button>
         <Button
           variant="outline"
-          className="flex-1 gap-2 min-w-[120px] border-violet-300 text-violet-700"
+          className="flex-1 min-w-0 h-11 gap-2 border-violet-300 text-violet-700"
           onClick={() => aiSummaryMut.mutate()}
           disabled={aiSummaryMut.isPending}
         >
-          {aiSummaryMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          Riassunto AI
+          {aiSummaryMut.isPending ? <Loader2 className="h-4 w-4 animate-spin shrink-0" /> : <Sparkles className="h-4 w-4 shrink-0" />}
+          <span className="truncate"><span className="hidden sm:inline">Riassunto </span>AI</span>
         </Button>
       </div>
     </div>
