@@ -21,6 +21,7 @@ import {
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import DOMPurify from "dompurify";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -331,21 +332,23 @@ type ContextualEmailAction = {
   id: string;
   label: string;
   icon: typeof Truck;
-  kind: "reply" | "operative" | "placeholder";
+  kind: "reply" | "operative" | "placeholder" | "navigate";
+  /** Per kind="navigate": rotta da aprire. */
+  to?: string;
 };
 
 function getContextualEmailActions(category: string | null | undefined): ContextualEmailAction[] {
   const value = (category ?? "").toLowerCase();
   if (["lead", "lead_new", "lead_followup"].includes(value)) {
     return [
-      { id: "lead-create", label: "Crea opportunità CRM", icon: Sparkles, kind: "placeholder" },
+      { id: "lead-create", label: "Crea opportunità CRM", icon: Sparkles, kind: "navigate", to: "/azienda/marketing/opportunita" },
       { id: "lead-task", label: "Pianifica sopralluogo", icon: CalendarClock, kind: "operative" },
       { id: "lead-reply", label: "Scrivi risposta", icon: Reply, kind: "reply" },
     ];
   }
   if (["quote_request", "preventivo", "quote", "richiesta_preventivo"].includes(value)) {
     return [
-      { id: "quote-build", label: "Apri preventivi", icon: ClipboardCheck, kind: "placeholder" },
+      { id: "quote-build", label: "Apri preventivi", icon: ClipboardCheck, kind: "navigate", to: "/azienda/marketing/preventivi" },
       { id: "quote-task", label: "Crea task commerciale", icon: ListChecks, kind: "operative" },
       { id: "quote-reply", label: "Scrivi risposta", icon: Reply, kind: "reply" },
     ];
@@ -359,28 +362,28 @@ function getContextualEmailActions(category: string | null | undefined): Context
   }
   if (["fattura", "invoice"].includes(value)) {
     return [
-      { id: "invoice-pay", label: "Pianifica pagamento", icon: CalendarClock, kind: "placeholder" },
+      { id: "invoice-pay", label: "Pianifica pagamento", icon: CalendarClock, kind: "navigate", to: "/azienda/scadenzario" },
       { id: "invoice-task", label: "Crea task contabilità", icon: ListChecks, kind: "operative" },
       { id: "invoice-reply", label: "Scrivi risposta", icon: Reply, kind: "reply" },
     ];
   }
   if (["pratica_amministrativa", "admin", "documento_amministrativo"].includes(value)) {
     return [
-      { id: "admin-doc", label: "Salva nel cassetto", icon: ClipboardCheck, kind: "placeholder" },
+      { id: "admin-doc", label: "Salva nel cassetto", icon: ClipboardCheck, kind: "navigate", to: "/azienda/documenti" },
       { id: "admin-task", label: "Crea task amministrativa", icon: ListChecks, kind: "operative" },
       { id: "admin-reply", label: "Scrivi risposta", icon: Reply, kind: "reply" },
     ];
   }
   if (["support", "assistenza", "ticket"].includes(value)) {
     return [
-      { id: "support-ticket", label: "Apri ticket", icon: AlertTriangle, kind: "placeholder" },
+      { id: "support-ticket", label: "Apri ticket", icon: AlertTriangle, kind: "navigate", to: "/azienda/assistenza/nuovo" },
       { id: "support-task", label: "Crea task supporto", icon: ListChecks, kind: "operative" },
       { id: "support-reply", label: "Scrivi risposta", icon: Reply, kind: "reply" },
     ];
   }
   if (["cliente_esistente", "customer"].includes(value)) {
     return [
-      { id: "customer-history", label: "Apri scheda cliente", icon: ClipboardCheck, kind: "placeholder" },
+      { id: "customer-history", label: "Apri scheda cliente", icon: ClipboardCheck, kind: "navigate", to: "/azienda/clienti" },
       { id: "customer-task", label: "Crea task cliente", icon: ListChecks, kind: "operative" },
       { id: "customer-reply", label: "Scrivi risposta", icon: Reply, kind: "reply" },
     ];
@@ -431,6 +434,8 @@ export function EmailViewer({ threadId, onBack, onClose, onReply, onAiDraftReady
   // 2026-05-26: collaborazione email — chi nella company ha aperto/risposto.
   // Estrae i provider message_id del thread (univoci cross-utente) e li
   // passa al tracker. La RPC è idempotente (skip se viewed negli ultimi 5min).
+  const navigate = useNavigate();
+
   const messageProviderIds = useMemo(
     () => (messages ?? []).map((m) => m.message_id).filter((id): id is string => !!id),
     [messages],
@@ -936,6 +941,8 @@ export function EmailViewer({ threadId, onBack, onClose, onReply, onAiDraftReady
                     );
                   } else if (isOperative) {
                     operationProposalsMutation.mutate();
+                  } else if (action.kind === "navigate" && action.to) {
+                    navigate(action.to);
                   } else {
                     toast.info(action.label, {
                       description: "Funzione in arrivo: la collegheremo a Silvio per generare la proposta operativa.",
