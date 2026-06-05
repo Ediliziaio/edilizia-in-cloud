@@ -3318,6 +3318,38 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
     domain: "crm",
   },
 
+  crea_promemoria: {
+    schema: {
+      type: "function",
+      function: {
+        name: "crea_promemoria",
+        description:
+          "Crea un PROMEMORIA/follow-up DATATO: riemerge come avviso nella campanella e nel briefing alla data indicata. Usalo quando l'utente dice 'ricordami…' / 'fra N giorni…', oppure DOPO un'azione per chiudere il cerchio (es. dopo un sollecito: crea un promemoria a +7 giorni per ricontrollare il pagamento). 'data' in formato YYYY-MM-DD; se l'utente dice 'tra N giorni'/'la prossima settimana' calcola tu la data esatta. È safe: crea solo un promemoria, non invia nulla.",
+        parameters: {
+          type: "object",
+          properties: {
+            titolo: { type: "string", description: "Cosa ricordare, in breve — OBBLIGATORIO" },
+            data: { type: "string", description: "Data del promemoria YYYY-MM-DD — OBBLIGATORIA" },
+            note: { type: "string", description: "Dettagli opzionali" },
+          },
+          required: ["titolo", "data"],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_crea_promemoria", {
+      p_company_id: ctx.companyId,
+      p_user_id: ctx.userId,
+      p_title: args?.titolo,
+      p_note: args?.note ?? null,
+      p_remind_on: args?.data,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff", "salesperson"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare", "sales", "acquisti"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp"],
+    riskLevel: "safe",
+    domain: "meta",
+  },
+
   // ═════════════════════════════════════════════════════════════════════════
   // MP-SALES-01 — Lead First-Touch < 60s
   // ═════════════════════════════════════════════════════════════════════════
