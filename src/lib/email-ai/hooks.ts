@@ -737,6 +737,23 @@ export function useScadenzeBozzePerEmail(emailId: string | null | undefined) {
   });
 }
 
+// Bozze scadenza company-wide create da chat/foto (email_id NULL) → "Da registrare".
+export function useScadenzeBozzeDaRegistrare(companyId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["scadenze-bozze-da-registrare", companyId],
+    enabled: !!companyId,
+    staleTime: 30_000,
+    queryFn: async (): Promise<ScadenzaBozza[]> => {
+      const { data, error } = await sbAny
+        .from("email_scadenza_bozza").select("*")
+        .eq("company_id", companyId as string).is("email_id", null).eq("stato", "bozza")
+        .order("due_date", { ascending: true }).limit(60);
+      if (error) throw error;
+      return (data as unknown as ScadenzaBozza[]) || [];
+    },
+  });
+}
+
 export function useConfermaScadenza() {
   const qc = useQueryClient();
   return useMutation({
@@ -748,6 +765,8 @@ export function useConfermaScadenza() {
     onSuccess: (_d, vars) => {
       toast.success("Aggiunta allo scadenzario", { description: "Voce previsionale creata nel Cashflow." });
       void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", vars.email_id] });
+      void qc.invalidateQueries({ queryKey: ["scadenze-bozze-da-registrare"] });
+      void qc.invalidateQueries({ queryKey: ["scadenzario"] });
     },
     onError: (e) => toast.error("Errore conferma", { description: e instanceof Error ? e.message : String(e) }),
   });
@@ -761,7 +780,7 @@ export function useScartaScadenza() {
       if (error) throw error;
       return input;
     },
-    onSuccess: (input) => { toast.success("Scadenza scartata"); void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", input.email_id] }); },
+    onSuccess: (input) => { toast.success("Scadenza scartata"); void qc.invalidateQueries({ queryKey: ["email-scadenze-bozze", input.email_id] }); void qc.invalidateQueries({ queryKey: ["scadenze-bozze-da-registrare"] }); },
     onError: (e) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
 }

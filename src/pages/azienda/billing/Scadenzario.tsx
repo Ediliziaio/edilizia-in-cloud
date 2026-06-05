@@ -12,6 +12,8 @@ import NewScadenzaDialog from "@/components/scadenzario/NewScadenzaDialog";
 import AdempimentiFiscali from "@/components/scadenzario/AdempimentiFiscali";
 import { TablePagination } from "@/components/ui/table-pagination";
 import type { Scadenza } from "@/hooks/useScadenzario";
+import { useAuth } from "@/contexts/AuthContext";
+import FattureDaRegistrareCard from "@/components/scadenzario/FattureDaRegistrareCard";
 import { startOfMonth, endOfMonth, addDays, format } from "date-fns";
 
 const DATE_PRESETS = [
@@ -95,6 +97,8 @@ export default function Scadenzario() {
   }), [tabDirection, tabStatus, filterStatus, serverDateRange]);
 
   const { scadenze, isLoading, totalCount, totalPages, summary, isSummaryLoading, markPaid, create, cancel } = useScadenzario(page, pageSize, serverFilters);
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
 
   // Client-side search filter (text search remains client-side)
   const filtered = useMemo(() => {
@@ -135,6 +139,9 @@ export default function Scadenzario() {
 
       {/* KPIs */}
       <ScadenzarioKPIs summary={summary} isLoading={isSummaryLoading} />
+
+      {/* Fatture passive caricate in chat (Silvio) da confermare */}
+      <FattureDaRegistrareCard companyId={companyId} />
 
       {/* Tabs + Search + Filters toggle */}
       <div className="flex flex-col gap-3">

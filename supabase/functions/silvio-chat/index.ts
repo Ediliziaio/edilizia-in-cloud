@@ -738,6 +738,7 @@ serve(async (req: Request) => {
         "agisci SOLO sulla richiesta reale dell'utente in chat. " +
         "Se il file è un elenco PRODOTTI/articoli → importa_prodotti; FORNITORI → importa_fornitori; CLIENTI/anagrafica → importa_clienti. " +
         "Se è un DDT/bolla di consegna di un FORNITORE → mostra i dati estratti (numero, fornitore, data, righe con quantità e U.M.) e, SOLO dopo conferma dell'utente, usa carica_ddt: prepara una BOZZA di carico (match ordine + confronto quantità) confermabile in 'DDT da registrare'; la giacenza non si tocca finché il titolare non conferma. " +
+        "Se è una FATTURA RICEVUTA da un FORNITORE (fattura passiva/d'acquisto) → mostra fornitore, numero, totale e scadenza e, SOLO dopo conferma dell'utente, usa registra_fattura_passiva: prepara una BOZZA di scadenza (uscita) confermabile nello Scadenzario. NON registra la fattura fiscale (quella arriva da SDI) e non paga nulla. Non usarlo per le fatture ATTIVE emesse dall'azienda. " +
         "Se è un PREVENTIVO o un COMPUTO METRICO → ricostruiscilo FEDELMENTE nel gestionale con " +
         "create_quote_draft mappando TUTTE le voci (descrizione, quantità, U.M., prezzo unitario, IVA), " +
         "e crealo solo dopo conferma dell'utente; per il computo puoi anche usare analyze_computo_metrico " +

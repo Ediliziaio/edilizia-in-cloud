@@ -3485,6 +3485,117 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   },
 
   // ═════════════════════════════════════════════════════════════════════════
+  // MP-FATT-PASSIVA-CHAT — Registra una fattura PASSIVA (fornitore) da chat.
+  // Crea documento estratto (tipo='fattura') + BOZZA di scadenza (uscita) che il
+  // titolare conferma nello Scadenzario → voce previsionale nel cashflow. NON
+  // tocca la fatturazione fiscale/SDI. Chat-only; staging con conferma umana.
+  // ═════════════════════════════════════════════════════════════════════════
+  registra_fattura_passiva: {
+    schema: {
+      type: "function",
+      function: {
+        name: "registra_fattura_passiva",
+        description:
+          "Registra una FATTURA PASSIVA (ricevuta da un FORNITORE) caricata in chat (PDF/foto): estrae fornitore, numero, data, imponibile/IVA/totale e SCADENZA di pagamento, e prepara una BOZZA di scadenza che il titolare conferma nello Scadenzario (diventa una voce previsionale di uscita nel cashflow). NON registra la fattura fiscale (quella elettronica arriva da SDI) e NON paga nulla. Chiamalo SOLO dopo aver mostrato all'utente i dati estratti e averne ottenuto conferma. Servono almeno il fornitore e l'importo totale. NON usarlo per i DDT (usa carica_ddt), per i preventivi, né per le fatture ATTIVE emesse dall'azienda.",
+        parameters: {
+          type: "object",
+          properties: {
+            fornitore: { type: "string", description: "Ragione sociale del fornitore — OBBLIGATORIO" },
+            numero: { type: "string", description: "Numero fattura, se leggibile" },
+            data: { type: "string", description: "Data fattura YYYY-MM-DD (o gg/mm/aaaa)" },
+            imponibile: { type: "number", description: "Imponibile (senza IVA), se leggibile" },
+            iva: { type: "number", description: "Importo IVA, se leggibile" },
+            totale: { type: "number", description: "Totale documento (imponibile + IVA) — OBBLIGATORIO" },
+            scadenza: { type: "string", description: "Data di scadenza pagamento YYYY-MM-DD; se assente usa la data fattura" },
+            iban: { type: "string", description: "IBAN del fornitore riportato in fattura, se presente" },
+            note: { type: "string" },
+          },
+          required: ["fornitore", "totale"],
+        },
+      },
+    },
+    executor: async (args, ctx) => {
+      const fornitore = (args?.fornitore ?? "").toString().trim();
+      if (!fornitore) return { error: "Mi serve la ragione sociale del fornitore per registrare la fattura." };
+      const totale = typeof args?.totale === "number" ? args.totale : parseFloat(String(args?.totale ?? "").replace(/\./g, "").replace(",", "."));
+      if (!totale || isNaN(totale) || totale <= 0) return { error: "Mi serve l'importo totale della fattura (numero positivo)." };
+      const toIso = (raw?: string): string | null => {
+        if (!raw) return null;
+        const s = raw.toString().trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        const m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+        if (m) { const [, d, mo, y] = m; const yyyy = y.length === 2 ? `20${y}` : y; return `${yyyy}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`; }
+        return null;
+      };
+      const dataIso = toIso(args?.data);
+      const scadenzaIso = toIso(args?.scadenza) ?? dataIso ?? new Date().toISOString().slice(0, 10);
+      const ibanRaw = args?.iban ? args.iban.toString().trim() : null;
+      // Match fornitore (suppliers per ragione sociale).
+      let fornitoreMatchId: string | null = null;
+      try {
+        const { data: sup } = await ctx.supabase
+          .from("suppliers").select("id").eq("company_id", ctx.companyId).ilike("name", fornitore).limit(1).maybeSingle();
+        fornitoreMatchId = sup?.id ?? null;
+      } catch { fornitoreMatchId = null; }
+      const campi: Record<string, unknown> = {
+        numero: { valore: args?.numero ? args.numero.toString().trim() : null, conf: args?.numero ? 0.7 : 0.0 },
+        data: { valore: dataIso, conf: dataIso ? 0.7 : 0.2 },
+        fornitore_ragione_sociale: { valore: fornitore, conf: 0.8 },
+        imponibile: { valore: typeof args?.imponibile === "number" ? args.imponibile : null },
+        iva: { valore: typeof args?.iva === "number" ? args.iva : null },
+        totale: { valore: totale, conf: 0.8 },
+        scadenza: { valore: scadenzaIso, conf: args?.scadenza ? 0.6 : 0.2 },
+        iban: { valore: ibanRaw },
+        note_libere: args?.note ?? null,
+        sorgente: "silvio_chat",
+      };
+      const { data: doc, error: docErr } = await ctx.supabase
+        .from("email_documento_estratto")
+        .insert({
+          company_id: ctx.companyId, email_id: null, attachment_id: null, tipo: "fattura", confidenza_tipo: 0.8,
+          campi, dati_incerti: [], note: args?.note ?? null, stato: "da_confermare",
+          fornitore_match_id: fornitoreMatchId, fornitore_match_tipo: fornitoreMatchId ? "supplier" : null,
+          iban_estratto: ibanRaw, iban_alert: false, created_by: ctx.userId,
+        })
+        .select("id").single();
+      if (docErr || !doc) return { error: `Errore salvando la fattura: ${docErr?.message ?? "insert non riuscita"}` };
+      // Bozza di scadenza (uscita = passiva) — confermabile nello Scadenzario.
+      const descr = `${fornitore} — ${args?.numero ? args.numero.toString().trim() : "fattura"}`.trim();
+      const { data: bozza, error: bzErr } = await ctx.supabase
+        .from("email_scadenza_bozza")
+        .insert({
+          company_id: ctx.companyId, email_id: null, documento_estratto_id: doc.id,
+          direzione: "uscita", amount: totale, due_date: scadenzaIso, descrizione: descr,
+          controparte_id: fornitoreMatchId, controparte_tipo: fornitoreMatchId ? "supplier" : null,
+          stato: "bozza", created_by: ctx.userId,
+        })
+        .select("id").single();
+      if (bzErr) {
+        return { ok: true, documento_estratto_id: doc.id, bozza_scadenza_id: null, fornitore, totale,
+          message: `Fattura di ${fornitore} salvata, ma non sono riuscito a creare la bozza di scadenza (${bzErr.message}). Verifica nello Scadenzario.` };
+      }
+      return {
+        ok: true,
+        documento_estratto_id: doc.id,
+        bozza_scadenza_id: bozza?.id ?? null,
+        fornitore,
+        totale,
+        scadenza: scadenzaIso,
+        fornitore_riconosciuto: !!fornitoreMatchId,
+        message:
+          `Fattura passiva di ${fornitore} (€ ${totale.toFixed(2)}${scadenzaIso ? `, scadenza ${scadenzaIso}` : ""}) salvata come BOZZA di scadenza. ` +
+          `Confermala nello Scadenzario → "Da registrare" per inserirla tra le uscite previste.` +
+          (ibanRaw ? ` Ho letto un IBAN: verifica che sia quello corretto del fornitore prima di pagare.` : ""),
+      };
+    },
+    allowedRoles: ["super_admin", "company_admin"],
+    allowedPersonas: ["silvio", "assistente_imprenditore", "titolare"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile"],
+    riskLevel: "safe",
+    domain: "fattura",
+  },
+
+  // ═════════════════════════════════════════════════════════════════════════
   // MP-SALES-01 — Lead First-Touch < 60s
   // ═════════════════════════════════════════════════════════════════════════
 
