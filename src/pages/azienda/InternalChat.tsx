@@ -461,6 +461,11 @@ function useInternalChat(companyIdOverride?: string) {
 
   const myChannels = channels.filter((ch) => {
     if (!members.some((m) => m.channel_id === ch.id && m.user_id === userId)) return false;
+    // Le conversazioni multiple della pagina /azienda/silvio-ai sono canali
+    // 'silvio-ai' con titolo personalizzato: NON devono comparire nella lista
+    // Chat (vivono solo in quella pagina). Qui resta SOLO il Silvio canonico
+    // (description "Silvio —…", creato da ensure_user_silvio_channel).
+    if (ch.name === "silvio-ai" && !/^\s*Silvio\s*[—–-]/.test(ch.description ?? "")) return false;
     if (ch.is_system) return true;
     if (profilesLoading) return true;
 
