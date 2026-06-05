@@ -17,7 +17,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { CalendarClock, Check, X, Plus, Loader2, AlertTriangle, Clock, Pencil, RotateCcw, MoreVertical, Repeat, Flag } from "lucide-react";
+import { CalendarClock, Check, X, Plus, Loader2, AlertTriangle, Clock, Pencil, RotateCcw, MoreVertical, Repeat, Flag, Users } from "lucide-react";
 
 interface Reminder {
   id: string;
@@ -27,6 +27,14 @@ interface Reminder {
   status: string;
   recurrence: string | null;
   severity: string | null;
+  user_id: string | null;
+  remind_at: string | null;
+}
+
+interface ColCompany {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -102,6 +110,8 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
   const [data, setData] = useState("");
   const [ricorrenza, setRicorrenza] = useState("none");
   const [priorita, setPriorita] = useState("warning");
+  const [ora, setOra] = useState("");
+  const [assegnatario, setAssegnatario] = useState("");
   const [tab, setTab] = useState<"todo" | "done">("todo");
   const [editId, setEditId] = useState<string | null>(null);
   const [eTitle, setETitle] = useState("");
@@ -121,7 +131,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
     queryFn: async (): Promise<Reminder[]> => {
       const { data, error } = await supabase
         .from("silvio_reminders" as never)
-        .select("id, title, note, remind_on, status, recurrence, severity")
+        .select("id, title, note, remind_on, status, recurrence, severity, user_id, remind_at")
         .eq("company_id", companyId).eq("status", "pending")
         .order("remind_on", { ascending: true }).limit(100);
       if (error) return [];
@@ -136,13 +146,35 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
     queryFn: async (): Promise<Reminder[]> => {
       const { data, error } = await supabase
         .from("silvio_reminders" as never)
-        .select("id, title, note, remind_on, status, recurrence, severity")
+        .select("id, title, note, remind_on, status, recurrence, severity, user_id, remind_at")
         .eq("company_id", companyId).in("status", ["done", "cancelled", "promoted"])
         .order("remind_on", { ascending: false }).limit(60);
       if (error) return [];
       return (data ?? []) as unknown as Reminder[];
     },
   });
+
+  // Colleghi dell'azienda (per assegnare un promemoria a qualcun altro).
+  const { data: colleghi = [] } = useQuery({
+    queryKey: ["company-users-mini", companyId],
+    enabled: !!companyId && open,
+    staleTime: 300_000,
+    queryFn: async (): Promise<ColCompany[]> => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name")
+        .eq("company_id", companyId)
+        .order("first_name", { ascending: true });
+      if (error) return [];
+      return (data ?? []) as unknown as ColCompany[];
+    },
+  });
+  const nomeUtente = (id?: string | null) => {
+    if (!id) return "";
+    const p = colleghi.find((c) => c.id === id);
+    if (!p) return "";
+    return [p.first_name, p.last_name].filter(Boolean).join(" ") || "Collega";
+  };
 
   const groups = useMemo(() => {
     const overdue: Reminder[] = [], today: Reminder[] = [], upcoming: Reminder[] = [];
@@ -158,22 +190,25 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
 
   const createMut = useMutation({
     mutationFn: async () => {
+      const assignee = assegnatario || user?.id || null;
       const { data: res, error } = await supabase.rpc("silvio_tool_crea_promemoria" as never, {
-        p_company_id: companyId, p_user_id: user?.id ?? null,
+        p_company_id: companyId, p_user_id: assignee,
         p_title: titolo.trim(), p_note: nota.trim() || null, p_remind_on: data || null,
       } as never);
       if (error) throw error;
-      // recurrence impostata con UPDATE (consentito dalla RLS company_update)
+      // Campi extra via UPDATE (RLS company_update). created_by sempre = creatore
+      // (così resta visibile anche se assegnato ad altri). remind_at = data + ora.
       const newId = (res as { reminder_id?: string } | null)?.reminder_id;
-      const patch: Record<string, unknown> = {};
+      const patch: Record<string, unknown> = { created_by: user?.id ?? null };
       if (ricorrenza !== "none") patch.recurrence = ricorrenza;
       if (priorita !== "warning") patch.severity = priorita;
-      if (newId && Object.keys(patch).length > 0) {
+      if (ora && data) { try { patch.remind_at = new Date(`${data}T${ora}:00`).toISOString(); } catch { /* ora non valida: ignora */ } }
+      if (newId) {
         await supabase.from("silvio_reminders" as never).update(patch as never).eq("id", newId);
       }
     },
     onSuccess: () => {
-      setTitolo(""); setNota(""); setData(""); setRicorrenza("none"); setPriorita("warning");
+      setTitolo(""); setNota(""); setData(""); setRicorrenza("none"); setPriorita("warning"); setOra(""); setAssegnatario("");
       invalidaTutto();
       toast.success("Promemoria creato");
     },
@@ -254,7 +289,9 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
                 done ? "text-slate-400" : tone === "overdue" ? "text-rose-600" : tone === "today" ? "text-orange-600" : "text-slate-500",
               )}>
                 {tone === "overdue" ? <AlertTriangle className="h-3 w-3" /> : <CalendarClock className="h-3 w-3" />}
-                {done ? `${r.status === "cancelled" ? "Annullato" : r.status === "promoted" ? "Notificato" : "Fatto"} · ${fmtDate(r.remind_on)}` : relLabel(r.remind_on)}
+                {done
+                  ? `${r.status === "cancelled" ? "Annullato" : r.status === "promoted" ? "Notificato" : "Fatto"} · ${fmtDate(r.remind_on)}`
+                  : relLabel(r.remind_on) + (r.remind_at ? ` · ${new Date(r.remind_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}` : "")}
               </span>
               {isRec && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-medium text-violet-600">
@@ -264,6 +301,11 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
               {isUrgente(r.severity) && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">
                   <Flag className="h-2.5 w-2.5" /> Urgente
+                </span>
+              )}
+              {r.user_id && r.user_id !== user?.id && nomeUtente(r.user_id) && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+                  <Users className="h-2.5 w-2.5" /> {nomeUtente(r.user_id)}
                 </span>
               )}
             </div>
@@ -362,8 +404,24 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
               </button>
             ))}
           </div>
+          {colleghi.length > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-500"><Users className="h-3 w-3" /> Assegna a:</span>
+              <select
+                value={assegnatario}
+                onChange={(e) => setAssegnatario(e.target.value)}
+                className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-orange-300"
+              >
+                <option value="">Io</option>
+                {colleghi.filter((c) => c.id !== user?.id).map((c) => (
+                  <option key={c.id} value={c.id}>{[c.first_name, c.last_name].filter(Boolean).join(" ") || "Collega"}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex gap-2">
             <Input type="date" value={data} min={todayISO()} onChange={(e) => setData(e.target.value)} className="flex-1" />
+            <Input type="time" value={ora} onChange={(e) => setOra(e.target.value)} className="w-28" title="Ora (opzionale)" aria-label="Ora (opzionale)" />
             <Button className="gap-1.5" disabled={!canAdd} onClick={submit}>
               {createMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Aggiungi
             </Button>
