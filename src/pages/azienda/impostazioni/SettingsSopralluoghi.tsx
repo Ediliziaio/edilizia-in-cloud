@@ -98,7 +98,7 @@ export default function SettingsSopralluoghi() {
               <p className="font-semibold">Modulo Sopralluoghi non attivo</p>
               <p className="text-sm text-muted-foreground mt-1">
                 Le impostazioni dei sopralluoghi sono disponibili solo per le
-                aziende con il modulo Sopralluoghi abilitato (Beta).
+                aziende con il modulo Sopralluoghi abilitato.
               </p>
             </div>
           </CardContent>

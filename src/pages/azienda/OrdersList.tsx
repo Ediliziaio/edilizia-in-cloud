@@ -2359,7 +2359,7 @@ export default function OrdersList() {
 
   const tabs = [
     { id: "ordini", label: "Commesse", icon: ClipboardList, show: true },
-    { id: "sopralluoghi", label: "Sopralluoghi", icon: MapIcon, show: surveysEnabled, beta: true },
+    { id: "sopralluoghi", label: "Sopralluoghi", icon: MapIcon, show: surveysEnabled },
     { id: "acquisto", label: "Ordini d'Acquisto", icon: ShoppingCart, show: permissions.canViewOrders },
     { id: "ddt", label: "DDT", icon: FileCheck, show: permissions.canViewOrders },
     { id: "anomalie", label: "Anomalie", icon: AlertTriangle, show: permissions.canViewCosts },

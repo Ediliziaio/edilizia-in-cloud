@@ -1,7 +1,7 @@
 /**
- * SopralluoghiList — Sprint S1 placeholder + lista sopralluoghi.
+ * SopralluoghiList — lista sopralluoghi (rilievi tecnici di cantiere).
  *
- * Visibile solo se feature flag 'surveys_module' attiva (Beta gate).
+ * Visibile se feature flag 'surveys_module' attiva (modulo gratuito, default ON).
  */
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -16,8 +16,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  ClipboardList, Plus, Sparkles, MapPin, Search, Calendar,
-  CheckCircle2, Clock, FileSignature, Hammer,
+  ClipboardList, Plus, MapPin, Search, Calendar,
+  CheckCircle2, Clock, FileSignature, Hammer, AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -38,7 +38,7 @@ export default function SopralluoghiList() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: surveys, isLoading } = useQuery({
+  const { data: surveys, isLoading, isError, refetch } = useQuery({
     queryKey: ["sopralluoghi-list", statusFilter],
     queryFn: () => listMySurveys({ status: statusFilter === "all" ? undefined : statusFilter, limit: 200 }),
   });
@@ -64,10 +64,6 @@ export default function SopralluoghiList() {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-lg sm:text-2xl font-bold">Sopralluoghi</h1>
-              <Badge variant="secondary" className="bg-orange-100 text-orange-700 border-orange-200 text-[10px] sm:text-xs">
-                <Sparkles className="h-3 w-3 mr-1" />
-                Beta
-              </Badge>
             </div>
             <p className="hidden sm:block text-sm text-muted-foreground mt-0.5">
               Rilievi tecnici sul cantiere — multi-template, foto, audio, firma cliente
@@ -112,6 +108,17 @@ export default function SopralluoghiList() {
         <div className="space-y-2">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20" />)}
         </div>
+      ) : isError ? (
+        <Card className="border-red-200 dark:border-red-900/40">
+          <CardContent className="p-6 sm:p-12 text-center">
+            <AlertCircle className="h-10 w-10 mx-auto mb-3 text-red-500/70" />
+            <p className="font-semibold mb-1">Impossibile caricare i sopralluoghi</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              Si è verificato un errore. Controlla la connessione e riprova.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>Riprova</Button>
+          </CardContent>
+        </Card>
       ) : filtered.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="p-6 sm:p-12 text-center">
