@@ -737,7 +737,10 @@ serve(async (req: Request) => {
         "Se è un PREVENTIVO o un COMPUTO METRICO → ricostruiscilo FEDELMENTE nel gestionale con " +
         "create_quote_draft mappando TUTTE le voci (descrizione, quantità, U.M., prezzo unitario, IVA), " +
         "e crealo solo dopo conferma dell'utente; per il computo puoi anche usare analyze_computo_metrico " +
-        "per verificarne la congruenza prezzi. Prima di confermare, di' SEMPRE quante voci hai letto.]";
+        "per verificarne la congruenza prezzi. Prima di confermare, di' SEMPRE quante voci hai letto. " +
+        "Per computi GRANDI o complessi (Primus/STR/XPWE, centinaia di voci) consiglia lo strumento " +
+        "dedicato con estrazione 100% fedele + revisione: 'Preventivi → Carica computo' " +
+        "(percorso /azienda/marketing/preventivi?action=import-computo).]";
       for (const att of visualAttachments) {
         if (att.kind === "image") {
           // Per immagini: signed URL passata direttamente al modello vision
