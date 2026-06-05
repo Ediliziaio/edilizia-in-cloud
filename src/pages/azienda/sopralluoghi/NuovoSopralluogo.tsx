@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft, ArrowRight, ClipboardList, Check, Loader2, MapPin, Calendar,
-  Users, Briefcase, Sparkles,
+  Users, Briefcase, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -58,7 +58,7 @@ export default function NuovoSopralluogo() {
   const [scheduledAt, setScheduledAt] = useState("");
   const [notes, setNotes] = useState("");
 
-  const { data: templates, isLoading: tplLoading } = useQuery({
+  const { data: templates, isLoading: tplLoading, isError: tplError, refetch: tplRefetch } = useQuery({
     queryKey: ["sopralluoghi-templates"],
     queryFn: () => listTemplates(),
   });
@@ -126,9 +126,6 @@ export default function NuovoSopralluogo() {
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             Nuovo sopralluogo
-            <Badge variant="secondary" className="bg-orange-100 text-orange-700">
-              <Sparkles className="h-3 w-3 mr-1" /> Beta
-            </Badge>
           </h1>
           <p className="text-sm text-muted-foreground">Step {step} di 3</p>
         </div>
@@ -165,6 +162,19 @@ export default function NuovoSopralluogo() {
             {tplLoading ? (
               <div className="grid grid-cols-2 gap-3">
                 {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-32" />)}
+              </div>
+            ) : tplError ? (
+              <div className="rounded-xl border border-red-200 dark:border-red-900/40 p-6 text-center">
+                <AlertCircle className="h-8 w-8 mx-auto mb-2 text-red-500/70" />
+                <p className="font-semibold text-sm mb-1">Impossibile caricare i modelli</p>
+                <p className="text-xs text-muted-foreground mb-3">Controlla la connessione e riprova.</p>
+                <Button variant="outline" size="sm" onClick={() => tplRefetch()}>Riprova</Button>
+              </div>
+            ) : (templates ?? []).length === 0 ? (
+              <div className="rounded-xl border border-dashed p-6 text-center">
+                <ClipboardList className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="font-semibold text-sm mb-1">Nessun modello disponibile</p>
+                <p className="text-xs text-muted-foreground">Contatta l'amministratore per configurare i modelli di sopralluogo.</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">

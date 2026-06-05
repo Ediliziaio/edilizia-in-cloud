@@ -6,7 +6,7 @@
  *  Header collassabile (campi template)
  *  Lista aree (con add elementi e foto)
  *  Note generali + audio
- *  Toolbar bottom: Firma · PDF · Crea preventivo
+ *  Toolbar bottom: Firma · PDF · Riassunto AI
  *
  * Auto-save con debounce 600ms su qualsiasi modifica.
  */
@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   ArrowLeft, ClipboardList, Plus, Save, FileSignature, FileText, Sparkles,
-  Loader2, MapPin, Calendar, UserPlus,
+  Loader2, MapPin, Calendar, UserPlus, AlertCircle,
 } from "lucide-react";
 import { SurveyAssignDialog } from "@/components/sopralluoghi/SurveyAssignDialog";
 import { format } from "date-fns";
@@ -143,7 +143,7 @@ export default function SopralluogoEditor() {
   const [headerData, setHeaderData] = useState<Record<string, unknown>>({});
   const [generalNotes, setGeneralNotes] = useState("");
 
-  const { data: detail, isLoading } = useQuery({
+  const { data: detail, isLoading, isError, refetch } = useQuery({
     queryKey: ["sopralluogo", id],
     enabled: !!id,
     queryFn: () => getSurvey(id!),
@@ -375,12 +375,39 @@ export default function SopralluogoEditor() {
     qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
   };
 
-  if (isLoading || !detail) {
+  if (isLoading) {
     return (
       <div className="container mx-auto p-4 space-y-3">
         <Skeleton className="h-12" />
         <Skeleton className="h-32" />
         <Skeleton className="h-48" />
+      </div>
+    );
+  }
+  if (isError || !detail) {
+    return (
+      <div className="container mx-auto p-4">
+        <div className="mx-auto max-w-md rounded-xl border border-red-200 dark:border-red-900/40 bg-card p-6 sm:p-10 text-center">
+          <AlertCircle className="h-10 w-10 mx-auto mb-3 text-red-500/70" />
+          <p className="font-semibold mb-1">
+            {isError ? "Impossibile caricare il sopralluogo" : "Sopralluogo non trovato"}
+          </p>
+          <p className="text-sm text-muted-foreground mb-4">
+            {isError
+              ? "Si è verificato un errore. Controlla la connessione e riprova."
+              : "Il sopralluogo potrebbe essere stato eliminato o il link non è più valido."}
+          </p>
+          <div className="flex items-center justify-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/azienda/sopralluoghi")}>
+              Torna alla lista
+            </Button>
+            {isError && (
+              <Button size="sm" className="bg-orange-600 hover:bg-orange-700" onClick={() => refetch()}>
+                Riprova
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
