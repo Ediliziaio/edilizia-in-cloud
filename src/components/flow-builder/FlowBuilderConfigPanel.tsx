@@ -26,6 +26,7 @@ import { DelayConfigPanel } from "./config-panels/DelayConfigPanel";
 import { ConditionConfigPanel } from "./config-panels/ConditionConfigPanel";
 import { TaskConfigPanel } from "./config-panels/TaskConfigPanel";
 import { EmailConfigPanel } from "./config-panels/EmailConfigPanel";
+import { EmailBodyEditor } from "./config-panels/EmailBodyEditor";
 import { TriggerConditionBuilder } from "@/components/marketing/automations/TriggerConditionBuilder";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import type { TriggerFilters } from "@/types/automationBuilder";
@@ -538,6 +539,13 @@ function ConfigField({
           />
           {field.supportsVariables && <VariablePicker onInsert={insertVariable} />}
         </div>
+      )}
+
+      {field.type === "richhtml" && (
+        <EmailBodyEditor
+          value={value ?? field.defaultValue ?? ""}
+          onChange={(html) => onChange(html)}
+        />
       )}
 
       {field.type === "textarea" && (

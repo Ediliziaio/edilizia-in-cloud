@@ -24,6 +24,7 @@ export type ConfigFieldType =
   | 'entity_select'
   | 'tag_input'
   | 'json_editor'
+  | 'richhtml' // editor email visuale (WYSIWYG) → HTML
   | 'tags'; // backward compat alias for tag_input
 
 export interface ConfigFieldOption {
@@ -1543,7 +1544,7 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     categoria: 'piattaforma',
     configSchema: [
       { id: 'oggetto', label: 'Oggetto email', type: 'text', required: true, supportsVariables: true, placeholder: 'Es: Aggiornamento sul tuo account {{azienda.name}}' },
-      { id: 'corpo', label: 'Corpo email', type: 'textarea', required: true, supportsVariables: true },
+      { id: 'corpo', label: 'Corpo email', type: 'richhtml', required: true, supportsVariables: true },
       { id: 'mittente_nome', label: 'Nome mittente (opzionale)', type: 'text', required: false, placeholder: 'Es: Team EdiliziaInCloud' },
     ],
   },

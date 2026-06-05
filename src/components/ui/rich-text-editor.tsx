@@ -17,7 +17,7 @@
  * Sicurezza: l'HTML viene sanitizzato in input via DOMPurify (vedi onUpdate).
  * Nessuno script/style/iframe può passare attraverso.
  */
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, forwardRef, useImperativeHandle } from "react";
 import DOMPurify from "dompurify";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
@@ -59,6 +59,14 @@ export interface RichTextEditorProps {
   readOnly?: boolean;
 }
 
+/** API imperativa esposta via ref (per inserire variabili al cursore, ecc.). */
+export interface RichTextEditorHandle {
+  /** Inserisce testo/HTML nel punto del cursore. */
+  insertContent: (text: string) => void;
+  /** Mette il focus sull'editor. */
+  focus: () => void;
+}
+
 const FONT_SIZES = [
   { value: "8pt",  label: "8pt — Piccolissimo" },
   { value: "10pt", label: "10pt — Piccolo (condizioni)" },
@@ -83,14 +91,18 @@ function sanitize(html: string): string {
       "h1", "h2", "h3", "ul", "ol", "li", "a", "span", "div",
     ],
     ALLOWED_ATTR: ["href", "target", "rel", "style"],
-    // Permetti solo style: color, font-size, font-family, text-align, font-weight
-    ALLOWED_CSS_PROPERTIES: ["color", "font-size", "font-family", "text-align", "font-weight", "font-style", "text-decoration"],
+    // Stili consentiti: tipografia + box semplice (per i bottoni CTA delle email).
+    // Tutte proprietà sicure (nessun rischio di iniezione).
+    ALLOWED_CSS_PROPERTIES: [
+      "color", "font-size", "font-family", "text-align", "font-weight", "font-style", "text-decoration",
+      "background", "background-color", "padding", "margin", "border", "border-radius", "display",
+    ],
   });
 }
 
-export function RichTextEditor({
+export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(function RichTextEditor({
   value, onChange, placeholder, minHeight = 120, className, readOnly = false,
-}: RichTextEditorProps) {
+}, ref) {
   const [linkUrl, setLinkUrl] = useState("");
   const editor = useEditor({
     extensions: [
@@ -148,6 +160,12 @@ export function RichTextEditor({
     lastEmitRef.current = incoming;
   }, [value, editor]);
 
+  // API imperativa per i wrapper (es. inserimento variabili al cursore).
+  useImperativeHandle(ref, () => ({
+    insertContent: (text: string) => { editor?.chain().focus().insertContent(text).run(); },
+    focus: () => { editor?.chain().focus().run(); },
+  }), [editor]);
+
   if (!editor) {
     return (
       <div
@@ -167,7 +185,7 @@ export function RichTextEditor({
       </div>
     </TooltipProvider>
   );
-}
+});
 
 /* ─── Toolbar ─────────────────────────────────────────────────────────────── */
 

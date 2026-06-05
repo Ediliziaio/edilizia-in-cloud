@@ -1,9 +1,18 @@
 import { forwardRef } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VariablePicker } from "./VariablePicker";
+import { EmailBodyEditor, type EmailVariable } from "./EmailBodyEditor";
+
+/** Variabili lato azienda (contatto/opportunità) per il corpo email. */
+const COMPANY_EMAIL_VARIABLES: EmailVariable[] = [
+  { key: "contatto.first_name", label: "Nome contatto" },
+  { key: "contatto.last_name", label: "Cognome contatto" },
+  { key: "contatto.email", label: "Email contatto" },
+  { key: "contatto.company_name", label: "Azienda contatto" },
+  { key: "opportunita.name", label: "Nome opportunità" },
+];
 
 interface EmailConfigPanelProps {
   config: Record<string, any>;
@@ -69,19 +78,14 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
         />
       </div>
 
-      {/* Body */}
+      {/* Body — editor visuale (niente HTML a mano) */}
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <Label className="text-xs">Corpo email</Label>
-          <VariablePicker onInsert={v => onChange("corpo", (config.corpo || "") + v)} />
-        </div>
-        <Textarea
-          value={config.corpo || ""}
-          onChange={e => onChange("corpo", e.target.value)}
-          placeholder="Gentile {{contatto.first_name}},&#10;&#10;La tua richiesta è stata ricevuta..."
-          className="text-xs min-h-[100px]"
+        <Label className="text-xs">Corpo email</Label>
+        <EmailBodyEditor
+          value={config.corpo}
+          onChange={(html) => onChange("corpo", html)}
+          variables={COMPANY_EMAIL_VARIABLES}
         />
-        <p className="text-[10px] text-muted-foreground">Supporta HTML e variabili</p>
       </div>
 
       {/* Send delay */}
