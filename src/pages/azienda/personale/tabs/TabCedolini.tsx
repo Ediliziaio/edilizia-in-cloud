@@ -80,14 +80,10 @@ export function TabCedolini() {
   const permissions = usePermissions();
 
   // Guard finanziario: cedolini contengono lordo/IRPEF/netto — riservati a chi
-  // ha accesso ai dati di fatturazione/payroll, non a tutti gli utenti HR.
-  if (!permissions.isAdmin && !permissions.canViewBilling) {
-    return (
-      <div className="p-6 text-center text-muted-foreground">
-        Sezione riservata agli amministratori.
-      </div>
-    );
-  }
+  // ha accesso ai dati di fatturazione/payroll. Calcolato come FLAG (NON
+  // early-return): così TUTTI gli hook sotto girano sempre (Rules of Hooks).
+  // La query sensibile è disabilitata per i ristretti + render gated più sotto.
+  const isRestricted = !permissions.isAdmin && !permissions.canViewBilling;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<CedolinoForm>(emptyForm());
   const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
@@ -108,7 +104,7 @@ export function TabCedolini() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!companyId,
+    enabled: !!companyId && !isRestricted,
   });
 
   const computedNetto = () => {
@@ -253,6 +249,16 @@ export function TabCedolini() {
   };
 
   const years = Array.from({ length: 5 }, (_, i) => String(new Date().getFullYear() - i));
+
+  // Render gated DOPO tutti gli hook → Rules of Hooks rispettate (i ristretti
+  // non vedono i dati e la query sensibile sopra è già disabilitata per loro).
+  if (isRestricted) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        Sezione riservata agli amministratori.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 mt-4">
