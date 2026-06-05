@@ -373,8 +373,8 @@ function AlertRow({
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
-          {!compact && (
-            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{alert.message}</p>
+          {alert.message && (
+            <p className={cn("text-xs text-muted-foreground mt-0.5", compact ? "line-clamp-1" : "line-clamp-2")}>{alert.message}</p>
           )}
           {alert.cta_label && onCtaClick && (
             <Button
