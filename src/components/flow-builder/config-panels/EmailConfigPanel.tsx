@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VariablePicker } from "./VariablePicker";
 import { EmailBodyEditor, type EmailVariable } from "./EmailBodyEditor";
+import { EmailPreviewActions } from "./EmailPreviewActions";
 
 /** Variabili lato azienda (contatto/opportunità) per il corpo email. */
 const COMPANY_EMAIL_VARIABLES: EmailVariable[] = [
@@ -111,6 +112,9 @@ export const EmailConfigPanel = forwardRef<HTMLDivElement, EmailConfigPanelProps
           </Select>
         </div>
       </div>
+
+      {/* Anteprima + invio di prova */}
+      <EmailPreviewActions oggetto={config.oggetto} corpo={config.corpo} mittenteNome={config.da_nome} />
     </div>
   );
 });

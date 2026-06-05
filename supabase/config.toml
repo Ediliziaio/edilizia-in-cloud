@@ -18,6 +18,10 @@ verify_jwt = false
 [functions.system-emails-tick]
 verify_jwt = false
 
+# Anteprima/test email nodi automazione — auth JWT manuale (qualsiasi utente loggato).
+[functions.automation-email-render]
+verify_jwt = false
+
 [functions.create-super-admin]
 verify_jwt = false
 

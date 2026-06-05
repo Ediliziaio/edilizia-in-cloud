@@ -27,6 +27,7 @@ import { ConditionConfigPanel } from "./config-panels/ConditionConfigPanel";
 import { TaskConfigPanel } from "./config-panels/TaskConfigPanel";
 import { EmailConfigPanel } from "./config-panels/EmailConfigPanel";
 import { EmailBodyEditor } from "./config-panels/EmailBodyEditor";
+import { EmailPreviewActions } from "./config-panels/EmailPreviewActions";
 import { TriggerConditionBuilder } from "@/components/marketing/automations/TriggerConditionBuilder";
 import { TagSelector } from "@/components/marketing/TagSelector";
 import type { TriggerFilters } from "@/types/automationBuilder";
@@ -268,6 +269,15 @@ export function FlowBuilderConfigPanel({
               companyId={companyId}
             />
           ))}
+
+          {/* Anteprima + invio di prova per il nodo email super-admin */}
+          {itemId === "invia_email_admin_azienda" && (
+            <EmailPreviewActions
+              oggetto={nodeData.oggetto}
+              corpo={nodeData.corpo}
+              mittenteNome={nodeData.mittente_nome}
+            />
+          )}
 
           {/* Dynamic Filters section for triggers */}
           {isTrigger && triggerCategory && (
