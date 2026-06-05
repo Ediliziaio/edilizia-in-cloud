@@ -17,7 +17,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { CalendarClock, Check, X, Plus, Loader2, AlertTriangle, Clock, Pencil, RotateCcw, MoreVertical, Repeat } from "lucide-react";
+import { CalendarClock, Check, X, Plus, Loader2, AlertTriangle, Clock, Pencil, RotateCcw, MoreVertical, Repeat, Flag } from "lucide-react";
 
 interface Reminder {
   id: string;
@@ -26,6 +26,7 @@ interface Reminder {
   remind_on: string;
   status: string;
   recurrence: string | null;
+  severity: string | null;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -70,6 +71,11 @@ const RECURRENCE_OPTS: { value: string; label: string }[] = [
   { value: "yearly", label: "Ogni anno" },
 ];
 const recLabel = (r?: string | null) => RECURRENCE_OPTS.find((o) => o.value === r)?.label ?? "";
+const PRIORITA_OPTS: { value: string; label: string; dot: string }[] = [
+  { value: "warning", label: "Normale", dot: "bg-slate-300" },
+  { value: "critical", label: "Urgente", dot: "bg-rose-500" },
+];
+const isUrgente = (s?: string | null) => s === "critical";
 const stepDate = (d: Date, rec: string) => {
   if (rec === "daily") d.setDate(d.getDate() + 1);
   else if (rec === "weekly") d.setDate(d.getDate() + 7);
@@ -95,6 +101,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
   const [nota, setNota] = useState("");
   const [data, setData] = useState("");
   const [ricorrenza, setRicorrenza] = useState("none");
+  const [priorita, setPriorita] = useState("warning");
   const [tab, setTab] = useState<"todo" | "done">("todo");
   const [editId, setEditId] = useState<string | null>(null);
   const [eTitle, setETitle] = useState("");
@@ -114,7 +121,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
     queryFn: async (): Promise<Reminder[]> => {
       const { data, error } = await supabase
         .from("silvio_reminders" as never)
-        .select("id, title, note, remind_on, status, recurrence")
+        .select("id, title, note, remind_on, status, recurrence, severity")
         .eq("company_id", companyId).eq("status", "pending")
         .order("remind_on", { ascending: true }).limit(100);
       if (error) return [];
@@ -129,7 +136,7 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
     queryFn: async (): Promise<Reminder[]> => {
       const { data, error } = await supabase
         .from("silvio_reminders" as never)
-        .select("id, title, note, remind_on, status, recurrence")
+        .select("id, title, note, remind_on, status, recurrence, severity")
         .eq("company_id", companyId).in("status", ["done", "cancelled", "promoted"])
         .order("remind_on", { ascending: false }).limit(60);
       if (error) return [];
@@ -143,6 +150,9 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
       const d = daysFromToday(r.remind_on);
       if (d < 0) overdue.push(r); else if (d === 0) today.push(r); else upcoming.push(r);
     }
+    // Le urgenti in cima a ogni gruppo (sort stabile → preserva l'ordine per data).
+    const urgPrima = (a: Reminder, b: Reminder) => (isUrgente(b.severity) ? 1 : 0) - (isUrgente(a.severity) ? 1 : 0);
+    overdue.sort(urgPrima); today.sort(urgPrima); upcoming.sort(urgPrima);
     return { overdue, today, upcoming };
   }, [reminders]);
 
@@ -155,12 +165,15 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
       if (error) throw error;
       // recurrence impostata con UPDATE (consentito dalla RLS company_update)
       const newId = (res as { reminder_id?: string } | null)?.reminder_id;
-      if (newId && ricorrenza !== "none") {
-        await supabase.from("silvio_reminders" as never).update({ recurrence: ricorrenza } as never).eq("id", newId);
+      const patch: Record<string, unknown> = {};
+      if (ricorrenza !== "none") patch.recurrence = ricorrenza;
+      if (priorita !== "warning") patch.severity = priorita;
+      if (newId && Object.keys(patch).length > 0) {
+        await supabase.from("silvio_reminders" as never).update(patch as never).eq("id", newId);
       }
     },
     onSuccess: () => {
-      setTitolo(""); setNota(""); setData(""); setRicorrenza("none");
+      setTitolo(""); setNota(""); setData(""); setRicorrenza("none"); setPriorita("warning");
       invalidaTutto();
       toast.success("Promemoria creato");
     },
@@ -248,6 +261,11 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
                   <Repeat className="h-3 w-3" /> {recLabel(r.recurrence)}
                 </span>
               )}
+              {isUrgente(r.severity) && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">
+                  <Flag className="h-2.5 w-2.5" /> Urgente
+                </span>
+              )}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -329,6 +347,18 @@ export function SilvioProgrammatePanel({ open, onClose }: { open: boolean; onClo
                 className={cn("rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
                   ricorrenza === o.value ? "border-violet-300 bg-violet-50 text-violet-700" : "border-slate-200 text-slate-600 hover:bg-slate-50")}>
                 {o.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex items-center gap-1 text-[11px] text-slate-500"><Flag className="h-3 w-3" /> Priorità:</span>
+            {PRIORITA_OPTS.map((o) => (
+              <button key={o.value} type="button" onClick={() => setPriorita(o.value)}
+                className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
+                  priorita === o.value
+                    ? (o.value === "critical" ? "border-rose-300 bg-rose-50 text-rose-700" : "border-slate-300 bg-slate-100 text-slate-700")
+                    : "border-slate-200 text-slate-600 hover:bg-slate-50")}>
+                <span className={cn("h-2 w-2 rounded-full", o.dot)} /> {o.label}
               </button>
             ))}
           </div>
