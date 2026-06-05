@@ -4,20 +4,27 @@
  * visivamente (grassetto, liste, link, colori) e il componente produce HTML nel
  * campo `corpo`, quindi l'engine NON cambia.
  *
- * Riusa il `RichTextEditor` (TipTap) già presente in EiC. Aggiunge un selettore
- * di variabili che le inserisce al punto del cursore ({{nome}}, {{azienda}}, …).
+ * Riusa il `RichTextEditor` (TipTap) già presente in EiC. Il selettore di
+ * variabili è DATA-DRIVEN: mostra le variabili base passate dal nodo PIÙ i
+ * campi personalizzati reali caricati da `marketing_custom_fields`
+ * (gli stessi di /admin/impostazioni/campi-personalizzati), raggruppati.
  */
 import { useRef, useState } from "react";
 import { Variable } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RichTextEditor, type RichTextEditorHandle } from "@/components/ui/rich-text-editor";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface EmailVariable {
   key: string;
   label: string;
+  /** Gruppo nel selettore (es. "Variabili", "Campi personalizzati"). */
+  group?: string;
 }
 
 /** Variabili di default per i nodi email automazione (contesto azienda/piattaforma). */
@@ -28,6 +35,16 @@ const DEFAULT_EMAIL_VARIABLES: EmailVariable[] = [
   { key: "azienda.name", label: "Nome azienda (alt.)" },
   { key: "azienda.email", label: "Email admin" },
 ];
+
+/** Etichette leggibili per gli object_type dei campi personalizzati. */
+const OBJECT_LABEL: Record<string, string> = {
+  contact: "Contatto", contatto: "Contatto", opportunity: "Opportunità",
+  opportunita: "Opportunità", company: "Azienda", azienda: "Azienda",
+  ordine: "Ordine", ticket: "Ticket", product: "Prodotto",
+};
+
+const slug = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 
 interface EmailBodyEditorProps {
   value: string | null | undefined;
@@ -42,14 +59,46 @@ export function EmailBodyEditor({
 }: EmailBodyEditorProps) {
   const editorRef = useRef<RichTextEditorHandle>(null);
   const [search, setSearch] = useState("");
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
 
-  const filtered = variables.filter(
-    (v) => v.label.toLowerCase().includes(search.toLowerCase()) || v.key.toLowerCase().includes(search.toLowerCase()),
+  // Campi personalizzati reali (gli stessi di /admin/impostazioni/campi-personalizzati).
+  const { data: customFields = [] } = useQuery({
+    queryKey: ["email-merge-custom-fields", companyId],
+    queryFn: async (): Promise<EmailVariable[]> => {
+      if (!companyId) return [];
+      const { data, error } = await supabase
+        .from("marketing_custom_fields")
+        .select("name, object_type")
+        .eq("company_id", companyId)
+        .is("deleted_at", null)
+        .order("object_type", { ascending: true })
+        .order("position", { ascending: true, nullsFirst: false });
+      if (error) throw error;
+      return (data || []).map((f: { name: string; object_type: string }) => {
+        const obj = OBJECT_LABEL[f.object_type] ?? f.object_type;
+        return {
+          key: `${f.object_type}.${slug(f.name)}`,
+          label: `${f.name} · ${obj}`,
+          group: "Campi personalizzati",
+        };
+      });
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const baseVars: EmailVariable[] = variables.map((v) => ({ ...v, group: v.group ?? "Variabili" }));
+  const allVars = [...baseVars, ...customFields];
+  const q = search.toLowerCase();
+  const filtered = allVars.filter(
+    (v) => v.label.toLowerCase().includes(q) || v.key.toLowerCase().includes(q),
   );
+  // raggruppa preservando l'ordine dei gruppi
+  const groups: string[] = [];
+  for (const v of filtered) if (!groups.includes(v.group!)) groups.push(v.group!);
 
-  const insertVariable = (key: string) => {
-    editorRef.current?.insertContent(`{{${key}}}`);
-  };
+  const insertVariable = (key: string) => editorRef.current?.insertContent(`{{${key}}}`);
 
   return (
     <div className="space-y-1.5">
@@ -61,29 +110,34 @@ export function EmailBodyEditor({
               Variabile
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-64 p-2" align="end">
+          <PopoverContent className="w-72 p-2" align="end">
             <Input
               autoFocus
-              placeholder="Cerca variabile…"
+              placeholder="Cerca variabile o campo…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="h-8 text-xs mb-2"
             />
-            <ScrollArea className="max-h-56">
-              <div className="space-y-0.5">
+            <ScrollArea className="max-h-72">
+              <div className="space-y-1">
                 {filtered.length === 0 && (
-                  <p className="px-2 py-3 text-center text-xs text-muted-foreground">Nessuna variabile</p>
+                  <p className="px-2 py-3 text-center text-xs text-muted-foreground">Nessun risultato</p>
                 )}
-                {filtered.map((v) => (
-                  <button
-                    key={v.key}
-                    type="button"
-                    onClick={() => insertVariable(v.key)}
-                    className="w-full text-left px-2 py-1.5 rounded hover:bg-muted text-xs"
-                  >
-                    <span className="font-medium">{v.label}</span>
-                    <span className="block text-[10px] text-muted-foreground font-mono">{`{{${v.key}}}`}</span>
-                  </button>
+                {groups.map((g) => (
+                  <div key={g}>
+                    <p className="px-2 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{g}</p>
+                    {filtered.filter((v) => v.group === g).map((v) => (
+                      <button
+                        key={v.key}
+                        type="button"
+                        onClick={() => insertVariable(v.key)}
+                        className="w-full text-left px-2 py-1.5 rounded hover:bg-muted text-xs"
+                      >
+                        <span className="font-medium">{v.label}</span>
+                        <span className="block text-[10px] text-muted-foreground font-mono">{`{{${v.key}}}`}</span>
+                      </button>
+                    ))}
+                  </div>
                 ))}
               </div>
             </ScrollArea>
