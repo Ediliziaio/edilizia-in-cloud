@@ -50,7 +50,6 @@ import { useAnimatedText } from "@/components/ui/animated-text";
 import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components/silvio/AiMessageMeta";
 import { SilvioRatingButtons } from "@/components/silvio/SilvioRatingButtons";
 import { SilvioActionProposals } from "@/components/silvio/SilvioActionProposals";
-import { SilvioAlertsPanel } from "@/components/silvio/SilvioAlertsPanel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { SILVIO_SKILLS } from "@/lib/silvio-skills";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
@@ -1102,10 +1101,6 @@ export default function SilvioAIPage() {
           /* Hero pulito, centrato verticalmente */
           <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center gap-6 px-4 py-10">
             <AIAssistantInterface onSend={handleSend} disabled={sending} userName={firstName} />
-            {/* Proattività: cosa fare oggi (alert azionabili → proposta con 1 clic) */}
-            <div className="w-full max-w-2xl">
-              <SilvioAlertsPanel variant="compact" maxItems={5} />
-            </div>
             {!onboarded && (
               <div className="w-full max-w-2xl rounded-xl border border-orange-200 bg-orange-50/70 px-4 py-3 text-sm text-slate-600">
                 <div className="flex items-start gap-2">
