@@ -728,6 +728,16 @@ serve(async (req: Request) => {
         ? userMessage
         : "Analizza il file allegato e dimmi cosa contiene + cosa è rilevante per la mia attività edile.";
       parts.push({ type: "text", text: introNote });
+      // Budget condiviso per il testo dei documenti (~70K token): così un file
+      // grande (computo metrico / preventivo) viene letto INTERO senza far
+      // esplodere il contesto. Ogni doc consuma dal budget; i seguenti si adattano.
+      let docCharBudget = 280_000;
+      const DOC_IMPORT_HINT =
+        "\n[Istruzioni per Silvio: se il file è un elenco PRODOTTI/articoli → usa importa_prodotti. " +
+        "Se è un PREVENTIVO o un COMPUTO METRICO → ricostruiscilo FEDELMENTE nel gestionale con " +
+        "create_quote_draft mappando TUTTE le voci (descrizione, quantità, U.M., prezzo unitario, IVA), " +
+        "e crealo solo dopo conferma dell'utente; per il computo puoi anche usare analyze_computo_metrico " +
+        "per verificarne la congruenza prezzi. Prima di confermare, di' SEMPRE quante voci hai letto.]";
       for (const att of visualAttachments) {
         if (att.kind === "image") {
           // Per immagini: signed URL passata direttamente al modello vision
@@ -750,7 +760,7 @@ serve(async (req: Request) => {
             const { data: pdfRes, error: pdfErr } = await supabaseAdmin.functions.invoke(
               "silvio-extract-pdf",
               {
-                body: { storage_path: att.storage_path, max_chars: 30_000 },
+                body: { storage_path: att.storage_path, max_chars: Math.min(80_000, Math.max(4_000, docCharBudget)) },
                 headers: {
                   Authorization: req.headers.get("Authorization") ?? "",
                 },
@@ -787,13 +797,14 @@ serve(async (req: Request) => {
                 text: `[ALLEGATO PDF "${att.file_name}" — CONTENUTO NON ESTRAIBILE]\n${errorReason}.\nIstruzioni per Silvio: NON inventare cosa contiene il PDF. Rispondi all'utente:\n"Mi dispiace, non riesco a leggere il PDF '${att.file_name}'. Possibili cause: PDF protetto da password, scansione di bassa qualità, o documento con solo immagini complesse. Soluzioni: copia/incolla il testo, scatta una foto chiara, oppure mandami un'export digitale (es. PDF generato da Word/Excel)."`,
               });
             } else {
-              const truncatedNote = extracted.truncated ? " (testo troncato a 30K char)" : "";
+              docCharBudget -= extracted.text.length;
+              const truncatedNote = extracted.truncated ? " (testo troncato)" : "";
               const sourceLabel = extracted.vision_fallback
                 ? `OCR vision (${extracted.vision_model ?? "?"})`
                 : `estrazione testo nativo`;
               parts.push({
                 type: "text",
-                text: `[CONTENUTO PDF "${att.file_name}" — ${extracted.pages_count ?? "?"} pagine · fonte: ${sourceLabel}${truncatedNote}]\n\n${extracted.text}\n\n[FINE PDF]`,
+                text: `[CONTENUTO PDF "${att.file_name}" — ${extracted.pages_count ?? "?"} pagine · fonte: ${sourceLabel}${truncatedNote}]\n\n${extracted.text}\n\n[FINE PDF]${DOC_IMPORT_HINT}`,
               });
             }
           } catch (pdfCatch) {
@@ -807,10 +818,12 @@ serve(async (req: Request) => {
         } else if (att.kind === "text-doc") {
           // .txt / .csv / .md / .json / .log / .xml — leggi come testo
           try {
-            const docText = await downloadAsText(supabaseAdmin, att.storage_path, 60_000);
+            const capTxt = Math.min(180_000, Math.max(2_000, docCharBudget));
+            const docText = await downloadAsText(supabaseAdmin, att.storage_path, capTxt);
+            docCharBudget -= docText.length;
             parts.push({
               type: "text",
-              text: `[CONTENUTO DOCUMENTO "${att.file_name}" (${att.mime_type})]\n\n${docText}\n\n[FINE DOCUMENTO]\n[Se è un elenco di prodotti/articoli da caricare nel gestionale, usa il tool importa_prodotti dopo aver riassunto le righe e ottenuto conferma dall'utente.]`,
+              text: `[CONTENUTO DOCUMENTO "${att.file_name}" (${att.mime_type})]\n\n${docText}\n\n[FINE DOCUMENTO]${DOC_IMPORT_HINT}`,
             });
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
@@ -828,9 +841,12 @@ serve(async (req: Request) => {
               att.mime_type,
               att.file_name,
             );
+            const capOff = Math.min(180_000, Math.max(2_000, docCharBudget));
+            const officeShown = officeText.substring(0, capOff);
+            docCharBudget -= officeShown.length;
             parts.push({
               type: "text",
-              text: `[CONTENUTO OFFICE "${att.file_name}"]\n\n${officeText.substring(0, 60_000)}\n\n[FINE OFFICE]\n[Se è un elenco di prodotti/articoli da caricare nel gestionale, usa il tool importa_prodotti dopo aver riassunto le righe e ottenuto conferma dall'utente.]`,
+              text: `[CONTENUTO OFFICE "${att.file_name}"]\n\n${officeShown}\n\n[FINE OFFICE]${DOC_IMPORT_HINT}`,
             });
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
