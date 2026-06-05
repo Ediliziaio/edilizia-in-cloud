@@ -374,7 +374,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
                   exit={{ scale: 0.5, opacity: 0 }}
                   className="relative z-10 flex items-center gap-2"
                 >
-                  <SilvioAvatar size={28} bg="none" className="text-white" />
+                  <SilvioAvatar size={28} bg="orange" />
                   <span className="hidden text-sm font-semibold sm:inline">Silvio</span>
                 </motion.span>
 	              )}
