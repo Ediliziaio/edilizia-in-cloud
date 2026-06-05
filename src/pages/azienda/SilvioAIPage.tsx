@@ -41,6 +41,11 @@ import {
   RotateCcw,
   AlertTriangle,
   SquarePen,
+  CalendarClock,
+  Folder,
+  FolderPlus,
+  FolderInput,
+  ChevronRight,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
@@ -50,7 +55,16 @@ import { useAnimatedText } from "@/components/ui/animated-text";
 import { AiMessageMetaTop, AiMessageMetaBottom, type AiMeta } from "@/components/silvio/AiMessageMeta";
 import { SilvioRatingButtons } from "@/components/silvio/SilvioRatingButtons";
 import { SilvioActionProposals } from "@/components/silvio/SilvioActionProposals";
+import { SilvioProgrammatePanel } from "@/components/silvio/SilvioProgrammatePanel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import { SILVIO_SKILLS } from "@/lib/silvio-skills";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
 import { cn } from "@/lib/utils";
@@ -117,6 +131,15 @@ interface Conversazione {
   ultimo_messaggio_at: string;
   n_messaggi: number;
   pinned?: boolean;
+  folder_id?: string | null;
+}
+
+interface Cartella {
+  id: string;
+  nome: string;
+  colore: string;
+  posizione: number;
+  n_conversazioni: number;
 }
 
 function formatOra(iso: string): string {
@@ -215,6 +238,8 @@ export default function SilvioAIPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [programmateOpen, setProgrammateOpen] = useState(false);
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -272,6 +297,73 @@ export default function SilvioAIPage() {
     void refetchConvs();
   };
 
+  // ── Cartelle / Progetti (organizzazione conversazioni, per-utente) ──────────
+  const { data: cartelle = [] } = useQuery({
+    queryKey: ["silvio-cartelle", userId],
+    enabled: !!userId,
+    staleTime: 30_000,
+    queryFn: async (): Promise<Cartella[]> => {
+      const { data, error } = await supabase.rpc("silvio_lista_cartelle" as never);
+      if (error || !Array.isArray(data)) return [];
+      return data as Cartella[];
+    },
+  });
+
+  const toggleFolder = (id: string) =>
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const handleNuovaCartella = async () => {
+    const nome = typeof window !== "undefined" ? window.prompt("Nome della nuova cartella") : null;
+    if (!nome || !nome.trim()) return;
+    const { error } = await supabase.rpc("silvio_crea_cartella" as never, { p_nome: nome.trim(), p_colore: "orange" } as never);
+    if (error) {
+      toast.error("Non sono riuscito a creare la cartella.");
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["silvio-cartelle", userId] });
+    toast.success("Cartella creata");
+  };
+
+  const handleRinominaCartella = async (id: string, attuale: string) => {
+    const nome = typeof window !== "undefined" ? window.prompt("Rinomina cartella", attuale) : null;
+    if (!nome || !nome.trim() || nome.trim() === attuale) return;
+    const { error } = await supabase.rpc("silvio_rinomina_cartella" as never, { p_id: id, p_nome: nome.trim() } as never);
+    if (error) {
+      toast.error("Rinomina non riuscita.");
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["silvio-cartelle", userId] });
+  };
+
+  const handleEliminaCartella = async (id: string) => {
+    if (typeof window !== "undefined" && !window.confirm("Eliminare la cartella? Le chat NON verranno eliminate: torneranno semplicemente senza cartella.")) return;
+    const { error } = await supabase.rpc("silvio_elimina_cartella" as never, { p_id: id } as never);
+    if (error) {
+      toast.error("Eliminazione non riuscita.");
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["silvio-cartelle", userId] });
+    void refetchConvs();
+    toast.success("Cartella eliminata");
+  };
+
+  const spostaInCartella = async (channelId: string, folderId: string | null) => {
+    qc.setQueryData<Conversazione[]>(["silvio-conversazioni", userId], (prev) =>
+      prev ? prev.map((c) => (c.id === channelId ? { ...c, folder_id: folderId } : c)) : prev,
+    );
+    const { error } = await supabase.rpc("silvio_sposta_conversazione" as never, { p_channel_id: channelId, p_folder_id: folderId } as never);
+    if (error) {
+      toast.error("Spostamento non riuscito.");
+      void refetchConvs();
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["silvio-cartelle", userId] });
+  };
+
   // ── Conversazioni (RPC; esclude il canale legacy) ──────────────────────────
   const { data: conversazioni = [], refetch: refetchConvs } = useQuery({
     queryKey: ["silvio-conversazioni", userId],
@@ -314,12 +406,27 @@ export default function SilvioAIPage() {
     staleTime: 10_000,
   });
 
+  // Conversazioni dentro le cartelle (raggruppate per cartella). Quando si cerca,
+  // mostra solo le cartelle con risultati.
+  const cartelleConItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const matches = new Set(msgMatchIds ?? []);
+    const ok = (c: Conversazione) => !q || c.titolo.toLowerCase().includes(q) || matches.has(c.id);
+    const list = cartelle.map((f) => ({
+      ...f,
+      items: conversazioni.filter((c) => c.folder_id === f.id && ok(c)),
+    }));
+    return q ? list.filter((f) => f.items.length > 0) : list;
+  }, [cartelle, conversazioni, search, msgMatchIds]);
+
   const gruppi = useMemo(() => {
     const q = search.trim().toLowerCase();
     const matches = new Set(msgMatchIds ?? []);
+    // Esclude le conversazioni assegnate a una cartella (mostrate nella sezione cartella).
+    const base = conversazioni.filter((c) => !c.folder_id);
     const filtrate = q
-      ? conversazioni.filter((c) => c.titolo.toLowerCase().includes(q) || matches.has(c.id))
-      : conversazioni;
+      ? base.filter((c) => c.titolo.toLowerCase().includes(q) || matches.has(c.id))
+      : base;
     const fissate = filtrate.filter((c) => c.pinned);
     const altre = filtrate.filter((c) => !c.pinned);
     const map = new Map<string, Conversazione[]>();
@@ -720,6 +827,91 @@ export default function SilvioAIPage() {
     toast.success("Conversazione eliminata");
   };
 
+  // Riga conversazione (riusata sia nelle cartelle sia nei gruppi per data).
+  const renderConvRow = (c: Conversazione) => {
+    const isPin = !!c.pinned;
+    return (
+      <div
+        key={c.id}
+        className={cn(
+          "group flex items-center gap-2 rounded-lg px-2.5 py-2 cursor-pointer transition-colors",
+          activeId === c.id ? "bg-orange-50 text-orange-900" : "hover:bg-slate-100 text-slate-700",
+        )}
+        onClick={() => {
+          setActiveId(c.id);
+          if (typeof window !== "undefined" && window.innerWidth < 768) setSidebarOpen(false);
+        }}
+      >
+        <MessageSquare className={cn("h-4 w-4 shrink-0", activeId === c.id ? "text-orange-500" : "text-slate-400")} />
+        <span className="flex-1 min-w-0 truncate text-sm">{c.titolo}</span>
+        <span className="text-[10px] text-slate-400 group-hover:hidden">
+          {isPin ? <Pin className="h-3 w-3 fill-orange-400 text-orange-400" /> : formatOra(c.ultimo_messaggio_at)}
+        </span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              onClick={(e) => e.stopPropagation()}
+              className="hidden group-hover:block text-slate-400 hover:text-orange-500 transition"
+              aria-label="Sposta in cartella"
+              title="Sposta in cartella"
+            >
+              <FolderInput className="h-3.5 w-3.5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuLabel className="text-xs">Sposta in…</DropdownMenuLabel>
+            {cartelle.length === 0 && (
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">Nessuna cartella ancora</div>
+            )}
+            {cartelle.map((f) => (
+              <DropdownMenuItem key={f.id} className="gap-2" onClick={() => void spostaInCartella(c.id, f.id)}>
+                <Folder className="h-3.5 w-3.5 text-orange-500" />
+                <span className="truncate">{f.nome}</span>
+                {c.folder_id === f.id && <Check className="ml-auto h-3.5 w-3.5 text-orange-500" />}
+              </DropdownMenuItem>
+            ))}
+            {c.folder_id && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="gap-2 text-slate-600" onClick={() => void spostaInCartella(c.id, null)}>
+                  <X className="h-3.5 w-3.5" /> Togli dalla cartella
+                </DropdownMenuItem>
+              </>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="gap-2" onClick={() => void handleNuovaCartella()}>
+              <FolderPlus className="h-3.5 w-3.5" /> Nuova cartella…
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            void togglePin(c.id, !isPin);
+          }}
+          className={cn(
+            "hidden group-hover:block transition",
+            isPin ? "text-orange-500" : "text-slate-400 hover:text-orange-500",
+          )}
+          aria-label={isPin ? "Rimuovi dai fissati" : "Fissa in alto"}
+          title={isPin ? "Rimuovi dai fissati" : "Fissa in alto"}
+        >
+          <Pin className={cn("h-3.5 w-3.5", isPin && "fill-orange-400 text-orange-400")} />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            void handleElimina(c.id);
+          }}
+          className="hidden group-hover:block text-slate-400 hover:text-rose-500 transition"
+          aria-label="Elimina"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    );
+  };
+
   const copiaConversazione = () => {
     if (messages.length === 0) return;
     const txt = messages
@@ -865,6 +1057,14 @@ export default function SilvioAIPage() {
         >
           <Search className="h-5 w-5" />
         </button>
+        <button
+          onClick={() => setProgrammateOpen(true)}
+          title="Attività programmate"
+          aria-label="Attività programmate"
+          className="h-9 w-9 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+        >
+          <CalendarClock className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Sidebar conversazioni (drawer su mobile, colonna che anima la width su desktop) */}
@@ -919,64 +1119,74 @@ export default function SilvioAIPage() {
               >
                 <Search className="h-4 w-4 text-slate-400" /> Cerca
               </button>
+              <button
+                onClick={() => setProgrammateOpen(true)}
+                className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <CalendarClock className="h-4 w-4 text-orange-500" /> Programmate
+              </button>
+              <button
+                onClick={() => void handleNuovaCartella()}
+                className="w-full flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <FolderPlus className="h-4 w-4 text-slate-400" /> Nuova cartella
+              </button>
             </div>
           )}
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-3">
+          {/* Cartelle / Progetti */}
+          {cartelleConItems.map((folder) => {
+            const collapsed = collapsedFolders.has(folder.id);
+            return (
+              <div key={folder.id}>
+                <div className="group/f flex items-center gap-1 px-2 pb-1">
+                  <button
+                    onClick={() => toggleFolder(folder.id)}
+                    className="flex flex-1 min-w-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-700"
+                  >
+                    <ChevronRight className={cn("h-3 w-3 shrink-0 transition-transform", !collapsed && "rotate-90")} />
+                    <Folder className="h-3 w-3 shrink-0 text-orange-400" />
+                    <span className="truncate">{folder.nome}</span>
+                    <span className="font-normal text-slate-400">{folder.items.length}</span>
+                  </button>
+                  <button
+                    onClick={() => void handleRinominaCartella(folder.id, folder.nome)}
+                    className="opacity-0 group-hover/f:opacity-100 text-slate-400 hover:text-slate-600 transition"
+                    title="Rinomina cartella"
+                    aria-label="Rinomina cartella"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => void handleEliminaCartella(folder.id)}
+                    className="opacity-0 group-hover/f:opacity-100 text-slate-400 hover:text-rose-500 transition"
+                    title="Elimina cartella"
+                    aria-label="Elimina cartella"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+                {!collapsed && (
+                  <div className="space-y-0.5 mb-1">
+                    {folder.items.length === 0 ? (
+                      <div className="px-2 py-1 text-[11px] italic text-slate-300">Vuota — sposta qui una chat</div>
+                    ) : (
+                      folder.items.map(renderConvRow)
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {/* Conversazioni senza cartella, raggruppate per data */}
           {gruppi.map(({ gruppo, items, isPinned }) => (
             <div key={gruppo}>
               <div className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 flex items-center gap-1">
                 {isPinned && <Pin className="h-2.5 w-2.5 fill-orange-400 text-orange-400" />}
                 {gruppo}
               </div>
-              <div className="space-y-0.5">
-                {items.map((c) => {
-                  const isPin = !!c.pinned;
-                  return (
-                    <div
-                      key={c.id}
-                      className={cn(
-                        "group flex items-center gap-2 rounded-lg px-2.5 py-2 cursor-pointer transition-colors",
-                        activeId === c.id ? "bg-orange-50 text-orange-900" : "hover:bg-slate-100 text-slate-700",
-                      )}
-                      onClick={() => {
-                        setActiveId(c.id);
-                        if (typeof window !== "undefined" && window.innerWidth < 768) setSidebarOpen(false);
-                      }}
-                    >
-                      <MessageSquare className={cn("h-4 w-4 shrink-0", activeId === c.id ? "text-orange-500" : "text-slate-400")} />
-                      <span className="flex-1 min-w-0 truncate text-sm">{c.titolo}</span>
-                      <span className="text-[10px] text-slate-400 group-hover:hidden">
-                        {isPin ? <Pin className="h-3 w-3 fill-orange-400 text-orange-400" /> : formatOra(c.ultimo_messaggio_at)}
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void togglePin(c.id, !isPin);
-                        }}
-                        className={cn(
-                          "hidden group-hover:block transition",
-                          isPin ? "text-orange-500" : "text-slate-400 hover:text-orange-500",
-                        )}
-                        aria-label={isPin ? "Rimuovi dai fissati" : "Fissa in alto"}
-                        title={isPin ? "Rimuovi dai fissati" : "Fissa in alto"}
-                      >
-                        <Pin className={cn("h-3.5 w-3.5", isPin && "fill-orange-400 text-orange-400")} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleElimina(c.id);
-                        }}
-                        className="hidden group-hover:block text-slate-400 hover:text-rose-500 transition"
-                        aria-label="Elimina"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+              <div className="space-y-0.5">{items.map(renderConvRow)}</div>
             </div>
           ))}
           {conversazioni.length === 0 ? (
@@ -995,7 +1205,7 @@ export default function SilvioAIPage() {
                 <Plus className="h-4 w-4" /> Avvia una nuova chat
               </button>
             </div>
-          ) : gruppi.length === 0 ? (
+          ) : gruppi.length === 0 && cartelleConItems.length === 0 ? (
             <div className="px-3 py-8 text-center text-xs text-slate-400">Nessun risultato per “{search}”.</div>
           ) : null}
         </div>
@@ -1341,6 +1551,7 @@ export default function SilvioAIPage() {
       </main>
 
       <MemoriaSilvioDialog open={memoriaOpen} onOpenChange={setMemoriaOpen} companyId={companyId} />
+      <SilvioProgrammatePanel open={programmateOpen} onClose={() => setProgrammateOpen(false)} />
     </div>
   );
 }
