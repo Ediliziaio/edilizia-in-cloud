@@ -13,6 +13,7 @@ import {
   addEdge,
   useNodesState,
   useEdgesState,
+  useNodesInitialized,
   type Connection,
   type Node,
   type Edge,
@@ -82,9 +83,11 @@ export function FlowBuilderPage() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
   const initializedRef = useRef(false);
+  const autoTidiedRef = useRef(false);
+  const nodesInitialized = useNodesInitialized();
 
   // Reset initialized flag when flowId changes (e.g. /nuova → /{realId})
-  useEffect(() => { initializedRef.current = false; }, [flowId]);
+  useEffect(() => { initializedRef.current = false; autoTidiedRef.current = false; }, [flowId]);
   // Reset creation guard on route change
   useEffect(() => { if (!isNewFlowRoute) creationAttemptedRef.current = false; }, [isNewFlowRoute]);
 
@@ -156,6 +159,31 @@ export function FlowBuilderPage() {
       initializedRef.current = true;
     }
   }, [builder.dbNodes, builder.dbConnections, builder.remoteEmpty, setRfNodes, setRfEdges, flowId, isNewFlowRoute, isLoading]);
+
+  // Auto-ordina alla prima apertura: ogni flusso viene mostrato con un layout
+  // verticale pulito e CENTRATO (connettori dritti, stile GHL) senza dover
+  // cliccare "Riordina". È solo VISIVO (non scrive su DB, non marca dirty) e
+  // non distruttivo: i flussi già ordinati hanno movedCount=0 → non si toccano;
+  // se l'utente sposta i nodi a mano in sessione, restano (l'auto-ordina gira una
+  // sola volta per apertura). Richiede i nodi misurati (useNodesInitialized) per
+  // centrare correttamente in base alla larghezza reale delle card.
+  useEffect(() => {
+    if (autoTidiedRef.current) return;
+    if (!initializedRef.current || !nodesInitialized) return;
+    const realNodes = rfNodes.filter((n) => !String(n.id).startsWith("placeholder-"));
+    if (realNodes.length < 2 || rfEdges.length === 0) {
+      autoTidiedRef.current = true; // niente da ordinare (vuoto / placeholder)
+      return;
+    }
+    autoTidiedRef.current = true; // gira una sola volta per apertura
+    const { positions, movedCount } = computeAutoLayout(rfNodes, rfEdges);
+    if (movedCount > 0 && Object.keys(positions).length > 0) {
+      setRfNodes((nds) => nds.map((n) => (positions[n.id] ? { ...n, position: positions[n.id] } : n)));
+      window.setTimeout(() => {
+        try { reactFlowInstance?.fitView?.({ padding: 0.2, duration: 300 }); } catch { /* noop */ }
+      }, 60);
+    }
+  }, [nodesInitialized, rfNodes, rfEdges, setRfNodes, reactFlowInstance]);
 
   // Create flow if new
   useEffect(() => {
