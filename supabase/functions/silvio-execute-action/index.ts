@@ -699,6 +699,11 @@ async function executeRegisteredSilvioTool(
   if (tool.allowedChannels?.length && !tool.allowedChannels.includes(channel)) {
     return { ok: false, message: `Canale non autorizzato per ${actionType}: ${channel}` };
   }
+  // Difesa in profondità: ricontrolla il RUOLO anche qui (oltre alla policy a monte),
+  // così questo layer è autosufficiente e non dipende solo dal chiamante.
+  if (tool.allowedRoles?.length && !tool.allowedRoles.includes(ctx.primaryRole) && !tool.allowedRoles.includes("*")) {
+    return { ok: false, message: `Ruolo non autorizzato per ${actionType}` };
+  }
 
   const toolCtx: ToolContext = {
     supabase: ctx.supabase,
