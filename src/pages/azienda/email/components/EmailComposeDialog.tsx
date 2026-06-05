@@ -579,7 +579,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
                     )}
                     <span className="font-medium truncate max-w-[200px]">{a.name}</span>
                     <span className="text-muted-foreground">
-                      {(a.size / 1024).toFixed(0)} KB
+                      {a.size >= 1048576 ? `${(a.size / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(a.size / 1024))} KB`}
                     </span>
                     {!a.uploading && (
                       <button

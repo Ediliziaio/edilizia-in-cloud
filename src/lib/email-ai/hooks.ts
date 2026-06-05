@@ -1265,13 +1265,27 @@ export function useGestisciInvioSequenza() {
         const { data: session } = await supabase.auth.getSession();
         const token = session.session?.access_token;
         if (!token) throw new Error("Non autenticato");
-        const res = await fetch(`${FN_BASE}/email-send`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ outbox_id: input.outbox_id }),
-        });
-        const json = await res.json();
-        if (!res.ok || !json.ok) throw new Error(json.error || `HTTP ${res.status}`);
+        // Timeout 30s: se il provider si impalla, fallisci pulito invece di
+        // restare in spinner infinito. La conferma RPC sotto parte SOLO se l'invio
+        // è andato a buon fine → niente "inviato" fantasma.
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 30_000);
+        try {
+          const res = await fetch(`${FN_BASE}/email-send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ outbox_id: input.outbox_id }),
+            signal: ctrl.signal,
+          });
+          const json = await res.json();
+          if (!res.ok || !json.ok) throw new Error(json.error || `HTTP ${res.status}`);
+        } catch (e) {
+          throw ctrl.signal.aborted
+            ? new Error("Invio in timeout (30s). L'email potrebbe essere ancora in coda: ricontrolla prima di reinviare.")
+            : e;
+        } finally {
+          clearTimeout(timer);
+        }
       }
       const { error } = await (supabase.rpc as any)("sequenza_invio_conferma", { p_invio_id: input.invio_id, p_azione: input.azione });
       if (error) throw error;
