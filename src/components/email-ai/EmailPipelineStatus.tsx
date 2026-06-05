@@ -70,17 +70,12 @@ function usePipelineStats(companyId: string | undefined) {
       const now = new Date();
       const cutoff24h = new Date(now.getTime() - 24 * 3600 * 1000).toISOString();
 
-      const [r24h, rTotal, rDocs, rOpps] = await Promise.all([
+      const [r24h, rDocs, rOpps] = await Promise.all([
         sbAny
           .from("email_inbox")
           .select("id, ai_category, embedding")
           .eq("company_id", companyId as string)
           .gte("received_at", cutoff24h),
-        sbAny
-          .from("email_inbox")
-          .select("id, ai_category", { count: "exact", head: false })
-          .eq("company_id", companyId as string)
-          .limit(1),
         sbAny
           .from("email_documento_estratto")
           .select("id", { count: "exact", head: false })

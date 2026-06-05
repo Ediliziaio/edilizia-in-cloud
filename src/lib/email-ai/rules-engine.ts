@@ -142,11 +142,6 @@ export function evaluateRule(email: RuleEmailInput, regola: Regola): boolean {
   return regola.condizioni.every((c) => matchCondizione(email, c));
 }
 
-/** Conta quante condizioni matchano (per ordinamento a parità di priorità). */
-function countMatched(email: RuleEmailInput, regola: Regola): number {
-  return regola.condizioni.filter((c) => matchCondizione(email, c)).length;
-}
-
 // ─── Traduzione azioni → ClassificationResult + side effects ────────────────
 
 function azioniToResult(azioni: Azione[]): { result: ClassificationResult; side: RuleMatchResult["side_effects"] } {

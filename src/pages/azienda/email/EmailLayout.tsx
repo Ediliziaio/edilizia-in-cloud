@@ -310,7 +310,6 @@ export function EmailLayout({
     void supabase.rpc("email_mark_thread_read", { p_thread_id: threadId })
       .then((res) => {
         if (res.error) {
-          // eslint-disable-next-line no-console
           console.warn("[email] mark-read RPC failed:", res.error.message);
           return;
         }
