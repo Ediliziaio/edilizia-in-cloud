@@ -171,7 +171,7 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
               <Plus className="h-4 w-4 mr-1" /> Registra Incasso
             </Button>
           </SheetTrigger>
-          <SheetContent className="w-[480px] sm:w-[480px]">
+          <SheetContent className="w-full sm:w-[480px]">
             <SheetHeader>
               <SheetTitle>Registra Incasso</SheetTitle>
             </SheetHeader>

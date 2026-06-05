@@ -40,7 +40,7 @@ const ColumnsDrawer = ({ open, onOpenChange, visibleColumns, onColumnsChange }: 
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[320px]">
+      <SheetContent className="w-full sm:w-[320px]">
         <SheetHeader>
           <SheetTitle>Gestione colonne</SheetTitle>
         </SheetHeader>

@@ -118,7 +118,7 @@ export function QuotesFiltersSheet({ open, onOpenChange, filters, onApply, sales
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent side="right" className="w-[340px] sm:w-[380px] flex flex-col">
+      <SheetContent side="right" className="w-full sm:w-[380px] flex flex-col">
         <SheetHeader>
           <SheetTitle className="text-base flex items-center gap-2">
             Filtri Avanzati

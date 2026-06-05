@@ -84,7 +84,7 @@ export function BulkEditSheet({ open, onOpenChange, selectedIds, stages, onDone,
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[360px] sm:w-[400px]">
+      <SheetContent className="w-full sm:w-[400px]">
         <SheetHeader>
           <SheetTitle>Modifica in blocco ({selectedIds.length})</SheetTitle>
         </SheetHeader>

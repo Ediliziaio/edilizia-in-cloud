@@ -137,7 +137,7 @@ export function QuoteQuickViewSheet({ quoteId, open, onOpenChange }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[420px] sm:w-[480px] flex flex-col gap-0 p-0">
+      <SheetContent side="right" className="w-full sm:w-[480px] flex flex-col gap-0 p-0">
         <SheetHeader className="border-b p-4">
           <SheetTitle className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-primary" />

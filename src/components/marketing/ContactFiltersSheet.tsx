@@ -203,7 +203,7 @@ export function ContactFiltersSheet({ open, onOpenChange, filters, onApply, avai
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[400px] sm:w-[440px] flex flex-col overflow-hidden p-0">
+      <SheetContent side="right" className="w-full sm:w-[440px] flex flex-col overflow-hidden p-0">
         <SheetDescription className="sr-only">Filtri avanzati per i contatti</SheetDescription>
 
         {isPicking ? (
