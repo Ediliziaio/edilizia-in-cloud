@@ -566,6 +566,16 @@ verify_jwt = false
 [functions.silvio-outbound-worker]
 verify_jwt = false
 
+# Coda azioni Silvio (cron pg_cron */30s). Auth interna: Bearer service-role / CRON_SECRET.
+# Senza verify_jwt=false il gateway rifiutava la chiamata cron con 401 → coda mai processata.
+[functions.silvio-action-runner]
+verify_jwt = false
+
+# Promemoria operativi WhatsApp (cron pg_cron */15m via silvio_invoke_edge). Auth interna: Bearer service-role / x-internal-cron-secret.
+# Senza verify_jwt=false il gateway rifiutava la chiamata cron con 401 → reminder mai inviati.
+[functions.whatsapp-operational-reminders]
+verify_jwt = false
+
 # Lead Scraper · tracking pubblico aperture/click email outreach (pixel + redirect). No auth utente.
 [functions.lead-scraper-track]
 verify_jwt = false
