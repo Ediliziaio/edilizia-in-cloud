@@ -3,7 +3,9 @@ import { logger } from "@/utils/logger";
 import { friendlyPostgresError } from "@/lib/postgresErrors";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuotePrefill } from "@/hooks/useQuotePrefill";
+import { ImportFromQuotePicker } from "@/components/orders/ImportFromQuotePicker";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -67,6 +69,16 @@ function CreateOrderInner() {
   const { onlyAssigned } = usePermissions();
   const { canCreateOrder, isScopriPlan, currentPlan, remainingOrders } = useSubscriptionLimits();
   const track = useTrack();
+
+  // ── Prefill da preventivo (?quote_id): additivo, attivo solo se presente ──
+  const [searchParams] = useSearchParams();
+  // Preventivo da importare: parte da ?quote_id ma è scegliibile anche in pagina
+  // tramite il selettore ImportFromQuotePicker.
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(
+    searchParams.get("quote_id"),
+  );
+  const { data: quotePrefill } = useQuotePrefill(selectedQuoteId);
+  const appliedQuoteRef = useRef<string | null>(null);
 
   // ── react-hook-form ──────────────────────────────────────────
   const form = useForm<OrderFormValues>({
@@ -208,6 +220,30 @@ function CreateOrderInner() {
     setDraftRestored(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveCompany?.id]);
+
+  // Prefill da preventivo: applicato una volta quando i dati sono pronti.
+  // Gira dopo il draft-restore (fetch async) → ha la precedenza voluta
+  // (chi arriva da un preventivo vuole quei dati). Se non c'è ?quote_id,
+  // quotePrefill è undefined e questo effetto è un no-op.
+  useEffect(() => {
+    if (!quotePrefill || !selectedQuoteId) return;
+    if (appliedQuoteRef.current === selectedQuoteId) return; // una volta per preventivo scelto
+    appliedQuoteRef.current = selectedQuoteId;
+    if (quotePrefill.description) setValue("description", quotePrefill.description);
+    if (quotePrefill.orderItems.length > 0) setOrderItems(quotePrefill.orderItems);
+  }, [quotePrefill, selectedQuoteId, setValue]);
+
+  // Import da preventivo via selettore: se ci sono già righe, chiede conferma
+  // (la sostituzione è esplicita e voluta dall'utente).
+  const handleImportQuote = (qid: string) => {
+    if (
+      orderItems.length > 0 &&
+      !window.confirm("Sostituire le righe attuali con quelle del preventivo selezionato?")
+    ) {
+      return;
+    }
+    setSelectedQuoteId(qid);
+  };
 
   // Auto-save draft on every change — debounced 800ms to avoid firing on every keystroke
   useEffect(() => {
@@ -358,6 +394,11 @@ function CreateOrderInner() {
         balance_paid_date: item.balance_paid_date || null,
         balance_expected_date: item.balance_expected_date || null,
         deposit_expected_date: item.deposit_expected_date || null,
+        // ── spina misure (prodotti su misura): porta famiglia/assi/misura iniziale dal preventivo ──
+        family_id: item.family_id || null,
+        axis_selections: item.axis_selections ?? null,
+        misure_preventivo: item.misure_preventivo ?? null,
+        measure_status: item.measure_status || null,
       }));
 
       const salespersonPayload = (values.salesperson_id && values.salesperson_data)
@@ -396,6 +437,16 @@ function CreateOrderInner() {
       const result = data as unknown as { id: string; success: boolean };
       if (!result || !result.id) {
         throw new Error("Risposta inattesa dalla funzione atomica");
+      }
+
+      // Collega il preventivo di origine alla commessa (se creata da un preventivo via
+      // ?quote_id / "Importa da preventivo") → la commessa mostrerà il "Preventivo collegato".
+      if (selectedQuoteId) {
+        const { error: linkErr } = await supabase
+          .from("orders")
+          .update({ quote_id: selectedQuoteId, quote_number: quotePrefill?.quoteNumber ?? null })
+          .eq("id", result.id);
+        if (linkErr) console.error("[CreateOrder] collegamento preventivo non riuscito:", linkErr.message);
       }
 
       // v8.6.42 — sede_id non è nel RPC create_order_atomic, viene
@@ -689,6 +740,19 @@ function CreateOrderInner() {
       </Alert>
 
       <form onSubmit={rhfHandleSubmit(onSubmit, onFormError)} className="space-y-6">
+        {/* ── Importa da preventivo: precompila righe, prezzi e spina misure ── */}
+        <div className="flex flex-col gap-2 rounded-lg border border-orange-200 bg-orange-50/60 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-orange-900/40 dark:bg-orange-950/20">
+          <p className="text-sm text-muted-foreground">
+            {selectedQuoteId
+              ? "Preventivo importato: rivedi righe e misure qui sotto."
+              : "Hai già un preventivo? Importalo per precompilare righe, prezzi e misure."}
+          </p>
+          <ImportFromQuotePicker
+            onSelect={handleImportQuote}
+            disabled={createOrderMutation.isPending}
+          />
+        </div>
+
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Main Form */}
           <QuoteCard title="Dettagli Commessa" icon={<ClipboardList className="h-4 w-4" />}>

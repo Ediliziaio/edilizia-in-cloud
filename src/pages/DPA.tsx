@@ -24,7 +24,7 @@ export default function DPA() {
         momento dell&apos;accettazione dei Termini e Condizioni del Servizio. Non è quindi necessaria una sottoscrizione
         separata, salvo che il Cliente richieda espressamente, per i propri requisiti interni di compliance, la firma di
         una copia controfirmata. In tal caso, è possibile farne richiesta a{" "}
-        <a href="mailto:privacy@ediliziaincloud.it">privacy@ediliziaincloud.it</a>.
+        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>.
       </blockquote>
 
       <h2>Indice</h2>
@@ -211,6 +211,16 @@ export default function DPA() {
         <strong>5.9</strong> Notificare prontamente alla Società qualsiasi violazione di Dati Personali di cui venga a
         conoscenza e che possa coinvolgere l&apos;infrastruttura del Servizio.
       </p>
+      <p>
+        <strong>5.10</strong> In relazione alle <strong>Funzionalità AI</strong> della Piattaforma, il Titolare è
+        l&apos;unico responsabile dei dati personali che immette nei sistemi AI e dell&apos;uso che fa degli output
+        generati. Il Titolare si impegna a non immettere nelle Funzionalità AI categorie particolari di dati (art. 9
+        GDPR) o dati relativi a condanne e reati (art. 10 GDPR) salvo che ne ricorrano i presupposti di liceità, e a
+        verificare gli output prima di ogni utilizzo. Il Titolare prende atto che, per l&apos;erogazione delle
+        Funzionalità AI, i dati possono essere trasmessi ai Fornitori AI indicati nell&apos;Allegato 3, in qualità di
+        Sub-responsabili, i quali si sono impegnati a non utilizzare tali dati per l&apos;addestramento dei propri
+        modelli.
+      </p>
 
       <h2>6. Obblighi del Responsabile (Edilizia in Cloud)</h2>
       <p>La Società, in qualità di Responsabile del trattamento, si impegna a:</p>
@@ -307,7 +317,7 @@ export default function DPA() {
         <strong>7.4</strong> Il Cliente ha facoltà di opporsi all&apos;inclusione di un nuovo Sub-responsabile entro 15
         giorni dalla notifica, comunicando la propria opposizione, motivata da ragionevoli motivi attinenti alla
         protezione dei dati, all&apos;indirizzo{" "}
-        <a href="mailto:privacy@ediliziaincloud.it">privacy@ediliziaincloud.it</a>. In tale caso, le Parti coopereranno
+        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>. In tale caso, le Parti coopereranno
         in buona fede per individuare una soluzione tecnica alternativa. Qualora non sia possibile individuare una
         soluzione ragionevole entro 30 giorni, ciascuna Parte avrà facoltà di risolvere il contratto del Servizio
         (limitatamente alle funzionalità interessate) con effetto immediato.
@@ -351,7 +361,7 @@ export default function DPA() {
       <p>
         <strong>8.3</strong> Una copia delle garanzie adottate (estratti delle Clausole Contrattuali Tipo,
         certificazioni, attestazioni di adesione al Data Privacy Framework) è messa a disposizione del Cliente su
-        richiesta scritta a <a href="mailto:privacy@ediliziaincloud.it">privacy@ediliziaincloud.it</a>.
+        richiesta scritta a <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>.
       </p>
 
       <h2>9. Misure di sicurezza tecniche e organizzative</h2>
@@ -531,6 +541,14 @@ export default function DPA() {
         confronti degli Interessati, le Parti convengono che la responsabilità reciproca derivante dal presente DPA è
         soggetta alle limitazioni di responsabilità previste dai Termini e Condizioni del Servizio, ferma restando la
         nullità di clausole limitative in caso di dolo o colpa grave o di violazione di norme inderogabili.
+      </p>
+      <p>
+        <strong>14.2-bis</strong> Le Parti danno atto che il Cliente, in qualità di Titolare, determina autonomamente
+        finalità e mezzi del trattamento e che la Società, in qualità di Responsabile, agisce esclusivamente sulla base
+        delle istruzioni documentate del Cliente. Conseguentemente, qualora la Società sia tenuta a corrispondere a un
+        Interessato o all&apos;Autorità un risarcimento o una sanzione per una violazione imputabile, in tutto o in
+        parte, alle istruzioni, alle scelte o agli inadempimenti del Cliente, quest&apos;ultimo rimborserà alla Società
+        la quota di responsabilità ad esso ascrivibile ai sensi dell&apos;art. 82, par. 5, GDPR.
       </p>
       <p>
         <strong>14.3</strong> Il Cliente tiene indenne la Società da ogni richiesta di risarcimento, sanzione o pretesa
@@ -851,16 +869,46 @@ export default function DPA() {
             <td>DPF + SCC</td>
           </tr>
           <tr>
+            <td>OpenRouter, Inc.</td>
+            <td>Aggregatore di modelli (instradamento richieste LLM)</td>
+            <td>USA</td>
+            <td>SCC</td>
+          </tr>
+          <tr>
             <td>Anthropic PBC</td>
             <td>Modelli di linguaggio AI (Claude)</td>
             <td>USA</td>
             <td>SCC + zero data retention API</td>
           </tr>
           <tr>
-            <td>OpenAI Ireland Ltd.</td>
-            <td>Modelli di linguaggio AI (GPT)</td>
+            <td>OpenAI Ireland Ltd. / OpenAI L.L.C.</td>
+            <td>Modelli di linguaggio e generazione immagini (GPT, GPT-image, DALL·E)</td>
             <td>UE (Irlanda) / USA</td>
             <td>DPF + SCC + zero data retention API</td>
+          </tr>
+          <tr>
+            <td>Moonshot AI</td>
+            <td>Modelli di linguaggio AI (Kimi), via OpenRouter</td>
+            <td>Extra-UE</td>
+            <td>SCC</td>
+          </tr>
+          <tr>
+            <td>Google Ireland Ltd. / Google LLC</td>
+            <td>Modelli AI Gemini, Google Maps, sync Calendar, Analytics 4</td>
+            <td>UE / USA</td>
+            <td>DPF + SCC</td>
+          </tr>
+          <tr>
+            <td>Altri Fornitori AI via OpenRouter (DeepSeek, xAI, Meta, Mistral, Cohere, Qwen, Perplexity e ulteriori)</td>
+            <td>Modelli di linguaggio, ricerca semantica ed embeddings</td>
+            <td>UE / USA / Extra-UE</td>
+            <td>SCC</td>
+          </tr>
+          <tr>
+            <td>Replicate, Inc.</td>
+            <td>Generazione di immagini e video (incl. MiniMax)</td>
+            <td>USA</td>
+            <td>SCC</td>
           </tr>
           <tr>
             <td>Twilio Inc. — SendGrid</td>
@@ -869,16 +917,16 @@ export default function DPA() {
             <td>DPF + SCC</td>
           </tr>
           <tr>
+            <td>Resend, Inc.</td>
+            <td>Email transazionali</td>
+            <td>USA</td>
+            <td>SCC</td>
+          </tr>
+          <tr>
             <td>Elastic Email Inc.</td>
             <td>Email di marketing</td>
             <td>UE / USA</td>
             <td>SCC</td>
-          </tr>
-          <tr>
-            <td>Google Ireland Ltd.</td>
-            <td>Sincronizzazione Google Calendar, Google Maps, Analytics 4</td>
-            <td>UE / USA</td>
-            <td>DPF + SCC</td>
           </tr>
           <tr>
             <td>Apple Inc.</td>
@@ -907,6 +955,25 @@ export default function DPA() {
         ai propri requisiti interni di compliance, richiedano una copia controfirmata del documento.
       </p>
 
+      <h3>Per il Titolare (Cliente)</h3>
+      <ul>
+        <li>
+          <strong>Ragione sociale:</strong> _______________________________
+        </li>
+        <li>
+          <strong>Sede legale:</strong> _______________________________
+        </li>
+        <li>
+          <strong>P.IVA:</strong> _______________________________
+        </li>
+        <li>
+          <strong>Rappresentante legale:</strong> _______________________________
+        </li>
+        <li>
+          <strong>Firma e timbro · Data:</strong> ____ / ____ / ____
+        </li>
+      </ul>
+
       <h3>Per il Responsabile (Edilizia in Cloud)</h3>
       <ul>
         <li>
@@ -919,12 +986,18 @@ export default function DPA() {
           <strong>P.IVA:</strong> 13132010961
         </li>
         <li>
+          <strong>Rappresentante legale:</strong> 13132010961
+        </li>
+        <li>
           <strong>PEC:</strong>{" "}
           <a href="mailto:domusgroupsrl@legalmail.it">domusgroupsrl@legalmail.it</a>
         </li>
         <li>
           <strong>Contatto privacy:</strong>{" "}
-          <a href="mailto:privacy@ediliziaincloud.it">privacy@ediliziaincloud.it</a>
+          <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>
+        </li>
+        <li>
+          <strong>Firma e timbro · Data:</strong> ____ / ____ / ____
         </li>
       </ul>
 

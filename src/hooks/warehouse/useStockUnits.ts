@@ -306,6 +306,10 @@ export function useAssignSerialsToOrderItem() {
       qc.invalidateQueries({
         queryKey: ["warehouse", "stock-units-by-order-item", vars.orderItemId],
       });
+      // La OrderSerialsTrackingCard legge con la key BATCH ("...-batch"): in React
+      // Query il match parziale è per elementi esatti, quindi la riga sopra NON la
+      // rinfresca. Invalidiamo anche la key batch → il contatore N/qty si aggiorna.
+      qc.invalidateQueries({ queryKey: ["warehouse", "stock-units-by-order-item-batch"] });
       qc.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
       // Toast riassuntivo (chi consuma può sovrascrivere via onSuccess locale)
       const n = result.assigned.length;
@@ -524,6 +528,9 @@ export function useUnassignSerial() {
     },
     onSuccess: (unit) => {
       qc.invalidateQueries({ queryKey: ["warehouse", "stock-units-by-order-item"] });
+      // La key batch ("...-batch") NON è coperta dal prefisso sopra (match per
+      // elementi esatti) → invalidiamola esplicitamente per rinfrescare la card.
+      qc.invalidateQueries({ queryKey: ["warehouse", "stock-units-by-order-item-batch"] });
       qc.invalidateQueries({ queryKey: queryKeys.warehouse.unitsByItem(unit.stock_item_id) });
       qc.invalidateQueries({ queryKey: queryKeys.warehouse.stockAll });
       toast.success(`Seriale ${unit.serial_number} liberato`);

@@ -156,7 +156,19 @@ export function OrderCommissions({
         .eq("order_id", orderId);
 
       if (error) throw error;
-      return data as OrderSalesperson[];
+      // Difesa: un venditore può essere stato rimosso → il join `salesperson`
+      // torna null/undefined. Sostituisco un placeholder così le righe non
+      // crashano su sp.salesperson?.first_name (era la causa di "reading 'first_name'").
+      return ((data ?? []) as Array<
+        Omit<OrderSalesperson, "salesperson"> & { salesperson: OrderSalesperson["salesperson"] | null }
+      >).map((row): OrderSalesperson => ({
+        ...row,
+        salesperson: row.salesperson ?? {
+          first_name: "Venditore",
+          last_name: "(rimosso)",
+          compensation_mode: null,
+        },
+      }));
     },
     enabled: !!orderId,
   });
@@ -437,7 +449,7 @@ export function OrderCommissions({
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium">
-                      {sp.salesperson.first_name} {sp.salesperson.last_name}
+                      {sp.salesperson?.first_name} {sp.salesperson.last_name}
                     </span>
                     <Badge variant="outline" className="gap-1 text-xs">
                       {COMMISSION_TYPE_LABELS[sp.commission_type]?.icon}
@@ -463,12 +475,12 @@ export function OrderCommissions({
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                          aria-label={`Rimuovi provvigione di ${sp.salesperson.first_name} ${sp.salesperson.last_name}`}
+                          aria-label={`Rimuovi provvigione di ${sp.salesperson?.first_name} ${sp.salesperson.last_name}`}
                           onClick={async () => {
                             if (
                               await confirm({
                                 title: "Rimuovere il venditore dalla commessa?",
-                                description: `La provvigione di ${sp.salesperson.first_name} ${sp.salesperson.last_name} verrà rimossa da questa commessa.`,
+                                description: `La provvigione di ${sp.salesperson?.first_name} ${sp.salesperson.last_name} verrà rimossa da questa commessa.`,
                                 confirmLabel: "Rimuovi",
                                 variant: "destructive",
                               })

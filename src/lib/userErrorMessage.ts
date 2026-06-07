@@ -33,6 +33,25 @@ function extractRaw(error: unknown): { msg: string; code: string; status: number
 }
 
 /**
+ * isTransientTimeoutError — true se l'errore è un timeout/abort transitorio
+ * (DB lento/cold, AbortController, 503 abortito). Usa la STESSA estrazione di
+ * userErrorMessage (inclusi i campi annidati e.error.* / e.details), così chi
+ * sopprime il toast "Riprova" su questi casi non diverge dalla mappatura.
+ */
+export function isTransientTimeoutError(error: unknown): boolean {
+  const { msg, code } = extractRaw(error);
+  const name = String((error as { name?: string } | null)?.name ?? "").toLowerCase();
+  return (
+    msg.includes("timeout") ||
+    msg.includes("timed out") ||
+    msg.includes("aborted") ||
+    msg.includes("aborterror") ||
+    name === "aborterror" ||
+    code === "20"
+  );
+}
+
+/**
  * Restituisce un messaggio italiano comprensibile per l'utente finale.
  * @param error l'errore catturato
  * @param fallback messaggio di default se nessun pattern matcha

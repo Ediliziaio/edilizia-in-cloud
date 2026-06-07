@@ -22,7 +22,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryCache, MutationCache } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { createIdbPersister, shouldPersistQuery } from "@/lib/queryPersister";
+import { createIdbPersister, shouldPersistQuerySafe } from "@/lib/queryPersister";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -50,7 +50,7 @@ import { customerRoutes, employeeRoutes, salespersonRoutes, partnerRoutes } from
 // (TecnicoRoutesContainer/CampoRoutesContainer sopra) → rimossi gli import diretti
 // che non erano più usati (lint error: 'tecnicoRoutes'/'campoRoutes' defined but never used).
 import { portaleClienteRoutes } from "@/routes/portaleClienteRoutes";
-import { userErrorMessage } from "@/lib/userErrorMessage";
+import { userErrorMessage, isTransientTimeoutError } from "@/lib/userErrorMessage";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 
 // Suspense fallback — full-screen overlay (fixed inset-0 z-40) per evitare
@@ -309,7 +309,11 @@ const queryClient = new QueryClient({
       // Toast solo su background-refresh (avevamo già data) e solo se la query
       // non si è dichiarata silent (vedi useWeatherForecast → meta:{silent:true}).
       const silent = (query.meta as { silent?: boolean } | undefined)?.silent;
-      if (query.state.data !== undefined && !silent) {
+      // Timeout/abort su REFRESH di background: i dati cached restano a schermo,
+      // quindi è rumore non azionabile (DB lento/cold/503, es. fetchUserData auth) —
+      // non allarmiamo con un toast "Riprova". Gli errori reali (permessi, constraint,
+      // rete persa) continuano a essere mostrati. Detection condivisa con userErrorMessage.
+      if (query.state.data !== undefined && !silent && !isTransientTimeoutError(error)) {
         // Audit design: niente error.message tecnico all'utente. Messaggio
         // comprensibile in italiano; il dettaglio tecnico resta in Sentry sopra.
         toast.error(userErrorMessage(error, "Aggiornamento dati non riuscito. Riprova."));
@@ -339,6 +343,10 @@ const queryClient = new QueryClient({
       } catch {
         /* noop */
       }
+      // Timeout/abort transitorio (backend lento/503, AbortController su warm-up di
+      // background): la "Riprova" generica non aiuta e l'azione si ripete da sé; i
+      // flussi utente hanno comunque il proprio onError locale. Niente falso allarme.
+      if (isTransientTimeoutError(error)) return;
       toast.error(userErrorMessage(error));
     },
   }),
@@ -454,7 +462,7 @@ const App = () => (
       dehydrateOptions: {
         // Persisti solo le query whitelisted (cantieri, clienti, dashboard
         // ecc.). Auth, search live, AI: NO.
-        shouldDehydrateQuery: (q) => shouldPersistQuery(q.queryKey),
+        shouldDehydrateQuery: (q) => shouldPersistQuerySafe(q),
       },
     }}
   >

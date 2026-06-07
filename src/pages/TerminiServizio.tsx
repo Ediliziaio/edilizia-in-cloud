@@ -163,7 +163,7 @@ export default function TerminiServizio() {
         essere cedute, condivise o utilizzate da soggetti diversi dal titolare. Il Cliente è tenuto a
         custodire le credenziali con la diligenza richiesta dalla natura del Servizio e a comunicare
         immediatamente alla Società qualsiasi sospetto utilizzo non autorizzato, a mezzo email a{" "}
-        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>.
+        <a href="mailto:supporto@ediliziaincloud.com">supporto@ediliziaincloud.com</a>.
       </p>
       <p>
         <strong>4.3</strong> Tutte le operazioni effettuate tramite le credenziali del Cliente o degli
@@ -225,6 +225,19 @@ export default function TerminiServizio() {
         risarcimento del danno e quello di risolvere il contratto ai sensi dell'art. 1456 c.c. La
         sospensione non comporta alcun rimborso del corrispettivo.
       </p>
+      <p>
+        <strong>5.4</strong> Fermo quanto precede, la Società può sospendere in via cautelativa e
+        immediata, in tutto o in parte, l'accesso al Servizio — senza che ciò costituisca
+        inadempimento né dia diritto a indennizzi o rimborsi — qualora ricorra anche solo uno dei
+        seguenti presupposti: (i) ragionevole sospetto di un rischio per la sicurezza, l'integrità o
+        la disponibilità della Piattaforma o dei dati; (ii) utilizzo anomalo, fraudolento o eccedente
+        i limiti del Piano, anche in via automatica; (iii) ordine, richiesta o provvedimento
+        dell'autorità competente; (iv) mancato pagamento dei corrispettivi nei termini; (v)
+        ragionevole sospetto che l'attivazione di moduli di controllo a distanza dei lavoratori
+        avvenga in assenza degli adempimenti di cui all'art. 13.3. La Società informerà il Cliente
+        della sospensione e, ove possibile e lecito, delle relative motivazioni, ripristinando il
+        Servizio una volta cessata la causa.
+      </p>
 
       <h2>6. Piani di abbonamento, corrispettivi e pagamenti</h2>
       <p>
@@ -248,8 +261,11 @@ export default function TerminiServizio() {
       <p>
         <strong>6.4</strong> Gli Add-on attivati dal Cliente sono fatturati in aggiunta al
         corrispettivo del Piano. L'attivazione di funzionalità con consumo a metrica (es. SMS, minuti
-        voce, chiamate AI, firme digitali) determina addebiti basati sul volume effettivamente
-        consumato, secondo le tariffe pubblicate.
+        voce, chiamate AI, generazione di immagini/video, sintesi vocale, trascrizioni, firme
+        digitali) determina addebiti basati sul volume effettivamente consumato, secondo le tariffe
+        pubblicate. Le tariffe delle funzionalità basate su intelligenza artificiale dipendono dai
+        costi applicati dai fornitori esterni e possono essere adeguate secondo quanto previsto
+        dall'art. 13.5.7.
       </p>
       <p>
         <strong>6.5</strong> In caso di mancato o ritardato pagamento del corrispettivo, la Società
@@ -526,16 +542,165 @@ export default function TerminiServizio() {
 
       <h3>13.5 Funzionalità di intelligenza artificiale</h3>
       <p>
-        I moduli AI (preventivi assistiti, agenti vocali, bot conversazionali, suggerimenti
-        contestuali, ricerca semantica, ecc.) sono offerti come strumento di supporto. Gli output
-        generati possono contenere errori, omissioni o imprecisioni e non sostituiscono la
-        valutazione del Cliente, del suo commercialista, consulente del lavoro, tecnico o legale. Il
-        Cliente è tenuto a verificare l'accuratezza degli output prima di ogni utilizzo verso terzi
-        (clienti, fornitori, dipendenti, autorità).
+        <strong>13.5.1</strong> La Piattaforma integra numerose funzionalità basate su sistemi di
+        intelligenza artificiale (le "Funzionalità AI"), tra cui, a titolo esemplificativo e non
+        esaustivo: assistenti conversazionali e agenti AI (inclusi agenti vocali e bot WhatsApp),
+        generazione e assistenza alla redazione di preventivi e computi, estrazione di dati da
+        immagini e documenti, generazione di immagini e video promozionali, sintesi vocale
+        (text-to-speech) e trascrizione audio, ricerca semantica e suggerimenti contestuali,
+        generazione di contenuti per campagne pubblicitarie.
       </p>
       <p>
-        La Società dichiara che i dati del Cliente trasmessi ai fornitori AI non sono utilizzati per
-        addestrare i modelli. Per i dettagli si rinvia all'art. 6 della Privacy Policy.
+        <strong>13.5.2 — Fornitori AI esterni.</strong> Per erogare le Funzionalità AI, la Società si
+        avvale di modelli e servizi di intelligenza artificiale di fornitori terzi (i "Fornitori
+        AI"), in parte tramite l'aggregatore OpenRouter e in parte tramite integrazione diretta. I
+        principali Fornitori AI utilizzati includono, a titolo esemplificativo e non esaustivo:
+        Anthropic (Claude), OpenAI (GPT, GPT-image, DALL·E), Moonshot AI (Kimi), Google (Gemini),
+        DeepSeek, xAI (Grok), Meta (Llama), Mistral AI, Cohere, Qwen (Alibaba), Perplexity, ElevenLabs
+        (sintesi vocale), Replicate e MiniMax (generazione immagini/video). L'elenco dei Fornitori AI
+        può variare nel tempo in funzione dell'evoluzione tecnologica, della disponibilità e delle
+        prestazioni dei modelli; l'elenco aggiornato dei sub-responsabili è disponibile all'indirizzo
+        www.ediliziaincloud.com/sub-processors.
+      </p>
+      <p>
+        <strong>13.5.3 — Natura di strumento di supporto.</strong> Le Funzionalità AI sono offerte
+        esclusivamente come strumento di supporto all'attività del Cliente. Gli output generati dai
+        sistemi AI sono di natura probabilistica e possono contenere errori, imprecisioni, omissioni,
+        informazioni non aggiornate o non veritiere (cosiddette "allucinazioni"). Gli output non
+        costituiscono e non sostituiscono in alcun modo la valutazione, la consulenza o la decisione
+        del Cliente né dei suoi professionisti di fiducia (commercialista, consulente del lavoro,
+        tecnico abilitato, legale).
+      </p>
+      <p>
+        <strong>13.5.4 — Responsabilità del Cliente nell'uso degli strumenti AI.</strong> Il Cliente
+        è l'unico ed esclusivo responsabile dell'uso che fa delle Funzionalità AI e degli output da
+        esse generati. In particolare, il Cliente si impegna a:
+      </p>
+      <ul>
+        <li>
+          verificare sempre l'accuratezza, la correttezza e l'adeguatezza degli output prima di
+          qualsiasi utilizzo, comunicazione o diffusione verso terzi (clienti, fornitori, dipendenti,
+          pubbliche amministrazioni, autorità);
+        </li>
+        <li>
+          non affidarsi agli output AI per decisioni di rilevanza giuridica, fiscale, contrattuale,
+          tecnica, di sicurezza sul lavoro o economica senza un'autonoma verifica e, ove necessario,
+          il parere di un professionista qualificato;
+        </li>
+        <li>
+          utilizzare le Funzionalità AI nel rispetto della legge, dei diritti di terzi, della
+          normativa sul diritto d'autore e della normativa sulla protezione dei dati personali;
+        </li>
+        <li>
+          non immettere nei sistemi AI dati, contenuti o istruzioni illeciti, lesivi di diritti di
+          terzi, o categorie particolari di dati ai sensi dell'art. 9 GDPR salvo quanto strettamente
+          necessario e lecito;
+        </li>
+        <li>
+          assumersi la piena responsabilità dei contenuti generati tramite le Funzionalità AI e da
+          esso utilizzati, pubblicati o diffusi (a titolo esemplificativo: testi, immagini, video,
+          materiali pubblicitari, comunicazioni a clienti).
+        </li>
+      </ul>
+      <p>
+        La Società non assume alcuna responsabilità per le conseguenze, dirette o indirette, derivanti
+        dall'utilizzo degli output delle Funzionalità AI da parte del Cliente, ivi incluse decisioni
+        assunte, comunicazioni inviate o contenuti pubblicati sulla base di tali output. Il Cliente
+        tiene indenne la Società da ogni pretesa di terzi connessa all'uso che il Cliente fa delle
+        Funzionalità AI.
+      </p>
+      <p>
+        <strong>13.5.5 — Conformità all'AI Act.</strong> La Società opera in conformità ai principi
+        del Regolamento (UE) 2024/1689 ("AI Act") applicabili al proprio ruolo di fornitore o deployer
+        dei sistemi AI integrati, adottando misure di trasparenza, governance e supervisione umana
+        proporzionate al livello di rischio. Il Cliente, qualora utilizzi le Funzionalità AI
+        nell'ambito di processi che ricadano nell'AI Act, è a sua volta tenuto al rispetto degli
+        obblighi che la normativa pone a suo carico in qualità di deployer/utilizzatore.
+      </p>
+      <p>
+        <strong>13.5.6 — Tutela dei dati e assenza di addestramento.</strong> La Società adotta
+        misure tecniche e contrattuali affinché i dati del Cliente trasmessi ai Fornitori AI non
+        siano utilizzati per addestrare, perfezionare o migliorare i modelli dei Fornitori AI, in
+        conformità ai contratti commerciali (API enterprise/business) sottoscritti con tali
+        fornitori. Resta inteso che la Società non controlla direttamente i sistemi dei Fornitori AI
+        e che eventuali variazioni delle loro policy sono al di fuori della sfera di controllo della
+        Società, che si impegna a selezionare fornitori che offrano garanzie adeguate. Per i dettagli
+        si rinvia all'art. 6 della Privacy Policy.
+      </p>
+      <p>
+        <strong>13.5.7 — Adeguamento dei costi delle Funzionalità AI.</strong> I costi delle
+        Funzionalità AI dipendono in misura significativa dalle tariffe applicate dai Fornitori AI,
+        che sono soggetti del tutto autonomi rispetto alla Società. Qualora i Fornitori AI modifichino
+        le proprie tariffe, introducano nuovi costi, modifichino i modelli di pricing (ad esempio per
+        token, per chiamata, per minuto, per generazione) o varino i tassi di cambio applicabili, la
+        Società si riserva il diritto di adeguare di conseguenza i corrispettivi, le soglie d'uso
+        incluse e le tariffe a consumo relativi alle Funzionalità AI. Tali adeguamenti saranno
+        comunicati al Cliente ai sensi dell'art. 7 (Modifiche unilaterali del Servizio e dei prezzi);
+        qualora l'adeguamento del corrispettivo del Piano ecceda la soglia ivi prevista, il Cliente
+        potrà esercitare il diritto di recesso secondo le modalità dell'art. 7.3. Per le funzionalità
+        a consumo, gli adeguamenti delle tariffe unitarie potranno essere applicati con un preavviso
+        di almeno 15 giorni mediante pubblicazione sul Sito o comunicazione al Cliente.
+      </p>
+
+      <h3>13.6 Modulo campagne pubblicitarie e marketing (Ads)</h3>
+      <p>
+        <strong>13.6.1</strong> La Piattaforma può includere funzionalità per la creazione, la
+        pubblicazione e la gestione di campagne pubblicitarie su piattaforme di terzi (a titolo
+        esemplificativo: Meta/Facebook/Instagram, Google Ads, TikTok, LinkedIn) e per la raccolta e
+        gestione dei contatti generati (il "Modulo Ads"), inclusi strumenti di tracciamento (pixel,
+        tag, API di conversione) installabili sui siti del Cliente.
+      </p>
+      <p>
+        <strong>13.6.2</strong> L'utilizzo del Modulo Ads avviene tramite gli account pubblicitari
+        del Cliente sulle rispettive piattaforme. Il Cliente è l'unico responsabile: (i) del rispetto
+        dei termini d'uso e delle policy pubblicitarie delle piattaforme terze; (ii) della liceità,
+        veridicità e conformità dei contenuti pubblicitari pubblicati (anche ove generati con il
+        supporto delle Funzionalità AI); (iii) dei budget pubblicitari, che sono addebitati
+        direttamente dalle piattaforme al Cliente e sono estranei ai corrispettivi della Società; (iv)
+        degli adempimenti privacy verso i destinatari delle campagne e i contatti raccolti
+        (informative, consensi, banner cookie sui propri siti), in qualità di Titolare del trattamento
+        di tali dati.
+      </p>
+      <p>
+        <strong>13.6.3</strong> La Società non risponde di sospensioni, blocchi o limitazioni degli
+        account pubblicitari del Cliente decisi dalle piattaforme terze, né delle variazioni di costi,
+        algoritmi, formati o policy di tali piattaforme. Resta fermo quanto previsto dall'art. 15.2 in
+        materia di esclusione di garanzia sui risultati commerciali.
+      </p>
+
+      <h3>13.7 Comunicazioni del Cliente tramite la Piattaforma (email, SMS, WhatsApp, agenti vocali)</h3>
+      <p>
+        <strong>13.7.1</strong> La Piattaforma consente al Cliente di inviare comunicazioni —
+        transazionali e di marketing — ai propri contatti (clienti finali, prospect, fornitori)
+        tramite email, SMS, WhatsApp e campagne programmate, nonché di gestire chiamate in entrata e
+        in uscita tramite agenti vocali basati su AI. In relazione a tali attività, il Cliente è
+        l'unico Titolare del trattamento dei dati dei propri contatti e destinatari.
+      </p>
+      <p>
+        <strong>13.7.2</strong> Il Cliente garantisce, sotto la propria esclusiva responsabilità: (i)
+        di disporre di idonea base giuridica (consenso o altra base applicabile) per l'invio di
+        comunicazioni promozionali ai propri contatti, nel rispetto dell'art. 130 del Codice Privacy e
+        delle Linee Guida del Garante in materia di spam; (ii) di inserire in ogni comunicazione
+        promozionale le modalità di opposizione (opt-out) e di onorarle tempestivamente; (iii) di
+        rispettare i termini d'uso delle piattaforme di messaggistica utilizzate (incluse le Business
+        Messaging Policy di Meta per WhatsApp); (iv) di non utilizzare la Piattaforma per inviare
+        comunicazioni indesiderate, massive non autorizzate o comunque illecite (spam).
+      </p>
+      <p>
+        <strong>13.7.3 — Agenti vocali e bot AI.</strong> Qualora il Cliente attivi agenti vocali o
+        bot conversazionali basati su AI verso i propri interlocutori, il Cliente è tenuto a garantire
+        che gli interlocutori siano informati in modo chiaro: (i) del fatto che stanno interagendo con
+        un sistema automatizzato di intelligenza artificiale, in conformità agli obblighi di
+        trasparenza dell'art. 50 del Regolamento (UE) 2024/1689 (AI Act); (ii) dell'eventuale
+        registrazione e/o trascrizione della conversazione e delle relative finalità, prima che essa
+        abbia inizio. La Società mette a disposizione strumenti tecnici di configurazione dei messaggi
+        di cortesia; la relativa attivazione e i contenuti restano responsabilità del Cliente.
+      </p>
+      <p>
+        <strong>13.7.4</strong> In caso di violazione del presente articolo, ferma la manleva di cui
+        all'art. 17, la Società potrà sospendere in via cautelativa le funzionalità di comunicazione
+        interessate ai sensi dell'art. 5.4, anche a tutela della deliverability e della reputazione
+        dell'infrastruttura di invio condivisa.
       </p>
 
       <h2>14. Obblighi e dichiarazioni del Cliente</h2>
@@ -609,9 +774,29 @@ export default function TerminiServizio() {
         </li>
       </ul>
       <p>
-        <strong>15.2</strong> Il Cliente, esperto del proprio settore di attività, riconosce di aver
-        valutato l'idoneità del Servizio alle proprie esigenze prima della sottoscrizione e di averlo
-        ritenuto adeguato.
+        <strong>15.2</strong> In particolare, la Società <strong>non garantisce alcun risultato
+        economico, commerciale o operativo</strong> derivante dall'utilizzo del Servizio. A titolo
+        esemplificativo e non esaustivo, in relazione ai moduli di marketing, generazione di annunci
+        pubblicitari, gestione campagne e lead, la Società <strong>non garantisce</strong> il
+        conseguimento di un determinato numero di contatti, lead, commesse, vendite, fatturato,
+        ritorno sull'investimento (ROI), copertura, posizionamento o qualsiasi altro risultato
+        commerciale; l'esito di tali attività dipende da molteplici fattori esterni non controllabili
+        dalla Società (mercato, concorrenza, qualità dell'offerta del Cliente, piattaforme
+        pubblicitarie di terzi, comportamento degli utenti finali).
+      </p>
+      <p>
+        <strong>15.3</strong> La Società non garantisce la continuità, la disponibilità, l'accuratezza
+        o le condizioni economiche dei servizi di terzi integrati nella Piattaforma (a titolo
+        esemplificativo: banche e provider PSD2, Sistema di Interscambio e provider SDI, operatori di
+        telecomunicazione, fornitori AI, provider di pagamento, servizi di mappe e geolocalizzazione,
+        provider di posta elettronica), il cui funzionamento esula dal controllo della Società.
+      </p>
+      <p>
+        <strong>15.4</strong> Il Cliente, operatore professionale esperto del proprio settore di
+        attività, riconosce di aver autonomamente valutato l'idoneità del Servizio alle proprie
+        esigenze — anche, ove disponibile, mediante l'utilizzo del periodo di prova gratuita — e di
+        averlo ritenuto adeguato, esonerando la Società da ogni responsabilità in ordine all'idoneità
+        del Servizio a finalità specifiche non espressamente concordate per iscritto.
       </p>
 
       <h2>16. Limitazione di responsabilità</h2>
@@ -650,41 +835,98 @@ export default function TerminiServizio() {
           ammontare massimo pari ai corrispettivi netti effettivamente pagati dal Cliente alla
           Società nei 12 (dodici) mesi precedenti l'evento
         </strong>{" "}
-        da cui è scaturita la richiesta di risarcimento.
+        da cui è scaturita la richiesta di risarcimento. Qualora il contratto abbia durata inferiore
+        a 12 mesi, il limite è pari ai corrispettivi netti complessivamente pagati fino a tale
+        momento.
       </p>
       <p>
-        <strong>16.3</strong> Eventuali reclami del Cliente devono essere comunicati alla Società per
-        iscritto, a pena di decadenza, entro 15 giorni dal verificarsi dell'evento o dal momento in
-        cui il Cliente avrebbe dovuto averne conoscenza.
+        <strong>16.3</strong> Il limite di cui al punto 16.2 si intende quale{" "}
+        <strong>massimale aggregato e complessivo</strong> per l'intera durata del rapporto
+        contrattuale, applicabile alla somma di tutti gli eventi, le pretese e le richieste di
+        risarcimento, e non per singolo evento. Una volta raggiunto tale massimale, nessun ulteriore
+        importo sarà dovuto dalla Società a qualsiasi titolo.
+      </p>
+      <p>
+        <strong>16.4</strong> In relazione ai <strong>Contenuti del Cliente e ai dati</strong>, il
+        Cliente è esclusivo responsabile della conservazione di copie e backup autonomi dei propri
+        dati. La Società non risponde della perdita, alterazione, distruzione o indisponibilità dei
+        Contenuti del Cliente, fermo restando l'adempimento diligente delle proprie politiche di
+        backup; il Cliente rinuncia espressamente a qualsiasi pretesa eccedente il ripristino
+        dell'ultimo backup disponibile.
+      </p>
+      <p>
+        <strong>16.5</strong> Nessuna pretesa risarcitoria potrà essere avanzata dal Cliente per
+        importi unitari inferiori a € 100,00 (cento/00), che si intendono espressamente rinunciati a
+        titolo di franchigia.
+      </p>
+      <p>
+        <strong>16.6</strong> Eventuali reclami del Cliente devono essere comunicati alla Società per
+        iscritto, a pena di decadenza, entro <strong>15 (quindici) giorni</strong> dal verificarsi
+        dell'evento o dal momento in cui il Cliente avrebbe dovuto averne conoscenza usando l'ordinaria
+        diligenza. In ogni caso, qualsiasi azione legale nei confronti della Società in relazione al
+        Servizio dovrà essere promossa, a pena di decadenza, entro <strong>12 (dodici) mesi</strong>{" "}
+        dal fatto che ha originato la pretesa.
+      </p>
+      <p>
+        <strong>16.7</strong> Le limitazioni ed esclusioni di responsabilità previste dal presente
+        articolo costituiscono elemento essenziale dell'equilibrio economico del contratto e del
+        livello dei corrispettivi pattuiti, e resterebbero valide anche qualora un rimedio previsto
+        dal contratto dovesse risultare carente nel suo scopo essenziale.
       </p>
 
       <h2>17. Manleva</h2>
       <p>
-        <strong>17.1</strong> Il Cliente si impegna a tenere indenne e manlevare la Società, i suoi
-        amministratori, dipendenti e collaboratori, da qualsiasi pretesa, azione, richiesta di
-        risarcimento, sanzione o costo (incluse le spese legali ragionevoli) derivanti da:
+        <strong>17.1</strong> Il Cliente si impegna a tenere indenne e manlevare la Società, le
+        società del suo gruppo, i suoi amministratori, dipendenti, collaboratori e partner, da
+        qualsiasi pretesa, azione, contestazione, richiesta di risarcimento, sanzione, onere o costo
+        (incluse le spese legali e di assistenza ragionevoli) derivanti da:
       </p>
       <ul>
         <li>
           violazione delle presenti Condizioni o della normativa applicabile da parte del Cliente o
           degli Utenti Autorizzati;
         </li>
-        <li>contenuti caricati dal Cliente nella Piattaforma e contestati da terzi;</li>
-        <li>violazione di diritti di proprietà intellettuale o di privacy di terzi;</li>
+        <li>
+          contenuti, dati e informazioni caricati dal Cliente nella Piattaforma e contestati da
+          terzi, o relativi a soggetti terzi (dipendenti, clienti finali, fornitori) trattati dal
+          Cliente senza idonea base giuridica o informativa;
+        </li>
+        <li>violazione di diritti di proprietà intellettuale, di privacy o di altri diritti di terzi;</li>
+        <li>
+          <strong>uso delle Funzionalità AI e degli output da esse generati</strong>, inclusi i
+          contenuti pubblicati, le comunicazioni inviate e le decisioni assunte dal Cliente sulla base
+          di tali output;
+        </li>
         <li>
           mancato adempimento, da parte del Cliente, degli obblighi previsti all'art. 13 (in
           particolare in materia di accordo sindacale ex art. 4 dello Statuto dei Lavoratori, deleghe
           SDI e autorizzazioni PSD2).
         </li>
       </ul>
+      <p>
+        <strong>17.2</strong> Su richiesta della Società, il Cliente assumerà a proprie spese la
+        difesa nei procedimenti promossi da terzi che ricadano nelle ipotesi di cui al punto 17.1,
+        fermo restando il diritto della Società di partecipare alla difesa con propri legali; il
+        Cliente non potrà transigere alcuna controversia in modo che pregiudichi la Società senza il
+        suo previo consenso scritto.
+      </p>
+      <p>
+        <strong>17.3</strong> L'obbligo di manleva sopravvive alla cessazione del contratto, per
+        qualsiasi causa.
+      </p>
 
       <h2>18. Forza maggiore</h2>
       <p>
         <strong>18.1</strong> Nessuna delle Parti sarà responsabile per ritardi o inadempimenti
-        dovuti a cause di forza maggiore o a circostanze imprevedibili e non imputabili (a titolo
-        esemplificativo: scioperi, sommosse, guerre, atti di terrorismo, pandemie, restrizioni
-        autoritative, calamità naturali, indisponibilità prolungata di reti pubbliche di
-        telecomunicazione, attacchi informatici di vasta portata su infrastrutture di terzi).
+        dovuti a cause di forza maggiore o a circostanze imprevedibili e non imputabili. Si
+        considerano tali, a titolo esemplificativo e non esaustivo: scioperi, sommosse, guerre, atti
+        di terrorismo, pandemie ed emergenze sanitarie, restrizioni o provvedimenti dell'autorità,
+        calamità naturali, incendi, interruzioni prolungate della fornitura di energia elettrica o di
+        connettività, indisponibilità o malfunzionamento prolungato di reti pubbliche di
+        telecomunicazione, interruzioni, sospensioni, modifiche sostanziali delle condizioni o
+        cessazione dei servizi da parte di fornitori infrastrutturali, cloud, AI, di pagamento o di
+        comunicazione, attacchi informatici di vasta portata (inclusi ransomware e attacchi DDoS) su
+        infrastrutture proprie o di terzi nonostante l'adozione di misure di sicurezza adeguate.
       </p>
       <p>
         <strong>18.2</strong> Qualora la causa di forza maggiore si protragga per oltre 60 giorni
@@ -800,6 +1042,31 @@ export default function TerminiServizio() {
         registrazione.
       </p>
 
+      <h2>23-bis. Divieto di sviamento e non sollecitazione</h2>
+      <p>
+        <strong>23-bis.1</strong> Per tutta la durata del contratto e per i <strong>12 (dodici)
+        mesi</strong> successivi alla sua cessazione, il Cliente si impegna a non sollecitare,
+        assumere o instaurare rapporti di collaborazione, direttamente o tramite soggetti interposti,
+        con dipendenti o collaboratori chiave della Società con cui sia entrato in contatto in ragione
+        del rapporto contrattuale, salvo previo consenso scritto della Società.
+      </p>
+      <p>
+        <strong>23-bis.2</strong> Il Cliente si impegna inoltre a non utilizzare il Servizio, né le
+        conoscenze acquisite tramite esso, per sviluppare, direttamente o tramite terzi, un prodotto o
+        servizio concorrente, né a effettuare attività di reverse engineering, decompilazione o
+        estrazione del know-how della Piattaforma a fini concorrenziali.
+      </p>
+
+      <h2>23-ter. Sopravvivenza delle clausole</h2>
+      <p>
+        Le disposizioni che, per loro natura, sono destinate a sopravvivere alla cessazione del
+        contratto continuano a produrre i loro effetti anche dopo lo scioglimento del rapporto, per
+        qualsiasi causa. Tra queste, a titolo esemplificativo: artt. 11 (effetti della cessazione), 15
+        (esclusione di garanzie), 16 (limitazione di responsabilità), 17 (manleva), 19 (proprietà
+        intellettuale), 20 (riservatezza), 23-bis (non sollecitazione), 25 (legge applicabile e foro),
+        nonché ogni obbligo di pagamento maturato.
+      </p>
+
       <h2>24. Tolleranza e nullità parziale</h2>
       <p>
         <strong>24.1</strong> Eventuali tolleranze di una Parte rispetto a inadempimenti dell'altra
@@ -835,6 +1102,7 @@ export default function TerminiServizio() {
       </p>
       <ul>
         <li>art. 5 (Utilizzo del Servizio e divieti);</li>
+        <li>art. 5.4 (Sospensione cautelativa del Servizio);</li>
         <li>art. 6.5 e 6.6 (Sospensione e divieto di compensazione);</li>
         <li>art. 7 (Modifiche unilaterali);</li>
         <li>art. 9.3 (Recesso anticipato e clausola penale);</li>
@@ -844,11 +1112,23 @@ export default function TerminiServizio() {
           art. 13.3 (Responsabilità del Cliente per accordo sindacale ex art. 4 Statuto dei
           Lavoratori);
         </li>
-        <li>art. 15 (Esclusione di garanzie);</li>
-        <li>art. 16 (Limitazione di responsabilità);</li>
-        <li>art. 17 (Manleva);</li>
+        <li>
+          art. 13.6 (Modulo Ads: responsabilità del Cliente per campagne, account e adempimenti
+          privacy);
+        </li>
+        <li>
+          art. 13.7 (Comunicazioni del Cliente: garanzie antispam, trasparenza agenti vocali AI,
+          sospensione cautelativa);
+        </li>
+        <li>art. 15 (Esclusione di garanzie, incluse AI e risultati commerciali);</li>
+        <li>
+          art. 16 (Limitazione di responsabilità, massimale aggregato, franchigia e termini di
+          decadenza);
+        </li>
+        <li>art. 17 (Manleva e obbligo di difesa);</li>
         <li>art. 19.4 e 19.6 (Utilizzo di dati aggregati e referenze commerciali);</li>
         <li>art. 22 (Cessione del contratto);</li>
+        <li>art. 23-bis (Divieto di sviamento e non sollecitazione);</li>
         <li>art. 25.2 (Foro esclusivo).</li>
       </ul>
 

@@ -110,7 +110,20 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
         .select("*, employee:employees(first_name, last_name)")
         .eq("order_id", orderId);
       if (error) throw error;
-      return data as OrderEmployee[];
+      // Difesa: un dipendente può essere stato rimosso → il join `employee`
+      // torna null/undefined. Placeholder per non crashare su oe.employee.first_name.
+      return ((data ?? []) as Array<
+        Omit<OrderEmployee, "employee"> & { employee: OrderEmployee["employee"] | null }
+      >).map((row): OrderEmployee => ({
+        ...row,
+        // Coercizione numerica: i numeric Postgres possono arrivare come stringa o
+        // mancanti (righe legacy/parziali) → formatCurrency stamperebbe "NaN €" e la
+        // somma concatenerebbe. Number(x)||0 li normalizza (come LaborCostsStats).
+        hours_worked: Number(row.hours_worked) || 0,
+        hourly_rate: Number(row.hourly_rate) || 0,
+        total_cost: Number(row.total_cost) || 0,
+        employee: row.employee ?? { first_name: "Dipendente", last_name: "(rimosso)" },
+      }));
     },
     enabled: !!orderId,
     staleTime: 2 * 60 * 1000,
@@ -227,8 +240,8 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
   });
 
   // ── Derived data ─────────────────────────────────────────────
-  const totalEmployeeCost = orderEmployees.reduce((sum, e) => sum + e.total_cost, 0);
-  const totalTeamCost = orderExternalTeams.reduce((sum, t) => sum + t.total_cost, 0);
+  const totalEmployeeCost = orderEmployees.reduce((sum, e) => sum + (Number(e.total_cost) || 0), 0);
+  const totalTeamCost = orderExternalTeams.reduce((sum, t) => sum + (Number(t.total_cost) || 0), 0);
   const totalSubappCost = subappaltatori.reduce((s, sub) => s + (sub.totale_sal_lordo ?? 0), 0);
   const totalLaborCost = totalEmployeeCost + totalTeamCost + totalSubappCost;
 
@@ -322,7 +335,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                 {orderEmployees.map((oe) => (
                   <div key={oe.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
                     <div className="space-y-1">
-                      <p className="font-medium text-sm">{oe.employee.first_name} {oe.employee.last_name}</p>
+                      <p className="font-medium text-sm">{oe.employee?.first_name ?? "—"} {oe.employee?.last_name ?? ""}</p>
                       <p className="text-xs text-muted-foreground">{oe.hours_worked}h × {formatCurrency(oe.hourly_rate)}/h</p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -411,7 +424,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                 {orderExternalTeams.map((ot) => (
                   <div key={ot.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
                     <div className="space-y-1">
-                      <p className="font-medium text-sm">{ot.external_team.name}</p>
+                      <p className="font-medium text-sm">{ot.external_team?.name ?? "Squadra (rimossa)"}</p>
                       <div className="flex items-center gap-2 text-sm">
                         {ot.is_paid ? (
                           <Badge variant="default" className="gap-1"><Check className="h-3 w-3" /> Pagato {ot.paid_date && `il ${formatDate(ot.paid_date)}`}</Badge>

@@ -7,11 +7,15 @@ function toValidDate(date: string | Date | null | undefined): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number | string | null | undefined): string {
+  // Difesa: Intl.NumberFormat.format(undefined|NaN) stampa "NaN €" (trappola
+  // ricorrente, es. tariffe/costi non valorizzati). Coercizziamo a numero finito,
+  // fallback 0, così nessuna card mostra mai "NaN €".
+  const n = typeof amount === "number" ? amount : Number(amount);
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: "EUR",
-  }).format(amount);
+  }).format(Number.isFinite(n) ? n : 0);
 }
 
 /** Compact currency for chart axes: €1.2M, €45k, €800 */

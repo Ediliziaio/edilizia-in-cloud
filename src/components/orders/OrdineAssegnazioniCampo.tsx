@@ -33,7 +33,7 @@ export function OrdineAssegnazioniCampo({ orderId, companyId }: Props) {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formUserId, setFormUserId] = useState("");
-  const [formRoleType, setFormRoleType] = useState<"employee" | "subcontractor">("employee");
+  const [formRoleType] = useState<"employee" | "subcontractor">("employee"); // sempre "employee": lo switch subappaltatore non è ancora implementato in questa UI
   const [formDataInizio, setFormDataInizio] = useState("");
   const [formDataFine, setFormDataFine] = useState("");
   const [formCapocantiere, setFormCapocantiere] = useState(false);

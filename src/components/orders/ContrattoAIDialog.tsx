@@ -13,7 +13,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -75,7 +74,6 @@ const DEFAULT_OPZIONI: ContrattoOpzioni = {
 };
 
 export function ContrattoAIDialog({ orderId, companyId, triggerLabel = "Genera Contratto AI" }: Props) {
-  const { effectiveCompany } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [opzioni, setOpzioni] = useState<ContrattoOpzioni>(DEFAULT_OPZIONI);

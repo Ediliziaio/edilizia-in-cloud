@@ -26,7 +26,7 @@ import { SSOButtons } from "./SSOButtons";
 import { EmailOTPLogin } from "./EmailOTPLogin";
 import { markSessionStarted } from "@/hooks/useSessionTimeout";
 import { useBrandingByDomain } from "@/hooks/useBrandingByDomain";
-import { isMobileAppRuntime, isIOS } from "@/lib/mobile/platform";
+import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { cn } from "@/lib/utils";
 import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
@@ -542,8 +542,15 @@ export const LoginForm = forwardRef<HTMLDivElement>(function LoginForm(_props, r
 
               <p className="text-center text-xs text-muted-foreground leading-relaxed">
                 L'accesso è riservato agli utenti registrati.
-                {/* 3.1.1 compliance: nasconde link marketing su iOS */}
-                {!isIOS && (
+                {/* App Store Guideline 3.1.1: nell'app mobile (iOS/Android) NON deve
+                    comparire alcun link al sito/marketing — Apple lo considera un
+                    accesso indiretto a meccanismi di acquisto esterni. Usiamo
+                    isMobileAppRuntime, che include il flag BUILD-TIME
+                    VITE_APP_MODE=mobile (mobile:build): affidabile a prescindere dal
+                    runtime Capacitor — il link non viene MAI renderizzato nell'app.
+                    Prima si usava isIOS (rilevamento runtime) → fragile, motivo dei
+                    rifiuti ripetuti. Sul WEB il link resta visibile. */}
+                {!isMobileAppRuntime && (
                   <>
                     <br />
                     <a href="https://www.ediliziaincloud.com" className="text-[#F97415] hover:text-[#F97415]/80 font-medium transition-colors" target="_blank" rel="noopener noreferrer">

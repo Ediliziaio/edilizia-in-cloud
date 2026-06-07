@@ -95,6 +95,17 @@ export interface OrderItem {
   unit_price?: number;
   discount_percent?: number;
   standard_cost?: number;
+  // ── Ciclo misure (prodotti su misura) — spina dorsale articolo ──
+  // Copiati dal preventivo (famiglia + assi + misura iniziale), poi arricchiti
+  // dal sopralluogo con la misura definitiva. Vedi migration order_items_measure_lifecycle.
+  family_id?: string | null;
+  axis_selections?: Record<string, string> | null;
+  misure_preventivo?: Record<string, number> | null;
+  misure_rilevate?: Record<string, number> | null;
+  measure_status?: 'da_rilevare' | 'rilevato' | 'confermato' | null;
+  measure_variance?: Record<string, { prev: number; def: number; delta: number }> | null;
+  survey_id?: string | null;
+  survey_element_id?: string | null;
 }
 
 interface OrderItemsListProps {

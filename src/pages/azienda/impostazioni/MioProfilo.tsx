@@ -835,7 +835,7 @@ export default function MioProfilo() {
                 <p>
                   Per richiedere la <strong>cancellazione</strong> del tuo account o l'<strong>esportazione</strong> dei tuoi dati
                   personali (Regolamento UE 2016/679, art. 15-17), contatta l'amministratore della tua azienda
-                  o scrivi a <a href="mailto:privacy@ediliziaincloud.it" className="text-primary hover:underline">privacy@ediliziaincloud.it</a>.
+                  o scrivi a <a href="mailto:privacy@ediliziaincloud.com" className="text-primary hover:underline">privacy@ediliziaincloud.com</a>.
                 </p>
               </div>
             </CardContent>

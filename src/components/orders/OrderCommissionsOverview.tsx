@@ -202,12 +202,6 @@ const COMMISSION_TYPE_LABELS: Record<string, string> = {
   manual: "Manuale",
 };
 
-const COMPENSATION_MODE_LABELS: Record<string, string> = {
-  only_commission: "Solo provvigioni",
-  fixed_plus_commission: "Fisso + provvigioni",
-  fixed_only: "Solo fisso",
-};
-
 const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
   all: "Tutti gli stati",
   unpaid: "Non pagate",

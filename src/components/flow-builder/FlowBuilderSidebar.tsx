@@ -65,7 +65,7 @@ export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors 
 
       {/* Sliding panel */}
       {activePanel !== "none" && (
-        <div className="w-[280px] border-r bg-background flex flex-col">
+        <div className="w-[280px] border-r bg-background flex flex-col max-md:fixed max-md:inset-y-0 max-md:left-12 max-md:z-40 max-md:w-[min(80vw,300px)] max-md:shadow-2xl">
           <div className="flex items-center justify-between border-b px-3 py-2">
             <h3 className="text-sm font-semibold">
               {ITEMS.find((i) => i.key === activePanel)?.label}

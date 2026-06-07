@@ -94,7 +94,7 @@ export function ModuliVendutaTab() {
           <p className="text-sm text-muted-foreground">
             Hai bisogno di un modulo personalizzato per la tua attività?{" "}
             <a
-              href="mailto:info@ediliziaincloud.it?subject=Richiesta%20modulo%20personalizzato"
+              href="mailto:info@ediliziaincloud.com?subject=Richiesta%20modulo%20personalizzato"
               className="font-medium text-primary hover:underline"
             >
               Contattaci

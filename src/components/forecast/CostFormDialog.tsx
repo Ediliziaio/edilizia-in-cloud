@@ -209,11 +209,15 @@ export function CostFormDialog({
                                 setCategoryPopoverOpen(false);
                                 // Save to cost_categories table
                                 if (effectiveCompany?.id) {
-                                  await supabase.from("cost_categories").upsert(
+                                  const { error: catErr } = await supabase.from("cost_categories").upsert(
                                     { company_id: effectiveCompany.id, name: catName },
                                     { onConflict: "company_id,name" }
                                   );
-                                  queryClient.invalidateQueries({ queryKey: queryKeys.costs.categories(effectiveCompany?.id) });
+                                  if (catErr) {
+                                    toast.error("Categoria non salvata", { description: catErr.message });
+                                  } else {
+                                    queryClient.invalidateQueries({ queryKey: queryKeys.costs.categories(effectiveCompany?.id) });
+                                  }
                                 }
                               }}
                             >

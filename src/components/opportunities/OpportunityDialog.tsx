@@ -323,8 +323,12 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
             // Save tags and sync to contact
             const normalizedTags = normalizeTagList(tags);
             if (normalizedTags.length > 0) {
-              await supabase.from("marketing_opportunities").update({ tags: normalizedTags }).eq("id", oppId).eq("company_id", companyId!);
-              await syncTagsToContact(contactId, normalizedTags, companyId);
+              const { error: tagsErr } = await supabase.from("marketing_opportunities").update({ tags: normalizedTags }).eq("id", oppId).eq("company_id", companyId!);
+              if (tagsErr) {
+                toast.error("Opportunità creata, ma i tag non sono stati salvati", { description: tagsErr.message });
+              } else {
+                await syncTagsToContact(contactId, normalizedTags, companyId);
+              }
             }
             // Save custom field values
             if (Object.keys(customFieldValues).length > 0) {
@@ -332,7 +336,8 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 .filter(([, v]) => v.trim())
                 .map(([fieldId, val]) => ({ opportunity_id: oppId, field_id: fieldId, value: val }));
               if (rows.length > 0) {
-                await supabase.from("marketing_opportunity_field_values").insert(rows);
+                const { error: cfErr } = await supabase.from("marketing_opportunity_field_values").insert(rows);
+                if (cfErr) toast.error("Opportunità creata, ma i campi personalizzati non sono stati salvati", { description: cfErr.message });
               }
             }
           }

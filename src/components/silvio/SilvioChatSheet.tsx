@@ -377,7 +377,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
     setDraft("Cosa conta ora?");
     setAutoSendPending(true);
   // channelId cambia solo se la company cambia — stabile durante la sessione
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [open, channelId, loadingChannel, mode, companyId]);
 
   // F4 — Trigger effettivo invio quando draft è sincronizzato allo stato

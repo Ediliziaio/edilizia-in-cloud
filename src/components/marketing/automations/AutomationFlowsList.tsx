@@ -324,7 +324,8 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           idMap[n.id] = newId;
           return { id: newId, flow_id: data.id, company_id: effectiveCompany!.id, node_type: n.node_type, position_x: n.position_x, position_y: n.position_y, config_json: n.config_json, label: n.label };
         });
-        await supabase.from("automation_nodes").insert(newNodes);
+        const { error: nodesErr } = await supabase.from("automation_nodes").insert(newNodes);
+        if (nodesErr) throw nodesErr;
         const { data: conns } = await supabase
           .from("automation_connections")
           .select("*")
@@ -338,7 +339,10 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
             to_node_id: idMap[c.to_node_id],
             label: c.label,
           })).filter(c => c.from_node_id && c.to_node_id);
-          if (newConns.length > 0) await supabase.from("automation_connections").insert(newConns);
+          if (newConns.length > 0) {
+            const { error: connErr } = await supabase.from("automation_connections").insert(newConns);
+            if (connErr) throw connErr;
+          }
         }
       }
       return data;

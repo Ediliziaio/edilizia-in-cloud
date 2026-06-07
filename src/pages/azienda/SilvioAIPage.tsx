@@ -829,7 +829,7 @@ export default function SilvioAIPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const handleElimina = async (id: string) => {

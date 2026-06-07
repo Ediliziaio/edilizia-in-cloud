@@ -750,13 +750,14 @@ export function UsersConfig() {
         }
       }
 
-      // Audit log
+      // Audit log (non bloccante: se fallisce logghiamo ma non interrompiamo il flusso)
       if (effectiveCompanyId) {
-        await supabase.from("user_audit_log").insert({
+        const { error: auditErr } = await supabase.from("user_audit_log").insert({
           company_id: effectiveCompanyId, actor_id: user!.id,
           target_user_id: response.data.user_id, action: "user_created",
           details: { role: data.role_type, email: normalizedEmail, commission_percentage: data.commission_percentage },
         });
+        if (auditErr) logger.error("Audit log non registrato (user_created):", auditErr);
       }
 
       // Invalidate all related queries

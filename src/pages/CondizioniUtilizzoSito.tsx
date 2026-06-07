@@ -17,8 +17,8 @@ export default function CondizioniUtilizzoSito() {
       </p>
 
       <p>
-        <strong>Versione:</strong> 1.0 &middot; <strong>Ultimo aggiornamento:</strong> 27 aprile
-        2026
+        <strong>Ultimo aggiornamento:</strong> 27 aprile 2026 &middot; <strong>Versione:</strong>{" "}
+        1.0
       </p>
 
       <p>
@@ -177,7 +177,7 @@ export default function CondizioniUtilizzoSito() {
         <strong>4.3</strong> L&apos;Utente si impegna inoltre a informare prontamente la Società
         qualora venga a conoscenza di un utilizzo illecito, abusivo o non autorizzato del Sito o
         dei Contenuti, scrivendo all&apos;indirizzo{" "}
-        <a href="mailto:legal@ediliziaincloud.it">legal@ediliziaincloud.it</a>.
+        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>.
       </p>
 
       <h2>5. Sospensione e revoca dell&apos;accesso</h2>
@@ -357,7 +357,7 @@ export default function CondizioniUtilizzoSito() {
       <p>
         <strong>10.3</strong> Eventuali reclami dovranno essere comunicati per iscritto
         all&apos;indirizzo{" "}
-        <a href="mailto:legal@ediliziaincloud.it">legal@ediliziaincloud.it</a>, a pena di decadenza,
+        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>, a pena di decadenza,
         entro 30 giorni dal verificarsi dell&apos;evento o dal momento in cui l&apos;Utente avrebbe
         dovuto averne ragionevole conoscenza.
       </p>
@@ -414,28 +414,22 @@ export default function CondizioniUtilizzoSito() {
       </p>
       <ul>
         <li>
-          <strong>Ragione sociale:</strong> Domus Group S.r.l.
+          <strong>Domus Group S.r.l.</strong>
         </li>
         <li>
           <strong>Sede legale:</strong> Via Aurelio Saffi 29, 20123 Milano (MI)
         </li>
         <li>
-          <strong>Email generale:</strong>{" "}
-          <a href="mailto:info@ediliziaincloud.it">info@ediliziaincloud.it</a>
+          <strong>Email:</strong>{" "}
+          <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>
         </li>
         <li>
           <strong>Email per segnalazioni legali:</strong>{" "}
-          <a href="mailto:legal@ediliziaincloud.it">legal@ediliziaincloud.it</a>
+          <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>
         </li>
         <li>
           <strong>PEC:</strong>{" "}
           <a href="mailto:domusgroupsrl@legalmail.it">domusgroupsrl@legalmail.it</a>
-        </li>
-        <li>
-          <strong>Codice destinatario SDI:</strong> USAL8PV
-        </li>
-        <li>
-          <strong>P.IVA e C.F.:</strong> 13132010961
         </li>
       </ul>
 

@@ -61,7 +61,7 @@ export default function UpgradePage() {
               </Link>
             </Button>
             <Button asChild variant="outline">
-              <a href="mailto:commerciale@ediliziaincloud.it?subject=Richiesta%20attivazione%20funzionalità">
+              <a href="mailto:commerciale@ediliziaincloud.com?subject=Richiesta%20attivazione%20funzionalità">
                 <Mail className="mr-2 h-4 w-4" />
                 Contatta commerciale
               </a>
