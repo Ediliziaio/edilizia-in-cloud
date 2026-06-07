@@ -301,16 +301,42 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Get WhatsApp config for the company
-      const { data: waConfig } = await adminClient
-        .from("messaging_whatsapp_config")
+      // Get WhatsApp config for the company.
+      // 2026-06-07: prefer the new multi-number table (ai_whatsapp_numbers) — pick an active,
+      // webhook-verified number — and fall back to the legacy messaging_whatsapp_config.
+      // Both tables store access_token_encrypted via _shared/encryption.ts (encrypt/decrypt symmetric).
+      let waPhoneNumberId: string | null = null;
+      let waEncryptedToken: string | null = null;
+
+      const { data: waNumber } = await adminClient
+        .from("ai_whatsapp_numbers")
         .select("phone_number_id, access_token_encrypted")
         .eq("company_id", contact.company_id)
-        .eq("is_connected", true)
+        .eq("stato", "active")
+        .eq("webhook_verified", true)
+        .not("access_token_encrypted", "is", null)
+        .order("updated_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (!waConfig?.phone_number_id || !waConfig?.access_token_encrypted) {
+      if (waNumber?.phone_number_id && waNumber?.access_token_encrypted) {
+        waPhoneNumberId = waNumber.phone_number_id;
+        waEncryptedToken = waNumber.access_token_encrypted;
+      } else {
+        const { data: waConfig } = await adminClient
+          .from("messaging_whatsapp_config")
+          .select("phone_number_id, access_token_encrypted")
+          .eq("company_id", contact.company_id)
+          .eq("is_connected", true)
+          .limit(1)
+          .maybeSingle();
+        if (waConfig?.phone_number_id && waConfig?.access_token_encrypted) {
+          waPhoneNumberId = waConfig.phone_number_id;
+          waEncryptedToken = waConfig.access_token_encrypted;
+        }
+      }
+
+      if (!waPhoneNumberId || !waEncryptedToken) {
         return new Response(
           JSON.stringify({ error: "WhatsApp non configurato per questa azienda" }),
           { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
@@ -319,9 +345,9 @@ Deno.serve(async (req) => {
 
       // Decrypt access token
       const encKey = getEncryptionKey();
-      const decryptedToken = await decryptMaybeEncrypted(waConfig.access_token_encrypted, encKey);
+      const decryptedToken = await decryptMaybeEncrypted(waEncryptedToken, encKey);
 
-      const result = await sendWhatsApp(waConfig.phone_number_id, decryptedToken, contact.phone, content);
+      const result = await sendWhatsApp(waPhoneNumberId, decryptedToken, contact.phone, content);
       if (!result.ok) {
         status = "failed";
         errorDetail = JSON.stringify(result.body);
