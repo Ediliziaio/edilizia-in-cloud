@@ -1,5 +1,6 @@
 // MP04 — Card per singolo numero WhatsApp multi-purpose.
 
+import { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,27 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { CheckCircle2, AlertTriangle, Phone, Trash2, Settings2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  CheckCircle2,
+  AlertTriangle,
+  Phone,
+  Trash2,
+  Settings2,
+  KeyRound,
+  Loader2,
+  Info,
+} from "lucide-react";
 import {
   PURPOSE_AUTONOMY,
   PURPOSE_DESCRIPTIONS,
@@ -22,6 +43,7 @@ import {
   PURPOSE_GROUP_BY_PURPOSE,
   PURPOSE_GROUPS,
   PURPOSE_LABELS,
+  useConnectWANumber,
   useDeleteWANumber,
   type WANumber,
   type WAPurpose,
@@ -34,9 +56,41 @@ interface Props {
 
 export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
   const del = useDeleteWANumber();
+  const connect = useConnectWANumber();
   const purpose = number.purpose as WAPurpose;
   const group = PURPOSE_GROUPS[PURPOSE_GROUP_BY_PURPOSE[purpose]];
   const active = number.stato === "active" && number.webhook_verified;
+
+  // Aggiorna token: i token Meta (specie numeri di test) scadono. Il wizard
+  // disabilita uno scopo già collegato, quindi senza questo path non sarebbe
+  // possibile rinfrescare un token scaduto. Ri-chiama whatsapp-connect, che fa
+  // upsert su (company, purpose): aggiorna il token cifrato, ri-sottoscrive la
+  // WABA e riporta il numero ad "active".
+  const [tokenOpen, setTokenOpen] = useState(false);
+  const [newToken, setNewToken] = useState("");
+
+  const canReconnect = Boolean(number.phone_number_id && number.waba_id);
+
+  const submitNewToken = () => {
+    const token = newToken.trim();
+    if (!token || !canReconnect) return;
+    connect.mutate(
+      {
+        purpose,
+        phone_number: number.numero ?? "",
+        phone_number_id: number.phone_number_id ?? "",
+        waba_id: number.waba_id ?? "",
+        access_token: token,
+        display_name: number.display_name ?? undefined,
+      },
+      {
+        onSuccess: () => {
+          setTokenOpen(false);
+          setNewToken("");
+        },
+      },
+    );
+  };
 
   return (
     <Card className="transition-shadow hover:shadow-md">
@@ -96,7 +150,7 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
           ))}
         </ul>
 
-        <div className="flex items-center gap-2 pt-2">
+        <div className="flex flex-wrap items-center gap-2 pt-2">
           {onOpenSettings && (
             <Button
               variant="outline"
@@ -106,6 +160,18 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
             >
               <Settings2 className="mr-1 h-4 w-4" />
               Impostazioni
+            </Button>
+          )}
+
+          {canReconnect && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setTokenOpen(true)}
+              aria-label={`Aggiorna token ${number.display_name ?? number.numero}`}
+            >
+              <KeyRound className="mr-1 h-4 w-4" />
+              Aggiorna token
             </Button>
           )}
 
@@ -141,6 +207,65 @@ export function WhatsAppNumberCard({ number, onOpenSettings }: Props) {
           </AlertDialog>
         </div>
       </CardContent>
+
+      {/* Dialog aggiorna token — rinfresca un access token scaduto senza dover
+          rimuovere e ricreare il numero. */}
+      <Dialog
+        open={tokenOpen}
+        onOpenChange={(o) => {
+          setTokenOpen(o);
+          if (!o) setNewToken("");
+        }}
+      >
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Aggiorna access token</DialogTitle>
+            <DialogDescription>
+              Incolla un nuovo access token Meta per {number.numero}. Il numero
+              resta lo stesso (Phone ID e WABA invariati); aggiorniamo solo il
+              token, lo ri-sottoscriviamo e lo riportiamo attivo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Lo trovi in <b>Meta Business Manager → WhatsApp → Configurazione API</b>.
+                I token temporanei dei numeri di test scadono dopo ~24h: per la
+                produzione usa un token permanente da Utente di sistema.
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-1">
+              <Label htmlFor={`token-${number.id}`}>Access Token</Label>
+              <Textarea
+                id={`token-${number.id}`}
+                value={newToken}
+                onChange={(e) => setNewToken(e.target.value)}
+                rows={3}
+                placeholder="EAAG..."
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="rounded-lg bg-muted/50 p-2 text-xs text-muted-foreground space-y-0.5">
+              <div>Phone Number ID: <code>{number.phone_number_id}</code></div>
+              <div>WABA ID: <code>{number.waba_id}</code></div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setTokenOpen(false)}>
+              Annulla
+            </Button>
+            <Button disabled={!newToken.trim() || connect.isPending} onClick={submitNewToken}>
+              {connect.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Aggiorna e riattiva
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
