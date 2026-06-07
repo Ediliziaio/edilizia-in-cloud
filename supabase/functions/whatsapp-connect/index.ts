@@ -268,6 +268,36 @@ Deno.serve(async (req) => {
 
       webhookVerified = true;
       accountStatus = "active";
+    } else if (hasManualToken && accessToken && wabaId) {
+      // ── Ramo MANUALE: attivazione (prima MANCAVA) ─────────────────────────
+      // Bug storico: il ramo manuale non iscriveva l'app al webhook del WABA né
+      // marcava il numero come attivo → restava 'pending' per sempre (non
+      // visibile nell'Hub, invio rifiutato). Replichiamo la stessa logica del
+      // ramo Embedded Signup. Subscribe best-effort: l'invio in USCITA funziona
+      // comunque col token; la subscription abilita anche l'INBOUND.
+      try {
+        const subscribeParams = new URLSearchParams({ access_token: accessToken });
+        const subscribeUrl = `https://graph.facebook.com/v21.0/${wabaId}/subscribed_apps?${subscribeParams}`;
+        const subscribeRes = await fetch(subscribeUrl, { method: "POST" });
+        const subscribeData = await subscribeRes.json().catch(() => ({}));
+        webhookVerified = subscribeRes.ok && !subscribeData.error;
+        if (!webhookVerified) {
+          console.warn(
+            JSON.stringify({
+              level: "warn",
+              fn: "whatsapp-connect",
+              msg: "manual subscribe_apps non riuscito (inbound disattivo, outbound ok)",
+              error: subscribeData.error,
+            }),
+          );
+        }
+      } catch (err) {
+        webhookVerified = false;
+        console.warn(
+          JSON.stringify({ level: "warn", fn: "whatsapp-connect", msg: "manual subscribe_apps exception", error: (err as Error)?.message }),
+        );
+      }
+      accountStatus = "active";
     }
 
     if (!accessToken || !phoneNumberId || !wabaId) {
