@@ -4,7 +4,7 @@
  * Ogni cartella contiene le caselle collegate: clic su cartella = tutte le
  * caselle, clic su account = stessa cartella filtrata per account.
  */
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,6 +30,7 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { EmailFilter, FolderFilter } from "../EmailLayout";
 import type { EmailConnectionSummary } from "../EmailLayout";
+import ReconnectMailboxDialog from "./ReconnectMailboxDialog";
 
 type SystemFolderKey = "inbox" | "sent" | "drafts" | "starred" | "spam" | "trash" | "archive";
 
@@ -429,6 +430,8 @@ function SyncStatusPanel({
   connections: EmailSidebarProps["connections"];
   settingsPath: string;
 }) {
+  const [reconnectOpen, setReconnectOpen] = useState(false);
+  const autoOpenedRef = useRef(false);
   const extendedConnections = connections as EmailConnectionSummary[];
   const active = extendedConnections.filter((c) => c.status === "active").length;
   const unhealthy = extendedConnections.filter((c) =>
@@ -445,42 +448,82 @@ function SyncStatusPanel({
     .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
   const lastSyncLabel = syncLabelFor(lastSyncAt);
 
-  return (
-    <Link
-      to={settingsPath}
-      className={cn(
-        "block rounded-2xl border p-3 transition-colors",
-        hasError
-          ? "border-rose-200 bg-rose-50 hover:bg-rose-100/70"
-          : "border-emerald-100 bg-emerald-50/70 hover:bg-emerald-100/70",
+  // Auto-apertura: appena si rilevano caselle in errore (connessioni caricate in
+  // modo asincrono) il popup si apre da solo, una volta per ingresso nel client.
+  // Rientrando nell'email col problema ancora presente → popup già aperto.
+  // Resta richiudibile; se gli errori si risolvono, il guard si resetta.
+  useEffect(() => {
+    if (!hasError) {
+      autoOpenedRef.current = false;
+      return;
+    }
+    if (!autoOpenedRef.current) {
+      autoOpenedRef.current = true;
+      setReconnectOpen(true);
+    }
+  }, [hasError]);
+
+  const panelClass = cn(
+    "block w-full text-left rounded-2xl border p-3 transition-colors",
+    hasError
+      ? "border-rose-200 bg-rose-50 hover:bg-rose-100/70"
+      : "border-emerald-100 bg-emerald-50/70 hover:bg-emerald-100/70",
+  );
+
+  const content = (
+    <div className="flex items-start gap-2">
+      {hasError ? (
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
+      ) : (
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
       )}
-      title={hasError ? "Una o più caselle hanno problemi di sync — clicca per risolvere" : "Stato sync caselle — clicca per impostazioni"}
-    >
-      <div className="flex items-start gap-2">
-        {hasError ? (
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
-        ) : (
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-        )}
-        <div className="min-w-0 flex-1">
-          <p className={cn(
-            "text-xs font-semibold",
-            hasError ? "text-rose-900" : "text-emerald-900",
-          )}>
-            {hasError
-              ? `${unhealthy.length} ${unhealthy.length === 1 ? "casella" : "caselle"} con problemi`
-              : `${active}/${extendedConnections.length} ${extendedConnections.length === 1 ? "casella attiva" : "caselle attive"}`}
-          </p>
-          <p className={cn(
-            "mt-0.5 truncate text-[11px] leading-snug",
-            hasError ? "text-rose-700" : "text-emerald-800/80",
-          )}>
-            {hasError
-              ? "Riconnetti o verifica le impostazioni"
-              : `Ultimo sync ${lastSyncLabel}`}
-          </p>
-        </div>
+      <div className="min-w-0 flex-1">
+        <p className={cn(
+          "text-xs font-semibold",
+          hasError ? "text-rose-900" : "text-emerald-900",
+        )}>
+          {hasError
+            ? `${unhealthy.length} ${unhealthy.length === 1 ? "casella" : "caselle"} con problemi`
+            : `${active}/${extendedConnections.length} ${extendedConnections.length === 1 ? "casella attiva" : "caselle attive"}`}
+        </p>
+        <p className={cn(
+          "mt-0.5 truncate text-[11px] leading-snug",
+          hasError ? "text-rose-700" : "text-emerald-800/80",
+        )}>
+          {hasError
+            ? "Riconnetti la casella in errore"
+            : `Ultimo sync ${lastSyncLabel}`}
+        </p>
       </div>
+    </div>
+  );
+
+  // In errore: il banner apre il popup mirato di riconnessione (non più un link
+  // generico). Senza errori: link allo stato sync / impostazioni.
+  if (hasError) {
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setReconnectOpen(true)}
+          className={panelClass}
+          title="Una o più caselle hanno problemi — clicca per riconnetterle"
+        >
+          {content}
+        </button>
+        <ReconnectMailboxDialog
+          open={reconnectOpen}
+          onOpenChange={setReconnectOpen}
+          brokenConnections={unhealthy}
+          settingsPath={settingsPath}
+        />
+      </>
+    );
+  }
+
+  return (
+    <Link to={settingsPath} className={panelClass} title="Stato sync caselle — clicca per impostazioni">
+      {content}
     </Link>
   );
 }
