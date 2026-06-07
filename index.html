@@ -565,6 +565,19 @@
 
       (function () {
         if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+          // Watchdog NATIVO: la splash Capacitor copre il boot, ma se React NON monta
+          // (#root vuoto dopo il timeout — es. errore JS early o chunk fallito) l'utente
+          // resterebbe su schermo nero senza via d'uscita. Mostriamo il recovery
+          // "Riprova / Reset cache". showBootstrapFallback è una function declaration
+          // (hoisted nello scope della IIFE) → utilizzabile qui, prima della sua posizione.
+          setTimeout(function () {
+            try {
+              var rootEl = document.getElementById('root');
+              if (!rootEl || rootEl.childElementCount === 0) {
+                showBootstrapFallback('native-bootstrap-timeout');
+              }
+            } catch (e) {}
+          }, 12000);
           return;
         }
 
