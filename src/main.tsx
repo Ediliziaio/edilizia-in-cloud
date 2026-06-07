@@ -6,6 +6,7 @@ import "./index.css";
 import { initWebVitalsReporter } from "./lib/velocity/webVitalsReporter";
 // Meta Ads attribution: cattura fbclid → _fbc, bootstrap _fbp per CAPI.
 import { initFacebookClickTracker } from "./lib/meta/fbcTracker";
+import { isNative } from "./lib/mobile/platform";
 
 // 🚨 ESPLICITO unregister di service worker stale.
 //
@@ -107,6 +108,22 @@ window.addEventListener("vite:preloadError", () => {
 // Meta Ads attribution: idempotente, no-op se fbclid assente.
 // Va PRIMA del render perché il fbclid arriva da URL al primo paint.
 initFacebookClickTracker();
+
+// iOS/Android (WKWebView) — rete di sicurezza contro i crash da unhandled rejection.
+// Una promise non-catchata (es. fetch a una edge function fallito per CORS/cold-start,
+// o un fire-and-forget DB/storage/log senza .catch) su WebKit diventa un PAGEERROR che
+// fa scattare l'ErrorBoundary → schermata d'errore / crash UI. SOLO su native: logghiamo
+// per diagnostica ma preventDefault per non far crashare l'app. Sul WEB lasciamo propagare
+// (debug). Gli handler dedicati (auth/sessione) continuano a girare: preventDefault blocca
+// solo l'azione di default del browser, non gli altri listener.
+if (isNative && typeof window !== "undefined") {
+  window.addEventListener("unhandledrejection", (event) => {
+    try {
+      console.warn("[native] unhandled rejection soppressa per stabilità:", event && event.reason);
+    } catch { /* noop */ }
+    event.preventDefault();
+  });
+}
 
 createRoot(document.getElementById("root")!).render(<App />);
 
