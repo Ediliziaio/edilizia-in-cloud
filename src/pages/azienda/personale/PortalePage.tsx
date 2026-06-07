@@ -86,6 +86,7 @@ import {
   listPortalCourseProgress,
   listPortalCourses,
   logPortalCourseActivity,
+  assignPortalCourseToUsers,
   savePortalCourseEnrollment,
   savePortalCourse,
   uploadPortalMaterial,
@@ -3692,6 +3693,23 @@ function PeopleProgressPanel({
     staleTime: 30_000,
   });
   const qc = useQueryClient();
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignSel, setAssignSel] = useState<Set<string>>(new Set());
+  const [assignDue, setAssignDue] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const { data: companyUsers = [] } = useQuery({
+    queryKey: ["portal-company-users", companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email")
+        .eq("company_id", companyId as string);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null }>;
+    },
+    enabled: !!companyId && assignOpen,
+    staleTime: 60_000,
+  });
 
   if (!course) return null;
 
@@ -3723,6 +3741,25 @@ function PeopleProgressPanel({
     toast.success(`Promemoria creato per il ${new Date(remindOn).toLocaleDateString("it-IT")}.`);
   };
 
+  const enrolledIds = new Set(people.map((p) => p.userId));
+  const handleAssignCourse = async () => {
+    if (!companyId || assignSel.size === 0) return;
+    setAssigning(true);
+    try {
+      const res = await assignPortalCourseToUsers(companyId, course.id, [...assignSel], userId ?? null, assignDue || null);
+      await qc.invalidateQueries({ queryKey: ["portal-course-progress", companyId, course.id] });
+      const tot = res.assigned + res.updated;
+      toast.success(`Corso assegnato a ${tot} ${tot === 1 ? "persona" : "persone"}.`);
+      setAssignOpen(false);
+      setAssignSel(new Set());
+      setAssignDue("");
+    } catch {
+      toast.error("Assegnazione non riuscita.");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   const mandatoryCourses = courses.filter((item) => item.area === "sicurezza" || item.area === "procedure");
   const audienceLabel: Record<PortalAudience, string> = {
     tutti: "Tutta azienda",
@@ -3752,15 +3789,92 @@ function PeopleProgressPanel({
               Chi ha completato, chi è in ritardo e chi deve ancora finire il corso selezionato.
             </p>
           </div>
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={scheduleReminder}
-          >
-            <CalendarClock className="h-4 w-4" />
-            Programma reminder
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button className="gap-2" onClick={() => setAssignOpen(true)}>
+              <Users className="h-4 w-4" />
+              Assegna corso
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={scheduleReminder}>
+              <CalendarClock className="h-4 w-4" />
+              Programma reminder
+            </Button>
+          </div>
         </div>
+
+        <Dialog
+          open={assignOpen}
+          onOpenChange={(o) => {
+            setAssignOpen(o);
+            if (!o) setAssignSel(new Set());
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Assegna «{course.title}»</DialogTitle>
+              <DialogDescription>
+                Le persone selezionate troveranno il corso in «Assegnati a te» nella loro Formazione.
+                Chi ha già un avanzamento NON viene azzerato.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <p className="mb-1 text-sm font-medium text-slate-700">Scadenza (opzionale)</p>
+                <Input
+                  type="date"
+                  value={assignDue}
+                  onChange={(e) => setAssignDue(e.target.value)}
+                  className="w-fit"
+                />
+              </div>
+              <div className="max-h-[44vh] space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                {companyUsers.length === 0 ? (
+                  <p className="px-2 py-6 text-center text-sm text-slate-500">Nessun utente azienda trovato.</p>
+                ) : (
+                  companyUsers.map((u) => {
+                    const name = [u.first_name, u.last_name].filter(Boolean).join(" ").trim() || u.email || "Utente";
+                    const already = enrolledIds.has(u.id);
+                    const checked = assignSel.has(u.id);
+                    return (
+                      <label
+                        key={u.id}
+                        className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-slate-50"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(c) =>
+                            setAssignSel((prev) => {
+                              const n = new Set(prev);
+                              if (c) n.add(u.id);
+                              else n.delete(u.id);
+                              return n;
+                            })
+                          }
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-slate-900">{name}</span>
+                          {u.email && <span className="block truncate text-xs text-slate-500">{u.email}</span>}
+                        </span>
+                        {already && (
+                          <Badge variant="outline" className="shrink-0 border-slate-200 text-slate-500">
+                            già iscritto
+                          </Badge>
+                        )}
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAssignOpen(false)} disabled={assigning}>
+                Annulla
+              </Button>
+              <Button onClick={handleAssignCourse} disabled={assigning || assignSel.size === 0}>
+                {assigning ? "Assegnazione…" : `Assegna (${assignSel.size})`}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {people.length > 0 && (
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">

@@ -78,6 +78,8 @@ export interface PortalLearningEnrollment {
   progressPercent: number;
   dueAt?: string | null;
   completedAt?: string | null;
+  /** Valorizzato quando un admin ha ASSEGNATO il corso (vs auto-iscrizione del learner). */
+  assignedBy?: string | null;
 }
 
 /** Riga "avanzamento persona" per un corso: iscrizione reale + nome risolto da profiles. */
@@ -149,6 +151,7 @@ interface PortalEnrollmentRow {
   progress_percent: number | null;
   due_at?: string | null;
   completed_at?: string | null;
+  assigned_by?: string | null;
 }
 
 interface QueryResult<T = unknown> {
@@ -258,16 +261,17 @@ export async function listPortalCourses(companyId: string): Promise<PortalLearni
   // 1° tentativo: query "open" (RLS decide). Funziona post-migration grants.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dbAny = supabase as any;
-  let { data, error } = await dbAny
+  const primary = await dbAny
     .from("portal_courses")
     .select(
       "id,company_id,title,description,area,audience,status,owner,enrolled_count,completion_percent,updated_at,portal_course_modules(id,title,description,lessons,duration,completed_rate,sort_order),portal_course_assets(id,title,type,duration,module_id,storage_path,external_url,is_downloadable,content_text,file_name,file_size,mime_type,sort_order)",
     )
     .order("sort_order", { ascending: true })
     .order("updated_at", { ascending: false });
+  let data = primary.data;
 
   // Fallback (pre-migration grants): query stretta solo su company_id
-  if (error) {
+  if (primary.error) {
     const fallback = await dbAny
       .from("portal_courses")
       .select(
@@ -286,7 +290,7 @@ export async function listPortalCourses(companyId: string): Promise<PortalLearni
 export async function listPortalCourseEnrollments(companyId: string, userId: string): Promise<PortalLearningEnrollment[]> {
   const { data, error } = await getDb()
     .from("portal_course_enrollments")
-    .select("course_id,user_id,status,progress_percent,due_at,completed_at")
+    .select("course_id,user_id,status,progress_percent,due_at,completed_at,assigned_by")
     .eq("company_id", companyId)
     .eq("user_id", userId);
 
@@ -299,6 +303,7 @@ export async function listPortalCourseEnrollments(companyId: string, userId: str
     progressPercent: row.progress_percent ?? 0,
     dueAt: row.due_at ?? null,
     completedAt: row.completed_at ?? null,
+    assignedBy: row.assigned_by ?? null,
   }));
 }
 
@@ -429,6 +434,75 @@ export async function savePortalCourseEnrollment(
       { onConflict: "company_id,course_id,user_id" },
     );
 
+  if (error) throw error;
+}
+
+/**
+ * Assegna un corso a uno o più utenti (admin → utente).
+ * Crea iscrizioni `status='assegnato'` (con assigned_by + due_at) SOLO per gli
+ * utenti non ancora iscritti; per chi è già iscritto aggiorna solo assigned_by/
+ * due_at SENZA toccare status/progresso (nessuna perdita di avanzamento).
+ */
+export async function assignPortalCourseToUsers(
+  companyId: string,
+  courseId: string,
+  userIds: string[],
+  assignedBy: string | null,
+  dueAt?: string | null,
+): Promise<{ assigned: number; updated: number }> {
+  if (userIds.length === 0) return { assigned: 0, updated: 0 };
+  const db = getDb();
+
+  const { data: existing, error: exErr } = await db
+    .from("portal_course_enrollments")
+    .select("user_id")
+    .eq("company_id", companyId)
+    .eq("course_id", courseId);
+  if (exErr) throw exErr;
+  const existingIds = new Set(((existing ?? []) as Array<{ user_id: string }>).map((r) => r.user_id));
+
+  const toInsert = userIds
+    .filter((u) => !existingIds.has(u))
+    .map((u) => ({
+      company_id: companyId,
+      course_id: courseId,
+      user_id: u,
+      status: "assegnato" as PortalEnrollmentStatus,
+      progress_percent: 0,
+      assigned_by: assignedBy,
+      due_at: dueAt ?? null,
+    }));
+  if (toInsert.length > 0) {
+    const { error } = await db.from("portal_course_enrollments").insert(toInsert);
+    if (error) throw error;
+  }
+
+  const toUpdate = userIds.filter((u) => existingIds.has(u));
+  for (const u of toUpdate) {
+    const { error } = await db
+      .from("portal_course_enrollments")
+      .update({ assigned_by: assignedBy, due_at: dueAt ?? null })
+      .eq("company_id", companyId)
+      .eq("course_id", courseId)
+      .eq("user_id", u);
+    if (error) throw error;
+  }
+
+  return { assigned: toInsert.length, updated: toUpdate.length };
+}
+
+/**
+ * Rimuove un'assegnazione. Per sicurezza elimina SOLO iscrizioni ancora
+ * `assegnato` (non avviate): non distrugge mai progresso reale di chi ha iniziato.
+ */
+export async function unassignPortalCourse(companyId: string, courseId: string, userId: string): Promise<void> {
+  const { error } = await getDb()
+    .from("portal_course_enrollments")
+    .delete()
+    .eq("company_id", companyId)
+    .eq("course_id", courseId)
+    .eq("user_id", userId)
+    .eq("status", "assegnato");
   if (error) throw error;
 }
 

@@ -38,6 +38,8 @@ import {
   PlayCircle,
   Search,
   ShieldAlert,
+  UserCheck,
+  CalendarClock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -177,6 +179,8 @@ export default function FormazioneDipendente() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  // "Ora" calcolata una sola volta (evita Date.now() impuro in render — react-hooks/purity).
+  const [nowTs] = useState(() => Date.now());
 
   const coursesQuery = useQuery({
     queryKey: ["formazione-courses", companyId],
@@ -250,13 +254,33 @@ export default function FormazioneDipendente() {
 
   const loading = coursesQuery.isLoading || (!!userId && enrollmentsQuery.isLoading);
 
-  // Obbligatori incompleti in cima; il resto ordinato (da fare prima, poi A-Z).
+  // "Assegnati a te": corsi che un admin ti ha assegnato (enrollment.assignedBy)
+  // e non ancora completati → priorità massima, ordinati per scadenza.
+  const assignedTodo = filtered
+    .filter((c) => {
+      const e = enrollmentByCourse.get(c.id);
+      return !!e?.assignedBy && (e?.progressPercent ?? 0) < 100;
+    })
+    .sort((a, b) => {
+      const ad = enrollmentByCourse.get(a.id)?.dueAt ?? null;
+      const bd = enrollmentByCourse.get(b.id)?.dueAt ?? null;
+      if (ad && bd) return ad.localeCompare(bd);
+      if (ad) return -1;
+      if (bd) return 1;
+      return a.title.localeCompare(b.title);
+    });
+  const assignedIds = new Set(assignedTodo.map((c) => c.id));
+
+  // Obbligatori incompleti (esclusi quelli già in "Assegnati a te"); il resto ordinato.
   const mandatoryTodo = filtered.filter(
-    (c) => isMandatoryArea(c.area) && (enrollmentByCourse.get(c.id)?.progressPercent ?? 0) < 100,
+    (c) =>
+      !assignedIds.has(c.id) &&
+      isMandatoryArea(c.area) &&
+      (enrollmentByCourse.get(c.id)?.progressPercent ?? 0) < 100,
   );
   const mandatoryTodoIds = new Set(mandatoryTodo.map((c) => c.id));
   const rest = filtered
-    .filter((c) => !mandatoryTodoIds.has(c.id))
+    .filter((c) => !assignedIds.has(c.id) && !mandatoryTodoIds.has(c.id))
     .sort((a, b) => {
       const aDone = (enrollmentByCourse.get(a.id)?.progressPercent ?? 0) >= 100 ? 1 : 0;
       const bDone = (enrollmentByCourse.get(b.id)?.progressPercent ?? 0) >= 100 ? 1 : 0;
@@ -314,6 +338,30 @@ export default function FormazioneDipendente() {
         </div>
       ) : (
         <div className="space-y-6">
+          {assignedTodo.length > 0 && (
+            <section className="rounded-2xl border border-blue-200 bg-blue-50/40 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <UserCheck className="h-5 w-5 text-blue-600" />
+                <h2 className="font-bold text-slate-950">Assegnati a te</h2>
+                <Badge variant="outline" className="border-blue-200 bg-white text-blue-700">
+                  {assignedTodo.length}
+                </Badge>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                {assignedTodo.map((course) => (
+                  <CourseCard
+                    key={course.id}
+                    course={course}
+                    enrollment={enrollmentByCourse.get(course.id)}
+                    mandatory={isMandatoryArea(course.area)}
+                    now={nowTs}
+                    onOpen={() => setSelectedId(course.id)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
           {mandatoryTodo.length > 0 && (
             <section className="rounded-2xl border border-red-200 bg-red-50/40 p-4">
               <div className="mb-3 flex items-center gap-2">
@@ -330,6 +378,7 @@ export default function FormazioneDipendente() {
                     course={course}
                     enrollment={enrollmentByCourse.get(course.id)}
                     mandatory
+                    now={nowTs}
                     onOpen={() => setSelectedId(course.id)}
                   />
                 ))}
@@ -347,6 +396,7 @@ export default function FormazioneDipendente() {
                     course={course}
                     enrollment={enrollmentByCourse.get(course.id)}
                     mandatory={isMandatoryArea(course.area)}
+                    now={nowTs}
                     onOpen={() => setSelectedId(course.id)}
                   />
                 ))}
@@ -365,17 +415,22 @@ function CourseCard({
   course,
   enrollment,
   mandatory,
+  now,
   onOpen,
 }: {
   course: PortalLearningCourse;
   enrollment?: PortalLearningEnrollment;
   mandatory?: boolean;
+  now: number;
   onOpen: () => void;
 }) {
   const progress = enrollment?.progressPercent ?? 0;
   const area = AREA_META[course.area];
   const st = statusTone(progress, enrollment);
   const lessons = course.modules.reduce((acc, m) => acc + (m.lessons || 0), 0);
+  const assigned = !!enrollment?.assignedBy;
+  const dueAt = enrollment?.dueAt ?? null;
+  const overdue = !!dueAt && progress < 100 && new Date(dueAt).getTime() < now;
   return (
     <button
       type="button"
@@ -392,6 +447,11 @@ function CourseCard({
               Obbligatorio
             </Badge>
           )}
+          {assigned && (
+            <Badge variant="outline" className="w-fit border-blue-200 bg-blue-50 text-blue-700">
+              Assegnato a te
+            </Badge>
+          )}
         </div>
         <Badge variant="outline" className={cn("w-fit", st.className)}>
           {st.label}
@@ -399,13 +459,20 @@ function CourseCard({
       </div>
       <h3 className="mt-3 line-clamp-2 font-bold text-slate-950">{course.title}</h3>
       <p className="mt-1 line-clamp-2 text-sm text-slate-500">{course.description || "—"}</p>
-      <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
         <span className="inline-flex items-center gap-1">
           <Layers className="h-3.5 w-3.5" /> {course.modules.length} moduli
         </span>
         {lessons > 0 && (
           <span className="inline-flex items-center gap-1">
             <BookOpen className="h-3.5 w-3.5" /> {lessons} lezioni
+          </span>
+        )}
+        {dueAt && (
+          <span className={cn("inline-flex items-center gap-1", overdue && "font-medium text-red-600")}>
+            <CalendarClock className="h-3.5 w-3.5" />
+            {overdue ? "Scaduto " : "Scadenza "}
+            {new Date(dueAt).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" })}
           </span>
         )}
       </div>
