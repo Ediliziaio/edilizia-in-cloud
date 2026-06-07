@@ -21,6 +21,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft,
+  ArrowRight,
   BookOpen,
   CheckCircle2,
   Circle,
@@ -126,6 +127,27 @@ function saveCompletedModules(companyId: string | null, userId: string | null, c
     window.localStorage.setItem(lsKey(companyId, userId, courseId), JSON.stringify(ids));
   } catch {
     /* quota / private mode: ignora, il DB resta la fonte di verità */
+  }
+}
+
+/** Materiali "visti" del corso (per auto-completamento modulo). */
+function loadViewed(companyId: string | null, userId: string | null, courseId: string): string[] {
+  if (!companyId || !userId || typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(`${lsKey(companyId, userId, courseId)}:viewed`);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveViewed(companyId: string | null, userId: string | null, courseId: string, ids: string[]) {
+  if (!companyId || !userId || typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(`${lsKey(companyId, userId, courseId)}:viewed`, JSON.stringify(ids));
+  } catch {
+    /* ignora */
   }
 }
 
@@ -452,7 +474,13 @@ function CoursePlayer({
     return stored.filter((id) => course.modules.some((m) => m.id === id));
   });
   const [saving, setSaving] = useState(false);
-  const [viewer, setViewer] = useState<{ asset: PortalLearningAsset; url: string | null } | null>(null);
+  const [viewed, setViewed] = useState<string[]>(() => loadViewed(companyId, userId, course.id));
+  const [viewer, setViewer] = useState<{
+    asset: PortalLearningAsset;
+    url: string | null;
+    siblings: PortalLearningAsset[];
+    index: number;
+  } | null>(null);
 
   const progress =
     totalModules === 0
@@ -496,10 +524,31 @@ function CoursePlayer({
     toast.success("Corso segnato come completato.");
   };
 
-  const openAsset = async (asset: PortalLearningAsset) => {
+  // Segna un materiale come "visto"; se tutti i materiali del modulo sono visti → modulo completato.
+  const markViewed = (asset: PortalLearningAsset) => {
+    if (viewed.includes(asset.id)) return;
+    const nextViewed = [...viewed, asset.id];
+    setViewed(nextViewed);
+    saveViewed(companyId, userId, course.id, nextViewed);
+    const mod = course.modules.find((m) => m.id === asset.moduleId);
+    if (mod) {
+      const modAssets = course.assets.filter((a) => a.moduleId === mod.id);
+      const allViewed = modAssets.length > 0 && modAssets.every((a) => nextViewed.includes(a.id));
+      if (allViewed && !completed.includes(mod.id)) {
+        const nextCompleted = [...completed, mod.id];
+        setCompleted(nextCompleted);
+        void persist(nextCompleted);
+        toast.success(`Modulo «${mod.title}» completato.`);
+      }
+    }
+  };
+
+  const openAsset = async (asset: PortalLearningAsset, siblings: PortalLearningAsset[] = [asset]) => {
+    const index = Math.max(0, siblings.findIndex((a) => a.id === asset.id));
     // Testo/procedura: nessun file, mostra il contenuto direttamente nel visore.
     if (asset.type === "testo") {
-      setViewer({ asset, url: null });
+      markViewed(asset);
+      setViewer({ asset, url: null, siblings, index });
       if (companyId) {
         void logPortalCourseActivity(companyId, course.id, "asset_open", { assetId: asset.id, title: asset.title });
       }
@@ -523,7 +572,8 @@ function CoursePlayer({
       return;
     }
     // Apertura IN-PLACE (video/PDF/immagine embeddati nel visore), niente nuova scheda.
-    setViewer({ asset, url });
+    markViewed(asset);
+    setViewer({ asset, url, siblings, index });
     if (companyId) {
       void logPortalCourseActivity(companyId, course.id, "asset_open", { assetId: asset.id, title: asset.title });
     }
@@ -579,7 +629,12 @@ function CoursePlayer({
           ) : (
             <div className="mt-3 space-y-2">
               {courseAssets.map((asset) => (
-                <AssetRow key={asset.id} asset={asset} onOpen={() => openAsset(asset)} />
+                <AssetRow
+                  key={asset.id}
+                  asset={asset}
+                  viewed={viewed.includes(asset.id)}
+                  onOpen={() => openAsset(asset, courseAssets)}
+                />
               ))}
             </div>
           )}
@@ -589,6 +644,7 @@ function CoursePlayer({
           {course.modules.map((module, idx) => {
             const done = completed.includes(module.id);
             const moduleAssets = course.assets.filter((a) => a.moduleId === module.id);
+            const moduleViewed = moduleAssets.filter((a) => viewed.includes(a.id)).length;
             return (
               <section
                 key={module.id}
@@ -602,10 +658,21 @@ function CoursePlayer({
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Modulo {idx + 1}</p>
                     <h3 className="mt-0.5 font-bold text-slate-950">{module.title}</h3>
                     {module.description && <p className="mt-1 text-sm text-slate-500">{module.description}</p>}
-                    {(module.lessons > 0 || module.duration) && (
-                      <div className="mt-2 flex items-center gap-3 text-xs text-slate-400">
+                    {(module.lessons > 0 || module.duration || moduleAssets.length > 0) && (
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
                         {module.lessons > 0 && <span>{module.lessons} lezioni</span>}
                         {module.duration && <span>{module.duration}</span>}
+                        {moduleAssets.length > 0 && (
+                          <span
+                            className={
+                              moduleViewed === moduleAssets.length
+                                ? "font-medium text-emerald-600"
+                                : undefined
+                            }
+                          >
+                            {moduleViewed}/{moduleAssets.length} materiali visti
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -624,7 +691,12 @@ function CoursePlayer({
                 {moduleAssets.length > 0 && (
                   <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
                     {moduleAssets.map((asset) => (
-                      <AssetRow key={asset.id} asset={asset} onOpen={() => openAsset(asset)} />
+                      <AssetRow
+                        key={asset.id}
+                        asset={asset}
+                        viewed={viewed.includes(asset.id)}
+                        onOpen={() => openAsset(asset, moduleAssets)}
+                      />
                     ))}
                   </div>
                 )}
@@ -657,22 +729,57 @@ function CoursePlayer({
                 </DialogTitle>
               </DialogHeader>
               <MaterialViewer asset={viewer.asset} url={viewer.url} />
-              {viewer.url && (
-                <div className="flex flex-wrap justify-end gap-2">
-                  {viewer.asset.downloadable && (
-                    <a href={viewer.url} download target="_blank" rel="noopener noreferrer">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {viewer.siblings.length > 1 && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1"
+                        disabled={viewer.index <= 0}
+                        onClick={() => {
+                          const prev = viewer.siblings[viewer.index - 1];
+                          if (prev) void openAsset(prev, viewer.siblings);
+                        }}
+                      >
+                        <ArrowLeft className="h-4 w-4" /> Precedente
+                      </Button>
+                      <span className="px-1 text-xs text-slate-500">
+                        {viewer.index + 1} / {viewer.siblings.length}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1"
+                        disabled={viewer.index >= viewer.siblings.length - 1}
+                        onClick={() => {
+                          const next = viewer.siblings[viewer.index + 1];
+                          if (next) void openAsset(next, viewer.siblings);
+                        }}
+                      >
+                        Successivo <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+                {viewer.url && (
+                  <div className="flex flex-wrap gap-2">
+                    {viewer.asset.downloadable && (
+                      <a href={viewer.url} download target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" size="sm" className="gap-2">
+                          <Download className="h-4 w-4" /> Scarica
+                        </Button>
+                      </a>
+                    )}
+                    <a href={viewer.url} target="_blank" rel="noopener noreferrer">
                       <Button variant="outline" size="sm" className="gap-2">
-                        <Download className="h-4 w-4" /> Scarica
+                        <ExternalLink className="h-4 w-4" /> Apri
                       </Button>
                     </a>
-                  )}
-                  <a href={viewer.url} target="_blank" rel="noopener noreferrer">
-                    <Button variant="outline" size="sm" className="gap-2">
-                      <ExternalLink className="h-4 w-4" /> Apri in nuova scheda
-                    </Button>
-                  </a>
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </>
           )}
         </DialogContent>
@@ -754,7 +861,15 @@ function MaterialViewer({ asset, url }: { asset: PortalLearningAsset; url: strin
   );
 }
 
-function AssetRow({ asset, onOpen }: { asset: PortalLearningAsset; onOpen: () => void }) {
+function AssetRow({
+  asset,
+  viewed,
+  onOpen,
+}: {
+  asset: PortalLearningAsset;
+  viewed?: boolean;
+  onOpen: () => void;
+}) {
   const hasContent = asset.type === "testo" && !!asset.content;
   const hasFile = !!(asset.downloadUrl || asset.source) && !(asset.source ?? "").startsWith("locale/");
   const canOpen = hasFile || hasContent;
@@ -764,22 +879,28 @@ function AssetRow({ asset, onOpen }: { asset: PortalLearningAsset; onOpen: () =>
       disabled={!canOpen}
       onClick={canOpen ? onOpen : undefined}
       className={cn(
-        "flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-left transition",
+        "flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition",
+        viewed ? "border-emerald-200 bg-emerald-50/40" : "border-slate-200 bg-slate-50/60",
         canOpen ? "hover:border-blue-300 hover:bg-blue-50/50" : "cursor-default opacity-80",
       )}
     >
-      <AssetTypeIcon type={asset.type} className="h-4 w-4 shrink-0 text-blue-600" />
+      {viewed ? (
+        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+      ) : (
+        <AssetTypeIcon type={asset.type} className="h-4 w-4 shrink-0 text-blue-600" />
+      )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-slate-900">{asset.title}</p>
         <p className="text-xs text-slate-500">
           {ASSET_TYPE_LABEL[asset.type]}
           {asset.duration ? ` · ${asset.duration}` : ""}
+          {viewed ? " · visto" : ""}
         </p>
       </div>
       {canOpen && (
         <span className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-blue-700">
           {asset.type === "video" ? <PlayCircle className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          {asset.type === "video" ? "Guarda" : "Apri"}
+          {viewed ? "Rivedi" : asset.type === "video" ? "Guarda" : "Apri"}
         </span>
       )}
     </button>
