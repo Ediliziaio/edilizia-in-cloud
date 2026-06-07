@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
+import { getWhatsAppWindowStatus } from "../_shared/whatsappWindow.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
 
@@ -197,6 +198,19 @@ Deno.serve(async (req) => {
           status: 400,
           headers: jsonHeaders,
         });
+      }
+      // Conformità Customer Service Window (24h): il testo libero è permesso
+      // SOLO se il cliente ha scritto negli ultimi 24h. Altrimenti serve un
+      // template approvato (Meta rifiuterebbe con errore 131047).
+      const win = await getWhatsAppWindowStatus(adminClient, companyId, to);
+      if (!win.open) {
+        return new Response(
+          JSON.stringify({
+            error: "Finestra 24h chiusa: per scrivere a questo numero serve un template approvato.",
+            code: "window_closed",
+          }),
+          { status: 422, headers: jsonHeaders },
+        );
       }
       payload.text = { body: bodyText };
       logContent = bodyText;

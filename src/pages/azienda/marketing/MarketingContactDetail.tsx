@@ -30,6 +30,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -296,7 +297,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   // 2026-05-27: supporto CC/BCC per channel=email.
   // Edge function `send-contact-message` riceve cc[] e bcc[] opzionali.
   const sendMessage = useMutation({
-    mutationFn: async (params: { channel: string; content: string; subject?: string; cc?: string[]; bcc?: string[] }) => {
+    mutationFn: async (params: { channel: string; content: string; subject?: string; cc?: string[]; bcc?: string[]; wa_number_id?: string | null; template?: { name: string; language: string; variables: string[] } | null }) => {
       const { data, error } = await supabase.functions.invoke("send-contact-message", {
         body: { contact_id: id, ...params },
       });
@@ -1210,7 +1211,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               )}
             </div>
           )}
-          <div className="h-12 flex items-center px-3 gap-2">
+          <div className={messageChannel === "whatsapp" ? "flex items-start px-3 gap-2 py-2" : "h-12 flex items-center px-3 gap-2"}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7 shrink-0">
@@ -1237,41 +1238,59 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
-            <Input
-              placeholder={`Scrivi messaggio ${messageChannel === "whatsapp" ? "WhatsApp" : messageChannel === "email" ? "email" : "SMS"}...`}
-              value={messageText}
-              onChange={(e) => setMessageText(e.target.value.slice(0, 5000))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && messageText.trim() && !sendMessage.isPending) {
-                  const cc = messageChannel === "email" ? parseEmailList(emailCc) : undefined;
-                  const bcc = messageChannel === "email" ? parseEmailList(emailBcc) : undefined;
-                  sendMessage.mutate({
-                    channel: messageChannel,
-                    content: messageText.trim(),
-                    subject: messageChannel === "email" ? emailSubject.trim() || undefined : undefined,
-                    cc, bcc,
+            {messageChannel === "whatsapp" ? (
+              <WhatsAppComposer
+                phone={contact.phone}
+                isSending={sendMessage.isPending}
+                className="flex-1"
+                onSend={async ({ waNumberId, content, template }) => {
+                  await sendMessage.mutateAsync({
+                    channel: "whatsapp",
+                    content,
+                    wa_number_id: waNumberId,
+                    template,
                   });
-                }
-              }}
-              className="border-0 bg-muted/50 shadow-none h-8 text-xs"
-            />
-            <Button
-              size="icon"
-              className="h-9 w-9 md:h-7 md:w-7 shrink-0"
-              disabled={!messageText.trim() || sendMessage.isPending}
-              onClick={() => {
-                const cc = messageChannel === "email" ? parseEmailList(emailCc) : undefined;
-                const bcc = messageChannel === "email" ? parseEmailList(emailBcc) : undefined;
-                sendMessage.mutate({
-                  channel: messageChannel,
-                  content: messageText.trim(),
-                  subject: messageChannel === "email" ? emailSubject.trim() || undefined : undefined,
-                  cc, bcc,
-                });
-              }}
-            >
-              {sendMessage.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-            </Button>
+                }}
+              />
+            ) : (
+              <>
+                <Input
+                  placeholder={`Scrivi messaggio ${messageChannel === "email" ? "email" : "SMS"}...`}
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value.slice(0, 5000))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && messageText.trim() && !sendMessage.isPending) {
+                      const cc = messageChannel === "email" ? parseEmailList(emailCc) : undefined;
+                      const bcc = messageChannel === "email" ? parseEmailList(emailBcc) : undefined;
+                      sendMessage.mutate({
+                        channel: messageChannel,
+                        content: messageText.trim(),
+                        subject: messageChannel === "email" ? emailSubject.trim() || undefined : undefined,
+                        cc, bcc,
+                      });
+                    }
+                  }}
+                  className="border-0 bg-muted/50 shadow-none h-8 text-xs"
+                />
+                <Button
+                  size="icon"
+                  className="h-9 w-9 md:h-7 md:w-7 shrink-0"
+                  disabled={!messageText.trim() || sendMessage.isPending}
+                  onClick={() => {
+                    const cc = messageChannel === "email" ? parseEmailList(emailCc) : undefined;
+                    const bcc = messageChannel === "email" ? parseEmailList(emailBcc) : undefined;
+                    sendMessage.mutate({
+                      channel: messageChannel,
+                      content: messageText.trim(),
+                      subject: messageChannel === "email" ? emailSubject.trim() || undefined : undefined,
+                      cc, bcc,
+                    });
+                  }}
+                >
+                  {sendMessage.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Recent messages */}

@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
-import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
+import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
+import { getWhatsAppWindowStatus, buildTemplatePayload } from "../_shared/whatsappWindow.ts";
 import { getErrorMessage } from "../_shared/metaAuth.ts";
 
 import { getCorsHeaders } from "../_shared/headers.ts";
@@ -108,7 +109,15 @@ Deno.serve(async (req) => {
     //           indirizzo per preservare la natura "nascosta")
     // Validazione array di stringhe email lowercase. Limit 20 per lato per
     // evitare abuso/spam (l'utente che vuole inviare a >20 usi una campagna).
-    const { contact_id, channel, content, subject, cc, bcc } = await req.json();
+    const { contact_id, channel, content, subject, cc, bcc, wa_number_id, template } = await req.json();
+    // template (solo whatsapp): { name, language, variables?: string[] } → invio type:template.
+    const waTemplate = (channel === "whatsapp" && template && typeof template === "object" && template.name)
+      ? {
+          name: String(template.name),
+          language: String(template.language || "it"),
+          variables: Array.isArray(template.variables) ? template.variables.map((v: unknown) => String(v ?? "")) : [],
+        }
+      : null;
     const ccList: string[] = Array.isArray(cc)
       ? (cc as unknown[])
           .map((x) => String(x ?? "").trim().toLowerCase())
@@ -122,7 +131,7 @@ Deno.serve(async (req) => {
           .slice(0, 20)
       : [];
 
-    if (!contact_id || !channel || !content) {
+    if (!contact_id || !channel || (!content && !waTemplate)) {
       return new Response(
         JSON.stringify({ error: "Parametri mancanti: contact_id, channel, content" }),
         { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
@@ -136,12 +145,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (content.length > 5000) {
+    if ((content ?? "").length > 5000) {
       return new Response(
         JSON.stringify({ error: "Messaggio troppo lungo (max 5000 caratteri)" }),
         { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
+
+    // Per i template WhatsApp (senza testo libero) salviamo una descrizione
+    // leggibile nello storico messaggi.
+    const logContent: string = content || (waTemplate ? `📋 Template: ${waTemplate.name}` : "");
 
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -301,56 +314,57 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Get WhatsApp config for the company.
-      // 2026-06-07: prefer the new multi-number table (ai_whatsapp_numbers) — pick an active,
-      // webhook-verified number — and fall back to the legacy messaging_whatsapp_config.
-      // Both tables store access_token_encrypted via _shared/encryption.ts (encrypt/decrypt symmetric).
-      let waPhoneNumberId: string | null = null;
-      let waEncryptedToken: string | null = null;
-
-      const { data: waNumber } = await adminClient
-        .from("ai_whatsapp_numbers")
-        .select("phone_number_id, access_token_encrypted")
-        .eq("company_id", contact.company_id)
-        .eq("stato", "active")
-        .eq("webhook_verified", true)
-        .not("access_token_encrypted", "is", null)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (waNumber?.phone_number_id && waNumber?.access_token_encrypted) {
-        waPhoneNumberId = waNumber.phone_number_id;
-        waEncryptedToken = waNumber.access_token_encrypted;
-      } else {
-        const { data: waConfig } = await adminClient
-          .from("messaging_whatsapp_config")
-          .select("phone_number_id, access_token_encrypted")
-          .eq("company_id", contact.company_id)
-          .eq("is_connected", true)
-          .limit(1)
-          .maybeSingle();
-        if (waConfig?.phone_number_id && waConfig?.access_token_encrypted) {
-          waPhoneNumberId = waConfig.phone_number_id;
-          waEncryptedToken = waConfig.access_token_encrypted;
-        }
-      }
-
-      if (!waPhoneNumberId || !waEncryptedToken) {
+      // Mittente: numero scelto in UI (wa_number_id) oppure default attivo+verificato,
+      // fallback al legacy. Token già decifrato dall'helper.
+      const sender = await resolveWhatsAppSender(adminClient, contact.company_id, wa_number_id);
+      if (!sender) {
         return new Response(
           JSON.stringify({ error: "WhatsApp non configurato per questa azienda" }),
           { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
         );
       }
 
-      // Decrypt access token
-      const encKey = getEncryptionKey();
-      const decryptedToken = await decryptMaybeEncrypted(waEncryptedToken, encKey);
+      // Conformità Customer Service Window (24h):
+      //  - TEMPLATE approvato → sempre permesso (dentro e fuori finestra).
+      //  - TESTO LIBERO → solo se la finestra 24h è APERTA, altrimenti Meta rifiuta
+      //    (errore 131047) e degrada la quality del numero → blocchiamo prima.
+      let waPayload: Record<string, unknown>;
+      if (waTemplate) {
+        waPayload = buildTemplatePayload(contact.phone, waTemplate);
+      } else {
+        const win = await getWhatsAppWindowStatus(adminClient, contact.company_id, contact.phone);
+        if (!win.open) {
+          return new Response(
+            JSON.stringify({
+              error: "Finestra 24h chiusa: per scrivere a questo contatto serve un template approvato.",
+              code: "window_closed",
+            }),
+            { status: 422, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+          );
+        }
+        waPayload = {
+          messaging_product: "whatsapp",
+          to: contact.phone.replace(/[^0-9]/g, ""),
+          type: "text",
+          text: { body: content },
+        };
+      }
 
-      const result = await sendWhatsApp(waPhoneNumberId, decryptedToken, contact.phone, content);
-      if (!result.ok) {
+      const waRes = await fetch(
+        `https://graph.facebook.com/v21.0/${sender.phoneNumberId}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${sender.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(waPayload),
+        }
+      );
+      const waJson = await waRes.json().catch(() => ({}));
+      if (!waRes.ok || (waJson as { error?: unknown })?.error) {
         status = "failed";
-        errorDetail = JSON.stringify(result.body);
+        errorDetail = JSON.stringify(waJson);
       }
     } else if (channel === "sms") {
       if (!contact.phone) {
@@ -398,7 +412,7 @@ Deno.serve(async (req) => {
         contact_id,
         company_id: contact.company_id,
         channel,
-        content,
+        content: logContent,
         subject: channel === "email" ? (subject || "Messaggio") : null,
         status,
         sent_by: userId,

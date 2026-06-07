@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -104,6 +105,7 @@ export function CustomerComposeBar({
   // Stati specifici per ogni channel
   const [noteText, setNoteText] = useState("");
   const [waText, setWaText] = useState("");
+  const [waSending, setWaSending] = useState(false);
   const [emailFrom, setEmailFrom] = useState<string>("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
@@ -564,43 +566,57 @@ export function CustomerComposeBar({
     );
   }
 
-  // WHATSAPP → input semplice + apre wa.me
+  // WHATSAPP → invio API CONFORME (numero + template + finestra 24h) via whatsapp-send
   if (channel === "whatsapp") {
     return (
       <div className="border-t shrink-0 bg-card">
-        <div className="px-3 py-2 flex items-end gap-2">
-          <ChannelDropdown channel={channel} onChange={setChannel} hasEmail={!!customerEmail} hasPhone={!!waHref} />
-          <Input
-            placeholder={waHref ? "Scrivi messaggio WhatsApp…" : "Cliente senza numero di telefono"}
-            value={waText}
-            onChange={(e) => setWaText(e.target.value.slice(0, 5000))}
-            disabled={!waHref}
-            className="h-9 text-sm"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && waText.trim() && waHref) {
-                e.preventDefault();
-                window.open(`${waHref}?text=${encodeURIComponent(waText.trim())}`, "_blank", "noopener,noreferrer");
-                setWaText("");
-              }
-            }}
-          />
-          <Button
-            size="sm"
-            className="h-9 px-3 shrink-0 bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => {
-              if (waHref && waText.trim()) {
-                window.open(`${waHref}?text=${encodeURIComponent(waText.trim())}`, "_blank", "noopener,noreferrer");
-                setWaText("");
-              }
-            }}
-            disabled={!waHref || !waText.trim()}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
+        <div className="px-3 py-2 space-y-2">
+          <ChannelDropdown channel={channel} onChange={setChannel} hasEmail={!!customerEmail} hasPhone={!!cleanPhone} />
+          {cleanPhone ? (
+            <WhatsAppComposer
+              phone={cleanPhone}
+              isSending={waSending}
+              onSend={async ({ waNumberId, content, template }) => {
+                if (!effectiveCompany?.id) {
+                  toast.error("Azienda non disponibile");
+                  return;
+                }
+                setWaSending(true);
+                try {
+                  const payload: Record<string, unknown> = {
+                    company_id: effectiveCompany.id,
+                    to: cleanPhone,
+                    wa_number_id: waNumberId,
+                  };
+                  if (template) {
+                    payload.template = {
+                      name: template.name,
+                      language: template.language,
+                      variables: template.variables,
+                    };
+                  } else {
+                    payload.text = { body: content };
+                  }
+                  const { data, error } = await supabase.functions.invoke("whatsapp-send", { body: payload });
+                  if (error) throw error;
+                  if ((data as { error?: string } | null)?.error) {
+                    throw new Error((data as { error: string }).error);
+                  }
+                  toast.success("Messaggio WhatsApp inviato");
+                  qc.invalidateQueries({ queryKey: ["customer-diary-timeline", customerId] });
+                  qc.invalidateQueries({ queryKey: ["customer-messages", customerId] });
+                  onSent?.();
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Errore invio WhatsApp");
+                } finally {
+                  setWaSending(false);
+                }
+              }}
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground italic">Cliente senza numero di telefono.</p>
+          )}
         </div>
-        <p className="px-3 pb-2 text-[10px] text-muted-foreground">
-          Si apre WhatsApp Web in una nuova scheda con il messaggio precompilato.
-        </p>
       </div>
     );
   }

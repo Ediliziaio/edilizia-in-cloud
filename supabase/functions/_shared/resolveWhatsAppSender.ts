@@ -38,6 +38,7 @@ interface MinimalClient {
 export async function resolveWhatsAppSender(
   client: MinimalClient,
   companyId: string,
+  preferredNumberId?: string | null,
 ): Promise<WhatsAppSender | null> {
   let phoneNumberId: string | null = null;
   let wabaId: string | null = null;
@@ -45,18 +46,34 @@ export async function resolveWhatsAppSender(
   let numero: string | null = null;
   let source: WhatsAppSender["source"] = "ai_whatsapp_numbers";
 
-  // 1) Nuovo multi-numero: numero attivo + webhook verificato, il più recente.
-  const { data: waNumber } = await client
-    .from("ai_whatsapp_numbers")
-    .select("phone_number_id, waba_id, access_token_encrypted, numero")
-    .eq("company_id", companyId)
-    .eq("stato", "active")
-    .eq("webhook_verified", true)
-    .not("access_token_encrypted", "is", null)
-    .is("deleted_at", null)
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // 0) Se è stato scelto un numero specifico (UI), usa QUELLO (se valido).
+  let waNumber: any = null;
+  if (preferredNumberId) {
+    const { data } = await client
+      .from("ai_whatsapp_numbers")
+      .select("phone_number_id, waba_id, access_token_encrypted, numero")
+      .eq("id", preferredNumberId)
+      .eq("company_id", companyId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    waNumber = data ?? null;
+  }
+
+  // 1) Altrimenti: nuovo multi-numero, numero attivo + webhook verificato, il più recente.
+  if (!waNumber?.phone_number_id) {
+    const { data } = await client
+      .from("ai_whatsapp_numbers")
+      .select("phone_number_id, waba_id, access_token_encrypted, numero")
+      .eq("company_id", companyId)
+      .eq("stato", "active")
+      .eq("webhook_verified", true)
+      .not("access_token_encrypted", "is", null)
+      .is("deleted_at", null)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    waNumber = data ?? null;
+  }
 
   if (waNumber?.phone_number_id && waNumber?.access_token_encrypted) {
     phoneNumberId = waNumber.phone_number_id;
