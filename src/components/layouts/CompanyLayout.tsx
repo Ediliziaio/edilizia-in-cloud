@@ -126,12 +126,13 @@ import { NpsModal } from "@/components/onboarding/NpsModal";
 import { SilvioFAB } from "@/components/silvio/SilvioFAB";
 import { useAuditAccountantPageView } from "@/hooks/accountant/useAccountantAudit";
 import { useAccountantRevocationWatch } from "@/hooks/accountant/useAccountantRevocationWatch";
+import { COMPANY_APP_HOME } from "@/lib/auth/appHome";
 
 const CompanyBrandHeader = memo(function CompanyBrandHeader({
   isCollapsed,
   logoUrl,
   platformName,
-  homeTo = "/azienda",
+  homeTo = COMPANY_APP_HOME,
 }: {
   isCollapsed: boolean;
   logoUrl?: string | null;
@@ -1244,7 +1245,7 @@ const CompanySidebar = memo(function CompanySidebar() {
           isCollapsed={isCollapsed}
           logoUrl={branding?.logo_url}
           platformName={effectiveBrand.platformName}
-          homeTo={isCommercialistaMode ? withCommercialistaSearch("/azienda/controllo-gestione") : "/azienda"}
+          homeTo={isCommercialistaMode ? withCommercialistaSearch("/azienda/controllo-gestione") : COMPANY_APP_HOME}
         />
         <CompanyContextSwitcher isCollapsed={isCollapsed} />
       </div>
