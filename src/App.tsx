@@ -14,7 +14,7 @@ declare global {
 // On web `isNative` is false → MobileBootstrap is a no-op component and the
 // Capacitor-plugin imports (@capacitor/app, status-bar, keyboard…) are NEVER
 // loaded, so the web bundle is unaffected.
-import { isNative } from "@/lib/mobile/platform";
+import { isNative, isMobileAppRuntime } from "@/lib/mobile/platform";
 const MobileBootstrap = isNative
   ? lazy(() => import("@/components/mobile/MobileBootstrap"))
   : (() => null) as React.FC;
@@ -488,7 +488,9 @@ const App = () => (
               <Route path="/demo" element={<Demo />} />
               <Route path="/funzionalita" element={<Funzionalita />} />
               <Route path="/chi-siamo" element={<ChiSiamo />} />
-              <Route path="/prezzi" element={<Prezzi />} />
+              {/* App Store 3.1.1: la pagina prezzi pubblica (con piani+acquisto) non
+                  deve essere raggiungibile nell'app mobile. Redirect alla home. */}
+              <Route path="/prezzi" element={isMobileAppRuntime ? <Navigate to="/" replace /> : <Prezzi />} />
               <Route path="/confronto" element={<Confronto />} />
               <Route path="/blog" element={<Blog />} />
               <Route path="/blog/categoria/:slug" element={<BlogCategory />} />

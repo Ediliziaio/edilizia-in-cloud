@@ -14,6 +14,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { isMobileAppRuntime } from "@/lib/mobile/platform";
 
 interface Props {
   disabled?: boolean;
@@ -55,6 +56,12 @@ export function SSOButtons({ disabled = false, onError }: Props) {
       setPending(false);
     }
   };
+
+  // App Store Guideline 4.8: l'app mobile offre login di terze parti (Google)
+  // SENZA "Sign in with Apple" → violazione su iOS. Nell'app mobile nascondiamo
+  // del tutto i bottoni social: l'accesso resta via email/password ("riservato
+  // agli utenti registrati"), quindi 4.8 non si applica. Sul web restano visibili.
+  if (isMobileAppRuntime) return null;
 
   return (
     <div className="space-y-3">

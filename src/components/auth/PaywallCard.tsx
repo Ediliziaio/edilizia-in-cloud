@@ -21,6 +21,7 @@
 
 import { Link } from "react-router-dom";
 import { Lock, ArrowRight, Sparkles } from "lucide-react";
+import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -91,7 +92,8 @@ export function PaywallCard({
                   {requiredPlan}
                 </Badge>
               )}
-              {pricePerMonth && (
+              {/* App Store 3.1.1: niente prezzi nell'app mobile. */}
+              {pricePerMonth && !isMobileAppRuntime && (
                 <Badge variant="outline" className="text-xs">
                   {pricePerMonth}
                 </Badge>
@@ -126,7 +128,8 @@ export function PaywallCard({
                   {requiredPlan}
                 </Badge>
               )}
-              {pricePerMonth && (
+              {/* App Store 3.1.1: niente prezzi nell'app mobile. */}
+              {pricePerMonth && !isMobileAppRuntime && (
                 <Badge variant="outline" className="text-xs">
                   {pricePerMonth}
                 </Badge>

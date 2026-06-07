@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useStartCardSetup } from "@/hooks/useBilling";
 import { usePaymentMethodGate } from "@/hooks/usePaymentMethodGate";
 import { usePaymentGateStore } from "@/store/paymentGateStore";
+import { isMobileAppRuntime } from "@/lib/mobile/platform";
 
 /** Ruoli che possono gestire la fatturazione/abbonamento dell'azienda. */
 const CAN_MANAGE_BILLING_ROLES = new Set(["company_admin", "super_admin"]);
@@ -58,6 +59,14 @@ export function PaymentGateDialog() {
             {isSubscription
               ? "L'abbonamento dell'azienda è sospeso o scaduto. Contatta l'amministratore della tua azienda perché lo rinnovi."
               : "Per usare questo strumento serve la carta di pagamento aziendale. Contatta l'amministratore della tua azienda perché la registri."}
+          </p>
+        ) : isMobileAppRuntime ? (
+          /* App Store Guideline 3.1.1: nell'app mobile NON apriamo checkout/carta
+             esterni (Stripe). Abbonamento e metodi di pagamento si gestiscono
+             dall'area riservata sul web. */
+          <p className="text-sm text-muted-foreground">
+            La gestione dell'abbonamento e dei metodi di pagamento è disponibile
+            nell'area riservata sul sito web, non dall'app.
           </p>
         ) : isSubscription ? (
           <div className="space-y-4">

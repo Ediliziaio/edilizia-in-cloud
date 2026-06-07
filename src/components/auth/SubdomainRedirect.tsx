@@ -46,6 +46,7 @@ import { Loader2 } from "lucide-react";
 import { useSubdomainRoute } from "@/hooks/useSubdomainRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import { RoleBasedRedirect } from "@/components/auth/RoleBasedRedirect";
+import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 
 const Home = lazy(() => import("@/pages/Home"));
@@ -177,6 +178,14 @@ export function SubdomainRedirect() {
   // qualunque traccia di sessione, non renderizziamo mai Home: al massimo si
   // finisce su /login, ma non si vede la landing durante refresh/login.
   if (isLocalAppHost() && hadAuthBootstrapHint) {
+    return <RoleBasedRedirect />;
+  }
+
+  // App Store Guideline 3.1.1: nell'app mobile NON mostriamo MAI la landing
+  // marketing pubblica (contiene prezzi di abbonamento e CTA d'acquisto, che
+  // Apple considera accesso a meccanismi di pagamento esterni). Mandiamo sempre
+  // al login. Sul web la landing resta visibile per i visitatori non autenticati.
+  if (isMobileAppRuntime) {
     return <RoleBasedRedirect />;
   }
 
