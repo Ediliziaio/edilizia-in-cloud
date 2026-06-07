@@ -99,8 +99,11 @@ export default function AssistenzaLavoriHub() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const today = new Date().toISOString().split("T")[0];
-  const in7Days = addDays(new Date(), 7).toISOString().split("T")[0];
+  // Date LOCALI (en-CA → YYYY-MM-DD) per evitare off-by-one vicino a mezzanotte:
+  // l'Italia è UTC+1/+2, quindi toISOString() restituirebbe il giorno UTC (a notte
+  // fonda = il giorno precedente) falsando i filtri "scaduto" / "prossimi 7 giorni".
+  const today = new Date().toLocaleDateString("en-CA");
+  const in7Days = addDays(new Date(), 7).toLocaleDateString("en-CA");
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);

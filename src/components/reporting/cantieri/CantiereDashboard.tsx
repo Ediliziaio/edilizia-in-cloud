@@ -130,7 +130,7 @@ export default function CantiereDashboard() {
     const margine = rows.reduce((s, r) => s + (r.margine ?? 0), 0);
     const marginePerc = ricavi > 0 ? (margine / ricavi) * 100 : 0;
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date().toLocaleDateString("en-CA");
     const attivi = orders.filter((o) => o.status === "active").length;
     const inRitardo = orders.filter(
       (o) => o.work_end_date && o.work_end_date < today && o.status === "active"
@@ -348,7 +348,7 @@ export default function CantiereDashboard() {
                   .slice(0, 8)
                   .map((o) => {
                     const row = rows.find((r) => r.id === o.id);
-                    const today = new Date().toISOString().split("T")[0];
+                    const today = new Date().toLocaleDateString("en-CA");
                     const isLate = o.work_end_date! < today;
                     const daysLeft = o.work_end_date
                       ? Math.round((new Date(o.work_end_date).getTime() - Date.now()) / 86400000)

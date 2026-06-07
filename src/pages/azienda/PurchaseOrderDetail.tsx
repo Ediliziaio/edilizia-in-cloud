@@ -619,7 +619,7 @@ function ItemRow({
 
   const handleReceivedBlur = () => {
     if (Number(received) !== item.quantity_received) {
-      onUpdate({ quantity_received: Number(received), received_date: new Date().toISOString().split("T")[0] });
+      onUpdate({ quantity_received: Number(received), received_date: format(new Date(), "yyyy-MM-dd") });
     }
   };
 

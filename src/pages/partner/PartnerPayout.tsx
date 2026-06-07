@@ -193,8 +193,8 @@ export default function PartnerPayout({ previewData }: { previewData?: PartnerPa
       const { error } = await supabase.from("referral_payouts").insert({
         referrer_id: referrer!.id,
         amount: amt,
-        period_start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0],
-        period_end: now.toISOString().split("T")[0],
+        period_start: new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString("en-CA"),
+        period_end: now.toLocaleDateString("en-CA"),
         paid_at: null,
         payment_method: referrer?.payout_method || "bank_transfer",
         notes: notes || null,

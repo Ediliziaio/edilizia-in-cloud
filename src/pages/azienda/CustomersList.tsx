@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getAvatarColor } from "@/lib/contactUtils";
-import { escapeCsvCell } from "@/lib/csvExport";
+import { escapeCsvCell, neutralizeXlsxCell } from "@/lib/csvExport";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -551,7 +551,9 @@ function CustomersListInner() {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Clienti");
     const csvRows = buildCsvRows(rows);
-    ws.addRows(csvRows);
+    // Anti formula-injection anche su XLSX (come il path CSV): neutralizza le
+    // celle "attive" (= + - @) prima di scriverle nel foglio.
+    ws.addRows(csvRows.map((r) => r.map((v) => neutralizeXlsxCell(v))));
     // Header style
     ws.getRow(1).font = { bold: true };
     ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEEEEEE" } };

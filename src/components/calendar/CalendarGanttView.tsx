@@ -26,6 +26,8 @@ import {
   endOfMonth,
   addYears,
   subYears,
+  addMonths,
+  subMonths,
   addDays,
   isWeekend,
   getISOWeek,
@@ -264,10 +266,10 @@ export function CalendarGanttView({
         onDateChange(subYears(currentDate, 1));
         break;
       case "quarter":
-        onDateChange(new Date(currentDate.getTime() - 90 * 24 * 60 * 60 * 1000));
+        onDateChange(subMonths(currentDate, 3));
         break;
       case "month":
-        onDateChange(new Date(currentDate.getTime() - 30 * 24 * 60 * 60 * 1000));
+        onDateChange(subMonths(currentDate, 1));
         break;
     }
   };
@@ -278,10 +280,10 @@ export function CalendarGanttView({
         onDateChange(addYears(currentDate, 1));
         break;
       case "quarter":
-        onDateChange(new Date(currentDate.getTime() + 90 * 24 * 60 * 60 * 1000));
+        onDateChange(addMonths(currentDate, 3));
         break;
       case "month":
-        onDateChange(new Date(currentDate.getTime() + 30 * 24 * 60 * 60 * 1000));
+        onDateChange(addMonths(currentDate, 1));
         break;
     }
   };

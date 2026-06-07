@@ -19,7 +19,7 @@ const STATS_CONFIG = [
 
 export function OpportunityStatsStrip({ opportunities }: Props) {
   const stats = useMemo(() => {
-    let open = 0, won = 0, lost = 0, abandoned = 0, pipelineValue = 0, weightedValue = 0, wonValue = 0, stale = 0;
+    let open = 0, won = 0, lost = 0, abandoned = 0, pipelineValue = 0, weightedValue = 0, wonValue = 0, stale = 0, unscored = 0;
     const staleThreshold = Date.now() - 14 * 24 * 60 * 60 * 1000;
     for (const o of opportunities) {
       const v = Number(o.value || 0);
@@ -29,6 +29,7 @@ export function OpportunityStatsStrip({ opportunities }: Props) {
           open++;
           pipelineValue += v;
           weightedValue += v * probability;
+          if (o.probability == null) unscored++; // prob. non impostata → il ponderato assume 50%
           {
             const lastTouched = new Date(o.stage_changed_at || o.updated_at || o.created_at || 0).getTime();
             if (lastTouched && lastTouched < staleThreshold) stale++;
@@ -39,7 +40,7 @@ export function OpportunityStatsStrip({ opportunities }: Props) {
         case "abandoned": abandoned++; break;
       }
     }
-    return { open, won, lost, abandoned, pipeline_value: pipelineValue, weighted_value: weightedValue, won_value: wonValue, stale };
+    return { open, won, lost, abandoned, pipeline_value: pipelineValue, weighted_value: weightedValue, won_value: wonValue, stale, unscored };
   }, [opportunities]);
 
   const fmt = (v: number, isCurrency: boolean) =>
@@ -50,9 +51,16 @@ export function OpportunityStatsStrip({ opportunities }: Props) {
       {STATS_CONFIG.map(({ key, label, icon: Icon, colorClass }) => {
         const isCurrency = key === "pipeline_value" || key === "weighted_value" || key === "won_value";
         const value = stats[key];
+        // Trasparenza forecast: il "Ponderato" assume 50% per le opportunità senza
+        // probabilità impostata → lo segnaliamo per non mostrare un dato finto-preciso.
+        const weightedHint =
+          key === "weighted_value" && stats.unscored > 0
+            ? `${stats.unscored} opportunità senza probabilità: stimate al 50% nel ponderato`
+            : undefined;
         return (
           <div
             key={key}
+            title={weightedHint}
             className={`flex items-center gap-2 rounded-md border-l-2 bg-muted/30 px-2.5 py-1.5 ${colorClass.split(" ")[0]}`}
           >
             <Icon className={`h-3.5 w-3.5 shrink-0 ${colorClass.split(" ").slice(1).join(" ")}`} />
@@ -61,6 +69,11 @@ export function OpportunityStatsStrip({ opportunities }: Props) {
                 {fmt(value, isCurrency)}
               </p>
               <p className="text-[10px] text-muted-foreground leading-tight truncate">{label}</p>
+              {weightedHint && (
+                <p className="text-[9px] leading-tight text-amber-600 dark:text-amber-400 truncate">
+                  {stats.unscored} senza stima
+                </p>
+              )}
             </div>
           </div>
         );

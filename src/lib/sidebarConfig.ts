@@ -158,7 +158,13 @@ export const macroAreas: MacroArea[] = [
     icon: Users2,
     items: [
       { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewPersone", featureKey: "hr_personale" },
+      // Separazione netta dei ruoli:
+      //  • "Portale" = creazione/gestione corsi — gated canViewPersone (HR/admin); il
+      //    dipendente NON lo vede. (Il superadmin crea i portali master in /admin.)
+      //  • "Formazione" = fruizione — visibile a TUTTI: il dipendente vede i corsi
+      //    assegnati e accede ai materiali. Nessun ponte verso la gestione.
       { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canViewPersone", featureKey: "hr_personale" },
+      { title: "Formazione", url: "/azienda/formazione", icon: BookOpen },
       // MP-CLEANUP: "Messaggi Esterni" rimosso (feature legacy sostituita da Hub WhatsApp multi-numero)
     ],
   },

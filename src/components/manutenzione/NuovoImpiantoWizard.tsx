@@ -130,7 +130,7 @@ export function NuovoImpiantoWizard({ open, onClose, companyId, onSuccess }: Pro
             nome_contratto: nomeContratto.trim(),
             importo_canone: parseFloat(importoCanone),
             tipo_fatturazione: tipoFatturazione,
-            data_inizio: new Date().toISOString().split("T")[0],
+            data_inizio: new Date().toLocaleDateString("en-CA"),
             rinnovo_automatico: rinnovoAutomatico,
           })
           .select()

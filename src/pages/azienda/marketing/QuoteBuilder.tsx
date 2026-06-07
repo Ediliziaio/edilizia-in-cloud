@@ -1348,8 +1348,13 @@ export default function QuoteBuilder() {
   );
   const subtotal = totaliPro.subtotale;
   const discountAmt = subtotal * (discountPercent / 100);
-  const vatAmount = Object.values(totaliPro.iva_breakdown).reduce((s, v) => s + v, 0) * (1 - discountPercent / 100);
-  const total = totaliPro.subtotale_netto + vatAmount;
+  // ⚠️ IVA: `totaliPro.iva_breakdown` è GIÀ al netto dello sconto globale
+  // (calcolaTotaliPreventivo ritorna iva_breakdown_netto = iva × (1 - sconto%)).
+  // Prima qui la si ri-moltiplicava per (1 - discountPercent/100) → IVA scontata
+  // DUE volte (IVA e totale sottostimati, e persistiti a DB). Usare i valori
+  // autoritativi della funzione: total = totaliPro.totale, vatAmount = total - netto.
+  const total = totaliPro.totale;
+  const vatAmount = Math.round((total - totaliPro.subtotale_netto) * 100) / 100;
 
   // #40 Governance — valutazione (non bloccante) doppia approvazione sul netto.
   const approvazioneEsito = useMemo(

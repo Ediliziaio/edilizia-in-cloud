@@ -17,9 +17,11 @@ interface ContactMergeDialogProps {
   onOpenChange: (open: boolean) => void;
   sourceContact: { id: string; first_name: string; last_name: string; email?: string; phone?: string } | null;
   companyId: string;
+  /** Chiamato dopo un merge riuscito con l'id del contatto SOPRAVVISSUTO (per navigare). */
+  onMerged?: (keepId: string) => void;
 }
 
-export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyId }: ContactMergeDialogProps) {
+export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyId, onMerged }: ContactMergeDialogProps) {
   const [search, setSearch] = useState("");
   const [targetId, setTargetId] = useState<string | null>(null);
   const [masterId, setMasterId] = useState<"source" | "target">("source");
@@ -100,7 +102,7 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
 
       return { keepId, removeId };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success("Contatti uniti con successo");
       queryClient.invalidateQueries({ queryKey: ["marketing-contacts"] });
       queryClient.invalidateQueries({ queryKey: ["marketing_contact"] });
@@ -108,6 +110,9 @@ export function ContactMergeDialog({ open, onOpenChange, sourceContact, companyI
       setSearch("");
       setTargetId(null);
       setMasterId("source");
+      // Se il contatto aperto è stato fuso (rimosso), il parent naviga al
+      // contatto sopravvissuto per non restare su una scheda eliminata.
+      onMerged?.(result.keepId);
     },
     onError: (err: any) => {
       toast.error("Errore durante il merge: " + err.message);

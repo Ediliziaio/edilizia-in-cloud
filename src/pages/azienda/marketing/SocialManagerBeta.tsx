@@ -2371,7 +2371,7 @@ function ContentStudioTab({
                           value={scheduledTime}
                           onChange={(e) => setScheduledTime(e.target.value)}
                           className="flex-1"
-                          {...(scheduledDate === new Date().toISOString().split("T")[0]
+                          {...(scheduledDate === new Date().toLocaleDateString("en-CA")
                             ? { min: new Date(Date.now() + 60_000).toTimeString().slice(0, 5) }
                             : {})}
                         />

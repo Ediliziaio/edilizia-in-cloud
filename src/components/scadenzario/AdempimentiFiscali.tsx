@@ -165,11 +165,11 @@ export default function AdempimentiFiscali() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toLocaleDateString("en-CA");
   const aperti = adempimenti.filter((a) => a.stato === "aperto");
   const scaduti = aperti.filter((a) => a.scadenza < today);
   const inScadenza = aperti.filter(
-    (a) => a.scadenza >= today && a.scadenza <= new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0]
+    (a) => a.scadenza >= today && a.scadenza <= new Date(Date.now() + 30 * 86400000).toLocaleDateString("en-CA")
   );
 
   if (!companyId) return null;

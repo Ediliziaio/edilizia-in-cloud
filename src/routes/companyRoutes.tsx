@@ -307,6 +307,7 @@ const ReportFatturazione = lazy(() => import("@/pages/azienda/fatturazione/Repor
 const PrimaNota = lazy(() => import("@/pages/azienda/PrimaNota"));
 const PersonalePage = lazy(() => import("@/pages/azienda/personale/PersonalePage"));
 const PortalePage = lazy(() => import("@/pages/azienda/personale/PortalePage"));
+const FormazioneDipendente = lazy(() => import("@/pages/azienda/formazione/FormazioneDipendente"));
 const TimbraturaKiosk = lazy(() => import("@/pages/azienda/personale/TimbraturaKiosk"));
 // PurchaseOrdersList now rendered as tab inside OrdersList — lazy import removed
 const PurchaseOrderDetail = lazy(() => import("@/pages/azienda/PurchaseOrderDetail"));
@@ -549,6 +550,10 @@ export default function CompanyRoutesContainer() {
         {/* HR & Personale — gated: hr_personale (addon pro/enterprise) */}
         <Route path="personale" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><PersonalePage /></FeatureRoute>)} />
         <Route path="personale/portale" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><PortalePage /></FeatureRoute>)} />
+        {/* Formazione lato DIPENDENTE — accessibile a TUTTI gli utenti azienda
+            loggati (no withCompanyPermission): corsi pubblicati + avanzamento
+            reale salvato su portal_course_enrollments. */}
+        <Route path="formazione" element={<FormazioneDipendente />} />
         <Route path="personale/timbratura" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><TimbraturaKiosk /></FeatureRoute>)} />
         {/* Tesoreria — gated: tesoreria (core, default abilitato su tutti i piani) */}
         <Route path="tesoreria" element={withCompanyPermission("canViewTesoreria", <FeatureRoute featureKey="tesoreria"><Tesoreria /></FeatureRoute>)} />

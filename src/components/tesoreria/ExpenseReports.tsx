@@ -41,7 +41,7 @@ export default function ExpenseReports({ companyId, refreshKey = 0 }: Props) {
   const [selectedReport, setSelectedReport] = useState<any>(null);
   const [reportItems, setReportItems] = useState<any[]>([]);
   const [showAddItem, setShowAddItem] = useState(false);
-  const [newItem, setNewItem] = useState({ description: "", amount: "", category: "Trasferte", expense_date: new Date().toISOString().split("T")[0] });
+  const [newItem, setNewItem] = useState({ description: "", amount: "", category: "Trasferte", expense_date: new Date().toLocaleDateString("en-CA") });
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isAddingItem, setIsAddingItem] = useState(false);
@@ -145,7 +145,7 @@ export default function ExpenseReports({ companyId, refreshKey = 0 }: Props) {
       if (error) { toast.error(error.message); return; }
       toast.success("Voce aggiunta");
       setShowAddItem(false);
-      setNewItem({ description: "", amount: "", category: "Trasferte", expense_date: new Date().toISOString().split("T")[0] });
+      setNewItem({ description: "", amount: "", category: "Trasferte", expense_date: new Date().toLocaleDateString("en-CA") });
       await openDetail(selectedReport);
       await loadReports();
     } finally {

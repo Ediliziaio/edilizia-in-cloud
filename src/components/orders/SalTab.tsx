@@ -157,7 +157,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount }: SalTabProps) {
           company_id: companyId,
           order_id: orderId,
           numero_sal: nextNumero,
-          data_emissione: new Date().toISOString().split("T")[0],
+          data_emissione: new Date().toLocaleDateString("en-CA"),
           stato,
           importo_totale: Math.round(importoTotale * 100) / 100,
           note: note.trim() || null,

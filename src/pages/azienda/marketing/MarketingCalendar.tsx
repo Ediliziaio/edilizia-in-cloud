@@ -862,6 +862,14 @@ export default function MarketingCalendar() {
     // → l'item rimbalza alla vecchia posizione fino al refetch.
     const queryKey = ["marketing-appointments", companyId, dateRange.start, dateRange.end, permissions.onlyAssigned, user?.id, showOperativi];
     const previousData = queryClient.getQueryData<any[]>(queryKey);
+    // Guard: il drag-resize bypassa la validazione del dialog → evita di salvare
+    // un orario di fine ≤ inizio (range non valido).
+    const currentAppt = previousData?.find((a) => a.id === appointmentId);
+    const startHHMM = currentAppt?.appointment_time?.slice(0, 5);
+    if (startHHMM && newEndTime <= startHHMM) {
+      toast.error("L'orario di fine deve essere successivo all'inizio");
+      return;
+    }
     queryClient.setQueryData<any[]>(queryKey, (old) => {
       if (!old) return old;
       return old.map((a) =>

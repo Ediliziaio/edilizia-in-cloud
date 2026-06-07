@@ -645,7 +645,9 @@ function OrderDetailInner() {
   // For legacy orders without DB installments, auto-migrates them on first toggle.
   const updatePaymentMutation = useMutation({
     mutationFn: async ({ installment, paid }: { installment: Installment; paid: boolean }) => {
-      const today = new Date().toISOString().split("T")[0];
+      // Data LOCALE (en-CA → YYYY-MM-DD): evita di registrare il pagamento al
+      // giorno UTC (a notte fonda, in Italia, sarebbe ieri).
+      const today = new Date().toLocaleDateString("en-CA");
 
       if (installment.id) {
         // Installment already in DB — update directly (trigger syncs legacy cols)

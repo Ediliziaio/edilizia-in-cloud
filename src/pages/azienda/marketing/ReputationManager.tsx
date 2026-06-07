@@ -1192,8 +1192,10 @@ export default function ReputationManager() {
       name: "Google Business Profile",
       status: googleBusinessProfileReady ? "Collegato" : "Setup richiesto",
       connected: googleBusinessProfileReady,
-      reviews: googleBusinessProfileReady ? 96 : 0,
-      rating: googleBusinessProfileReady ? 4.6 : 0,
+      // Lettura reale di recensioni/rating non ancora implementata (serve un OAuth
+      // GBP dedicato): niente numeri finti — 0 finché non c'è il dato vero.
+      reviews: 0,
+      rating: 0,
       detail: "Serve un OAuth Google Business Profile dedicato: Google Ads non basta per leggere e rispondere alle recensioni.",
       icon: BadgeCheck,
       color: "text-emerald-700",

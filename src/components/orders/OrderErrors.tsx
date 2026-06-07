@@ -320,7 +320,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
   const [errorCategory, setErrorCategory] = useState("altro");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
-  const [errorDate, setErrorDate] = useState(new Date().toISOString().split("T")[0]);
+  const [errorDate, setErrorDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [rootCause, setRootCause] = useState("altro");
   const [processOrigin, setProcessOrigin] = useState("da_verificare");
   const [ownerRole, setOwnerRole] = useState("da_assegnare");
@@ -472,7 +472,7 @@ export function OrderErrors({ orderId }: OrderErrorsProps) {
     setErrorCategory("altro");
     setAmount("");
     setDescription("");
-    setErrorDate(new Date().toISOString().split("T")[0]);
+    setErrorDate(new Date().toLocaleDateString("en-CA"));
     setRootCause("altro");
     setProcessOrigin("da_verificare");
     setOwnerRole("da_assegnare");

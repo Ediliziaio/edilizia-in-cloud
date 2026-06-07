@@ -27,7 +27,7 @@ export default function ImpiantoDetail() {
   const { effectiveCompany, user } = useAuth();
   const [esecuzioneOpen, setEsecuzioneOpen] = useState(false);
   const [selectedPianoId, setSelectedPianoId] = useState<string | null>(null);
-  const [esecuzioneForm, setEsecuzioneForm] = useState({ data: new Date().toISOString().split("T")[0], esito: "ok", note: "" });
+  const [esecuzioneForm, setEsecuzioneForm] = useState({ data: new Date().toLocaleDateString("en-CA"), esito: "ok", note: "" });
   const [nuovoInterventoOpen, setNuovoInterventoOpen] = useState(false);
 
   const { data: impianto, isLoading } = useQuery({

@@ -57,7 +57,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   const [category, setCategory] = useState("altro");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [entryDate, setEntryDate] = useState(new Date().toISOString().split("T")[0]);
+  const [entryDate, setEntryDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [method, setMethod] = useState("bonifico");
   const [reference, setReference] = useState("");
   const [accountLabel, setAccountLabel] = useState("banca");
@@ -103,7 +103,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     setCategory("altro");
     setDescription("");
     setAmount("");
-    setEntryDate(new Date().toISOString().split("T")[0]);
+    setEntryDate(new Date().toLocaleDateString("en-CA"));
     setMethod("bonifico");
     setReference("");
     setAccountLabel("banca");

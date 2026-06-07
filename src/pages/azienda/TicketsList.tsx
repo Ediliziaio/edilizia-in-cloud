@@ -162,6 +162,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkStatus, setBulkStatus] = useState(KEEP_VALUE);
   const [bulkAssignee, setBulkAssignee] = useState(KEEP_VALUE);
+  const [fetchLimit, setFetchLimit] = useState(TICKETS_FETCH_LIMIT);
   // Filtro tipo da URL (?tipo=intervento) o default = all (retrocompatibilità redirect)
   const tipoFilter = searchParams.get("tipo") ?? "all";
   const setTipoFilter = (v: string) => {
@@ -172,8 +173,8 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
   };
   const { unreadByTicket, totalUnread } = useUnreadTicketCounts();
 
-  const { data: queryResult, isLoading, isError, refetch } = useQuery({
-    queryKey: [...queryKeys.companyTickets.list(effectiveCompany?.id), tipoFilter, statusFilter, priorityFilter, permissions.onlyAssigned, user?.id],
+  const { data: queryResult, isLoading, isFetching, isError, refetch } = useQuery({
+    queryKey: [...queryKeys.companyTickets.list(effectiveCompany?.id), tipoFilter, statusFilter, priorityFilter, permissions.onlyAssigned, user?.id, fetchLimit],
     queryFn: async () => {
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), TICKETS_QUERY_TIMEOUT_MS);
@@ -209,7 +210,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       try {
         const { data, error, count } = await query
           .abortSignal(controller.signal)
-          .range(0, TICKETS_FETCH_LIMIT - 1);
+          .range(0, fetchLimit - 1);
         if (error) throw error;
         return { tickets: data as unknown as TicketListItem[], totalCount: count ?? 0 };
       } catch (error) {
@@ -238,7 +239,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
     if (assegnatoFilter !== "tutti" && assegnatoFilter !== "unassigned" && ticket.assigned_to !== assegnatoFilter) return false;
 
     if (scadenzaFilter !== "tutte") {
-      const bucket = bucketScadenza((ticket as unknown as { data_intervento_prevista?: string }).data_intervento_prevista);
+      const bucket = bucketScadenza(ticket.data_intervento_prevista);
       if (scadenzaFilter === "scaduto_oggi" && !(bucket === "scaduto" || bucket === "oggi")) return false;
       if (scadenzaFilter === "settimana" && bucket !== "settimana") return false;
       if (scadenzaFilter === "futuro" && bucket !== "futuro") return false;
@@ -270,7 +271,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
         case "priority":
           return priorityRank[ticket.priority] ?? 0;
         case "scadenza": {
-          const raw = (ticket as unknown as { data_intervento_prevista?: string }).data_intervento_prevista;
+          const raw = ticket.data_intervento_prevista;
           const date = raw ? new Date(raw).getTime() : Number.MAX_SAFE_INTEGER;
           return Number.isFinite(date) ? date : Number.MAX_SAFE_INTEGER;
         }
@@ -405,7 +406,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
     const urgenti = tickets.filter(t => (t.priority === "urgente" || t.priority === "alta") && t.status !== "risolto" && t.status !== "chiuso").length;
     const inScadenza = tickets.filter(t => {
       if (t.status === "risolto" || t.status === "chiuso") return false;
-      const b = bucketScadenza((t as unknown as { data_intervento_prevista?: string }).data_intervento_prevista);
+      const b = bucketScadenza(t.data_intervento_prevista);
       return b === "scaduto" || b === "oggi" || b === "settimana";
     }).length;
     const nonAssegnati = tickets.filter(t => !t.assigned_to && t.status !== "risolto" && t.status !== "chiuso").length;
@@ -489,7 +490,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               customer: t.customer ? `${t.customer.first_name || ""} ${t.customer.last_name || ""}`.trim() : "",
               assigned: t.assignee ? `${t.assignee.first_name || ""} ${t.assignee.last_name || ""}`.trim() : "",
               order: t.order?.description || "",
-              scadenza: (t as unknown as { data_intervento_prevista?: string }).data_intervento_prevista ?? "",
+              scadenza: t.data_intervento_prevista ?? "",
               created: t.created_at ? new Date(t.created_at).toLocaleDateString("it-IT") : "",
             }))}
             columns={[
@@ -674,9 +675,20 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
       {hasMoreTickets && (
         <Alert className="border-amber-200 bg-amber-50 text-amber-900">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Vista limitata ai primi {tickets.length.toLocaleString("it-IT")} ticket su {totalTickets.toLocaleString("it-IT")}.
-            Usa filtri e ricerca per lavorare con precisione su archivi molto grandi.
+          <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Vista limitata ai primi {tickets.length.toLocaleString("it-IT")} ticket su {totalTickets.toLocaleString("it-IT")}.
+              Usa filtri e ricerca per lavorare con precisione su archivi molto grandi.
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 border-amber-300 bg-white"
+              disabled={isFetching}
+              onClick={() => setFetchLimit((n) => n + TICKETS_FETCH_LIMIT)}
+            >
+              {isFetching ? "Caricamento…" : "Carica altri"}
+            </Button>
           </AlertDescription>
         </Alert>
       )}
@@ -904,7 +916,7 @@ function MobileTicketRow({
 }) {
   const statusColor = getTicketStatusColor(ticket.status);
   const priorityColor = getTicketPriorityColor(ticket.priority);
-  const scadenza = (ticket as unknown as { data_intervento_prevista?: string }).data_intervento_prevista;
+  const scadenza = ticket.data_intervento_prevista;
   return (
     <div className="flex items-start gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted transition-colors">
       <Checkbox checked={selected} onCheckedChange={onToggleSelected} aria-label={`Seleziona ${ticket.subject}`} className="mt-1" />
@@ -968,7 +980,7 @@ function DesktopTicketRow({
   isUpdating: boolean;
 }) {
   const priorityColor = getTicketPriorityColor(ticket.priority);
-  const scadenza = (ticket as unknown as { data_intervento_prevista?: string }).data_intervento_prevista;
+  const scadenza = ticket.data_intervento_prevista;
   const isUrgent = ticket.priority === "urgente";
   const bucketS = bucketScadenza(scadenza);
   const isOverdue = (bucketS === "scaduto" || bucketS === "oggi") && ticket.status !== "risolto" && ticket.status !== "chiuso";

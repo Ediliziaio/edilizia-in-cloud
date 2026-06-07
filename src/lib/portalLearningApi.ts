@@ -80,6 +80,26 @@ export interface PortalLearningEnrollment {
   completedAt?: string | null;
 }
 
+/** Riga "avanzamento persona" per un corso: iscrizione reale + nome risolto da profiles. */
+export interface PortalCoursePersonProgress {
+  userId: string;
+  name: string;
+  email: string | null;
+  status: PortalEnrollmentStatus;
+  progressPercent: number;
+  dueAt: string | null;
+  completedAt: string | null;
+}
+
+/** Conteggi reali del pubblico Portale (da anagrafica dipendenti hr_profili). */
+export interface PortalAudienceCounts {
+  total: number;
+  operai: number;
+  ufficio: number;
+  commerciali: number;
+  capicantiere: number;
+}
+
 interface PortalCourseRow {
   id: string;
   company_id?: string;
@@ -280,6 +300,108 @@ export async function listPortalCourseEnrollments(companyId: string, userId: str
     dueAt: row.due_at ?? null,
     completedAt: row.completed_at ?? null,
   }));
+}
+
+/**
+ * Tutte le iscrizioni dell'azienda (tutti i corsi, tutti gli utenti) in UNA query.
+ * Usata per il riepilogo formazione lato admin (aggregazione per corso lato client).
+ */
+export async function listAllPortalCourseEnrollments(companyId: string): Promise<PortalLearningEnrollment[]> {
+  const { data, error } = await getDb()
+    .from("portal_course_enrollments")
+    .select("course_id,user_id,status,progress_percent,due_at,completed_at")
+    .eq("company_id", companyId);
+  if (error) throw error;
+  return ((data ?? []) as PortalEnrollmentRow[]).map((row) => ({
+    courseId: row.course_id,
+    userId: row.user_id,
+    status: row.status,
+    progressPercent: row.progress_percent ?? 0,
+    dueAt: row.due_at ?? null,
+    completedAt: row.completed_at ?? null,
+  }));
+}
+
+/**
+ * Avanzamento REALE per-persona di un corso: legge le iscrizioni vere
+ * (portal_course_enrollments) e risolve nome/email da `profiles` con un join
+ * lato client (nessuna dipendenza da FK PostgREST). Se non esistono iscrizioni
+ * ritorna [] → la UI mostra uno stato vuoto onesto invece di dati finti.
+ */
+export async function listPortalCourseProgress(
+  companyId: string,
+  courseId: string,
+): Promise<PortalCoursePersonProgress[]> {
+  const db = getDb();
+  const { data, error } = await db
+    .from("portal_course_enrollments")
+    .select("course_id,user_id,status,progress_percent,due_at,completed_at")
+    .eq("company_id", companyId)
+    .eq("course_id", courseId);
+  if (error) throw error;
+  const rows = (data ?? []) as PortalEnrollmentRow[];
+  if (rows.length === 0) return [];
+
+  // Nomi dai profili della stessa azienda (best-effort: se RLS/assenza → fallback "Utente").
+  const nameById = new Map<string, { name: string; email: string | null }>();
+  try {
+    const { data: profs } = await db
+      .from("profiles")
+      .select("id,first_name,last_name,email")
+      .eq("company_id", companyId);
+    const list = (profs ?? []) as Array<{
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+      email: string | null;
+    }>;
+    for (const p of list) {
+      const full = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
+      nameById.set(p.id, { name: full || p.email || "Utente", email: p.email ?? null });
+    }
+  } catch {
+    /* nomi non disponibili: si usa il fallback */
+  }
+
+  return rows.map((row) => {
+    const info = nameById.get(row.user_id);
+    return {
+      userId: row.user_id,
+      name: info?.name ?? "Utente",
+      email: info?.email ?? null,
+      status: row.status,
+      progressPercent: row.progress_percent ?? 0,
+      dueAt: row.due_at ?? null,
+      completedAt: row.completed_at ?? null,
+    };
+  });
+}
+
+/**
+ * Conteggi REALI del pubblico Portale a partire dall'anagrafica dipendenti
+ * (hr_profili). `total` è esatto (dipendenti attivi); i sottogruppi sono
+ * best-effort per parole chiave su reparto/mansione — ogni persona è contata
+ * nel PRIMO gruppo che combacia (capicantiere → commerciali → ufficio → operai),
+ * quindi i sottogruppi non sommano necessariamente al totale (onesto).
+ */
+export async function getPortalAudienceCounts(companyId: string): Promise<PortalAudienceCounts> {
+  const db = getDb();
+  const { data, error } = await db
+    .from("hr_profili")
+    .select("reparto,mansione,attivo")
+    .eq("company_id", companyId);
+  if (error) throw error;
+  const rows = ((data ?? []) as Array<{ reparto: string | null; mansione: string | null; attivo: boolean | null }>)
+    .filter((r) => r.attivo !== false);
+  const counts: PortalAudienceCounts = { total: rows.length, operai: 0, ufficio: 0, commerciali: 0, capicantiere: 0 };
+  for (const r of rows) {
+    const hay = `${r.reparto ?? ""} ${r.mansione ?? ""}`.toLowerCase();
+    if (/capo|prepost|responsabil|direttore di cantiere/.test(hay)) counts.capicantiere += 1;
+    else if (/commerc|vendit|sales|agente|preventiv/.test(hay)) counts.commerciali += 1;
+    else if (/uffic|ammin|contab|segret|back ?office|risorse umane|\bhr\b|paghe|acquist/.test(hay)) counts.ufficio += 1;
+    else if (/oper|cantier|mura|manov|edil|posat|salda|elettr|idraul|carpent|escavat|gruista/.test(hay)) counts.operai += 1;
+  }
+  return counts;
 }
 
 export async function savePortalCourseEnrollment(

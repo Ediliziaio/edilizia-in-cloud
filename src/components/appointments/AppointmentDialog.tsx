@@ -826,6 +826,14 @@ export function AppointmentDialog({
       toast({ title: "Inserisci un orario", variant: "destructive" });
       return;
     }
+    if (appointmentTime && appointmentEndTime) {
+      const startMin = timeToMinutes(appointmentTime);
+      const endMin = timeToMinutes(appointmentEndTime);
+      if (startMin != null && endMin != null && endMin <= startMin) {
+        toast({ title: "L'orario di fine deve essere successivo all'inizio", variant: "destructive" });
+        return;
+      }
+    }
     if (!companyId || !user) return;
 
     setSaving(true);

@@ -123,7 +123,7 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
         p_scadenza_id: params.scadenzaId,
         p_amount: params.amount,
         p_payment_method: params.paymentMethod || "bonifico",
-        p_payment_date: params.paymentDate || new Date().toISOString().split("T")[0],
+        p_payment_date: params.paymentDate || new Date().toLocaleDateString("en-CA"),
         p_notes: params.notes || null,
         p_account_label: params.accountLabel || "banca",
       });

@@ -80,7 +80,7 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
   const [fromWarehouseId, setFromWarehouseId] = useState<string>("");
   const [toWarehouseId, setToWarehouseId] = useState<string>("");
   const [notes, setNotes] = useState("");
-  const [transferDate, setTransferDate] = useState(new Date().toISOString().split("T")[0]);
+  const [transferDate, setTransferDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [items, setItems] = useState<TransferItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -196,7 +196,7 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
     setFromWarehouseId("");
     setToWarehouseId("");
     setNotes("");
-    setTransferDate(new Date().toISOString().split("T")[0]);
+    setTransferDate(new Date().toLocaleDateString("en-CA"));
     setItems([]);
     setShowConfirm(false);
   };

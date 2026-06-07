@@ -846,9 +846,9 @@ export default function SubappaltatoreDetail() {
                             {doc.nome_file && <span className="text-muted-foreground ml-1">— {doc.nome_file}</span>}
                           </p>
                           {doc.data_scadenza && (
-                            <p className={`text-xs mt-0.5 ${daysLeft !== null && daysLeft <= 30 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                            <p className={`text-xs mt-0.5 ${daysLeft === null ? 'text-muted-foreground' : daysLeft < 0 ? 'text-red-600' : daysLeft <= 30 ? 'text-amber-600' : 'text-muted-foreground'}`}>
                               Scade: {format(parseISO(doc.data_scadenza), 'dd/MM/yyyy')}
-                              {daysLeft !== null && daysLeft <= 30 && ` (${daysLeft}gg)`}
+                              {daysLeft !== null && (daysLeft < 0 ? ' (scaduto)' : daysLeft <= 30 ? ` (${daysLeft}gg)` : '')}
                             </p>
                           )}
                         </div>
@@ -1241,9 +1241,9 @@ export default function SubappaltatoreDetail() {
                         <div>
                           <p className="font-semibold">€{rit.importo.toLocaleString('it-IT')}</p>
                           {rit.data_svincolo_prevista && (
-                            <p className={`text-xs mt-0.5 ${daysToSvincolo !== null && daysToSvincolo <= 30 ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                            <p className={`text-xs mt-0.5 ${daysToSvincolo === null ? 'text-muted-foreground' : daysToSvincolo < 0 ? 'text-red-600' : daysToSvincolo <= 30 ? 'text-amber-600' : 'text-muted-foreground'}`}>
                               Svincolo previsto: {format(parseISO(rit.data_svincolo_prevista), 'dd/MM/yyyy')}
-                              {daysToSvincolo !== null && daysToSvincolo <= 30 && ` (${daysToSvincolo}gg)`}
+                              {daysToSvincolo !== null && (daysToSvincolo < 0 ? ' (in ritardo)' : daysToSvincolo <= 30 ? ` (${daysToSvincolo}gg)` : '')}
                             </p>
                           )}
                           {rit.data_svincolo_effettiva && (

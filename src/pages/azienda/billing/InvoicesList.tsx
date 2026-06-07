@@ -88,7 +88,7 @@ export default function InvoicesList() {
         invoice_id: inv.id,
         company_id: companyId!,
         amount: residuo,
-        payment_date: new Date().toISOString().split("T")[0],
+        payment_date: new Date().toLocaleDateString("en-CA"),
         payment_method: "bank_transfer",
       });
       if (error) throw error;

@@ -488,8 +488,8 @@ export default function SicurezzaCantiere() {
                           {doc.responsabile_sicurezza && ` · ${doc.responsabile_sicurezza}`}
                         </CardDescription>
                       </div>
-                      <Badge className={`${STATUS_COLORS[doc.status]} text-xs shrink-0`}>
-                        {STATUS_LABELS[doc.status]}
+                      <Badge className={`${STATUS_COLORS[doc.status] || STATUS_COLORS.bozza} text-xs shrink-0`}>
+                        {STATUS_LABELS[doc.status] || doc.status}
                       </Badge>
                     </div>
                   </CardHeader>
@@ -553,6 +553,7 @@ export default function SicurezzaCantiere() {
                           variant="outline"
                           size="sm"
                           className="h-7 text-xs"
+                          disabled={updatePosStatus.isPending}
                           onClick={() => updatePosStatus.mutate({ id: doc.id, status: "approvato" })}
                         >
                           <CheckCircle className="h-3 w-3 mr-1" /> Approva
@@ -624,8 +625,8 @@ export default function SicurezzaCantiere() {
                           Committente: {doc.committente_nome} · {format(new Date(doc.created_at), "dd/MM/yyyy", { locale: it })}
                         </CardDescription>
                       </div>
-                      <Badge className={`${STATUS_COLORS[doc.status]} text-xs shrink-0`}>
-                        {STATUS_LABELS[doc.status]}
+                      <Badge className={`${STATUS_COLORS[doc.status] || STATUS_COLORS.bozza} text-xs shrink-0`}>
+                        {STATUS_LABELS[doc.status] || doc.status}
                       </Badge>
                     </div>
                   </CardHeader>
@@ -683,6 +684,7 @@ export default function SicurezzaCantiere() {
                           variant="outline"
                           size="sm"
                           className="h-7 text-xs"
+                          disabled={updateDuvriStatus.isPending}
                           onClick={() => updateDuvriStatus.mutate({ id: doc.id, status: "firmato" })}
                         >
                           <CheckCircle className="h-3 w-3 mr-1" /> Segna firmato
@@ -848,6 +850,7 @@ export default function SicurezzaCantiere() {
                         variant="ghost"
                         size="sm"
                         className="shrink-0 h-7 text-xs"
+                        disabled={toggleAdempimentoStato.isPending}
                         onClick={() => toggleAdempimentoStato.mutate({ id: a.id, stato: a.stato === "completato" ? "da_fare" : "completato" })}
                       >
                         {a.stato === "completato" ? "Riapri" : "Completa"}

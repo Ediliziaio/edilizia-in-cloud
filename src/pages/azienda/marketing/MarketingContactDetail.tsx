@@ -1541,6 +1541,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
         onOpenChange={setMergeOpen}
         sourceContact={contact ? { id: contact.id, first_name: contact.first_name || "", last_name: contact.last_name || "", email: contact.email || undefined, phone: contact.phone || undefined } : null}
         companyId={companyId!}
+        onMerged={(keepId) => {
+          // Se il contatto corrente è stato fuso via, vai sul sopravvissuto.
+          if (keepId !== contact?.id) navigate(`${routePrefix}/contatti/${keepId}`);
+        }}
       />
 
       {/* Delete confirmation */}

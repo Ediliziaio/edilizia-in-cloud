@@ -186,7 +186,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
     mutationFn: async ({ id, isPaid }: { id: string; isPaid: boolean }) => {
       const { error } = await supabase
         .from("order_external_teams")
-        .update({ is_paid: isPaid, paid_date: isPaid ? new Date().toISOString().split("T")[0] : null })
+        .update({ is_paid: isPaid, paid_date: isPaid ? new Date().toLocaleDateString("en-CA") : null })
         .eq("id", id);
       if (error) throw error;
     },

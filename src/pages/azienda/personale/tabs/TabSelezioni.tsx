@@ -228,46 +228,58 @@ export function TabSelezioni() {
     mutationFn: async (targetCandidates: TalentCandidate[]) => {
       if (!companyId) throw new Error("Azienda non disponibile");
       let generated = 0;
+      let failed = 0;
 
+      // Isolamento per candidato: un report con dati incompleti/non validi NON
+      // deve bloccare la generazione degli altri (prima il throw nel loop
+      // interrompeva l'intero batch). Conteggio onesto generati/falliti.
       for (const candidate of targetCandidates) {
-        const { data, error } = await talentDb
-          .from<TalentAnswer[]>("hr_talent_answers")
-          .select("question_id,answer_value")
-          .eq("candidate_id", candidate.id)
-          .order("question_id", { ascending: true });
-        if (error) throw error;
+        try {
+          const { data, error } = await talentDb
+            .from<TalentAnswer[]>("hr_talent_answers")
+            .select("question_id,answer_value")
+            .eq("candidate_id", candidate.id)
+            .order("question_id", { ascending: true });
+          if (error) throw error;
 
-        const rows = (data || []) as TalentAnswer[];
-        if (rows.length < DOMANDE.length) continue;
+          const rows = (data || []) as TalentAnswer[];
+          if (rows.length < DOMANDE.length) continue; // test incompleto → salta (non è un errore)
 
-        const answers = rows.reduce<Record<number, "A" | "B" | "C" | "D">>((acc, answer) => {
-          acc[answer.question_id] = answer.answer_value;
-          return acc;
-        }, {});
+          const answers = rows.reduce<Record<number, "A" | "B" | "C" | "D">>((acc, answer) => {
+            acc[answer.question_id] = answer.answer_value;
+            return acc;
+          }, {});
 
-        const reportPayload = buildTalentReportPayload({
-          companyId,
-          candidate,
-          answers,
-        });
+          const reportPayload = buildTalentReportPayload({
+            companyId,
+            candidate,
+            answers,
+          });
 
-        const { error: reportError } = await talentDb
-          .from("hr_talent_reports")
-          .upsert(reportPayload, { onConflict: "candidate_id,assessment_version" });
-        if (reportError) throw reportError;
-        generated += 1;
+          const { error: reportError } = await talentDb
+            .from("hr_talent_reports")
+            .upsert(reportPayload, { onConflict: "candidate_id,assessment_version" });
+          if (reportError) throw reportError;
+          generated += 1;
+        } catch (candidateError) {
+          failed += 1;
+          console.warn("[selezioni] report auto-gen fallito per candidato", candidate.id, candidateError);
+        }
       }
 
-      return generated;
+      return { generated, failed };
     },
-    onSuccess: (generated) => {
+    onSuccess: ({ generated, failed }) => {
       if (generated > 0) {
         toast.success(`${generated} report Talent Assessment generati automaticamente`);
         queryClient.invalidateQueries({ queryKey: ["hr-talent-reports"] });
       }
+      if (failed > 0) {
+        toast.info(`${failed} report non generati: dati assessment incompleti o non validi.`);
+      }
     },
     onError: () => {
-      toast.error("Non sono riuscito a generare alcuni report automatici");
+      toast.error("Non sono riuscito a generare i report automatici");
     },
   });
 

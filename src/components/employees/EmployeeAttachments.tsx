@@ -151,7 +151,7 @@ export function EmployeeAttachments({
           file_type: file.type,
           file_size: file.size,
           document_type: documentType,
-          expiry_date: expiryDate?.toISOString().split("T")[0] || null,
+          expiry_date: expiryDate?.toLocaleDateString("en-CA") || null,
           notes: notes || null,
           uploaded_by: user.id,
         });

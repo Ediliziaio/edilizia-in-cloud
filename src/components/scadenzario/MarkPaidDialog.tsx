@@ -22,7 +22,7 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
   const remaining = scadenza ? scadenza.amount - scadenza.paid_amount : 0;
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("bonifico");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [notes, setNotes] = useState("");
   const [accountLabel, setAccountLabel] = useState("banca");
 
@@ -30,7 +30,7 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
     if (o && scadenza) {
       setAmount(String(remaining));
       setMethod(scadenza.payment_method || "bonifico");
-      setDate(new Date().toISOString().split("T")[0]);
+      setDate(new Date().toLocaleDateString("en-CA"));
       setNotes("");
     }
     onOpenChange(o);

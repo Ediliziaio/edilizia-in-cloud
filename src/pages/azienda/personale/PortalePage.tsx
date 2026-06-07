@@ -6,6 +6,7 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  BarChart3,
   BookMarked,
   BookOpenCheck,
   BriefcaseBusiness,
@@ -71,13 +72,18 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   PORTAL_ALLOWED_MATERIAL_MIME_TYPES,
   PORTAL_MAX_MATERIAL_SIZE_BYTES,
   PORTAL_MATERIAL_ACCEPT,
   createPortalMaterialSignedUrl,
+  getPortalAudienceCounts,
   isPortalLearningUnavailable,
+  listAllPortalCourseEnrollments,
   listPortalCourseEnrollments,
+  listPortalCourseProgress,
   listPortalCourses,
   logPortalCourseActivity,
   savePortalCourseEnrollment,
@@ -1943,7 +1949,7 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
               - Procedure: pensato per checklist sicurezza/operativi cantiere
               - Accessi: in admin la gestione cross-company avviene in
                 AdminPortaleDistributionBar a monte
-              - Persone: ha fake data hardcoded (operai/capicantiere) */}
+              - Persone: avanzamento per-persona da iscrizioni reali (non in admin) */}
           {!isAdminContext && (
             <>
               <TabsTrigger value="procedure" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
@@ -1958,6 +1964,10 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
                 <Users className="h-4 w-4" />
                 Persone
               </TabsTrigger>
+              <TabsTrigger value="riepilogo" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
+                <BarChart3 className="h-4 w-4" />
+                Riepilogo
+              </TabsTrigger>
             </>
           )}
           <TabsTrigger value="preview" className="gap-2 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700">
@@ -1966,7 +1976,7 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
           </TabsTrigger>
         </TabsList>
 
-        {activeTab !== "preview" && (
+        {activeTab !== "preview" && activeTab !== "riepilogo" && (
           <PortalCommandCenter
             course={selectedCourse}
             quality={quality}
@@ -2071,13 +2081,18 @@ export default function PortalePage({ portalContext = "azienda" }: PortalePagePr
         <TabsContent value="accessi">
           <AccessPanel
             course={selectedCourse}
+            companyId={companyId}
             onAudienceChange={(audience) => updateSelectedCourse({ audience })}
             onOpenAccess={() => setAccessDialogOpen(true)}
           />
         </TabsContent>
 
         <TabsContent value="persone">
-          <PeopleProgressPanel course={selectedCourse} courses={courses} />
+          <PeopleProgressPanel course={selectedCourse} courses={courses} companyId={companyId} userId={userId} />
+        </TabsContent>
+
+        <TabsContent value="riepilogo">
+          <PortalRiepilogoPanel courses={courses} companyId={companyId} />
         </TabsContent>
 
         <TabsContent value="preview">
@@ -3426,21 +3441,31 @@ function QualityLine({ done, label }: { done: boolean; label: string }) {
 
 function AccessPanel({
   course,
+  companyId,
   onAudienceChange,
   onOpenAccess,
 }: {
   course?: PortalCourse;
+  companyId: string | null;
   onAudienceChange: (audience: PortalAudience) => void;
   onOpenAccess: () => void;
 }) {
+  // Conteggi reali dal personale (hr_profili). Hook prima di ogni early-return.
+  const { data: counts } = useQuery({
+    queryKey: ["portal-audience-counts", companyId],
+    queryFn: () => getPortalAudienceCounts(companyId as string),
+    enabled: !!companyId,
+    staleTime: 60_000,
+  });
+
   if (!course) return null;
 
-  const groups: Array<{ key: PortalAudience; label: string; people: number; note: string }> = [
-    { key: "tutti", label: "Tutta azienda", people: 58, note: "Team interno completo" },
-    { key: "operai", label: "Operai", people: 38, note: "Accesso mobile cantiere" },
-    { key: "ufficio", label: "Ufficio", people: 12, note: "Amministrazione e back office" },
-    { key: "commerciali", label: "Commerciali", people: 6, note: "Vendita e sopralluoghi" },
-    { key: "capicantiere", label: "Capicantiere", people: 8, note: "Responsabili operativi" },
+  const groups: Array<{ key: PortalAudience; label: string; people: number | null; note: string }> = [
+    { key: "tutti", label: "Tutta azienda", people: counts?.total ?? null, note: "Dipendenti attivi in anagrafica" },
+    { key: "operai", label: "Operai", people: counts?.operai ?? null, note: "Accesso mobile cantiere" },
+    { key: "ufficio", label: "Ufficio", people: counts?.ufficio ?? null, note: "Amministrazione e back office" },
+    { key: "commerciali", label: "Commerciali", people: counts?.commerciali ?? null, note: "Vendita e sopralluoghi" },
+    { key: "capicantiere", label: "Capicantiere", people: counts?.capicantiere ?? null, note: "Responsabili operativi" },
   ];
 
   return (
@@ -3477,7 +3502,9 @@ function AccessPanel({
                   {active && <CheckCircle2 className="h-5 w-5 text-blue-600" />}
                 </div>
                 <h3 className="mt-3 font-bold text-slate-950">{group.label}</h3>
-                <p className="mt-1 text-sm text-slate-500">{group.people} persone · {group.note}</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {group.people == null ? "—" : group.people} {group.people === 1 ? "persona" : "persone"} · {group.note}
+                </p>
               </button>
             );
           })}
@@ -3499,17 +3526,221 @@ function AccessPanel({
   );
 }
 
-function PeopleProgressPanel({ course, courses }: { course?: PortalCourse; courses: PortalCourse[] }) {
+function PortalRiepilogoPanel({ courses, companyId }: { courses: PortalCourse[]; companyId: string | null }) {
+  const { data: enrollments = [], isLoading } = useQuery({
+    queryKey: ["portal-all-enrollments", companyId],
+    queryFn: () => listAllPortalCourseEnrollments(companyId as string),
+    enabled: !!companyId,
+    staleTime: 30_000,
+  });
+
+  const published = courses.filter((c) => c.status === "pubblicato");
+
+  const byCourse = new Map<string, { iscritti: number; completati: number; somma: number }>();
+  for (const e of enrollments) {
+    const agg = byCourse.get(e.courseId) ?? { iscritti: 0, completati: 0, somma: 0 };
+    agg.iscritti += 1;
+    if (e.progressPercent >= 100 || e.status === "completato") agg.completati += 1;
+    agg.somma += e.progressPercent || 0;
+    byCourse.set(e.courseId, agg);
+  }
+
+  const rows = published
+    .map((c) => {
+      const agg = byCourse.get(c.id) ?? { iscritti: 0, completati: 0, somma: 0 };
+      const medio = agg.iscritti ? Math.round(agg.somma / agg.iscritti) : 0;
+      const mandatory = c.area === "sicurezza" || c.area === "procedure";
+      return { course: c, iscritti: agg.iscritti, completati: agg.completati, medio, mandatory };
+    })
+    .sort((a, b) => {
+      if (a.mandatory !== b.mandatory) return a.mandatory ? -1 : 1;
+      return a.medio - b.medio;
+    });
+
+  const totals = {
+    corsi: published.length,
+    iscrizioni: rows.reduce((acc, r) => acc + r.iscritti, 0),
+    completamenti: rows.reduce((acc, r) => acc + r.completati, 0),
+    medio: rows.length ? Math.round(rows.reduce((acc, r) => acc + r.medio, 0) / rows.length) : 0,
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-2xl font-bold leading-none text-slate-950">{totals.corsi}</p>
+          <p className="mt-1 text-xs text-slate-500">Corsi pubblicati</p>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-2xl font-bold leading-none text-slate-950">{totals.iscrizioni}</p>
+          <p className="mt-1 text-xs text-slate-500">Iscrizioni totali</p>
+        </div>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+          <p className="text-2xl font-bold leading-none text-emerald-700">{totals.completamenti}</p>
+          <p className="mt-1 text-xs text-emerald-700/80">Completamenti</p>
+        </div>
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+          <p className="text-2xl font-bold leading-none text-blue-700">{totals.medio}%</p>
+          <p className="mt-1 text-xs text-blue-700/80">Avanzamento medio</p>
+        </div>
+      </div>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-xl font-bold text-slate-950">Riepilogo per corso</h2>
+        <p className="text-sm text-slate-500">
+          Completamento reale di tutti i corsi pubblicati (obbligatori in cima, meno avanzati prima).
+        </p>
+
+        <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+          <div className="hidden grid-cols-[1.4fr_0.7fr_0.7fr_1fr] gap-4 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 md:grid">
+            <span>Corso</span>
+            <span>Iscritti</span>
+            <span>Completati</span>
+            <span>Avanzamento</span>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {isLoading ? (
+              <div className="px-4 py-10 text-center text-sm text-slate-500">Caricamento dati…</div>
+            ) : rows.length === 0 ? (
+              <div className="px-4 py-10 text-center text-sm text-slate-500">Nessun corso pubblicato.</div>
+            ) : (
+              rows.map(({ course, iscritti, completati, medio, mandatory }) => (
+                <div
+                  key={course.id}
+                  className="grid gap-3 px-4 py-4 md:grid-cols-[1.4fr_0.7fr_0.7fr_1fr] md:items-center md:gap-4"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-slate-950">{course.title}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <Badge variant="outline" className="bg-white">
+                        {areaLabels[course.area]}
+                      </Badge>
+                      {mandatory && (
+                        <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">
+                          Obbligatorio
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-sm text-slate-700">
+                    <span className="mr-1 font-medium md:hidden">Iscritti:</span>
+                    {iscritti}
+                  </span>
+                  <span className="text-sm text-slate-700">
+                    <span className="mr-1 font-medium md:hidden">Completati:</span>
+                    {completati}
+                  </span>
+                  <div>
+                    <div className="mb-1 text-xs text-slate-500">{medio}%</div>
+                    <Progress value={medio} className="h-2" />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/** Deriva etichetta stato + colore + testo scadenza da un'iscrizione reale. */
+function describeEnrollment(p: { status: string; dueAt: string | null; completedAt: string | null }): {
+  statusLabel: string;
+  tone: "red" | "emerald" | "blue";
+  due: string;
+} {
+  const now = Date.now();
+  const dueMs = p.dueAt ? new Date(p.dueAt).getTime() : null;
+  const hasDue = dueMs != null && Number.isFinite(dueMs);
+  const overdue = hasDue && (dueMs as number) < now && p.status !== "completato";
+
+  let due = "Nessuna scadenza";
+  if (p.completedAt) {
+    due = "Completato";
+  } else if (hasDue) {
+    const days = Math.round(((dueMs as number) - now) / 86_400_000);
+    if (days > 1) due = `Scade tra ${days} giorni`;
+    else if (days === 1) due = "Scade domani";
+    else if (days === 0) due = "Scade oggi";
+    else if (days === -1) due = "Scaduto ieri";
+    else due = `Scaduto da ${Math.abs(days)} giorni`;
+  }
+
+  if (p.status === "completato") return { statusLabel: "Completato", tone: "emerald", due };
+  if (overdue || p.status === "in_ritardo") return { statusLabel: "In ritardo", tone: "red", due };
+  if (p.status === "in_corso") return { statusLabel: "In corso", tone: "blue", due };
+  return { statusLabel: "Da iniziare", tone: "blue", due };
+}
+
+function PeopleProgressPanel({
+  course,
+  courses,
+  companyId,
+  userId,
+}: {
+  course?: PortalCourse;
+  courses: PortalCourse[];
+  companyId: string | null;
+  userId: string | null;
+}) {
+  // Avanzamento reale dalle iscrizioni. Hook prima di ogni early-return.
+  const { data: people = [], isLoading } = useQuery({
+    queryKey: ["portal-course-progress", companyId, course?.id ?? null],
+    queryFn: () => listPortalCourseProgress(companyId as string, course!.id),
+    enabled: !!companyId && !!course?.id,
+    staleTime: 30_000,
+  });
+  const qc = useQueryClient();
+
   if (!course) return null;
 
-  const people = [
-    { name: "Marco Bianchi", role: "Capocantiere", group: "Cantieri", progress: Math.min(100, course.completion + 14), status: "In regola", due: "Completato oggi" },
-    { name: "Sara Conti", role: "Ufficio acquisti", group: "Ufficio", progress: Math.max(12, course.completion - 18), status: "Da completare", due: "Scade tra 5 giorni" },
-    { name: "Luca Ferri", role: "Commerciale", group: "Vendita", progress: Math.max(0, course.completion - 31), status: "In ritardo", due: "Scaduto ieri" },
-    { name: "Giulia Rizzi", role: "Amministrazione", group: "Back office", progress: Math.min(100, course.completion + 5), status: "In corso", due: "Scade tra 12 giorni" },
-  ];
+  // Crea un promemoria REALE (Silvio) assegnato all'admin per ricontrollare il corso.
+  const scheduleReminder = async () => {
+    if (!companyId || !userId) {
+      toast.error("Sessione non valida: impossibile creare il promemoria.");
+      return;
+    }
+    const behind = people.filter((p) => p.status !== "completato").length;
+    const remindOn = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+    const { error } = await supabase.rpc("silvio_tool_crea_promemoria" as never, {
+      p_company_id: companyId,
+      p_user_id: userId,
+      p_title: `Controlla avanzamento corso «${course.title}»`,
+      p_note:
+        people.length === 0
+          ? "Nessuna iscrizione ancora: verifica l'assegnazione del corso dalla scheda Accessi."
+          : behind > 0
+            ? `${behind} su ${people.length} non hanno ancora completato il corso.`
+            : "Tutte le persone iscritte hanno completato il corso.",
+      p_remind_on: remindOn,
+    } as never);
+    if (error) {
+      toast.error("Impossibile creare il promemoria.");
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["silvio-reminders-count"] });
+    toast.success(`Promemoria creato per il ${new Date(remindOn).toLocaleDateString("it-IT")}.`);
+  };
 
   const mandatoryCourses = courses.filter((item) => item.area === "sicurezza" || item.area === "procedure");
+  const audienceLabel: Record<PortalAudience, string> = {
+    tutti: "Tutta azienda",
+    operai: "Operai",
+    ufficio: "Ufficio",
+    commerciali: "Commerciali",
+    capicantiere: "Capicantiere",
+  };
+
+  // KPI compliance reali (dalle iscrizioni del corso selezionato).
+  const kpi = {
+    iscritti: people.length,
+    completati: people.filter((p) => p.progressPercent >= 100 || p.status === "completato").length,
+    inRitardo: people.filter((p) => describeEnrollment(p).tone === "red").length,
+    medio: people.length
+      ? Math.round(people.reduce((acc, p) => acc + (p.progressPercent || 0), 0) / people.length)
+      : 0,
+  };
 
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -3524,12 +3755,33 @@ function PeopleProgressPanel({ course, courses }: { course?: PortalCourse; cours
           <Button
             variant="outline"
             className="gap-2"
-            onClick={() => toast.success("Reminder programmabile pronto per la prossima fase operativa.")}
+            onClick={scheduleReminder}
           >
             <CalendarClock className="h-4 w-4" />
             Programma reminder
           </Button>
         </div>
+
+        {people.length > 0 && (
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="text-2xl font-bold leading-none text-slate-950">{kpi.iscritti}</p>
+              <p className="mt-1 text-xs text-slate-500">Iscritti</p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+              <p className="text-2xl font-bold leading-none text-emerald-700">{kpi.completati}</p>
+              <p className="mt-1 text-xs text-emerald-700/80">Completati</p>
+            </div>
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+              <p className="text-2xl font-bold leading-none text-red-700">{kpi.inRitardo}</p>
+              <p className="mt-1 text-xs text-red-700/80">In ritardo</p>
+            </div>
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+              <p className="text-2xl font-bold leading-none text-blue-700">{kpi.medio}%</p>
+              <p className="mt-1 text-xs text-blue-700/80">Avanzamento medio</p>
+            </div>
+          </div>
+        )}
 
         <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
           <div className="hidden grid-cols-[1.1fr_0.8fr_1fr_0.8fr] gap-4 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 md:grid">
@@ -3539,37 +3791,56 @@ function PeopleProgressPanel({ course, courses }: { course?: PortalCourse; cours
             <span>Stato</span>
           </div>
           <div className="divide-y divide-slate-100">
-            {people.map((person) => (
-              <div key={person.name} className="grid gap-3 px-4 py-4 md:grid-cols-[1.1fr_0.8fr_1fr_0.8fr] md:items-center md:gap-4">
-                <div className="min-w-0">
-                  <p className="font-semibold text-slate-950">{person.name}</p>
-                  <p className="text-sm text-slate-500">{person.role}</p>
-                </div>
-                <Badge variant="outline" className="w-fit bg-white">
-                  {person.group}
-                </Badge>
-                <div>
-                  <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
-                    <span>{person.progress}%</span>
-                    <span>{person.due}</span>
-                  </div>
-                  <Progress value={person.progress} className="h-2" />
-                </div>
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "w-fit",
-                    person.status === "In ritardo"
-                      ? "border-red-200 bg-red-50 text-red-700"
-                      : person.status === "In regola"
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-blue-200 bg-blue-50 text-blue-700",
-                  )}
-                >
-                  {person.status}
-                </Badge>
+            {isLoading ? (
+              <div className="px-4 py-10 text-center text-sm text-slate-500">Caricamento iscrizioni…</div>
+            ) : people.length === 0 ? (
+              <div className="px-4 py-10 text-center">
+                <p className="text-sm font-semibold text-slate-700">Nessuna iscrizione a questo corso</p>
+                <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+                  L'avanzamento delle persone compare qui quando il corso viene assegnato o quando i
+                  dipendenti lo aprono dal portale. Definisci il pubblico dalla scheda{" "}
+                  <span className="font-medium">Accessi</span>.
+                </p>
               </div>
-            ))}
+            ) : (
+              people.map((person) => {
+                const info = describeEnrollment(person);
+                return (
+                  <div
+                    key={person.userId}
+                    className="grid gap-3 px-4 py-4 md:grid-cols-[1.1fr_0.8fr_1fr_0.8fr] md:items-center md:gap-4"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-950">{person.name}</p>
+                      {person.email && <p className="truncate text-sm text-slate-500">{person.email}</p>}
+                    </div>
+                    <Badge variant="outline" className="w-fit bg-white">
+                      {audienceLabel[course.audience]}
+                    </Badge>
+                    <div>
+                      <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                        <span>{person.progressPercent}%</span>
+                        <span>{info.due}</span>
+                      </div>
+                      <Progress value={person.progressPercent} className="h-2" />
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "w-fit",
+                        info.tone === "red"
+                          ? "border-red-200 bg-red-50 text-red-700"
+                          : info.tone === "emerald"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-blue-200 bg-blue-50 text-blue-700",
+                      )}
+                    >
+                      {info.statusLabel}
+                    </Badge>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </section>

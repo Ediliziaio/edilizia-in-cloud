@@ -16,7 +16,7 @@
  *  - Data scadenza
  *  - Note
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -118,6 +118,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
   const [deleteTarget, setDeleteTarget] = useState<Lotto | null>(null);
   const [form, setForm] = useState<LottoForm>(emptyForm);
   const [isSaving, setIsSaving] = useState(false);
+  const creatingRef = useRef(false); // guard atomico anti double-submit (lo stato React è async)
   const [drilldownLottoId, setDrilldownLottoId] = useState<string | null>(null);
   const [assignLottoId, setAssignLottoId] = useState<string | null>(null);
 
@@ -223,10 +224,11 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
 
   const handleCreate = async () => {
     if (readOnly) return;
-    // Guard interno contro double-submit: prima il button era `disabled={isSaving}`
-    // ma tra il primo click e il setIsSaving(true) c'è una micro-finestra in cui
-    // un doppio click ravvicinato passa entrambi → crea 2 lotti duplicati.
-    if (isSaving) return;
+    // Guard ATOMICO contro double-submit: il button è `disabled={isSaving}`, ma lo
+    // stato React si aggiorna in modo asincrono, lasciando una micro-finestra in cui
+    // due click ravvicinati passano entrambi → 2 lotti duplicati. Il ref viene
+    // settato in modo SINCRONO prima dell'await, quindi il 2° click è bloccato qui.
+    if (creatingRef.current) return;
     if (!form.codice_lotto.trim()) {
       toast.error("Inserisci il codice lotto");
       return;
@@ -239,6 +241,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
       toast.error("Inserisci una quantità valida");
       return;
     }
+    creatingRef.current = true;
     setIsSaving(true);
     try {
       // Articolo: usa nome catalogo se selezionato, altrimenti testo libero.
@@ -276,6 +279,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
       queryClient.invalidateQueries({ queryKey: ["warehouse-lotti-list", companyId] });
     } finally {
       setIsSaving(false);
+      creatingRef.current = false;
     }
   };
 

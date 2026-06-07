@@ -530,7 +530,15 @@ export default function CompanyCostsManager() {
                           });
                           if (error) throw error;
                           data.refetchAll();
-                          toast({ title: `Generati ${result?.created || 0} costi ricorrenti` });
+                          const created = result?.created || 0;
+                          toast(
+                            created > 0
+                              ? { title: `Generati ${created} costi ricorrenti` }
+                              : {
+                                  title: "Nessun costo da generare",
+                                  description: "I costi ricorrenti di questo mese sono già stati creati.",
+                                },
+                          );
                         } catch (err) {
                           toast({
                             title: "Errore nella generazione",
