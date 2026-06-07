@@ -540,7 +540,7 @@ export default function QuoteBuilder() {
   });
 
   // Load existing quote if editing
-  const { data: existingQuote } = useQuery({
+  const { data: existingQuote, isLoading: quoteLoading, isError: quoteError } = useQuery({
     queryKey: queryKeys.quotes.detail(id),
     enabled: isEdit && !!companyId,
     queryFn: async () => {
@@ -666,6 +666,15 @@ export default function QuoteBuilder() {
       });
     }
   }, [existingQuote, isEdit]);
+
+  // Edit mode: se il preventivo non si carica (id errato / RLS), non lasciare un form
+  // vuoto "fantasma" → avvisa l'utente e torna alla lista (niente dead-end silenzioso).
+  useEffect(() => {
+    if (isEdit && quoteError) {
+      toast.error("Preventivo non trovato o non più accessibile.");
+      navigate("/azienda/marketing/preventivi");
+    }
+  }, [isEdit, quoteError, navigate]);
 
   // Fetch lista commerciali attivi (per picker)
   const { data: salespeople = [] } = useQuery({
@@ -1573,6 +1582,19 @@ export default function QuoteBuilder() {
     label: s.label,
     icon: <s.icon className="h-4 w-4" />,
   }));
+
+  // Edit mode: mostra un loader mentre il preventivo esistente viene caricato,
+  // così l'utente non vede per un istante un form "vuoto" (che sembra nuovo).
+  if (isEdit && quoteLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center" aria-busy="true">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <Loader2 className="h-7 w-7 animate-spin text-primary" />
+          <p>Caricamento preventivo…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 pb-24">

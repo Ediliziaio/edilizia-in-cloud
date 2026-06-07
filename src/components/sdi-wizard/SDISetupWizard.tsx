@@ -101,7 +101,9 @@ export function SDISetupWizard({ open, onOpenChange }: Props) {
   };
 
   const canGoNext = () => {
-    if (step === 1) return form.codice_destinatario.length > 0;
+    // Il codice destinatario SDI è SEMPRE di 7 caratteri (es. "ABCDE12" o "0000000"
+    // per PEC/B2C). Bloccare un codice incompleto evita config invalide → fatture scartate.
+    if (step === 1) return form.codice_destinatario.length === 7;
     if (step === 2) return true; // PEC is optional
     if (step === 3) return form.regime_fiscale.length > 0;
     return true;
