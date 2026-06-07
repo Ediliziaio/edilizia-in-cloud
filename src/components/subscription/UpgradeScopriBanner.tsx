@@ -3,6 +3,7 @@ import { Sparkles, ArrowRight, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { isMobileAppRuntime } from "@/lib/mobile/platform";
 
 export type ScopriWallType =
   | "max_orders"
@@ -119,6 +120,29 @@ export function UpgradeScopriWall({ type, inline = false, onDismiss }: UpgradeSc
     navigate("/azienda/impostazioni/abbonamento");
   };
 
+  // App Store Guideline 3.1.1: nell'app mobile NON mostriamo prezzi (es. "€127/mese")
+  // né CTA di upgrade/acquisto (porterebbero a meccanismi di pagamento esterni).
+  // Stato "non incluso" neutro, senza prezzo, senza link/bottone d'acquisto. Sul
+  // web resta il nudge completo con prezzo + CTA.
+  if (isMobileAppRuntime) {
+    return (
+      <div className={cn(
+        "rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900",
+        inline ? "p-6 text-center space-y-1" : "flex items-center gap-3 px-4 py-3"
+      )}>
+        <Lock className={cn("text-orange-600 flex-shrink-0", inline ? "h-6 w-6 mx-auto mb-1" : "h-4 w-4")} />
+        <div className={inline ? "" : "flex-1 min-w-0"}>
+          <p className="text-sm font-medium text-orange-900 dark:text-orange-200">
+            Funzionalità non inclusa nel tuo piano attuale
+          </p>
+          <p className="text-xs text-orange-700 dark:text-orange-400 mt-0.5">
+            Per ampliare il piano contatta l'assistenza.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (inline) {
     return (
       <div className="rounded-xl border border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-900 p-6 text-center space-y-4">
@@ -218,7 +242,9 @@ export function ScopriProgressBanner({ usedOrders, maxOrders, planName = "Scopri
           />
         </div>
       </div>
-      {isNearLimit && (
+      {/* App Store 3.1.1: niente CTA upgrade nell'app mobile (la barra resta
+          informativa: mostra solo l'uso cantieri, senza acquisto). */}
+      {isNearLimit && !isMobileAppRuntime && (
         <Button
           size="sm"
           variant="outline"

@@ -4,6 +4,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AlertTriangle, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
+import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
+import { OrderSupplierOrders } from "@/components/orders/OrderSupplierOrders";
+import { OrderEconomicsSummary } from "@/components/orders/OrderEconomicsSummary";
 import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
 import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
@@ -307,7 +311,7 @@ function OrderDetailInner() {
   }, [dbInstallments, order]);
 
   // Fetch order items
-  const { data: orderItems = [] } = useQuery({
+  const { data: orderItems = [], isPending: orderItemsPending } = useQuery({
     queryKey: ["order-items", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -737,6 +741,9 @@ function OrderDetailInner() {
         deposit_expected_date: item.deposit_expected_date || null,
         // v8.6.35 — Tracking & ODA
         delivery_date: item.delivery_date || null,
+        // Magazzino: persiste il legame con la giacenza, altrimenti un articolo
+        // "Da Giacenza" salvato dalla commessa torna silenziosamente "Da Fornitore".
+        stock_item_id: item.stock_item_id || null,
       }).eq("id", item.id);
       if (error) throw error;
     },
@@ -776,6 +783,8 @@ function OrderDetailInner() {
         deposit_expected_date: item.deposit_expected_date || null,
         // v8.6.35 — Tracking & ODA
         delivery_date: item.delivery_date || null,
+        // Magazzino: persiste il legame con la giacenza (vedi updateSingleItemMutation).
+        stock_item_id: item.stock_item_id || null,
       });
       if (error) throw error;
     },
@@ -1023,6 +1032,35 @@ function OrderDetailInner() {
             ))}
           </div>
         )}
+
+        {/* ── Card commessa: ognuna isolata in ErrorBoundary (fallback vuoto) così
+               un errore in una NON può buttare giù il dettaglio commessa. ── */}
+        {/* Conto economico: riepilogo a colpo d'occhio, sempre in cima */}
+        <ErrorBoundary fallback={<></>}>
+          <OrderEconomicsSummary
+            orderId={id!}
+            totalAmount={order.total_amount}
+            vatRate={order.vat_rate || 22}
+            items={economicsItems}
+            collectedAmount={collectedAmount}
+            itemsLoading={orderItemsPending}
+          />
+        </ErrorBoundary>
+
+        {/* Sopralluoghi collegati (rilievo misure) */}
+        <ErrorBoundary fallback={<></>}>
+          <OrderSurveysCard orderId={id!} quoteId={order.quote_id} quoteNumber={order.quote_number} />
+        </ErrorBoundary>
+
+        {/* Controllo misure: solo se ci sono articoli su misura (altrimenti null) */}
+        <ErrorBoundary fallback={<></>}>
+          <OrderMeasureControl orderId={id!} />
+        </ErrorBoundary>
+
+        {/* Ordini fornitore (bridge procurement): bozza ODA da misure confermate */}
+        <ErrorBoundary fallback={<></>}>
+          <OrderSupplierOrders orderId={id!} />
+        </ErrorBoundary>
 
         {/* ── MOBILE: tab layout ──────────────────────────────── */}
         <div className="sm:hidden">
@@ -1403,7 +1441,8 @@ function OrderDetailInner() {
               onAttachmentsRefresh={handleAttachmentsRefresh}
             />
 
-            {/* Economico */}
+            {/* Economico (dettaglio) — esteso: bilancia l'altezza con la lunga
+                sidebar (evita lo spazio vuoto in basso). Il sommario è in cima. */}
             <OrdineEconomico
               orderId={id!}
               totalAmount={order.total_amount}
@@ -1416,48 +1455,6 @@ function OrderDetailInner() {
               collectedAmount={collectedAmount}
               onInstallmentPaidToggle={handleInstallmentPaidToggle}
             />
-
-            {/* SAL */}
-            <div id="section-sal">
-              {companyId && (
-                <OrdineSAL
-                  orderId={id!}
-                  companyId={companyId}
-                  orderTotalAmount={order.total_amount ?? undefined}
-                />
-              )}
-            </div>
-
-            {/* Variazioni + OdV */}
-            {effectiveCompany?.id && (
-              <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
-            )}
-
-            {/* Timeline Cantiere */}
-            {effectiveCompany?.id && (
-              <div className="space-y-2">
-                <div>
-                  <h2 className="text-base font-semibold">Timeline Cantiere</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Tutti gli aggiornamenti: stati, lavori, SAL e varianti.
-                  </p>
-                </div>
-                <TimelineCantiere
-                  orderId={id!}
-                  companyId={effectiveCompany.id}
-                  adminView={true}
-                />
-              </div>
-            )}
-
-            {/* Campo: Rapportini + WhatsApp */}
-            {effectiveCompany?.id && (
-              <>
-                <OrdineRapportiniCampo orderId={id!} />
-                <WhatsAppActivityFeed cantiereId={id!} />
-              </>
-            )}
-
           </div>
 
           {/* ── Right Column (1/3) ──────────────────────────────── */}
@@ -1700,6 +1697,40 @@ function OrderDetailInner() {
             {/* Ritenute di Garanzia */}
             <RitenuteTab orderId={id!} />
           </div>
+        </div>
+
+        {/* ── Sezioni secondarie a tutta larghezza (solo desktop), sotto la griglia:
+            riempiono la larghezza → niente spazio vuoto a lato della sidebar. ── */}
+        <div className="hidden sm:block space-y-6">
+          <div id="section-sal">
+            {companyId && (
+              <OrdineSAL
+                orderId={id!}
+                companyId={companyId}
+                orderTotalAmount={order.total_amount ?? undefined}
+              />
+            )}
+          </div>
+          {effectiveCompany?.id && (
+            <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
+          )}
+          {effectiveCompany?.id && (
+            <div className="space-y-2">
+              <div>
+                <h2 className="text-base font-semibold">Timeline Cantiere</h2>
+                <p className="text-sm text-muted-foreground">
+                  Tutti gli aggiornamenti: stati, lavori, SAL e varianti.
+                </p>
+              </div>
+              <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
+            </div>
+          )}
+          {effectiveCompany?.id && (
+            <>
+              <OrdineRapportiniCampo orderId={id!} />
+              <WhatsAppActivityFeed cantiereId={id!} />
+            </>
+          )}
         </div>
       </div>
 

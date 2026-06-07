@@ -710,3 +710,21 @@ html.capacitor [role="button"] {
   color: hsl(var(--muted-foreground)) !important;
   opacity: 1 !important;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FIX linee/archi invisibili nel flow-builder (automazioni)
+   ──────────────────────────────────────────────────────────────────────────
+   Con questo stack (React 19 + @xyflow/react v12 + Vite) l'<svg> che React Flow
+   crea per OGNI arco resta largo 0px. Chrome NON dipinge il <path> contenuto in
+   un <svg> largo 0, nemmeno con `overflow: visible` → le linee di collegamento
+   spariscono, mentre i nodi e i bottoni "+" (che sono HTML, non SVG) restano
+   visibili. Forziamo il contenitore degli archi e i suoi SVG a riempire il
+   viewport, così il path viene dipinto. Il prefisso `html` alza la specificità
+   per battere la regola di @xyflow a prescindere dall'ordine di import del CSS.
+   ══════════════════════════════════════════════════════════════════════════ */
+html .react-flow .react-flow__edges,
+html .react-flow .react-flow__edges svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}

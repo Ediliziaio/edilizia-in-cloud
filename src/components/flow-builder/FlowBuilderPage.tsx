@@ -25,6 +25,7 @@ import { useAutomationBuilder } from "@/hooks/useAutomationBuilder";
 import { useIsAdminMarketing } from "@/hooks/useMarketingRoutePrefix";
 import { nodesToReactFlow, connectionsToEdges } from "@/components/flow-builder/hooks/useFlowAdapter";
 import { nodeTypes, edgeTypes } from "@/components/flow-builder/nodes";
+import { NodeMeasureFix } from "@/components/flow-builder/NodeMeasureFix";
 import { computeAutoLayout } from "@/components/flow-builder/autoLayout";
 import { FlowBuilderHeader, type BuilderTab } from "./FlowBuilderHeader";
 import { FlowBuilderSidebar, type LeftPanel } from "./FlowBuilderSidebar";
@@ -1178,6 +1179,9 @@ export function FlowBuilderPage() {
                 deleteKeyCode={["Backspace", "Delete"]}
                 className="bg-muted/30"
               >
+                {/* Forza la misurazione dei nodi al mount: senza, su React 19 + RF v12
+                    il ResizeObserver interno non scatta e gli archi/linee non vengono disegnati. */}
+                <NodeMeasureFix />
                 <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
                 <Controls />
                 <Panel position="top-left">

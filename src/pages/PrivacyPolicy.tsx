@@ -83,7 +83,7 @@ export default function PrivacyPolicy() {
         <li>Capitale sociale: € 20.000,00 i.v.</li>
         <li>
           Email:{" "}
-          <a href="mailto:privacy@ediliziaincloud.it">privacy@ediliziaincloud.it</a>
+          <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>
         </li>
         <li>PEC: domusgroupsrl@legalmail.it</li>
         <li>Codice destinatario SDI: USAL8PV</li>
@@ -96,7 +96,7 @@ export default function PrivacyPolicy() {
       <p>
         Per qualsiasi richiesta o esercizio dei diritti di cui agli artt. 15-22 GDPR, gli Utenti
         possono scrivere all'indirizzo{" "}
-        <a href="mailto:privacy@ediliziaincloud.it">privacy@ediliziaincloud.it</a>.
+        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>.
       </p>
 
       <h2>3. Doppio ruolo: Titolare e Responsabile del trattamento</h2>
@@ -358,6 +358,25 @@ export default function PrivacyPolicy() {
           </tr>
           <tr>
             <td>
+              Pubblicità mirata e retargeting su piattaforme di terzi (Meta/Facebook/Instagram,
+              Google Ads, TikTok, LinkedIn), inclusa la creazione di pubblici personalizzati
+              (custom audience) tramite identificatori pseudonimizzati e il tracciamento delle
+              conversioni tramite pixel e API server-side (Conversions API)
+            </td>
+            <td>
+              Dati di navigazione, identificatori online, dati di contatto in forma pseudonimizzata
+              (hash)
+            </td>
+            <td>
+              Consenso dell'interessato espresso tramite il banner cookie (art. 6.1.a GDPR)
+            </td>
+            <td>
+              Secondo le durate indicate nella Cookie Policy; revocabile in ogni momento dal
+              pannello di gestione consenso
+            </td>
+          </tr>
+          <tr>
+            <td>
               Analisi statistica anonima e aggregata sull'utilizzo del Servizio per migliorarne le
               funzionalità
             </td>
@@ -391,45 +410,122 @@ export default function PrivacyPolicy() {
 
       <h2>6. Trattamenti basati su intelligenza artificiale</h2>
       <p>
-        La Piattaforma integra funzionalità basate su sistemi di intelligenza artificiale (di
-        seguito, "Funzionalità AI"), tra cui — a titolo esemplificativo e non esaustivo —
-        generazione assistita di preventivi, riepiloghi automatici, agenti vocali per la gestione
-        delle chiamate (voice agent), bot conversazionali via chat e WhatsApp, suggerimenti
-        contestuali e ricerca semantica.
+        La Piattaforma integra numerose funzionalità basate su sistemi di intelligenza artificiale
+        (di seguito, "Funzionalità AI"), tra cui — a titolo esemplificativo e non esaustivo —
+        assistenti conversazionali e agenti AI (inclusi agenti vocali per la gestione delle
+        chiamate e bot conversazionali via chat e WhatsApp), generazione e assistenza alla
+        redazione di preventivi e computi, estrazione di dati da immagini e documenti, generazione
+        di immagini e video promozionali, sintesi vocale (text-to-speech), trascrizione audio,
+        ricerca semantica e suggerimenti contestuali.
       </p>
       <p>
-        Per l'erogazione delle Funzionalità AI, la Società si avvale di fornitori terzi di modelli
-        di linguaggio (LLM), tra cui ad esempio Anthropic PBC (Claude), OpenAI L.L.C. (GPT) ed
-        ElevenLabs Inc. (sintesi vocale), che agiscono in qualità di Sub-responsabili del
-        trattamento.
+        Per l'erogazione delle Funzionalità AI, la Società si avvale di modelli e servizi di
+        intelligenza artificiale di fornitori terzi (i "Fornitori AI"), in parte tramite
+        l'aggregatore OpenRouter (che instrada le richieste verso i modelli selezionati) e in parte
+        tramite integrazione diretta. Tali Fornitori AI agiscono in qualità di Sub-responsabili del
+        trattamento. I principali Fornitori AI includono, a titolo esemplificativo e non esaustivo:
+      </p>
+      <ul>
+        <li>
+          <strong>Anthropic</strong> (modelli Claude) — elaborazione di linguaggio naturale;
+        </li>
+        <li>
+          <strong>OpenAI</strong> (modelli GPT; generazione immagini GPT-image e DALL·E) — testo e
+          immagini;
+        </li>
+        <li>
+          <strong>Moonshot AI</strong> (modelli Kimi) — elaborazione di linguaggio naturale;
+        </li>
+        <li>
+          <strong>Google</strong> (modelli Gemini) — testo e immagini;
+        </li>
+        <li>
+          <strong>DeepSeek, xAI</strong> (Grok), <strong>Meta</strong> (Llama),{" "}
+          <strong>Mistral AI, Cohere</strong> (anche per embeddings), <strong>Qwen</strong>{" "}
+          (Alibaba), <strong>Perplexity</strong> — elaborazione di linguaggio naturale e ricerca
+          semantica;
+        </li>
+        <li>
+          <strong>ElevenLabs</strong> — sintesi vocale e voci degli agenti AI;
+        </li>
+        <li>
+          <strong>Replicate</strong> e <strong>MiniMax</strong> — generazione di immagini e video.
+        </li>
+      </ul>
+      <p>
+        L'elenco dei Fornitori AI può variare nel tempo in funzione dell'evoluzione tecnologica e
+        delle prestazioni dei modelli. L'elenco aggiornato dei sub-responsabili è disponibile
+        all'indirizzo www.ediliziaincloud.com/sub-processors e su richiesta scritta a{" "}
+        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>.
       </p>
       <p>In relazione a tali Funzionalità AI, la Società dichiara e garantisce che:</p>
       <ul>
         <li>
-          i dati personali degli Utenti e i Dati del Cliente trasmessi ai fornitori AI sono
+          i dati personali degli Utenti e i Dati del Cliente trasmessi ai Fornitori AI sono
           trattati esclusivamente in forma transitoria, per il tempo strettamente necessario a
           generare la risposta richiesta;
         </li>
         <li>
           i dati degli Utenti e i Dati del Cliente <strong>non sono utilizzati per addestrare</strong>,
-          perfezionare o migliorare i modelli di intelligenza artificiale dei fornitori, in
-          conformità ai contratti commerciali (API enterprise) sottoscritti con tali fornitori;
+          perfezionare o migliorare i modelli di intelligenza artificiale, in conformità ai
+          contratti commerciali (API enterprise/business) sottoscritti con tali fornitori;
         </li>
         <li>
           la Società adotta misure tecniche per limitare al minimo necessario i dati trasmessi ai
-          fornitori AI e, ove tecnicamente possibile, applica tecniche di pseudonimizzazione e
+          Fornitori AI e, ove tecnicamente possibile, applica tecniche di pseudonimizzazione e
           minimizzazione;
         </li>
         <li>
-          gli output generati dalle Funzionalità AI sono destinati a costituire un supporto
-          operativo all'Utente e non sostituiscono valutazioni professionali, fiscali o legali.
-          L'Utente è tenuto a verificarne la correttezza prima dell'utilizzo.
+          gli output generati dalle Funzionalità AI hanno natura probabilistica, possono contenere
+          errori o imprecisioni e sono destinati a costituire un mero supporto operativo: non
+          sostituiscono valutazioni professionali, fiscali, tecniche o legali.
         </li>
       </ul>
+      <p>
+        <strong>Responsabilità dell'utilizzatore.</strong> Il Cliente è l'unico responsabile
+        dell'uso che fa delle Funzionalità AI e degli output da esse generati, ed è tenuto a
+        verificarne l'accuratezza prima di ogni utilizzo verso terzi. I dettagli sugli obblighi e
+        sulle responsabilità relativi all'utilizzo delle Funzionalità AI sono disciplinati dall'art.
+        13.5 dei Termini e Condizioni del Servizio.
+      </p>
       <p>
         La Società opera in conformità ai principi del Regolamento (UE) 2024/1689 ("AI Act") e
         adotta le misure di trasparenza, governance e supervisione umana richieste dalla normativa
         applicabile in funzione del livello di rischio dei sistemi AI utilizzati.
+      </p>
+
+      <h2>6-bis. Prospect e attività di marketing</h2>
+      <p>
+        La presente sezione integra le finalità di cui alla sezione 5 con riferimento ai potenziali
+        clienti e contatti commerciali (i "Prospect").
+      </p>
+      <p>
+        <strong>Fonti dei dati.</strong> I dati di contatto di natura professionale dei Prospect
+        (nome, cognome, ruolo, ragione sociale, P.IVA, email, telefono) sono raccolti: (i)
+        direttamente dall'interessato tramite form di contatto sul Sito, richieste di demo,
+        iscrizione a newsletter, eventi e fiere di settore, biglietti da visita; (ii) da fonti
+        pubblicamente accessibili e registri pubblici (es. visure camerali, siti web aziendali,
+        albi professionali), nel rispetto delle finalità per cui tali fonti sono pubbliche.
+      </p>
+      <p>
+        <strong>Canali utilizzati.</strong> Le comunicazioni commerciali possono avvenire tramite
+        email, telefono, SMS e WhatsApp, nonché tramite pubblicità mirata e retargeting sulle
+        piattaforme indicate alla sezione 5 (Meta/Facebook/Instagram, Google Ads, TikTok, LinkedIn).
+      </p>
+      <p>
+        <strong>Base giuridica e opposizione.</strong> Le comunicazioni di marketing rivolte a
+        contatti professionali nel contesto B2B possono fondarsi sul legittimo interesse del
+        Titolare, fermo restando il diritto dell'interessato di opporsi in qualsiasi momento,
+        gratuitamente e con modalità semplici (link di disiscrizione in ogni email, risposta con
+        richiesta di cancellazione, scrivendo a{" "}
+        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>). Ove richiesto dalla
+        normativa, le comunicazioni avvengono previo consenso. In caso di opposizione, i dati di
+        contatto sono inseriti in una lista di esclusione per onorare la richiesta.
+      </p>
+      <p>
+        <strong>Conservazione.</strong> I dati dei Prospect sono conservati per il tempo necessario
+        alle finalità indicate e comunque non oltre 24 mesi dall'ultimo contatto utile, salvo
+        rinnovo dell'interesse o conversione in cliente.
       </p>
 
       <h2>7. Modalità del trattamento e sicurezza</h2>
@@ -565,14 +661,46 @@ export default function PrivacyPolicy() {
             <td>UE (Irlanda); trasferimenti USA</td>
           </tr>
           <tr>
+            <td>OpenRouter, Inc.</td>
+            <td>Aggregatore di modelli AI (instradamento richieste ai modelli di linguaggio)</td>
+            <td>USA (con SCC)</td>
+          </tr>
+          <tr>
             <td>Anthropic PBC</td>
             <td>Modelli di linguaggio per Funzionalità AI (Claude)</td>
             <td>USA (con SCC)</td>
           </tr>
           <tr>
-            <td>OpenAI Ireland Ltd.</td>
-            <td>Modelli di linguaggio per Funzionalità AI (GPT)</td>
+            <td>OpenAI Ireland Ltd. / OpenAI L.L.C.</td>
+            <td>Modelli di linguaggio e generazione immagini (GPT, GPT-image, DALL·E)</td>
             <td>UE / USA (con SCC)</td>
+          </tr>
+          <tr>
+            <td>Moonshot AI</td>
+            <td>Modelli di linguaggio per Funzionalità AI (Kimi), via OpenRouter</td>
+            <td>Extra-UE (con SCC)</td>
+          </tr>
+          <tr>
+            <td>Google Ireland Ltd. / Google LLC</td>
+            <td>
+              Modelli AI Gemini, Google Maps, sincronizzazione Calendar, analytics
+            </td>
+            <td>UE / USA (con SCC)</td>
+          </tr>
+          <tr>
+            <td>
+              Altri Fornitori AI via OpenRouter (DeepSeek, xAI, Meta, Mistral, Cohere, Qwen,
+              Perplexity e ulteriori)
+            </td>
+            <td>
+              Modelli di linguaggio, ricerca semantica ed embeddings per le Funzionalità AI
+            </td>
+            <td>UE / USA / Extra-UE (con SCC)</td>
+          </tr>
+          <tr>
+            <td>Replicate, Inc.</td>
+            <td>Generazione di immagini e video (incl. modelli MiniMax)</td>
+            <td>USA (con SCC)</td>
           </tr>
           <tr>
             <td>Twilio Inc. — SendGrid</td>
@@ -580,16 +708,14 @@ export default function PrivacyPolicy() {
             <td>USA (con SCC)</td>
           </tr>
           <tr>
+            <td>Resend, Inc.</td>
+            <td>Invio di email transazionali</td>
+            <td>USA (con SCC)</td>
+          </tr>
+          <tr>
             <td>Elastic Email Inc.</td>
             <td>Invio di email di marketing</td>
             <td>UE / USA (con SCC)</td>
-          </tr>
-          <tr>
-            <td>Google Ireland Ltd.</td>
-            <td>
-              Servizi di analisi (Google Analytics 4), sincronizzazione Google Calendar
-            </td>
-            <td>UE; trasferimenti USA (con SCC)</td>
           </tr>
           <tr>
             <td>Apple Inc.</td>
@@ -606,7 +732,7 @@ export default function PrivacyPolicy() {
 
       <p>
         L'elenco completo e aggiornato dei sub-responsabili è disponibile su richiesta scritta
-        inoltrata a <a href="mailto:privacy@ediliziaincloud.it">privacy@ediliziaincloud.it</a>.
+        inoltrata a <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>.
       </p>
 
       <h3>9.3 Titolari autonomi</h3>
@@ -621,6 +747,15 @@ export default function PrivacyPolicy() {
         <li>
           Pubbliche autorità, autorità giudiziarie e di vigilanza, in adempimento di obblighi di
           legge;
+        </li>
+        <li>
+          <strong>Piattaforme pubblicitarie</strong> — Meta Platforms Ireland Ltd.
+          (Facebook/Instagram), Google Ireland Ltd. (Google Ads), TikTok Technology Ltd., LinkedIn
+          Ireland Unlimited Co. — che, in relazione ai dati raccolti tramite pixel, tag e
+          Conversions API per finalità di pubblicità mirata e retargeting, operano quali titolari
+          autonomi o, per specifiche operazioni (es. custom audience), quali contitolari del
+          trattamento ai sensi dell'art. 26 GDPR, secondo i rispettivi accordi di contitolarità
+          pubblicati;
         </li>
         <li>
           Soggetti coinvolti in operazioni di natura societaria (potenziali investitori,
@@ -654,7 +789,7 @@ export default function PrivacyPolicy() {
       </ul>
       <p>
         Una copia delle garanzie adottate è disponibile su richiesta scritta a{" "}
-        <a href="mailto:privacy@ediliziaincloud.it">privacy@ediliziaincloud.it</a>.
+        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>.
       </p>
 
       <h2>11. Diritti degli interessati</h2>
@@ -700,7 +835,7 @@ export default function PrivacyPolicy() {
       </ul>
       <p>
         I diritti possono essere esercitati gratuitamente inviando una richiesta scritta a{" "}
-        <a href="mailto:privacy@ediliziaincloud.it">privacy@ediliziaincloud.it</a>, allegando
+        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>, allegando
         copia di un documento di identità ove necessario per verificare l'identità del
         richiedente. La Società risponderà entro 30 giorni dal ricevimento della richiesta, salvo
         proroga di ulteriori 60 giorni nei casi di particolare complessità (art. 12 GDPR).

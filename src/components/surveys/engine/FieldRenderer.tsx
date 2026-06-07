@@ -42,7 +42,12 @@ export function FieldRenderer({ field, value, allValues, onChange, showErrors }:
   if (!visible) return null;
 
   const widthClass = field.width ? WIDTH_TO_CLASS[field.width] : "col-span-12";
-  const hasError = showErrors && field.required && (value == null || value === "");
+  // Campo obbligatorio non compilato: vale anche per multiselect con array vuoto
+  // (prima un multiselect required senza selezioni NON veniva segnalato).
+  const hasError =
+    showErrors &&
+    field.required &&
+    (value == null || value === "" || (Array.isArray(value) && value.length === 0));
 
   return (
     <div className={cn(widthClass, "space-y-1.5")}>
@@ -72,6 +77,7 @@ function FieldInput({
     case "text":
       return (
         <Input
+          aria-label={field.label}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(field.key, e.target.value)}
           placeholder={field.placeholder}
@@ -83,6 +89,7 @@ function FieldInput({
     case "textarea":
       return (
         <Textarea
+          aria-label={field.label}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(field.key, e.target.value)}
           placeholder={field.placeholder}
@@ -101,6 +108,7 @@ function FieldInput({
           {isCurrency && <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>}
           <Input
             type="number"
+            aria-label={field.label}
             value={value == null ? "" : String(value)}
             onChange={(e) => {
               const raw = e.target.value;
@@ -142,7 +150,7 @@ function FieldInput({
       }
       return (
         <Select value={(value as string) ?? ""} onValueChange={(v) => onChange(field.key, v)}>
-          <SelectTrigger className={cn("h-9 text-xs", errClass)}>
+          <SelectTrigger aria-label={field.label} className={cn("h-9 text-xs", errClass)}>
             <SelectValue placeholder={field.placeholder ?? "Seleziona…"} />
           </SelectTrigger>
           <SelectContent>
@@ -239,6 +247,7 @@ function FieldInput({
       return (
         <Input
           type="date"
+          aria-label={field.label}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(field.key, e.target.value)}
           className={cn("h-9", errClass)}
@@ -250,11 +259,13 @@ function FieldInput({
         <div className="flex items-center gap-2">
           <Input
             type="color"
+            aria-label={field.label}
             value={(value as string) ?? "#ffffff"}
             onChange={(e) => onChange(field.key, e.target.value)}
             className="h-9 w-14 p-1 cursor-pointer"
           />
           <Input
+            aria-label={`${field.label} (codice)`}
             value={(value as string) ?? ""}
             onChange={(e) => onChange(field.key, e.target.value)}
             placeholder="RAL 9010 / #ffffff"
@@ -266,6 +277,7 @@ function FieldInput({
     default:
       return (
         <Input
+          aria-label={field.label}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(field.key, e.target.value)}
           className={cn("h-9", errClass)}

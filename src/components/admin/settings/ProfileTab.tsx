@@ -133,7 +133,8 @@ export default function ProfileTab() {
   const removeAvatar = async () => {
     if (!user?.id) return;
     try {
-      await supabase.from("profiles").update({ avatar_url: null }).eq("id", user.id);
+      const { error } = await supabase.from("profiles").update({ avatar_url: null }).eq("id", user.id);
+      if (error) throw error;
       setAvatarPreview(null);
       queryClient.invalidateQueries({ queryKey: ["admin-profile"] });
       refreshAuth();

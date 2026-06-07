@@ -97,6 +97,45 @@ Deno.serve(async (req) => {
       return errorResponse(`Errore creazione cantiere: ${insertErr?.message || "errore sconosciuto"}`, 500);
     }
 
+    // 5b. Copia le RIGHE del preventivo (quote_items) → order_items.
+    // Senza questo la commessa nasceva col solo totale aggregato, priva di
+    // articoli/prezzi/IVA per riga → impossibili distinta materiali, margini per
+    // riga e ordini fornitore. Saltiamo le categorie non-articolo (subtotale/sconto/nota).
+    // NB: la "spina misure" (family_id/axis_selections/misure_preventivo/measure_status)
+    // NON è copiata qui perché quelle colonne non sono ancora presenti su order_items
+    // in produzione (migrazioni measure-spine da applicare); aggiungerle quando lo saranno.
+    const SKIP_CATEGORIES = new Set(["subtotale", "sconto", "nota"]);
+    const { data: quoteItems, error: qiErr } = await supabaseAdmin
+      .from("quote_items")
+      .select("*")
+      .eq("quote_id", quote_id)
+      .order("sort_order", { ascending: true });
+    if (qiErr) {
+      console.error("Errore lettura righe preventivo:", qiErr);
+    } else if (quoteItems && quoteItems.length > 0) {
+      const rows = (quoteItems as Array<Record<string, unknown>>)
+        .filter((r) => !SKIP_CATEGORIES.has(String(r.item_category ?? "")))
+        .map((r, idx) => ({
+          order_id:       order.id,
+          company_id:     quote.company_id,
+          name:           String(r.name ?? ""),
+          description:    (r.description as string | null) ?? null,
+          quantity:       Number(r.quantity) || 1,
+          status:         "da_ordinare",
+          position:       idx,
+          unit_price:     r.unit_price != null ? Number(r.unit_price) : null,
+          purchase_price: r.prezzo_acquisto != null ? Number(r.prezzo_acquisto) : 0,
+          vat_rate:       r.vat_rate != null ? Number(r.vat_rate) : null,
+        }));
+      if (rows.length > 0) {
+        const { error: itemsErr } = await supabaseAdmin.from("order_items").insert(rows);
+        if (itemsErr) {
+          // Non blocchiamo: il cantiere esiste già; le righe si possono aggiungere a mano.
+          console.error("Errore copia righe preventivo→commessa:", itemsErr);
+        }
+      }
+    }
+
     // 6. Aggiorna stato preventivo a 'convertita'
     const { error: updateErr } = await supabaseAdmin
       .from("quotes")

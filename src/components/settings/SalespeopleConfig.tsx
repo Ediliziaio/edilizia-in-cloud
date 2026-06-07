@@ -335,7 +335,7 @@ export function SalespeopleConfig() {
                     {sp.compensation_mode === "fixed_only" ? "—" : formatCommissionValue(sp.commission_type, sp.commission_value)}
                   </TableCell>
                   <TableCell>
-                    <Switch checked={sp.is_active} onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: sp.id, is_active: checked })} />
+                    <Switch checked={sp.is_active} disabled={toggleActiveMutation.isPending} onCheckedChange={(checked) => toggleActiveMutation.mutate({ id: sp.id, is_active: checked })} />
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex gap-1 justify-end">

@@ -136,6 +136,22 @@ export default function QuoteDetail() {
     },
   });
 
+  // Back-link: la commessa generata da questo preventivo (orders.quote_id = id).
+  // Rende bidirezionale il legame preventivo↔commessa (prima solo commessa→preventivo).
+  const { data: linkedOrder } = useQuery({
+    queryKey: ["quote-linked-order", id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, order_code")
+        .eq("quote_id", id!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
@@ -215,6 +231,31 @@ export default function QuoteDetail() {
                   : <HardHat className="h-4 w-4" />}
                 {converting ? "Conversione..." : "Converti in Cantiere"}
               </button>
+            )}
+
+            {quote.status === "accettata" && (
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/azienda/ordini/nuovo?quote_id=${id}`)}
+                className="h-9"
+                title="Apre una nuova commessa con righe e misure già compilate dal preventivo: puoi rivederle e aggiustarle prima di salvare"
+              >
+                <Package className="h-4 w-4 mr-2" />
+                Crea commessa (rivedi)
+              </Button>
+            )}
+
+            {/* Back-link: commessa già generata da questo preventivo (qualsiasi stato) */}
+            {linkedOrder && (
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/azienda/ordini/${linkedOrder.id}`)}
+                className="h-9 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/40 dark:text-emerald-400"
+                title="Apri la commessa generata da questo preventivo"
+              >
+                <HardHat className="h-4 w-4 mr-2" />
+                Vai alla commessa{linkedOrder.order_code ? ` ${linkedOrder.order_code}` : ""}
+              </Button>
             )}
 
             {/* WhatsApp e copia link — visibili solo se il preventivo è stato inviato */}

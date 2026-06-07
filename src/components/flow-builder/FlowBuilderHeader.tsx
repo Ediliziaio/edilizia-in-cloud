@@ -77,7 +77,7 @@ export function FlowBuilderHeader({
   };
 
   return (
-    <div className="flex h-12 items-center border-b bg-background px-3 gap-2">
+    <div className="flex h-12 items-center border-b bg-background px-3 gap-2 max-md:overflow-x-auto">
       {/* Left: back + name */}
       <Button
         variant="ghost"
@@ -148,8 +148,8 @@ export function FlowBuilderHeader({
         })}
       </div>
 
-      {/* Spacer */}
-      <div className="flex-1" />
+      {/* Spacer (nascosto su mobile: l'header diventa scroll-x e gli item si impacchettano) */}
+      <div className="flex-1 max-md:hidden" />
 
       {/* Right actions */}
       <div className="flex items-center gap-1">

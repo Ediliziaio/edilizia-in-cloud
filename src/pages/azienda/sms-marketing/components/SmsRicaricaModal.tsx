@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useSmsWallet } from "@/hooks/useSmsWallet";
 import type { SmsPacchettoCrediti } from "@/types/sms-marketing";
+import { isMobileAppRuntime } from "@/lib/mobile/platform";
 
 interface SmsRicaricaModalProps {
   open: boolean;
@@ -64,6 +65,24 @@ export function SmsRicaricaModal({ open, onOpenChange }: SmsRicaricaModalProps) 
     setClientSecret(null);
     onOpenChange(false);
   };
+
+  // App Store Guideline 3.1.1: nell'app mobile NON mostriamo l'acquisto crediti
+  // (pacchetti, prezzi, Stripe). La ricarica si fa dall'area riservata sul web.
+  if (isMobileAppRuntime) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ricarica crediti SMS</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            La ricarica dei crediti SMS è disponibile nell'area riservata sul sito
+            web, non dall'app.
+          </p>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>

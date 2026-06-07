@@ -147,11 +147,13 @@ export function NuovoInterventoDialog({
       if (error) throw error;
 
       if (note.trim()) {
-        await supabase.from("ticket_messages").insert({
+        // Nota opzionale: non bloccante (il ticket è già creato)
+        const { error: msgErr } = await supabase.from("ticket_messages").insert({
           ticket_id: ticket.id,
           sender_id: user!.id,
           message: note.trim(),
         });
+        if (msgErr) console.error("Nota intervento non salvata:", msgErr);
       }
 
       return ticket.id;

@@ -70,7 +70,7 @@ import {
 function OrdersListInner() {
   const { user, effectiveCompany } = useAuth();
   const { toast } = useToast();
-  const { isScopriPlan, remainingOrders, currentPlan } = useSubscriptionLimits();
+  const { remainingOrders, currentPlan } = useSubscriptionLimits();
   const [searchParams] = useSearchParams();
   const isCommercialistaMode = searchParams.get("commercialistaMode") === "1";
   const appaltatoreEnabled = useAppaltatoreModuleEnabled();

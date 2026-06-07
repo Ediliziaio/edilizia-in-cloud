@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { isMobileAppRuntime } from "@/lib/mobile/platform";
 
 interface PlanLimitResult {
   allowed: boolean;
@@ -101,15 +102,19 @@ export function PlanLimitWarning({ resourceType = "orders", className }: Props) 
               <span className="text-xs text-muted-foreground">
                 Piano: <span className="font-medium capitalize">{data.plan_name}</span>
               </span>
-              <Button
-                size="sm"
-                variant={isAtLimit ? "default" : "outline"}
-                className={`h-7 text-xs gap-1 ${isAtLimit ? "" : "border-yellow-500/50 text-yellow-700 hover:bg-yellow-100 dark:text-yellow-400 dark:hover:bg-yellow-950/40"}`}
-                onClick={() => navigate("/azienda/impostazioni/abbonamento")}
-              >
-                <TrendingUp className="h-3 w-3" />
-                Aggiorna piano
-              </Button>
+              {/* App Store 3.1.1: niente CTA upgrade/acquisto nell'app mobile.
+                  Il warning resta informativo (uso/limite del piano). */}
+              {!isMobileAppRuntime && (
+                <Button
+                  size="sm"
+                  variant={isAtLimit ? "default" : "outline"}
+                  className={`h-7 text-xs gap-1 ${isAtLimit ? "" : "border-yellow-500/50 text-yellow-700 hover:bg-yellow-100 dark:text-yellow-400 dark:hover:bg-yellow-950/40"}`}
+                  onClick={() => navigate("/azienda/impostazioni/abbonamento")}
+                >
+                  <TrendingUp className="h-3 w-3" />
+                  Aggiorna piano
+                </Button>
+              )}
             </div>
           </AlertDescription>
         </div>

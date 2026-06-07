@@ -119,7 +119,7 @@ function CatalogPanel({
       : "Aggiungi Azione";
 
   return (
-    <div className="flex h-full w-[380px] flex-col border-l bg-background">
+    <div className="flex h-full w-[380px] flex-col border-l bg-background max-md:fixed max-md:inset-0 max-md:z-50 max-md:w-full max-md:border-l-0 max-md:shadow-2xl">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="flex items-center gap-2">

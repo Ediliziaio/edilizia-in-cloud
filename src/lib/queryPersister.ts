@@ -19,10 +19,23 @@ import { get, set, del } from "idb-keyval";
 
 const KEY = "rq-cache-v1";
 
+let persistErrorLogged = false;
+
 export function createIdbPersister(): Persister {
   return {
     persistClient: async (client: PersistedClient) => {
-      await set(KEY, client);
+      try {
+        await set(KEY, client);
+      } catch (err) {
+        // Difesa: se lo snapshot contiene dati non clonabili (DataCloneError —
+        // es. una Promise nei dati di una query), idb-keyval lancia. La persistenza
+        // è best-effort: saltiamo senza rompere il flusso. Log UNA volta per non
+        // spammare la console (l'errore si ripeteva ad ogni ciclo di persist).
+        if (!persistErrorLogged) {
+          persistErrorLogged = true;
+          console.warn("[queryPersister] snapshot non serializzabile — persistenza saltata", err);
+        }
+      }
     },
     restoreClient: async () => {
       return (await get<PersistedClient>(KEY)) ?? undefined;
@@ -70,4 +83,26 @@ export function shouldPersistQuery(queryKey: readonly unknown[]): boolean {
   const root = Array.isArray(queryKey) && typeof queryKey[0] === "string" ? queryKey[0] : null;
   if (!root) return false;
   return PERSIST_WHITELIST.has(root);
+}
+
+/**
+ * Filtro per dehydrateOptions.shouldDehydrateQuery: persiste solo le query in
+ * whitelist E con dati serializzabili. Alcune query whitelisted possono avere nei
+ * dati valori NON clonabili (Promise/funzioni); senza questo controllo idb-keyval
+ * lancia DataCloneError e ROMPE l'intero salvataggio (spam console + cache offline
+ * mai scritta). Qui escludiamo SOLO la query problematica, lasciando persistere le
+ * altre. structuredClone replica esattamente l'algoritmo usato da IndexedDB.
+ */
+export function shouldPersistQuerySafe(query: {
+  queryKey: readonly unknown[];
+  state: { data: unknown };
+}): boolean {
+  if (!shouldPersistQuery(query.queryKey)) return false;
+  if (typeof structuredClone !== "function") return true; // ambiente legacy: comportamento precedente
+  try {
+    structuredClone(query.state.data);
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -194,9 +194,10 @@ export function RapportinoForm({ open, onClose, ticketId, companyId, nextNumero,
         // Non è bloccante — il JSONB è già salvato
       }
 
-      // Aggiorna ticket: in_lavorazione se firmato
+      // Aggiorna ticket: in_lavorazione se firmato (non bloccante: rapportino già salvato)
       if (firmaData) {
-        await supabase.from("tickets").update({ status: "in_lavorazione" }).eq("id", ticketId);
+        const { error: ticketErr } = await supabase.from("tickets").update({ status: "in_lavorazione" }).eq("id", ticketId);
+        if (ticketErr) logger.error("Aggiornamento stato ticket fallito:", ticketErr);
       }
     },
     onSuccess: () => {

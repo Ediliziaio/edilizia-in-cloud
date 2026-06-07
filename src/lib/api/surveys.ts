@@ -219,6 +219,22 @@ export async function listMySurveys(opts?: { status?: string; limit?: number }) 
   return (data ?? []) as SurveyRow[];
 }
 
+/** Sopralluoghi collegati a una commessa (per la scheda "Sopralluoghi" in OrderDetail). */
+export async function listSurveysByOrder(orderId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("surveys")
+    .select("id, code, status, scheduled_at, completed_at, address, city, client_id, order_id, estimate_id, technician_id, template_id, created_at, updated_at")
+    .eq("order_id", orderId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error("[surveys] listSurveysByOrder failed", error);
+    throw new Error("Errore caricamento sopralluoghi della commessa");
+  }
+  return (data ?? []) as SurveyRow[];
+}
+
 export async function listAssignedToMe() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any).rpc("surveys_assigned_to_me");

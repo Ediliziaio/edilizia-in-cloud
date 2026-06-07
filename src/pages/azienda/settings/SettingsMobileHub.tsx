@@ -17,6 +17,7 @@ import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -120,7 +121,9 @@ export default function SettingsMobileHub() {
             {section.label}
           </h3>
           <div className="grid grid-cols-2 gap-2">
-            {section.items.map((item) => {
+            {section.items
+              .filter((item) => !isMobileAppRuntime || item.to !== "/azienda/impostazioni/abbonamento")
+              .map((item) => {
               const Icon = item.icon;
               return (
                 <Link

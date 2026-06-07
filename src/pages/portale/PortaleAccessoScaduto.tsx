@@ -27,7 +27,7 @@ export default function PortaleAccessoScaduto() {
           asChild
           className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold h-12 text-base rounded-xl"
         >
-          <a href="mailto:supporto@ediliziaincloud.it">Contatta supporto</a>
+          <a href="mailto:supporto@ediliziaincloud.com">Contatta supporto</a>
         </Button>
       </div>
     </div>

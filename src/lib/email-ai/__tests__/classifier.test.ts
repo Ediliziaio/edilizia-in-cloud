@@ -323,34 +323,34 @@ describe("L1 classifier deterministico", () => {
       const accuracy_on_expected = ((l1_correct / l1_expected) * 100).toFixed(1);
 
       // Log stats
-      // eslint-disable-next-line no-console
+       
       console.log("\n═══════════════════════════════════════════════════════════════");
-      // eslint-disable-next-line no-console
+       
       console.log("MP-EMAIL-AI-01 — L1 hit rate test (deterministico, no CRM, no cache)");
-      // eslint-disable-next-line no-console
+       
       console.log("───────────────────────────────────────────────────────────────");
-      // eslint-disable-next-line no-console
+       
       console.log(`Totale fixture:                       ${total_fixtures}`);
-      // eslint-disable-next-line no-console
+       
       console.log(`Fixture risolvibili attese da L1:    ${l1_expected}`);
-      // eslint-disable-next-line no-console
+       
       console.log(`Fixture risolte da L1:                ${l1_resolved}/${total_fixtures}  (${hit_rate}%)`);
-      // eslint-disable-next-line no-console
+       
       console.log(`Fixture correttamente classificate:   ${l1_correct}/${l1_expected}  (${accuracy_on_expected}%)`);
-      // eslint-disable-next-line no-console
+       
       console.log("───────────────────────────────────────────────────────────────");
       if (errors.length > 0) {
-        // eslint-disable-next-line no-console
+         
         console.log("ERRORI:");
         for (const e of errors) {
-          // eslint-disable-next-line no-console
+           
           console.log(`  ✗ ${e}`);
         }
       } else {
-        // eslint-disable-next-line no-console
+         
         console.log("Tutte le fixture risolvibili classificate correttamente ✓");
       }
-      // eslint-disable-next-line no-console
+       
       console.log("═══════════════════════════════════════════════════════════════\n");
 
       // Assertion principali

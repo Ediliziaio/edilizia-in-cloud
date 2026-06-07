@@ -296,13 +296,14 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
 
       // Attachments
       if (selectedMaterials.length > 0) {
-        await supabase.from("quote_pdf_attachments").insert(
+        const { error: attachErr } = await supabase.from("quote_pdf_attachments").insert(
           selectedMaterials.map((mId, idx) => ({
             quote_id: quoteId,
             material_id: mId,
             sort_order: idx,
           }))
         );
+        if (attachErr) throw attachErr;
       }
 
       queryClient.invalidateQueries({ queryKey: ["quotes_by_contact", contactId, companyId] });

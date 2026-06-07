@@ -89,7 +89,8 @@ export function TaskTagPicker({ taskId, assignedTags, onChanged }: TaskTagPicker
         .single();
       if (error) throw error;
       // Assegna subito al task corrente
-      await supabase.from("task_tag_assignments").insert({ task_id: taskId, tag_id: data.id });
+      const { error: assignError } = await supabase.from("task_tag_assignments").insert({ task_id: taskId, tag_id: data.id });
+      if (assignError) throw assignError;
     },
     onSuccess: () => {
       setNewName("");

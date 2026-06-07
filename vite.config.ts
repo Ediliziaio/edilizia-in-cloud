@@ -303,6 +303,13 @@ export default defineConfig(() => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    // Forza UNA sola copia del core di React Flow. In node_modules c'erano DUE
+    // versioni di @xyflow/system (0.0.76 hoisted + 0.0.77, dipendenza di
+    // @xyflow/react@12) → store/misurazione divisi tra le due istanze → nel
+    // flow-builder gli archi NON si renderizzavano (path SVG assenti, solo i "+"
+    // dei label) e comparivano errori "no zustand provider". Il dedupe risolve
+    // entrambi a un'unica istanza.
+    dedupe: ["@xyflow/react", "@xyflow/system"],
   },
   // ────────────────────────────────────────────────────────────────────────
   // optimizeDeps — pre-bundle delle dipendenze TipTap in modo coerente.

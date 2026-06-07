@@ -38,7 +38,14 @@ export function AddStepEdge({
       <BaseEdge
         path={edgePath}
         markerEnd={markerEnd}
-        style={{ stroke: "#64748b", strokeWidth: 2, ...style }}
+        style={{
+          stroke: "#64748b",
+          strokeWidth: 2,
+          // Larghezza COSTANTE a ogni zoom: senza questo, con molti nodi il
+          // fitView zooma out e il tratto da 2px diventa sub-pixel → linee invisibili.
+          vectorEffect: "non-scaling-stroke",
+          ...style,
+        }}
       />
       {flowing && (
         <circle r={4.5} fill="#22c55e" style={{ filter: "drop-shadow(0 0 5px rgba(34,197,94,0.9))" }}>

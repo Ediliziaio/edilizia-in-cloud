@@ -62,7 +62,7 @@ export default function AvvisoLegale() {
           </tr>
           <tr>
             <td><strong>Iscrizione al Registro delle Imprese</strong></td>
-            <td>CCIAA di Milano — n. REA [da visura camerale]</td>
+            <td>CCIAA di Milano Monza Brianza Lodi — n. REA [da visura camerale]</td>
           </tr>
           <tr>
             <td><strong>Capitale sociale</strong></td>
@@ -180,7 +180,10 @@ export default function AvvisoLegale() {
         rilevanza giuridica, fiscale o tecnica è invitato a verificare l&apos;attualità delle
         informazioni e a consultare un professionista di fiducia. La Società non assume alcuna
         responsabilità per danni, diretti o indiretti, derivanti dall&apos;utilizzo o
-        dall&apos;affidamento sui contenuti del Sito.
+        dall&apos;affidamento sui contenuti del Sito, ivi inclusi lucro cessante, perdita di dati,
+        perdita di opportunità o danni reputazionali. Nei limiti massimi consentiti dalla legge, e
+        salvo i casi di dolo o colpa grave, è esclusa ogni responsabilità della Società connessa
+        all&apos;accesso e all&apos;utilizzo del Sito.
       </p>
       <p>
         La Società non garantisce che il Sito sia ininterrottamente disponibile, esente da errori
@@ -238,7 +241,7 @@ export default function AvvisoLegale() {
         potenzialmente illeciti, lesivi di diritti propri o di terzi (incluse violazioni del
         diritto d&apos;autore, dei marchi, della reputazione, della privacy o della normativa
         sulla pubblicità ingannevole) possono segnalarlo via email all&apos;indirizzo{" "}
-        <a href="mailto:legal@ediliziaincloud.com">legal@ediliziaincloud.com</a>, fornendo:
+        <a href="mailto:info@ediliziaincloud.com">info@ediliziaincloud.com</a>, fornendo:
       </p>
       <ul>
         <li>i propri dati identificativi e di contatto;</li>

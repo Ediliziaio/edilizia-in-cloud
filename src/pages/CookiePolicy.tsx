@@ -54,7 +54,7 @@ export default function CookiePolicy() {
       <p>
         Il Titolare del trattamento dei dati personali raccolti tramite cookie è <strong>Domus Group S.r.l.</strong>,
         con sede in Via Aurelio Saffi 29, 20123 Milano (MI), P.IVA 13132010961, contattabile all'indirizzo{" "}
-        <strong>privacy@ediliziaincloud.it</strong>. Per i dati anagrafici completi e per le ulteriori
+        <strong>info@ediliziaincloud.com</strong>. Per i dati anagrafici completi e per le ulteriori
         informazioni sul trattamento dei dati personali, si rinvia alla Privacy Policy.
       </p>
 
@@ -238,6 +238,12 @@ export default function CookiePolicy() {
             <td>Pubblicità personalizzata</td>
             <td>Fino a 13 mesi</td>
           </tr>
+          <tr>
+            <td>_ttp, ttwid</td>
+            <td>TikTok Pixel</td>
+            <td>Tracciamento conversioni e retargeting su TikTok</td>
+            <td>13 mesi</td>
+          </tr>
         </tbody>
       </table>
 
@@ -291,6 +297,11 @@ export default function CookiePolicy() {
             <td>YouTube (Google)</td>
             <td>Visualizzazione di contenuti video embeddati</td>
             <td>policies.google.com/privacy</td>
+          </tr>
+          <tr>
+            <td>TikTok Technology Ltd.</td>
+            <td>Tracciamento conversioni, retargeting</td>
+            <td>tiktok.com/legal/privacy-policy</td>
           </tr>
         </tbody>
       </table>
@@ -358,12 +369,21 @@ export default function CookiePolicy() {
 
       <h2>8. Trasferimenti extra-UE</h2>
       <p>
-        Alcuni provider di cookie di terze parti (in particolare Google, Meta e LinkedIn) trasferiscono
-        dati al di fuori dello Spazio Economico Europeo, tipicamente negli Stati Uniti. Tali trasferimenti
-        avvengono in presenza di idonee garanzie ai sensi degli artt. 45 e 46 GDPR (Decisioni di
-        adeguatezza, in particolare l'EU-US Data Privacy Framework per i fornitori statunitensi
-        certificati; o Clausole Contrattuali Tipo della Commissione europea). Per ulteriori dettagli si
-        rinvia alla Privacy Policy, sezione 10.
+        Alcuni provider di cookie di terze parti (in particolare Google, Meta, LinkedIn e TikTok)
+        trasferiscono dati al di fuori dello Spazio Economico Europeo, tipicamente negli Stati Uniti, e —
+        nel caso di TikTok — potenzialmente verso ulteriori Paesi terzi. Tali trasferimenti avvengono in
+        presenza di idonee garanzie ai sensi degli artt. 45 e 46 GDPR (Decisioni di adeguatezza, in
+        particolare l'EU-US Data Privacy Framework per i fornitori statunitensi certificati; o Clausole
+        Contrattuali Tipo della Commissione europea). Per ulteriori dettagli si rinvia alla Privacy Policy,
+        sezione 10.
+      </p>
+      <p>
+        <strong>Tracciamento server-side (Conversions API).</strong> Oltre ai cookie, il Sito può
+        trasmettere eventi di conversione direttamente dai propri server alle piattaforme pubblicitarie
+        (Meta Conversions API, Google Measurement Protocol, TikTok Events API, LinkedIn Conversions API),
+        nel rispetto delle scelte di consenso espresse dall'utente tramite il banner. Tali trasmissioni
+        utilizzano identificatori pseudonimizzati (es. hash dell'email) e sono soggette alle medesime basi
+        giuridiche e garanzie dei cookie di marketing.
       </p>
 
       <h2>9. Diritti dell'interessato</h2>
@@ -371,7 +391,7 @@ export default function CookiePolicy() {
         L'utente ha facoltà di esercitare in qualsiasi momento i diritti previsti dagli artt. 15-22 GDPR
         (accesso, rettifica, cancellazione, limitazione, portabilità, opposizione). Per le modalità di
         esercizio si rinvia integralmente alla Privacy Policy, sezione 11. Le richieste possono essere
-        inviate a <strong>privacy@ediliziaincloud.it</strong>.
+        inviate a <strong>info@ediliziaincloud.com</strong>.
       </p>
       <p>
         L'utente ha altresì diritto di proporre reclamo al <strong>Garante per la Protezione dei Dati
