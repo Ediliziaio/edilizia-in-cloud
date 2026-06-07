@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
+import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 import { assertMetaCompanyAdminAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
@@ -76,24 +76,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get WhatsApp config
-    const { data: waConfig } = await adminClient
-      .from("messaging_whatsapp_config")
-      .select("phone_number_id, access_token_encrypted")
-      .eq("company_id", company_id)
-      .eq("is_connected", true)
-      .maybeSingle();
-
-    if (!waConfig?.phone_number_id || !waConfig?.access_token_encrypted) {
+    // Get WhatsApp config (nuovo multi-numero con fallback legacy)
+    const sender = await resolveWhatsAppSender(adminClient, company_id);
+    if (!sender) {
       return new Response(
         JSON.stringify({ error: "WhatsApp non configurato per questa azienda" }),
         { status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
-    // Decrypt token
-    const encKey = getEncryptionKey();
-    const accessToken = await decryptMaybeEncrypted(waConfig.access_token_encrypted, encKey);
+    // Access token (già decifrato dall'helper)
+    const accessToken = sender.accessToken;
 
     // Build contact query based on segment — rispetta opt-out GDPR
     let query = adminClient
@@ -236,7 +229,7 @@ Deno.serve(async (req) => {
 
       try {
         const res = await fetch(
-          `https://graph.facebook.com/v21.0/${waConfig.phone_number_id}/messages`,
+          `https://graph.facebook.com/v21.0/${sender.phoneNumberId}/messages`,
           {
             method: "POST",
             headers: {

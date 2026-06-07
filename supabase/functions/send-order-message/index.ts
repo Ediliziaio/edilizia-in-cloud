@@ -4,6 +4,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 
 interface SendMessagePayload {
@@ -176,19 +177,16 @@ Deno.serve(async (req) => {
       externalId = (telJson as any)?.data?.id || null;
 
     } else if (channel === "whatsapp") {
-      const { data: waCfg } = await supabase
-        .from("whatsapp_integrations")
-        .select("*")
-        .eq("company_id", profile.company_id)
-        .single();
-      if (!waCfg) throw new Error("WhatsApp non configurato per questa azienda");
+      // Nuovo multi-numero (ai_whatsapp_numbers) con fallback legacy; token già decifrato.
+      const sender = await resolveWhatsAppSender(supabase, profile.company_id);
+      if (!sender) throw new Error("WhatsApp non configurato per questa azienda");
 
       const waRes = await fetch(
-        `https://graph.facebook.com/v21.0/${waCfg.phone_number_id}/messages`,
+        `https://graph.facebook.com/v21.0/${sender.phoneNumberId}/messages`,
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${waCfg.access_token}`,
+            Authorization: `Bearer ${sender.accessToken}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({

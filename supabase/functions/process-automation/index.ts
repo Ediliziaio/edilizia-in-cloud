@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
+import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
 import { sendViaProviderWithFailover, loadProviderSettings, sanitizeFromName } from "../_shared/emailProvider.ts";
 import { addEmailCredits, deductEmailCredits } from "../_shared/emailCredits.ts";
 import { logEmailDelivery } from "../_shared/email-log.ts";
@@ -2079,15 +2080,9 @@ async function executeSendEmail(supabase: any, cfg: Record<string, any>, entityI
 // SEND WHATSAPP (real Meta API integration)
 // ────────────────────────────────────────────────────
 async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
-  // 1. Get WhatsApp config for the company
-  const { data: waConfig } = await supabase
-    .from("messaging_whatsapp_config")
-    .select("phone_number_id, access_token_encrypted")
-    .eq("company_id", companyId)
-    .eq("is_connected", true)
-    .maybeSingle();
-
-  if (!waConfig?.phone_number_id || !waConfig?.access_token_encrypted) {
+  // 1. Get WhatsApp config for the company (nuovo multi-numero, fallback legacy)
+  const sender = await resolveWhatsAppSender(supabase, companyId);
+  if (!sender) {
     return { success: false, error: "WhatsApp non configurato o non attivo per questa azienda" };
   }
 
@@ -2105,9 +2100,8 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
     return { success: false, error: "Contact has opted out of WhatsApp" };
   }
 
-  // 3. Decrypt token
-  const encKey = getEncryptionKey();
-  const accessToken = await decryptMaybeEncrypted(waConfig.access_token_encrypted, encKey);
+  // 3. Access token (già decifrato dall'helper)
+  const accessToken = sender.accessToken;
 
   const cleanPhone = contact.phone.replace(/[^0-9]/g, "");
 
@@ -2150,7 +2144,7 @@ async function executeSendWhatsApp(supabase: any, cfg: Record<string, any>, enti
 
   // 5. Call Meta API
   const res = await fetch(
-    `https://graph.facebook.com/v21.0/${waConfig.phone_number_id}/messages`,
+    `https://graph.facebook.com/v21.0/${sender.phoneNumberId}/messages`,
     {
       method: "POST",
       headers: {

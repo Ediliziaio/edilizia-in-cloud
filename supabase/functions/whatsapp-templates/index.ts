@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
+import { resolveWhatsAppSender } from "../_shared/resolveWhatsAppSender.ts";
 import { getCorsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { assertMetaCompanyAdminAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
 
@@ -58,28 +58,22 @@ Deno.serve(async (req) => {
 
     await assertMetaCompanyAdminAccess(adminClient, userId, company_id);
 
-    // Get WhatsApp config (need waba_id for template API)
-    const { data: waConfig } = await adminClient
-      .from("messaging_whatsapp_config")
-      .select("waba_id, access_token_encrypted")
-      .eq("company_id", company_id)
-      .eq("is_connected", true)
-      .maybeSingle();
-
-    if (!waConfig?.waba_id || !waConfig?.access_token_encrypted) {
+    // Get WhatsApp config (need waba_id for template API) — nuovo multi-numero, fallback legacy
+    const sender = await resolveWhatsAppSender(adminClient, company_id);
+    if (!sender?.wabaId) {
       return new Response(
         JSON.stringify({ error: "WhatsApp Business Account non configurato" }),
         { status: 400, headers: secureHeaders }
       );
     }
 
-    const encKey = getEncryptionKey();
-    const accessToken = await decryptMaybeEncrypted(waConfig.access_token_encrypted, encKey);
+    const accessToken = sender.accessToken;
+    const wabaId = sender.wabaId;
 
     // ── LIST templates ──
     if (action === "list") {
       const res = await fetch(
-        `https://graph.facebook.com/v21.0/${waConfig.waba_id}/message_templates?limit=100`,
+        `https://graph.facebook.com/v21.0/${wabaId}/message_templates?limit=100`,
         {
           headers: { Authorization: `Bearer ${accessToken}` },
         }
@@ -111,7 +105,7 @@ Deno.serve(async (req) => {
 
       const components = addTemplateExamples(template.components as TemplateComponent[]);
       const res = await fetch(
-        `https://graph.facebook.com/v21.0/${waConfig.waba_id}/message_templates`,
+        `https://graph.facebook.com/v21.0/${wabaId}/message_templates`,
         {
           method: "POST",
           headers: {
@@ -153,7 +147,7 @@ Deno.serve(async (req) => {
       }
 
       const res = await fetch(
-        `https://graph.facebook.com/v21.0/${waConfig.waba_id}/message_templates?name=${encodeURIComponent(template_name)}`,
+        `https://graph.facebook.com/v21.0/${wabaId}/message_templates?name=${encodeURIComponent(template_name)}`,
         {
           method: "DELETE",
           headers: { Authorization: `Bearer ${accessToken}` },
