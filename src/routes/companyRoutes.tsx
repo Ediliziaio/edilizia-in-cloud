@@ -255,7 +255,7 @@ const RenderTechnicalModuleHub = lazy(() => import("@/pages/azienda/RenderTechni
 const RenderTechnicalModuleNew = lazy(() => import("@/pages/azienda/RenderTechnicalModuleNew"));
 const RenderTechnicalModuleGallery = lazy(() => import("@/pages/azienda/RenderTechnicalModuleGallery"));
 const RenderTechnicalModuleGalleryDetail = lazy(() => import("@/pages/azienda/RenderTechnicalModuleGalleryDetail"));
-const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
+const ChatHub = lazy(() => import("@/pages/azienda/ChatHub"));
 const SilvioAIPage = lazy(() => import("@/pages/azienda/SilvioAIPage"));
 const ContenutiMultimediali = lazy(() => import("@/pages/azienda/ContenutiMultimediali"));
 // MP-AIE-03: pagina dedicata azioni proposte AI
@@ -508,7 +508,7 @@ export default function CompanyRoutesContainer() {
         <Route path="cedolini-personali" element={<Navigate to="/azienda/attivita?tab=cedolini" replace />} />
         <Route path="errori" element={<Navigate to="/azienda/ordini?tab=anomalie" replace />} />
         {/* MP-CLEANUP: rotta messaggistica-beta rimossa — dominio eliminato. */}
-        <Route path="chat" element={withCompanyPermission("canViewPersone", <InternalChat />)} />
+        <Route path="chat" element={withCompanyPermission("canViewPersone", <ChatHub />)} />
         <Route path="silvio-ai" element={withCompanyPermission("canViewPersone", <SilvioAIPage />)} />
         <Route path="contenuti-multimediali" element={withCompanyPermission("canViewMarketing", <ContenutiMultimediali />)} />
         {/* MP-AIE-03: Azioni proposte AI (yellow/red da Silvio + 18 personas).

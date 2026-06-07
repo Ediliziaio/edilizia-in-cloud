@@ -20,7 +20,7 @@ import { AccessDenied } from "@/components/admin/AccessDenied";
 import { Card, CardContent } from "@/components/ui/card";
 
 // Lazy load: InternalChat è 2k+ LOC. Riduce bundle iniziale admin.
-const InternalChat = lazy(() => import("@/pages/azienda/InternalChat"));
+const ChatHub = lazy(() => import("@/pages/azienda/ChatHub"));
 
 /**
  * Auto-crea il canale silvio-admin per il super_admin corrente.
@@ -107,7 +107,7 @@ export default function AdminTeamChat() {
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     }>
-      <InternalChat companyIdOverride={platformCompanyId} />
+      <ChatHub companyIdOverride={platformCompanyId} />
     </Suspense>
   );
 }

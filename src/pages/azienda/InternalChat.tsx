@@ -1220,9 +1220,12 @@ interface InternalChatProps {
   /** Override del company_id usato per scope di canali/messaggi/profili.
    *  Permette il riuso lato Super Admin (passando platform_admin_company.id). */
   companyIdOverride?: string;
+  /** Quando true rimuove l'auto-altezza (h-calc) e riempie il contenitore.
+   *  Usato dai tab di ChatHub così la barra tab non sfora il viewport. */
+  embedded?: boolean;
 }
 
-export default function InternalChat({ companyIdOverride }: InternalChatProps = {}) {
+export default function InternalChat({ companyIdOverride, embedded }: InternalChatProps = {}) {
   const location = useLocation();
   const navigate = useNavigate();
   const { role } = useAuth();
@@ -2181,7 +2184,9 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
       // di bg-white puro (utente "bianco bianco non mi piace"). Slate-50 dà
       // profondità visiva soft, sufficiente a far risaltare i bubble bianchi/
       // colorati dei messaggi sopra. Watermark logo rimosso (era invasivo).
-      "h-[calc(100vh-7.5rem)] supports-[height:100dvh]:h-[calc(100dvh-7.5rem)] md:h-[calc(100vh-120px)] flex overflow-hidden rounded-none sm:rounded-xl border-y sm:border shadow-sm bg-slate-50 dark:bg-gray-950 -mx-3 sm:mx-0",
+      embedded
+        ? "h-full flex overflow-hidden bg-slate-50 dark:bg-gray-950"
+        : "h-[calc(100vh-7.5rem)] supports-[height:100dvh]:h-[calc(100dvh-7.5rem)] md:h-[calc(100vh-120px)] flex overflow-hidden rounded-none sm:rounded-xl border-y sm:border shadow-sm bg-slate-50 dark:bg-gray-950 -mx-3 sm:mx-0",
       isMobileConvOpen && "max-md:!fixed max-md:!inset-0 max-md:!h-auto max-md:!z-[60] max-md:!border-0 max-md:!rounded-none max-md:!shadow-none max-md:!mx-0 max-md:!pt-[env(safe-area-inset-top)]",
     )}>
       {/* ═══ LEFT PANEL: Chat List ═══ */}
