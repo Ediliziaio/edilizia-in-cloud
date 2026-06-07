@@ -158,13 +158,14 @@ export const macroAreas: MacroArea[] = [
     icon: Users2,
     items: [
       { title: "Personale & HR", url: "/azienda/personale", icon: UserCheck, permissionKey: "canViewPersone", featureKey: "hr_personale" },
-      // Separazione netta dei ruoli:
-      //  • "Portale" = creazione/gestione corsi — gated canViewPersone (HR/admin); il
-      //    dipendente NON lo vede. (Il superadmin crea i portali master in /admin.)
-      //  • "Formazione" = fruizione — visibile a TUTTI: il dipendente vede i corsi
-      //    assegnati e accede ai materiali. Nessun ponte verso la gestione.
-      { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canViewPersone", featureKey: "hr_personale" },
-      { title: "Formazione", url: "/azienda/formazione", icon: BookOpen },
+      // Separazione netta dei ruoli, ora con permessi dedicati:
+      //  • "Portale" = creazione/gestione corsi — gated canManagePortal (grant esplicito a
+      //    HR/admin/responsabile formazione). Il dipendente NON lo vede. (Il superadmin crea
+      //    i portali master in /admin.)
+      //  • "Formazione" = fruizione — gated canViewFormazione (default ON per gli staff): il
+      //    dipendente vede i corsi assegnati e accede ai materiali. Nessun ponte verso la gestione.
+      { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canManagePortal", featureKey: "hr_personale" },
+      { title: "Formazione", url: "/azienda/formazione", icon: BookOpen, permissionKey: "canViewFormazione" },
       // MP-CLEANUP: "Messaggi Esterni" rimosso (feature legacy sostituita da Hub WhatsApp multi-numero)
     ],
   },
@@ -250,7 +251,7 @@ export const internalNavItems: NavItem[] = [
   { title: "Chat Team", url: "/azienda/chat", icon: MessageCircle, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Silvio AI", url: "/azienda/silvio-ai", icon: Sparkles, isBeta: true, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
   { title: "Personale & HR", url: "/azienda/personale", icon: Users, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
-  { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canViewPersone", category: "internal", subcategory: "gi_team" },
+  { title: "Portale", url: "/azienda/personale/portale", icon: GraduationCap, permissionKey: "canManagePortal", category: "internal", subcategory: "gi_team" },
   { title: "Automazioni", url: "/azienda/automazioni", icon: Zap, permissionKey: "canViewAutomazioni", category: "internal", subcategory: "gi_automation" },
   { title: "Agenti AI Interni", url: "/azienda/agenti-ai?tipo=platform", icon: Headphones, permissionKey: "canViewSettings", featureKey: "ai_agents_internal", category: "internal", subcategory: "gi_automation" },
 ];

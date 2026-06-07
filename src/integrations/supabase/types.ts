@@ -60075,18 +60075,21 @@ export type Database = {
           can_edit_warehouse: boolean | null
           can_export_clients: boolean
           can_manage_payments: boolean
+          can_manage_portal: boolean
           can_manage_suppliers: boolean
           can_manage_warehouse_items: boolean
           can_view_all_team_calendar: boolean
           can_view_automazioni: boolean | null
           can_view_billing: boolean
           can_view_calendar: boolean | null
+          can_view_controllo_gestione: boolean
           can_view_costs: boolean
           can_view_cruscotto: boolean
           can_view_customers: boolean | null
           can_view_dashboard: boolean | null
           can_view_employees: boolean | null
           can_view_financial_reports: boolean
+          can_view_formazione: boolean
           can_view_forecast: boolean | null
           can_view_giornale_lavori: boolean | null
           can_view_interventi: boolean | null
@@ -60149,18 +60152,21 @@ export type Database = {
           can_edit_warehouse?: boolean | null
           can_export_clients?: boolean
           can_manage_payments?: boolean
+          can_manage_portal?: boolean
           can_manage_suppliers?: boolean
           can_manage_warehouse_items?: boolean
           can_view_all_team_calendar?: boolean
           can_view_automazioni?: boolean | null
           can_view_billing?: boolean
           can_view_calendar?: boolean | null
+          can_view_controllo_gestione?: boolean
           can_view_costs?: boolean
           can_view_cruscotto?: boolean
           can_view_customers?: boolean | null
           can_view_dashboard?: boolean | null
           can_view_employees?: boolean | null
           can_view_financial_reports?: boolean
+          can_view_formazione?: boolean
           can_view_forecast?: boolean | null
           can_view_giornale_lavori?: boolean | null
           can_view_interventi?: boolean | null
@@ -60223,18 +60229,21 @@ export type Database = {
           can_edit_warehouse?: boolean | null
           can_export_clients?: boolean
           can_manage_payments?: boolean
+          can_manage_portal?: boolean
           can_manage_suppliers?: boolean
           can_manage_warehouse_items?: boolean
           can_view_all_team_calendar?: boolean
           can_view_automazioni?: boolean | null
           can_view_billing?: boolean
           can_view_calendar?: boolean | null
+          can_view_controllo_gestione?: boolean
           can_view_costs?: boolean
           can_view_cruscotto?: boolean
           can_view_customers?: boolean | null
           can_view_dashboard?: boolean | null
           can_view_employees?: boolean | null
           can_view_financial_reports?: boolean
+          can_view_formazione?: boolean
           can_view_forecast?: boolean | null
           can_view_giornale_lavori?: boolean | null
           can_view_interventi?: boolean | null

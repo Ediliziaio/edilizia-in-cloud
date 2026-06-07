@@ -549,11 +549,11 @@ export default function CompanyRoutesContainer() {
         <Route path="profilo" element={<Navigate to="/azienda/impostazioni/mio-profilo" replace />} />
         {/* HR & Personale — gated: hr_personale (addon pro/enterprise) */}
         <Route path="personale" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><PersonalePage /></FeatureRoute>)} />
-        <Route path="personale/portale" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><PortalePage /></FeatureRoute>)} />
-        {/* Formazione lato DIPENDENTE — accessibile a TUTTI gli utenti azienda
-            loggati (no withCompanyPermission): corsi pubblicati + avanzamento
-            reale salvato su portal_course_enrollments. */}
-        <Route path="formazione" element={<FormazioneDipendente />} />
+        <Route path="personale/portale" element={withCompanyPermission("canManagePortal", <FeatureRoute featureKey="hr_personale"><PortalePage /></FeatureRoute>)} />
+        {/* Formazione lato DIPENDENTE — gated canViewFormazione (default ON per tutti
+            gli staff, ma revocabile dall'admin): corsi pubblicati + avanzamento reale
+            salvato su portal_course_enrollments. */}
+        <Route path="formazione" element={withCompanyPermission("canViewFormazione", <FormazioneDipendente />)} />
         <Route path="personale/timbratura" element={withCompanyPermission("canViewPersone", <FeatureRoute featureKey="hr_personale"><TimbraturaKiosk /></FeatureRoute>)} />
         {/* Tesoreria — gated: tesoreria (core, default abilitato su tutti i piani) */}
         <Route path="tesoreria" element={withCompanyPermission("canViewTesoreria", <FeatureRoute featureKey="tesoreria"><Tesoreria /></FeatureRoute>)} />

@@ -71,6 +71,7 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
     icon: LayoutDashboard,
     modules: [
       { id: "cruscotto", label: "Cruscotto Aziendale", description: "Centro di controllo executive unificato", viewKey: "can_view_cruscotto" },
+      { id: "controllo-gestione", label: "Controllo di Gestione", description: "Direzione & bilancio: conto economico, KPI, tesoreria (CFO)", viewKey: "can_view_controllo_gestione" },
     ],
   },
   {
@@ -119,6 +120,8 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { id: "employees",          label: "Gestione Dipendenti",             description: "Anagrafica e dati dipendenti",                     viewKey: "can_view_employees" },
       { id: "users",              label: "Utenti & Team",                   description: "Gestisci utenti e team aziendali",                 viewKey: "can_view_users" },
       { id: "giornale-lavori",    label: "Giornale Lavori",                 description: "Visualizza le registrazioni giornaliere di cantiere", viewKey: "can_view_giornale_lavori" },
+      { id: "formazione",         label: "Formazione (fruizione corsi)",    description: "Accede all'area Formazione per seguire i corsi assegnati",   viewKey: "can_view_formazione" },
+      { id: "portale-gestione",   label: "Portale corsi (gestione)",        description: "Gestisce il Portale corsi: crea/modifica corsi, iscrizioni, materiali", viewKey: "can_manage_portal" },
     ],
   },
   {
@@ -194,6 +197,7 @@ const ROLE_PRESETS: Record<CompanyRole, Partial<StaffPermissions>> = {
     can_view_calendar: true,
     can_view_customers: true,
     can_view_marketing_contacts: true,
+    can_view_formazione: true,
   },
   salesperson: {
     can_view_dashboard: true,
@@ -207,22 +211,26 @@ const ROLE_PRESETS: Record<CompanyRole, Partial<StaffPermissions>> = {
     can_view_sales_os: true,
     can_view_calendar: true,
     can_view_customers: true,
+    can_view_formazione: true,
   },
   call_center: {
     can_view_marketing_contacts: true,
     can_view_marketing_appointments: true,
     can_view_marketing_activities: true,
     can_view_calendar: true,
+    can_view_formazione: true,
   },
   employee: {
     can_view_dashboard: true,
     can_view_orders: true,
     can_view_calendar: true,
     can_view_giornale_lavori: true,
+    can_view_formazione: true,
   },
   subcontractor: {
     can_view_orders: true,
     can_view_giornale_lavori: true,
+    can_view_formazione: true,
   },
 };
 

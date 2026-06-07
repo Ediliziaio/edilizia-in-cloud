@@ -2,7 +2,7 @@ import type { StaffPermissions } from "./PermissionsDialog";
 
 export const DEFAULT_PERMISSIONS: StaffPermissions = {
   // Cruscotto
-  can_view_cruscotto: false,
+  can_view_cruscotto: false, can_view_controllo_gestione: false,
   // Cantieri & Lavori
   can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
   can_approve_orders: false, can_delete_orders: false,
@@ -21,6 +21,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   // Persone
   can_view_persone: false, can_view_employees: false, can_view_users: false,
   can_view_giornale_lavori: false, can_view_messaggi_esterni: false,
+  can_view_formazione: false, can_manage_portal: false,
   // Marketing & Vendita
   can_view_marketing: false, can_edit_marketing: false,
   can_view_marketing_dashboard: false, can_view_marketing_contacts: false,
@@ -56,7 +57,8 @@ export interface PermissionSectionDef {
 // ─── 7 macro-aree allineate alla sidebar ───────────────────────────────────
 
 export const CRUSCOTTO_SECTIONS: PermissionSectionDef[] = [
-  { label: "Cruscotto Aziendale", viewKey: "can_view_cruscotto", editKey: null },
+  { label: "Cruscotto Aziendale",    viewKey: "can_view_cruscotto",            editKey: null },
+  { label: "Controllo di Gestione",  viewKey: "can_view_controllo_gestione",   editKey: null },
 ];
 
 export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
@@ -95,6 +97,8 @@ export const PERSONE_SECTIONS: PermissionSectionDef[] = [
   { label: "Gestione Dipendenti",             viewKey: "can_view_employees",         editKey: null },
   { label: "Utenti & Team",                   viewKey: "can_view_users",             editKey: null },
   { label: "Giornale Lavori",                 viewKey: "can_view_giornale_lavori",   editKey: null },
+  { label: "Formazione (fruizione corsi)",    viewKey: "can_view_formazione",        editKey: null },
+  { label: "Portale corsi (gestione)",        viewKey: "can_manage_portal",          editKey: null },
 ];
 
 export const MARKETING_SECTIONS: PermissionSectionDef[] = [
@@ -163,6 +167,7 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_manutenzione: true,
     can_view_employees: true, can_view_persone: true, can_view_users: true,
     can_view_giornale_lavori: true,
+    can_view_formazione: true,
     can_view_billing: true, can_view_prima_nota: true,
     can_view_costs: true,
     can_manage_payments: true, can_manage_suppliers: true,
@@ -175,6 +180,7 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_customers: true, can_edit_customers: true,
     can_view_users: true,
     can_view_margins: true,
+    can_view_formazione: true,
     can_view_marketing_dashboard: true,
     can_view_marketing_contacts: true, can_edit_marketing_contacts: true,
     can_view_marketing_opportunities: true, can_edit_marketing_opportunities: true,
@@ -196,12 +202,14 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_marketing_activities: true,
     can_view_marketing_appointments: true,
     can_view_marketing: true,
+    can_view_formazione: true,
     visible_areas: ["commerciale"],
   },
 
   employee: {
     can_view_calendar: true,
     can_view_giornale_lavori: true,
+    can_view_formazione: true,
     only_assigned: true,
     visible_areas: ["cantiere"],
   },
@@ -211,6 +219,7 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_calendar: true,
     can_view_customers: true,
     can_view_subappaltatori: true,
+    can_view_formazione: true,
     only_assigned: true,
     visible_areas: ["cantiere"],
   },

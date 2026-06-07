@@ -321,7 +321,8 @@ const COMMERCIALISTA_ALLOWED_URLS = new Set([
   "/azienda/previsionale",
   // Persone & HR
   "/azienda/personale",
-  "/azienda/personale/portale",
+  // NB: "/azienda/personale/portale" rimosso — la gestione Portale corsi richiede
+  // ora canManagePortal (il commercialista esterno non deve gestirla).
 ]);
 
 const COMMERCIALISTA_EXTRA_CANTIERI_ITEMS: NavItem[] = [

@@ -42,6 +42,10 @@ export interface Permissions {
   canViewPrevisionale: boolean;
   canViewTesoreria: boolean;
   canViewPersone: boolean;
+  /** Fruizione area Formazione (/azienda/formazione) */
+  canViewFormazione: boolean;
+  /** Gestione Portale corsi (/azienda/personale/portale) */
+  canManagePortal: boolean;
   // Granular marketing permissions
   canViewMarketingDashboard: boolean;
   canViewMarketingContacts: boolean;
@@ -119,6 +123,9 @@ const STAFF_PERMISSIONS_SELECT = [
   "can_view_costs",
   "can_view_tesoreria",
   "can_view_persone",
+  "can_view_formazione",
+  "can_manage_portal",
+  "can_view_controllo_gestione",
   "can_view_interventi",
   "can_view_manutenzione",
   "can_view_sicurezza_cantiere",
@@ -149,6 +156,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewPrimaNota: true, canViewCosts: true,
   canViewPrevisionale: true, canViewTesoreria: true,
   canViewPersone: true,
+  canViewFormazione: true, canManagePortal: true,
   canViewMarketingDashboard: true, canViewMarketingContacts: true,
   canEditMarketingContacts: true, canViewMarketingOpportunities: true,
   canEditMarketingOpportunities: true, canViewMarketingActivities: true,
@@ -181,6 +189,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewPrimaNota: false, canViewCosts: false,
   canViewPrevisionale: false, canViewTesoreria: false,
   canViewPersone: false,
+  canViewFormazione: false, canManagePortal: false,
   canViewMarketingDashboard: false, canViewMarketingContacts: false,
   canEditMarketingContacts: false, canViewMarketingOpportunities: false,
   canEditMarketingOpportunities: false, canViewMarketingActivities: false,
@@ -228,6 +237,9 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   // Persone (lettura HR)
   canViewPersone: true,
   canViewEmployees: true,
+  // Formazione/Portale: il commercialista esterno non ne ha bisogno
+  canViewFormazione: false,
+  canManagePortal: false,
   // Settings: ESPLICITAMENTE NO — il commercialista non deve modificare
   // o vedere la configurazione dell'azienda cliente (anagrafica, fornitori,
   // listini, branding, abbonamento, utenti, sicurezza)
@@ -306,6 +318,8 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewPrevisionale: g("can_view_forecast"),
     canViewTesoreria:   g("can_view_tesoreria"),
     canViewPersone:     g("can_view_persone"),
+    canViewFormazione:  g("can_view_formazione"),
+    canManagePortal:    g("can_manage_portal"),
     canViewMarketingDashboard:     g("can_view_marketing_dashboard"),
     canViewMarketingContacts:      g("can_view_marketing_contacts"),
     canEditMarketingContacts:      g("can_edit_marketing_contacts"),
@@ -329,7 +343,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewSmsMarketing:      g("can_view_sms_marketing"),
     // Modulo CG: deriva da permessi finanziari esistenti (cruscotto / billing)
     // più feature flag controllo_gestione_v1 lato UI (utility separata).
-    canViewControlloGestione: g("can_view_cruscotto") || g("can_view_billing") || g("can_view_costs"),
+    canViewControlloGestione: g("can_view_cruscotto") || g("can_view_billing") || g("can_view_costs") || g("can_view_controllo_gestione"),
     isAdmin: false,
     isLoading: false,
     onlyAssigned:  r["only_assigned"] === true,

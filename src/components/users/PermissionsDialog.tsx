@@ -21,6 +21,7 @@ import {
 export interface StaffPermissions {
   // ── Cruscotto ──────────────────────────────────────────
   can_view_cruscotto: boolean;
+  can_view_controllo_gestione: boolean;
   // ── Cantieri & Lavori ──────────────────────────────────
   can_view_dashboard: boolean;
   can_view_orders: boolean;
@@ -58,6 +59,10 @@ export interface StaffPermissions {
   can_view_users: boolean;
   can_view_giornale_lavori: boolean;
   can_view_messaggi_esterni: boolean;
+  /** Fruizione area Formazione */
+  can_view_formazione: boolean;
+  /** Gestione Portale corsi */
+  can_manage_portal: boolean;
   // ── Marketing & Vendita ────────────────────────────────
   can_view_marketing: boolean;
   can_edit_marketing: boolean;
