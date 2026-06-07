@@ -708,7 +708,7 @@ export default function CompanyRoutesContainer() {
         <Route path="marketing/google-ads" element={<Navigate to="/azienda/marketing/reportistica?tab=google-ads" replace />} />
         <Route path="marketing/pubblicita" element={withCompanyPermission("canViewMarketingDashboard", <AdsManagerBeta />)} />
         <Route path="marketing/social" element={withCompanyPermission("canViewMarketingDashboard", <SocialManagerBeta />)} />
-        <Route path="marketing/reputazione" element={withCompanyPermission("canViewMarketingDashboard", <ReputationManager />)} />
+        <Route path="marketing/reputazione" element={withCompanyPermission("canViewReputazione", <ReputationManager />)} />
         <Route path="marketing/ads" element={<Navigate to="/azienda/marketing/pubblicita" replace />} />
         <Route path="marketing/meta-ads" element={<Navigate to="/azienda/marketing/pubblicita" replace />} />
         <Route path="marketing/sms" element={<Navigate to="/azienda/sms" replace />} />
@@ -769,7 +769,7 @@ export default function CompanyRoutesContainer() {
         <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
         <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><QuoteDetail /></FeatureRoute>)} />
         <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
-        <Route path="marketing/firma-elettronica" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
+        <Route path="marketing/firma-elettronica" element={withCompanyPermission("canViewFirmaElettronica", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
         {/* Sprint B — Varianti Costo Manodopera: vista admin-only gated da can_view_margins */}
         <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <QuoteMargini />)} />
         
@@ -902,7 +902,7 @@ export default function CompanyRoutesContainer() {
         <Route path="archivio-sostitutivo" element={withCompanyPermission("canViewPrimaNota", <FeatureRoute featureKey="archivio_sostitutivo"><ErrorBoundary title="Errore nell'archivio sostitutivo"><ArchivioSostitutivo /></ErrorBoundary></FeatureRoute>)} />
 
         {/* FEA — Firma Elettronica Avanzata + Documenti (gated: firma_fea) */}
-        <Route path="firma-elettronica" element={withCompanyPermission("canViewOrders", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
+        <Route path="firma-elettronica" element={withCompanyPermission("canViewFirmaElettronica", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
         <Route path="firma-elettronica/nuovo-template" element={withCompanyPermission("canEditSettingsCustomization", <FeatureRoute featureKey="firma_fea"><NuovoTemplate /></FeatureRoute>)} />
       </Route>
     </Routes>

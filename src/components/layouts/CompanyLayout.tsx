@@ -305,7 +305,7 @@ const COMMERCIALISTA_ALLOWED_URLS = new Set([
   "/azienda/magazzino",
   "/azienda/clienti",
   "/azienda/subappaltatori",
-  "/azienda/firma-elettronica",
+  // "/azienda/firma-elettronica" rimosso — richiede ora canViewFirmaElettronica (non per il commercialista).
   "/azienda/assistenza",
   "/azienda/manutenzione",
   "/azienda/calendario",

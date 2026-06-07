@@ -94,6 +94,7 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { id: "manutenzione",     label: "Manutenzione",           description: "Gestisci piani di manutenzione programmata", viewKey: "can_view_manutenzione" },
       { id: "sicurezza",        label: "Sicurezza Cantiere",     description: "Accesso al modulo sicurezza e PSC",        viewKey: "can_view_sicurezza_cantiere" },
       { id: "subappaltatori-perm", label: "Subappaltatori",      description: "Visualizza e gestisci subappaltatori",     viewKey: "can_view_subappaltatori" },
+      { id: "firma-elettronica",   label: "Firma Elettronica (FEA)", description: "Modulo firma elettronica avanzata (cantieri e CRM)", viewKey: "can_view_firma_elettronica" },
     ],
   },
   {
@@ -139,6 +140,7 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { id: "mkt-whatsapp",      label: "WhatsApp",            description: "Messaggistica WhatsApp",                   viewKey: "can_view_marketing_whatsapp" },
       { id: "mkt-sales-os",      label: "Sales OS",            description: "Dashboard e strumenti commerciali avanzati", viewKey: "can_view_sales_os" },
       { id: "mkt-reports",       label: "Reportistica",        description: "Report e analisi marketing",               viewKey: "can_view_marketing_reports" },
+      { id: "mkt-reputazione",   label: "Reputazione",         description: "Gestione recensioni e reputazione online",  viewKey: "can_view_reputazione" },
     ],
   },
   {
@@ -198,6 +200,7 @@ const ROLE_PRESETS: Record<CompanyRole, Partial<StaffPermissions>> = {
     can_view_customers: true,
     can_view_marketing_contacts: true,
     can_view_formazione: true,
+    can_view_firma_elettronica: true,
   },
   salesperson: {
     can_view_dashboard: true,
@@ -212,6 +215,8 @@ const ROLE_PRESETS: Record<CompanyRole, Partial<StaffPermissions>> = {
     can_view_calendar: true,
     can_view_customers: true,
     can_view_formazione: true,
+    can_view_firma_elettronica: true,
+    can_view_reputazione: true,
   },
   call_center: {
     can_view_marketing_contacts: true,
@@ -231,6 +236,7 @@ const ROLE_PRESETS: Record<CompanyRole, Partial<StaffPermissions>> = {
     can_view_orders: true,
     can_view_giornale_lavori: true,
     can_view_formazione: true,
+    can_view_firma_elettronica: true,
   },
 };
 

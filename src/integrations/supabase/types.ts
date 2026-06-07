@@ -60089,6 +60089,7 @@ export type Database = {
           can_view_dashboard: boolean | null
           can_view_employees: boolean | null
           can_view_financial_reports: boolean
+          can_view_firma_elettronica: boolean
           can_view_formazione: boolean
           can_view_forecast: boolean | null
           can_view_giornale_lavori: boolean | null
@@ -60111,6 +60112,7 @@ export type Database = {
           can_view_persone: boolean
           can_view_prima_nota: boolean
           can_view_render_ai: boolean | null
+          can_view_reputazione: boolean
           can_view_sales_os: boolean | null
           can_view_scadenzario: boolean
           can_view_settings: boolean | null
@@ -60166,6 +60168,7 @@ export type Database = {
           can_view_dashboard?: boolean | null
           can_view_employees?: boolean | null
           can_view_financial_reports?: boolean
+          can_view_firma_elettronica?: boolean
           can_view_formazione?: boolean
           can_view_forecast?: boolean | null
           can_view_giornale_lavori?: boolean | null
@@ -60188,6 +60191,7 @@ export type Database = {
           can_view_persone?: boolean
           can_view_prima_nota?: boolean
           can_view_render_ai?: boolean | null
+          can_view_reputazione?: boolean
           can_view_sales_os?: boolean | null
           can_view_scadenzario?: boolean
           can_view_settings?: boolean | null
@@ -60243,6 +60247,7 @@ export type Database = {
           can_view_dashboard?: boolean | null
           can_view_employees?: boolean | null
           can_view_financial_reports?: boolean
+          can_view_firma_elettronica?: boolean
           can_view_formazione?: boolean
           can_view_forecast?: boolean | null
           can_view_giornale_lavori?: boolean | null
@@ -60265,6 +60270,7 @@ export type Database = {
           can_view_persone?: boolean
           can_view_prima_nota?: boolean
           can_view_render_ai?: boolean | null
+          can_view_reputazione?: boolean
           can_view_sales_os?: boolean | null
           can_view_scadenzario?: boolean
           can_view_settings?: boolean | null

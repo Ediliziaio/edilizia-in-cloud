@@ -68,6 +68,10 @@ export interface Permissions {
   canViewRenderAi: boolean;
   canViewSalesOs: boolean;
   canViewSmsMarketing: boolean;
+  /** Modulo Firma Elettronica (FEA) — cantieri + CRM */
+  canViewFirmaElettronica: boolean;
+  /** Modulo Reputazione (gestione recensioni) */
+  canViewReputazione: boolean;
   /** Modulo Controllo di Gestione (MP-CG): admin o canViewCruscotto/Billing. */
   canViewControlloGestione: boolean;
   isAdmin: boolean;
@@ -135,6 +139,8 @@ const STAFF_PERMISSIONS_SELECT = [
   "can_view_render_ai",
   "can_view_sales_os",
   "can_view_sms_marketing",
+  "can_view_firma_elettronica",
+  "can_view_reputazione",
   "only_assigned",
   "visible_areas",
 ].join(",");
@@ -168,6 +174,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewGiornaleLavori: true,
   canViewAutomazioni: true, canViewRenderAi: true,
   canViewSalesOs: true, canViewSmsMarketing: true,
+  canViewFirmaElettronica: true, canViewReputazione: true,
   canViewControlloGestione: true,
   isAdmin: true, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
 };
@@ -201,6 +208,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewGiornaleLavori: false,
   canViewAutomazioni: false, canViewRenderAi: false,
   canViewSalesOs: false, canViewSmsMarketing: false,
+  canViewFirmaElettronica: false, canViewReputazione: false,
   canViewControlloGestione: false,
   isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
 };
@@ -255,6 +263,9 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewMarketingWhatsapp: false, canViewMarketingReports: false,
   canViewSmsMarketing: false,
   canViewSalesOs: false,
+  // Firma elettronica / reputazione: non pertinenti al commercialista esterno
+  canViewFirmaElettronica: false,
+  canViewReputazione: false,
   canViewAutomazioni: false,
   canViewRenderAi: false,
   // Settings amministrativi → no
@@ -307,7 +318,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
       g("can_view_marketing_opportunities") || g("can_view_marketing_activities") || g("can_view_marketing_appointments") ||
       g("can_view_marketing_automations") || g("can_view_marketing_ai_agent") || g("can_view_marketing_email") ||
       g("can_view_sms_marketing") || g("can_view_marketing_whatsapp") || g("can_view_marketing_reports") ||
-      g("can_view_sales_os"),
+      g("can_view_reputazione") || g("can_view_sales_os"),
     canEditMarketing:
       g("can_edit_marketing") || g("can_edit_marketing_contacts") || g("can_edit_marketing_opportunities"),
     canViewCruscotto:   g("can_view_cruscotto"),
@@ -341,6 +352,8 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewRenderAi:          g("can_view_render_ai"),
     canViewSalesOs:           g("can_view_sales_os"),
     canViewSmsMarketing:      g("can_view_sms_marketing"),
+    canViewFirmaElettronica:  g("can_view_firma_elettronica"),
+    canViewReputazione:       g("can_view_reputazione"),
     // Modulo CG: deriva da permessi finanziari esistenti (cruscotto / billing)
     // più feature flag controllo_gestione_v1 lato UI (utility separata).
     canViewControlloGestione: g("can_view_cruscotto") || g("can_view_billing") || g("can_view_costs") || g("can_view_controllo_gestione"),

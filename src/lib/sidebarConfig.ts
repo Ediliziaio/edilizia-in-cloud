@@ -116,7 +116,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Magazzino", url: "/azienda/magazzino", icon: Warehouse, permissionKey: "canViewWarehouse", moduleKey: "warehouse" },
       { title: "Clienti", url: "/azienda/clienti", icon: Users, permissionKey: "canViewCustomers", moduleKey: "customers" },
       { title: "Subappaltatori", url: "/azienda/subappaltatori", icon: HardHat, permissionKey: "canViewSubappaltatori", featureKey: "subappaltatori" },
-      { title: "Firma Elettronica", url: "/azienda/firma-elettronica", icon: FileSignature, permissionKey: "canViewOrders", featureKey: "firma_fea" },
+      { title: "Firma Elettronica", url: "/azienda/firma-elettronica", icon: FileSignature, permissionKey: "canViewFirmaElettronica", featureKey: "firma_fea" },
       // ─── Pianificazione ───
       // Assistenza ora aggrega tutto: ticket di supporto + interventi sul campo.
       // "Interventi" come voce separata è stata rimossa — accessibile via tab/filtro
@@ -180,14 +180,14 @@ export const macroAreas: MacroArea[] = [
       { title: "Contatti CRM", url: "/azienda/marketing/contatti", icon: ContactRound, permissionKey: "canViewMarketingContacts", featureKey: "crm_modulo", groupLabel: "CRM & Vendita" },
       { title: "Opportunità", url: "/azienda/marketing/opportunita", icon: Target, permissionKey: "canViewMarketingOpportunities", featureKey: "crm_modulo" },
       { title: "Preventivi CRM", url: "/azienda/marketing/preventivi", icon: FileSignature, permissionKey: "canViewMarketingOpportunities", featureKey: "crm_modulo" },
-      { title: "Firma Elettronica", url: "/azienda/marketing/firma-elettronica", icon: FileSignature, permissionKey: "canViewMarketingOpportunities", featureKey: "firma_fea" },
+      { title: "Firma Elettronica", url: "/azienda/marketing/firma-elettronica", icon: FileSignature, permissionKey: "canViewFirmaElettronica", featureKey: "firma_fea" },
       { title: "Calendario CRM", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", featureKey: "crm_modulo" },
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewSalesOs", featureKey: "sales_os" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports", featureKey: "marketing_reporting" },
       // ─── Marketing ───
       { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", isBeta: true, demoCompanyOnly: true, groupLabel: "Marketing" },
       { title: "Gestione Social", url: "/azienda/marketing/social", icon: Share2, permissionKey: "canViewMarketingDashboard", isBeta: true, demoCompanyOnly: true },
-      { title: "Reputazione", url: "/azienda/marketing/reputazione", icon: Star, permissionKey: "canViewMarketingDashboard" },
+      { title: "Reputazione", url: "/azienda/marketing/reputazione", icon: Star, permissionKey: "canViewReputazione" },
       // 2026-04-27: voce "Fotovoltaico" rimossa dalla sidebar.
       // L'accesso al modulo passa ora dall'Hub Preventivi → tab "Moduli Vendita"
       // (gated dal feature flag modulo_fotovoltaico_attivo). La route resta

@@ -42,6 +42,7 @@ export interface StaffPermissions {
   can_view_manutenzione: boolean;
   can_view_sicurezza_cantiere: boolean;
   can_view_subappaltatori: boolean;
+  can_view_firma_elettronica: boolean;
   // ── Finanza ────────────────────────────────────────────
   can_view_billing: boolean;
   can_view_scadenzario: boolean;
@@ -76,6 +77,7 @@ export interface StaffPermissions {
   can_view_marketing_email: boolean;
   can_view_marketing_whatsapp: boolean;
   can_view_marketing_reports: boolean;
+  can_view_reputazione: boolean;
   // ── Automazioni & AI ───────────────────────────────────
   can_view_marketing_automations: boolean;
   can_view_marketing_ai_agent: boolean;
