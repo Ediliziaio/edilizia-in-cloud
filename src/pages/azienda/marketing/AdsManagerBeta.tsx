@@ -1902,31 +1902,10 @@ export default function AdsManagerBeta() {
   const monthlyCap = spendGuardConfig.monthly_cap_cents;
   const spendPct = monthlyCap > 0 ? Math.min(100, Math.round((monthlySpend / monthlyCap) * 100)) : 0;
 
-  if (!isDemoCompany) {
-    return (
-      <div className="p-6">
-        <Card className="mx-auto max-w-2xl border-amber-200 bg-amber-50/60">
-          <CardHeader>
-            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            <CardTitle className="text-xl">Modulo Pubblicità in Beta privata</CardTitle>
-            <CardDescription>
-              Questa sezione e sbloccata solo per Demo Azienda S.r.l. durante la fase locale di validazione.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3 sm:flex-row">
-            <Button asChild>
-              <Link to="/azienda/marketing">Torna al marketing</Link>
-            </Button>
-            <Button variant="outline" asChild>
-              <Link to="/azienda/cruscotto">Vai al cruscotto</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Modulo Pubblicità: ora PUBBLICO per tutte le aziende (gate = solo permesso
+  // canViewMarketingDashboard + badge beta). L'azienda Demo mantiene i sample
+  // showcase (isDemoCompany usato sotto per connessioni mock + esempi); le
+  // aziende reali collegano i propri account Meta/Google e vedono i propri dati.
 
   // ---- QUICK START (AI brief parser, 60s) ----
   if (view === "quickstart") {

@@ -4079,7 +4079,7 @@ export default function SocialManagerBeta() {
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <Badge className="border-0 bg-gradient-to-r from-orange-500 to-amber-500 text-white">Beta</Badge>
               <Badge variant="outline" className="border-slate-200 text-slate-500">
-                {isDbBacked ? "Dati azienda" : "Demo Azienda"}
+                {isDbBacked ? "Dati azienda" : "Dati di esempio"}
               </Badge>
             </div>
             <h1 className="text-2xl font-bold text-slate-900">Gestione Social</h1>
