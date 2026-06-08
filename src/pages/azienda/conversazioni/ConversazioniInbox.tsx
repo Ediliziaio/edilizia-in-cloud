@@ -22,6 +22,7 @@ import {
 import ConversazioneComposer from "./ConversazioneComposer";
 import ContactDetailPanel from "./ContactDetailPanel";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const CANALE_META: Record<CanaleConversazione, { label: string; Icon: typeof Mail; dot: string }> = {
   email:    { label: "Email",    Icon: Mail,          dot: "bg-blue-500" },
@@ -84,6 +85,37 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [timeline, selectedKey]);
 
+  // Realtime: aggiornamento istantaneo dell'inbox.
+  //  • `conversazioni` (già nella publication): cambi stato/assegnazione/letto fatti
+  //    da ALTRI operatori → inbox condiviso sempre allineato.
+  //  • `messaging_messages` (nuovi WhatsApp): se la tabella non è ancora nella
+  //    publication, nessun evento → fallback trasparente sul polling 25s + focus.
+  // Invalido a prefisso la timeline (solo quella attiva refetcha) → niente
+  // re-subscribe a ogni cambio conversazione.
+  useEffect(() => {
+    if (!companyId) return;
+    const invalidate = () => {
+      qc.invalidateQueries({ queryKey: ["conversazioni-lista", companyId] });
+      qc.invalidateQueries({ queryKey: ["conversazione-timeline"] });
+    };
+    const channel = supabase
+      .channel(`conversazioni-inbox-${companyId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "conversazioni", filter: `company_id=eq.${companyId}` },
+        invalidate,
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messaging_messages" },
+        invalidate,
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [companyId, qc]);
+
   const filtrate = useMemo(() => {
     const q = search.trim().toLowerCase();
     return lista.filter((c) => {
@@ -98,7 +130,8 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
         !(
           (c.nome || "").toLowerCase().includes(q) ||
           (c.email || "").toLowerCase().includes(q) ||
-          (c.telefono || "").toLowerCase().includes(q)
+          (c.telefono || "").toLowerCase().includes(q) ||
+          (c.anteprima || "").toLowerCase().includes(q)
         )
       )
         return false;
