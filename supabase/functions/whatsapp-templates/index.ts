@@ -42,7 +42,8 @@ Deno.serve(async (req) => {
     const userId = user.id;
 
     const body = await req.json();
-    const { action, company_id } = body;
+    // wa_number_id: numero/WABA specifico su cui operare (template per-WABA, niente mischiate).
+    const { action, company_id, wa_number_id } = body;
 
     if (!company_id) {
       return new Response(
@@ -58,8 +59,9 @@ Deno.serve(async (req) => {
 
     await assertMetaCompanyAdminAccess(adminClient, userId, company_id);
 
-    // Get WhatsApp config (need waba_id for template API) — nuovo multi-numero, fallback legacy
-    const sender = await resolveWhatsAppSender(adminClient, company_id);
+    // Get WhatsApp config (need waba_id for template API) — sul NUMERO/WABA scelto
+    // (wa_number_id), così i template non si mischiano tra numeri/aziende diverse.
+    const sender = await resolveWhatsAppSender(adminClient, company_id, wa_number_id);
     if (!sender?.wabaId) {
       return new Response(
         JSON.stringify({ error: "WhatsApp Business Account non configurato" }),
@@ -126,6 +128,51 @@ Deno.serve(async (req) => {
       if (!res.ok) {
         return new Response(
           JSON.stringify({ error: data.error?.message || "Errore creazione template" }),
+          { status: 502, headers: secureHeaders }
+        );
+      }
+
+      return new Response(JSON.stringify({ success: true, template: data }), {
+        status: 200,
+        headers: secureHeaders,
+      });
+    }
+
+    // ── EDIT template ──
+    // Meta consente la modifica di un template esistente via POST sull'ID del
+    // template (non sulla WABA). Si possono cambiare components e category; il
+    // nome e la lingua NON sono modificabili (in tal caso va creato un nuovo
+    // template). Dopo la modifica il template torna in stato PENDING.
+    if (action === "edit") {
+      const { template } = body;
+      if (!template?.id || !Array.isArray(template?.components)) {
+        return new Response(
+          JSON.stringify({ error: "Per modificare servono id template e components" }),
+          { status: 400, headers: secureHeaders }
+        );
+      }
+
+      const components = addTemplateExamples(template.components as TemplateComponent[]);
+      const editPayload: Record<string, unknown> = { components };
+      if (template.category) editPayload.category = template.category;
+
+      const res = await fetch(
+        `https://graph.facebook.com/v21.0/${template.id}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(editPayload),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return new Response(
+          JSON.stringify({ error: data.error?.message || "Errore modifica template" }),
           { status: 502, headers: secureHeaders }
         );
       }

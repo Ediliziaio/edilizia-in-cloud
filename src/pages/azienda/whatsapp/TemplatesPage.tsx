@@ -1,61 +1,274 @@
-// MP04 — Pagina elenco template Meta (sync + anteprima).
+// MP04 — Gestione completa template WhatsApp PER NUMERO/WABA.
+//
+// Regole Meta importanti applicate qui:
+//  - I template sono PER WABA. Se l'azienda/admin ha più numeri su WABA diverse,
+//    i template NON si mischiano: si sceglie il numero/WABA in alto e tutte le
+//    operazioni (lista, crea, modifica, elimina) avvengono SOLO su quella WABA
+//    (parametro wa_number_id passato all'edge function whatsapp-templates).
+//  - La lista è LIVE da Meta (stato reale APPROVED/PENDING/REJECTED).
+//  - "Sincronizza da Meta" aggiorna anche la copia DB (wa_meta_templates) usata
+//    dal resto dell'app (broadcast, composer, finestra 24h).
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useWhatsAppNumbers, PURPOSE_LABELS, type WAPurpose } from "@/hooks/whatsapp/useWhatsAppNumbers";
+import { useSyncMetaTemplates } from "@/hooks/whatsapp/useWAMetaTemplates";
+import { toast } from "sonner";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, Loader2, RefreshCcw, Eye, Search } from "lucide-react";
 import {
-  useSyncMetaTemplates,
-  useWAMetaTemplates,
-} from "@/hooks/whatsapp/useWAMetaTemplates";
-import type { WAMetaTemplate } from "@/hooks/whatsapp/useWAMetaTemplates";
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertTriangle, Loader2, RefreshCcw, Eye, Search, Plus, Pencil, Trash2,
+  Bold, Italic, Variable, Info,
+} from "lucide-react";
+
+// ── Tipi locali (shape della risposta Meta /message_templates) ──
+interface MetaComponent {
+  type: string;
+  format?: string;
+  text?: string;
+  example?: unknown;
+  buttons?: unknown[];
+  [k: string]: unknown;
+}
+interface MetaTemplate {
+  id?: string;
+  name: string;
+  status: string;
+  category: string;
+  language: string;
+  components: MetaComponent[];
+}
+
+interface TemplateForm {
+  id?: string;
+  name: string;
+  category: string;
+  language: string;
+  headerText: string;
+  bodyText: string;
+  footerText: string;
+  examples: Record<number, string>;
+}
+
+const EMPTY_FORM: TemplateForm = {
+  name: "", category: "UTILITY", language: "it",
+  headerText: "", bodyText: "", footerText: "", examples: {},
+};
 
 function statusColor(status: string | null): string {
   switch ((status ?? "").toUpperCase()) {
-    case "APPROVED":
-      return "bg-green-100 text-green-800";
-    case "PENDING":
-      return "bg-amber-100 text-amber-800";
-    case "REJECTED":
-      return "bg-red-100 text-red-800";
-    default:
-      return "bg-muted text-muted-foreground";
+    case "APPROVED": return "bg-green-100 text-green-800";
+    case "PENDING": return "bg-amber-100 text-amber-800";
+    case "REJECTED": return "bg-red-100 text-red-800";
+    case "PAUSED": return "bg-gray-200 text-gray-700";
+    default: return "bg-muted text-muted-foreground";
+  }
+}
+function statusLabel(status: string | null): string {
+  switch ((status ?? "").toUpperCase()) {
+    case "APPROVED": return "Approvato";
+    case "PENDING": return "In attesa";
+    case "REJECTED": return "Rifiutato";
+    case "PAUSED": return "Sospeso";
+    default: return status ?? "—";
+  }
+}
+function categoryLabel(cat: string): string {
+  switch ((cat ?? "").toUpperCase()) {
+    case "MARKETING": return "Marketing";
+    case "UTILITY": return "Utility";
+    case "AUTHENTICATION": return "Autenticazione";
+    default: return cat || "—";
   }
 }
 
-export default function TemplatesPage() {
-  const { data: templates, isLoading, isError, error, refetch, isFetching } = useWAMetaTemplates(undefined, false);
-  const sync = useSyncMetaTemplates();
-  const [preview, setPreview] = useState<WAMetaTemplate | null>(null);
-  const [search, setSearch] = useState("");
+function detectVars(text: string): number[] {
+  const nums = [...(text || "").matchAll(/\{\{(\d+)\}\}/g)].map((m) => parseInt(m[1], 10));
+  return Array.from(new Set(nums)).sort((a, b) => a - b);
+}
+function bodyTextOf(t: MetaTemplate): string {
+  return t.components?.find((c) => c.type === "BODY")?.text || "";
+}
+function parseToForm(t: MetaTemplate): TemplateForm {
+  const header = t.components?.find((c) => c.type === "HEADER" && c.format === "TEXT");
+  const body = t.components?.find((c) => c.type === "BODY");
+  const footer = t.components?.find((c) => c.type === "FOOTER");
+  return {
+    id: t.id,
+    name: t.name,
+    category: (t.category || "UTILITY").toUpperCase(),
+    language: t.language || "it",
+    headerText: header?.text ?? "",
+    bodyText: body?.text ?? "",
+    footerText: footer?.text ?? "",
+    examples: {},
+  };
+}
+function buildComponents(form: TemplateForm): MetaComponent[] {
+  const comps: MetaComponent[] = [];
+  if (form.headerText.trim()) {
+    comps.push({ type: "HEADER", format: "TEXT", text: form.headerText.trim() });
+  }
+  const body: MetaComponent = { type: "BODY", text: form.bodyText.trim() };
+  const vars = detectVars(form.bodyText);
+  if (vars.length && vars.every((v) => (form.examples[v] ?? "").trim())) {
+    body.example = { body_text: [vars.map((v) => form.examples[v].trim())] };
+  }
+  comps.push(body);
+  if (form.footerText.trim()) {
+    comps.push({ type: "FOOTER", text: form.footerText.trim() });
+  }
+  return comps;
+}
 
-  const filteredTemplates = (templates ?? []).filter((t) => {
+export default function TemplatesPage() {
+  const companyId = useEffectiveCompanyId();
+  const { data: numbers = [], isLoading: numbersLoading } = useWhatsAppNumbers();
+  const queryClient = useQueryClient();
+  const sync = useSyncMetaTemplates();
+
+  // Numeri usabili per i template: attivi e con WABA collegata.
+  const usableNumbers = useMemo(
+    () => numbers.filter((n) => n.stato === "active" && n.waba_id),
+    [numbers],
+  );
+
+  const [waNumberId, setWaNumberId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!waNumberId && usableNumbers.length > 0) setWaNumberId(usableNumbers[0].id);
+    if (waNumberId && !usableNumbers.some((n) => n.id === waNumberId)) {
+      setWaNumberId(usableNumbers[0]?.id ?? null);
+    }
+  }, [usableNumbers, waNumberId]);
+
+  const selectedNumber = usableNumbers.find((n) => n.id === waNumberId) || null;
+  // Numeri che CONDIVIDONO la stessa WABA (quindi stessi template).
+  const sameWaba = useMemo(
+    () => (selectedNumber
+      ? usableNumbers.filter((n) => n.waba_id === selectedNumber.waba_id && n.id !== selectedNumber.id)
+      : []),
+    [usableNumbers, selectedNumber],
+  );
+
+  const [search, setSearch] = useState("");
+  const [preview, setPreview] = useState<MetaTemplate | null>(null);
+  const [editor, setEditor] = useState<{ open: boolean; mode: "create" | "edit"; form: TemplateForm }>(
+    { open: false, mode: "create", form: EMPTY_FORM },
+  );
+
+  // ── Lista LIVE da Meta, filtrata per numero/WABA ──
+  const listQuery = useQuery({
+    queryKey: ["wa", "templates", "live", companyId, waNumberId],
+    enabled: !!companyId && !!waNumberId,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("whatsapp-templates", {
+        body: { action: "list", company_id: companyId, wa_number_id: waNumberId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return (data?.templates || []) as MetaTemplate[];
+    },
+  });
+
+  const templates = listQuery.data ?? [];
+  const filtered = templates.filter((t) => {
     const q = search.trim().toLowerCase();
     if (!q) return true;
-    return [
-      t.template_name,
-      t.template_language,
-      t.category,
-      t.status,
-    ].some((value) => (value ?? "").toLowerCase().includes(q));
+    return [t.name, t.language, t.category, t.status, bodyTextOf(t)]
+      .some((v) => (v ?? "").toLowerCase().includes(q));
   });
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["wa", "templates", "live", companyId, waNumberId] });
+  };
+
+  // ── Mutations (sempre con wa_number_id → niente mix tra WABA) ──
+  const saveMutation = useMutation({
+    mutationFn: async (form: TemplateForm) => {
+      const isEdit = editor.mode === "edit";
+      const components = buildComponents(form);
+      const body = isEdit
+        ? {
+            action: "edit", company_id: companyId, wa_number_id: waNumberId,
+            template: { id: form.id, category: form.category, components },
+          }
+        : {
+            action: "create", company_id: companyId, wa_number_id: waNumberId,
+            template: {
+              name: form.name.toLowerCase().replace(/[^a-z0-9_]/g, "_"),
+              category: form.category,
+              language: form.language,
+              components,
+            },
+          };
+      const { data, error } = await supabase.functions.invoke("whatsapp-templates", { body });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success(editor.mode === "edit"
+        ? "Template aggiornato (torna in approvazione Meta)"
+        : "Template inviato per approvazione");
+      setEditor((p) => ({ ...p, open: false }));
+      invalidate();
+    },
+    onError: (err: Error) => toast.error("Errore", { description: err.message }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (templateName: string) => {
+      const { data, error } = await supabase.functions.invoke("whatsapp-templates", {
+        body: { action: "delete", company_id: companyId, wa_number_id: waNumberId, template_name: templateName },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => { toast.success("Template eliminato"); invalidate(); },
+    onError: (err: Error) => toast.error("Errore eliminazione", { description: err.message }),
+  });
+
+  const numberLabel = (n: typeof usableNumbers[number]) => {
+    const name = n.display_name || n.nome_account || PURPOSE_LABELS[n.purpose as WAPurpose] || "Numero";
+    return `${name} · ${n.numero || "—"}`;
+  };
+
+  const openCreate = () => setEditor({ open: true, mode: "create", form: EMPTY_FORM });
+  const openEdit = (t: MetaTemplate) => setEditor({ open: true, mode: "edit", form: parseToForm(t) });
+
+  // ── Empty state: nessun numero collegato ──
+  if (!numbersLoading && usableNumbers.length === 0) {
+    return (
+      <div className="space-y-6 p-4 md:p-6">
+        <h1 className="text-2xl font-semibold">Template WhatsApp</h1>
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-amber-500" />
+            <p className="font-medium">Nessun numero WhatsApp attivo</p>
+            <p className="mt-1 text-sm">
+              Collega e verifica un numero nel Centro WhatsApp per poter creare e gestire i template.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -63,22 +276,53 @@ export default function TemplatesPage() {
         <div>
           <h1 className="text-2xl font-semibold">Template WhatsApp</h1>
           <p className="text-sm text-muted-foreground">
-            Template Meta Business Manager sincronizzati. Solo quelli APPROVED possono essere usati per broadcast.
+            Crea, modifica ed elimina i template. Solo gli <strong>APPROVED</strong> possono essere usati per broadcast e fuori dalla finestra 24h.
           </p>
         </div>
-        <Button
-          onClick={() => sync.mutate()}
-          disabled={sync.isPending}
-          aria-label="Sincronizza template"
-        >
-          {sync.isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCcw className="mr-2 h-4 w-4" />
-          )}
-          Sincronizza da Meta
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => sync.mutate(undefined, { onSuccess: () => invalidate() })}
+            disabled={sync.isPending}
+          >
+            {sync.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}
+            Sincronizza da Meta
+          </Button>
+          <Button onClick={openCreate} disabled={!waNumberId}>
+            <Plus className="mr-2 h-4 w-4" /> Nuovo template
+          </Button>
+        </div>
       </div>
+
+      {/* ── Selettore numero / WABA ── */}
+      <Card>
+        <CardContent className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Numero / Account WhatsApp</Label>
+            <Select value={waNumberId ?? undefined} onValueChange={setWaNumberId}>
+              <SelectTrigger className="w-full md:w-[420px]">
+                <SelectValue placeholder="Seleziona un numero" />
+              </SelectTrigger>
+              <SelectContent>
+                {usableNumbers.map((n) => (
+                  <SelectItem key={n.id} value={n.id}>{numberLabel(n)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {selectedNumber && (
+            <div className="text-xs text-muted-foreground md:text-right">
+              <div>WABA: <span className="font-mono">{selectedNumber.waba_id}</span></div>
+              {sameWaba.length > 0 && (
+                <div className="mt-1 flex items-center gap-1 text-amber-600">
+                  <Info className="h-3 w-3" />
+                  Condivide i template con: {sameWaba.map((n) => n.numero).join(", ")}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between">
@@ -89,35 +333,35 @@ export default function TemplatesPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
-              placeholder="Cerca nome, lingua, stato..."
+              placeholder="Cerca nome, testo, stato..."
             />
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading && (
+          {listQuery.isLoading && (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           )}
-          {!isLoading && isError && (
+          {!listQuery.isLoading && listQuery.isError && (
             <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-6 text-center">
               <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-destructive" />
               <p className="font-medium">Template non caricati</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {(error as Error)?.message || "Errore nel caricamento dei template Meta."}
+                {(listQuery.error as Error)?.message || "Errore nel caricamento dei template Meta."}
               </p>
-              <Button className="mt-4" variant="outline" onClick={() => refetch()} disabled={isFetching}>
-                <RefreshCcw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+              <Button className="mt-4" variant="outline" onClick={() => listQuery.refetch()} disabled={listQuery.isFetching}>
+                <RefreshCcw className={`mr-2 h-4 w-4 ${listQuery.isFetching ? "animate-spin" : ""}`} />
                 Riprova
               </Button>
             </div>
           )}
-          {!isLoading && !isError && (templates?.length ?? 0) === 0 && (
-            <div className="text-center py-8 text-sm text-muted-foreground">
-              Nessun template sincronizzato. Clicca "Sincronizza da Meta" per importarli.
+          {!listQuery.isLoading && !listQuery.isError && templates.length === 0 && (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              Nessun template su questo numero. Clicca "Nuovo template" per crearne uno.
             </div>
           )}
-          {!isLoading && !isError && templates && templates.length > 0 && (
+          {!listQuery.isLoading && !listQuery.isError && templates.length > 0 && (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -131,32 +375,44 @@ export default function TemplatesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTemplates.map((t) => (
-                    <TableRow key={t.id}>
-                      <TableCell className="font-medium">{t.template_name}</TableCell>
-                      <TableCell className="uppercase">{t.template_language}</TableCell>
-                      <TableCell>{t.category ?? "—"}</TableCell>
-                      <TableCell>
-                        <Badge className={statusColor(t.status)}>
-                          {t.status ?? "—"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{t.variables_count ?? 0}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setPreview(t)}
-                          aria-label={`Anteprima ${t.template_name}`}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filtered.map((t) => {
+                    const vars = detectVars(bodyTextOf(t));
+                    return (
+                      <TableRow key={(t.id ?? t.name) + t.language}>
+                        <TableCell className="font-medium">{t.name}</TableCell>
+                        <TableCell className="uppercase">{t.language}</TableCell>
+                        <TableCell>{categoryLabel(t.category)}</TableCell>
+                        <TableCell>
+                          <Badge className={statusColor(t.status)}>{statusLabel(t.status)}</Badge>
+                        </TableCell>
+                        <TableCell>{vars.length}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8"
+                              onClick={() => setPreview(t)} aria-label={`Anteprima ${t.name}`}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8"
+                              onClick={() => openEdit(t)} aria-label={`Modifica ${t.name}`}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              disabled={deleteMutation.isPending}
+                              onClick={() => {
+                                if (confirm(`Eliminare il template "${t.name}"?`)) deleteMutation.mutate(t.name);
+                              }}
+                              aria-label={`Elimina ${t.name}`}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
-              {filteredTemplates.length === 0 && (
+              {filtered.length === 0 && (
                 <div className="py-8 text-center text-sm text-muted-foreground">
                   Nessun template corrisponde ai filtri.
                 </div>
@@ -166,19 +422,207 @@ export default function TemplatesPage() {
         </CardContent>
       </Card>
 
+      {/* ── Anteprima ── */}
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Anteprima template: {preview?.template_name}</DialogTitle>
+            <DialogTitle>Anteprima: {preview?.name}</DialogTitle>
             <DialogDescription>
-              Lingua {preview?.template_language?.toUpperCase()} — Categoria {preview?.category ?? "N/A"} — Variabili {preview?.variables_count ?? 0}
+              Lingua {preview?.language?.toUpperCase()} — {categoryLabel(preview?.category ?? "")} — {statusLabel(preview?.status ?? "")}
             </DialogDescription>
           </DialogHeader>
-          <pre className="rounded-md bg-muted p-4 text-xs overflow-x-auto">
-            {preview?.components_json ? JSON.stringify(preview.components_json, null, 2) : "—"}
+          {preview && <WhatsAppBubblePreview template={preview} />}
+          <pre className="mt-3 rounded-md bg-muted p-4 text-xs overflow-x-auto">
+            {preview ? JSON.stringify(preview.components, null, 2) : "—"}
           </pre>
         </DialogContent>
       </Dialog>
+
+      {/* ── Editor crea/modifica ── */}
+      <TemplateEditorDialog
+        open={editor.open}
+        mode={editor.mode}
+        initial={editor.form}
+        isSaving={saveMutation.isPending}
+        onOpenChange={(o) => setEditor((p) => ({ ...p, open: o }))}
+        onSubmit={(form) => saveMutation.mutate(form)}
+      />
     </div>
+  );
+}
+
+// ── Anteprima "bolla" WhatsApp del template ──
+function WhatsAppBubblePreview({ template }: { template: MetaTemplate | TemplateForm }) {
+  const isForm = "bodyText" in template;
+  const header = isForm ? template.headerText : template.components?.find((c) => c.type === "HEADER" && c.format === "TEXT")?.text;
+  const body = isForm ? template.bodyText : template.components?.find((c) => c.type === "BODY")?.text;
+  const footer = isForm ? template.footerText : template.components?.find((c) => c.type === "FOOTER")?.text;
+  if (!header && !body && !footer) return null;
+  return (
+    <div className="rounded-lg bg-[#e5ddd5] p-3">
+      <div className="max-w-[85%] rounded-lg rounded-tl-none bg-white px-3 py-2 text-sm shadow-sm">
+        {header && <p className="mb-1 font-semibold">{header}</p>}
+        {body && <p className="whitespace-pre-wrap text-gray-800">{body}</p>}
+        {footer && <p className="mt-1 text-xs text-gray-500">{footer}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── Dialog editor (condiviso crea/modifica) ──
+function TemplateEditorDialog({
+  open, mode, initial, isSaving, onOpenChange, onSubmit,
+}: {
+  open: boolean;
+  mode: "create" | "edit";
+  initial: TemplateForm;
+  isSaving: boolean;
+  onOpenChange: (o: boolean) => void;
+  onSubmit: (form: TemplateForm) => void;
+}) {
+  const [form, setForm] = useState<TemplateForm>(initial);
+  useEffect(() => { if (open) setForm(initial); }, [open, initial]);
+
+  const vars = detectVars(form.bodyText);
+  const set = (patch: Partial<TemplateForm>) => setForm((p) => ({ ...p, ...patch }));
+
+  const insertVar = () => {
+    const next = (vars.length ? Math.max(...vars) : 0) + 1;
+    set({ bodyText: `${form.bodyText}{{${next}}}` });
+  };
+  const wrap = (sym: string) => set({ bodyText: `${form.bodyText}${sym}testo${sym}` });
+
+  const canSave = mode === "edit"
+    ? !!form.bodyText.trim()
+    : !!form.name.trim() && !!form.bodyText.trim();
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{mode === "edit" ? "Modifica template" : "Nuovo template"}</DialogTitle>
+          <DialogDescription>
+            {mode === "edit"
+              ? "Nome e lingua non sono modificabili. Dopo il salvataggio il template torna in approvazione Meta."
+              : "Il template viene inviato a Meta per approvazione (Utility più rapida, Marketing 24-48h)."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="space-y-1.5 md:col-span-1">
+              <Label>Nome template *</Label>
+              <Input
+                placeholder="es. promemoria_appuntamento"
+                value={form.name}
+                disabled={mode === "edit"}
+                onChange={(e) => set({ name: e.target.value })}
+              />
+              <p className="text-[11px] text-muted-foreground">minuscole, numeri, _</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Categoria</Label>
+              <Select value={form.category} onValueChange={(v) => set({ category: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UTILITY">Utility</SelectItem>
+                  <SelectItem value="MARKETING">Marketing</SelectItem>
+                  <SelectItem value="AUTHENTICATION">Autenticazione</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Lingua</Label>
+              <Select value={form.language} onValueChange={(v) => set({ language: v })} disabled={mode === "edit"}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="it">Italiano</SelectItem>
+                  <SelectItem value="en">Inglese</SelectItem>
+                  <SelectItem value="es">Spagnolo</SelectItem>
+                  <SelectItem value="de">Tedesco</SelectItem>
+                  <SelectItem value="fr">Francese</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Intestazione (opzionale)</Label>
+            <Input
+              placeholder="Titolo in grassetto in cima al messaggio"
+              value={form.headerText}
+              onChange={(e) => set({ headerText: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label>Testo del messaggio *</Label>
+              <div className="flex gap-1">
+                <Button type="button" variant="outline" size="icon" className="h-7 w-7" title="Grassetto" onClick={() => wrap("*")}>
+                  <Bold className="h-3.5 w-3.5" />
+                </Button>
+                <Button type="button" variant="outline" size="icon" className="h-7 w-7" title="Corsivo" onClick={() => wrap("_")}>
+                  <Italic className="h-3.5 w-3.5" />
+                </Button>
+                <Button type="button" variant="outline" size="sm" className="h-7 gap-1" title="Inserisci variabile" onClick={insertVar}>
+                  <Variable className="h-3.5 w-3.5" /> Variabile
+                </Button>
+              </div>
+            </div>
+            <Textarea
+              rows={5}
+              placeholder={"Ciao {{1}}, ti ricordiamo l'appuntamento del {{2}}. *Grassetto*, _corsivo_."}
+              value={form.bodyText}
+              onChange={(e) => set({ bodyText: e.target.value })}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Personalizza con <code>{"{{1}}"}</code>, <code>{"{{2}}"}</code>… Formattazione WhatsApp: <code>*grassetto*</code>, <code>_corsivo_</code>, <code>~barrato~</code>.
+            </p>
+          </div>
+
+          {vars.length > 0 && (
+            <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+              <Label className="text-xs">Valori di esempio (richiesti da Meta per l'approvazione)</Label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {vars.map((v) => (
+                  <div key={v} className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-muted-foreground">{`{{${v}}}`}</span>
+                    <Input
+                      className="h-8"
+                      placeholder={`Esempio ${v}`}
+                      value={form.examples[v] ?? ""}
+                      onChange={(e) => set({ examples: { ...form.examples, [v]: e.target.value } })}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label>Piè di pagina (opzionale)</Label>
+            <Input
+              placeholder="es. Rispondi STOP per annullare"
+              value={form.footerText}
+              onChange={(e) => set({ footerText: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Anteprima</Label>
+            <WhatsAppBubblePreview template={form} />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>Annulla</Button>
+          <Button onClick={() => onSubmit(form)} disabled={!canSave || isSaving}>
+            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {mode === "edit" ? "Salva modifiche" : "Invia per approvazione"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
