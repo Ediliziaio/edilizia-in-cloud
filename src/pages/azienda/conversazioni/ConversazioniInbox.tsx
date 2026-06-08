@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useConversazioniList,
   useConversazioneTimeline,
+  useConversazioneOverlay,
   type CanaleConversazione,
   type ConversazioneListItem,
 } from "@/hooks/useConversazioni";
@@ -15,10 +17,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   Mail, MessageSquare, MessageCircle, StickyNote, Search, Inbox,
-  AlertCircle, ChevronLeft, User, Briefcase,
+  AlertCircle, ChevronLeft, User, Briefcase, RefreshCw, UserCheck, CheckCircle2, RotateCcw,
 } from "lucide-react";
 import ConversazioneComposer from "./ConversazioneComposer";
 import ContactDetailPanel from "./ContactDetailPanel";
+import { toast } from "sonner";
 
 const CANALE_META: Record<CanaleConversazione, { label: string; Icon: typeof Mail; dot: string }> = {
   email:    { label: "Email",    Icon: Mail,          dot: "bg-blue-500" },
@@ -50,13 +53,18 @@ interface Props {
 }
 
 export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
-  const { profile, effectiveCompany } = useAuth();
+  const { profile, effectiveCompany, user } = useAuth();
   const companyId = companyIdOverride ?? effectiveCompany?.id ?? profile?.company_id ?? null;
 
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [statoFilter, setStatoFilter] = useState<"tutte" | "non_lette" | "mie" | "chiuse">("tutte");
+  const [canaleFilter, setCanaleFilter] = useState<CanaleConversazione | "tutti">("tutti");
+  const [shownCount, setShownCount] = useState(30);
 
-  const { data: lista = [], isLoading, isError } = useConversazioniList(companyId);
+  const qc = useQueryClient();
+  const { data: lista = [], isLoading, isError, isFetching } = useConversazioniList(companyId);
+  const overlay = useConversazioneOverlay(companyId);
 
   const selectedItem = useMemo(
     () => lista.find((c) => keyOf(c) === selectedKey) ?? null,
@@ -78,13 +86,65 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
 
   const filtrate = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return lista;
-    return lista.filter((c) =>
-      (c.nome || "").toLowerCase().includes(q) ||
-      (c.email || "").toLowerCase().includes(q) ||
-      (c.telefono || "").toLowerCase().includes(q),
+    return lista.filter((c) => {
+      if (statoFilter === "non_lette" && c.non_letti <= 0) return false;
+      if (statoFilter === "mie" && c.assegnato_a !== user?.id) return false;
+      if (statoFilter === "chiuse" && c.stato !== "chiusa") return false;
+      // Le conversazioni chiuse compaiono solo nel filtro dedicato (archivio).
+      if (statoFilter !== "chiuse" && c.stato === "chiusa") return false;
+      if (canaleFilter !== "tutti" && c.ultimo_canale !== canaleFilter) return false;
+      if (
+        q &&
+        !(
+          (c.nome || "").toLowerCase().includes(q) ||
+          (c.email || "").toLowerCase().includes(q) ||
+          (c.telefono || "").toLowerCase().includes(q)
+        )
+      )
+        return false;
+      return true;
+    });
+  }, [lista, search, statoFilter, canaleFilter, user?.id]);
+
+  const nonLetteTot = useMemo(
+    () => lista.reduce((n, c) => n + (c.stato !== "chiusa" && c.non_letti > 0 ? 1 : 0), 0),
+    [lista],
+  );
+
+  // Apre una conversazione e la segna come letta (scrive last_read_at sull'overlay
+  // → il badge non-letti si azzera davvero; prima restava sempre acceso).
+  const handleSelect = (c: ConversazioneListItem) => {
+    setSelectedKey(keyOf(c));
+    setShownCount(30);
+    if (c.non_letti > 0) {
+      overlay.mutate({
+        entitaTipo: c.entita_tipo,
+        entitaId: c.entita_id,
+        patch: { last_read_at: new Date().toISOString() },
+      });
+    }
+  };
+
+  const aggiornaStato = (stato: "aperta" | "chiusa") => {
+    if (!selectedItem) return;
+    overlay.mutate(
+      { entitaTipo: selectedItem.entita_tipo, entitaId: selectedItem.entita_id, patch: { stato } },
+      { onSuccess: () => toast.success(stato === "chiusa" ? "Conversazione chiusa" : "Conversazione riaperta") },
     );
-  }, [lista, search]);
+  };
+
+  const assegnaAMe = () => {
+    if (!selectedItem || !user?.id) return;
+    const mine = selectedItem.assegnato_a === user.id;
+    overlay.mutate(
+      {
+        entitaTipo: selectedItem.entita_tipo,
+        entitaId: selectedItem.entita_id,
+        patch: { assegnato_a: mine ? null : user.id },
+      },
+      { onSuccess: () => toast.success(mine ? "Assegnazione rimossa" : "Assegnata a te") },
+    );
+  };
 
   return (
     <div className="h-full flex overflow-hidden rounded-xl border bg-card">
@@ -94,12 +154,75 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
         selectedItem ? "hidden md:flex" : "flex",
       )}>
         <div className="p-3 border-b">
-          <h2 className="text-sm font-semibold mb-2 flex items-center gap-2">
-            <Inbox className="h-4 w-4" /> Conversazioni
-          </h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold flex items-center gap-2">
+              <Inbox className="h-4 w-4" /> Conversazioni
+            </h2>
+            <Button
+              variant="ghost" size="icon" className="h-7 w-7"
+              aria-label="Aggiorna conversazioni"
+              disabled={isFetching}
+              onClick={() => {
+                qc.invalidateQueries({ queryKey: ["conversazioni-lista", companyId] });
+                if (selectedItem) qc.invalidateQueries({ queryKey: ["conversazione-timeline", selectedItem.entita_tipo, selectedItem.entita_id] });
+              }}
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+            </Button>
+          </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cerca contatto o cliente…" aria-label="Cerca conversazione" className="pl-8 h-9" />
+          </div>
+          {/* Filtri stato (triage GHL-style) */}
+          <div className="mt-2 flex items-center gap-1 flex-wrap">
+            {([
+              { k: "tutte", label: "Tutte" },
+              { k: "non_lette", label: "Non lette" },
+              { k: "mie", label: "Mie" },
+              { k: "chiuse", label: "Chiuse" },
+            ] as const).map((f) => (
+              <button
+                key={f.k}
+                type="button"
+                onClick={() => setStatoFilter(f.k)}
+                className={cn(
+                  "rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+                  statoFilter === f.k ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70",
+                )}
+              >
+                {f.label}
+                {f.k === "non_lette" && nonLetteTot > 0 && (
+                  <span className="ml-1 rounded-full bg-background/20 px-1 tabular-nums">{nonLetteTot}</span>
+                )}
+              </button>
+            ))}
+          </div>
+          {/* Filtri canale */}
+          <div className="mt-1.5 flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setCanaleFilter("tutti")}
+              className={cn("rounded-full px-2 py-0.5 text-[11px]", canaleFilter === "tutti" ? "bg-foreground/10 font-medium" : "text-muted-foreground hover:bg-muted")}
+            >
+              Tutti
+            </button>
+            {(Object.keys(CANALE_META) as CanaleConversazione[]).map((ch) => {
+              const M = CANALE_META[ch];
+              const active = canaleFilter === ch;
+              return (
+                <button
+                  key={ch}
+                  type="button"
+                  aria-label={`Filtra ${M.label}`}
+                  title={M.label}
+                  onClick={() => setCanaleFilter(active ? "tutti" : ch)}
+                  className={cn("rounded-full p-1 transition-colors", active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
+                >
+                  <M.Icon className="h-3.5 w-3.5" />
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -133,7 +256,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                 return (
                   <li key={keyOf(c)}>
                     <button
-                      onClick={() => setSelectedKey(keyOf(c))}
+                      onClick={() => handleSelect(c)}
                       className={cn(
                         "w-full text-left px-3 py-2.5 flex gap-3 hover:bg-muted/60 transition-colors",
                         attivo && "bg-muted",
@@ -210,6 +333,26 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                   {selectedItem.telefono && <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{selectedItem.telefono}</span>}
                 </div>
               </div>
+              {/* Azioni GHL: assegna a me / chiudi-riapri */}
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  variant={selectedItem.assegnato_a === user?.id ? "secondary" : "ghost"}
+                  size="sm" className="h-8 gap-1.5 text-xs"
+                  onClick={assegnaAMe} disabled={overlay.isPending}
+                >
+                  <UserCheck className="h-3.5 w-3.5" />
+                  <span className="hidden lg:inline">{selectedItem.assegnato_a === user?.id ? "Assegnata a te" : "Assegna a me"}</span>
+                </Button>
+                {selectedItem.stato === "chiusa" ? (
+                  <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => aggiornaStato("aperta")} disabled={overlay.isPending}>
+                    <RotateCcw className="h-3.5 w-3.5" /><span className="hidden lg:inline">Riapri</span>
+                  </Button>
+                ) : (
+                  <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => aggiornaStato("chiusa")} disabled={overlay.isPending}>
+                    <CheckCircle2 className="h-3.5 w-3.5" /><span className="hidden lg:inline">Chiudi</span>
+                  </Button>
+                )}
+              </div>
             </header>
 
             <ScrollArea className="flex-1 px-3 sm:px-4 py-4">
@@ -223,7 +366,17 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                 <div className="text-center text-sm text-muted-foreground py-10">Nessun messaggio in questa conversazione.</div>
               ) : (
                 <div className="space-y-3 max-w-3xl mx-auto">
-                  {timeline.map((m, i) => {
+                  {timeline.length > shownCount && (
+                    <div className="text-center pb-1">
+                      <Button
+                        variant="ghost" size="sm" className="text-xs text-muted-foreground"
+                        onClick={() => setShownCount((n) => n + 30)}
+                      >
+                        Carica precedenti ({timeline.length - shownCount})
+                      </Button>
+                    </div>
+                  )}
+                  {timeline.slice(-shownCount).map((m, i) => {
                     const meta = CANALE_META[m.canale] ?? CANALE_META.email;
                     const out = m.direzione === "out";
                     return (

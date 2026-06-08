@@ -12,6 +12,7 @@ import {
 import { Mail, MessageSquare, MessageCircle, Send, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EntitaTipo } from "@/hooks/useConversazioni";
+import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
 
 type Canale = "email" | "whatsapp" | "sms";
 
@@ -51,7 +52,7 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
   const [from, setFrom] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
-  const [waText, setWaText] = useState("");
+  const [waSending, setWaSending] = useState(false);
 
   const cleanPhone = (telefono ?? "").replace(/\D/g, "");
   const waHref = cleanPhone
@@ -145,13 +146,6 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
     onError: (e) => toast.error("Invio email fallito", { description: (e as Error).message }),
   });
 
-  const apriWhatsApp = () => {
-    if (waHref && waText.trim()) {
-      window.open(`${waHref}?text=${encodeURIComponent(waText.trim())}`, "_blank", "noopener,noreferrer");
-      setWaText("");
-    }
-  };
-
   const CANALI: { key: Canale; label: string; Icon: typeof Mail; disabled: boolean }[] = [
     { key: "email", label: "Email", Icon: Mail, disabled: !email },
     { key: "whatsapp", label: "WhatsApp", Icon: MessageCircle, disabled: !waHref },
@@ -229,24 +223,45 @@ export default function ConversazioneComposer({ entitaTipo, entitaId, email, tel
         </div>
       )}
 
-      {/* WHATSAPP */}
+      {/* WHATSAPP — invio API reale (numero + template + finestra 24h) via whatsapp-send,
+          loggato → il messaggio rientra nel thread. Niente più wa.me manuale. */}
       {canale === "whatsapp" && (
         <div className="p-3 max-w-3xl mx-auto">
-          <div className="flex items-end gap-2">
-            <Textarea
-              placeholder={waHref ? "Messaggio WhatsApp…" : "Contatto senza numero"}
-              value={waText}
-              onChange={(e) => setWaText(e.target.value.slice(0, 5000))}
-              rows={1}
-              disabled={!waHref}
-              className="text-sm resize-none min-h-[40px]"
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); apriWhatsApp(); } }}
+          {cleanPhone ? (
+            <WhatsAppComposer
+              phone={cleanPhone}
+              isSending={waSending}
+              onSend={async ({ waNumberId, content, template }) => {
+                if (!effectiveCompany?.id) { toast.error("Azienda non disponibile"); return; }
+                setWaSending(true);
+                try {
+                  const payload: Record<string, unknown> = {
+                    company_id: effectiveCompany.id,
+                    to: cleanPhone,
+                    wa_number_id: waNumberId,
+                  };
+                  if (template) {
+                    payload.template = { name: template.name, language: template.language, variables: template.variables };
+                  } else {
+                    payload.text = { body: content };
+                  }
+                  const { data, error } = await supabase.functions.invoke("whatsapp-send", { body: payload });
+                  if (error) throw error;
+                  if ((data as { error?: string } | null)?.error) throw new Error((data as { error: string }).error);
+                  toast.success("Messaggio WhatsApp inviato");
+                  qc.invalidateQueries({ queryKey: ["conversazione-timeline", entitaTipo, entitaId] });
+                  qc.invalidateQueries({ queryKey: ["conversazioni-lista"] });
+                  onSent?.();
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Errore invio WhatsApp");
+                } finally {
+                  setWaSending(false);
+                }
+              }}
             />
-            <Button size="icon" className="shrink-0 bg-emerald-600 hover:bg-emerald-700" aria-label="Invia messaggio WhatsApp" onClick={apriWhatsApp} disabled={!waHref || !waText.trim()}>
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-1.5">Apre WhatsApp con il messaggio precompilato.</p>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">Contatto senza numero di telefono.</p>
+          )}
         </div>
       )}
 

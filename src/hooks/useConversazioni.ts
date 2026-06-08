@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export type CanaleConversazione = "email" | "sms" | "whatsapp" | "nota";
@@ -53,6 +53,10 @@ export function useConversazioniList(companyId: string | null | undefined) {
     queryKey: ["conversazioni-lista", companyId],
     enabled: !!companyId,
     staleTime: 30_000,
+    // Inbox "viva" senza realtime sulle tabelle sorgente (richiederebbe ALTER
+    // PUBLICATION): refetch al rientro sulla tab + polling leggero mentre è aperta.
+    refetchOnWindowFocus: true,
+    refetchInterval: 25_000,
     queryFn: async () => {
       if (!companyId) return [];
       const { data, error } = await callRpc<ConversazioneListItem[]>("conversazioni_lista", {
@@ -73,6 +77,7 @@ export function useConversazioneTimeline(
     queryKey: ["conversazione-timeline", entitaTipo, entitaId],
     enabled: !!entitaTipo && !!entitaId,
     staleTime: 15_000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       if (!entitaTipo || !entitaId) return [];
       const { data, error } = await callRpc<ConversazioneMessaggio[]>("conversazione_timeline", {
@@ -81,6 +86,47 @@ export function useConversazioneTimeline(
       });
       if (error) throw new Error(error.message);
       return data ?? [];
+    },
+  });
+}
+
+export type ConversazioneStato = "aperta" | "in_attesa" | "chiusa";
+
+interface OverlayArgs {
+  entitaTipo: EntitaTipo;
+  entitaId: string;
+  patch: { last_read_at?: string; stato?: ConversazioneStato; assegnato_a?: string | null };
+}
+
+/**
+ * Mutation sull'overlay di stato `conversazioni` (segna-letto / stato / assegnazione).
+ * La tabella ha già stato/assegnato_a/last_read_at ma finora nessuno ci scriveva
+ * (overlay dormiente). La policy RLS `conversazioni_company_rw` permette l'upsert
+ * lato client → nessuna RPC/migration necessaria. onConflict sull'unique
+ * (company_id, entita_tipo, entita_id).
+ */
+export function useConversazioneOverlay(companyId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ entitaTipo, entitaId, patch }: OverlayArgs) => {
+      if (!companyId) throw new Error("Azienda non disponibile");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from("conversazioni")
+        .upsert(
+          {
+            company_id: companyId,
+            entita_tipo: entitaTipo,
+            entita_id: entitaId,
+            ...patch,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "company_id,entita_tipo,entita_id" },
+        );
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["conversazioni-lista", companyId] });
     },
   });
 }
