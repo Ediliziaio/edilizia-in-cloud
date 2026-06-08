@@ -5,6 +5,7 @@ import {
   useConversazioniList,
   useConversazioneTimeline,
   useConversazioneOverlay,
+  useConversazioniCerca,
   type CanaleConversazione,
   type ConversazioneListItem,
 } from "@/hooks/useConversazioni";
@@ -66,6 +67,8 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
   const qc = useQueryClient();
   const { data: lista = [], isLoading, isError, isFetching } = useConversazioniList(companyId);
   const overlay = useConversazioneOverlay(companyId);
+  // Ricerca full-content (degrada a client-side se l'RPC non è ancora deployata).
+  const contentSearch = useConversazioniCerca(companyId, search);
 
   const selectedItem = useMemo(
     () => lista.find((c) => keyOf(c) === selectedKey) ?? null,
@@ -125,19 +128,21 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
       // Le conversazioni chiuse compaiono solo nel filtro dedicato (archivio).
       if (statoFilter !== "chiuse" && c.stato === "chiusa") return false;
       if (canaleFilter !== "tutti" && c.ultimo_canale !== canaleFilter) return false;
-      if (
-        q &&
-        !(
+      if (q) {
+        const clientMatch =
           (c.nome || "").toLowerCase().includes(q) ||
           (c.email || "").toLowerCase().includes(q) ||
           (c.telefono || "").toLowerCase().includes(q) ||
-          (c.anteprima || "").toLowerCase().includes(q)
-        )
-      )
-        return false;
+          (c.anteprima || "").toLowerCase().includes(q);
+        // Se la ricerca full-content è disponibile, includi anche le entità con un
+        // messaggio che combacia nel TESTO (non solo nell'anteprima).
+        const contentMatch =
+          !!contentSearch.data?.available && contentSearch.data.keys.has(keyOf(c));
+        if (!clientMatch && !contentMatch) return false;
+      }
       return true;
     });
-  }, [lista, search, statoFilter, canaleFilter, user?.id]);
+  }, [lista, search, statoFilter, canaleFilter, user?.id, contentSearch.data]);
 
   const nonLetteTot = useMemo(
     () => lista.reduce((n, c) => n + (c.stato !== "chiusa" && c.non_letti > 0 ? 1 : 0), 0),

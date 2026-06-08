@@ -130,3 +130,42 @@ export function useConversazioneOverlay(companyId: string | null | undefined) {
     },
   });
 }
+
+/**
+ * Ricerca nel CONTENUTO dei messaggi (RPC conversazioni_cerca). DEGRADO AUTOMATICO:
+ * se l'RPC non è ancora deployata su prod ritorna `{ available: false }` → l'inbox
+ * ricade sulla ricerca client-side senza errori. Ritorna l'insieme delle chiavi
+ * entità che combaciano (`entita_tipo:entita_id`).
+ */
+export function useConversazioniCerca(companyId: string | null | undefined, query: string) {
+  const q = (query ?? "").trim();
+  return useQuery<{ available: boolean; keys: Set<string> }>({
+    queryKey: ["conversazioni-cerca", companyId, q],
+    enabled: !!companyId && q.length >= 2,
+    staleTime: 10_000,
+    queryFn: async () => {
+      const { data, error } = await callRpc<Array<{ entita_tipo: string; entita_id: string }>>(
+        "conversazioni_cerca",
+        { p_company_id: companyId, p_query: q },
+      );
+      if (error) {
+        const msg = (error.message || "").toLowerCase();
+        // RPC non ancora presente su prod (modalità locale) → degrada silenziosamente.
+        if (
+          msg.includes("does not exist") ||
+          msg.includes("could not find") ||
+          msg.includes("schema cache") ||
+          msg.includes("conversazioni_cerca") ||
+          msg.includes("404")
+        ) {
+          return { available: false, keys: new Set<string>() };
+        }
+        throw new Error(error.message);
+      }
+      return {
+        available: true,
+        keys: new Set((data ?? []).map((r) => `${r.entita_tipo}:${r.entita_id}`)),
+      };
+    },
+  });
+}
