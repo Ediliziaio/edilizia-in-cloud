@@ -1135,7 +1135,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       <div className="flex-1 flex flex-col min-w-0 h-[60vh] lg:h-auto">
         {/* Unified Timeline */}
         <div className="flex-1 overflow-hidden">
-          <UnifiedContactTimeline contactId={id!} companyId={companyId!} contactPhone={contact.phone} />
+          <UnifiedContactTimeline contactId={id!} companyId={companyId!} contactPhone={contact.phone} contactEmail={contact.email} />
         </div>
 
         {/* Message input bar */}

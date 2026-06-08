@@ -78,6 +78,18 @@ function digits(phone: string | null | undefined): string {
   return (phone ?? "").replace(/\D/g, "");
 }
 
+function stripHtml(html: string | null | undefined): string {
+  return (html ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** Testo bolla email: oggetto (in grassetto logico) + estratto corpo. */
+function emailBody(subject: string | null | undefined, text: string | null | undefined, html: string | null | undefined): string {
+  const body = (text && text.trim()) ? text.trim() : stripHtml(html);
+  const subj = (subject ?? "").trim();
+  const snippet = body.slice(0, 600);
+  return subj ? `✉️ ${subj}${snippet ? "\n" + snippet : ""}` : (snippet || "(email)");
+}
+
 // Indicatore di stato (stile WhatsApp) per i messaggi inviati.
 function StatusTick({ status }: { status?: string }) {
   if (!status) return null;
@@ -92,10 +104,12 @@ export function UnifiedContactTimeline({
   contactId,
   companyId,
   contactPhone,
+  contactEmail,
 }: {
   contactId: string;
   companyId: string;
   contactPhone?: string | null;
+  contactEmail?: string | null;
 }) {
   const [filter, setFilter] = useState<FilterCategory>("all");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -150,6 +164,47 @@ export function UnifiedContactTimeline({
       return data;
     },
     enabled: !!companyId && phoneDigits.length >= 8,
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
+  });
+
+  // Email IN ARRIVO (risposte del contatto) → email_inbox, agganciata per indirizzo.
+  const emailLower = (contactEmail ?? "").trim().toLowerCase();
+  const { data: emailInbox = [], isError: errEmailIn } = useQuery({
+    queryKey: ["unified_email_inbox", companyId, emailLower],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("email_inbox")
+        .select("id, subject, raw_text, raw_html, from_email, received_at")
+        .eq("company_id", companyId)
+        .ilike("from_email", emailLower)
+        .neq("is_personale", true)
+        .order("received_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!companyId && emailLower.includes("@"),
+    refetchInterval: 30000,
+    refetchIntervalInBackground: false,
+  });
+
+  // Email INVIATE (modulo email + transazionali) → email_outbox, per indirizzo destinatario.
+  const { data: emailOutbox = [], isError: errEmailOut } = useQuery({
+    queryKey: ["unified_email_outbox", companyId, emailLower],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("email_outbox")
+        .select("id, subject, body_text, body_html, to_emails, status, sent_at, created_at")
+        .eq("company_id", companyId)
+        .contains("to_emails", [emailLower])
+        .neq("status", "draft")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!companyId && emailLower.includes("@"),
     refetchInterval: 30000,
     refetchIntervalInBackground: false,
   });
@@ -222,6 +277,7 @@ export function UnifiedContactTimeline({
     errAct && "attività",
     errMsg && "messaggi",
     errWa && "WhatsApp",
+    (errEmailIn || errEmailOut) && "email ricevute/inviate",
     errEmail && "email",
     errCall && "chiamate",
     errApt && "appuntamenti",
@@ -285,6 +341,39 @@ export function UnifiedContactTimeline({
       });
     }
 
+    // Email IN ARRIVO (risposte del contatto) → bolla a sinistra
+    for (const em of emailInbox) {
+      events.push({
+        id: `ein-${em.id}`,
+        type: "message_email",
+        category: "message",
+        direction: "inbound",
+        channelLabel: "Email",
+        icon: <Mail className="h-3 w-3" />,
+        color: "",
+        title: "Email",
+        description: emailBody(em.subject, em.raw_text, em.raw_html),
+        timestamp: em.received_at,
+      });
+    }
+
+    // Email INVIATE (modulo + transazionali) → bolla a destra
+    for (const em of emailOutbox) {
+      events.push({
+        id: `eout-${em.id}`,
+        type: "message_email",
+        category: "message",
+        direction: "outbound",
+        channelLabel: "Email",
+        status: em.status,
+        icon: <Mail className="h-3 w-3" />,
+        color: "",
+        title: "Email",
+        description: emailBody(em.subject, em.body_text, em.body_html),
+        timestamp: em.sent_at || em.created_at,
+      });
+    }
+
     for (const log of emailLogs) {
       const campaignName = (log.email_campaigns as any)?.name || "Campagna";
       events.push({
@@ -342,7 +431,7 @@ export function UnifiedContactTimeline({
     // ASCENDENTE: i più vecchi sopra, i più recenti in fondo (stile chat).
     events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     return events;
-  }, [activities, messages, waInbound, emailLogs, callLogs, appointments, notes]);
+  }, [activities, messages, waInbound, emailInbox, emailOutbox, emailLogs, callLogs, appointments, notes]);
 
   const filtered = filter === "all" ? allEvents : allEvents.filter((e) => e.category === filter);
 
