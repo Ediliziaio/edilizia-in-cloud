@@ -26,7 +26,10 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const authHeader = req.headers.get("Authorization") ?? "";
-  const cronSecret = req.headers.get("x-cron-secret") ?? "";
+  // Accetta entrambi i nomi header usati nel progetto (x-cron-secret diretto e
+  // x-internal-cron-secret inviato da public.silvio_invoke_edge).
+  const cronSecret =
+    req.headers.get("x-cron-secret") ?? req.headers.get("x-internal-cron-secret") ?? "";
   const internalSecret = Deno.env.get("INTERNAL_CRON_SECRET") ?? "";
 
   const supabase = createClient(

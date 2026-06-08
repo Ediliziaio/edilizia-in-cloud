@@ -576,6 +576,12 @@ verify_jwt = false
 [functions.whatsapp-operational-reminders]
 verify_jwt = false
 
+# Sync template Meta → wa_meta_templates (cron 6h via silvio_invoke_edge + bottone UI admin).
+# Auth interna nella funzione: service-role / x-internal-cron-secret / admin azienda (getUser).
+# Senza verify_jwt=false il gateway rifiutava la chiamata cron (bearer non-JWT) con 401.
+[functions.sync-meta-templates]
+verify_jwt = false
+
 # Lead Scraper · tracking pubblico aperture/click email outreach (pixel + redirect). No auth utente.
 [functions.lead-scraper-track]
 verify_jwt = false
