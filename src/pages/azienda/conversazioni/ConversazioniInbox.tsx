@@ -224,7 +224,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
               ) : (
                 <div className="space-y-3 max-w-3xl mx-auto">
                   {timeline.map((m, i) => {
-                    const meta = CANALE_META[m.canale];
+                    const meta = CANALE_META[m.canale] ?? CANALE_META.email;
                     const out = m.direzione === "out";
                     return (
                       <div key={`${m.ref_id}-${i}`} className={cn("flex", out ? "justify-end" : "justify-start")}>
@@ -245,6 +245,7 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
             </ScrollArea>
 
             <ConversazioneComposer
+              key={keyOf(selectedItem)}
               entitaTipo={selectedItem.entita_tipo}
               entitaId={selectedItem.entita_id}
               email={selectedItem.email}
