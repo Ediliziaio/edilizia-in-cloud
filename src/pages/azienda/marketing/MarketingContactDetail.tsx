@@ -1135,7 +1135,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       <div className="flex-1 flex flex-col min-w-0 h-[60vh] lg:h-auto">
         {/* Unified Timeline */}
         <div className="flex-1 overflow-hidden">
-          <UnifiedContactTimeline contactId={id!} companyId={companyId!} />
+          <UnifiedContactTimeline contactId={id!} companyId={companyId!} contactPhone={contact.phone} />
         </div>
 
         {/* Message input bar */}
@@ -1293,26 +1293,6 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             )}
           </div>
 
-          {/* Recent messages */}
-          {contactMessages.length > 0 && (
-            <div className="px-3 pb-2 max-h-32 overflow-y-auto">
-              <p className="text-[10px] font-medium text-muted-foreground mb-1">Messaggi recenti</p>
-              {contactMessages.slice(0, 5).map((msg: any) => (
-                <div key={msg.id} className="flex items-center gap-1.5 py-0.5">
-                  {msg.channel === "whatsapp" ? <MessageSquare className="h-3 w-3 text-emerald-600 shrink-0" /> :
-                   msg.channel === "email" ? <Mail className="h-3 w-3 text-violet-600 shrink-0" /> :
-                   <Smartphone className="h-3 w-3 text-sky-600 shrink-0" />}
-                  <span className="text-[10px] truncate flex-1">{msg.content}</span>
-                  <Badge variant={msg.status === "sent" ? "default" : msg.status === "failed" ? "destructive" : "secondary"} className="text-[8px] h-3.5 px-1">
-                    {msg.status}
-                  </Badge>
-                  <span className="text-[9px] text-muted-foreground shrink-0">
-                    {format(new Date(msg.created_at), "dd/MM HH:mm")}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
