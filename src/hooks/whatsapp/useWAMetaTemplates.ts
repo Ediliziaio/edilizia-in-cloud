@@ -31,10 +31,12 @@ export function useWAMetaTemplates(waNumberId?: string, onlyApproved = true) {
 
 export function useSyncMetaTemplates() {
   const qc = useQueryClient();
+  const companyId = useEffectiveCompanyId();
   return useMutation({
-    mutationFn: async () => {
+    // waNumberId opzionale: se passato sincronizza solo quel numero/WABA.
+    mutationFn: async (waNumberId?: string) => {
       const { data, error } = await supabase.functions.invoke("sync-meta-templates", {
-        body: {},
+        body: { company_id: companyId, wa_number_id: waNumberId },
       });
       if (error) throw error;
       return data as { synced?: number; errors?: number };

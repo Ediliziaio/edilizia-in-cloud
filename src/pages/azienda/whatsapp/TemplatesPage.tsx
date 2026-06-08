@@ -282,7 +282,7 @@ export default function TemplatesPage() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={() => sync.mutate(undefined, { onSuccess: () => invalidate() })}
+            onClick={() => sync.mutate(waNumberId ?? undefined, { onSuccess: () => invalidate() })}
             disabled={sync.isPending}
           >
             {sync.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCcw className="mr-2 h-4 w-4" />}

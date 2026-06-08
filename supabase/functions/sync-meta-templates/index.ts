@@ -5,6 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
 import { decryptMaybeEncrypted, getEncryptionKey } from "../_shared/encryption.ts";
+import { assertMetaCompanyAdminAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
 
 const META_API_VERSION = "v22.0";
 
@@ -28,31 +29,75 @@ Deno.serve(async (req) => {
   const cronSecret = req.headers.get("x-cron-secret") ?? "";
   const internalSecret = Deno.env.get("INTERNAL_CRON_SECRET") ?? "";
 
-  // Autorizzato se: (a) JWT bearer role=service_role, (b) x-cron-secret valido.
-  // Supabase edge runtime fa verify_jwt=true di default; qui extra-check
-  // che il role sia service_role (no anon/authenticated).
-  const roleClaim = extractJwtRole(authHeader);
-  const authorized =
-    roleClaim === "service_role" ||
-    (internalSecret.length > 0 && cronSecret === internalSecret);
-  if (!authorized) {
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  const { data: numbers } = await supabase
+  // Due modi di autorizzazione:
+  //  (a) CRON / service_role → sincronizza TUTTI i numeri attivi.
+  //  (b) Utente admin loggato (UI "Sincronizza da Meta") → sincronizza SOLO la
+  //      propria azienda (e opzionalmente un singolo numero/WABA via
+  //      wa_number_id, così non si mischiano template tra WABA diverse).
+  const roleClaim = extractJwtRole(authHeader);
+  const isServiceRole = roleClaim === "service_role";
+  const isCron = internalSecret.length > 0 && cronSecret === internalSecret;
+
+  let companyFilter: string | null = null;
+  let numberFilter: string | null = null;
+
+  if (!isServiceRole && !isCron) {
+    // Percorso utente: valida il JWT e i permessi admin sull'azienda richiesta.
+    if (!authHeader.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const token = authHeader.substring(7);
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: { user }, error: userErr } = await userClient.auth.getUser(token);
+    if (userErr || !user) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let body: { company_id?: string; wa_number_id?: string } = {};
+    try { body = await req.json(); } catch { /* body opzionale */ }
+    if (!body.company_id) {
+      return new Response(JSON.stringify({ error: "company_id richiesto" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    try {
+      await assertMetaCompanyAdminAccess(supabase, user.id, body.company_id);
+    } catch (e) {
+      return new Response(JSON.stringify({ error: getErrorMessage(e) }), {
+        status: getErrorStatus(e),
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    companyFilter = body.company_id;
+    numberFilter = body.wa_number_id ?? null;
+  }
+
+  let numbersQuery = supabase
     .from("ai_whatsapp_numbers")
     .select("id, company_id, waba_id, access_token_encrypted")
     .is("deleted_at", null)
     .eq("stato", "active")
     .not("waba_id", "is", null);
+  if (companyFilter) numbersQuery = numbersQuery.eq("company_id", companyFilter);
+  if (numberFilter) numbersQuery = numbersQuery.eq("id", numberFilter);
+
+  const { data: numbers } = await numbersQuery;
 
   let totalSynced = 0;
   const errors: Array<Record<string, unknown>> = [];
