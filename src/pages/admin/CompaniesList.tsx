@@ -689,10 +689,13 @@ export default function CompaniesList() {
   const { data: uniquePlans = [] } = useQuery({
     queryKey: ["admin-subscription-plans-list"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Solo piani globali nel filtro (no piani ad hoc dei produttori). produttore_id non nei tipi → cast.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
         .from("subscription_plans")
         .select("id, name")
         .eq("is_active", true)
+        .is("produttore_id", null)
         .order("position", { ascending: true });
       if (error) throw error;
       return (data ?? []) as { id: string; name: string }[];

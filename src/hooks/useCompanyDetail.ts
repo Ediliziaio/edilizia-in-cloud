@@ -275,7 +275,9 @@ export function useCompanyDetail(id: string | undefined) {
   const { data: plans } = useQuery({
     queryKey: queryKeys.companyDetail.plansActive,
     queryFn: async () => {
-      const { data } = await supabase.from("subscription_plans").select("*").eq("is_active", true).order("position");
+      // Solo piani globali (no piani ad hoc dei produttori). produttore_id non nei tipi → cast.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any).from("subscription_plans").select("*").eq("is_active", true).is("produttore_id", null).order("position");
       return data || [];
     },
   });

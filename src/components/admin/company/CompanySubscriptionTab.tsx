@@ -584,10 +584,13 @@ function GiftPlanButton({
   const { data: plans = [], isLoading: plansLoading } = useQuery({
     queryKey: ["gift-plan-list"],
     queryFn: async (): Promise<PlanOption[]> => {
-      const { data, error } = await supabase
+      // Solo piani globali (no piani ad hoc dei produttori). produttore_id non nei tipi → cast.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
         .from("subscription_plans")
         .select("id, name, price_monthly, is_active")
         .eq("is_active", true)
+        .is("produttore_id", null)
         .order("price_monthly", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as PlanOption[];

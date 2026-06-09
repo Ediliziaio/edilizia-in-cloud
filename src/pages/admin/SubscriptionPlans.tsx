@@ -137,9 +137,13 @@ export default function SubscriptionPlans() {
   const { data: plans, isLoading, isError, refetch } = useQuery({
     queryKey: ["subscription-plans"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Solo piani GLOBALI (produttore_id null): i piani ad hoc dei produttori si
+      // gestiscono dalla scheda del produttore. produttore_id non è nei tipi generati → cast.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
         .from("subscription_plans")
         .select("*")
+        .is("produttore_id", null)
         .order("position", { ascending: true });
       if (error) throw error;
       return data;

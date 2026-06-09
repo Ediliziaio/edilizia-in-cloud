@@ -191,10 +191,13 @@ export default function CreateCompany() {
   const { data: plans = [] } = useQuery({
     queryKey: ["admin-subscription-plans-active"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Solo piani globali (no piani ad hoc dei produttori). produttore_id non nei tipi → cast.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
         .from("subscription_plans")
         .select("id, name, slug, trial_days, price_monthly")
         .eq("is_active", true)
+        .is("produttore_id", null)
         .order("position");
       if (error) throw error;
       return data ?? [];
