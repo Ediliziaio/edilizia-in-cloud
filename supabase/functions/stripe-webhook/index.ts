@@ -682,6 +682,24 @@ async function handleSubscriptionUpdated(
       .eq("company_id", company.id);
   }
 
+  // Meta CAPI — StartTrial: l'azienda entra in prova (status trialing per la
+  // prima volta) → audience di remarketing per chi prova ma non si abbona
+  // (win-back). Best-effort + no-op se EIC_CAPI_PIXEL_TOKEN non è configurato.
+  if (stripeStatus === "trialing" && previousStatus !== "trialing") {
+    const { data: trialCompany } = await supabase
+      .from("companies")
+      .select("email")
+      .eq("id", company.id)
+      .maybeSingle();
+    const trialEmail = (trialCompany as { email?: string } | null)?.email;
+    await sendPlatformCapiEvent(
+      "StartTrial",
+      { email: typeof trialEmail === "string" ? trialEmail : undefined, external_id: company.id },
+      { content_name: "Trial EiC", content_category: "subscription" },
+      `trial-${company.id}-${subscription.id}`,
+    );
+  }
+
   // ─── CUSTOMER OS — Sofia onboarding kickoff su PRIMA attivazione ────────
   // Trigger SOLO se il vecchio status NON era active (transizione null→active
   // o trial→active, NON re-attivazioni dopo past_due).
