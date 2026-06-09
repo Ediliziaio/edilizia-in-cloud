@@ -8,6 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { CreateProduttoreDialog } from "@/components/admin/produttori/CreateProduttoreDialog";
@@ -242,6 +246,9 @@ export default function ProduttoriDashboard() {
                       initialPct={p.wholesale_pct}
                       onSaved={() => qc.invalidateQueries({ queryKey: ["admin-produttori"] })}
                     />
+                    <div className="mb-3">
+                      <ChargeControl produttoreId={p.id} produttoreName={p.name} />
+                    </div>
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Rivenditori ({p.rivenditori_count})
                       {p.rivenditori_count > 0 && <> · {p.comped_count} comped</>}
@@ -314,6 +321,83 @@ function WholesaleControl({ produttoreId, initialPct, onSaved }: { produttoreId:
         </Button>
       </div>
     </div>
+  );
+}
+
+function ChargeControl({ produttoreId, produttoreName }: { produttoreId: string; produttoreName: string }) {
+  const [confirm, setConfirm] = useState<{ amount: number; period: string } | null>(null);
+
+  const preview = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("charge-produttore-billing", {
+        body: { produttore_id: produttoreId, preview: true },
+      });
+      if (error) throw new Error(error.message);
+      const r = data as { success?: boolean; error?: string; amount?: number; period?: string; has_customer?: boolean } | null;
+      if (!r || r.success === false) throw new Error(r?.error ?? "Errore");
+      return r;
+    },
+    onSuccess: (r) => {
+      if ((r.amount ?? 0) <= 0) { toast.info("Nessun importo da addebitare"); return; }
+      if (!r.has_customer) { toast.warning("Il produttore non ha ancora una carta a sistema"); return; }
+      setConfirm({ amount: r.amount as number, period: r.period as string });
+    },
+    onError: (e) => toast.error("Errore", { description: (e as Error).message }),
+  });
+
+  const charge = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("charge-produttore-billing", {
+        body: { produttore_id: produttoreId, preview: false },
+      });
+      if (error) throw new Error(error.message);
+      const r = data as { success?: boolean; error?: string; charged?: boolean; reason?: string; status?: string; amount?: number } | null;
+      if (!r || r.success === false) throw new Error(r?.error ?? "Errore");
+      return r;
+    },
+    onSuccess: (r) => {
+      setConfirm(null);
+      if (r.charged) toast.success(`Addebitato €${r.amount} — fattura ${r.status}`);
+      else if (r.reason === "already_billed") toast.info(`Già fatturato questo mese (${r.status ?? "—"})`);
+      else if (r.reason === "no_card") toast.warning("Il produttore non ha una carta a sistema");
+      else if (r.reason === "no_amount") toast.info("Nessun importo da addebitare");
+      else toast.info(`Non addebitato: ${r.reason ?? r.status ?? "—"}`);
+    },
+    onError: (e) => toast.error("Addebito fallito", { description: (e as Error).message }),
+  });
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-background p-3">
+        <BadgeEuro className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0">
+          <span className="text-sm font-medium">Conto wholesale</span>
+          <span className="ml-1 text-xs text-muted-foreground">addebito sulla carta del produttore</span>
+        </div>
+        <Button size="sm" variant="outline" className="ml-auto gap-1.5" disabled={preview.isPending} onClick={() => preview.mutate()}>
+          {preview.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BadgeEuro className="h-3.5 w-3.5" />}
+          Addebita conto
+        </Button>
+      </div>
+
+      <AlertDialog open={!!confirm} onOpenChange={(o) => { if (!o) setConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Addebitare €{confirm?.amount}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Verrà addebitato il conto wholesale di <strong>{produttoreName}</strong> ({confirm?.period}) sulla sua carta.
+              È un pagamento <strong>reale</strong> e immediato.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction disabled={charge.isPending} onClick={() => charge.mutate()}>
+              {charge.isPending ? "Addebito…" : "Addebita ora"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
