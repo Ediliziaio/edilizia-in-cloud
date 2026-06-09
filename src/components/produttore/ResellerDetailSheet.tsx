@@ -44,6 +44,8 @@ export function ResellerDetailSheet({
   const resellerId = target?.id ?? null;
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [emailDraft, setEmailDraft] = useState("");
   const [accessLink, setAccessLink] = useState<string | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -75,6 +77,21 @@ export function ResellerDetailSheet({
     onError: (e) => toast.error("Rinomina fallita", { description: (e as Error).message }),
   });
 
+  const editEmail = useMutation({
+    mutationFn: async (email: string) => {
+      const e = email.trim().toLowerCase();
+      if (!e || !e.includes("@")) throw new Error("Email non valida");
+      const { data: res, error } = await supabase.functions.invoke("update-reseller", {
+        body: { reseller_id: resellerId, admin_email: e },
+      });
+      if (error) throw new Error(error.message);
+      const r = res as { success?: boolean; error?: string } | null;
+      if (r && r.success === false) throw new Error(r.error ?? "Cambio email fallito");
+    },
+    onSuccess: () => { toast.success("Email aggiornata"); setEditingEmail(false); refetch(); onMutated(); },
+    onError: (e) => toast.error("Cambio email fallito", { description: (e as Error).message }),
+  });
+
   const resend = useMutation({
     mutationFn: async () => {
       const { data: res, error } = await supabase.functions.invoke("resend-reseller-invite", {
@@ -94,7 +111,7 @@ export function ResellerDetailSheet({
     catch { toast.error("Impossibile copiare"); }
   };
 
-  const reset = () => { setEditingName(false); setAccessLink(null); };
+  const reset = () => { setEditingName(false); setEditingEmail(false); setAccessLink(null); };
   const r = data?.reseller;
 
   return (
@@ -155,7 +172,25 @@ export function ResellerDetailSheet({
 
             <Section title="Contatto admin">
               <div className="space-y-1.5 text-sm">
-                <div className="flex items-center gap-2"><Mail className="h-4 w-4 shrink-0 text-muted-foreground" /><span className="truncate">{data.invite?.email ?? r.email ?? "—"}</span></div>
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  {editingEmail ? (
+                    <div className="flex flex-1 items-center gap-1.5">
+                      <Input type="email" value={emailDraft} onChange={(e) => setEmailDraft(e.target.value)} className="h-7 text-sm" autoFocus />
+                      <Button size="icon" className="h-7 w-7 shrink-0" disabled={editEmail.isPending} onClick={() => editEmail.mutate(emailDraft)} aria-label="Salva email">
+                        {editEmail.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => setEditingEmail(false)} aria-label="Annulla"><X className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="truncate">{data.invite?.email ?? r.email ?? "—"}</span>
+                      <Button size="icon" variant="ghost" className="ml-auto h-6 w-6 shrink-0" onClick={() => { setEmailDraft(data.invite?.email ?? r.email ?? ""); setEditingEmail(true); }} aria-label="Modifica email">
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    </>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   {data.invite?.confirmed
                     ? <><CircleCheck className="h-4 w-4 text-emerald-600" /><span className="text-emerald-700">Accesso attivo</span></>
