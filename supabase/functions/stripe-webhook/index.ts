@@ -3,6 +3,7 @@ import Stripe from "npm:stripe@14";
 import { corsHeaders, secureHeaders } from "../_shared/headers.ts";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 import { emitPlatformEvent, PLATFORM_EVENTS } from "../_shared/platformAutomation.ts";
+import { sendPlatformCapiEvent } from "../_shared/capiPlatform.ts";
 
 // ─── Helpers ───────────────────────────────────────────────
 
@@ -501,6 +502,26 @@ async function handleInvoicePaid(
       "pagamento.metodo": "stripe",
     },
   });
+
+  // Meta CAPI (pixel piattaforma EiC) — eventi per Custom Audience di
+  // remarketing. Subscribe SOLO sul primo abbonamento (billing_reason
+  // subscription_create); Purchase su ogni fattura pagata (valore reale).
+  // Best-effort + no-op se EIC_CAPI_PIXEL_TOKEN non è configurato.
+  const valueEur = typeof invoice.amount_paid === "number" ? invoice.amount_paid / 100 : undefined;
+  const capiUser = {
+    email: typeof invoice.customer_email === "string" ? invoice.customer_email : undefined,
+    external_id: cPaid.id,
+  };
+  const capiCustom = {
+    value: valueEur,
+    currency: String(invoice.currency ?? "eur").toUpperCase(),
+    content_name: "Abbonamento EiC",
+    content_category: "subscription",
+  };
+  if (invoice.billing_reason === "subscription_create") {
+    await sendPlatformCapiEvent("Subscribe", capiUser, capiCustom, `sub-${cPaid.id}-${invoice.id}`);
+  }
+  await sendPlatformCapiEvent("Purchase", capiUser, capiCustom, `pur-${invoice.id}`);
 }
 
 async function handleInvoicePaymentFailed(
