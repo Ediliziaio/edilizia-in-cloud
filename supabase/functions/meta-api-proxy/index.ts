@@ -631,6 +631,24 @@ Deno.serve(async (req) => {
         break;
       }
 
+      // ── Diagnostica permessi: /me/permissions (granted vs declined) ──
+      case "get-permissions": {
+        const permRes = await fetchWithRetry(
+          `https://graph.facebook.com/${apiVersion}/me/permissions?access_token=${accessToken}`,
+        );
+        const permData = await permRes.json();
+        if (!permRes.ok) {
+          return new Response(
+            JSON.stringify({ error: permData.error?.message || "Errore lettura permessi", meta_error: permData.error ?? null }),
+            { status: 502, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } },
+          );
+        }
+        const granted = (permData.data || []).filter((p: any) => p.status === "granted").map((p: any) => p.permission);
+        const declined = (permData.data || []).filter((p: any) => p.status === "declined").map((p: any) => p.permission);
+        result = { meta_user_id: creds.meta_user_id, granted, declined };
+        break;
+      }
+
       // ── pages_read_engagement — post recenti della Pagina con engagement ──
       // Esercita il permesso pages_read_engagement (App Review) e alimenta il
       // pannello "Social". Accetta page_asset_id (risolto a page id) o page_id.
