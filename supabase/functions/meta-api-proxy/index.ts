@@ -631,6 +631,62 @@ Deno.serve(async (req) => {
         break;
       }
 
+      // ── App Review: una chiamata RIUSCITA per ogni permesso mancante ──
+      // Self-contained: scopre pagine/form da /me/accounts e prova più pagine
+      // finché pages_read_engagement/pages_manage_ads passano (pagine di
+      // proprietà diretta vs Business Manager).
+      case "run-app-review-calls": {
+        const out: Record<string, unknown> = {};
+        const G = async (path: string) => {
+          const sep = path.includes("?") ? "&" : "?";
+          const r = await fetchWithRetry(`https://graph.facebook.com/${apiVersion}/${path}${sep}access_token=${accessToken}`);
+          const j = await r.json();
+          return { ok: r.ok, status: r.status, error: j.error?.message ?? null, data: j };
+        };
+        // pages_show_list (+ raccoglie page token freschi)
+        const acc = await G(`me/accounts?fields=id,name,access_token&limit=15`);
+        out.pages_show_list = { ok: acc.ok, status: acc.status, error: acc.error };
+        // business_management
+        const biz = await G(`me/businesses?fields=id,name&limit=5`);
+        out.business_management = { ok: biz.ok, status: biz.status, error: biz.error };
+
+        const pages: any[] = acc.data?.data || [];
+        // pages_read_engagement — prova le pagine finché una passa (token pagina)
+        let pre: any = { ok: false, note: "nessuna pagina" };
+        for (const p of pages) {
+          const r = await fetchWithRetry(`https://graph.facebook.com/${apiVersion}/${p.id}/posts?fields=id,created_time&limit=1&access_token=${p.access_token}`);
+          const j = await r.json();
+          if (r.ok) { pre = { ok: true, status: r.status, page: p.name }; break; }
+          pre = { ok: false, status: r.status, error: j.error?.message ?? null, page: p.name };
+        }
+        out.pages_read_engagement = pre;
+        // pages_manage_ads — leggi leadgen_forms (token pagina); cattura un form
+        let pma: any = { ok: false, note: "nessuna pagina" };
+        let firstForm: string | null = null;
+        for (const p of pages) {
+          const r = await fetchWithRetry(`https://graph.facebook.com/${apiVersion}/${p.id}/leadgen_forms?fields=id,name&limit=1&access_token=${p.access_token}`);
+          const j = await r.json();
+          if (r.ok) {
+            pma = { ok: true, status: r.status, page: p.name };
+            if (j.data && j.data[0]) firstForm = j.data[0].id;
+            if (firstForm) break;
+          } else {
+            pma = { ok: false, status: r.status, error: j.error?.message ?? null };
+          }
+        }
+        out.pages_manage_ads = pma;
+        // leads_retrieval — leggi i lead di un form
+        if (firstForm) {
+          const r = await fetchWithRetry(`https://graph.facebook.com/${apiVersion}/${firstForm}/leads?fields=id,created_time&limit=1&access_token=${accessToken}`);
+          const j = await r.json();
+          out.leads_retrieval = { ok: r.ok, status: r.status, error: j.error?.message ?? null };
+        } else {
+          out.leads_retrieval = { ok: false, note: "nessun lead form trovato sulle pagine provate" };
+        }
+        result = out;
+        break;
+      }
+
       // ── Diagnostica permessi: /me/permissions (granted vs declined) ──
       case "get-permissions": {
         const permRes = await fetchWithRetry(
