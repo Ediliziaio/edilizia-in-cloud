@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
@@ -10,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { cn } from "@/lib/utils";
 import {
   Wallet, Building2, Factory, CreditCard, Info, Check, AlertCircle, RefreshCw, TrendingDown, Receipt,
+  Loader2, Plus, ExternalLink,
 } from "lucide-react";
 
 type BillingMode = "fabbrica_paga" | "reseller_paga";
@@ -27,6 +30,8 @@ interface Billing {
   totals: { list: number; yours: number; saving: number };
 }
 
+interface CardInfo { hasMethod: boolean; brand?: string; last4?: string; expMonth?: number; expYear?: number }
+
 const MODELS: { value: BillingMode; label: string; desc: string; Icon: typeof Factory }[] = [
   {
     value: "fabbrica_paga",
@@ -42,13 +47,6 @@ const MODELS: { value: BillingMode; label: string; desc: string; Icon: typeof Fa
   },
 ];
 
-const PAYMENT_LABEL: Record<string, string> = {
-  stripe: "Carta (Stripe)",
-  bank_transfer: "Bonifico IBAN",
-  sepa_debit: "Addebito SEPA",
-  other: "Altro provider",
-};
-
 /**
  * Fatturazione del PRODUTTORE — "Il tuo conto": quanto paghi alla piattaforma per i
  * rivenditori che paghi tu (comped), col prezzo wholesale (listino scontato della %
@@ -59,6 +57,7 @@ export default function ProduttoreFatturazione() {
   const { profile, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? profile?.company_id ?? null;
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: b, isLoading, isError, refetch } = useQuery({
     queryKey: ["produttore-billing", companyId],
@@ -85,6 +84,55 @@ export default function ProduttoreFatturazione() {
     },
     onError: (e) => toast.error("Salvataggio fallito", { description: (e as Error).message }),
   });
+
+  // Stato carta del produttore (riusa stripe-payment-method, già company-agnostico).
+  const { data: card, isLoading: cardLoading } = useQuery({
+    queryKey: ["produttore-card", companyId],
+    enabled: !!companyId,
+    queryFn: async (): Promise<CardInfo> => {
+      const { data, error } = await supabase.functions.invoke("stripe-payment-method", { body: {} });
+      if (error) return { hasMethod: false };
+      return (data ?? { hasMethod: false }) as CardInfo;
+    },
+  });
+
+  const addCard = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("create-produttore-setup-session", { body: {} });
+      if (error) throw new Error(error.message);
+      const url = (data as { url?: string } | null)?.url;
+      if (!url) throw new Error("URL di pagamento non disponibile");
+      return url;
+    },
+    onSuccess: (url) => { window.location.href = url; },
+    onError: (e) => toast.error("Impossibile avviare l'inserimento carta", { description: (e as Error).message }),
+  });
+
+  const managePortal = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("customer-portal", { body: {} });
+      if (error) throw new Error(error.message);
+      const url = (data as { url?: string } | null)?.url;
+      if (!url) throw new Error("URL del portale non disponibile");
+      return url;
+    },
+    onSuccess: (url) => { window.location.href = url; },
+    onError: (e) => toast.error("Impossibile aprire la gestione carta", { description: (e as Error).message }),
+  });
+
+  // Ritorno da Stripe Checkout (setup): toast + refetch + pulizia del parametro.
+  useEffect(() => {
+    const setup = searchParams.get("setup");
+    if (!setup) return;
+    if (setup === "success") {
+      toast.success("Carta aggiunta", { description: "Il metodo di pagamento è stato registrato." });
+      qc.invalidateQueries({ queryKey: ["produttore-card", companyId] });
+    } else if (setup === "cancel") {
+      toast.info("Operazione annullata");
+    }
+    searchParams.delete("setup");
+    setSearchParams(searchParams, { replace: true });
+  }, [searchParams, setSearchParams, qc, companyId]);
 
   const serverMode: BillingMode = b?.billing_mode ?? "fabbrica_paga";
   const mode: BillingMode = saveMode.isPending && saveMode.variables ? saveMode.variables : serverMode;
@@ -174,14 +222,40 @@ export default function ProduttoreFatturazione() {
             </p>
           )}
 
-          <div className="mt-4 flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-            <Info className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>
-              {b.payment_method && PAYMENT_LABEL[b.payment_method]
-                ? <>Metodo di pagamento: <strong className="text-foreground">{PAYMENT_LABEL[b.payment_method]}</strong>. </>
-                : <>Nessun metodo di pagamento configurato. </>}
-              La riscossione automatica (Stripe) è in arrivo: per ora il conto è calcolato e la fatturazione è gestita dal nostro team.
-            </span>
+          {/* Metodo di pagamento */}
+          <div className="mt-4 rounded-lg border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm">
+                <CreditCard className="h-4 w-4 shrink-0 text-muted-foreground" />
+                {cardLoading ? (
+                  <span className="text-muted-foreground">Verifica metodo di pagamento…</span>
+                ) : card?.hasMethod ? (
+                  <span>
+                    <span className="font-medium capitalize">{card.brand}</span> ···· {card.last4}
+                    {card.expMonth && card.expYear && (
+                      <span className="text-muted-foreground"> · scad {String(card.expMonth).padStart(2, "0")}/{String(card.expYear).slice(-2)}</span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Nessun metodo di pagamento</span>
+                )}
+              </div>
+              {!cardLoading && (card?.hasMethod ? (
+                <Button size="sm" variant="outline" className="gap-1.5" disabled={managePortal.isPending} onClick={() => managePortal.mutate()}>
+                  {managePortal.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
+                  Gestisci
+                </Button>
+              ) : (
+                <Button size="sm" className="gap-1.5" disabled={addCard.isPending} onClick={() => addCard.mutate()}>
+                  {addCard.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                  Aggiungi carta
+                </Button>
+              ))}
+            </div>
+            <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              La riscossione automatica del conto è in arrivo: la carta serve ad attivarla. Per ora la fatturazione è gestita dal nostro team.
+            </p>
           </div>
         </CardContent>
       </Card>
