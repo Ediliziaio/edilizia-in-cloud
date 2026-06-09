@@ -7,6 +7,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
 import { getSuppressedEmailMap, normalizeEmailAddress } from "../_shared/emailSuppression.ts";
 import {
   applyContactCustomFields,
@@ -193,6 +194,15 @@ Deno.serve(async (req) => {
             .replace(/\{\{email\}\}/gi, escapeHtml(c.email));
           personalizedHtml = applyContactCustomFields(personalizedHtml, c.id, customFieldResolver);
 
+          // Unsubscribe firmato (HMAC) + header List-Unsubscribe: compliance anti-spam
+          // anche per le campagne CRM cross-company (prima del tutto assente).
+          const co = c.company_id ?? "";
+          const unsubUrl = await appendTrackingSig(
+            `${supabaseUrl}/functions/v1/email-tracking?type=unsub&cid=${campaign_id}&rid=${c.id}&co=${co}`,
+            { co, rid: c.id, cid: campaign_id, type: "unsub" },
+          );
+          personalizedHtml = personalizedHtml.replace(/\{\{unsubscribe_url\}\}/g, unsubUrl);
+
           const result = await sendEmailUnified({
             companyId:    null,
             stream:       "marketing",
@@ -202,7 +212,7 @@ Deno.serve(async (req) => {
             templateName: "crm_campaign",
             skipCredits:  true,
             adminClient:  supabase,
-            metadata:     { campaign_id, contact_id: c.id },
+            metadata:     { campaign_id, contact_id: c.id, unsubscribe_url: unsubUrl },
           });
           if (result.ok) {
             sentCount++;
