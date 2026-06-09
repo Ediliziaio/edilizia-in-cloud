@@ -5,8 +5,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { CreateRivenditoreDialog } from "@/components/produttore/CreateRivenditoreDialog";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
@@ -15,10 +20,13 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
-  Users, Plus, Building2, AlertCircle, RefreshCw, Factory, CreditCard, CheckCircle2, Wallet, MoreVertical, Package,
+  Users, Plus, Building2, AlertCircle, RefreshCw, Factory, CreditCard, CheckCircle2,
+  Wallet, MoreVertical, Package, Search, Ban, Play,
 } from "lucide-react";
 
 type BillingMode = "fabbrica_paga" | "reseller_paga";
+type StatusFilter = "all" | "active" | "suspended";
+type BillingFilter = "all" | "comped" | "paid";
 
 interface Rivenditore {
   id: string;
@@ -28,11 +36,14 @@ interface Rivenditore {
   created_at: string;
   subscription_plan_id: string | null;
   plan_name: string | null;
+  plan_price: number;
 }
 
 /**
- * Dashboard del PRODUTTORE — panoramica + gestione dei propri rivenditori.
- * KPI (totale / attivi / chi paga) + elenco + creazione con scelta "chi paga".
+ * Dashboard del PRODUTTORE — console di gestione dei propri rivenditori.
+ * KPI + ricerca/filtri + righe con piano/€/chi-paga/stato + azioni (chi paga,
+ * cambia piano, sospendi/riattiva). Tutte le mutation invalidano sia l'elenco
+ * sia la Fatturazione (che dipende da piano + chi paga).
  */
 export default function ProduttoreDashboard() {
   const { profile, effectiveCompany } = useAuth();
@@ -42,6 +53,10 @@ export default function ProduttoreDashboard() {
   const [open, setOpen] = useState(false);
   const [createKey, setCreateKey] = useState(0);
   const openCreate = () => { setCreateKey((k) => k + 1); setOpen(true); };
+  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [billingFilter, setBillingFilter] = useState<BillingFilter>("all");
+  const [suspendTarget, setSuspendTarget] = useState<Rivenditore | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["produttore-rivenditori", companyId],
@@ -52,7 +67,7 @@ export default function ProduttoreDashboard() {
       const sb = supabase as any;
       const [rivsRes, compRes] = await Promise.all([
         sb.from("companies")
-          .select("id, name, status, billing_comped, created_at, subscription_plan_id, subscription_plans:subscription_plan_id(name)")
+          .select("id, name, status, billing_comped, created_at, subscription_plan_id, subscription_plans:subscription_plan_id(name, price_monthly)")
           .eq("parent_company_id", companyId)
           .order("created_at", { ascending: false }),
         sb.from("companies").select("reseller_billing_mode").eq("id", companyId).maybeSingle(),
@@ -68,11 +83,18 @@ export default function ProduttoreDashboard() {
           created_at: r.created_at as string,
           subscription_plan_id: (r.subscription_plan_id as string | null) ?? null,
           plan_name: (r.subscription_plans as { name?: string } | null)?.name ?? null,
+          plan_price: Number((r.subscription_plans as { price_monthly?: number } | null)?.price_monthly ?? 0),
         })) as Rivenditore[],
         mode: (compRes.data?.reseller_billing_mode ?? "fabbrica_paga") as BillingMode,
       };
     },
   });
+
+  // Piano e chi-paga influiscono sulla Fatturazione → invalido entrambe le query.
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["produttore-rivenditori", companyId] });
+    qc.invalidateQueries({ queryKey: ["produttore-fatturazione", companyId] });
+  };
 
   const setBilling = useMutation({
     mutationFn: async ({ id, comped }: { id: string; comped: boolean }) => {
@@ -85,8 +107,7 @@ export default function ProduttoreDashboard() {
     },
     onSuccess: () => {
       toast.success("Aggiornato", { description: "Modello di pagamento del rivenditore aggiornato." });
-      qc.invalidateQueries({ queryKey: ["produttore-rivenditori", companyId] });
-      qc.invalidateQueries({ queryKey: ["produttore-fatturazione", companyId] });
+      invalidate();
     },
     onError: (e) => toast.error("Aggiornamento fallito", { description: (e as Error).message }),
   });
@@ -102,9 +123,25 @@ export default function ProduttoreDashboard() {
     },
     onSuccess: () => {
       toast.success("Piano aggiornato", { description: "Il piano del rivenditore è stato cambiato." });
-      qc.invalidateQueries({ queryKey: ["produttore-rivenditori", companyId] });
+      invalidate();
     },
     onError: (e) => toast.error("Aggiornamento fallito", { description: (e as Error).message }),
+  });
+
+  const setStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: "active" | "suspended" }) => {
+      const { data: res, error } = await supabase.functions.invoke("set-reseller-status", {
+        body: { reseller_id: id, status },
+      });
+      if (error) throw new Error(error.message ?? "Operazione fallita");
+      const r = res as { success?: boolean; error?: string } | null;
+      if (r && r.success === false) throw new Error(r.error ?? "Operazione fallita");
+    },
+    onSuccess: (_d, vars) => {
+      toast.success(vars.status === "suspended" ? "Rivenditore sospeso" : "Rivenditore riattivato");
+      invalidate();
+    },
+    onError: (e) => toast.error("Operazione fallita", { description: (e as Error).message }),
   });
 
   const rivenditori = data?.rivenditori ?? [];
@@ -112,6 +149,25 @@ export default function ProduttoreDashboard() {
   const attivi = rivenditori.filter((r) => r.status === "active").length;
   const comped = rivenditori.filter((r) => r.billing_comped).length;
   const paganti = rivenditori.length - comped;
+  // Quanto paghi TU al mese = somma dei prezzi-piano dei rivenditori comped.
+  const youPayMonthly = rivenditori.filter((r) => r.billing_comped).reduce((s, r) => s + (r.plan_price ?? 0), 0);
+
+  const ql = q.trim().toLowerCase();
+  const filtered = rivenditori.filter((r) => {
+    if (ql && !r.name.toLowerCase().includes(ql)) return false;
+    if (statusFilter === "active" && r.status !== "active") return false;
+    if (statusFilter === "suspended" && r.status !== "suspended") return false;
+    if (billingFilter === "comped" && !r.billing_comped) return false;
+    if (billingFilter === "paid" && r.billing_comped) return false;
+    return true;
+  });
+
+  const pendingFor = (id: string) =>
+    (setBilling.isPending && setBilling.variables?.id === id) ||
+    (setPlan.isPending && setPlan.variables?.id === id) ||
+    (setStatus.isPending && setStatus.variables?.id === id);
+
+  const resetFilters = () => { setQ(""); setStatusFilter("all"); setBillingFilter("all"); };
 
   return (
     <div className="mx-auto max-w-5xl p-6">
@@ -133,7 +189,7 @@ export default function ProduttoreDashboard() {
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard icon={<Building2 className="h-5 w-5" />} value={rivenditori.length} label="Rivenditori" tone="default" loading={isLoading} />
         <StatCard icon={<CheckCircle2 className="h-5 w-5" />} value={attivi} label="Attivi" tone="emerald" loading={isLoading} />
-        <StatCard icon={<Factory className="h-5 w-5" />} value={comped} label="Paghi tu" tone="amber" loading={isLoading} />
+        <StatCard icon={<Factory className="h-5 w-5" />} value={comped} label="Paghi tu" sub={`~€${youPayMonthly}/mese`} tone="amber" loading={isLoading} />
         <StatCard icon={<CreditCard className="h-5 w-5" />} value={paganti} label="Pagano loro" tone="blue" loading={isLoading} />
       </div>
 
@@ -145,7 +201,7 @@ export default function ProduttoreDashboard() {
           <strong className="text-foreground">
             {mode === "fabbrica_paga" ? "Paghi tu per tutti" : "Paga ogni rivenditore"}
           </strong>
-          <span className="hidden sm:inline">· modificabile in Fatturazione, o per singolo rivenditore alla creazione.</span>
+          <span className="hidden sm:inline">· modificabile in Fatturazione, o per singolo rivenditore.</span>
         </div>
       )}
 
@@ -177,72 +233,124 @@ export default function ProduttoreDashboard() {
           </Button>
         </div>
       ) : (
-        <ul className="space-y-2">
-          {rivenditori.map((r) => (
-            <li key={r.id} className="flex items-center justify-between gap-3 rounded-xl border bg-card p-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-                  <Building2 className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{r.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    Creato il {new Date(r.created_at).toLocaleDateString("it-IT")}
-                  </div>
-                </div>
+        <>
+          {/* Toolbar: ricerca + filtri */}
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative sm:flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cerca rivenditore…" className="pl-9" />
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <FilterChips
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={[{ v: "all", label: "Tutti" }, { v: "active", label: "Attivi" }, { v: "suspended", label: "Sospesi" }]}
+              />
+              <FilterChips
+                value={billingFilter}
+                onChange={setBillingFilter}
+                options={[{ v: "all", label: "Tutti" }, { v: "comped", label: "Paghi tu", Icon: Factory }, { v: "paid", label: "Pagano loro", Icon: CreditCard }]}
+              />
+            </div>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="rounded-xl border border-dashed p-10 text-center">
+              <Search className="mx-auto mb-3 h-8 w-8 text-muted-foreground opacity-40" />
+              <p className="font-medium">Nessun rivenditore corrisponde ai filtri</p>
+              <Button variant="ghost" size="sm" className="mt-3" onClick={resetFilters}>Azzera filtri</Button>
+            </div>
+          ) : (
+            <>
+              <div className="mb-2 text-xs text-muted-foreground">
+                {filtered.length} di {rivenditori.length} rivenditori
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <Badge variant={r.status === "active" ? "default" : "secondary"}>{companyStatusLabelIt(r.status)}</Badge>
-                {r.plan_name && (
-                  <Badge variant="outline" className="hidden gap-1 sm:inline-flex">
-                    <Package className="h-3.5 w-3.5" /> {r.plan_name}
-                  </Badge>
-                )}
-                {r.billing_comped ? (
-                  <Badge variant="outline" className="gap-1 border-amber-200 text-amber-700">
-                    <Factory className="h-3.5 w-3.5" /> Paghi tu
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="gap-1 border-blue-200 text-blue-700">
-                    <CreditCard className="h-3.5 w-3.5" /> Paga lui
-                  </Badge>
-                )}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={(setBilling.isPending && setBilling.variables?.id === r.id) || (setPlan.isPending && setPlan.variables?.id === r.id)} title="Gestisci rivenditore" aria-label="Azioni rivenditore">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Chi paga l&apos;abbonamento</DropdownMenuLabel>
-                    <DropdownMenuItem disabled={!!r.billing_comped} onClick={() => setBilling.mutate({ id: r.id, comped: true })}>
-                      <Factory className="mr-2 h-4 w-4" /> Paghi tu
-                    </DropdownMenuItem>
-                    <DropdownMenuItem disabled={!r.billing_comped} onClick={() => setBilling.mutate({ id: r.id, comped: false })}>
-                      <CreditCard className="mr-2 h-4 w-4" /> Paga il rivenditore
-                    </DropdownMenuItem>
-                    {plans.length > 0 && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel>Piano</DropdownMenuLabel>
-                        {plans.map((p) => (
-                          <DropdownMenuItem
-                            key={p.id}
-                            disabled={r.subscription_plan_id === p.id}
-                            onClick={() => setPlan.mutate({ id: r.id, planId: p.id })}
-                          >
-                            <Package className="mr-2 h-4 w-4" /> {p.name}
-                            <span className="ml-auto pl-3 text-xs text-muted-foreground">€{p.price_monthly}</span>
+              <ul className="space-y-2">
+                {filtered.map((r) => (
+                  <li key={r.id} className="rounded-xl border bg-card p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                          <Building2 className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{r.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            Creato il {new Date(r.created_at).toLocaleDateString("it-IT")}
+                          </div>
+                        </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={pendingFor(r.id)} title="Gestisci rivenditore" aria-label="Azioni rivenditore">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuLabel>Chi paga l&apos;abbonamento</DropdownMenuLabel>
+                          <DropdownMenuItem disabled={!!r.billing_comped} onClick={() => setBilling.mutate({ id: r.id, comped: true })}>
+                            <Factory className="mr-2 h-4 w-4" /> Paghi tu
                           </DropdownMenuItem>
-                        ))}
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </li>
-          ))}
-        </ul>
+                          <DropdownMenuItem disabled={!r.billing_comped} onClick={() => setBilling.mutate({ id: r.id, comped: false })}>
+                            <CreditCard className="mr-2 h-4 w-4" /> Paga il rivenditore
+                          </DropdownMenuItem>
+                          {plans.length > 0 && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuLabel>Piano</DropdownMenuLabel>
+                              {plans.map((p) => (
+                                <DropdownMenuItem
+                                  key={p.id}
+                                  disabled={r.subscription_plan_id === p.id}
+                                  onClick={() => setPlan.mutate({ id: r.id, planId: p.id })}
+                                >
+                                  <Package className="mr-2 h-4 w-4" /> {p.name}
+                                  <span className="ml-auto pl-3 text-xs text-muted-foreground">€{p.price_monthly}</span>
+                                </DropdownMenuItem>
+                              ))}
+                            </>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel>Stato</DropdownMenuLabel>
+                          {r.status === "suspended" ? (
+                            <DropdownMenuItem onClick={() => setStatus.mutate({ id: r.id, status: "active" })}>
+                              <Play className="mr-2 h-4 w-4" /> Riattiva
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setSuspendTarget(r)}>
+                              <Ban className="mr-2 h-4 w-4" /> Sospendi
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                      <Badge variant={r.status === "active" ? "default" : r.status === "suspended" ? "destructive" : "secondary"}>
+                        {companyStatusLabelIt(r.status)}
+                      </Badge>
+                      {r.plan_name && (
+                        <Badge variant="outline" className="gap-1">
+                          <Package className="h-3.5 w-3.5" /> {r.plan_name}
+                          {r.plan_price > 0 && <span className="text-muted-foreground">· €{r.plan_price}/mese</span>}
+                        </Badge>
+                      )}
+                      {r.billing_comped ? (
+                        <Badge variant="outline" className="gap-1 border-amber-200 text-amber-700">
+                          <Factory className="h-3.5 w-3.5" /> Paghi tu
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="gap-1 border-blue-200 text-blue-700">
+                          <CreditCard className="h-3.5 w-3.5" /> Paga lui
+                        </Badge>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </>
       )}
 
       <CreateRivenditoreDialog
@@ -252,16 +360,69 @@ export default function ProduttoreDashboard() {
         companyId={companyId}
         defaultComped={mode === "fabbrica_paga"}
       />
+
+      <AlertDialog open={!!suspendTarget} onOpenChange={(o) => { if (!o) setSuspendTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sospendere {suspendTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              L&apos;area del rivenditore verrà bloccata e potrà rientrare solo dopo la riattivazione.
+              Nessun dato viene eliminato: puoi riattivarlo quando vuoi.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (suspendTarget) setStatus.mutate({ id: suspendTarget.id, status: "suspended" });
+                setSuspendTarget(null);
+              }}
+            >
+              Sospendi
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function FilterChips<T extends string>({
+  value, onChange, options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { v: T; label: string; Icon?: typeof Factory }[];
+}) {
+  return (
+    <div className="inline-flex rounded-lg border bg-muted/40 p-0.5">
+      {options.map(({ v, label, Icon }) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onChange(v)}
+          aria-pressed={value === v}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+            value === v ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {Icon && <Icon className="h-3.5 w-3.5" />}
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
 
 function StatCard({
-  icon, value, label, tone, loading,
+  icon, value, label, sub, tone, loading,
 }: {
   icon: React.ReactNode;
   value: number;
   label: string;
+  sub?: string;
   tone: "default" | "emerald" | "amber" | "blue";
   loading?: boolean;
 }) {
@@ -277,6 +438,7 @@ function StatCard({
         <div className="min-w-0">
           {loading ? <Skeleton className="h-7 w-10" /> : <div className="text-2xl font-bold leading-none">{value}</div>}
           <div className="mt-1 text-xs text-muted-foreground">{label}</div>
+          {sub && !loading && <div className="text-[11px] leading-tight text-muted-foreground">{sub}</div>}
         </div>
       </CardContent>
     </Card>
