@@ -20,6 +20,7 @@ import {
   Eye,
   LogIn,
   Pause,
+  Plus,
   Search,
   Shield,
 } from "lucide-react";
@@ -42,6 +43,7 @@ import {
   type AccountantAccessStatus,
 } from "@/hooks/accountant/useAccountantPortalData";
 import { buildCommercialistaCompanyUrl } from "@/lib/commercialistaImpersonation";
+import { CreateAziendaDialog } from "@/components/accountant/CreateAziendaDialog";
 
 function companyInitials(name: string) {
   return (
@@ -91,6 +93,9 @@ export default function AccountantDashboard() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | AccountantAccessStatus>("all");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createKey, setCreateKey] = useState(0);
+  const openCreate = () => { setCreateKey((k) => k + 1); setCreateOpen(true); };
 
   const stats = useMemo(() => {
     const active = companies.filter((c) => c.status === "active");
@@ -133,13 +138,20 @@ export default function AccountantDashboard() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight">Cruscotto studio</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Benvenuto in <span className="font-semibold">{firm?.name}</span>. Apri il portale
-          di un cliente per operare nella sua piattaforma con vista commercialista.
-        </p>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Cruscotto studio</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Benvenuto in <span className="font-semibold">{firm?.name}</span>. Apri il portale
+            di un cliente per operare nella sua piattaforma con vista commercialista.
+          </p>
+        </div>
+        <Button className="gap-1.5 self-start sm:self-auto" disabled={!firm?.id} onClick={openCreate}>
+          <Plus className="h-4 w-4" /> Crea azienda
+        </Button>
       </header>
+
+      <CreateAziendaDialog key={createKey} open={createOpen} onOpenChange={setCreateOpen} firmId={firm?.id ?? null} />
 
       {/* KPI cards */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
