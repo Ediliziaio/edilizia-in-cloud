@@ -176,6 +176,7 @@ export default function CompaniesList() {
   const statusFilter = searchParams.get("status") || "all";
   const sectorFilter = searchParams.get("sector") || "all";
   const planFilter = searchParams.get("plan") || "all";
+  const tipoFilter = searchParams.get("tipo") || "all"; // all | diretta | rivenditore
   const healthFilter = (searchParams.get("health") || "all") as HealthFilter;
   const sortKey = (searchParams.get("sort") || null) as SortKey | null;
   const sortDir = (searchParams.get("dir") || "asc") as SortDir;
@@ -393,6 +394,31 @@ export default function CompaniesList() {
   }, [healthFilter, healthData]);
   const healthFilterIdsKey = healthFilterIds?.join(",") ?? "all";
 
+  // Info rivenditori (parent_company_id non è nei tipi generati → client non tipizzato):
+  // ID dei rivenditori + nome del produttore padre, per il badge e il filtro "Tipo".
+  const { data: resellerInfo } = useQuery({
+    queryKey: ["admin-companies-reseller-info"],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const { data: kids } = await sb.from("companies").select("id, parent_company_id").not("parent_company_id", "is", null);
+      const kidsArr = (kids ?? []) as { id: string; parent_company_id: string }[];
+      const parentIds = [...new Set(kidsArr.map((r) => r.parent_company_id))];
+      const { data: parents } = parentIds.length
+        ? await sb.from("companies").select("id, name").in("id", parentIds)
+        : { data: [] };
+      const nameById = new Map<string, string>(((parents ?? []) as { id: string; name: string }[]).map((p) => [p.id, p.name]));
+      const parentNameByChild: Record<string, string> = {};
+      kidsArr.forEach((r) => { parentNameByChild[r.id] = nameById.get(r.parent_company_id) ?? ""; });
+      return { ids: kidsArr.map((r) => r.id), parentNameByChild };
+    },
+  });
+  const resellerIds = useMemo(() => resellerInfo?.ids ?? [], [resellerInfo]);
+  const resellerIdSet = useMemo(() => new Set(resellerIds), [resellerIds]);
+  const parentNameByChild = resellerInfo?.parentNameByChild ?? {};
+  const resellerIdsKey = resellerIds.join(",");
+
   const { data: pagedResult, isLoading, isError, refetch } = useQuery({
     queryKey: [
       ...queryKeys.admin.companiesFull,
@@ -402,6 +428,8 @@ export default function CompaniesList() {
       statusFilter,
       sectorFilter,
       planFilter,
+      tipoFilter,
+      tipoFilter !== "all" ? resellerIdsKey : "",
       healthFilter,
       healthFilterIdsKey,
       noPaymentFilter,
@@ -437,6 +465,14 @@ export default function CompaniesList() {
       if (statusFilter !== "all") query = query.eq("status", statusFilter);
       if (sectorFilter !== "all") query = query.eq("sector", sectorFilter);
       if (planFilter !== "all") query = query.eq("subscription_plan_id", planFilter);
+      // Filtro Tipo: "rivenditore" (ha un produttore padre) | "diretta" (nessun padre).
+      // Usa gli ID rivenditori precalcolati (parent_company_id non è nei tipi generati).
+      if (tipoFilter === "rivenditore") {
+        if (resellerIds.length === 0) return { data: [], totalCount: 0 };
+        query = query.in("id", resellerIds);
+      } else if (tipoFilter === "diretta" && resellerIds.length > 0) {
+        query = query.not("id", "in", `(${resellerIds.join(",")})`);
+      }
       if (noPaymentFilter) {
         query = query
           .in("status", ["active", "trial"])
@@ -667,7 +703,7 @@ export default function CompaniesList() {
   // Reset to page 1 whenever server-side filter/sort params change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, revenueFilter, sortKey, sortDir, segmentFilters]);
+  }, [debouncedSearch, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, revenueFilter, sortKey, sortDir, segmentFilters]);
 
   // Health/no-payment filters are pushed into the server query so pagination
   // and counts stay coherent across the whole dataset.
@@ -707,11 +743,11 @@ export default function CompaniesList() {
 
   const totalPages = Math.max(1, Math.ceil(serverTotalCount / SERVER_PAGE_SIZE));
 
-  const hasActiveFilters = inputSearch || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || healthFilter !== "all" || noPaymentFilter || revenueFilter !== "all" || segmentActiveCount > 0;
+  const hasActiveFilters = inputSearch || statusFilter !== "all" || sectorFilter !== "all" || planFilter !== "all" || tipoFilter !== "all" || healthFilter !== "all" || noPaymentFilter || revenueFilter !== "all" || segmentActiveCount > 0;
 
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [currentPage, debouncedSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, revenueFilter, sortKey, sortDir, segmentFilters]);
+  }, [currentPage, debouncedSearch, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, revenueFilter, sortKey, sortDir, segmentFilters]);
 
   // Smart filter presets — use allCompaniesSummary so counts reflect the full dataset, not just the current page
   const filterPresets: FilterPreset[] = useMemo(() => {
@@ -813,11 +849,12 @@ export default function CompaniesList() {
     { key: "status", label: "Stato", value: statusFilter === "all" ? "all" : (STATUS_LABELS_MAP[statusFilter] || statusFilter), onClear: () => setFilter({ status: null }) },
     { key: "sector", label: "Settore", value: sectorFilter === "all" ? "all" : (sectorLabels[sectorFilter] || sectorFilter), onClear: () => setFilter({ sector: null }) },
     { key: "plan", label: "Piano", value: planFilter === "all" ? "all" : (uniquePlans.find((p) => p.id === planFilter)?.name || planFilter), onClear: () => setFilter({ plan: null }) },
+    { key: "tipo", label: "Tipo", value: tipoFilter === "all" ? "all" : (tipoFilter === "rivenditore" ? "Rivenditori" : "Dirette"), onClear: () => setFilter({ tipo: null }) },
     { key: "health", label: "Health", value: healthFilter === "all" ? "all" : (HEALTH_LABELS_MAP[healthFilter] || healthFilter), onClear: () => setFilter({ health: null }) },
     { key: "noPayment", label: "Senza pagamento", value: noPaymentFilter ? "attivo" : "all", onClear: () => setFilter({ noPayment: null }) },
     { key: "revenue", label: "Tipo cliente", value: revenueFilter === "all" ? "all" : REVENUE_LABELS_MAP[revenueFilter], onClear: () => setFilter({ revenue: null }) },
     { key: "segments", label: "Segmenti", value: segmentActiveCount > 0 ? `${segmentActiveCount} attivi` : "all", onClear: () => setSegmentFilters(EMPTY_FILTERS) },
-  ], [inputSearch, statusFilter, sectorFilter, planFilter, healthFilter, noPaymentFilter, revenueFilter, uniquePlans, setFilter, segmentActiveCount]);
+  ], [inputSearch, statusFilter, sectorFilter, planFilter, tipoFilter, healthFilter, noPaymentFilter, revenueFilter, uniquePlans, setFilter, segmentActiveCount]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -1192,6 +1229,14 @@ export default function CompaniesList() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={tipoFilter} onValueChange={(v) => { setFilter({ tipo: v }); setActivePreset(null); }}>
+              <SelectTrigger className="w-full sm:w-[150px]"><SelectValue placeholder="Tipo" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutte le aziende</SelectItem>
+                <SelectItem value="diretta">Solo dirette</SelectItem>
+                <SelectItem value="rivenditore">Solo rivenditori</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={healthFilter} onValueChange={(v) => { setFilter({ health: v }); setActivePreset(null); }}>
               <SelectTrigger className="w-full sm:w-[130px]"><SelectValue placeholder="Health" /></SelectTrigger>
               <SelectContent>
@@ -1445,6 +1490,7 @@ export default function CompaniesList() {
                       <p className="text-xs text-muted-foreground truncate">{company.email}</p>
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <Badge variant={cfg.variant} className="text-[10px] px-1.5 py-0">{cfg.label}</Badge>
+                        {resellerIdSet.has(company.id) && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-violet-300 bg-violet-50 text-violet-700">Rivenditore{parentNameByChild[company.id] ? ` · ${parentNameByChild[company.id]}` : ""}</Badge>}
                         {plan && <Badge variant="outline" className="text-[10px] px-1.5 py-0">{plan.name}</Badge>}
                         {plan && (
                           <span className={`text-xs font-semibold ${countsAsRevenue ? "text-emerald-600" : "text-muted-foreground"}`}>
@@ -1527,7 +1573,10 @@ export default function CompaniesList() {
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium truncate">{company.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium truncate">{company.name}</p>
+                          {resellerIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-violet-300 bg-violet-50 text-violet-700" title={`Rivenditore di ${parentNameByChild[company.id] || "—"}`}>Riv.</Badge>}
+                        </div>
                         <p className="text-xs text-muted-foreground truncate">{company.email}</p>
                       </div>
                       <div onClick={(e) => e.stopPropagation()}>
@@ -1679,7 +1728,10 @@ export default function CompaniesList() {
                               </div>
                             )}
                             <div>
-                              <p className="font-medium">{company.name}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-medium">{company.name}</p>
+                                {resellerIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-violet-300 bg-violet-50 text-violet-700" title={`Rivenditore di ${parentNameByChild[company.id] || "—"}`}>Riv.</Badge>}
+                              </div>
                               <p className="text-xs text-muted-foreground">{company.email}</p>
                             </div>
                           </div>
