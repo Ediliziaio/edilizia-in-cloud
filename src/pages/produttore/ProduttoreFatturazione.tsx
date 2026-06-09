@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,18 +9,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
-  Wallet, Building2, Factory, CreditCard, Info, Check, Users, BadgeEuro, AlertCircle, RefreshCw,
+  Wallet, Building2, Factory, CreditCard, Info, Check, AlertCircle, RefreshCw, TrendingDown, Receipt,
 } from "lucide-react";
 
 type BillingMode = "fabbrica_paga" | "reseller_paga";
 
-interface Riv {
-  id: string;
-  name: string;
-  status: string | null;
-  billing_comped: boolean | null;
-  plan_name: string | null;
-  plan_price: number;
+interface BillingItem { id: string; name: string; status: string | null; plan_name: string | null; list_price: number; your_price: number }
+interface SelfPaid { id: string; name: string; plan_name: string | null; list_price: number; status: string | null }
+interface Billing {
+  success?: boolean;
+  error?: string;
+  wholesale_pct: number;
+  payment_method: string | null;
+  billing_mode: BillingMode;
+  items: BillingItem[];
+  self_paid: SelfPaid[];
+  totals: { list: number; yours: number; saving: number };
 }
 
 const MODELS: { value: BillingMode; label: string; desc: string; Icon: typeof Factory }[] = [
@@ -39,43 +42,33 @@ const MODELS: { value: BillingMode; label: string; desc: string; Icon: typeof Fa
   },
 ];
 
+const PAYMENT_LABEL: Record<string, string> = {
+  stripe: "Carta (Stripe)",
+  bank_transfer: "Bonifico IBAN",
+  sepa_debit: "Addebito SEPA",
+  other: "Altro provider",
+};
+
 /**
- * Fatturazione del PRODUTTORE — sceglie il modello di billing per i rivenditori
- * e ne vede lo stato. Il modello è il default applicato ai NUOVI rivenditori
- * (create-reseller imposta billing_comped di conseguenza). Webhook Stripe = Fase 3.
+ * Fatturazione del PRODUTTORE — "Il tuo conto": quanto paghi alla piattaforma per i
+ * rivenditori che paghi tu (comped), col prezzo wholesale (listino scontato della %
+ * impostata dal super admin). Più il modello di default e i rivenditori che pagano da sé.
+ * Riscossione automatica (Stripe) = Step 2.
  */
 export default function ProduttoreFatturazione() {
   const { profile, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? profile?.company_id ?? null;
   const qc = useQueryClient();
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["produttore-fatturazione", companyId],
+  const { data: b, isLoading, isError, refetch } = useQuery({
+    queryKey: ["produttore-billing", companyId],
     enabled: !!companyId,
-    queryFn: async () => {
-      // parent_company_id / reseller_billing_mode / billing_comped non ancora nei tipi generati.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sb = supabase as any;
-      const { data: comp, error: e1 } = await sb
-        .from("companies").select("reseller_billing_mode").eq("id", companyId).maybeSingle();
-      if (e1) throw new Error(e1.message);
-      const { data: rivs, error: e2 } = await sb
-        .from("companies")
-        .select("id, name, status, billing_comped, subscription_plan_id, subscription_plans:subscription_plan_id(name, price_monthly)")
-        .eq("parent_company_id", companyId)
-        .order("created_at", { ascending: false });
-      if (e2) throw new Error(e2.message);
-      return {
-        mode: (comp?.reseller_billing_mode ?? "fabbrica_paga") as BillingMode,
-        rivenditori: ((rivs ?? []) as Record<string, unknown>[]).map((r) => ({
-          id: r.id as string,
-          name: r.name as string,
-          status: (r.status as string | null) ?? null,
-          billing_comped: (r.billing_comped as boolean | null) ?? null,
-          plan_name: (r.subscription_plans as { name?: string } | null)?.name ?? null,
-          plan_price: Number((r.subscription_plans as { price_monthly?: number } | null)?.price_monthly ?? 0),
-        })) as Riv[],
-      };
+    queryFn: async (): Promise<Billing> => {
+      const { data, error } = await supabase.functions.invoke("get-produttore-billing", { body: {} });
+      if (error) throw new Error(error.message);
+      const r = data as Billing | null;
+      if (!r || r.success === false) throw new Error(r?.error ?? "Errore nel caricamento");
+      return r;
     },
   });
 
@@ -83,62 +76,41 @@ export default function ProduttoreFatturazione() {
     mutationFn: async (m: BillingMode) => {
       if (!companyId) throw new Error("Azienda non trovata");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any)
-        .from("companies").update({ reseller_billing_mode: m }).eq("id", companyId);
+      const { error } = await (supabase as any).from("companies").update({ reseller_billing_mode: m }).eq("id", companyId);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
       toast.success("Modello di fatturazione aggiornato");
-      qc.invalidateQueries({ queryKey: ["produttore-fatturazione", companyId] });
+      qc.invalidateQueries({ queryKey: ["produttore-billing", companyId] });
     },
     onError: (e) => toast.error("Salvataggio fallito", { description: (e as Error).message }),
   });
 
-  const rivenditori = data?.rivenditori ?? [];
-  const comped = rivenditori.filter((r) => r.billing_comped).length;
-  const paganti = rivenditori.length - comped;
-  // Quanto paghi TU al mese = somma dei prezzi-piano dei rivenditori comped.
-  const youPayMonthly = rivenditori
-    .filter((r) => r.billing_comped)
-    .reduce((s, r) => s + (r.plan_price ?? 0), 0);
-
-  // UI ottimistica senza stato locale: durante il salvataggio mostro il valore
-  // in volo (mutation.variables), poi torna a quello del server.
-  const serverMode: BillingMode = data?.mode ?? "fabbrica_paga";
+  const serverMode: BillingMode = b?.billing_mode ?? "fabbrica_paga";
   const mode: BillingMode = saveMode.isPending && saveMode.variables ? saveMode.variables : serverMode;
-
-  const pickMode = (m: BillingMode) => {
-    if (m === mode || saveMode.isPending) return;
-    saveMode.mutate(m);
-  };
+  const pickMode = (m: BillingMode) => { if (m === mode || saveMode.isPending) return; saveMode.mutate(m); };
 
   if (isLoading) {
     return (
       <div className="mx-auto max-w-4xl space-y-4 p-6">
         <Skeleton className="h-9 w-64" />
-        <div className="grid grid-cols-3 gap-3">
-          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
-        </div>
+        <Skeleton className="h-44 rounded-xl" />
         <Skeleton className="h-40 rounded-xl" />
       </div>
     );
   }
 
-  if (isError) {
+  if (isError || !b) {
     return (
       <div className="mx-auto max-w-4xl p-6">
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
-          <Wallet className="h-6 w-6" /> Fatturazione
-        </h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold"><Wallet className="h-6 w-6" /> Fatturazione</h1>
         <div className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center">
           <AlertCircle className="mx-auto mb-3 h-8 w-8 text-destructive opacity-70" />
           <p className="font-medium">Errore nel caricamento</p>
           <p className="mx-auto mb-4 mt-1 max-w-sm text-sm text-muted-foreground">
-            Non è stato possibile caricare i dati di fatturazione. Riprova tra poco.
+            Non è stato possibile caricare il conto. Riprova tra poco.
           </p>
-          <Button variant="outline" className="gap-1.5" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4" /> Riprova
-          </Button>
+          <Button variant="outline" className="gap-1.5" onClick={() => refetch()}><RefreshCw className="h-4 w-4" /> Riprova</Button>
         </div>
       </div>
     );
@@ -147,47 +119,102 @@ export default function ProduttoreFatturazione() {
   return (
     <div className="mx-auto max-w-4xl p-6">
       <div className="mb-6">
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
-          <Wallet className="h-6 w-6" /> Fatturazione
-        </h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold"><Wallet className="h-6 w-6" /> Fatturazione</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Scegli chi paga il software dei tuoi rivenditori e tieni d&apos;occhio lo stato.
+          Quanto paghi per i tuoi rivenditori e con quale modello.
         </p>
       </div>
 
-      {/* KPI */}
-      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Card>
-          <CardContent className="flex items-center gap-3 py-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted"><Users className="h-5 w-5" /></div>
-            <div>
-              <div className="text-2xl font-bold leading-none">{rivenditori.length}</div>
-              <div className="mt-1 text-xs text-muted-foreground">Rivenditori</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 py-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700"><Factory className="h-5 w-5" /></div>
-            <div>
-              <div className="text-2xl font-bold leading-none">{comped}</div>
-              <div className="mt-1 text-xs text-muted-foreground">Paghi tu · ~€{youPayMonthly}/mese</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 py-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-700"><BadgeEuro className="h-5 w-5" /></div>
-            <div>
-              <div className="text-2xl font-bold leading-none">{paganti}</div>
-              <div className="mt-1 text-xs text-muted-foreground">Pagano loro</div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Modello */}
+      {/* Il tuo conto */}
       <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><Receipt className="h-5 w-5" /> Il tuo conto</CardTitle>
+          <CardDescription>Quanto paghi alla piattaforma per i rivenditori che paghi tu (comped).</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="text-3xl font-bold leading-none">
+                €{b.totals.yours}<span className="text-base font-normal text-muted-foreground">/mese</span>
+              </div>
+              <div className="mt-1.5 text-xs text-muted-foreground">
+                {b.wholesale_pct > 0
+                  ? <>Listino €{b.totals.list} · <span className="font-medium text-emerald-700">risparmi €{b.totals.saving}</span></>
+                  : <>Al prezzo di listino</>}
+              </div>
+            </div>
+            {b.wholesale_pct > 0 && (
+              <Badge variant="outline" className="gap-1 border-emerald-200 text-emerald-700">
+                <TrendingDown className="h-3.5 w-3.5" /> -{b.wholesale_pct}% wholesale
+              </Badge>
+            )}
+          </div>
+
+          {b.items.length > 0 ? (
+            <ul className="mt-4 divide-y rounded-lg border">
+              {b.items.map((it) => (
+                <li key={it.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{it.name}</div>
+                    <div className="text-xs text-muted-foreground">{it.plan_name ?? "—"}</div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    {b.wholesale_pct > 0 && it.list_price > 0 && (
+                      <span className="mr-2 text-xs text-muted-foreground line-through">€{it.list_price}</span>
+                    )}
+                    <span className="font-semibold">€{it.your_price}</span>
+                    <span className="text-xs text-muted-foreground">/mese</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-4 rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+              Nessun rivenditore che paghi tu al momento.
+            </p>
+          )}
+
+          <div className="mt-4 flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              {b.payment_method && PAYMENT_LABEL[b.payment_method]
+                ? <>Metodo di pagamento: <strong className="text-foreground">{PAYMENT_LABEL[b.payment_method]}</strong>. </>
+                : <>Nessun metodo di pagamento configurato. </>}
+              La riscossione automatica (Stripe) è in arrivo: per ora il conto è calcolato e la fatturazione è gestita dal nostro team.
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Pagano loro */}
+      {b.self_paid.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-base">Pagano loro</CardTitle>
+            <CardDescription>Rivenditori con abbonamento proprio: pagano la piattaforma direttamente, non sono sul tuo conto.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y">
+              {b.self_paid.map((r) => (
+                <li key={r.id} className="flex items-center justify-between gap-3 py-2.5 text-sm first:pt-0 last:pb-0">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium">{r.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {companyStatusLabelIt(r.status)}{r.plan_name ? ` · ${r.plan_name}` : ""}
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="shrink-0 gap-1 border-blue-200 text-blue-700">
+                    <CreditCard className="h-3.5 w-3.5" /> €{r.list_price}/mese
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Modello di default */}
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">Modello di fatturazione</CardTitle>
           <CardDescription>
@@ -222,54 +249,6 @@ export default function ProduttoreFatturazione() {
           })}
         </CardContent>
       </Card>
-
-      {/* Elenco rivenditori */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Stato rivenditori</CardTitle>
-          <CardDescription>Chi paga per ciascun rivenditore.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {rivenditori.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-8 text-center">
-              <p className="text-sm text-muted-foreground">Nessun rivenditore ancora.</p>
-              <Button asChild variant="outline" size="sm" className="mt-3 gap-1.5">
-                <Link to="/produttore"><Users className="h-4 w-4" /> Vai ai rivenditori</Link>
-              </Button>
-            </div>
-          ) : (
-            <ul className="divide-y">
-              {rivenditori.map((r) => (
-                <li key={r.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                  <div className="min-w-0">
-                    <div className="truncate font-medium">{r.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {companyStatusLabelIt(r.status)}{r.plan_name ? ` · ${r.plan_name}` : ""}
-                    </div>
-                  </div>
-                  {r.billing_comped ? (
-                    <Badge variant="outline" className="shrink-0 gap-1 border-emerald-200 text-emerald-700">
-                      <Factory className="h-3.5 w-3.5" /> Paghi tu
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="shrink-0 gap-1 border-blue-200 text-blue-700">
-                      <CreditCard className="h-3.5 w-3.5" /> Paga lui
-                    </Badge>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="mt-5 flex items-start gap-2 rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-        <Info className="mt-0.5 h-4 w-4 shrink-0" />
-        <span>
-          La riscossione automatica (Stripe) e le fatture aggregate sono in arrivo: per ora questo pannello
-          definisce il modello e mostra lo stato. La fatturazione effettiva viene gestita dal nostro team.
-        </span>
-      </div>
     </div>
   );
 }

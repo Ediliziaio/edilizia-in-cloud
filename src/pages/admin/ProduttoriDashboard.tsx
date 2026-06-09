@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import {
   Factory, Users, Building2, Plus, ChevronDown, ChevronRight, AlertCircle, RefreshCw,
-  BadgeEuro, Globe, ShieldCheck, CreditCard, Mail,
+  BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2,
 } from "lucide-react";
 
 interface Rivenditore {
@@ -32,6 +34,7 @@ interface Produttore {
   admin_email: string | null;
   custom_domain: string | null;
   custom_domain_verified: boolean;
+  wholesale_pct: number;
   rivenditori: Rivenditore[];
   rivenditori_count: number;
   comped_count: number;
@@ -57,7 +60,7 @@ async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { 
 
   const { data: comps, error: e2 } = await sb
     .from("companies")
-    .select("id, name, email, status, reseller_billing_mode, created_at")
+    .select("id, name, email, status, reseller_billing_mode, reseller_wholesale_pct, created_at")
     .in("id", ids);
   if (e2) throw new Error(e2.message);
 
@@ -101,6 +104,7 @@ async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { 
         admin_email: adminByCompany.get(c.id) ?? c.email ?? null,
         custom_domain: b?.custom_domain ?? null,
         custom_domain_verified: !!b?.custom_domain_verified,
+        wholesale_pct: Number(c.reseller_wholesale_pct ?? 0),
         rivenditori: children,
         rivenditori_count: children.length,
         comped_count: children.filter((x) => x.billing_comped).length,
@@ -120,6 +124,7 @@ async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { 
 
 export default function ProduttoriDashboard() {
   const { permissions: saPermissions } = useSuperAdminPermissions();
+  const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -232,6 +237,11 @@ export default function ProduttoriDashboard() {
 
                 {isOpen && (
                   <div className="border-t bg-muted/20 px-4 py-3">
+                    <WholesaleControl
+                      produttoreId={p.id}
+                      initialPct={p.wholesale_pct}
+                      onSaved={() => qc.invalidateQueries({ queryKey: ["admin-produttori"] })}
+                    />
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Rivenditori ({p.rivenditori_count})
                       {p.rivenditori_count > 0 && <> · {p.comped_count} comped</>}
@@ -262,6 +272,47 @@ export default function ProduttoriDashboard() {
       )}
 
       <CreateProduttoreDialog open={createOpen} onOpenChange={setCreateOpen} />
+    </div>
+  );
+}
+
+function WholesaleControl({ produttoreId, initialPct, onSaved }: { produttoreId: string; initialPct: number; onSaved: () => void }) {
+  const [pct, setPct] = useState(String(initialPct ?? 0));
+  const save = useMutation({
+    mutationFn: async () => {
+      const n = Number(pct);
+      if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error("Inserisci una percentuale tra 0 e 100");
+      const { data: res, error } = await supabase.functions.invoke("set-produttore-wholesale", {
+        body: { produttore_id: produttoreId, wholesale_pct: n },
+      });
+      if (error) throw new Error(error.message);
+      const r = res as { success?: boolean; error?: string } | null;
+      if (r && r.success === false) throw new Error(r.error ?? "Salvataggio fallito");
+    },
+    onSuccess: () => { toast.success("Sconto wholesale aggiornato"); onSaved(); },
+    onError: (e) => toast.error("Salvataggio fallito", { description: (e as Error).message }),
+  });
+  const dirty = String(initialPct ?? 0) !== pct.trim();
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-background p-3">
+      <Percent className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <div className="min-w-0">
+        <span className="text-sm font-medium">Sconto wholesale</span>
+        <span className="ml-1 text-xs text-muted-foreground">sul listino dei rivenditori comped</span>
+      </div>
+      <div className="ml-auto flex items-center gap-1.5">
+        <Input
+          type="number" min={0} max={100} value={pct}
+          onChange={(e) => setPct(e.target.value)}
+          className="h-8 w-20"
+          aria-label="Percentuale sconto wholesale"
+        />
+        <span className="text-sm text-muted-foreground">%</span>
+        <Button size="sm" className="gap-1.5" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
+          {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          Salva
+        </Button>
+      </div>
     </div>
   );
 }
