@@ -645,7 +645,16 @@ Deno.serve(async (req) => {
         }
         const granted = (permData.data || []).filter((p: any) => p.status === "granted").map((p: any) => p.permission);
         const declined = (permData.data || []).filter((p: any) => p.status === "declined").map((p: any) => p.permission);
-        result = { meta_user_id: creds.meta_user_id, granted, declined };
+        // Nome/username dell'utente FB collegato (per sapere quale account
+        // aggiungere come Tester nell'app Meta).
+        let me: any = null;
+        try {
+          const meRes = await fetchWithRetry(
+            `https://graph.facebook.com/${apiVersion}/me?fields=id,name&access_token=${accessToken}`,
+          );
+          me = await meRes.json();
+        } catch { /* best-effort */ }
+        result = { meta_user_id: creds.meta_user_id, me, granted, declined };
         break;
       }
 
