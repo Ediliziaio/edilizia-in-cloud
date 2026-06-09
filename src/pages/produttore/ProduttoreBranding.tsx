@@ -17,6 +17,9 @@ import {
 
 const DEFAULT_HEX = "#1e293b";
 const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+// CNAME target di default (Cloudflare Pages) — usato per mostrare le istruzioni DNS
+// anche se custom_domain_cname non è ancora popolato dal provisioning.
+const DEFAULT_CNAME_TARGET = "edilizia-in-cloud.pages.dev";
 
 /** "#rrggbb" → "H S% L%" (formato triplet usato dalle CSS variables dell'app). */
 function hexToHslTriplet(hex: string): string {
@@ -348,6 +351,7 @@ function DomainCard({ companyId, branding }: { companyId: string | null; brandin
 
   const currentDomain = branding?.custom_domain ?? null;
   const cname = branding?.custom_domain_cname ?? null;
+  const cnameTarget = cname ?? DEFAULT_CNAME_TARGET;
   const verified = !!branding?.custom_domain_verified;
   const rootHint = currentDomain ? currentDomain.split(".").slice(-2).join(".") : "tuobrand.it";
   const refresh = () => qc.invalidateQueries({ queryKey: ["produttore-branding", companyId] });
@@ -449,7 +453,7 @@ function DomainCard({ companyId, branding }: { companyId: string | null; brandin
               <p className="text-sm text-muted-foreground">
                 Tutto pronto: i tuoi rivenditori possono accedere da <strong>{currentDomain}</strong> col tuo brand.
               </p>
-            ) : cname && (
+            ) : (
               <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
                 <p className="font-medium text-amber-900">Configura il DNS per attivarlo:</p>
                 <ol className="ml-4 list-decimal space-y-1 text-xs text-amber-900">
@@ -464,8 +468,8 @@ function DomainCard({ companyId, branding }: { companyId: string | null; brandin
                     {currentDomain} <Copy className="h-3 w-3 opacity-60" />
                   </button>
                   <span className="text-amber-700">Valore / Target</span>
-                  <button type="button" onClick={() => copyText(cname, "Valore")} className="flex items-center gap-1.5 text-left font-mono hover:underline">
-                    {cname} <Copy className="h-3 w-3 opacity-60" />
+                  <button type="button" onClick={() => copyText(cnameTarget, "Valore")} className="flex items-center gap-1.5 text-left font-mono hover:underline">
+                    {cnameTarget} <Copy className="h-3 w-3 opacity-60" />
                   </button>
                 </div>
                 <p className="text-xs text-amber-700">
