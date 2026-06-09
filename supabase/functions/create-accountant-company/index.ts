@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     // 5. (Opzionale) invita l'admin cliente.
     let invited = false;
     if (adminEmail) {
-      const origin = new URL(req.url).origin;
+      const origin = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.it";
       const { data: inv, error: invErr } = await admin.auth.admin.inviteUserByEmail(adminEmail, {
         redirectTo: `${origin}/cambia-password`,
         data: { company_id: companyId, full_name: name },

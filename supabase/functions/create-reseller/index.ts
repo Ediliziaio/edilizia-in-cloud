@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
     }
 
     // 4. Admin del rivenditore: invita (nuovo) o riusa l'utente esistente.
-    const origin = new URL(req.url).origin;
+    const origin = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.it";
     let adminUserId: string | null = null;
     const { data: invited, error: invErr } =
       await supabaseAdmin.auth.admin.inviteUserByEmail(emailNorm, {
