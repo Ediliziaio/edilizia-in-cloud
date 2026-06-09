@@ -9,19 +9,6 @@ import { assertMetaCompanyAdminAccess, getErrorMessage, getErrorStatus } from ".
 
 const META_API_VERSION = "v22.0";
 
-function extractJwtRole(authHeader: string): string | null {
-  if (!authHeader.startsWith("Bearer ")) return null;
-  const jwt = authHeader.substring(7);
-  const parts = jwt.split(".");
-  if (parts.length !== 3) return null;
-  try {
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return typeof payload.role === "string" ? payload.role : null;
-  } catch {
-    return null;
-  }
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -32,9 +19,10 @@ Deno.serve(async (req) => {
     req.headers.get("x-cron-secret") ?? req.headers.get("x-internal-cron-secret") ?? "";
   const internalSecret = Deno.env.get("INTERNAL_CRON_SECRET") ?? "";
 
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    serviceRoleKey,
   );
 
   // Due modi di autorizzazione:
@@ -42,8 +30,13 @@ Deno.serve(async (req) => {
   //  (b) Utente admin loggato (UI "Sincronizza da Meta") → sincronizza SOLO la
   //      propria azienda (e opzionalmente un singolo numero/WABA via
   //      wa_number_id, così non si mischiano template tra WABA diverse).
-  const roleClaim = extractJwtRole(authHeader);
-  const isServiceRole = roleClaim === "service_role";
+  //
+  // SICUREZZA: con verify_jwt=false il gateway non verifica la firma del JWT,
+  // quindi NON ci si può fidare del claim role nel token (sarebbe falsificabile).
+  // Il privilegio "tutte le aziende" è concesso solo a chi presenta la CHIAVE
+  // service-role reale (confronto esatto) o il cron-secret condiviso.
+  const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  const isServiceRole = serviceRoleKey.length > 0 && bearer === serviceRoleKey;
   const isCron = internalSecret.length > 0 && cronSecret === internalSecret;
 
   let companyFilter: string | null = null;

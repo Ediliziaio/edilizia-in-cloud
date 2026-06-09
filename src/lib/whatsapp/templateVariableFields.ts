@@ -35,19 +35,6 @@ export const STANDARD_TEMPLATE_FIELDS: TemplateFieldOption[] = [
 
 const STANDARD_BY_KEY = new Map(STANDARD_TEMPLATE_FIELDS.map((f) => [f.key, f]));
 
-/** Mappa chiave campo standard → colonna di marketing_contacts. */
-const STANDARD_COLUMN: Record<string, string> = {
-  nome: "first_name",
-  cognome: "last_name",
-  telefono: "phone",
-  email: "email",
-  azienda: "company_name",
-  citta: "city",
-  provincia: "province",
-  indirizzo: "address",
-  cap: "postal_code",
-};
-
 export interface CustomFieldLike {
   id: string;
   name: string;
@@ -64,15 +51,6 @@ export function buildTemplateFieldOptions(customFields: CustomFieldLike[] = []):
   return [...STANDARD_TEMPLATE_FIELDS, ...cf];
 }
 
-/** Etichetta leggibile di una chiave campo (per UI/anteprima). */
-export function fieldLabel(key: string, customFields: CustomFieldLike[] = []): string {
-  if (key.startsWith("cf:")) {
-    const id = key.slice(3);
-    return customFields.find((f) => f.id === id)?.name ?? "Campo personalizzato";
-  }
-  return STANDARD_BY_KEY.get(key)?.label ?? key;
-}
-
 /** Valore di esempio per Meta a partire dalla chiave campo. */
 export function fieldSample(key: string, customFields: CustomFieldLike[] = []): string {
   if (key.startsWith("cf:")) {
@@ -80,29 +58,4 @@ export function fieldSample(key: string, customFields: CustomFieldLike[] = []): 
     return customFields.find((f) => f.id === id)?.name ?? "Esempio";
   }
   return STANDARD_BY_KEY.get(key)?.sample ?? "Esempio";
-}
-
-/**
- * Risolve il valore reale di una chiave campo per uno specifico contatto.
- * @param contact  riga marketing_contacts (o oggetto con le stesse colonne).
- * @param customValues  mappa { [field_id]: valore } dei campi personalizzati.
- */
-export function resolveTemplateField(
-  key: string,
-  contact: Record<string, unknown> | null | undefined,
-  customValues: Record<string, string> = {},
-): string {
-  if (!contact) return "";
-  if (key.startsWith("cf:")) {
-    return customValues[key.slice(3)] ?? "";
-  }
-  if (key === "nome_completo") {
-    const fn = String(contact.first_name ?? "").trim();
-    const ln = String(contact.last_name ?? "").trim();
-    return `${fn} ${ln}`.trim();
-  }
-  const col = STANDARD_COLUMN[key];
-  if (!col) return "";
-  const v = contact[col];
-  return v == null ? "" : String(v);
 }

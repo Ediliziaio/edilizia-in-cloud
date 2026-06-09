@@ -11,7 +11,7 @@
  *  - channel sms: link a /azienda/sms (placeholder coming-soon)
  *  - channel note: textarea autosize 1-3 righe → INSERT customer_messages
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
@@ -121,6 +121,35 @@ export function CustomerComposeBar({
   const waHref = cleanPhone
     ? `https://wa.me/${cleanPhone.startsWith("39") || cleanPhone.length > 10 ? cleanPhone : `39${cleanPhone}`}`
     : null;
+
+  // Nome/cognome del cliente per auto-compilare le variabili dei template WhatsApp.
+  // Degrada in modo morbido: se il profilo non è leggibile, restano email/telefono.
+  const { data: customerProfile } = useQuery({
+    queryKey: ["customer-wa-fields", customerId],
+    enabled: !!customerId && channel === "whatsapp",
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("first_name, last_name")
+        .eq("id", customerId)
+        .maybeSingle();
+      if (error) return null;
+      return data as { first_name: string | null; last_name: string | null } | null;
+    },
+  });
+
+  const waContactFields = useMemo<Record<string, string>>(() => {
+    const fn = (customerProfile?.first_name ?? "").trim();
+    const ln = (customerProfile?.last_name ?? "").trim();
+    return {
+      nome: fn,
+      cognome: ln,
+      nome_completo: `${fn} ${ln}`.trim(),
+      telefono: customerPhone ?? "",
+      email: customerEmail ?? "",
+    };
+  }, [customerProfile, customerPhone, customerEmail]);
 
   // Fetch account email connessi (solo quando channel=email)
   const { data: emailAccounts = [] } = useQuery({
@@ -576,6 +605,7 @@ export function CustomerComposeBar({
             <WhatsAppComposer
               phone={cleanPhone}
               isSending={waSending}
+              contactFields={waContactFields}
               onSend={async ({ waNumberId, content, template }) => {
                 if (!effectiveCompany?.id) {
                   toast.error("Azienda non disponibile");

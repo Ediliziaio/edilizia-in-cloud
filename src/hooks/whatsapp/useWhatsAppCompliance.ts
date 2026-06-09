@@ -12,6 +12,17 @@ function digits(phone: string | null | undefined): string {
   return (phone ?? "").replace(/[^0-9]/g, "");
 }
 
+// Confronto robusto tra numeri: uguaglianza esatta o stesse ultime 9 cifre
+// (gestisce prefisso internazionale con/senza). NON usare endsWith su lunghezze
+// arbitrarie: matcherebbe numeri diversi e aprirebbe la finestra sul contatto
+// sbagliato.
+function sameNumber(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.length >= 9 && b.length >= 9) return a.slice(-9) === b.slice(-9);
+  return false;
+}
+
 export interface WhatsAppWindowStatus {
   open: boolean;
   lastInboundAt: string | null;
@@ -37,10 +48,7 @@ export function useWhatsAppWindow(phone: string | null | undefined) {
         .order("created_at", { ascending: false })
         .limit(50);
       if (error) throw error;
-      const match = (data ?? []).find((m) => {
-        const f = digits(m.from_phone);
-        return f === clean || f.endsWith(clean) || clean.endsWith(f);
-      });
+      const match = (data ?? []).find((m) => sameNumber(digits(m.from_phone), clean));
       if (!match) return { open: false, lastInboundAt: null, hoursLeft: null };
       const elapsed = Date.now() - new Date(match.created_at).getTime();
       const hoursLeft = Math.max(0, Math.round((WINDOW_MS - elapsed) / 3_600_000));

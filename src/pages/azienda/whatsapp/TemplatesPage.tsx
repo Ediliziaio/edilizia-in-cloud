@@ -454,6 +454,8 @@ export default function TemplatesPage() {
                               <Eye className="h-4 w-4" />
                             </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8"
+                              disabled={mappingsQuery.isLoading}
+                              title={mappingsQuery.isLoading ? "Carico le mappature…" : undefined}
                               onClick={() => openEdit(t)} aria-label={`Modifica ${t.name}`}>
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -561,9 +563,12 @@ function TemplateEditorDialog({
   };
   const wrap = (sym: string) => set({ bodyText: `${form.bodyText}${sym}testo${sym}` });
 
-  const canSave = mode === "edit"
+  // Meta richiede variabili posizionali CONTIGUE a partire da 1 ({{1}},{{2}},…).
+  const varsContiguous = vars.length === 0 || vars.every((v, i) => v === i + 1);
+
+  const canSave = (mode === "edit"
     ? !!form.bodyText.trim()
-    : !!form.name.trim() && !!form.bodyText.trim();
+    : !!form.name.trim() && !!form.bodyText.trim()) && varsContiguous;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -656,6 +661,12 @@ function TemplateEditorDialog({
               <p className="text-[11px] text-muted-foreground">
                 In fase di invio il valore si compila in automatico dal contatto. Scegli "Testo fisso" per usare un valore uguale per tutti.
               </p>
+              {!varsContiguous && (
+                <p className="flex items-center gap-1 text-[11px] font-medium text-destructive">
+                  <AlertTriangle className="h-3 w-3" />
+                  Le variabili devono essere numerate in ordine: {"{{1}}, {{2}}, {{3}}…"} senza salti.
+                </p>
+              )}
               <div className="space-y-2">
                 {vars.map((v) => {
                   const mapped = form.mapping[v] || "";

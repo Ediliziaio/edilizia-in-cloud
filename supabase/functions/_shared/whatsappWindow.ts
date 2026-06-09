@@ -54,10 +54,18 @@ export async function getWhatsAppWindowStatus(
 
     if (error || !Array.isArray(data)) return { open: false, lastInboundAt: null };
 
-    const match = data.find((m: { from_phone: string | null }) => {
-      const f = digits(m.from_phone);
-      return f === clean || f.endsWith(clean) || clean.endsWith(f);
-    }) as { created_at: string } | undefined;
+    // Confronto robusto: uguaglianza o stesse ultime 9 cifre (no endsWith su
+    // lunghezze arbitrarie, che matcherebbe numeri diversi → finestra aperta sul
+    // contatto sbagliato).
+    const sameNumber = (a: string, b: string): boolean => {
+      if (!a || !b) return false;
+      if (a === b) return true;
+      if (a.length >= 9 && b.length >= 9) return a.slice(-9) === b.slice(-9);
+      return false;
+    };
+    const match = data.find(
+      (m: { from_phone: string | null }) => sameNumber(digits(m.from_phone), clean),
+    ) as { created_at: string } | undefined;
 
     if (!match) return { open: false, lastInboundAt: null };
     return { open: true, lastInboundAt: match.created_at };

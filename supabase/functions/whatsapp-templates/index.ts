@@ -134,16 +134,20 @@ Deno.serve(async (req) => {
       }
 
       // Salva la riga locale con la mappatura variabili (preservata dal sync).
-      await persistTemplateRow(adminClient, {
-        companyId: company_id,
-        waNumberId: wa_number_id,
-        name: template.name,
-        language: template.language || "it",
-        category: template.category,
-        components,
-        status: "PENDING",
-        variableMapping: variable_mapping ?? null,
-      });
+      // Solo se conosciamo il numero/WABA: senza wa_number_id non potremmo
+      // attribuire la riga (evita righe orfane con wa_number_id NULL).
+      if (wa_number_id) {
+        await persistTemplateRow(adminClient, {
+          companyId: company_id,
+          waNumberId: wa_number_id,
+          name: template.name,
+          language: template.language || "it",
+          category: template.category,
+          components,
+          status: "PENDING",
+          variableMapping: variable_mapping ?? null,
+        });
+      }
 
       return new Response(JSON.stringify({ success: true, template: data }), {
         status: 200,
@@ -245,7 +249,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ error: "Azione non valida. Usa: list, create, delete" }),
+      JSON.stringify({ error: "Azione non valida. Usa: list, create, edit, delete" }),
       { status: 400, headers: secureHeaders }
     );
   } catch (err: unknown) {
@@ -276,8 +280,10 @@ async function persistTemplateRow(
   try {
     const bodyComp = (args.components || []).find((c) => c.type === "BODY");
     const bodyText = typeof bodyComp?.text === "string" ? bodyComp.text : "";
+    // Conta i numeri distinti dei placeholder ({{1}},{{2}}…) — coerente con
+    // sync-meta-templates (entrambi usano la cifra catturata).
     const variablesCount = new Set(
-      (bodyText.match(/\{\{(\d+)\}\}/g) || []).map((m) => m),
+      [...bodyText.matchAll(/\{\{(\d+)\}\}/g)].map((m) => m[1]),
     ).size;
 
     await adminClient.from("wa_meta_templates").upsert({

@@ -73,14 +73,20 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
 
   const selectedTemplate = templates.find((t) => t.id === templateId) ?? null;
   const selectedMapping = selectedTemplate?.variable_mapping ?? null;
-  useEffect(() => {
-    const count = selectedTemplate?.variables_count ?? 0;
-    // Pre-compila ogni variabile dal campo mappato (se conosciamo i dati contatto).
+
+  // Pre-compila le variabili SOLO quando l'utente sceglie un template (non in un
+  // useEffect: l'identità di `templates` cambia ad ogni refetch e sovrascriverebbe
+  // i valori già digitati dall'operatore).
+  const handlePickTemplate = (id: string) => {
+    setTemplateId(id);
+    const tpl = templates.find((t) => t.id === id);
+    const count = tpl?.variables_count ?? 0;
+    const mapping = tpl?.variable_mapping ?? null;
     setVars(Array.from({ length: count }, (_, i) => {
-      const key = selectedMapping?.[String(i + 1)];
+      const key = mapping?.[String(i + 1)];
       return key && contactFields ? (contactFields[key] ?? "") : "";
     }));
-  }, [templateId, selectedTemplate?.variables_count, selectedMapping, contactFields]);
+  };
 
   const noActiveNumber = activeNumbers.length === 0;
 
@@ -199,7 +205,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
         <div className="space-y-2">
           <div className="space-y-1">
             <Label className="text-xs">Template approvato</Label>
-            <Select value={templateId ?? undefined} onValueChange={setTemplateId}>
+            <Select value={templateId ?? undefined} onValueChange={handlePickTemplate}>
               <SelectTrigger className="h-9 text-xs">
                 <SelectValue placeholder={templates.length ? "Scegli un template…" : "Nessun template approvato"} />
               </SelectTrigger>
