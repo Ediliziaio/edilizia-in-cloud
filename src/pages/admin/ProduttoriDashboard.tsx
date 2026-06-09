@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import {
   Factory, Users, Building2, Plus, ChevronDown, ChevronRight, AlertCircle, RefreshCw,
-  BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2, Play, Ban, Link2, Copy,
+  BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2, Play, Ban, Link2, Copy, Package,
 } from "lucide-react";
 
 interface Rivenditore {
@@ -252,6 +252,7 @@ export default function ProduttoriDashboard() {
                     <div className="mb-3">
                       <ChargeControl produttoreId={p.id} produttoreName={p.name} />
                     </div>
+                    <ProduttorePiani produttoreId={p.id} />
                     <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Rivenditori ({p.rivenditori_count})
                       {p.rivenditori_count > 0 && <> · {p.comped_count} comped</>}
@@ -495,6 +496,86 @@ function ChargeControl({ produttoreId, produttoreName }: { produttoreId: string;
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+interface CustomPlan { id: string; name: string; price_monthly: number; is_active: boolean }
+
+function ProduttorePiani({ produttoreId }: { produttoreId: string }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+
+  const { data: plans = [] } = useQuery({
+    queryKey: ["admin-produttore-plans", produttoreId],
+    staleTime: 60_000,
+    queryFn: async (): Promise<CustomPlan[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const { data, error } = await sb
+        .from("subscription_plans")
+        .select("id, name, price_monthly, is_active")
+        .eq("produttore_id", produttoreId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as CustomPlan[];
+    },
+  });
+
+  const create = useMutation({
+    mutationFn: async () => {
+      const n = name.trim();
+      const p = Number(price);
+      if (!n) throw new Error("Inserisci un nome");
+      if (!Number.isFinite(p) || p < 0) throw new Error("Inserisci un prezzo valido");
+      const { data, error } = await supabase.functions.invoke("manage-produttore-plan", {
+        body: { action: "create", produttore_id: produttoreId, name: n, price_monthly: p },
+      });
+      if (error) throw new Error(error.message);
+      const r = data as { success?: boolean; error?: string } | null;
+      if (r && r.success === false) throw new Error(r.error ?? "Creazione fallita");
+    },
+    onSuccess: () => { toast.success("Piano creato"); setName(""); setPrice(""); qc.invalidateQueries({ queryKey: ["admin-produttore-plans", produttoreId] }); },
+    onError: (e) => toast.error("Creazione fallita", { description: (e as Error).message }),
+  });
+
+  const deactivate = useMutation({
+    mutationFn: async (planId: string) => {
+      const { data, error } = await supabase.functions.invoke("manage-produttore-plan", {
+        body: { action: "deactivate", plan_id: planId },
+      });
+      if (error) throw new Error(error.message);
+      const r = data as { success?: boolean; error?: string } | null;
+      if (r && r.success === false) throw new Error(r.error ?? "Operazione fallita");
+    },
+    onSuccess: () => { toast.success("Piano disattivato"); qc.invalidateQueries({ queryKey: ["admin-produttore-plans", produttoreId] }); },
+    onError: (e) => toast.error("Operazione fallita", { description: (e as Error).message }),
+  });
+
+  return (
+    <div className="mb-3 rounded-lg border bg-background p-3">
+      <div className="mb-2 flex items-center gap-2 text-sm font-medium"><Package className="h-4 w-4 text-muted-foreground" /> Piani personalizzati</div>
+      {plans.length > 0 ? (
+        <ul className="mb-2 divide-y">
+          {plans.map((pl) => (
+            <li key={pl.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+              <span className="truncate">{pl.name} <span className="text-muted-foreground">· €{pl.price_monthly}/mese</span></span>
+              <Button size="sm" variant="ghost" className="h-7 shrink-0 text-destructive" disabled={deactivate.isPending} onClick={() => deactivate.mutate(pl.id)}>Disattiva</Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mb-2 text-xs text-muted-foreground">Nessun piano personalizzato. Creane uno per offrirlo ai rivenditori di questo produttore.</p>
+      )}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome piano (es. Plus)" className="h-8 min-w-[140px] flex-1" maxLength={80} />
+        <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} placeholder="€/mese" className="h-8 w-24" />
+        <Button size="sm" className="gap-1.5" disabled={create.isPending || !name.trim()} onClick={() => create.mutate()}>
+          {create.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Crea
+        </Button>
+      </div>
+    </div>
   );
 }
 
