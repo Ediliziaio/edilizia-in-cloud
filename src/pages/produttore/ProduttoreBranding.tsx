@@ -165,6 +165,7 @@ export default function ProduttoreBranding() {
         {/* key={companyId}: rimonta l'editor (re-inizializza lo stato dai dati) se cambia azienda. */}
         <BrandingEditor key={branding?.company_id ?? companyId ?? "none"} companyId={companyId} initial={branding ?? null} />
         <DomainCard companyId={companyId} branding={branding ?? null} />
+        <SyncBrandingCard companyId={companyId} />
       </div>
     </div>
   );
@@ -337,6 +338,55 @@ function BrandingEditor({ companyId, initial }: { companyId: string | null; init
         </Button>
       </div>
     </>
+  );
+}
+
+/** Ri-applica il brand attuale del produttore a tutti i rivenditori già creati. */
+function SyncBrandingCard({ companyId }: { companyId: string | null }) {
+  const { data: count = 0 } = useQuery({
+    queryKey: ["produttore-rivenditori-count", companyId],
+    enabled: !!companyId,
+    queryFn: async (): Promise<number> => {
+      if (!companyId) return 0;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count: c, error } = await (supabase as any)
+        .from("companies").select("id", { count: "exact", head: true }).eq("parent_company_id", companyId);
+      if (error) throw new Error(error.message);
+      return c ?? 0;
+    },
+  });
+
+  const sync = useMutation({
+    mutationFn: async (): Promise<number> => {
+      const { data, error } = await supabase.functions.invoke("sync-reseller-branding", { body: {} });
+      if (error) throw new Error(error.message ?? "Sincronizzazione fallita");
+      const r = data as { success?: boolean; synced?: number; error?: string } | null;
+      if (r && r.success === false) throw new Error(r.error ?? "Sincronizzazione fallita");
+      return r?.synced ?? 0;
+    },
+    onSuccess: (synced) => toast.success("Brand sincronizzato", {
+      description: `Aggiornati ${synced} rivenditori col tuo brand attuale.`,
+    }),
+    onError: (e) => toast.error("Sincronizzazione fallita", { description: (e as Error).message }),
+  });
+
+  if (!count) return null; // niente rivenditori → niente da sincronizzare
+
+  return (
+    <Card>
+      <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+        <div className="min-w-0">
+          <p className="font-medium">Rivenditori esistenti</p>
+          <p className="text-sm text-muted-foreground">
+            Applica il brand attuale (logo + colore) ai <strong>{count}</strong> rivenditori già creati.
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => sync.mutate()} disabled={sync.isPending} className="shrink-0 gap-1.5">
+          {sync.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          Risincronizza brand
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
