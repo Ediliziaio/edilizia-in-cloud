@@ -84,6 +84,31 @@ export default function CompanyDetail() {
       return parent ? { id: parent.id as string, name: parent.name as string } : null;
     },
   });
+
+  // Studio(i) commercialista che gestiscono questa azienda (delega). Il super admin
+  // può leggere accountant_company_access + accountant_firms via RLS.
+  const { data: accountantInfo = [] } = useQuery({
+    queryKey: ["admin-company-accountant", id],
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const { data, error } = await sb
+        .from("accountant_company_access")
+        .select("status, access_mode, accountant_firms!inner(id, name)")
+        .eq("company_id", id)
+        .in("status", ["active", "invited", "suspended"]);
+      if (error) return [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data ?? []).map((r: any) => ({
+        status: r.status as string,
+        firmId: r.accountant_firms?.id as string,
+        firmName: r.accountant_firms?.name as string,
+      }));
+    },
+  });
+
   const queryClient = useQueryClient();
   const { profile, role, company: saCompany } = useAuth();
   const requestedTab = searchParams.get("tab") || "panoramica";
@@ -316,6 +341,22 @@ export default function CompanyDetail() {
               {parentInfo.name}
             </button>
             . Piano e abbonamento sono in genere gestiti dal produttore dal suo portale.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Studio commercialista che gestisce l'azienda (delega) */}
+      {accountantInfo.length > 0 && (
+        <Alert className="border-teal-200 bg-teal-50">
+          <FileText className="h-4 w-4 text-teal-700" />
+          <AlertDescription className="text-teal-900">
+            Gestita {accountantInfo.length > 1 ? "dagli studi" : "dallo studio"}{" "}
+            {accountantInfo.map((a, i) => (
+              <span key={a.firmId}>
+                {i > 0 ? ", " : ""}<strong>{a.firmName}</strong>{a.status !== "active" ? ` (${a.status})` : ""}
+              </span>
+            ))}
+            {" "}(commercialista).
           </AlertDescription>
         </Alert>
       )}
