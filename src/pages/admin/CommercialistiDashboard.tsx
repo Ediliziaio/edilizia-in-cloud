@@ -22,6 +22,7 @@ import { AccessControlDialog } from "@/components/admin/AccessControlDialog";
 import { EditEntityDialog } from "@/components/admin/EditEntityDialog";
 import { LastAccessBadge } from "@/components/admin/LastAccessBadge";
 import { useAdminActivity, latestActivity } from "@/hooks/useAdminActivity";
+import { InfoStrip } from "@/components/admin/InfoStrip";
 import {
   Calculator, Building2, ChevronDown, ChevronRight, AlertCircle, RefreshCw, Mail, Users, Play, Ban, KeyRound, Search, Pencil, X,
 } from "lucide-react";
@@ -38,9 +39,12 @@ interface Studio {
   created_at: string | null;
   owner_email: string | null;
   owner_user_id: string | null;
+  owner_name: string | null;
   firm_email: string | null;
   vat_number: string | null;
   fiscal_code: string | null;
+  contract_status: string | null;
+  dpa_status: string | null;
   members: Member[];
   members_count: number;
   companies: ManagedCompany[];
@@ -52,13 +56,17 @@ const FIRM_STATUS_LABEL: Record<string, string> = {
 const MODE_LABEL: Record<string, string> = {
   operational: "Operativo", read_only: "Sola lettura", approval_required: "Con approvazione",
 };
+const STATUS_IT: Record<string, string> = {
+  pending: "In attesa", sent: "Inviato", signed: "Firmato", approved: "Approvato",
+  active: "Attivo", rejected: "Rifiutato", none: "—", not_required: "Non richiesto",
+};
 
 async function fetchStudi(): Promise<Studio[]> {
   // accountant_* non sempre nei tipi generati → client non tipizzato.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
   const { data: firms, error: e1 } = await sb
-    .from("accountant_firms").select("id, name, status, owner_user_id, email, vat_number, fiscal_code, created_at")
+    .from("accountant_firms").select("id, name, status, owner_user_id, email, vat_number, fiscal_code, contract_status, dpa_status, created_at")
     .order("created_at", { ascending: false });
   if (e1) throw new Error(e1.message);
   const firmIds: string[] = (firms ?? []).map((f: AnyRow) => f.id);
@@ -103,9 +111,12 @@ async function fetchStudi(): Promise<Studio[]> {
       id: f.id, name: f.name, status: f.status ?? null, created_at: f.created_at ?? null,
       owner_email: emailById.get(f.owner_user_id) ?? f.email ?? null,
       owner_user_id: f.owner_user_id ?? null,
+      owner_name: nameById.get(f.owner_user_id) ?? null,
       firm_email: f.email ?? null,
       vat_number: f.vat_number ?? null,
       fiscal_code: f.fiscal_code ?? null,
+      contract_status: f.contract_status ?? null,
+      dpa_status: f.dpa_status ?? null,
       members: mem,
       members_count: mem.filter((m) => m.status === "active").length,
       companies: accessByFirm.get(f.id) ?? [],
@@ -268,6 +279,9 @@ export default function CommercialistiDashboard() {
         <ul className="space-y-2">
           {filtered.map((s) => {
             const isOpen = expanded === s.id;
+            const azOper = s.companies.filter((c) => c.access_mode === "operational").length;
+            const azRead = s.companies.filter((c) => c.access_mode === "read_only").length;
+            const azAppr = s.companies.filter((c) => c.access_mode === "approval_required").length;
             return (
               <li key={s.id} className="overflow-hidden rounded-xl border bg-card">
                 <button
@@ -301,6 +315,14 @@ export default function CommercialistiDashboard() {
 
                 {isOpen && (
                   <div className="border-t bg-muted/20 px-4 py-3">
+                    <InfoStrip items={[
+                      { label: "Studio dal", value: s.created_at ? new Date(s.created_at).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" }) : "—" },
+                      { label: "Titolare", value: s.owner_name ?? s.owner_email ?? "—" },
+                      { label: "P.IVA", value: s.vat_number ?? "—" },
+                      { label: "Codice fiscale", value: s.fiscal_code ?? "—" },
+                      { label: "Aziende per modalità", value: `${azOper} oper. · ${azRead} lettura · ${azAppr} appr.` },
+                      { label: "Contratto · DPA", value: `${STATUS_IT[s.contract_status ?? ""] ?? s.contract_status ?? "—"} · ${STATUS_IT[s.dpa_status ?? ""] ?? s.dpa_status ?? "—"}` },
+                    ]} />
                     {/* Azioni studio */}
                     <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-background p-3">
                       <span className="text-sm font-medium">Gestione studio</span>

@@ -21,6 +21,7 @@ import { AccessControlDialog } from "@/components/admin/AccessControlDialog";
 import { EditEntityDialog } from "@/components/admin/EditEntityDialog";
 import { LastAccessBadge } from "@/components/admin/LastAccessBadge";
 import { useAdminActivity, latestActivity } from "@/hooks/useAdminActivity";
+import { InfoStrip } from "@/components/admin/InfoStrip";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import { formatEuro } from "@/lib/formatEuro";
 import { useNavigate } from "react-router-dom";
@@ -306,6 +307,9 @@ export default function ProduttoriDashboard() {
         <ul className="space-y-2">
           {filtered.map((p) => {
             const isOpen = expanded === p.id;
+            const rivMrr = p.rivenditori.reduce((s, r) => s + (r.plan_price || 0), 0);
+            const rivAttivi = p.rivenditori.filter((r) => r.status === "active").length;
+            const rivSospesi = p.rivenditori.filter((r) => r.status === "suspended").length;
             return (
               <li key={p.id} className="overflow-hidden rounded-xl border bg-card">
                 <button
@@ -347,6 +351,14 @@ export default function ProduttoriDashboard() {
 
                 {isOpen && (
                   <div className="border-t bg-muted/20 px-4 py-3">
+                    <InfoStrip items={[
+                      { label: "Cliente da", value: p.created_at ? new Date(p.created_at).toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" }) : "—" },
+                      { label: "MRR rivenditori", value: `${formatEuro(rivMrr)}/mese` },
+                      { label: "Rivenditori attivi", value: rivAttivi },
+                      { label: "Rivenditori sospesi", value: rivSospesi },
+                      { label: "Sconto wholesale", value: `${p.wholesale_pct}%` },
+                      { label: "Tetto rivenditori", value: p.reseller_limit > 0 ? p.reseller_limit : "illimitato" },
+                    ]} />
                     <ProduttoreActions p={p} onChanged={() => qc.invalidateQueries({ queryKey: ["admin-produttori"] })} />
                     <WholesaleControl
                       produttoreId={p.id}
