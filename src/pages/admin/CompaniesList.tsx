@@ -419,6 +419,27 @@ export default function CompaniesList() {
   const parentNameByChild = resellerInfo?.parentNameByChild ?? {};
   const resellerIdsKey = resellerIds.join(",");
 
+  // Info commercialisti: aziende gestite in delega attiva da uno studio (per il badge "Studio").
+  const { data: accountantInfo } = useQuery({
+    queryKey: ["admin-companies-accountant-info"],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const { data } = await sb
+        .from("accountant_company_access")
+        .select("company_id, accountant_firms!inner(name)")
+        .eq("status", "active");
+      const firmByCompany: Record<string, string> = {};
+      ((data ?? []) as { company_id: string; accountant_firms?: { name?: string } }[]).forEach((r) => {
+        if (r.company_id && !firmByCompany[r.company_id]) firmByCompany[r.company_id] = r.accountant_firms?.name ?? "";
+      });
+      return { firmByCompany };
+    },
+  });
+  const accountantFirmByCompany = useMemo(() => accountantInfo?.firmByCompany ?? {}, [accountantInfo]);
+  const accountantIdSet = useMemo(() => new Set(Object.keys(accountantFirmByCompany)), [accountantFirmByCompany]);
+
   const { data: pagedResult, isLoading, isError, refetch } = useQuery({
     queryKey: [
       ...queryKeys.admin.companiesFull,
@@ -1494,6 +1515,7 @@ export default function CompaniesList() {
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <Badge variant={cfg.variant} className="text-[10px] px-1.5 py-0">{cfg.label}</Badge>
                         {resellerIdSet.has(company.id) && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-violet-300 bg-violet-50 text-violet-700">Rivenditore{parentNameByChild[company.id] ? ` · ${parentNameByChild[company.id]}` : ""}</Badge>}
+                        {accountantIdSet.has(company.id) && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-teal-300 bg-teal-50 text-teal-700">Studio{accountantFirmByCompany[company.id] ? ` · ${accountantFirmByCompany[company.id]}` : ""}</Badge>}
                         {plan && <Badge variant="outline" className="text-[10px] px-1.5 py-0">{plan.name}</Badge>}
                         {plan && (
                           <span className={`text-xs font-semibold ${countsAsRevenue ? "text-emerald-600" : "text-muted-foreground"}`}>
@@ -1579,6 +1601,7 @@ export default function CompaniesList() {
                         <div className="flex items-center gap-1.5">
                           <p className="font-medium truncate">{company.name}</p>
                           {resellerIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-violet-300 bg-violet-50 text-violet-700" title={`Rivenditore di ${parentNameByChild[company.id] || "—"}`}>Riv.</Badge>}
+                          {accountantIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-teal-300 bg-teal-50 text-teal-700" title={`Studio: ${accountantFirmByCompany[company.id] || "—"}`}>Studio</Badge>}
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{company.email}</p>
                       </div>
@@ -1734,6 +1757,7 @@ export default function CompaniesList() {
                               <div className="flex items-center gap-1.5">
                                 <p className="font-medium">{company.name}</p>
                                 {resellerIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-violet-300 bg-violet-50 text-violet-700" title={`Rivenditore di ${parentNameByChild[company.id] || "—"}`}>Riv.</Badge>}
+                                {accountantIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-teal-300 bg-teal-50 text-teal-700" title={`Studio: ${accountantFirmByCompany[company.id] || "—"}`}>Studio</Badge>}
                               </div>
                               <p className="text-xs text-muted-foreground">{company.email}</p>
                             </div>

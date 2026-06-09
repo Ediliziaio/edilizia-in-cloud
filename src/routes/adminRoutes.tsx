@@ -42,6 +42,7 @@ const AdminBulkSchedulesPage = lazy(() => import("@/pages/admin/AdminBulkSchedul
 const PlanDetail = lazy(() => import("@/pages/admin/PlanDetail"));
 const ReferralDashboard = lazy(() => import("@/pages/admin/ReferralDashboard"));
 const ProduttoriDashboard = lazy(() => import("@/pages/admin/ProduttoriDashboard"));
+const CommercialistiDashboard = lazy(() => import("@/pages/admin/CommercialistiDashboard"));
 const FeatureFlags = lazy(() => import("@/pages/admin/FeatureFlags"));
 const FeatureBundles = lazy(() => import("@/pages/admin/FeatureBundles"));
 const CompanyPacchettoCustom = lazy(() => import("@/pages/admin/CompanyPacchettoCustom"));
@@ -268,6 +269,7 @@ export default function AdminRoutesContainer() {
         <Route path="piani/:id" element={<RequireSuperAdmin><PlanDetail /></RequireSuperAdmin>} />
         <Route path="referral" element={<RequireSuperAdmin><ReferralDashboard /></RequireSuperAdmin>} />
         <Route path="produttori" element={<RequireSuperAdmin><ProduttoriDashboard /></RequireSuperAdmin>} />
+        <Route path="commercialisti" element={<RequireSuperAdmin><CommercialistiDashboard /></RequireSuperAdmin>} />
         <Route path="feature-flags" element={<RequireSuperAdmin><FeatureFlags /></RequireSuperAdmin>} />
         <Route path="feature-bundles" element={<RequireSuperAdmin><FeatureBundles /></RequireSuperAdmin>} />
         <Route path="companies/:id/pacchetto-custom" element={<RequireSuperAdmin><CompanyPacchettoCustom /></RequireSuperAdmin>} />
