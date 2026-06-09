@@ -21,6 +21,25 @@ const KEY = "rq-cache-v1";
 
 let persistErrorLogged = false;
 
+/**
+ * Risolve a `undefined` se la promise non si settla entro `ms`. Difesa contro
+ * IndexedDB "blocked"/pending su WKWebView iOS: senza, `restoreClient` non
+ * tornerebbe mai → `isRestoring` resta true → tutte le query default in pausa
+ * → spinner infinito sulle pagine post-login.
+ */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | undefined> {
+  return new Promise<T | undefined>((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (!settled) { settled = true; resolve(undefined); }
+    }, ms);
+    p.then(
+      (v) => { if (!settled) { settled = true; clearTimeout(timer); resolve(v); } },
+      () => { if (!settled) { settled = true; clearTimeout(timer); resolve(undefined); } },
+    );
+  });
+}
+
 export function createIdbPersister(): Persister {
   return {
     persistClient: async (client: PersistedClient) => {
@@ -38,7 +57,10 @@ export function createIdbPersister(): Persister {
       }
     },
     restoreClient: async () => {
-      return (await get<PersistedClient>(KEY)) ?? undefined;
+      // Timeout 3s: se IndexedDB si blocca all'apertura (WKWebView iOS), riparti
+      // senza cache invece di lasciare l'app in "isRestoring" per sempre.
+      const restored = await withTimeout(get<PersistedClient>(KEY), 3000);
+      return restored ?? undefined;
     },
     removeClient: async () => {
       await del(KEY);

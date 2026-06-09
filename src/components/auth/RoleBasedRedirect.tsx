@@ -101,6 +101,9 @@ export function RoleBasedRedirect() {
     if (subdomain === "referral") {
       return <Navigate to="/referral-login" replace />;
     }
+    if (subdomain === "produttore") {
+      return <Navigate to="/produttore-login" replace />;
+    }
     return <Navigate to="/login" replace />;
   }
 

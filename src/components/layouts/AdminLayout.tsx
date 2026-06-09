@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Settings,
   Gift,
+  Factory,
   Blocks,
   Search,
   ChevronsUpDown,
@@ -149,6 +150,7 @@ const allNavItems: AdminNavItem[] = [
   //    Impostazioni → Sistema. Ora vive lì come singola voce.
   //    L'hub /admin/operazioni resta funzionante per i deep link.
   { title: "Referral", url: "/admin/referral", icon: Gift, permission: "can_manage_referrals", subcategory: "sa_growth" },
+  { title: "Produttori", url: "/admin/produttori", icon: Factory, permission: "can_manage_companies", subcategory: "sa_growth" },
 ];
 
 const adminMarketingNavItems: AdminNavItem[] = [

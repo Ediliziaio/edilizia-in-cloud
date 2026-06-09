@@ -45,7 +45,7 @@ const AdminRoutesContainer = lazy(() => import("@/routes/adminRoutes"));
 const CompanyRoutesContainer = lazy(() => import("@/routes/companyRoutes"));
 const TecnicoRoutesContainer = lazy(() => import("@/routes/tecnicoRoutes"));
 const CampoRoutesContainer = lazy(() => import("@/routes/campoRoutes"));
-import { customerRoutes, employeeRoutes, salespersonRoutes, partnerRoutes } from "@/routes/portalRoutes";
+import { customerRoutes, employeeRoutes, salespersonRoutes, partnerRoutes, produttoreRoutes } from "@/routes/portalRoutes";
 // 🛠️ 2026-05-22: tecnicoRoutes/campoRoutes ora caricati via lazy containers
 // (TecnicoRoutesContainer/CampoRoutesContainer sopra) → rimossi gli import diretti
 // che non erano più usati (lint error: 'tecnicoRoutes'/'campoRoutes' defined but never used).
@@ -117,6 +117,7 @@ const AdminLogin = lazy(() => import("@/pages/AdminLogin"));
 const ClientiLogin = lazy(() => import("@/pages/ClientiLogin"));
 const LavoriLogin = lazy(() => import("@/pages/LavoriLogin"));
 const ReferralLogin = lazy(() => import("@/pages/ReferralLogin"));
+const ProduttoreLogin = lazy(() => import("@/pages/ProduttoreLogin"));
 const CommercialistaLogin = lazy(() => import("@/pages/CommercialistaLogin"));
 
 /**
@@ -130,6 +131,7 @@ function LoginRouter() {
   if (sub === "lavori") return <LavoriLogin />;
   if (sub === "commercialista") return <Navigate to="/commercialista-login" replace />;
   if (sub === "referral") return <Navigate to="/referral-login" replace />;
+  if (sub === "produttore") return <Navigate to="/produttore-login" replace />;
   return <Login />;
 }
 const NotFound = lazy(() => import("@/pages/NotFound"));
@@ -398,10 +400,10 @@ function CityOrNotFound() {
 
 const MARKETING_ANALYTICS_HOSTS = new Set(["ediliziaincloud.com", "www.ediliziaincloud.com"]);
 const PRIVATE_ANALYTICS_PREFIXES =
-  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|referral-login|commercialista-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref|talent-profile)(\/|$)/;
+  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|produttore-login|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|referral-login|commercialista-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref|talent-profile)(\/|$)/;
 
 const PRIVATE_APP_PREFIXES =
-  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|tecnico|campo|portale|portale-cliente|talent-profile)(\/|$)/;
+  /^\/(app|admin|azienda|commercialista|cliente|dipendente|venditore|partner|produttore|tecnico|campo|portale|portale-cliente|talent-profile)(\/|$)/;
 
 function canTrackMarketingPage(pathname: string) {
   if (typeof window === "undefined") return false;
@@ -435,6 +437,14 @@ function PublicSiteChatWidgetGate() {
 function BootGuardDismiss() {
   useEffect(() => {
     window.__EIC_BOOT_OK__?.();
+    // React ha montato e committato: libera i marker di recovery nativi così un
+    // prossimo avvio non parte con un flag stale (il watchdog nativo in index.html
+    // usa questo flag per non andare in loop di reload).
+    try {
+      sessionStorage.removeItem("eic_native_boot_reload_v1");
+    } catch {
+      // sessionStorage non disponibile: nessuna azione necessaria.
+    }
   }, []);
 
   return null;
@@ -474,7 +484,13 @@ const App = () => (
         <SubdomainTitleSetter />
         <GARouteTracker />
         <ScrollToTop />
-        <MobileBootstrap />
+        {/* MobileBootstrap è lazy SOLO su native. Va isolato in un suo Suspense:
+            se il suo chunk è lento/non risolve su WKWebView, il fallback={null}
+            lascia montare il resto dell'app (auth+routes) invece di bloccare
+            l'intero render → evita il "caricamento infinito" su iOS. */}
+        <Suspense fallback={null}>
+          <MobileBootstrap />
+        </Suspense>
         <AuthProvider>
           <PaymentGateDialog />
           <AnalyticsProvider>
@@ -592,6 +608,7 @@ const App = () => (
               <Route path="/clienti-login" element={<ClientiLogin />} />
               <Route path="/lavori-login" element={<LavoriLogin />} />
               <Route path="/referral-login" element={<ReferralLogin />} />
+              <Route path="/produttore-login" element={<ProduttoreLogin />} />
               <Route path="/commercialista-login" element={<CommercialistaLogin />} />
               <Route path="/cambia-password" element={<ChangePassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
@@ -677,6 +694,7 @@ const App = () => (
               {employeeRoutes()}
               {salespersonRoutes()}
               {partnerRoutes()}
+              {produttoreRoutes()}
               {/* v8.6.115 — Tecnico/Campo routes ora lazy */}
               <Route
                 path="/tecnico/*"

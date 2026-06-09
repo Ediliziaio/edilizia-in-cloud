@@ -9,12 +9,13 @@
  *   lavori           → field/work portal
  *   commercialista   → accountant/studio portal
  *   referral         → referral partner portal
+ *   produttore       → producer white-label portal
  *   <anything else>  → treated like "app" (white-label or unknown)
  */
 
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 
-export type AppSubdomain = "www" | "app" | "admin" | "clienti" | "lavori" | "commercialista" | "referral" | "other";
+export type AppSubdomain = "www" | "app" | "admin" | "clienti" | "lavori" | "commercialista" | "referral" | "produttore" | "other";
 
 export interface SubdomainConfig {
   subdomain: AppSubdomain;
@@ -62,6 +63,12 @@ const SUBDOMAIN_MAP: Record<string, SubdomainConfig> = {
     defaultPath: "/partner",
     loginPath: "/referral-login",
     title: "Portale Referral — Edilizia in Cloud",
+  },
+  produttore: {
+    subdomain: "produttore",
+    defaultPath: "/produttore",
+    loginPath: "/produttore-login",
+    title: "Area Produttore — Edilizia in Cloud",
   },
   app: {
     subdomain: "app",
@@ -144,4 +151,9 @@ export function isCommercialistaSubdomain(): boolean {
 /** True quando il subdomain è il portale referral partner */
 export function isReferralSubdomain(): boolean {
   return getCurrentSubdomain() === "referral";
+}
+
+/** True quando il subdomain è il portale produttore (white-label) */
+export function isProduttoreSubdomain(): boolean {
+  return getCurrentSubdomain() === "produttore";
 }

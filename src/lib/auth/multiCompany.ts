@@ -18,6 +18,12 @@ const COMPANY_ACCESS_ROLES = new Set<AppRole>([
   "subcontractor",
 ]);
 
+// Ruoli con un'area/portale dedicato che NON devono mai essere risolti come
+// ruolo di accesso aziendale, nemmeno se il profilo ha una company_id (che
+// altrimenti genererebbe un finto accesso 'company_staff' via
+// mergeProfileCompanyAccess, sloggandoli dal loro portale).
+const PORTAL_ONLY_ROLES = new Set<AppRole>(["produttore_admin"]);
+
 export function normalizeCompanyAccessRole(role: unknown): AppRole | null {
   return typeof role === "string" && COMPANY_ACCESS_ROLES.has(role as AppRole)
     ? (role as AppRole)
@@ -92,6 +98,15 @@ export function resolveSelectedAccessRole({
   accesses: MultiCompanyAccess[];
   selectedCompanyId: string | null | undefined;
 }): AppRole | null {
+  // Ruoli-portale dedicati (es. produttore_admin): NON passano dal flusso
+  // multi-azienda. Anche se hanno un profile.company_id — che genera un finto
+  // accesso 'company_staff' via mergeProfileCompanyAccess — il loro ruolo di
+  // accesso di rotta resta il ruolo globale, altrimenti ProtectedRoute li
+  // sloggerebbe dal loro portale verso l'area azienda.
+  if (PORTAL_ONLY_ROLES.has(globalRole as AppRole)) {
+    return globalRole;
+  }
+
   const selectedAccess = selectedCompanyId
     ? accesses.find((access) => access.company_id === selectedCompanyId)
     : undefined;

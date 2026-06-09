@@ -16,7 +16,8 @@ export type AppRole =
   | "platform_support"
   | "platform_marketing"
   | "platform_implementation"
-  | "multi_company_user";
+  | "multi_company_user"
+  | "produttore_admin"; // admin di un'azienda PRODUTTORE (white-label rivenditori)
 
 /** Ruoli con accesso all'area campo (lavori.ediliziaincloud.com) */
 export type CampoRole = "employee" | "subcontractor";

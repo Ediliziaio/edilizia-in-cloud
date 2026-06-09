@@ -56,15 +56,19 @@ Deno.serve(async (req) => {
       .eq("id", user.id)
       .single();
 
-    const { data: role } = await supabase
+    // user_roles può avere N righe per utente → niente .single() (romperebbe i multi-ruolo).
+    const { data: roleRows } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", user.id)
-      .single();
+      .eq("user_id", user.id);
+    const roleSet = new Set((roleRows ?? []).map((r: { role: string }) => r.role));
 
-    const isSuperAdmin = role?.role === "super_admin";
-    const isCompanyOwner = profile?.company_id === company_id && role?.role === "company_admin";
-    if (!isSuperAdmin && !isCompanyOwner) {
+    const isSuperAdmin = roleSet.has("super_admin");
+    // company_admin gestisce il dominio della propria azienda; produttore_admin
+    // gestisce quello white-label della propria azienda produttore (tier agency).
+    const isOwnerOrProduttore = profile?.company_id === company_id
+      && (roleSet.has("company_admin") || roleSet.has("produttore_admin"));
+    if (!isSuperAdmin && !isOwnerOrProduttore) {
       return errorResponse("Permessi insufficienti", 403);
     }
 

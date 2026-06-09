@@ -5,6 +5,7 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { CustomerLayout } from "@/components/layouts/CustomerLayout";
 import { SalespersonLayout } from "@/components/layouts/SalespersonLayout";
 import { PartnerLayout } from "@/components/layouts/PartnerLayout";
+import { ProduttoreLayout } from "@/components/layouts/ProduttoreLayout";
 import { EMPLOYEE_LEGACY_REDIRECTS } from "@/routes/employeeLegacyRedirects";
 
 // Customer pages
@@ -28,6 +29,9 @@ const SalespersonProfile = lazy(() => import("@/pages/venditore/SalespersonProfi
 
 // Partner pages
 const PartnerDashboard = lazy(() => import("@/pages/partner/PartnerDashboard"));
+const ProduttoreDashboard = lazy(() => import("@/pages/produttore/ProduttoreDashboard"));
+const ProduttoreBranding = lazy(() => import("@/pages/produttore/ProduttoreBranding"));
+const ProduttoreFatturazione = lazy(() => import("@/pages/produttore/ProduttoreFatturazione"));
 const PartnerLink = lazy(() => import("@/pages/partner/PartnerLink"));
 const PartnerReferrals = lazy(() => import("@/pages/partner/PartnerReferrals"));
 const PartnerPerformance = lazy(() => import("@/pages/partner/PartnerPerformance"));
@@ -116,6 +120,25 @@ export function partnerRoutes() {
       <Route path="payout" element={<PartnerPayout />} />
       <Route path="materiali" element={<PartnerMaterials />} />
       <Route path="profilo" element={<PartnerProfile />} />
+    </Route>
+  );
+}
+
+export function produttoreRoutes() {
+  return (
+    <Route
+      path="/produttore"
+      element={
+        <ProtectedRoute allowedRoles={["produttore_admin", "super_admin"]}>
+          <ErrorBoundary title="Errore nell'area produttore">
+            <ProduttoreLayout />
+          </ErrorBoundary>
+        </ProtectedRoute>
+      }
+    >
+      <Route index element={<ProduttoreDashboard />} />
+      <Route path="branding" element={<ProduttoreBranding />} />
+      <Route path="fatturazione" element={<ProduttoreFatturazione />} />
     </Route>
   );
 }

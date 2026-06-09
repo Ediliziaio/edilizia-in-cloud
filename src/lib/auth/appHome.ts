@@ -10,6 +10,7 @@ const ROLE_HOME_PATHS: Record<AppRole, string> = {
   company_staff: COMPANY_APP_HOME,
   call_center: COMPANY_APP_HOME,
   multi_company_user: COMPANY_APP_HOME,
+  produttore_admin: "/produttore",
   customer: "/cliente",
   employee: "/campo",
   subcontractor: "/campo",

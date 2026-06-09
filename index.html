@@ -524,7 +524,7 @@
       })();
     </script>
     <div id="root">
-      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff;color:#111;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;text-align:center">
+      <div id="eic-initial-spinner" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff;color:#111;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:24px;text-align:center">
         <div>
           <div style="width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#f97316;border-radius:999px;margin:0 auto 16px;animation:eic-spin .8s linear infinite"></div>
           <p style="margin:0;font-size:14px;font-weight:600">Caricamento Edilizia in Cloud...</p>
@@ -565,19 +565,51 @@
 
       (function () {
         if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
-          // Watchdog NATIVO: la splash Capacitor copre il boot, ma se React NON monta
-          // (#root vuoto dopo il timeout — es. errore JS early o chunk fallito) l'utente
-          // resterebbe su schermo nero senza via d'uscita. Mostriamo il recovery
-          // "Riprova / Reset cache". showBootstrapFallback è una function declaration
-          // (hoisted nello scope della IIFE) → utilizzabile qui, prima della sua posizione.
+          // Watchdog NATIVO — la splash Capacitor copre il boot, ma se React NON
+          // committa il primo render l'utente resta su "caricamento infinito"
+          // (= Guideline 2.1a Apple). Il vecchio check `childElementCount === 0`
+          // era ROTTO: #root contiene SEMPRE lo spinner inline iniziale, quindi
+          // non era mai 0 → la recovery non scattava mai.
+          //
+          // FIX: detection affidabile via marker #eic-initial-spinner — React 18
+          // (createRoot) sostituisce il contenuto di #root al primo commit, quindi
+          // se il marker è ancora presente React NON ha montato. Recovery a stadi:
+          //   1) reload pulito UNA volta (risolve hang transitori del module-load
+          //      WKWebView), poi 2) UI azionabile "Riprova / Reset". Mai indefinito.
+          var NATIVE_BOOT_KEY = 'eic_native_boot_reload_v1';
+          function reactNotMounted() {
+            return !!document.getElementById('eic-initial-spinner');
+          }
+          // (1) React non ha committato entro 8s → recovery.
           setTimeout(function () {
             try {
-              var rootEl = document.getElementById('root');
-              if (!rootEl || rootEl.childElementCount === 0) {
-                showBootstrapFallback('native-bootstrap-timeout');
+              if (!reactNotMounted()) return;
+              var alreadyReloaded = false;
+              try { alreadyReloaded = !!sessionStorage.getItem(NATIVE_BOOT_KEY); } catch (e) {}
+              if (!alreadyReloaded) {
+                try { sessionStorage.setItem(NATIVE_BOOT_KEY, '1'); } catch (e) {}
+                location.reload();
+                return;
+              }
+              showBootstrapFallback('native-bootstrap-timeout');
+            } catch (e) {}
+          }, 8000);
+          // (2) React ha montato ma è rimasto bloccato su uno spinner (testo
+          //     "Caricamento" e nessun elemento interattivo) oltre i watchdog di
+          //     AuthContext → UI azionabile (no reload, per non loopare).
+          setTimeout(function () {
+            try {
+              if (reactNotMounted()) return;
+              var root = document.getElementById('root');
+              if (!root) return;
+              var txt = (root.textContent || '');
+              var stillLoading = txt.indexOf('Caricamento') !== -1 || txt.indexOf('Verifica in corso') !== -1;
+              var hasInteractive = root.querySelector('input, button, a[href], textarea, select, [role="button"]');
+              if (stillLoading && !hasInteractive) {
+                showBootstrapFallback('native-post-mount-stuck');
               }
             } catch (e) {}
-          }, 12000);
+          }, 16000);
           return;
         }
 
