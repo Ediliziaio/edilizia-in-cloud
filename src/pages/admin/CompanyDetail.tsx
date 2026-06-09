@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getSubdomainUrl, navigateToSubdomain } from "@/utils/subdomainNav";
 import { safeRedirect } from "@/utils/safeRedirect";
 import { useAuth, getCachedTokens } from "@/contexts/AuthContext";
@@ -67,6 +67,23 @@ export default function CompanyDetail() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const h = useCompanyDetail(id);
+
+  // Produttore padre (se questa azienda è un rivenditore white-label).
+  // parent_company_id non è nei tipi generati → client non tipizzato.
+  const { data: parentInfo } = useQuery({
+    queryKey: ["admin-company-parent", id],
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const { data: self } = await sb.from("companies").select("parent_company_id").eq("id", id).maybeSingle();
+      const parentId = self?.parent_company_id as string | null | undefined;
+      if (!parentId) return null;
+      const { data: parent } = await sb.from("companies").select("id, name").eq("id", parentId).maybeSingle();
+      return parent ? { id: parent.id as string, name: parent.name as string } : null;
+    },
+  });
   const queryClient = useQueryClient();
   const { profile, role, company: saCompany } = useAuth();
   const requestedTab = searchParams.get("tab") || "panoramica";
@@ -284,6 +301,24 @@ export default function CompanyDetail() {
         onExport={handleExportCompany}
         isUpdatingStatus={h.updateStatusMutation.isPending}
       />
+
+      {/* Rivenditore white-label → link al produttore padre */}
+      {parentInfo && (
+        <Alert className="border-violet-200 bg-violet-50">
+          <Building2 className="h-4 w-4 text-violet-700" />
+          <AlertDescription className="text-violet-900">
+            Questa azienda è un <strong>rivenditore</strong> del produttore{" "}
+            <button
+              type="button"
+              onClick={() => navigate(`/admin/aziende/${parentInfo.id}`)}
+              className="font-semibold underline underline-offset-2 hover:text-violet-700"
+            >
+              {parentInfo.name}
+            </button>
+            . Piano e abbonamento sono in genere gestiti dal produttore dal suo portale.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Next Best Actions */}
       <CompanyNextActions
