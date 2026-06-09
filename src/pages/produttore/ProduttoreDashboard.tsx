@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,7 +11,10 @@ import { cn } from "@/lib/utils";
 import { CreateRivenditoreDialog } from "@/components/produttore/CreateRivenditoreDialog";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import {
-  Users, Plus, Building2, AlertCircle, RefreshCw, Factory, CreditCard, CheckCircle2, Wallet,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import {
+  Users, Plus, Building2, AlertCircle, RefreshCw, Factory, CreditCard, CheckCircle2, Wallet, MoreVertical,
 } from "lucide-react";
 
 type BillingMode = "fabbrica_paga" | "reseller_paga";
@@ -30,6 +34,7 @@ interface Rivenditore {
 export default function ProduttoreDashboard() {
   const { profile, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? profile?.company_id ?? null;
+  const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [createKey, setCreateKey] = useState(0);
   const openCreate = () => { setCreateKey((k) => k + 1); setOpen(true); };
@@ -55,6 +60,23 @@ export default function ProduttoreDashboard() {
         mode: (compRes.data?.reseller_billing_mode ?? "fabbrica_paga") as BillingMode,
       };
     },
+  });
+
+  const setBilling = useMutation({
+    mutationFn: async ({ id, comped }: { id: string; comped: boolean }) => {
+      const { data: res, error } = await supabase.functions.invoke("set-reseller-billing", {
+        body: { reseller_id: id, billing_comped: comped },
+      });
+      if (error) throw new Error(error.message ?? "Aggiornamento fallito");
+      const r = res as { success?: boolean; error?: string } | null;
+      if (r && r.success === false) throw new Error(r.error ?? "Aggiornamento fallito");
+    },
+    onSuccess: () => {
+      toast.success("Aggiornato", { description: "Modello di pagamento del rivenditore aggiornato." });
+      qc.invalidateQueries({ queryKey: ["produttore-rivenditori", companyId] });
+      qc.invalidateQueries({ queryKey: ["produttore-fatturazione", companyId] });
+    },
+    onError: (e) => toast.error("Aggiornamento fallito", { description: (e as Error).message }),
   });
 
   const rivenditori = data?.rivenditori ?? [];
@@ -152,6 +174,22 @@ export default function ProduttoreDashboard() {
                     <CreditCard className="h-3.5 w-3.5" /> Paga lui
                   </Badge>
                 )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={setBilling.isPending} aria-label="Azioni rivenditore">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Chi paga l&apos;abbonamento</DropdownMenuLabel>
+                    <DropdownMenuItem disabled={!!r.billing_comped} onClick={() => setBilling.mutate({ id: r.id, comped: true })}>
+                      <Factory className="mr-2 h-4 w-4" /> Paghi tu
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled={!r.billing_comped} onClick={() => setBilling.mutate({ id: r.id, comped: false })}>
+                      <CreditCard className="mr-2 h-4 w-4" /> Paga il rivenditore
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </li>
           ))}
