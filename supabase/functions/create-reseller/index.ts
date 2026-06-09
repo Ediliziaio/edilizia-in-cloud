@@ -50,10 +50,14 @@ Deno.serve(async (req) => {
       return errorResponse("La tua azienda non è abilitata come produttore (serve tier 'agency')", 403, corsH);
     }
 
-    // 2. Modello billing del produttore → comped se 'fabbrica_paga'.
+    // 2. Chi paga QUESTO rivenditore: override esplicito dal dialog
+    //    (billing_comped: true = paga il produttore, false = paga il rivenditore)
+    //    oppure default dal modello del produttore ('fabbrica_paga' → comped).
     const { data: produttore } = await supabaseAdmin
       .from("companies").select("reseller_billing_mode, sector").eq("id", produttoreId).single();
-    const comped = produttore?.reseller_billing_mode === "fabbrica_paga";
+    const comped = typeof body?.billing_comped === "boolean"
+      ? body.billing_comped
+      : produttore?.reseller_billing_mode === "fabbrica_paga";
 
     // 3. Crea la company figlia.
     const { data: child, error: cErr } = await supabaseAdmin
