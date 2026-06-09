@@ -10,11 +10,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { CreateRivenditoreDialog } from "@/components/produttore/CreateRivenditoreDialog";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
+import { useResellerPlans } from "@/hooks/useResellerPlans";
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
-  Users, Plus, Building2, AlertCircle, RefreshCw, Factory, CreditCard, CheckCircle2, Wallet, MoreVertical,
+  Users, Plus, Building2, AlertCircle, RefreshCw, Factory, CreditCard, CheckCircle2, Wallet, MoreVertical, Package,
 } from "lucide-react";
 
 type BillingMode = "fabbrica_paga" | "reseller_paga";
@@ -25,6 +26,8 @@ interface Rivenditore {
   status: string | null;
   billing_comped: boolean | null;
   created_at: string;
+  subscription_plan_id: string | null;
+  plan_name: string | null;
 }
 
 /**
@@ -35,6 +38,7 @@ export default function ProduttoreDashboard() {
   const { profile, effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id ?? profile?.company_id ?? null;
   const qc = useQueryClient();
+  const { data: plans = [] } = useResellerPlans();
   const [open, setOpen] = useState(false);
   const [createKey, setCreateKey] = useState(0);
   const openCreate = () => { setCreateKey((k) => k + 1); setOpen(true); };
@@ -48,7 +52,7 @@ export default function ProduttoreDashboard() {
       const sb = supabase as any;
       const [rivsRes, compRes] = await Promise.all([
         sb.from("companies")
-          .select("id, name, status, billing_comped, created_at")
+          .select("id, name, status, billing_comped, created_at, subscription_plan_id, subscription_plans:subscription_plan_id(name)")
           .eq("parent_company_id", companyId)
           .order("created_at", { ascending: false }),
         sb.from("companies").select("reseller_billing_mode").eq("id", companyId).maybeSingle(),
@@ -56,7 +60,15 @@ export default function ProduttoreDashboard() {
       if (rivsRes.error) throw new Error(rivsRes.error.message);
       if (compRes.error) throw new Error(compRes.error.message);
       return {
-        rivenditori: (rivsRes.data ?? []) as Rivenditore[],
+        rivenditori: ((rivsRes.data ?? []) as Record<string, unknown>[]).map((r) => ({
+          id: r.id as string,
+          name: r.name as string,
+          status: (r.status as string | null) ?? null,
+          billing_comped: (r.billing_comped as boolean | null) ?? null,
+          created_at: r.created_at as string,
+          subscription_plan_id: (r.subscription_plan_id as string | null) ?? null,
+          plan_name: (r.subscription_plans as { name?: string } | null)?.name ?? null,
+        })) as Rivenditore[],
         mode: (compRes.data?.reseller_billing_mode ?? "fabbrica_paga") as BillingMode,
       };
     },
@@ -75,6 +87,22 @@ export default function ProduttoreDashboard() {
       toast.success("Aggiornato", { description: "Modello di pagamento del rivenditore aggiornato." });
       qc.invalidateQueries({ queryKey: ["produttore-rivenditori", companyId] });
       qc.invalidateQueries({ queryKey: ["produttore-fatturazione", companyId] });
+    },
+    onError: (e) => toast.error("Aggiornamento fallito", { description: (e as Error).message }),
+  });
+
+  const setPlan = useMutation({
+    mutationFn: async ({ id, planId }: { id: string; planId: string }) => {
+      const { data: res, error } = await supabase.functions.invoke("set-reseller-plan", {
+        body: { reseller_id: id, subscription_plan_id: planId },
+      });
+      if (error) throw new Error(error.message ?? "Aggiornamento fallito");
+      const r = res as { success?: boolean; error?: string } | null;
+      if (r && r.success === false) throw new Error(r.error ?? "Aggiornamento fallito");
+    },
+    onSuccess: () => {
+      toast.success("Piano aggiornato", { description: "Il piano del rivenditore è stato cambiato." });
+      qc.invalidateQueries({ queryKey: ["produttore-rivenditori", companyId] });
     },
     onError: (e) => toast.error("Aggiornamento fallito", { description: (e as Error).message }),
   });
@@ -165,6 +193,11 @@ export default function ProduttoreDashboard() {
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <Badge variant={r.status === "active" ? "default" : "secondary"}>{companyStatusLabelIt(r.status)}</Badge>
+                {r.plan_name && (
+                  <Badge variant="outline" className="hidden gap-1 sm:inline-flex">
+                    <Package className="h-3.5 w-3.5" /> {r.plan_name}
+                  </Badge>
+                )}
                 {r.billing_comped ? (
                   <Badge variant="outline" className="gap-1 border-amber-200 text-amber-700">
                     <Factory className="h-3.5 w-3.5" /> Paghi tu
@@ -176,7 +209,7 @@ export default function ProduttoreDashboard() {
                 )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={setBilling.isPending && setBilling.variables?.id === r.id} title="Cambia chi paga" aria-label="Azioni rivenditore">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={(setBilling.isPending && setBilling.variables?.id === r.id) || (setPlan.isPending && setPlan.variables?.id === r.id)} title="Gestisci rivenditore" aria-label="Azioni rivenditore">
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -188,6 +221,22 @@ export default function ProduttoreDashboard() {
                     <DropdownMenuItem disabled={!r.billing_comped} onClick={() => setBilling.mutate({ id: r.id, comped: false })}>
                       <CreditCard className="mr-2 h-4 w-4" /> Paga il rivenditore
                     </DropdownMenuItem>
+                    {plans.length > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>Piano</DropdownMenuLabel>
+                        {plans.map((p) => (
+                          <DropdownMenuItem
+                            key={p.id}
+                            disabled={r.subscription_plan_id === p.id}
+                            onClick={() => setPlan.mutate({ id: r.id, planId: p.id })}
+                          >
+                            <Package className="mr-2 h-4 w-4" /> {p.name}
+                            <span className="ml-auto pl-3 text-xs text-muted-foreground">€{p.price_monthly}</span>
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

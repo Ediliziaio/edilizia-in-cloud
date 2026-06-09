@@ -65,6 +65,26 @@ Deno.serve(async (req) => {
       .eq("parent_company_id", produttoreId).eq("email", emailNorm).limit(1).maybeSingle();
     if (dup) return errorResponse("Esiste già un rivenditore con questa email.", 409, corsH);
 
+    // 2c. Piano del rivenditore (la "cosa"): scelta esplicita dal dialog
+    //     (subscription_plan_id) validata come piano ATTIVO; altrimenti default al
+    //     primo full plan (Starter). CRITICO: senza piano il rivenditore avrebbe
+    //     TUTTI i moduli nascosti (useSubscriptionLimits è fail-closed) → un piano
+    //     va SEMPRE impostato, a differenza del comportamento precedente.
+    let planId: string | null = null;
+    const requestedPlanId = typeof body?.subscription_plan_id === "string" ? body.subscription_plan_id.trim() : "";
+    if (requestedPlanId) {
+      const { data: pl } = await supabaseAdmin
+        .from("subscription_plans").select("id").eq("id", requestedPlanId).eq("is_active", true).maybeSingle();
+      planId = (pl?.id as string | undefined) ?? null;
+    }
+    if (!planId) {
+      const { data: def } = await supabaseAdmin
+        .from("subscription_plans").select("id")
+        .eq("is_active", true).eq("is_full_plan", true)
+        .order("position", { ascending: true }).limit(1).maybeSingle();
+      planId = (def?.id as string | undefined) ?? null;
+    }
+
     // 3. Crea la company figlia.
     const { data: child, error: cErr } = await supabaseAdmin
       .from("companies")
@@ -76,6 +96,7 @@ Deno.serve(async (req) => {
         status: "active",
         sector: produttore?.sector ?? "serramenti",
         payment_method: comped ? "comped" : "none",
+        subscription_plan_id: planId,
       })
       .select("id")
       .single();

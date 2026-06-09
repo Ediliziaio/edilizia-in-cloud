@@ -20,6 +20,8 @@ interface Riv {
   name: string;
   status: string | null;
   billing_comped: boolean | null;
+  plan_name: string | null;
+  plan_price: number;
 }
 
 const MODELS: { value: BillingMode; label: string; desc: string; Icon: typeof Factory }[] = [
@@ -59,13 +61,20 @@ export default function ProduttoreFatturazione() {
       if (e1) throw new Error(e1.message);
       const { data: rivs, error: e2 } = await sb
         .from("companies")
-        .select("id, name, status, billing_comped")
+        .select("id, name, status, billing_comped, subscription_plan_id, subscription_plans:subscription_plan_id(name, price_monthly)")
         .eq("parent_company_id", companyId)
         .order("created_at", { ascending: false });
       if (e2) throw new Error(e2.message);
       return {
         mode: (comp?.reseller_billing_mode ?? "fabbrica_paga") as BillingMode,
-        rivenditori: (rivs ?? []) as Riv[],
+        rivenditori: ((rivs ?? []) as Record<string, unknown>[]).map((r) => ({
+          id: r.id as string,
+          name: r.name as string,
+          status: (r.status as string | null) ?? null,
+          billing_comped: (r.billing_comped as boolean | null) ?? null,
+          plan_name: (r.subscription_plans as { name?: string } | null)?.name ?? null,
+          plan_price: Number((r.subscription_plans as { price_monthly?: number } | null)?.price_monthly ?? 0),
+        })) as Riv[],
       };
     },
   });
@@ -88,6 +97,10 @@ export default function ProduttoreFatturazione() {
   const rivenditori = data?.rivenditori ?? [];
   const comped = rivenditori.filter((r) => r.billing_comped).length;
   const paganti = rivenditori.length - comped;
+  // Quanto paghi TU al mese = somma dei prezzi-piano dei rivenditori comped.
+  const youPayMonthly = rivenditori
+    .filter((r) => r.billing_comped)
+    .reduce((s, r) => s + (r.plan_price ?? 0), 0);
 
   // UI ottimistica senza stato locale: durante il salvataggio mostro il valore
   // in volo (mutation.variables), poi torna a quello del server.
@@ -158,7 +171,7 @@ export default function ProduttoreFatturazione() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700"><Factory className="h-5 w-5" /></div>
             <div>
               <div className="text-2xl font-bold leading-none">{comped}</div>
-              <div className="mt-1 text-xs text-muted-foreground">Paghi tu</div>
+              <div className="mt-1 text-xs text-muted-foreground">Paghi tu · ~€{youPayMonthly}/mese</div>
             </div>
           </CardContent>
         </Card>
@@ -230,7 +243,9 @@ export default function ProduttoreFatturazione() {
                 <li key={r.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                   <div className="min-w-0">
                     <div className="truncate font-medium">{r.name}</div>
-                    <div className="text-xs text-muted-foreground">{companyStatusLabelIt(r.status)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {companyStatusLabelIt(r.status)}{r.plan_name ? ` · ${r.plan_name}` : ""}
+                    </div>
                   </div>
                   {r.billing_comped ? (
                     <Badge variant="outline" className="shrink-0 gap-1 border-emerald-200 text-emerald-700">
