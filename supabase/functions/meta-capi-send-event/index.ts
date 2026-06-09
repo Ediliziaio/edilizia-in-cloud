@@ -25,6 +25,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decrypt, getEncryptionKey } from "../_shared/encryption.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { assertMetaCompanyAdminAccess, getErrorMessage, getErrorStatus } from "../_shared/metaAuth.ts";
 
 const apiVersion = Deno.env.get("META_API_VERSION") || "v21.0";
 
@@ -89,15 +90,8 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405, corsHeaders);
 
   try {
-    // AUTH: service role richiesto (chiamata interna)
     const authHeader = req.headers.get("Authorization");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    if (authHeader !== `Bearer ${serviceKey}`) {
-      // Permetti anche user bearer ma solo per evento "self" (es. da frontend tracker)
-      // Per ora: solo service role
-      return json({ error: "service_role_required" }, 401, corsHeaders);
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const admin = createClient(supabaseUrl, serviceKey);
 
@@ -110,6 +104,37 @@ Deno.serve(async (req) => {
 
     if (!body.company_id || !body.event_name || !body.event_id || !body.user_data) {
       return json({ error: "missing_required_fields" }, 400, corsHeaders);
+    }
+
+    // AUTH:
+    //  • service_role → eventi REALI (chiamata interna dal worker CRM).
+    //  • utente loggato (company_admin/super_admin) → SOLO eventi di TEST:
+    //    test_event_code OBBLIGATORIO. Così un admin può verificare la config
+    //    in Events Manager senza poter iniettare conversioni reali fasulle.
+    const isServiceRole = authHeader === `Bearer ${serviceKey}`;
+    if (!isServiceRole) {
+      if (!authHeader?.startsWith("Bearer ")) {
+        return json({ error: "unauthorized" }, 401, corsHeaders);
+      }
+      if (!body.test_event_code) {
+        return json({
+          error: "test_event_code_required",
+          detail: "Le chiamate utente sono consentite solo per eventi di test (test_event_code obbligatorio).",
+        }, 403, corsHeaders);
+      }
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: { user }, error: userErr } = await userClient.auth.getUser(authHeader.slice(7));
+      if (userErr || !user) {
+        return json({ error: "unauthorized" }, 401, corsHeaders);
+      }
+      try {
+        await assertMetaCompanyAdminAccess(admin, user.id, body.company_id);
+      } catch (e) {
+        return json({ error: getErrorMessage(e) }, getErrorStatus(e), corsHeaders);
+      }
     }
 
     // LOAD PIXEL + TOKEN

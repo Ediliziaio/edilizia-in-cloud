@@ -7997,6 +7997,8 @@ function PixelConfigCard({ companyId }: { companyId?: string }) {
   const [capiToken, setCapiToken] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [pixelIdError, setPixelIdError] = useState("");
+  const [testEventCode, setTestEventCode] = useState("");
+  const [testSending, setTestSending] = useState(false);
 
   useEffect(() => {
     if (config) {
@@ -8030,6 +8032,54 @@ function PixelConfigCard({ companyId }: { companyId?: string }) {
       toast.error("Errore salvataggio Pixel", {
         description: (e instanceof Error ? e.message : null) ?? "Riprova o controlla la connessione.",
       });
+    }
+  };
+
+  // Invia un evento Lead di TEST via CAPI: richiede il test_event_code di
+  // Events Manager → compare nella scheda "Eventi di test" senza inquinare i
+  // dati reali. La edge function consente le chiamate utente SOLO con
+  // test_event_code (e admin dell'azienda).
+  const handleSendTest = async () => {
+    if (!companyId) return;
+    const code = testEventCode.trim();
+    if (!code) {
+      toast.error("Inserisci il test_event_code (Events Manager → Eventi di test)");
+      return;
+    }
+    setTestSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("meta-capi-send-event", {
+        body: {
+          company_id: companyId,
+          event_name: "Lead",
+          event_id: `test-${crypto.randomUUID()}`,
+          test_event_code: code,
+          action_source: "system_generated",
+          user_data: {
+            email: "test@ediliziaincloud.it",
+            phone: "+39 320 0000000",
+            first_name: "Test",
+            last_name: "EiC",
+            city: "Udine",
+            country: "it",
+          },
+          custom_data: { content_name: "Test CAPI Edilizia in Cloud" },
+        },
+      });
+      if (error) throw error;
+      if (data?.success) {
+        toast.success(
+          `Evento di test inviato (${data.events_received ?? 1} ricevuto). Controlla Events Manager → Eventi di test.`,
+        );
+      } else {
+        throw new Error(data?.detail ?? data?.error ?? "Invio non riuscito");
+      }
+    } catch (e) {
+      toast.error("Test CAPI fallito", {
+        description: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setTestSending(false);
     }
   };
 
@@ -8149,6 +8199,31 @@ function PixelConfigCard({ companyId }: { companyId?: string }) {
                 </AlertDescription>
               </Alert>
             )}
+
+            {/* Invia evento di test → verifica in Events Manager senza inquinare i dati reali */}
+            <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-2">
+              <p className="text-xs font-bold text-slate-700">🧪 Invia evento di test</p>
+              <p className="text-[11px] leading-relaxed text-slate-500">
+                Copia il <b>test_event_code</b> da Events Manager → scheda <b>Eventi di test</b>, poi invia un evento <b>Lead</b> di prova: comparirà lì in pochi secondi, senza toccare le metriche reali.
+              </p>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  value={testEventCode}
+                  onChange={(e) => setTestEventCode(e.target.value)}
+                  placeholder="es. TEST12345"
+                  className="sm:max-w-[220px]"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleSendTest}
+                  disabled={testSending || !testEventCode.trim()}
+                  className="gap-1.5"
+                >
+                  {testSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span>🧪</span>}
+                  Invia evento Lead di test
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 
