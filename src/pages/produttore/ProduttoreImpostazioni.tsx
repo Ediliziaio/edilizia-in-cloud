@@ -79,7 +79,7 @@ export default function ProduttoreImpostazioni() {
         <p className="mt-1 text-sm text-muted-foreground">Accesso, dati azienda e panoramica del tuo portale.</p>
       </header>
 
-      <AccountCard loginEmail={loginEmail} />
+      <AccountCard key={loginEmail} loginEmail={loginEmail} />
 
       {isLoading ? (
         <Skeleton className="h-48 w-full rounded-xl" />

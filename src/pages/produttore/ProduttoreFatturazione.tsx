@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { formatEuro } from "@/lib/formatEuro";
 import {
   Wallet, Building2, Factory, CreditCard, Info, Check, AlertCircle, RefreshCw, TrendingDown, Receipt,
   Loader2, Plus, ExternalLink,
@@ -58,6 +59,7 @@ export default function ProduttoreFatturazione() {
   const companyId = effectiveCompany?.id ?? profile?.company_id ?? null;
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+  const setupHandledRef = useRef(false);
 
   const { data: b, isLoading, isError, refetch } = useQuery({
     queryKey: ["produttore-billing", companyId],
@@ -123,19 +125,25 @@ export default function ProduttoreFatturazione() {
   // Ritorno da Stripe Checkout (setup): toast + refetch + pulizia del parametro.
   useEffect(() => {
     const setup = searchParams.get("setup");
-    if (!setup) return;
+    if (!setup || setupHandledRef.current) return;
+    setupHandledRef.current = true; // una sola volta per mount (evita doppio toast/confirm)
     if (setup === "success") {
       toast.success("Carta aggiunta", { description: "Il metodo di pagamento è stato registrato." });
       // Conferma lato server: imposta la PM di default + payment_method='stripe'.
-      void supabase.functions.invoke("confirm-produttore-card", { body: {} }).finally(() => {
-        qc.invalidateQueries({ queryKey: ["produttore-card", companyId] });
-        qc.invalidateQueries({ queryKey: ["produttore-billing", companyId] });
-      });
+      supabase.functions.invoke("confirm-produttore-card", { body: {} })
+        .catch(() => { /* la carta è comunque su Stripe; il default verrà impostato all'addebito */ })
+        .finally(() => {
+          qc.invalidateQueries({ queryKey: ["produttore-card", companyId] });
+          qc.invalidateQueries({ queryKey: ["produttore-billing", companyId] });
+        });
     } else if (setup === "cancel") {
       toast.info("Operazione annullata");
     }
-    searchParams.delete("setup");
-    setSearchParams(searchParams, { replace: true });
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("setup");
+      return next;
+    }, { replace: true });
   }, [searchParams, setSearchParams, qc, companyId]);
 
   const serverMode: BillingMode = b?.billing_mode ?? "fabbrica_paga";
@@ -187,11 +195,11 @@ export default function ProduttoreFatturazione() {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <div className="text-3xl font-bold leading-none">
-                €{b.totals.yours}<span className="text-base font-normal text-muted-foreground">/mese</span>
+                {formatEuro(b.totals.yours)}<span className="text-base font-normal text-muted-foreground">/mese</span>
               </div>
               <div className="mt-1.5 text-xs text-muted-foreground">
                 {b.wholesale_pct > 0
-                  ? <>Listino €{b.totals.list} · <span className="font-medium text-emerald-700">risparmi €{b.totals.saving}</span></>
+                  ? <>Listino {formatEuro(b.totals.list)} · <span className="font-medium text-emerald-700">risparmi {formatEuro(b.totals.saving)}</span></>
                   : <>Al prezzo di listino</>}
               </div>
             </div>
@@ -212,9 +220,9 @@ export default function ProduttoreFatturazione() {
                   </div>
                   <div className="shrink-0 text-right">
                     {b.wholesale_pct > 0 && it.list_price > 0 && (
-                      <span className="mr-2 text-xs text-muted-foreground line-through">€{it.list_price}</span>
+                      <span className="mr-2 text-xs text-muted-foreground line-through">{formatEuro(it.list_price)}</span>
                     )}
-                    <span className="font-semibold">€{it.your_price}</span>
+                    <span className="font-semibold">{formatEuro(it.your_price)}</span>
                     <span className="text-xs text-muted-foreground">/mese</span>
                   </div>
                 </li>
@@ -282,7 +290,7 @@ export default function ProduttoreFatturazione() {
                     </div>
                   </div>
                   <Badge variant="outline" className="shrink-0 gap-1 border-blue-200 text-blue-700">
-                    <CreditCard className="h-3.5 w-3.5" /> €{r.list_price}/mese
+                    <CreditCard className="h-3.5 w-3.5" /> {formatEuro(r.list_price)}/mese
                   </Badge>
                 </li>
               ))}

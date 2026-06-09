@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { formatEuro } from "@/lib/formatEuro";
 import { useResellerPlans } from "@/hooks/useResellerPlans";
 import { Building2, Factory, CreditCard, Loader2, Plus, Info, Check, Package } from "lucide-react";
 
@@ -46,7 +47,8 @@ export function CreateRivenditoreDialog({
       const n = nome.trim();
       const e = email.trim().toLowerCase();
       if (!n) throw new Error("Inserisci il nome del rivenditore");
-      if (!e || !e.includes("@")) throw new Error("Inserisci un'email admin valida");
+      if (n.length > 120) throw new Error("Il nome è troppo lungo (max 120 caratteri)");
+      if (!e || !/^\S+@\S+\.\S+$/.test(e)) throw new Error("Inserisci un'email admin valida");
       if (!planId) throw new Error("Seleziona un piano");
       const { data, error } = await supabase.functions.invoke("create-reseller", {
         body: { nome: n, email_admin: e, billing_comped: comped, subscription_plan_id: planId },
@@ -59,7 +61,7 @@ export function CreateRivenditoreDialog({
       toast.success("Rivenditore creato", { description: "Invito inviato all'admin del rivenditore." });
       onOpenChange(false);
       qc.invalidateQueries({ queryKey: ["produttore-rivenditori", companyId] });
-      qc.invalidateQueries({ queryKey: ["produttore-fatturazione", companyId] });
+      qc.invalidateQueries({ queryKey: ["produttore-billing", companyId] });
     },
     onError: (e) => toast.error("Creazione fallita", { description: (e as Error).message }),
   });
@@ -80,7 +82,7 @@ export function CreateRivenditoreDialog({
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="r-nome">Nome rivenditore</Label>
-            <Input id="r-nome" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Es. Serramenti Bianchi" />
+            <Input id="r-nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} placeholder="Es. Serramenti Bianchi" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="r-email">Email admin rivenditore</Label>
@@ -117,7 +119,7 @@ export function CreateRivenditoreDialog({
                       )}
                       <Package className={cn("h-4 w-4", selected ? "text-primary" : "text-muted-foreground")} />
                       <div className="mt-1.5 text-sm font-semibold">{p.name}</div>
-                      <div className="mt-0.5 text-xs text-muted-foreground">€{p.price_monthly}/mese</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">{formatEuro(p.price_monthly)}/mese</div>
                     </button>
                   );
                 })}
@@ -157,7 +159,7 @@ export function CreateRivenditoreDialog({
 
           {selectedPlan && (
             <p className="text-xs text-muted-foreground">
-              <strong className="text-foreground">{selectedPlan.name}</strong> · €{selectedPlan.price_monthly}/mese —{" "}
+              <strong className="text-foreground">{selectedPlan.name}</strong> · {formatEuro(selectedPlan.price_monthly)}/mese —{" "}
               {comped ? "lo paghi tu" : "lo paga il rivenditore"}
             </p>
           )}

@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { CreateRivenditoreDialog } from "@/components/produttore/CreateRivenditoreDialog";
 import { ResellerDetailSheet } from "@/components/produttore/ResellerDetailSheet";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
+import { formatEuro } from "@/lib/formatEuro";
 import { useResellerPlans } from "@/hooks/useResellerPlans";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
@@ -93,9 +94,10 @@ export default function ProduttoreDashboard() {
   });
 
   // Piano e chi-paga influiscono sulla Fatturazione → invalido entrambe le query.
+  // NB: la pagina Fatturazione usa la query "produttore-billing" (non "…fatturazione").
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["produttore-rivenditori", companyId] });
-    qc.invalidateQueries({ queryKey: ["produttore-fatturazione", companyId] });
+    qc.invalidateQueries({ queryKey: ["produttore-billing", companyId] });
   };
 
   const setBilling = useMutation({
@@ -192,7 +194,7 @@ export default function ProduttoreDashboard() {
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard icon={<Building2 className="h-5 w-5" />} value={rivenditori.length} label="Rivenditori" tone="default" loading={isLoading} />
         <StatCard icon={<CheckCircle2 className="h-5 w-5" />} value={attivi} label="Attivi" tone="emerald" loading={isLoading} />
-        <StatCard icon={<Factory className="h-5 w-5" />} value={comped} label="Paghi tu" sub={`~€${youPayMonthly}/mese`} tone="amber" loading={isLoading} />
+        <StatCard icon={<Factory className="h-5 w-5" />} value={comped} label="Paghi tu" sub={`~${formatEuro(youPayMonthly)}/mese`} tone="amber" loading={isLoading} />
         <StatCard icon={<CreditCard className="h-5 w-5" />} value={paganti} label="Pagano loro" tone="blue" loading={isLoading} />
       </div>
 
@@ -330,7 +332,7 @@ export default function ProduttoreDashboard() {
                                   onClick={() => setPlan.mutate({ id: r.id, planId: p.id })}
                                 >
                                   <Package className="mr-2 h-4 w-4" /> {p.name}
-                                  <span className="ml-auto pl-3 text-xs text-muted-foreground">€{p.price_monthly}</span>
+                                  <span className="ml-auto pl-3 text-xs text-muted-foreground">{formatEuro(p.price_monthly)}</span>
                                 </DropdownMenuItem>
                               ))}
                             </>
@@ -357,7 +359,7 @@ export default function ProduttoreDashboard() {
                       {r.plan_name && (
                         <Badge variant="outline" className="gap-1">
                           <Package className="h-3.5 w-3.5" /> {r.plan_name}
-                          {r.plan_price > 0 && <span className="text-muted-foreground">· €{r.plan_price}/mese</span>}
+                          {r.plan_price > 0 && <span className="text-muted-foreground">· {formatEuro(r.plan_price)}/mese</span>}
                         </Badge>
                       )}
                       {r.billing_comped ? (

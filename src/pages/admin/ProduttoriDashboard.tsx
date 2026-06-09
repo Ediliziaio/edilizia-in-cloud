@@ -352,7 +352,11 @@ function ProduttoreActions({ p, onChanged }: { p: Produttore; onChanged: () => v
         <span className="text-xs text-muted-foreground">(0 = illimitato)</span>
         <div className="ml-auto flex items-center gap-1.5">
           <Input type="number" min={0} value={limit} onChange={(e) => setLimit(e.target.value)} className="h-8 w-20" aria-label="Tetto rivenditori" />
-          <Button size="sm" className="gap-1.5" disabled={!limitDirty || setConfig.isPending} onClick={() => setConfig.mutate({ reseller_limit: Number(limit) })}>
+          <Button size="sm" className="gap-1.5" disabled={!limitDirty || setConfig.isPending} onClick={() => {
+            const n = Number(limit);
+            if (!Number.isInteger(n) || n < 0) { toast.error("Il tetto deve essere un intero ≥ 0"); return; }
+            setConfig.mutate({ reseller_limit: n });
+          }}>
             <Save className="h-3.5 w-3.5" /> Salva
           </Button>
         </div>
