@@ -126,7 +126,11 @@ export default function ProduttoreFatturazione() {
     if (!setup) return;
     if (setup === "success") {
       toast.success("Carta aggiunta", { description: "Il metodo di pagamento è stato registrato." });
-      qc.invalidateQueries({ queryKey: ["produttore-card", companyId] });
+      // Conferma lato server: imposta la PM di default + payment_method='stripe'.
+      void supabase.functions.invoke("confirm-produttore-card", { body: {} }).finally(() => {
+        qc.invalidateQueries({ queryKey: ["produttore-card", companyId] });
+        qc.invalidateQueries({ queryKey: ["produttore-billing", companyId] });
+      });
     } else if (setup === "cancel") {
       toast.info("Operazione annullata");
     }
