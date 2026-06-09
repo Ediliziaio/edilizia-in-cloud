@@ -17,6 +17,8 @@ import { AccessDenied } from "@/components/admin/AccessDenied";
 import { CreateProduttoreDialog } from "@/components/admin/produttori/CreateProduttoreDialog";
 import { ProduttoriAnalytics } from "@/components/admin/produttori/ProduttoriAnalytics";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
+import { formatEuro } from "@/lib/formatEuro";
+import { useNavigate } from "react-router-dom";
 import {
   Factory, Building2, Plus, ChevronDown, ChevronRight, AlertCircle, RefreshCw,
   BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2, Play, Ban, Link2, Copy, Package,
@@ -143,6 +145,7 @@ export default function ProduttoriDashboard() {
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-produttori"],
@@ -267,14 +270,27 @@ export default function ProduttoriDashboard() {
                     ) : (
                       <ul className="divide-y">
                         {p.rivenditori.map((r) => (
-                          <li key={r.id} className="flex items-center justify-between gap-2 py-2 first:pt-0 last:pb-0">
-                            <span className="truncate text-sm font-medium">{r.name}</span>
-                            <div className="flex shrink-0 items-center gap-2">
-                              <Badge variant="secondary" className="text-[11px]">{companyStatusLabelIt(r.status)}</Badge>
-                              {r.billing_comped
-                                ? <Badge variant="outline" className="gap-1 border-emerald-200 text-[11px] text-emerald-700"><Factory className="h-3 w-3" /> Comped</Badge>
-                                : <Badge variant="outline" className="gap-1 border-blue-200 text-[11px] text-blue-700"><CreditCard className="h-3 w-3" /> Paga</Badge>}
-                            </div>
+                          <li key={r.id}>
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/admin/aziende/${r.id}`)}
+                              title="Apri la scheda azienda"
+                              className="-mx-1 flex w-full items-center justify-between gap-2 rounded px-1 py-2 text-left transition-colors first:pt-0 last:pb-0 hover:bg-muted/50"
+                            >
+                              <span className="truncate text-sm font-medium">{r.name}</span>
+                              <div className="flex shrink-0 items-center gap-1.5">
+                                <Badge variant="secondary" className="text-[11px]">{companyStatusLabelIt(r.status)}</Badge>
+                                {r.plan_name && (
+                                  <Badge variant="outline" className="hidden gap-1 text-[11px] sm:inline-flex">
+                                    <Package className="h-3 w-3" /> {r.plan_name}{r.plan_price > 0 ? ` · ${formatEuro(r.plan_price)}` : ""}
+                                  </Badge>
+                                )}
+                                {r.billing_comped
+                                  ? <Badge variant="outline" className="gap-1 border-emerald-200 text-[11px] text-emerald-700"><Factory className="h-3 w-3" /> Comped</Badge>
+                                  : <Badge variant="outline" className="gap-1 border-blue-200 text-[11px] text-blue-700"><CreditCard className="h-3 w-3" /> Paga</Badge>}
+                                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                              </div>
+                            </button>
                           </li>
                         ))}
                       </ul>
