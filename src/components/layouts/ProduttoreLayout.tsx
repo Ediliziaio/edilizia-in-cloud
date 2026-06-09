@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Factory, Users, Palette, Wallet, LogOut } from "lucide-react";
+import { Factory, Users, Palette, Wallet, LogOut, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
@@ -9,6 +9,7 @@ const NAV = [
   { to: "/produttore", end: true, label: "Rivenditori", Icon: Users },
   { to: "/produttore/branding", end: false, label: "Brand & dominio", Icon: Palette },
   { to: "/produttore/fatturazione", end: false, label: "Fatturazione", Icon: Wallet },
+  { to: "/produttore/impostazioni", end: false, label: "Impostazioni", Icon: Settings },
 ];
 
 /**

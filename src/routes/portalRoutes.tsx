@@ -32,6 +32,7 @@ const PartnerDashboard = lazy(() => import("@/pages/partner/PartnerDashboard"));
 const ProduttoreDashboard = lazy(() => import("@/pages/produttore/ProduttoreDashboard"));
 const ProduttoreBranding = lazy(() => import("@/pages/produttore/ProduttoreBranding"));
 const ProduttoreFatturazione = lazy(() => import("@/pages/produttore/ProduttoreFatturazione"));
+const ProduttoreImpostazioni = lazy(() => import("@/pages/produttore/ProduttoreImpostazioni"));
 const PartnerLink = lazy(() => import("@/pages/partner/PartnerLink"));
 const PartnerReferrals = lazy(() => import("@/pages/partner/PartnerReferrals"));
 const PartnerPerformance = lazy(() => import("@/pages/partner/PartnerPerformance"));
@@ -139,6 +140,7 @@ export function produttoreRoutes() {
       <Route index element={<ProduttoreDashboard />} />
       <Route path="branding" element={<ProduttoreBranding />} />
       <Route path="fatturazione" element={<ProduttoreFatturazione />} />
+      <Route path="impostazioni" element={<ProduttoreImpostazioni />} />
     </Route>
   );
 }

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { CreateRivenditoreDialog } from "@/components/produttore/CreateRivenditoreDialog";
+import { ResellerDetailSheet } from "@/components/produttore/ResellerDetailSheet";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import { useResellerPlans } from "@/hooks/useResellerPlans";
 import {
@@ -21,7 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Users, Plus, Building2, AlertCircle, RefreshCw, Factory, CreditCard, CheckCircle2,
-  Wallet, MoreVertical, Package, Search, Ban, Play,
+  Wallet, MoreVertical, Package, Search, Ban, Play, Eye,
 } from "lucide-react";
 
 type BillingMode = "fabbrica_paga" | "reseller_paga";
@@ -57,6 +58,7 @@ export default function ProduttoreDashboard() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [billingFilter, setBillingFilter] = useState<BillingFilter>("all");
   const [suspendTarget, setSuspendTarget] = useState<Rivenditore | null>(null);
+  const [detailTarget, setDetailTarget] = useState<{ id: string; name: string } | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["produttore-rivenditori", companyId],
@@ -151,6 +153,7 @@ export default function ProduttoreDashboard() {
   const paganti = rivenditori.length - comped;
   // Quanto paghi TU al mese = somma dei prezzi-piano dei rivenditori comped.
   const youPayMonthly = rivenditori.filter((r) => r.billing_comped).reduce((s, r) => s + (r.plan_price ?? 0), 0);
+  const byPlan = plans.map((p) => ({ name: p.name, count: rivenditori.filter((r) => r.subscription_plan_id === p.id).length }));
 
   const ql = q.trim().toLowerCase();
   const filtered = rivenditori.filter((r) => {
@@ -202,6 +205,18 @@ export default function ProduttoreDashboard() {
             {mode === "fabbrica_paga" ? "Paghi tu per tutti" : "Paga ogni rivenditore"}
           </strong>
           <span className="hidden sm:inline">· modificabile in Fatturazione, o per singolo rivenditore.</span>
+        </div>
+      )}
+
+      {/* Distribuzione piani */}
+      {!isLoading && !isError && byPlan.some((b) => b.count > 0) && (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-muted-foreground">Per piano:</span>
+          {byPlan.map((b) => (
+            <Badge key={b.name} variant="secondary" className="gap-1 font-normal">
+              <Package className="h-3 w-3" /> {b.name} ×{b.count}
+            </Badge>
+          ))}
         </div>
       )}
 
@@ -274,7 +289,13 @@ export default function ProduttoreDashboard() {
                           <Building2 className="h-5 w-5" />
                         </div>
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{r.name}</div>
+                          <button
+                            type="button"
+                            onClick={() => setDetailTarget({ id: r.id, name: r.name })}
+                            className="block max-w-full truncate text-left font-medium hover:underline"
+                          >
+                            {r.name}
+                          </button>
                           <div className="text-xs text-muted-foreground">
                             Creato il {new Date(r.created_at).toLocaleDateString("it-IT")}
                           </div>
@@ -287,6 +308,10 @@ export default function ProduttoreDashboard() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuItem onClick={() => setDetailTarget({ id: r.id, name: r.name })}>
+                            <Eye className="mr-2 h-4 w-4" /> Dettagli
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuLabel>Chi paga l&apos;abbonamento</DropdownMenuLabel>
                           <DropdownMenuItem disabled={!!r.billing_comped} onClick={() => setBilling.mutate({ id: r.id, comped: true })}>
                             <Factory className="mr-2 h-4 w-4" /> Paghi tu
@@ -384,6 +409,12 @@ export default function ProduttoreDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ResellerDetailSheet
+        target={detailTarget}
+        onOpenChange={(o) => { if (!o) setDetailTarget(null); }}
+        onMutated={invalidate}
+      />
     </div>
   );
 }
