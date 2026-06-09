@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,7 +23,7 @@ import { formatEuro } from "@/lib/formatEuro";
 import { useNavigate } from "react-router-dom";
 import {
   Factory, Building2, Plus, ChevronDown, ChevronRight, AlertCircle, RefreshCw,
-  BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2, Play, Ban, Link2, Copy, Package, KeyRound,
+  BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2, Play, Ban, Link2, Copy, Package, KeyRound, Search,
 } from "lucide-react";
 
 interface Rivenditore {
@@ -146,6 +147,10 @@ export default function ProduttoriDashboard() {
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [billingFilter, setBillingFilter] = useState("all");
+  const [sortKey, setSortKey] = useState("recent");
   const navigate = useNavigate();
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -155,9 +160,26 @@ export default function ProduttoriDashboard() {
     enabled: saPermissions.can_manage_companies,
   });
 
-  if (!saPermissions.can_manage_companies) return <AccessDenied />;
+  const produttori = useMemo(() => data?.produttori ?? [], [data]);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const arr = produttori.filter((p) => {
+      if (statusFilter !== "all" && (p.status ?? "") !== statusFilter) return false;
+      if (billingFilter !== "all" && (p.reseller_billing_mode ?? "fabbrica_paga") !== billingFilter) return false;
+      if (q) {
+        const hay = `${p.name} ${p.admin_email ?? ""} ${p.email ?? ""} ${p.custom_domain ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    return [...arr].sort((a, b) => {
+      if (sortKey === "name") return a.name.localeCompare(b.name);
+      if (sortKey === "rivenditori") return b.rivenditori_count - a.rivenditori_count;
+      return (b.created_at ?? "").localeCompare(a.created_at ?? "");
+    });
+  }, [produttori, search, statusFilter, billingFilter, sortKey]);
 
-  const produttori = data?.produttori ?? [];
+  if (!saPermissions.can_manage_companies) return <AccessDenied />;
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -191,6 +213,40 @@ export default function ProduttoriDashboard() {
         </Alert>
       )}
 
+      {!isLoading && !isError && produttori.length > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cerca nome, email, dominio…" className="pl-8" />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-[150px]"><SelectValue placeholder="Stato" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli stati</SelectItem>
+              <SelectItem value="active">Attivi</SelectItem>
+              <SelectItem value="trial">In prova</SelectItem>
+              <SelectItem value="suspended">Sospesi</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={billingFilter} onValueChange={setBillingFilter}>
+            <SelectTrigger className="w-full sm:w-[170px]"><SelectValue placeholder="Fatturazione" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti i modelli</SelectItem>
+              <SelectItem value="fabbrica_paga">Paga il produttore</SelectItem>
+              <SelectItem value="reseller_paga">Paga il rivenditore</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sortKey} onValueChange={setSortKey}>
+            <SelectTrigger className="w-full sm:w-[150px]"><SelectValue placeholder="Ordina" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="recent">Più recenti</SelectItem>
+              <SelectItem value="name">Nome A-Z</SelectItem>
+              <SelectItem value="rivenditori">Più rivenditori</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
@@ -208,9 +264,15 @@ export default function ProduttoriDashboard() {
             </Button>
           </CardContent>
         </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            Nessun produttore corrisponde ai filtri.
+          </CardContent>
+        </Card>
       ) : (
         <ul className="space-y-2">
-          {produttori.map((p) => {
+          {filtered.map((p) => {
             const isOpen = expanded === p.id;
             return (
               <li key={p.id} className="overflow-hidden rounded-xl border bg-card">

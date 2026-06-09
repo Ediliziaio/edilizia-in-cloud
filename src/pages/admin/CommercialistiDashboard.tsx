@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -18,7 +20,7 @@ import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import { CommercialistiAnalytics } from "@/components/admin/commercialisti/CommercialistiAnalytics";
 import { AccessControlDialog } from "@/components/admin/AccessControlDialog";
 import {
-  Calculator, Building2, ChevronDown, ChevronRight, AlertCircle, RefreshCw, Mail, Users, Play, Ban, KeyRound,
+  Calculator, Building2, ChevronDown, ChevronRight, AlertCircle, RefreshCw, Mail, Users, Play, Ban, KeyRound, Search,
 } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -107,6 +109,9 @@ export default function CommercialistiDashboard() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [suspendTarget, setSuspendTarget] = useState<Studio | null>(null);
   const [accessTarget, setAccessTarget] = useState<Studio | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortKey, setSortKey] = useState("recent");
 
   const { data: studi = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-commercialisti"],
@@ -128,6 +133,23 @@ export default function CommercialistiDashboard() {
     },
     onError: (e) => toast.error("Operazione fallita", { description: (e as Error).message }),
   });
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const arr = studi.filter((s) => {
+      if (statusFilter !== "all" && (s.status ?? "") !== statusFilter) return false;
+      if (q) {
+        const hay = `${s.name} ${s.owner_email ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+    return [...arr].sort((a, b) => {
+      if (sortKey === "name") return a.name.localeCompare(b.name);
+      if (sortKey === "aziende") return b.companies.length - a.companies.length;
+      return (b.created_at ?? "").localeCompare(a.created_at ?? "");
+    });
+  }, [studi, search, statusFilter, sortKey]);
 
   if (!saPermissions.can_manage_companies) return <AccessDenied />;
 
@@ -157,6 +179,33 @@ export default function CommercialistiDashboard() {
         </Alert>
       )}
 
+      {!isLoading && !isError && studi.length > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cerca studio o email owner…" className="pl-8" />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-[170px]"><SelectValue placeholder="Stato" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli stati</SelectItem>
+              <SelectItem value="active">Attivi</SelectItem>
+              <SelectItem value="suspended">Sospesi</SelectItem>
+              <SelectItem value="pending_contract">Contratto in attesa</SelectItem>
+              <SelectItem value="archived">Archiviati</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sortKey} onValueChange={setSortKey}>
+            <SelectTrigger className="w-full sm:w-[150px]"><SelectValue placeholder="Ordina" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="recent">Più recenti</SelectItem>
+              <SelectItem value="name">Nome A-Z</SelectItem>
+              <SelectItem value="aziende">Più aziende</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
@@ -171,9 +220,15 @@ export default function CommercialistiDashboard() {
             </div>
           </CardContent>
         </Card>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            Nessuno studio corrisponde ai filtri.
+          </CardContent>
+        </Card>
       ) : (
         <ul className="space-y-2">
-          {studi.map((s) => {
+          {filtered.map((s) => {
             const isOpen = expanded === s.id;
             return (
               <li key={s.id} className="overflow-hidden rounded-xl border bg-card">
