@@ -631,6 +631,71 @@ Deno.serve(async (req) => {
         break;
       }
 
+      // ── pages_read_engagement — post recenti della Pagina con engagement ──
+      // Esercita il permesso pages_read_engagement (App Review) e alimenta il
+      // pannello "Social". Accetta page_asset_id (risolto a page id) o page_id.
+      case "get-page-posts": {
+        let pageId: string | undefined = body.page_id;
+        let assetIdForToken: string | undefined = pageId;
+        if (page_asset_id) {
+          const { data: pageAsset } = await adminClient
+            .from("meta_assets")
+            .select("asset_id")
+            .eq("id", page_asset_id)
+            .eq("company_id", company_id)
+            .eq("integration_id", integration_id)
+            .single();
+          if (!pageAsset) {
+            return new Response(JSON.stringify({ error: "Page asset not found" }), {
+              status: 404,
+              headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+            });
+          }
+          pageId = pageAsset.asset_id;
+          assetIdForToken = pageAsset.asset_id;
+        }
+        if (!pageId) {
+          return new Response(JSON.stringify({ error: "page_asset_id o page_id richiesto" }), {
+            status: 400,
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+          });
+        }
+
+        const pageTokens = (creds as any).meta_page_tokens || {};
+        const pageAccessToken = assetIdForToken && pageTokens[assetIdForToken]
+          ? await decrypt(pageTokens[assetIdForToken], encKey)
+          : accessToken;
+
+        const fields =
+          "id,message,story,created_time,permalink_url,full_picture," +
+          "reactions.summary(true).limit(0),comments.summary(true).limit(0),shares";
+        const postsRes = await fetchWithRetry(
+          `https://graph.facebook.com/${apiVersion}/${pageId}/posts?fields=${encodeURIComponent(fields)}&limit=10&access_token=${pageAccessToken}`,
+        );
+        const postsData = await postsRes.json();
+        if (!postsRes.ok) {
+          return new Response(
+            JSON.stringify({
+              error: postsData.error?.message || "Errore lettura post pagina",
+              meta_error: postsData.error ?? null,
+            }),
+            { status: 502, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } },
+          );
+        }
+        const posts = (postsData.data || []).map((p: any) => ({
+          id: p.id,
+          message: p.message ?? p.story ?? "",
+          created_time: p.created_time,
+          permalink_url: p.permalink_url ?? null,
+          image: p.full_picture ?? null,
+          reactions: p.reactions?.summary?.total_count ?? 0,
+          comments: p.comments?.summary?.total_count ?? 0,
+          shares: p.shares?.count ?? 0,
+        }));
+        result = { page_id: pageId, posts };
+        break;
+      }
+
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
           status: 400,
