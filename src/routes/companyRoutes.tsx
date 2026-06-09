@@ -384,6 +384,20 @@ import { Routes } from "react-router-dom";
  *
  * Path interni sono RELATIVI al wildcard `/azienda/*` parent.
  */
+/**
+ * Un super_admin che NON sta impersonando un'azienda non deve restare nell'area
+ * /azienda: lo riportiamo all'area super-admin (/admin). Quando impersona
+ * (isImpersonating=true, derivato da impersonatedCompanyId) l'accesso all'area
+ * azienda è legittimo e il guard lo lascia passare.
+ */
+function CompanyAppGuard({ children }: { children: ReactNode }) {
+  const { role, isImpersonating } = useAuth();
+  if (role === "super_admin" && !isImpersonating) {
+    return <Navigate to="/admin" replace />;
+  }
+  return <>{children}</>;
+}
+
 export default function CompanyRoutesContainer() {
   return (
     <Routes>
@@ -429,9 +443,11 @@ export default function CompanyRoutesContainer() {
         path=""
         element={
           <ProtectedRoute allowedRoles={[...COMPANY_ROLES]}>
-            <ErrorBoundary title="Errore nell'area azienda">
-              <CompanyLayout />
-            </ErrorBoundary>
+            <CompanyAppGuard>
+              <ErrorBoundary title="Errore nell'area azienda">
+                <CompanyLayout />
+              </ErrorBoundary>
+            </CompanyAppGuard>
           </ProtectedRoute>
         }
       >
