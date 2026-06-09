@@ -380,6 +380,52 @@
         setTimeout(loadGA, 3500);
       })();
     </script>
+
+    <!-- Meta Pixel — deferred, marketing pages only (stesso gating host/private di GA4) -->
+    <script>
+      (function () {
+        var PIXEL_ID = '1813311922204796';
+        var MARKETING_HOSTS = {
+          'ediliziaincloud.com': true,
+          'www.ediliziaincloud.com': true
+        };
+        var PRIVATE_PREFIXES = /^\/(app|admin|azienda|cliente|dipendente|venditore|partner|produttore|tecnico|campo|portale|portale-cliente|login|admin-login|clienti-login|lavori-login|commercialista-login|produttore-login|referral-login|auth-callback|reset-password|cambia-password|accetta-preventivo|preventivo|offerta|firma|firma-odv|firma-fea|booking|prenota|nps|feedback|ref|talent-profile)(\/|$)/;
+        var isPublicMarketingPage = !!MARKETING_HOSTS[window.location.hostname] && !PRIVATE_PREFIXES.test(window.location.pathname || '/');
+
+        // Flag letto da src/lib/meta/fbcTracker.ts (trackPixel) per non sparare
+        // eventi dentro l'app loggata.
+        window.__EIC_PIXEL_ENABLED = isPublicMarketingPage;
+        if (!isPublicMarketingPage) return;
+
+        // Stub fbq SENZA auto-load: le chiamate (init + PageView) vengono messe
+        // in coda e flushate quando fbevents.js viene caricato in modo deferito.
+        var n = window.fbq = function () {
+          n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
+        };
+        if (!window._fbq) window._fbq = n;
+        n.push = n; n.loaded = true; n.version = '2.0'; n.queue = [];
+
+        window.fbq('init', PIXEL_ID);
+        window.fbq('track', 'PageView');
+
+        var pxLoaded = false;
+        function loadPixel() {
+          if (pxLoaded) return;
+          pxLoaded = true;
+          var t = document.createElement('script');
+          t.async = true;
+          t.src = 'https://connect.facebook.net/en_US/fbevents.js';
+          document.head.appendChild(t);
+        }
+        var PX_EVENTS = ['scroll', 'click', 'keydown', 'touchstart', 'mousemove'];
+        function onPxInteract() {
+          PX_EVENTS.forEach(function (e) { window.removeEventListener(e, onPxInteract, { passive: true, capture: true }); });
+          loadPixel();
+        }
+        PX_EVENTS.forEach(function (e) { window.addEventListener(e, onPxInteract, { passive: true, capture: true }); });
+        setTimeout(loadPixel, 3500);
+      })();
+    </script>
     <!-- Critical CSS: above-the-fold hero + layout -->
     <style>
       *,::before,::after{box-sizing:border-box;border:0 solid #e5e7eb}

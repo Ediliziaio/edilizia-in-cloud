@@ -133,3 +133,50 @@ export function generateEventId(): string {
   }
   return `evt-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+ * Meta Pixel (browser) — emissione eventi standard.
+ * Il Pixel base è installato in index.html SOLO sulle pagine marketing
+ * (host ediliziaincloud.com, fuori dalle rotte private) e setta
+ * window.__EIC_PIXEL_ENABLED. Qui emettiamo gli eventi in modo sicuro:
+ * no-op se il Pixel non è attivo, e mai un throw che rompa il flusso utente.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+export type PixelEvent =
+  | "PageView"
+  | "ViewContent"
+  | "Lead"
+  | "InitiateCheckout"
+  | "CompleteRegistration"
+  | "Purchase"
+  | "Contact";
+
+/** True se il Pixel browser è caricato e abilitato (pagina marketing pubblica). */
+export function isPixelEnabled(): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as unknown as { fbq?: unknown; __EIC_PIXEL_ENABLED?: boolean };
+  return typeof w.fbq === "function" && w.__EIC_PIXEL_ENABLED === true;
+}
+
+/**
+ * Emette un evento standard del Meta Pixel. Passa lo stesso `eventId` anche al
+ * CAPI server-side (quando previsto) per la deduplica pixel↔CAPI. No-op se il
+ * Pixel è spento (es. dentro l'app loggata o host non-marketing).
+ */
+export function trackPixel(
+  event: PixelEvent,
+  params?: Record<string, unknown>,
+  eventId?: string,
+): void {
+  if (!isPixelEnabled()) return;
+  try {
+    const fbq = (window as unknown as { fbq: (...a: unknown[]) => void }).fbq;
+    if (eventId) {
+      fbq("track", event, params ?? {}, { eventID: eventId });
+    } else {
+      fbq("track", event, params ?? {});
+    }
+  } catch {
+    /* il tracking non deve mai rompere il flusso utente */
+  }
+}

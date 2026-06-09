@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { trackPixel } from "@/lib/meta/fbcTracker";
 
 export type PublicLeadPayload = {
   nome: string;
@@ -37,6 +38,14 @@ export async function submitPublicLeadToCrm(payload: PublicLeadPayload) {
   if (data && typeof data === "object" && "error" in data) {
     throw new Error(String((data as { error?: unknown }).error || "Invio non riuscito"));
   }
+
+  // Meta Pixel — Lead: choke-point di TUTTI i form pubblici (demo, modali,
+  // landing). Scatta solo a invio confermato e solo sul sito marketing
+  // (no-op altrove). content_name = sorgente del lead per segmentare in Ads.
+  trackPixel("Lead", {
+    content_name: normalized.source || "public_form",
+    content_category: "lead",
+  });
 
   return data as { ok: boolean; contact_id?: string; request_id?: string | null };
 }

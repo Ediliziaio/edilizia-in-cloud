@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { trackPixel } from "@/lib/meta/fbcTracker";
 // Home is imported eagerly — it's the LCP page and must be in the critical JS bundle
 
 // Extend window type for GA4 gtag
@@ -414,15 +415,42 @@ function canTrackMarketingPage(pathname: string) {
   );
 }
 
-/** Tracks public marketing SPA route changes in Google Analytics 4 */
+// Pagine ad alto intento → evento Meta Pixel ViewContent (segmentazione Ads).
+const PIXEL_VIEW_CONTENT_PAGES: Record<string, { name: string; category: string }> = {
+  "/prezzi": { name: "Prezzi", category: "pricing" },
+  "/funzionalita": { name: "Funzionalita", category: "product" },
+  "/confronto": { name: "Confronto", category: "comparison" },
+  "/casi-studio": { name: "CasiStudio", category: "social_proof" },
+  "/demo": { name: "Demo", category: "lead_form" },
+};
+
+/** Tracks public marketing SPA route changes in Google Analytics 4 + Meta Pixel */
 function GARouteTracker() {
   const location = useLocation();
+  const firstPixelRun = useRef(true);
   useEffect(() => {
-    if (typeof window.gtag !== "function" || !canTrackMarketingPage(location.pathname)) return;
-    window.gtag("event", "page_view", {
-      page_path: location.pathname + location.search,
-      page_location: window.location.href,
-    });
+    if (!canTrackMarketingPage(location.pathname)) return;
+
+    // GA4 page_view
+    if (typeof window.gtag === "function") {
+      window.gtag("event", "page_view", {
+        page_path: location.pathname + location.search,
+        page_location: window.location.href,
+      });
+    }
+
+    // Meta Pixel: il PageView iniziale è già emesso dallo snippet base in
+    // index.html → qui lo emettiamo solo dai cambi rotta SPA successivi (skip
+    // del primo run) per non contare due volte la landing.
+    if (firstPixelRun.current) {
+      firstPixelRun.current = false;
+    } else {
+      trackPixel("PageView");
+    }
+
+    // ViewContent sulle pagine ad alto intento (anche al primo caricamento).
+    const vc = PIXEL_VIEW_CONTENT_PAGES[location.pathname];
+    if (vc) trackPixel("ViewContent", { content_name: vc.name, content_category: vc.category });
   }, [location]);
   return null;
 }

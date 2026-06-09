@@ -5,6 +5,7 @@ import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
 import { Link, useSearchParams } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
+import { trackPixel } from "@/lib/meta/fbcTracker";
 import {
   Check,
   X,
@@ -222,6 +223,18 @@ export default function Prezzi() {
     starter: (127 - 99) * 12,
     professional: (247 - 197) * 12,
     enterprise: (547 - 437) * 12,
+  };
+
+  // Meta Pixel — InitiateCheckout: intento sul piano al click del CTA (valore =
+  // prezzo mensile). No-op fuori dal sito marketing. Segnale per ottimizzare le
+  // campagne sui piani più redditizi.
+  const trackPlanIntent = (plan: string, value: number) => {
+    trackPixel("InitiateCheckout", {
+      content_name: plan,
+      content_category: "plan",
+      value,
+      currency: "EUR",
+    });
   };
 
   return (
@@ -639,6 +652,7 @@ export default function Prezzi() {
             </div>
             <Link
               to="/demo?plan=scopri"
+              onClick={() => trackPlanIntent("Scopri", 0)}
               className="block text-center w-full border border-gray-300 text-gray-700 font-semibold py-3 rounded-xl hover:bg-gray-50 transition-colors mb-6"
             >
               Inizia gratis
@@ -686,6 +700,7 @@ export default function Prezzi() {
             </div>
             <Link
               to="/demo/"
+              onClick={() => trackPlanIntent("Gestionale", prices.starter)}
               className="block text-center border-2 border-[#111111] text-[#111111] font-bold py-3 rounded-xl hover:bg-[#111111] hover:text-white transition-colors mb-6"
             >
               Inizia con Gestionale
@@ -746,6 +761,7 @@ export default function Prezzi() {
             </div>
             <Link
               to="/demo/"
+              onClick={() => trackPlanIntent("Professionista", prices.professional)}
               className="block text-center bg-[#F97415] text-white font-bold py-3 rounded-xl hover:bg-[#e8650e] transition-colors mb-6 shadow-md"
             >
               Scegli Professionista
@@ -815,6 +831,7 @@ export default function Prezzi() {
             <button
               type="button"
               onClick={() => {
+                trackPlanIntent("Impresa AI", prices.enterprise);
                 import("@/components/landing/QuickContactModal").then((m) => m.openContactModal());
               }}
               className="block w-full text-center bg-[#111111] text-white font-bold py-3 rounded-xl hover:bg-[#C94F06] transition-colors mb-6"

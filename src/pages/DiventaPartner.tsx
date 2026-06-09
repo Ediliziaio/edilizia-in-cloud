@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { trackPixel } from "@/lib/meta/fbcTracker";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -457,6 +458,9 @@ export default function DiventaPartner() {
         status: "pending",
       });
       if (error) throw error;
+      // Meta Pixel — Lead (candidatura partner): flusso separato dai form
+      // pubblici standard. Scatta solo a invio confermato (no-op fuori marketing).
+      trackPixel("Lead", { content_name: "diventa_partner", content_category: "partner_application" });
       setSubmitted(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
