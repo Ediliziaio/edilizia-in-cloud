@@ -5,7 +5,7 @@
  * Status contratti read-only (deciso da super_admin di Edilizia in Cloud).
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,19 +59,21 @@ export default function AccountantSettings() {
     phone: "",
   });
   const [dirty, setDirty] = useState(false);
+  const [hydratedId, setHydratedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (firm) {
-      setForm({
-        name: firm.name ?? "",
-        vat_number: firm.vat_number ?? "",
-        fiscal_code: firm.fiscal_code ?? "",
-        email: firm.email ?? "",
-        phone: firm.phone ?? "",
-      });
-      setDirty(false);
-    }
-  }, [firm]);
+  // Idrata il form al cambio di studio (identità), NON a ogni refetch: così un
+  // refetch in background (es. focus finestra) non cancella le modifiche non salvate.
+  if (firm && firm.id !== hydratedId) {
+    setHydratedId(firm.id);
+    setForm({
+      name: firm.name ?? "",
+      vat_number: firm.vat_number ?? "",
+      fiscal_code: firm.fiscal_code ?? "",
+      email: firm.email ?? "",
+      phone: firm.phone ?? "",
+    });
+    setDirty(false);
+  }
 
   const update = useMutation({
     mutationFn: async (input: FirmFormState) => {

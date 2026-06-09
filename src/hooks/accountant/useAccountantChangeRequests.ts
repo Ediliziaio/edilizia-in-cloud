@@ -136,7 +136,7 @@ export function useDecideChangeRequest() {
       note?: string;
     }) => {
       if (!user?.id) throw new Error("Non autenticato");
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("accountant_change_requests")
         .update({
           status: input.decision,
@@ -145,8 +145,14 @@ export function useDecideChangeRequest() {
           decision_note: input.note ?? null,
         })
         .eq("id", input.requestId)
-        .eq("status", "pending");
+        .eq("status", "pending")
+        .select("id");
       if (error) throw error;
+      // Nessuna riga toccata = la richiesta non era più 'pending' (già decisa,
+      // scaduta o gestita da un collega): evita un toast di successo ingannevole.
+      if (!data || data.length === 0) {
+        throw new Error("Richiesta non più disponibile: potrebbe essere già stata gestita o scaduta.");
+      }
       return { requestId: input.requestId, decision: input.decision };
     },
     onSuccess: ({ decision }) => {

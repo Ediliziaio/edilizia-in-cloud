@@ -124,6 +124,16 @@ export default function AccountantLayout({ children }: { children?: ReactNode })
           >
             Registra il tuo studio
           </Button>
+          <Button
+            variant="ghost"
+            className="mt-2 w-full text-slate-600 hover:text-slate-900"
+            onClick={async () => {
+              await signOut();
+              navigate("/commercialista-login");
+            }}
+          >
+            <LogOut className="mr-2 h-4 w-4" /> Esci con un altro account
+          </Button>
         </div>
       </div>
     );

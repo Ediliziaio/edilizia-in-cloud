@@ -12,6 +12,7 @@ import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -263,14 +264,21 @@ export function useAcceptCompanyInvite() {
 
   return useMutation({
     mutationFn: async (accessId: string) => {
-      const { error } = await supabase
+      // Solo un invito ANCORA pending può essere accettato: il filtro su
+      // status='invited' evita di riattivare un accesso revocato/sospeso.
+      const { data, error } = await supabase
         .from("accountant_company_access")
         .update({
           status: "active",
           accepted_at: new Date().toISOString(),
         })
-        .eq("id", accessId);
+        .eq("id", accessId)
+        .eq("status", "invited")
+        .select("id");
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Invito non più disponibile: potrebbe essere stato revocato o già gestito.");
+      }
       return accessId;
     },
     onSuccess: () => {
@@ -342,6 +350,9 @@ export function useDismissNotification() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: accountantKeys.notifications(userId) });
+    },
+    onError: (e) => {
+      toast.error("Impossibile rimuovere la notifica", { description: (e as Error).message });
     },
   });
 }

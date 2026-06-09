@@ -28,6 +28,7 @@ export function useAccountantRevocationWatch(
   useEffect(() => {
     if (!enabled || !user?.id || !companyId) return;
 
+    let redirectTimer: ReturnType<typeof setTimeout> | undefined;
     const channel = supabase
       .channel(`accountant-access-watch-${companyId}`)
       .on(
@@ -52,7 +53,7 @@ export function useAccountantRevocationWatch(
             queryClient.invalidateQueries({ queryKey: ["accountant"] });
             queryClient.invalidateQueries({ queryKey: ["accountant-current-access-mode"] });
             // Redirect dopo breve delay così il toast si vede
-            setTimeout(() => navigate("/commercialista", { replace: true }), 800);
+            redirectTimer = setTimeout(() => navigate("/commercialista", { replace: true }), 800);
           }
         },
       )
@@ -70,12 +71,13 @@ export function useAccountantRevocationWatch(
             duration: 6000,
           });
           queryClient.invalidateQueries({ queryKey: ["accountant"] });
-          setTimeout(() => navigate("/commercialista", { replace: true }), 800);
+          redirectTimer = setTimeout(() => navigate("/commercialista", { replace: true }), 800);
         },
       )
       .subscribe();
 
     return () => {
+      if (redirectTimer) clearTimeout(redirectTimer);
       supabase.removeChannel(channel);
     };
   }, [enabled, user?.id, companyId, navigate, queryClient]);

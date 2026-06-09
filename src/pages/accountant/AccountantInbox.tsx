@@ -41,6 +41,11 @@ export default function AccountantInbox() {
   const markRead = useMarkNotificationRead();
   const dismissNotif = useDismissNotification();
 
+  // Tracciamento per-riga: disabilita/spinner solo sull'invito in elaborazione,
+  // così con più inviti pending gli altri restano cliccabili.
+  const acceptingId = acceptInvite.isPending ? acceptInvite.variables : undefined;
+  const rejectingId = rejectInvite.isPending ? rejectInvite.variables : undefined;
+
   const pendingInvites = companies.filter((c) => c.status === "invited");
 
   async function handleAccept(accessId: string, companyName?: string) {
@@ -141,19 +146,27 @@ export default function AccountantInbox() {
                       size="sm"
                       variant="outline"
                       onClick={() => handleReject(invite.id, invite.company?.name)}
-                      disabled={rejectInvite.isPending}
+                      disabled={acceptingId === invite.id || rejectingId === invite.id}
                       className="gap-2"
                     >
-                      <XCircle className="h-4 w-4" />
+                      {rejectingId === invite.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <XCircle className="h-4 w-4" />
+                      )}
                       Rifiuta
                     </Button>
                     <Button
                       size="sm"
                       onClick={() => handleAccept(invite.id, invite.company?.name)}
-                      disabled={acceptInvite.isPending}
+                      disabled={acceptingId === invite.id || rejectingId === invite.id}
                       className="gap-2 bg-blue-700 hover:bg-blue-800"
                     >
-                      <CheckCircle2 className="h-4 w-4" />
+                      {acceptingId === invite.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4" />
+                      )}
                       Accetta
                     </Button>
                   </div>
