@@ -16,8 +16,9 @@ import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import { CommercialistiAnalytics } from "@/components/admin/commercialisti/CommercialistiAnalytics";
+import { AccessControlDialog } from "@/components/admin/AccessControlDialog";
 import {
-  Calculator, Building2, ChevronDown, ChevronRight, AlertCircle, RefreshCw, Mail, Users, Play, Ban,
+  Calculator, Building2, ChevronDown, ChevronRight, AlertCircle, RefreshCw, Mail, Users, Play, Ban, KeyRound,
 } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -105,6 +106,7 @@ export default function CommercialistiDashboard() {
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [suspendTarget, setSuspendTarget] = useState<Studio | null>(null);
+  const [accessTarget, setAccessTarget] = useState<Studio | null>(null);
 
   const { data: studi = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-commercialisti"],
@@ -208,7 +210,10 @@ export default function CommercialistiDashboard() {
                     {/* Azioni studio */}
                     <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-background p-3">
                       <span className="text-sm font-medium">Gestione studio</span>
-                      <div className="ml-auto">
+                      <div className="ml-auto flex items-center gap-1.5">
+                        <Button size="sm" variant="outline" className="gap-1.5" disabled={!s.owner_email} onClick={() => setAccessTarget(s)}>
+                          <KeyRound className="h-3.5 w-3.5" /> Accesso
+                        </Button>
                         {s.status === "suspended" ? (
                           <Button size="sm" variant="outline" className="gap-1.5" disabled={setFirmStatus.isPending} onClick={() => setFirmStatus.mutate({ id: s.id, status: "active" })}>
                             <Play className="h-3.5 w-3.5" /> Riattiva
@@ -297,6 +302,14 @@ export default function CommercialistiDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AccessControlDialog
+        open={!!accessTarget}
+        onOpenChange={(o) => { if (!o) setAccessTarget(null); }}
+        email={accessTarget?.owner_email ?? null}
+        label={accessTarget?.name}
+        onChanged={() => qc.invalidateQueries({ queryKey: ["admin-commercialisti"] })}
+      />
     </div>
   );
 }

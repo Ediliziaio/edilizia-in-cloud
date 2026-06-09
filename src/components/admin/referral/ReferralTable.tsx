@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Copy, Eye, CreditCard, Pencil, ToggleLeft, ToggleRight, Gift, RefreshCw, Search, MailPlus, UserX } from "lucide-react";
+import { Copy, Eye, CreditCard, Pencil, ToggleLeft, ToggleRight, Gift, RefreshCw, Search, MailPlus, UserX, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { buildReferralLink } from "@/lib/referral";
 import { toast as sonnerToast } from "sonner";
 import type { Referrer } from "@/pages/admin/ReferralDashboard";
+import { AccessControlDialog } from "@/components/admin/AccessControlDialog";
 
 interface Props {
   referrers: Referrer[];
@@ -37,6 +38,7 @@ export function ReferralTable({
 }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [accessTarget, setAccessTarget] = useState<Referrer | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortMode, setSortMode] = useState("balance_desc");
@@ -350,6 +352,14 @@ export function ReferralTable({
                             </TooltipTrigger>
                             <TooltipContent>Ricalcola Tier</TooltipContent>
                           </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" onClick={() => setAccessTarget(r)}>
+                                <KeyRound className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Gestisci accesso</TooltipContent>
+                          </Tooltip>
                           {!r.user_id && (
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -407,6 +417,15 @@ export function ReferralTable({
           </div>
         )}
       </CardContent>
+
+      <AccessControlDialog
+        open={!!accessTarget}
+        onOpenChange={(o) => { if (!o) setAccessTarget(null); }}
+        email={accessTarget?.email ?? null}
+        label={accessTarget?.name}
+        denorm={accessTarget ? { table: "referrers", id: accessTarget.id } : null}
+        onChanged={() => queryClient.invalidateQueries({ queryKey: ["referrers"] })}
+      />
     </Card>
   );
 }

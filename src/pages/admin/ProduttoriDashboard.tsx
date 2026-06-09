@@ -16,12 +16,13 @@ import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { CreateProduttoreDialog } from "@/components/admin/produttori/CreateProduttoreDialog";
 import { ProduttoriAnalytics } from "@/components/admin/produttori/ProduttoriAnalytics";
+import { AccessControlDialog } from "@/components/admin/AccessControlDialog";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import { formatEuro } from "@/lib/formatEuro";
 import { useNavigate } from "react-router-dom";
 import {
   Factory, Building2, Plus, ChevronDown, ChevronRight, AlertCircle, RefreshCw,
-  BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2, Play, Ban, Link2, Copy, Package,
+  BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2, Play, Ban, Link2, Copy, Package, KeyRound,
 } from "lucide-react";
 
 interface Rivenditore {
@@ -312,6 +313,7 @@ function ProduttoreActions({ p, onChanged }: { p: Produttore; onChanged: () => v
   const [limit, setLimit] = useState(String(p.reseller_limit ?? 0));
   const [accessLink, setAccessLink] = useState<string | null>(null);
   const [suspendOpen, setSuspendOpen] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false);
 
   const setConfig = useMutation({
     mutationFn: async (patch: { status?: string; reseller_limit?: number }) => {
@@ -359,6 +361,9 @@ function ProduttoreActions({ p, onChanged }: { p: Produttore; onChanged: () => v
           <Button size="sm" variant="outline" className="gap-1.5" disabled={reinvite.isPending} onClick={() => reinvite.mutate()}>
             {reinvite.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />} Reinvito
           </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setAccessOpen(true)}>
+            <KeyRound className="h-3.5 w-3.5" /> Accesso
+          </Button>
         </div>
       </div>
 
@@ -398,6 +403,14 @@ function ProduttoreActions({ p, onChanged }: { p: Produttore; onChanged: () => v
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AccessControlDialog
+        open={accessOpen}
+        onOpenChange={setAccessOpen}
+        email={p.admin_email}
+        label={p.name}
+        onChanged={onChanged}
+      />
     </div>
   );
 }
