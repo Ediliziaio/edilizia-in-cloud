@@ -46,9 +46,14 @@ Deno.serve(async (req) => {
       .eq("company_id", company_id)
       .single();
 
-    if (error || !branding?.custom_domain || !branding?.custom_domain_cname) {
+    if (error || !branding?.custom_domain) {
       return errorResponse("Nessun dominio configurato");
     }
+    // custom_domain_cname può essere null per domini impostati fuori dal flusso di
+    // provisioning → fallback al target di default (allineato alla UI), così la
+    // verifica non va in dead-end.
+    const expectedRaw = branding.custom_domain_cname
+      ?? `${Deno.env.get("CLOUDFLARE_PROJECT_NAME") ?? "edilizia-in-cloud"}.pages.dev`;
 
     // Verify CNAME via Cloudflare DNS-over-HTTPS
     const dnsUrl = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(branding.custom_domain)}&type=CNAME`;
@@ -60,7 +65,7 @@ Deno.serve(async (req) => {
 
     const cnameAnswer = dnsData.Answer?.find((a: { type: number }) => a.type === 5);
     const resolvedCname = cnameAnswer?.data?.replace(/\.$/, "").toLowerCase();
-    const expectedCname = branding.custom_domain_cname.toLowerCase().replace(/\.$/, "");
+    const expectedCname = expectedRaw.toLowerCase().replace(/\.$/, "");
     const verified = resolvedCname === expectedCname;
 
     if (verified) {

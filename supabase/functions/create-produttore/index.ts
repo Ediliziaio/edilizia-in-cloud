@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
         status: "active",
         sector: settore,
         reseller_billing_mode: billingMode,
-        payment_method: "manual",
+        payment_method: "comped",
       })
       .select("id")
       .single();

@@ -357,16 +357,24 @@ function SyncBrandingCard({ companyId }: { companyId: string | null }) {
   });
 
   const sync = useMutation({
-    mutationFn: async (): Promise<number> => {
+    mutationFn: async (): Promise<{ synced: number; failed: number }> => {
       const { data, error } = await supabase.functions.invoke("sync-reseller-branding", { body: {} });
       if (error) throw new Error(error.message ?? "Sincronizzazione fallita");
-      const r = data as { success?: boolean; synced?: number; error?: string } | null;
+      const r = data as { success?: boolean; synced?: number; failed?: number; error?: string } | null;
       if (r && r.success === false) throw new Error(r.error ?? "Sincronizzazione fallita");
-      return r?.synced ?? 0;
+      return { synced: r?.synced ?? 0, failed: r?.failed ?? 0 };
     },
-    onSuccess: (synced) => toast.success("Brand sincronizzato", {
-      description: `Aggiornati ${synced} rivenditori col tuo brand attuale.`,
-    }),
+    onSuccess: ({ synced, failed }) => {
+      if (failed > 0) {
+        toast.warning("Sincronizzazione parziale", {
+          description: `Aggiornati ${synced} rivenditori, ${failed} non riusciti. Riprova.`,
+        });
+      } else {
+        toast.success("Brand sincronizzato", {
+          description: `Aggiornati ${synced} rivenditori col tuo brand attuale.`,
+        });
+      }
+    },
     onError: (e) => toast.error("Sincronizzazione fallita", { description: (e as Error).message }),
   });
 

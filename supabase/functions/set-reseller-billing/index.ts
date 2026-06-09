@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     // 3. Aggiorna chi paga.
     const { error } = await supabaseAdmin
       .from("companies")
-      .update({ billing_comped: comped, payment_method: comped ? "manual" : "stripe" })
+      .update({ billing_comped: comped, payment_method: comped ? "comped" : "none" })
       .eq("id", resellerId);
     if (error) return errorResponse(`Aggiornamento fallito: ${error.message}`, 500, corsH);
 

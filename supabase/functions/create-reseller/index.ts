@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
         billing_comped: comped,
         status: "active",
         sector: produttore?.sector ?? "serramenti",
-        payment_method: comped ? "manual" : "stripe",
+        payment_method: comped ? "comped" : "none",
       })
       .select("id")
       .single();

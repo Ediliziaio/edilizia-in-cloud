@@ -2,8 +2,9 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth } from "../_shared/auth.ts";
 
 /**
- * sync-reseller-branding — il PRODUTTORE applica il suo brand ATTUALE (logo +
- * colore + attivazione) a TUTTI i suoi rivenditori già creati.
+ * sync-reseller-branding — il PRODUTTORE applica il suo brand ATTUALE (logo,
+ * colori e asset visivi) a TUTTI i suoi rivenditori già creati. NON tocca lo
+ * stato is_active del rivenditore (decisione per-tenant).
  *
  * I rivenditori ereditano il brand solo alla creazione (create-reseller copia
  * company_branding); questa function ri-sincronizza i rivenditori esistenti
@@ -38,12 +39,13 @@ Deno.serve(async (req) => {
       return errorResponse("La tua azienda non è abilitata come produttore (serve tier 'agency')", 403, corsH);
     }
 
-    // 2. Solo i campi VISIVI (escludi chiavi tecniche, dominio/sottodominio, tier).
+    // 2. Solo i campi VISIVI (escludi chiavi tecniche, dominio/sottodominio, tier,
+    //    e is_active = stato per-tenant del rivenditore, da non sovrascrivere).
     const {
       id: _bid, company_id: _bcid, created_at: _bca, updated_at: _bua,
       custom_domain: _cd, custom_domain_cname: _cdc,
       custom_domain_verified: _cdv, custom_domain_verified_at: _cdva,
-      subdomain: _sub, whitelabel_tier: _tier,
+      subdomain: _sub, whitelabel_tier: _tier, is_active: _ia,
       ...visual
     } = prodBranding as Record<string, unknown>;
 

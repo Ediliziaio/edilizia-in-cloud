@@ -176,7 +176,7 @@ export default function ProduttoreDashboard() {
                 )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={setBilling.isPending} aria-label="Azioni rivenditore">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={setBilling.isPending && setBilling.variables?.id === r.id} title="Cambia chi paga" aria-label="Azioni rivenditore">
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
