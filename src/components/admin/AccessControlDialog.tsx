@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
@@ -56,41 +56,54 @@ export function AccessControlDialog({
   denorm?: { table: AccessDenormTable; id: string } | null;
   onChanged?: (newEmail?: string) => void;
 }) {
-  const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draftEmail, setDraftEmail] = useState("");
+  // Dopo un cambio email riuscito, stato/azioni seguono la NUOVA email (l'istanza
+  // del dialog è condivisa nei parent, quindi la prop `email` resta quella vecchia
+  // finché la lista non si aggiorna e si riapre).
+  const [effectiveEmail, setEffectiveEmail] = useState<string | null>(null);
+  const shownEmail = effectiveEmail ?? email;
 
-  const statusKey = ["admin-login-status", email] as const;
+  // Reset dello stato interno alla chiusura (qualunque sia il path di chiusura),
+  // così riaprendo su un altro bersaglio non "eredita" editing/email precedenti.
+  if (!open && editing) setEditing(false);
+  if (!open && effectiveEmail !== null) setEffectiveEmail(null);
+
+  const statusKey = ["admin-login-status", shownEmail] as const;
   const { data: status, isLoading } = useQuery({
     queryKey: statusKey,
-    enabled: open && !!email,
+    enabled: open && !!shownEmail,
     staleTime: 10_000,
     queryFn: async (): Promise<LoginStatus> =>
-      invokeManage({ action: "get_status", email }) as Promise<LoginStatus>,
+      invokeManage({ action: "get_status", email: shownEmail }) as Promise<LoginStatus>,
   });
 
   const sendRecovery = useMutation({
-    mutationFn: () => invokeManage({ action: "send_recovery", email }),
-    onSuccess: () => toast.success("Email di reset inviata", { description: `Link inviato a ${email}.` }),
+    mutationFn: () => invokeManage({
+      action: "send_recovery", email: shownEmail, origin: window.location.origin,
+    }),
+    onSuccess: () => toast.success("Email di reset inviata", { description: `Link inviato a ${shownEmail}.` }),
     onError: (e) => toast.error("Invio fallito", { description: (e as Error).message }),
   });
 
   const unblock = useMutation({
-    mutationFn: () => invokeManage({ action: "unblock", email }),
-    onSuccess: () => {
-      toast.success("Accesso sbloccato");
-      qc.invalidateQueries({ queryKey: statusKey });
-    },
+    mutationFn: () => invokeManage({ action: "unblock", email: shownEmail }),
+    onSuccess: () => toast.success("Accesso sbloccato"),
     onError: (e) => toast.error("Sblocco fallito", { description: (e as Error).message }),
   });
 
   const changeEmail = useMutation({
     mutationFn: (newEmail: string) =>
-      invokeManage({ action: "change_email", email, new_email: newEmail, denorm: denorm ?? undefined }),
-    onSuccess: (_d, newEmail) => {
+      invokeManage({ action: "change_email", email: shownEmail, new_email: newEmail, denorm: denorm ?? undefined }),
+    onSuccess: (data, newEmail) => {
       toast.success("Email di accesso aggiornata", { description: newEmail });
+      if ((data as { denorm_warning?: string })?.denorm_warning) {
+        toast.warning("Email aggiornata, ma la lista potrebbe mostrare il valore vecchio fino al refresh.");
+      }
       setEditing(false);
-      qc.invalidateQueries({ queryKey: statusKey });
+      // Lo status e le azioni successive seguono la nuova email (refetch automatico
+      // perché cambia la queryKey). Nessun refetch dell'email vecchia.
+      setEffectiveEmail(newEmail);
       onChanged?.(newEmail);
     },
     onError: (e) => toast.error("Cambio email fallito", { description: (e as Error).message }),
@@ -99,9 +112,10 @@ export function AccessControlDialog({
   const anyPending = sendRecovery.isPending || unblock.isPending || changeEmail.isPending;
   const hasAccount = status?.has_account ?? true; // ottimista finché carica
   const banned = !!status?.banned;
+  const busy = anyPending || isLoading || !shownEmail;
 
   function startEdit() {
-    setDraftEmail(email ?? "");
+    setDraftEmail(shownEmail ?? "");
     setEditing(true);
   }
   function saveEdit() {
@@ -110,7 +124,7 @@ export function AccessControlDialog({
       toast.error("Email non valida");
       return;
     }
-    if (v === (email ?? "").toLowerCase()) {
+    if (v === (shownEmail ?? "").toLowerCase()) {
       setEditing(false);
       return;
     }
@@ -118,7 +132,7 @@ export function AccessControlDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!anyPending) { setEditing(false); onOpenChange(v); } }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!anyPending) onOpenChange(v); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -171,11 +185,11 @@ export function AccessControlDialog({
               </div>
             ) : (
               <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2">
-                <span className="truncate text-sm font-medium">{email ?? "—"}</span>
+                <span className="truncate text-sm font-medium">{shownEmail ?? "—"}</span>
                 <Button
                   size="sm" variant="ghost" className="h-7 shrink-0 gap-1 text-xs"
                   onClick={startEdit}
-                  disabled={!hasAccount || anyPending}
+                  disabled={!hasAccount || busy}
                   title={hasAccount ? "Cambia email di accesso" : "Account non ancora creato"}
                 >
                   <Pencil className="h-3 w-3" /> Cambia
@@ -189,7 +203,8 @@ export function AccessControlDialog({
             <Button
               variant="outline" className="w-full justify-start gap-2"
               onClick={() => sendRecovery.mutate()}
-              disabled={anyPending}
+              disabled={busy || !hasAccount}
+              title={hasAccount ? undefined : "L'account non esiste ancora: usa il reinvito"}
             >
               {sendRecovery.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               Invia link per reimpostare la password
@@ -206,7 +221,7 @@ export function AccessControlDialog({
               </Button>
             )}
 
-            {!hasAccount && (
+            {!isLoading && !hasAccount && (
               <p className="text-xs text-muted-foreground">
                 Questo attore non ha ancora un account. Usa il reinvito dalla sua scheda per crearne uno; il cambio email sarà disponibile dopo il primo accesso.
               </p>

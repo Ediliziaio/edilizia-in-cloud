@@ -23,8 +23,21 @@ import { requireAuth, requireRole } from "../_shared/auth.ts";
 
 const DENORM_TABLES = new Set(["referrers", "companies", "accountant_firms"]);
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
+const DEFAULT_SITE_URL = "https://app.ediliziaincloud.it";
 
 interface Denorm { table: string; id: string }
+
+/** Escapa i metacaratteri LIKE (% e _) per un confronto letterale case-insensitive. */
+function likeEscape(s: string): string {
+  return s.replace(/[\\%_]/g, "\\$&");
+}
+
+/** Origin valido per il redirect del reset (whitelist di forma, no open-redirect). */
+function resolveRedirectOrigin(raw: unknown): string {
+  const o = String(raw ?? "").trim();
+  if (/^https?:\/\/[a-zA-Z0-9.\-:]+$/.test(o)) return o;
+  return Deno.env.get("SITE_URL") || DEFAULT_SITE_URL;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
@@ -52,7 +65,7 @@ Deno.serve(async (req) => {
 
     // ── Risolve l'utente auth dall'email via profiles (profiles.id = auth uid) ──
     const { data: prof } = await admin
-      .from("profiles").select("id, email").ilike("email", email).limit(1).maybeSingle();
+      .from("profiles").select("id, email").ilike("email", likeEscape(email)).limit(1).maybeSingle();
     const targetUserId: string | null = (prof?.id as string | undefined) ?? null;
 
     // Anti-escalation: non gestire un altro super_admin tramite questo strumento.
@@ -65,6 +78,19 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Audit best-effort delle azioni che modificano l'accesso.
+    const audit = async (details: Record<string, unknown>) => {
+      try {
+        await admin.from("admin_audit_log").insert({
+          user_id: userId,
+          action: `manage_login:${action}`,
+          target_type: "user",
+          target_id: targetUserId ?? email,
+          details,
+        });
+      } catch (_e) { /* l'audit non deve mai bloccare l'operazione */ }
+    };
+
     // ── get_status ───────────────────────────────────────────────────────────
     if (action === "get_status") {
       if (!targetUserId) {
@@ -72,20 +98,23 @@ Deno.serve(async (req) => {
       }
       const { data: u } = await admin.auth.admin.getUserById(targetUserId);
       const usr = u?.user;
+      const bannedUntil = (usr as { banned_until?: string } | undefined)?.banned_until;
       return jsonResponse({
         success: true,
         email: usr?.email ?? email,
         has_account: true,
         email_confirmed: !!usr?.email_confirmed_at,
-        banned: !!(usr as { banned_until?: string } | undefined)?.banned_until
-          && new Date((usr as { banned_until?: string }).banned_until as string).getTime() > Date.now(),
+        banned: !!bannedUntil && Date.parse(bannedUntil) > Date.now(),
         last_sign_in_at: usr?.last_sign_in_at ?? null,
       }, 200, corsH);
     }
 
     // ── send_recovery: invia link reset password ───────────────────────────────
     if (action === "send_recovery") {
-      const origin = new URL(req.url).origin;
+      if (!targetUserId) {
+        return errorResponse("Nessun account collegato a questa email: usa il reinvito dalla sua scheda.", 404, corsH);
+      }
+      const origin = resolveRedirectOrigin(body?.origin);
       const redirectTo = `${origin}/cambia-password`;
       // Client anon dedicato: l'endpoint /recover è pubblico e invia l'email
       // tramite il mailer configurato. (Niente password gestita lato admin.)
@@ -95,6 +124,7 @@ Deno.serve(async (req) => {
       );
       const { error } = await anon.auth.resetPasswordForEmail(email, { redirectTo });
       if (error) return errorResponse(`Invio reset fallito: ${error.message}`, 500, corsH);
+      await audit({ email });
       return jsonResponse({ success: true, sent_to: email }, 200, corsH);
     }
 
@@ -111,7 +141,7 @@ Deno.serve(async (req) => {
       }
       // Anti-takeover: la nuova email non deve appartenere ad un ALTRO utente.
       const { data: clash } = await admin
-        .from("profiles").select("id").ilike("email", newEmail).neq("id", targetUserId).limit(1).maybeSingle();
+        .from("profiles").select("id").ilike("email", likeEscape(newEmail)).neq("id", targetUserId).limit(1).maybeSingle();
       if (clash?.id) {
         return errorResponse("Questa email è già usata da un altro account.", 409, corsH);
       }
@@ -121,11 +151,24 @@ Deno.serve(async (req) => {
       });
       if (uErr) return errorResponse(`Cambio email fallito: ${uErr.message}`, 500, corsH);
 
-      await admin.from("profiles").update({ email: newEmail }).eq("id", targetUserId);
-      if (denorm && DENORM_TABLES.has(denorm.table) && denorm.id) {
-        await admin.from(denorm.table).update({ email: newEmail }).eq("id", denorm.id);
+      // profiles è la fonte di risoluzione: se la sincronizzazione fallisce DOPO
+      // l'update auth, segnala l'incoerenza invece di un falso successo.
+      const { error: pErr } = await admin.from("profiles").update({ email: newEmail }).eq("id", targetUserId);
+      if (pErr) {
+        return errorResponse(
+          `Email di login aggiornata, ma la sincronizzazione del profilo è fallita (${pErr.message}). Riprova.`,
+          500, corsH,
+        );
       }
-      return jsonResponse({ success: true, email: newEmail }, 200, corsH);
+      // Denormalizzata (referrers/companies/accountant_firms): best-effort, non
+      // blocca l'operazione ma viene segnalata se fallisce.
+      let denormWarning: string | null = null;
+      if (denorm && DENORM_TABLES.has(denorm.table) && denorm.id) {
+        const { error: dErr } = await admin.from(denorm.table).update({ email: newEmail }).eq("id", denorm.id);
+        if (dErr) denormWarning = dErr.message;
+      }
+      await audit({ from: email, to: newEmail, denorm: denorm?.table ?? null, denormWarning });
+      return jsonResponse({ success: true, email: newEmail, denorm_warning: denormWarning }, 200, corsH);
     }
 
     // ── unblock: rimuove il ban auth ───────────────────────────────────────────
@@ -137,6 +180,7 @@ Deno.serve(async (req) => {
         ban_duration: "none",
       });
       if (bErr) return errorResponse(`Sblocco fallito: ${bErr.message}`, 500, corsH);
+      await audit({ email });
       return jsonResponse({ success: true }, 200, corsH);
     }
 
