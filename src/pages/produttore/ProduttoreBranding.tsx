@@ -179,14 +179,18 @@ function LogoCard({ companyId, branding }: { companyId: string | null; branding:
       if (!companyId) throw new Error("Azienda non trovata");
       if (!file.type.startsWith("image/")) throw new Error("Carica un'immagine (PNG, SVG, JPG, WEBP)");
       if (file.size > LOGO_MAX_BYTES) throw new Error("Immagine troppo grande (max 2 MB)");
-      // Path fisso (no estensione) → l'upsert SOSTITUISCE sempre il logo precedente.
-      const filePath = `${companyId}/produttore-logo`;
+      // Path UNIVOCO per upload → sempre una INSERT (la policy storage consente
+      // l'insert nella cartella della propria azienda; non c'è una policy di UPDATE
+      // per i membri). Il logo mostrato è il nuovo file → "sostituzione" garantita;
+      // il vecchio file resta orfano (costo trascurabile per un logo).
+      const ext = (file.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const filePath = `${companyId}/logo-${Date.now()}${ext ? "." + ext : ""}`;
       const { error: upErr } = await supabase.storage
         .from("white-label-assets")
-        .upload(filePath, file, { upsert: true, contentType: file.type });
+        .upload(filePath, file, { contentType: file.type });
       if (upErr) throw new Error(upErr.message);
       const { data } = supabase.storage.from("white-label-assets").getPublicUrl(filePath);
-      const url = `${data.publicUrl}?t=${Date.now()}`; // cache-buster → il nuovo logo si vede subito
+      const url = data.publicUrl;
       const { error: dbErr } = await supabase.from("company_branding")
         .upsert({ company_id: companyId, logo_url: url }, { onConflict: "company_id" });
       if (dbErr) throw new Error(dbErr.message);
