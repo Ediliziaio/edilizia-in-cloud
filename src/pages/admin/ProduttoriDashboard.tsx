@@ -26,7 +26,7 @@ import { formatEuro } from "@/lib/formatEuro";
 import { useNavigate } from "react-router-dom";
 import {
   Factory, Building2, Plus, ChevronDown, ChevronRight, AlertCircle, RefreshCw,
-  BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2, Play, Ban, Link2, Copy, Package, KeyRound, Search, Pencil,
+  BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2, Play, Ban, Link2, Copy, Package, KeyRound, Search, Pencil, X,
 } from "lucide-react";
 
 interface Rivenditore {
@@ -158,6 +158,7 @@ export default function ProduttoriDashboard() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [billingFilter, setBillingFilter] = useState("all");
   const [sortKey, setSortKey] = useState("recent");
+  const [inactiveOnly, setInactiveOnly] = useState(false);
   const navigate = useNavigate();
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -172,9 +173,14 @@ export default function ProduttoriDashboard() {
   const [nowMs] = useState(() => Date.now());
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const cutoff = nowMs - 30 * 86_400_000;
     const arr = produttori.filter((p) => {
       if (statusFilter !== "all" && (p.status ?? "") !== statusFilter) return false;
       if (billingFilter !== "all" && (p.reseller_billing_mode ?? "fabbrica_paga") !== billingFilter) return false;
+      if (inactiveOnly) {
+        const ts = latestActivity(activity[p.admin_user_id ?? ""]);
+        if (ts && Date.parse(ts) >= cutoff) return false;
+      }
       if (q) {
         const hay = `${p.name} ${p.admin_email ?? ""} ${p.email ?? ""} ${p.custom_domain ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -186,7 +192,7 @@ export default function ProduttoriDashboard() {
       if (sortKey === "rivenditori") return b.rivenditori_count - a.rivenditori_count;
       return (b.created_at ?? "").localeCompare(a.created_at ?? "");
     });
-  }, [produttori, search, statusFilter, billingFilter, sortKey]);
+  }, [produttori, search, statusFilter, billingFilter, sortKey, inactiveOnly, activity, nowMs]);
 
   const inactiveCount = useMemo(() => {
     if (activityLoading) return undefined;
@@ -217,7 +223,7 @@ export default function ProduttoriDashboard() {
       </div>
 
       {/* Analytics: KPI ricchi + grafici (stile mega dashboard) */}
-      {!isLoading && !isError && produttori.length > 0 && <ProduttoriAnalytics produttori={produttori} inactiveCount={inactiveCount} />}
+      {!isLoading && !isError && produttori.length > 0 && <ProduttoriAnalytics produttori={produttori} inactiveCount={inactiveCount} onInactiveClick={() => setInactiveOnly(true)} />}
 
       {isError && (
         <Alert variant="destructive">
@@ -263,6 +269,14 @@ export default function ProduttoriDashboard() {
             </SelectContent>
           </Select>
         </div>
+      )}
+
+      {inactiveOnly && !isLoading && !isError && (
+        <button type="button" onClick={() => setInactiveOnly(false)} title="Rimuovi filtro">
+          <Badge variant="outline" className="gap-1 border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100">
+            Solo inattivi / mai entrati <X className="h-3 w-3" />
+          </Badge>
+        </button>
       )}
 
       {isLoading ? (

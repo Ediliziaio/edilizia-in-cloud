@@ -25,7 +25,7 @@ interface Prod { id: string; name: string; rivenditori: Riv[]; rivenditori_count
  * KPI ricchi (incl. incasso wholesale calcolato) + grafici recharts (distribuzione
  * piani, chi paga, top produttori). Tutto derivato dai dati già caricati.
  */
-export function ProduttoriAnalytics({ produttori, inactiveCount }: { produttori: Prod[]; inactiveCount?: number }) {
+export function ProduttoriAnalytics({ produttori, inactiveCount, onInactiveClick }: { produttori: Prod[]; inactiveCount?: number; onInactiveClick?: () => void }) {
   const m = useMemo(() => {
     const allRivs = produttori.flatMap((p) => p.rivenditori);
     const totRiv = allRivs.length;
@@ -72,7 +72,7 @@ export function ProduttoriAnalytics({ produttori, inactiveCount }: { produttori:
         <Kpi icon={<Users className="h-5 w-5" />} value={m.totRiv} label="Rivenditori" sub={`${m.attivi} attivi · ${m.sospesi} sospesi`} tone="blue" />
         <Kpi icon={<BadgeEuro className="h-5 w-5" />} value={formatEuro(m.wholesaleMrr)} label="Incasso wholesale/mese" sub={m.listMrr > m.wholesaleMrr ? `listino ${formatEuro(m.listMrr)}` : "al listino"} tone="emerald" />
         <Kpi icon={<CreditCard className="h-5 w-5" />} value={formatEuro(m.selfMrr)} label="Pagano loro/mese" sub={`${m.paganoLoro} rivenditori`} tone="amber" />
-        <Kpi icon={<Clock className="h-5 w-5" />} value={inactiveCount === undefined ? "…" : inactiveCount} label="Inattivi / mai entrati" sub="oltre 30 giorni" tone="rose" />
+        <Kpi icon={<Clock className="h-5 w-5" />} value={inactiveCount === undefined ? "…" : inactiveCount} label="Inattivi / mai entrati" sub="oltre 30 giorni" tone="rose" onClick={inactiveCount ? onInactiveClick : undefined} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -126,9 +126,10 @@ export function ProduttoriAnalytics({ produttori, inactiveCount }: { produttori:
   );
 }
 
-function Kpi({ icon, value, label, sub, tone }: {
+function Kpi({ icon, value, label, sub, tone, onClick }: {
   icon: React.ReactNode; value: React.ReactNode; label: string; sub?: string;
   tone: "violet" | "blue" | "emerald" | "amber" | "rose";
+  onClick?: () => void;
 }) {
   const toneCls =
     tone === "violet" ? "bg-violet-100 text-violet-700"
@@ -137,7 +138,14 @@ function Kpi({ icon, value, label, sub, tone }: {
           : tone === "rose" ? "bg-rose-100 text-rose-700"
             : "bg-amber-100 text-amber-700";
   return (
-    <Card>
+    <Card
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+      className={onClick ? "cursor-pointer transition-colors hover:bg-muted/40" : undefined}
+      title={onClick ? "Filtra: mostra solo gli inattivi" : undefined}
+    >
       <CardContent className="flex items-center gap-3 py-4">
         <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", toneCls)}>{icon}</div>
         <div className="min-w-0">

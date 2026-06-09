@@ -23,7 +23,7 @@ import { EditEntityDialog } from "@/components/admin/EditEntityDialog";
 import { LastAccessBadge } from "@/components/admin/LastAccessBadge";
 import { useAdminActivity, latestActivity } from "@/hooks/useAdminActivity";
 import {
-  Calculator, Building2, ChevronDown, ChevronRight, AlertCircle, RefreshCw, Mail, Users, Play, Ban, KeyRound, Search, Pencil,
+  Calculator, Building2, ChevronDown, ChevronRight, AlertCircle, RefreshCw, Mail, Users, Play, Ban, KeyRound, Search, Pencil, X,
 } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -124,6 +124,7 @@ export default function CommercialistiDashboard() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortKey, setSortKey] = useState("recent");
+  const [inactiveOnly, setInactiveOnly] = useState(false);
 
   const { data: studi = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["admin-commercialisti"],
@@ -151,8 +152,13 @@ export default function CommercialistiDashboard() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const cutoff = nowMs - 30 * 86_400_000;
     const arr = studi.filter((s) => {
       if (statusFilter !== "all" && (s.status ?? "") !== statusFilter) return false;
+      if (inactiveOnly) {
+        const ts = latestActivity(activity[s.owner_user_id ?? ""]);
+        if (ts && Date.parse(ts) >= cutoff) return false;
+      }
       if (q) {
         const hay = `${s.name} ${s.owner_email ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -164,7 +170,7 @@ export default function CommercialistiDashboard() {
       if (sortKey === "aziende") return b.companies.length - a.companies.length;
       return (b.created_at ?? "").localeCompare(a.created_at ?? "");
     });
-  }, [studi, search, statusFilter, sortKey]);
+  }, [studi, search, statusFilter, sortKey, inactiveOnly, activity, nowMs]);
 
   const inactiveCount = useMemo(() => {
     if (activityLoading) return undefined;
@@ -189,7 +195,7 @@ export default function CommercialistiDashboard() {
         </div>
       </div>
 
-      {!isLoading && !isError && studi.length > 0 && <CommercialistiAnalytics studi={studi} inactiveCount={inactiveCount} />}
+      {!isLoading && !isError && studi.length > 0 && <CommercialistiAnalytics studi={studi} inactiveCount={inactiveCount} onInactiveClick={() => setInactiveOnly(true)} />}
 
       {isError && (
         <Alert variant="destructive">
@@ -228,6 +234,14 @@ export default function CommercialistiDashboard() {
             </SelectContent>
           </Select>
         </div>
+      )}
+
+      {inactiveOnly && !isLoading && !isError && (
+        <button type="button" onClick={() => setInactiveOnly(false)} title="Rimuovi filtro">
+          <Badge variant="outline" className="gap-1 border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100">
+            Solo inattivi / mai entrati <X className="h-3 w-3" />
+          </Badge>
+        </button>
       )}
 
       {isLoading ? (

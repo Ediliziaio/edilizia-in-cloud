@@ -25,7 +25,7 @@ const MODE_LABEL: Record<string, string> = {
 interface StudioLite { id: string; name: string; status: string | null; members_count: number; companies: { access_mode: string | null }[] }
 
 /** Analytics "mega dashboard" dell'area Commercialisti (stile ProduttoriAnalytics). */
-export function CommercialistiAnalytics({ studi, inactiveCount }: { studi: StudioLite[]; inactiveCount?: number }) {
+export function CommercialistiAnalytics({ studi, inactiveCount, onInactiveClick }: { studi: StudioLite[]; inactiveCount?: number; onInactiveClick?: () => void }) {
   const m = useMemo(() => {
     const totStudi = studi.length;
     const attivi = studi.filter((s) => s.status === "active").length;
@@ -54,7 +54,7 @@ export function CommercialistiAnalytics({ studi, inactiveCount }: { studi: Studi
         <Kpi icon={<CheckCircle2 className="h-5 w-5" />} value={m.attivi} label="Attivi" tone="emerald" />
         <Kpi icon={<Building2 className="h-5 w-5" />} value={m.aziendeGestite} label="Aziende gestite" tone="blue" />
         <Kpi icon={<Users className="h-5 w-5" />} value={m.membri} label="Membri" tone="amber" />
-        <Kpi icon={<Clock className="h-5 w-5" />} value={inactiveCount === undefined ? "…" : inactiveCount} label="Inattivi / mai entrati" tone="rose" />
+        <Kpi icon={<Clock className="h-5 w-5" />} value={inactiveCount === undefined ? "…" : inactiveCount} label="Inattivi / mai entrati" tone="rose" onClick={inactiveCount ? onInactiveClick : undefined} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -92,9 +92,10 @@ export function CommercialistiAnalytics({ studi, inactiveCount }: { studi: Studi
   );
 }
 
-function Kpi({ icon, value, label, tone }: {
+function Kpi({ icon, value, label, tone, onClick }: {
   icon: React.ReactNode; value: React.ReactNode; label: string;
   tone: "violet" | "blue" | "emerald" | "amber" | "rose";
+  onClick?: () => void;
 }) {
   const toneCls =
     tone === "violet" ? "bg-violet-100 text-violet-700"
@@ -103,7 +104,14 @@ function Kpi({ icon, value, label, tone }: {
           : tone === "rose" ? "bg-rose-100 text-rose-700"
             : "bg-amber-100 text-amber-700";
   return (
-    <Card>
+    <Card
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+      className={onClick ? "cursor-pointer transition-colors hover:bg-muted/40" : undefined}
+      title={onClick ? "Filtra: mostra solo gli inattivi" : undefined}
+    >
       <CardContent className="flex items-center gap-3 py-4">
         <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", toneCls)}>{icon}</div>
         <div className="min-w-0">
