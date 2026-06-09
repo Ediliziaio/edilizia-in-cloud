@@ -688,10 +688,30 @@ Deno.serve(async (req) => {
           });
         }
 
-        const pageTokens = (creds as any).meta_page_tokens || {};
-        const pageAccessToken = assetIdForToken && pageTokens[assetIdForToken]
-          ? await decrypt(pageTokens[assetIdForToken], encKey)
-          : accessToken;
+        // Page token FRESCO: i token salvati (meta_page_tokens) possono essere
+        // vecchi/non validi per le letture di contenuti (errore #10). Ne
+        // richiediamo uno aggiornato col token utente (che ha pages_read_engagement),
+        // con fallback allo stored e poi al token utente.
+        let pageAccessToken = accessToken;
+        try {
+          const freshRes = await fetchWithRetry(
+            `https://graph.facebook.com/${apiVersion}/${pageId}?fields=access_token&access_token=${accessToken}`,
+          );
+          const freshData = await freshRes.json();
+          if (freshRes.ok && freshData.access_token) {
+            pageAccessToken = freshData.access_token;
+          } else {
+            const pageTokens = (creds as any).meta_page_tokens || {};
+            if (assetIdForToken && pageTokens[assetIdForToken]) {
+              pageAccessToken = await decrypt(pageTokens[assetIdForToken], encKey);
+            }
+          }
+        } catch {
+          const pageTokens = (creds as any).meta_page_tokens || {};
+          if (assetIdForToken && pageTokens[assetIdForToken]) {
+            pageAccessToken = await decrypt(pageTokens[assetIdForToken], encKey);
+          }
+        }
 
         const fields =
           "id,message,story,created_time,permalink_url,full_picture," +
