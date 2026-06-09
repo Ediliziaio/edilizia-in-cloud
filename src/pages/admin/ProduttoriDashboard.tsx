@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import {
   Factory, Users, Building2, Plus, ChevronDown, ChevronRight, AlertCircle, RefreshCw,
-  BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2,
+  BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2, Play, Ban, Link2, Copy,
 } from "lucide-react";
 
 interface Rivenditore {
@@ -39,6 +39,7 @@ interface Produttore {
   custom_domain: string | null;
   custom_domain_verified: boolean;
   wholesale_pct: number;
+  reseller_limit: number;
   rivenditori: Rivenditore[];
   rivenditori_count: number;
   comped_count: number;
@@ -64,7 +65,7 @@ async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { 
 
   const { data: comps, error: e2 } = await sb
     .from("companies")
-    .select("id, name, email, status, reseller_billing_mode, reseller_wholesale_pct, created_at")
+    .select("id, name, email, status, reseller_billing_mode, reseller_wholesale_pct, reseller_limit, created_at")
     .in("id", ids);
   if (e2) throw new Error(e2.message);
 
@@ -109,6 +110,7 @@ async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { 
         custom_domain: b?.custom_domain ?? null,
         custom_domain_verified: !!b?.custom_domain_verified,
         wholesale_pct: Number(c.reseller_wholesale_pct ?? 0),
+        reseller_limit: Number(c.reseller_limit ?? 0),
         rivenditori: children,
         rivenditori_count: children.length,
         comped_count: children.filter((x) => x.billing_comped).length,
@@ -241,6 +243,7 @@ export default function ProduttoriDashboard() {
 
                 {isOpen && (
                   <div className="border-t bg-muted/20 px-4 py-3">
+                    <ProduttoreActions p={p} onChanged={() => qc.invalidateQueries({ queryKey: ["admin-produttori"] })} />
                     <WholesaleControl
                       produttoreId={p.id}
                       initialPct={p.wholesale_pct}
@@ -279,6 +282,96 @@ export default function ProduttoriDashboard() {
       )}
 
       <CreateProduttoreDialog open={createOpen} onOpenChange={setCreateOpen} />
+    </div>
+  );
+}
+
+function ProduttoreActions({ p, onChanged }: { p: Produttore; onChanged: () => void }) {
+  const [limit, setLimit] = useState(String(p.reseller_limit ?? 0));
+  const [accessLink, setAccessLink] = useState<string | null>(null);
+  const [suspendOpen, setSuspendOpen] = useState(false);
+
+  const setConfig = useMutation({
+    mutationFn: async (patch: { status?: string; reseller_limit?: number }) => {
+      const { data, error } = await supabase.functions.invoke("set-produttore-config", { body: { produttore_id: p.id, ...patch } });
+      if (error) throw new Error(error.message);
+      const r = data as { success?: boolean; error?: string } | null;
+      if (r && r.success === false) throw new Error(r.error ?? "Aggiornamento fallito");
+    },
+    onSuccess: () => { toast.success("Produttore aggiornato"); setSuspendOpen(false); onChanged(); },
+    onError: (e) => toast.error("Aggiornamento fallito", { description: (e as Error).message }),
+  });
+
+  const reinvite = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("resend-produttore-invite", { body: { produttore_id: p.id } });
+      if (error) throw new Error(error.message);
+      const r = data as { success?: boolean; error?: string; action_link?: string } | null;
+      if (!r || r.success === false) throw new Error(r?.error ?? "Operazione fallita");
+      return r.action_link ?? null;
+    },
+    onSuccess: (link) => { setAccessLink(link); toast.success("Link d'accesso generato"); },
+    onError: (e) => toast.error("Operazione fallita", { description: (e as Error).message }),
+  });
+
+  const copy = async (t: string) => {
+    try { await navigator.clipboard.writeText(t); toast.success("Copiato negli appunti"); }
+    catch { toast.error("Impossibile copiare"); }
+  };
+  const limitDirty = String(p.reseller_limit ?? 0) !== limit.trim();
+
+  return (
+    <div className="mb-3 space-y-2 rounded-lg border bg-background p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium">Gestione produttore</span>
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {p.status === "suspended" ? (
+            <Button size="sm" variant="outline" className="gap-1.5" disabled={setConfig.isPending} onClick={() => setConfig.mutate({ status: "active" })}>
+              <Play className="h-3.5 w-3.5" /> Riattiva
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="gap-1.5 text-destructive" disabled={setConfig.isPending} onClick={() => setSuspendOpen(true)}>
+              <Ban className="h-3.5 w-3.5" /> Sospendi
+            </Button>
+          )}
+          <Button size="sm" variant="outline" className="gap-1.5" disabled={reinvite.isPending} onClick={() => reinvite.mutate()}>
+            {reinvite.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />} Reinvito
+          </Button>
+        </div>
+      </div>
+
+      {accessLink && (
+        <div className="flex items-center gap-1.5">
+          <Input readOnly value={accessLink} className="h-8 text-xs" onFocus={(e) => e.currentTarget.select()} />
+          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={() => copy(accessLink)} aria-label="Copia link"><Copy className="h-4 w-4" /></Button>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm">Tetto rivenditori</span>
+        <span className="text-xs text-muted-foreground">(0 = illimitato)</span>
+        <div className="ml-auto flex items-center gap-1.5">
+          <Input type="number" min={0} value={limit} onChange={(e) => setLimit(e.target.value)} className="h-8 w-20" aria-label="Tetto rivenditori" />
+          <Button size="sm" className="gap-1.5" disabled={!limitDirty || setConfig.isPending} onClick={() => setConfig.mutate({ reseller_limit: Number(limit) })}>
+            <Save className="h-3.5 w-3.5" /> Salva
+          </Button>
+        </div>
+      </div>
+
+      <AlertDialog open={suspendOpen} onOpenChange={setSuspendOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sospendere {p.name}?</AlertDialogTitle>
+            <AlertDialogDescription>Il produttore verrà sospeso. Nessun dato viene eliminato: puoi riattivarlo quando vuoi.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={setConfig.isPending} onClick={() => setConfig.mutate({ status: "suspended" })}>
+              Sospendi
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

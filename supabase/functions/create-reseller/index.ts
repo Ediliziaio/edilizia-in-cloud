@@ -54,7 +54,18 @@ Deno.serve(async (req) => {
     //    (billing_comped: true = paga il produttore, false = paga il rivenditore)
     //    oppure default dal modello del produttore ('fabbrica_paga' → comped).
     const { data: produttore } = await supabaseAdmin
-      .from("companies").select("reseller_billing_mode, sector").eq("id", produttoreId).single();
+      .from("companies").select("reseller_billing_mode, sector, reseller_limit").eq("id", produttoreId).single();
+
+    // Tetto rivenditori del produttore (0 = illimitato).
+    const limit = Number((produttore as { reseller_limit?: number } | null)?.reseller_limit ?? 0);
+    if (limit > 0) {
+      const { count } = await supabaseAdmin
+        .from("companies").select("id", { count: "exact", head: true }).eq("parent_company_id", produttoreId);
+      if ((count ?? 0) >= limit) {
+        return errorResponse(`Limite rivenditori raggiunto (${limit}). Contatta il supporto per aumentarlo.`, 409, corsH);
+      }
+    }
+
     const comped = typeof body?.billing_comped === "boolean"
       ? body.billing_comped
       : produttore?.reseller_billing_mode === "fabbrica_paga";
