@@ -43,7 +43,8 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     // wa_number_id: numero/WABA specifico su cui operare (template per-WABA, niente mischiate).
-    const { action, company_id, wa_number_id } = body;
+    // variable_mapping: mappa posizione variabile → campo contatto (es {"1":"nome"}).
+    const { action, company_id, wa_number_id, variable_mapping } = body;
 
     if (!company_id) {
       return new Response(
@@ -132,6 +133,18 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Salva la riga locale con la mappatura variabili (preservata dal sync).
+      await persistTemplateRow(adminClient, {
+        companyId: company_id,
+        waNumberId: wa_number_id,
+        name: template.name,
+        language: template.language || "it",
+        category: template.category,
+        components,
+        status: "PENDING",
+        variableMapping: variable_mapping ?? null,
+      });
+
       return new Response(JSON.stringify({ success: true, template: data }), {
         status: 200,
         headers: secureHeaders,
@@ -175,6 +188,21 @@ Deno.serve(async (req) => {
           JSON.stringify({ error: data.error?.message || "Errore modifica template" }),
           { status: 502, headers: secureHeaders }
         );
+      }
+
+      // Aggiorna la riga locale (mappatura variabili + componenti) se conosciamo
+      // nome e lingua del template (passati dal client in modifica).
+      if (wa_number_id && template.name && template.language) {
+        await persistTemplateRow(adminClient, {
+          companyId: company_id,
+          waNumberId: wa_number_id,
+          name: template.name,
+          language: template.language,
+          category: template.category,
+          components,
+          status: "PENDING",
+          variableMapping: variable_mapping ?? null,
+        });
       }
 
       return new Response(JSON.stringify({ success: true, template: data }), {
@@ -228,6 +256,46 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// Upsert della riga locale wa_meta_templates con la mappatura variabili.
+// onConflict (wa_number_id, template_name, template_language) = stessa chiave del
+// sync, così crea/aggiorna senza duplicare. variable_mapping è preservata dal sync.
+async function persistTemplateRow(
+  adminClient: ReturnType<typeof createClient>,
+  args: {
+    companyId: string;
+    waNumberId: string;
+    name: string;
+    language: string;
+    category?: string;
+    components: TemplateComponent[];
+    status: string;
+    variableMapping: Record<string, string> | null;
+  },
+): Promise<void> {
+  try {
+    const bodyComp = (args.components || []).find((c) => c.type === "BODY");
+    const bodyText = typeof bodyComp?.text === "string" ? bodyComp.text : "";
+    const variablesCount = new Set(
+      (bodyText.match(/\{\{(\d+)\}\}/g) || []).map((m) => m),
+    ).size;
+
+    await adminClient.from("wa_meta_templates").upsert({
+      company_id: args.companyId,
+      wa_number_id: args.waNumberId,
+      template_name: args.name,
+      template_language: args.language,
+      category: args.category ?? null,
+      status: args.status,
+      components_json: args.components,
+      variables_count: variablesCount,
+      variable_mapping: args.variableMapping,
+      synced_at: new Date().toISOString(),
+    }, { onConflict: "wa_number_id,template_name,template_language" });
+  } catch (e) {
+    console.error("[whatsapp-templates] persistTemplateRow:", e);
+  }
+}
 
 function addTemplateExamples(components: TemplateComponent[]): TemplateComponent[] {
   return (components || []).map((component) => {

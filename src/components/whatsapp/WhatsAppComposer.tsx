@@ -34,9 +34,16 @@ interface Props {
   onSend: (args: WhatsAppSendArgs) => Promise<void> | void;
   isSending?: boolean;
   className?: string;
+  /**
+   * Valori dei campi del contatto già risolti, keyati con la stessa chiave usata
+   * nella mappatura del template (es. { nome: "Mario", telefono: "+39…", "cf:<id>": "…" }).
+   * Se presenti, le variabili del template vengono pre-compilate automaticamente.
+   * Memoizzare nel chiamante per evitare re-render inutili.
+   */
+  contactFields?: Record<string, string>;
 }
 
-export function WhatsAppComposer({ phone, onSend, isSending, className }: Props) {
+export function WhatsAppComposer({ phone, onSend, isSending, className, contactFields }: Props) {
   const { data: numbers = [] } = useWhatsAppNumbers();
   const activeNumbers = useMemo(
     () => numbers.filter((n) => n.stato === "active" && n.webhook_verified),
@@ -65,9 +72,15 @@ export function WhatsAppComposer({ phone, onSend, isSending, className }: Props)
   const [vars, setVars] = useState<string[]>([]);
 
   const selectedTemplate = templates.find((t) => t.id === templateId) ?? null;
+  const selectedMapping = selectedTemplate?.variable_mapping ?? null;
   useEffect(() => {
-    setVars(Array.from({ length: selectedTemplate?.variables_count ?? 0 }, () => ""));
-  }, [templateId, selectedTemplate?.variables_count]);
+    const count = selectedTemplate?.variables_count ?? 0;
+    // Pre-compila ogni variabile dal campo mappato (se conosciamo i dati contatto).
+    setVars(Array.from({ length: count }, (_, i) => {
+      const key = selectedMapping?.[String(i + 1)];
+      return key && contactFields ? (contactFields[key] ?? "") : "";
+    }));
+  }, [templateId, selectedTemplate?.variables_count, selectedMapping, contactFields]);
 
   const noActiveNumber = activeNumbers.length === 0;
 
@@ -208,17 +221,23 @@ export function WhatsAppComposer({ phone, onSend, isSending, className }: Props)
 
           {selectedTemplate && selectedTemplate.variables_count > 0 && (
             <div className="space-y-1.5">
-              {vars.map((v, i) => (
-                <div key={i} className="space-y-0.5">
-                  <Label className="text-[11px] text-muted-foreground">{`Variabile {{${i + 1}}}`}</Label>
-                  <Input
-                    value={v}
-                    onChange={(e) => setVars((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
-                    placeholder={`Valore {{${i + 1}}}`}
-                    className="h-8 text-xs"
-                  />
-                </div>
-              ))}
+              {vars.map((v, i) => {
+                const mappedKey = selectedMapping?.[String(i + 1)];
+                return (
+                  <div key={i} className="space-y-0.5">
+                    <Label className="text-[11px] text-muted-foreground">
+                      {`Variabile {{${i + 1}}}`}
+                      {mappedKey ? " · compilata dal contatto" : ""}
+                    </Label>
+                    <Input
+                      value={v}
+                      onChange={(e) => setVars((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
+                      placeholder={`Valore {{${i + 1}}}`}
+                      className="h-8 text-xs"
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

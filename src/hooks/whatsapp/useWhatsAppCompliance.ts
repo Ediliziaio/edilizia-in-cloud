@@ -55,6 +55,8 @@ export interface ApprovedTemplate {
   template_language: string;
   category: string | null;
   variables_count: number;
+  // Mappa posizione variabile → chiave campo contatto (per auto-compilazione).
+  variable_mapping: Record<string, string> | null;
 }
 
 /** Template WhatsApp APPROVATI da Meta, opzionalmente filtrati per numero. */
@@ -67,7 +69,7 @@ export function useApprovedTemplates(waNumberId?: string | null) {
     queryFn: async () => {
       let q = supabase
         .from("wa_meta_templates")
-        .select("id, template_name, template_language, category, variables_count, status, wa_number_id")
+        .select("id, template_name, template_language, category, variables_count, variable_mapping, status, wa_number_id")
         .eq("company_id", companyId!)
         .eq("status", "APPROVED")
         .order("template_name", { ascending: true });
@@ -80,6 +82,7 @@ export function useApprovedTemplates(waNumberId?: string | null) {
         template_language: t.template_language,
         category: t.category,
         variables_count: Number(t.variables_count ?? 0),
+        variable_mapping: (t.variable_mapping ?? null) as Record<string, string> | null,
       }));
     },
   });

@@ -15,6 +15,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useWhatsAppNumbers, PURPOSE_LABELS, type WAPurpose } from "@/hooks/whatsapp/useWhatsAppNumbers";
 import { useSyncMetaTemplates } from "@/hooks/whatsapp/useWAMetaTemplates";
+import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
+import {
+  buildTemplateFieldOptions, fieldSample,
+  type CustomFieldLike, type TemplateFieldOption,
+} from "@/lib/whatsapp/templateVariableFields";
 import { toast } from "sonner";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -26,7 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -63,11 +68,13 @@ interface TemplateForm {
   bodyText: string;
   footerText: string;
   examples: Record<number, string>;
+  // posizione variabile → chiave campo contatto ("" = testo fisso da examples).
+  mapping: Record<number, string>;
 }
 
 const EMPTY_FORM: TemplateForm = {
   name: "", category: "UTILITY", language: "it",
-  headerText: "", bodyText: "", footerText: "", examples: {},
+  headerText: "", bodyText: "", footerText: "", examples: {}, mapping: {},
 };
 
 function statusColor(status: string | null): string {
@@ -117,17 +124,25 @@ function parseToForm(t: MetaTemplate): TemplateForm {
     bodyText: body?.text ?? "",
     footerText: footer?.text ?? "",
     examples: {},
+    mapping: {},
   };
 }
-function buildComponents(form: TemplateForm): MetaComponent[] {
+// Valore di esempio per la variabile v: se mappata a un campo usa il sample del
+// campo, altrimenti il testo fisso digitato.
+function exampleFor(form: TemplateForm, v: number, customFields: CustomFieldLike[]): string {
+  const mapped = form.mapping[v];
+  if (mapped) return fieldSample(mapped, customFields);
+  return (form.examples[v] ?? "").trim();
+}
+function buildComponents(form: TemplateForm, customFields: CustomFieldLike[]): MetaComponent[] {
   const comps: MetaComponent[] = [];
   if (form.headerText.trim()) {
     comps.push({ type: "HEADER", format: "TEXT", text: form.headerText.trim() });
   }
   const body: MetaComponent = { type: "BODY", text: form.bodyText.trim() };
   const vars = detectVars(form.bodyText);
-  if (vars.length && vars.every((v) => (form.examples[v] ?? "").trim())) {
-    body.example = { body_text: [vars.map((v) => form.examples[v].trim())] };
+  if (vars.length && vars.every((v) => exampleFor(form, v, customFields).length > 0)) {
+    body.example = { body_text: [vars.map((v) => exampleFor(form, v, customFields))] };
   }
   comps.push(body);
   if (form.footerText.trim()) {
@@ -141,6 +156,11 @@ export default function TemplatesPage() {
   const { data: numbers = [], isLoading: numbersLoading } = useWhatsAppNumbers();
   const queryClient = useQueryClient();
   const sync = useSyncMetaTemplates();
+  const { data: customFieldsRaw = [] } = useContactCustomFields();
+  const customFields: CustomFieldLike[] = useMemo(
+    () => (customFieldsRaw as Array<{ id: string; name: string }>).map((f) => ({ id: f.id, name: f.name })),
+    [customFieldsRaw],
+  );
 
   // Numeri usabili per i template: attivi e con WABA collegata.
   const usableNumbers = useMemo(
@@ -185,6 +205,34 @@ export default function TemplatesPage() {
     },
   });
 
+  // Mappature variabili già salvate per i template di questo numero (per la modifica).
+  const mappingsQuery = useQuery({
+    queryKey: ["wa", "templates", "mappings", companyId, waNumberId],
+    enabled: !!companyId && !!waNumberId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wa_meta_templates")
+        .select("template_name, template_language, variable_mapping")
+        .eq("company_id", companyId!)
+        .eq("wa_number_id", waNumberId!);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const mappingFor = (name: string, language: string): Record<number, string> => {
+    const row = (mappingsQuery.data ?? []).find(
+      (r) => r.template_name === name && r.template_language === language,
+    );
+    const raw = (row?.variable_mapping ?? {}) as Record<string, string>;
+    const out: Record<number, string> = {};
+    Object.entries(raw).forEach(([k, v]) => {
+      const n = parseInt(k, 10);
+      if (!Number.isNaN(n) && typeof v === "string") out[n] = v;
+    });
+    return out;
+  };
+
   const templates = listQuery.data ?? [];
   const filtered = templates.filter((t) => {
     const q = search.trim().toLowerCase();
@@ -195,20 +243,29 @@ export default function TemplatesPage() {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["wa", "templates", "live", companyId, waNumberId] });
+    queryClient.invalidateQueries({ queryKey: ["wa", "templates", "mappings", companyId, waNumberId] });
   };
 
   // ── Mutations (sempre con wa_number_id → niente mix tra WABA) ──
   const saveMutation = useMutation({
     mutationFn: async (form: TemplateForm) => {
       const isEdit = editor.mode === "edit";
-      const components = buildComponents(form);
+      const components = buildComponents(form, customFields);
+      // Mappatura posizione → campo (solo variabili presenti nel body e mappate).
+      const vars = detectVars(form.bodyText);
+      const variable_mapping: Record<string, string> = {};
+      vars.forEach((v) => { if (form.mapping[v]) variable_mapping[String(v)] = form.mapping[v]; });
+
       const body = isEdit
         ? {
-            action: "edit", company_id: companyId, wa_number_id: waNumberId,
-            template: { id: form.id, category: form.category, components },
+            action: "edit", company_id: companyId, wa_number_id: waNumberId, variable_mapping,
+            template: {
+              id: form.id, name: form.name, language: form.language,
+              category: form.category, components,
+            },
           }
         : {
-            action: "create", company_id: companyId, wa_number_id: waNumberId,
+            action: "create", company_id: companyId, wa_number_id: waNumberId, variable_mapping,
             template: {
               name: form.name.toLowerCase().replace(/[^a-z0-9_]/g, "_"),
               category: form.category,
@@ -250,7 +307,11 @@ export default function TemplatesPage() {
   };
 
   const openCreate = () => setEditor({ open: true, mode: "create", form: EMPTY_FORM });
-  const openEdit = (t: MetaTemplate) => setEditor({ open: true, mode: "edit", form: parseToForm(t) });
+  const openEdit = (t: MetaTemplate) => {
+    const form = parseToForm(t);
+    form.mapping = mappingFor(t.name, t.language);
+    setEditor({ open: true, mode: "edit", form });
+  };
 
   // ── Empty state: nessun numero collegato ──
   if (!numbersLoading && usableNumbers.length === 0) {
@@ -444,6 +505,7 @@ export default function TemplatesPage() {
         mode={editor.mode}
         initial={editor.form}
         isSaving={saveMutation.isPending}
+        customFields={customFields}
         onOpenChange={(o) => setEditor((p) => ({ ...p, open: o }))}
         onSubmit={(form) => saveMutation.mutate(form)}
       />
@@ -471,12 +533,13 @@ function WhatsAppBubblePreview({ template }: { template: MetaTemplate | Template
 
 // ── Dialog editor (condiviso crea/modifica) ──
 function TemplateEditorDialog({
-  open, mode, initial, isSaving, onOpenChange, onSubmit,
+  open, mode, initial, isSaving, customFields, onOpenChange, onSubmit,
 }: {
   open: boolean;
   mode: "create" | "edit";
   initial: TemplateForm;
   isSaving: boolean;
+  customFields: CustomFieldLike[];
   onOpenChange: (o: boolean) => void;
   onSubmit: (form: TemplateForm) => void;
 }) {
@@ -485,6 +548,12 @@ function TemplateEditorDialog({
 
   const vars = detectVars(form.bodyText);
   const set = (patch: Partial<TemplateForm>) => setForm((p) => ({ ...p, ...patch }));
+
+  const fieldOptions = buildTemplateFieldOptions(customFields);
+  const groupedOptions = fieldOptions.reduce<Record<string, TemplateFieldOption[]>>((acc, o) => {
+    (acc[o.group] ??= []).push(o);
+    return acc;
+  }, {});
 
   const insertVar = () => {
     const next = (vars.length ? Math.max(...vars) : 0) + 1;
@@ -583,19 +652,50 @@ function TemplateEditorDialog({
 
           {vars.length > 0 && (
             <div className="space-y-2 rounded-md border bg-muted/30 p-3">
-              <Label className="text-xs">Valori di esempio (richiesti da Meta per l'approvazione)</Label>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {vars.map((v) => (
-                  <div key={v} className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-muted-foreground">{`{{${v}}}`}</span>
-                    <Input
-                      className="h-8"
-                      placeholder={`Esempio ${v}`}
-                      value={form.examples[v] ?? ""}
-                      onChange={(e) => set({ examples: { ...form.examples, [v]: e.target.value } })}
-                    />
-                  </div>
-                ))}
+              <Label className="text-xs">Variabili — collega ogni {"{{n}}"} a un campo del contatto</Label>
+              <p className="text-[11px] text-muted-foreground">
+                In fase di invio il valore si compila in automatico dal contatto. Scegli "Testo fisso" per usare un valore uguale per tutti.
+              </p>
+              <div className="space-y-2">
+                {vars.map((v) => {
+                  const mapped = form.mapping[v] || "";
+                  return (
+                    <div key={v} className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+                      <span className="w-10 shrink-0 font-mono text-xs text-muted-foreground">{`{{${v}}}`}</span>
+                      <Select
+                        value={mapped || "__fixed__"}
+                        onValueChange={(val) =>
+                          set({ mapping: { ...form.mapping, [v]: val === "__fixed__" ? "" : val } })
+                        }
+                      >
+                        <SelectTrigger className="h-8 sm:w-60"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__fixed__">Testo fisso…</SelectItem>
+                          {Object.entries(groupedOptions).map(([group, opts]) => (
+                            <SelectGroup key={group}>
+                              <SelectLabel>{group}</SelectLabel>
+                              {opts.map((o) => (
+                                <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {mapped ? (
+                        <span className="text-[11px] text-muted-foreground">
+                          es. {fieldSample(mapped, customFields)}
+                        </span>
+                      ) : (
+                        <Input
+                          className="h-8 flex-1"
+                          placeholder={`Valore di esempio (per Meta)`}
+                          value={form.examples[v] ?? ""}
+                          onChange={(e) => set({ examples: { ...form.examples, [v]: e.target.value } })}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

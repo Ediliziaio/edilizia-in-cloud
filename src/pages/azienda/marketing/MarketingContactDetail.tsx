@@ -1,4 +1,4 @@
-import { useState, forwardRef } from "react";
+import { useState, useMemo, forwardRef } from "react";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
 import { useContactCustomFields } from "@/hooks/useOpportunityDetailData";
 import { useParams, useNavigate } from "react-router-dom";
@@ -200,6 +200,30 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
     staleTime: 2 * 60 * 1000,
     gcTime: 8 * 60 * 1000,
   });
+
+  // Campi del contatto risolti per le variabili dei template WhatsApp
+  // (chiavi allineate al catalogo templateVariableFields + cf:<id> personalizzati).
+  const waContactFields = useMemo<Record<string, string>>(() => {
+    const c = contact as Record<string, unknown> | undefined;
+    if (!c) return {};
+    const get = (k: string) => { const v = c[k]; return v == null ? "" : String(v); };
+    const fields: Record<string, string> = {
+      nome: get("first_name"),
+      cognome: get("last_name"),
+      nome_completo: `${get("first_name")} ${get("last_name")}`.trim(),
+      telefono: get("phone"),
+      email: get("email"),
+      azienda: get("company_name"),
+      citta: get("city"),
+      provincia: get("province"),
+      indirizzo: get("address"),
+      cap: get("postal_code"),
+    };
+    for (const fv of fieldValues as Array<{ field_id?: string; value?: string | null }>) {
+      if (fv?.field_id) fields[`cf:${fv.field_id}`] = fv.value ?? "";
+    }
+    return fields;
+  }, [contact, fieldValues]);
 
   // ── Fetch activities ──
   const { data: activities = [] } = useQuery({
@@ -1243,6 +1267,7 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 phone={contact.phone}
                 isSending={sendMessage.isPending}
                 className="flex-1"
+                contactFields={waContactFields}
                 onSend={async ({ waNumberId, content, template }) => {
                   await sendMessage.mutateAsync({
                     channel: "whatsapp",
