@@ -310,6 +310,26 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── 4b. Registra il numero sul Cloud API (best-effort, NON-fatale) ──────
+    // L'Embedded Signup di solito registra già il numero (verifica OTP), ma
+    // alcuni numeri restano "added, not registered" → l'invio fallirebbe con
+    // errore "phone number not registered". Chiamiamo POST /{phone-id}/register
+    // con un PIN 2FA generato per portarli a "registered". Se il numero è già
+    // registrato (idempotente) o ha un 2FA con PIN diverso NON blocchiamo: è
+    // comunque collegato + iscritto ai webhook. Salviamo il PIN per eventuali
+    // re-registrazioni future.
+    let cloudApiPin: string | null = null;
+    const reg = await registerCloudApiNumber(phoneNumberId, accessToken);
+    if (reg.pin) cloudApiPin = reg.pin;
+    console.log(JSON.stringify({
+      level: reg.registered ? "info" : "warn",
+      fn: "whatsapp-connect",
+      step: "register_phone",
+      phone_number_id: phoneNumberId,
+      registered: reg.registered,
+      note: reg.note,
+    }));
+
     // ── 5. Upsert ai_whatsapp_numbers (MP01) ────────────────────────────────
     // Pattern: se esiste riga (company_id, purpose) → UPDATE, altrimenti INSERT.
     // Verifica anche unicità globale phone_number_id: se un altro record usa
@@ -361,6 +381,9 @@ Deno.serve(async (req) => {
       access_token_encrypted: encryptedAccessToken,
       stato: accountStatus,
       webhook_verified: webhookVerified,
+      // Salva il PIN SOLO se l'abbiamo appena impostato: su UPDATE evitiamo di
+      // sovrascrivere un PIN già memorizzato con null (numero già registrato).
+      ...(cloudApiPin ? { cloud_api_pin: cloudApiPin } : {}),
     };
 
     if (existingWa) {
@@ -430,6 +453,47 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// Registra un numero sul WhatsApp Cloud API (POST /{phone-number-id}/register).
+// Best-effort: ritorna SEMPRE senza sollevare eccezioni. `registered` è true se
+// la registrazione è andata a buon fine OPPURE il numero risultava già
+// registrato (operazione idempotente). In caso di 2FA preesistente con PIN
+// diverso, o altri errori, ritorna registered=false + nota: il chiamante NON
+// blocca il collegamento (il numero resta comunque connesso e iscritto).
+async function registerCloudApiNumber(
+  phoneNumberId: string,
+  accessToken: string,
+): Promise<{ registered: boolean; pin: string | null; note: string }> {
+  // PIN 2FA a 6 cifre nel range 100000–999999 (nessuno zero iniziale perso).
+  const pin = String(Math.floor(100000 + Math.random() * 900000));
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${phoneNumberId}/register`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ messaging_product: "whatsapp", pin }),
+      },
+    );
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.success !== false && !data?.error) {
+      return { registered: true, pin, note: "registered" };
+    }
+    const msg: string = data?.error?.message ?? "";
+    const sub = data?.error?.error_subcode;
+    // Numero già registrato → idempotente, lo consideriamo OK.
+    if (/already.*register|già.*registrat/i.test(msg) || sub === 2388006 || sub === 2388004) {
+      return { registered: true, pin: null, note: "already_registered" };
+    }
+    // 2FA preesistente con PIN diverso o altro errore non auto-risolvibile.
+    return { registered: false, pin: null, note: msg || `register_failed_${res.status}` };
+  } catch (e) {
+    return { registered: false, pin: null, note: (e as Error)?.message ?? "exception" };
+  }
+}
 
 function purposeDefaultLabel(p: Purpose): string {
   switch (p) {
