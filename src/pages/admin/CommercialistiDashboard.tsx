@@ -21,7 +21,7 @@ import { CommercialistiAnalytics } from "@/components/admin/commercialisti/Comme
 import { AccessControlDialog } from "@/components/admin/AccessControlDialog";
 import { EditEntityDialog } from "@/components/admin/EditEntityDialog";
 import { LastAccessBadge } from "@/components/admin/LastAccessBadge";
-import { useAdminActivity } from "@/hooks/useAdminActivity";
+import { useAdminActivity, latestActivity } from "@/hooks/useAdminActivity";
 import {
   Calculator, Building2, ChevronDown, ChevronRight, AlertCircle, RefreshCw, Mail, Users, Play, Ban, KeyRound, Search, Pencil,
 } from "lucide-react";
@@ -166,6 +166,15 @@ export default function CommercialistiDashboard() {
     });
   }, [studi, search, statusFilter, sortKey]);
 
+  const inactiveCount = useMemo(() => {
+    if (activityLoading) return undefined;
+    const cutoff = nowMs - 30 * 86_400_000;
+    return studi.reduce((n, s) => {
+      const ts = latestActivity(activity[s.owner_user_id ?? ""]);
+      return n + (!ts || Date.parse(ts) < cutoff ? 1 : 0);
+    }, 0);
+  }, [studi, activity, nowMs, activityLoading]);
+
   if (!saPermissions.can_manage_companies) return <AccessDenied />;
 
   return (
@@ -180,7 +189,7 @@ export default function CommercialistiDashboard() {
         </div>
       </div>
 
-      {!isLoading && !isError && studi.length > 0 && <CommercialistiAnalytics studi={studi} />}
+      {!isLoading && !isError && studi.length > 0 && <CommercialistiAnalytics studi={studi} inactiveCount={inactiveCount} />}
 
       {isError && (
         <Alert variant="destructive">
@@ -270,7 +279,7 @@ export default function CommercialistiDashboard() {
                     )}
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                    <LastAccessBadge lastSignIn={activity[s.owner_user_id ?? ""]?.last_sign_in_at} nowMs={nowMs} loading={activityLoading} />
+                    <LastAccessBadge lastSeen={latestActivity(activity[s.owner_user_id ?? ""])} nowMs={nowMs} loading={activityLoading} />
                     <Badge variant="outline" className="gap-1"><Building2 className="h-3.5 w-3.5" /> {s.companies.length} aziende</Badge>
                     <Badge variant="outline" className="hidden gap-1 sm:inline-flex"><Users className="h-3.5 w-3.5" /> {s.members_count} membri</Badge>
                   </div>

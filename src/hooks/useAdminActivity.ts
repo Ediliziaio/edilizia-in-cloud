@@ -3,7 +3,17 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface ActivityEntry {
   last_sign_in_at: string | null;
+  last_active_at: string | null;
   created_at: string | null;
+}
+
+/** Timestamp più recente fra ultima attività (sessioni) e ultimo login. */
+export function latestActivity(e: ActivityEntry | undefined): string | null {
+  if (!e) return null;
+  const a = e.last_active_at ? Date.parse(e.last_active_at) : 0;
+  const l = e.last_sign_in_at ? Date.parse(e.last_sign_in_at) : 0;
+  if (a <= 0 && l <= 0) return null;
+  return a >= l ? e.last_active_at : e.last_sign_in_at;
 }
 
 /**

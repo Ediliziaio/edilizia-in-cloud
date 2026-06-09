@@ -4,7 +4,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Calculator, Building2, CheckCircle2, Users } from "lucide-react";
+import { Calculator, Building2, CheckCircle2, Users, Clock } from "lucide-react";
 
 const COLOR = {
   blue: "hsl(214 80% 50%)",
@@ -25,7 +25,7 @@ const MODE_LABEL: Record<string, string> = {
 interface StudioLite { id: string; name: string; status: string | null; members_count: number; companies: { access_mode: string | null }[] }
 
 /** Analytics "mega dashboard" dell'area Commercialisti (stile ProduttoriAnalytics). */
-export function CommercialistiAnalytics({ studi }: { studi: StudioLite[] }) {
+export function CommercialistiAnalytics({ studi, inactiveCount }: { studi: StudioLite[]; inactiveCount?: number }) {
   const m = useMemo(() => {
     const totStudi = studi.length;
     const attivi = studi.filter((s) => s.status === "active").length;
@@ -49,11 +49,12 @@ export function CommercialistiAnalytics({ studi }: { studi: StudioLite[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Kpi icon={<Calculator className="h-5 w-5" />} value={m.totStudi} label="Studi" tone="violet" />
         <Kpi icon={<CheckCircle2 className="h-5 w-5" />} value={m.attivi} label="Attivi" tone="emerald" />
         <Kpi icon={<Building2 className="h-5 w-5" />} value={m.aziendeGestite} label="Aziende gestite" tone="blue" />
         <Kpi icon={<Users className="h-5 w-5" />} value={m.membri} label="Membri" tone="amber" />
+        <Kpi icon={<Clock className="h-5 w-5" />} value={inactiveCount === undefined ? "…" : inactiveCount} label="Inattivi / mai entrati" tone="rose" />
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -93,13 +94,14 @@ export function CommercialistiAnalytics({ studi }: { studi: StudioLite[] }) {
 
 function Kpi({ icon, value, label, tone }: {
   icon: React.ReactNode; value: React.ReactNode; label: string;
-  tone: "violet" | "blue" | "emerald" | "amber";
+  tone: "violet" | "blue" | "emerald" | "amber" | "rose";
 }) {
   const toneCls =
     tone === "violet" ? "bg-violet-100 text-violet-700"
       : tone === "blue" ? "bg-blue-100 text-blue-700"
         : tone === "emerald" ? "bg-emerald-100 text-emerald-700"
-          : "bg-amber-100 text-amber-700";
+          : tone === "rose" ? "bg-rose-100 text-rose-700"
+            : "bg-amber-100 text-amber-700";
   return (
     <Card>
       <CardContent className="flex items-center gap-3 py-4">

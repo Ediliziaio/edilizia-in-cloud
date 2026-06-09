@@ -20,7 +20,7 @@ import { ProduttoriAnalytics } from "@/components/admin/produttori/ProduttoriAna
 import { AccessControlDialog } from "@/components/admin/AccessControlDialog";
 import { EditEntityDialog } from "@/components/admin/EditEntityDialog";
 import { LastAccessBadge } from "@/components/admin/LastAccessBadge";
-import { useAdminActivity } from "@/hooks/useAdminActivity";
+import { useAdminActivity, latestActivity } from "@/hooks/useAdminActivity";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import { formatEuro } from "@/lib/formatEuro";
 import { useNavigate } from "react-router-dom";
@@ -188,6 +188,15 @@ export default function ProduttoriDashboard() {
     });
   }, [produttori, search, statusFilter, billingFilter, sortKey]);
 
+  const inactiveCount = useMemo(() => {
+    if (activityLoading) return undefined;
+    const cutoff = nowMs - 30 * 86_400_000;
+    return produttori.reduce((n, p) => {
+      const ts = latestActivity(activity[p.admin_user_id ?? ""]);
+      return n + (!ts || Date.parse(ts) < cutoff ? 1 : 0);
+    }, 0);
+  }, [produttori, activity, nowMs, activityLoading]);
+
   if (!saPermissions.can_manage_companies) return <AccessDenied />;
 
   return (
@@ -208,7 +217,7 @@ export default function ProduttoriDashboard() {
       </div>
 
       {/* Analytics: KPI ricchi + grafici (stile mega dashboard) */}
-      {!isLoading && !isError && produttori.length > 0 && <ProduttoriAnalytics produttori={produttori} />}
+      {!isLoading && !isError && produttori.length > 0 && <ProduttoriAnalytics produttori={produttori} inactiveCount={inactiveCount} />}
 
       {isError && (
         <Alert variant="destructive">
@@ -310,7 +319,7 @@ export default function ProduttoriDashboard() {
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                    <LastAccessBadge lastSignIn={activity[p.admin_user_id ?? ""]?.last_sign_in_at} nowMs={nowMs} loading={activityLoading} />
+                    <LastAccessBadge lastSeen={latestActivity(activity[p.admin_user_id ?? ""])} nowMs={nowMs} loading={activityLoading} />
                     <Badge variant="outline" className="gap-1">
                       <Building2 className="h-3.5 w-3.5" /> {p.rivenditori_count} rivend.
                     </Badge>

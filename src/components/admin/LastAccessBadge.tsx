@@ -21,9 +21,9 @@ function formatLastAccess(iso: string | null | undefined, nowMs: number): { labe
   return { label: `Visto ${when}`, tone: "muted" };
 }
 
-/** Badge "Ultimo accesso al portale" per le dashboard admin (produttori/studi). */
-export function LastAccessBadge({ lastSignIn, nowMs, loading }: {
-  lastSignIn: string | null | undefined;
+/** Badge "Ultima attività sul portale" per le dashboard admin (produttori/studi). */
+export function LastAccessBadge({ lastSeen, nowMs, loading }: {
+  lastSeen: string | null | undefined;
   nowMs: number;
   loading?: boolean;
 }) {
@@ -34,14 +34,14 @@ export function LastAccessBadge({ lastSignIn, nowMs, loading }: {
       </Badge>
     );
   }
-  const { label, tone } = formatLastAccess(lastSignIn, nowMs);
+  const { label, tone } = formatLastAccess(lastSeen, nowMs);
   const cls =
     tone === "green" ? "border-emerald-300 bg-emerald-50 text-emerald-700"
       : tone === "amber" ? "border-amber-300 bg-amber-50 text-amber-700"
         : tone === "slate" ? "border-slate-300 bg-slate-50 text-slate-600"
           : "text-muted-foreground";
   return (
-    <Badge variant="outline" className={cn("gap-1", cls)} title="Ultimo accesso al portale">
+    <Badge variant="outline" className={cn("gap-1", cls)} title="Ultima attività sul portale (sessioni / login)">
       <Clock className="h-3 w-3" /> {label}
     </Badge>
   );

@@ -5,7 +5,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { formatEuro } from "@/lib/formatEuro";
-import { Factory, Users, BadgeEuro, CreditCard } from "lucide-react";
+import { Factory, Users, BadgeEuro, CreditCard, Clock } from "lucide-react";
 
 const COLOR = {
   blue: "hsl(214 80% 50%)",
@@ -25,7 +25,7 @@ interface Prod { id: string; name: string; rivenditori: Riv[]; rivenditori_count
  * KPI ricchi (incl. incasso wholesale calcolato) + grafici recharts (distribuzione
  * piani, chi paga, top produttori). Tutto derivato dai dati già caricati.
  */
-export function ProduttoriAnalytics({ produttori }: { produttori: Prod[] }) {
+export function ProduttoriAnalytics({ produttori, inactiveCount }: { produttori: Prod[]; inactiveCount?: number }) {
   const m = useMemo(() => {
     const allRivs = produttori.flatMap((p) => p.rivenditori);
     const totRiv = allRivs.length;
@@ -67,11 +67,12 @@ export function ProduttoriAnalytics({ produttori }: { produttori: Prod[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Kpi icon={<Factory className="h-5 w-5" />} value={produttori.length} label="Produttori" tone="violet" />
         <Kpi icon={<Users className="h-5 w-5" />} value={m.totRiv} label="Rivenditori" sub={`${m.attivi} attivi · ${m.sospesi} sospesi`} tone="blue" />
         <Kpi icon={<BadgeEuro className="h-5 w-5" />} value={formatEuro(m.wholesaleMrr)} label="Incasso wholesale/mese" sub={m.listMrr > m.wholesaleMrr ? `listino ${formatEuro(m.listMrr)}` : "al listino"} tone="emerald" />
         <Kpi icon={<CreditCard className="h-5 w-5" />} value={formatEuro(m.selfMrr)} label="Pagano loro/mese" sub={`${m.paganoLoro} rivenditori`} tone="amber" />
+        <Kpi icon={<Clock className="h-5 w-5" />} value={inactiveCount === undefined ? "…" : inactiveCount} label="Inattivi / mai entrati" sub="oltre 30 giorni" tone="rose" />
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -127,13 +128,14 @@ export function ProduttoriAnalytics({ produttori }: { produttori: Prod[] }) {
 
 function Kpi({ icon, value, label, sub, tone }: {
   icon: React.ReactNode; value: React.ReactNode; label: string; sub?: string;
-  tone: "violet" | "blue" | "emerald" | "amber";
+  tone: "violet" | "blue" | "emerald" | "amber" | "rose";
 }) {
   const toneCls =
     tone === "violet" ? "bg-violet-100 text-violet-700"
       : tone === "blue" ? "bg-blue-100 text-blue-700"
         : tone === "emerald" ? "bg-emerald-100 text-emerald-700"
-          : "bg-amber-100 text-amber-700";
+          : tone === "rose" ? "bg-rose-100 text-rose-700"
+            : "bg-amber-100 text-amber-700";
   return (
     <Card>
       <CardContent className="flex items-center gap-3 py-4">
