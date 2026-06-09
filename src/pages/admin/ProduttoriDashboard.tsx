@@ -15,10 +15,10 @@ import {
 import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { CreateProduttoreDialog } from "@/components/admin/produttori/CreateProduttoreDialog";
-import { cn } from "@/lib/utils";
+import { ProduttoriAnalytics } from "@/components/admin/produttori/ProduttoriAnalytics";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import {
-  Factory, Users, Building2, Plus, ChevronDown, ChevronRight, AlertCircle, RefreshCw,
+  Factory, Building2, Plus, ChevronDown, ChevronRight, AlertCircle, RefreshCw,
   BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2, Play, Ban, Link2, Copy, Package,
 } from "lucide-react";
 
@@ -27,6 +27,10 @@ interface Rivenditore {
   name: string;
   status: string | null;
   billing_comped: boolean | null;
+  created_at: string | null;
+  subscription_plan_id: string | null;
+  plan_name: string | null;
+  plan_price: number;
 }
 interface Produttore {
   id: string;
@@ -72,7 +76,7 @@ async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { 
   // 2. Rivenditori (figli) di tutti i produttori.
   const { data: rivs, error: e3 } = await sb
     .from("companies")
-    .select("id, name, parent_company_id, billing_comped, status")
+    .select("id, name, parent_company_id, billing_comped, status, created_at, subscription_plan_id, subscription_plans:subscription_plan_id(name, price_monthly)")
     .in("parent_company_id", ids);
   if (e3) throw new Error(e3.message);
 
@@ -91,7 +95,13 @@ async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { 
   const rivByParent = new Map<string, Rivenditore[]>();
   (rivs ?? []).forEach((r: AnyRow) => {
     const arr = rivByParent.get(r.parent_company_id) ?? [];
-    arr.push({ id: r.id, name: r.name, status: r.status, billing_comped: r.billing_comped });
+    arr.push({
+      id: r.id, name: r.name, status: r.status, billing_comped: r.billing_comped,
+      created_at: r.created_at ?? null,
+      subscription_plan_id: r.subscription_plan_id ?? null,
+      plan_name: (r.subscription_plans?.name as string | undefined) ?? null,
+      plan_price: Number(r.subscription_plans?.price_monthly ?? 0),
+    });
     rivByParent.set(r.parent_company_id, arr);
   });
 
@@ -144,7 +154,6 @@ export default function ProduttoriDashboard() {
   if (!saPermissions.can_manage_companies) return <AccessDenied />;
 
   const produttori = data?.produttori ?? [];
-  const totals = data?.totals ?? { produttori: 0, rivenditori: 0, comped: 0 };
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -163,12 +172,8 @@ export default function ProduttoriDashboard() {
         </Button>
       </div>
 
-      {/* KPI */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <StatCard icon={<Factory className="h-5 w-5" />} value={totals.produttori} label="Produttori" tone="default" />
-        <StatCard icon={<Users className="h-5 w-5" />} value={totals.rivenditori} label="Rivenditori totali" tone="blue" />
-        <StatCard icon={<BadgeEuro className="h-5 w-5" />} value={totals.comped} label="Rivenditori comped (paga il produttore)" tone="emerald" />
-      </div>
+      {/* Analytics: KPI ricchi + grafici (stile mega dashboard) */}
+      {!isLoading && !isError && produttori.length > 0 && <ProduttoriAnalytics produttori={produttori} />}
 
       {isError && (
         <Alert variant="destructive">
@@ -579,17 +584,3 @@ function ProduttorePiani({ produttoreId }: { produttoreId: string }) {
   );
 }
 
-function StatCard({ icon, value, label, tone }: { icon: React.ReactNode; value: number; label: string; tone: "default" | "blue" | "emerald" }) {
-  const toneCls = tone === "blue" ? "bg-blue-100 text-blue-700" : tone === "emerald" ? "bg-emerald-100 text-emerald-700" : "bg-muted";
-  return (
-    <Card>
-      <CardContent className="flex items-center gap-3 py-4">
-        <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", toneCls)}>{icon}</div>
-        <div className="min-w-0">
-          <div className="text-2xl font-bold leading-none">{value}</div>
-          <div className="mt-1 text-xs text-muted-foreground">{label}</div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
