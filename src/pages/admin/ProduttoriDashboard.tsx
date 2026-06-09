@@ -19,6 +19,8 @@ import { CreateProduttoreDialog } from "@/components/admin/produttori/CreateProd
 import { ProduttoriAnalytics } from "@/components/admin/produttori/ProduttoriAnalytics";
 import { AccessControlDialog } from "@/components/admin/AccessControlDialog";
 import { EditEntityDialog } from "@/components/admin/EditEntityDialog";
+import { LastAccessBadge } from "@/components/admin/LastAccessBadge";
+import { useAdminActivity } from "@/hooks/useAdminActivity";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import { formatEuro } from "@/lib/formatEuro";
 import { useNavigate } from "react-router-dom";
@@ -45,6 +47,7 @@ interface Produttore {
   reseller_billing_mode: string | null;
   created_at: string;
   admin_email: string | null;
+  admin_user_id: string | null;
   custom_domain: string | null;
   custom_domain_verified: boolean;
   wholesale_pct: number;
@@ -94,8 +97,10 @@ async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { 
 
   const brandByCompany = new Map<string, AnyRow>((brand ?? []).map((b: AnyRow) => [b.company_id, b]));
   const adminByCompany = new Map<string, string>();
+  const adminUserByCompany = new Map<string, string>();
   (profs ?? []).forEach((p: AnyRow) => {
     if (p.company_id && p.email && !adminByCompany.has(p.company_id)) adminByCompany.set(p.company_id, p.email);
+    if (p.company_id && p.id && !adminUserByCompany.has(p.company_id)) adminUserByCompany.set(p.company_id, p.id);
   });
   const rivByParent = new Map<string, Rivenditore[]>();
   (rivs ?? []).forEach((r: AnyRow) => {
@@ -122,6 +127,7 @@ async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { 
         reseller_billing_mode: c.reseller_billing_mode ?? null,
         created_at: c.created_at,
         admin_email: adminByCompany.get(c.id) ?? c.email ?? null,
+        admin_user_id: adminUserByCompany.get(c.id) ?? null,
         custom_domain: b?.custom_domain ?? null,
         custom_domain_verified: !!b?.custom_domain_verified,
         wholesale_pct: Number(c.reseller_wholesale_pct ?? 0),
@@ -162,6 +168,8 @@ export default function ProduttoriDashboard() {
   });
 
   const produttori = useMemo(() => data?.produttori ?? [], [data]);
+  const { activity, isLoading: activityLoading } = useAdminActivity(produttori.map((p) => p.admin_user_id));
+  const [nowMs] = useState(() => Date.now());
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const arr = produttori.filter((p) => {
@@ -301,7 +309,8 @@ export default function ProduttoriDashboard() {
                       )}
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    <LastAccessBadge lastSignIn={activity[p.admin_user_id ?? ""]?.last_sign_in_at} nowMs={nowMs} loading={activityLoading} />
                     <Badge variant="outline" className="gap-1">
                       <Building2 className="h-3.5 w-3.5" /> {p.rivenditori_count} rivend.
                     </Badge>

@@ -20,6 +20,8 @@ import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import { CommercialistiAnalytics } from "@/components/admin/commercialisti/CommercialistiAnalytics";
 import { AccessControlDialog } from "@/components/admin/AccessControlDialog";
 import { EditEntityDialog } from "@/components/admin/EditEntityDialog";
+import { LastAccessBadge } from "@/components/admin/LastAccessBadge";
+import { useAdminActivity } from "@/hooks/useAdminActivity";
 import {
   Calculator, Building2, ChevronDown, ChevronRight, AlertCircle, RefreshCw, Mail, Users, Play, Ban, KeyRound, Search, Pencil,
 } from "lucide-react";
@@ -35,6 +37,7 @@ interface Studio {
   status: string | null;
   created_at: string | null;
   owner_email: string | null;
+  owner_user_id: string | null;
   firm_email: string | null;
   vat_number: string | null;
   fiscal_code: string | null;
@@ -99,6 +102,7 @@ async function fetchStudi(): Promise<Studio[]> {
     return {
       id: f.id, name: f.name, status: f.status ?? null, created_at: f.created_at ?? null,
       owner_email: emailById.get(f.owner_user_id) ?? f.email ?? null,
+      owner_user_id: f.owner_user_id ?? null,
       firm_email: f.email ?? null,
       vat_number: f.vat_number ?? null,
       fiscal_code: f.fiscal_code ?? null,
@@ -141,6 +145,9 @@ export default function CommercialistiDashboard() {
     },
     onError: (e) => toast.error("Operazione fallita", { description: (e as Error).message }),
   });
+
+  const { activity, isLoading: activityLoading } = useAdminActivity(studi.map((s) => s.owner_user_id));
+  const [nowMs] = useState(() => Date.now());
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -262,7 +269,8 @@ export default function CommercialistiDashboard() {
                       </div>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    <LastAccessBadge lastSignIn={activity[s.owner_user_id ?? ""]?.last_sign_in_at} nowMs={nowMs} loading={activityLoading} />
                     <Badge variant="outline" className="gap-1"><Building2 className="h-3.5 w-3.5" /> {s.companies.length} aziende</Badge>
                     <Badge variant="outline" className="hidden gap-1 sm:inline-flex"><Users className="h-3.5 w-3.5" /> {s.members_count} membri</Badge>
                   </div>
