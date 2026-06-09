@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -216,8 +218,11 @@ export default function ProduttoreFatturazione() {
         </CardHeader>
         <CardContent>
           {rivenditori.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-              Nessun rivenditore ancora. Creane uno dalla sezione <strong>Rivenditori</strong>.
+            <div className="rounded-lg border border-dashed p-8 text-center">
+              <p className="text-sm text-muted-foreground">Nessun rivenditore ancora.</p>
+              <Button asChild variant="outline" size="sm" className="mt-3 gap-1.5">
+                <Link to="/produttore"><Users className="h-4 w-4" /> Vai ai rivenditori</Link>
+              </Button>
             </div>
           ) : (
             <ul className="divide-y">
@@ -225,7 +230,7 @@ export default function ProduttoreFatturazione() {
                 <li key={r.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
                   <div className="min-w-0">
                     <div className="truncate font-medium">{r.name}</div>
-                    <div className="text-xs text-muted-foreground">{r.status ?? "—"}</div>
+                    <div className="text-xs text-muted-foreground">{companyStatusLabelIt(r.status)}</div>
                   </div>
                   {r.billing_comped ? (
                     <Badge variant="outline" className="shrink-0 gap-1 border-emerald-200 text-emerald-700">

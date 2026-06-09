@@ -51,6 +51,7 @@ export function CreateRivenditoreDialog({
       toast.success("Rivenditore creato", { description: "Invito inviato all'admin del rivenditore." });
       onOpenChange(false);
       qc.invalidateQueries({ queryKey: ["produttore-rivenditori", companyId] });
+      qc.invalidateQueries({ queryKey: ["produttore-fatturazione", companyId] });
     },
     onError: (e) => toast.error("Creazione fallita", { description: (e as Error).message }),
   });

@@ -59,6 +59,12 @@ Deno.serve(async (req) => {
       ? body.billing_comped
       : produttore?.reseller_billing_mode === "fabbrica_paga";
 
+    // 2b. Idempotenza: evita rivenditori duplicati se si ri-prova dopo un fallimento parziale.
+    const { data: dup } = await supabaseAdmin
+      .from("companies").select("id")
+      .eq("parent_company_id", produttoreId).eq("email", emailNorm).limit(1).maybeSingle();
+    if (dup) return errorResponse("Esiste già un rivenditore con questa email.", 409, corsH);
+
     // 3. Crea la company figlia.
     const { data: child, error: cErr } = await supabaseAdmin
       .from("companies")

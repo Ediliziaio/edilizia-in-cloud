@@ -160,7 +160,7 @@ export default function ProduttoreBranding() {
       <div className="space-y-4">
         <LogoCard companyId={companyId} branding={branding ?? null} />
         {/* key={companyId}: rimonta l'editor (re-inizializza lo stato dai dati) se cambia azienda. */}
-        <BrandingEditor key={companyId ?? "none"} companyId={companyId} initial={branding ?? null} />
+        <BrandingEditor key={branding?.company_id ?? companyId ?? "none"} companyId={companyId} initial={branding ?? null} />
         <DomainCard companyId={companyId} branding={branding ?? null} />
       </div>
     </div>
@@ -268,6 +268,9 @@ function BrandingEditor({ companyId, initial }: { companyId: string | null; init
   const save = useMutation({
     mutationFn: async () => {
       if (!companyId) throw new Error("Azienda non trovata");
+      if (!/^#?[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(hex.trim())) {
+        throw new Error("Colore HEX non valido (es. #1e293b)");
+      }
       // Logo e dominio hanno i loro flussi dedicati: qui solo colore + attivazione.
       const { error } = await supabase.from("company_branding").upsert(
         { company_id: companyId, primary_color: hexToHslTriplet(hex), is_active: active },
@@ -351,6 +354,7 @@ function DomainCard({ companyId, branding }: { companyId: string | null; brandin
 
   const provision = useMutation({
     mutationFn: async () => {
+      if (!companyId) throw new Error("Azienda non disponibile, ricarica la pagina");
       const domain = domainInput.trim().toLowerCase();
       if (!domain || !domain.includes(".")) throw new Error("Inserisci un dominio valido (es. app.tuobrand.it)");
       const { data, error } = await supabase.functions.invoke("provision-custom-domain", {
@@ -366,6 +370,7 @@ function DomainCard({ companyId, branding }: { companyId: string | null; brandin
 
   const verify = useMutation({
     mutationFn: async () => {
+      if (!companyId) throw new Error("Azienda non disponibile, ricarica la pagina");
       const { data, error } = await supabase.functions.invoke("verify-custom-domain", { body: { company_id: companyId } });
       if (error) throw new Error(error.message ?? "Errore durante la verifica");
       return data as { verified?: boolean; error?: string } | null;
@@ -385,6 +390,7 @@ function DomainCard({ companyId, branding }: { companyId: string | null; brandin
 
   const remove = useMutation({
     mutationFn: async () => {
+      if (!companyId) throw new Error("Azienda non disponibile, ricarica la pagina");
       const { data, error } = await supabase.functions.invoke("remove-custom-domain", { body: { company_id: companyId } });
       if (error) throw new Error(error.message ?? "Errore durante la rimozione");
       const r = data as { success?: boolean; error?: string } | null;

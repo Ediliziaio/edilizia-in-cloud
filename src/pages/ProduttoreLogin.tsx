@@ -1,10 +1,8 @@
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
 import { useSEO } from "@/hooks/useSEO";
 import { supabase } from "@/integrations/supabase/client";
-import { isSuperAdminEmailAllowed } from "@/config/superAdmin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,22 +13,9 @@ import ediliziaLogo from "@/assets/edilizia-in-cloud-logo.webp";
 
 const ALLOWED = new Set(["produttore_admin", "super_admin"]);
 
-async function userHasProduttoreAccess(): Promise<boolean> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
-  const { data: roles, error } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-  if (error) return false;
-  return (roles || []).some((r) => {
-    if (r.role === "super_admin") return isSuperAdminEmailAllowed(user.email);
-    return r.role === "produttore_admin";
-  });
-}
-
 /** Login portale Produttore (produttore.ediliziaincloud.com) — versione snella. */
 export default function ProduttoreLogin() {
   const { user, role, isLoading, signIn, signOut } = useAuth();
-  const { toast } = useToast();
-  const navigate = useNavigate();
   useSEO({ title: "Portale Produttore", noindex: true });
 
   const [view, setView] = useState<"login" | "forgot">("login");
@@ -73,13 +58,9 @@ export default function ProduttoreLogin() {
     try {
       const { error } = await signIn(email, password);
       if (error) { setErr("Email o password non validi."); return; }
-      if (!(await userHasProduttoreAccess())) {
-        await supabase.auth.signOut();
-        setErr("Questo account non è abilitato al portale produttore.");
-        return;
-      }
-      toast({ title: "Accesso effettuato", description: "Benvenuto nell'area produttore." });
-      navigate("/produttore", { replace: true });
+      // Autorizzazione + redirect sono gestiti dai gate di render qui sopra
+      // (<Navigate> se abilitato / "Accesso non autorizzato" altrimenti) appena il
+      // context popola `role`: niente secondo getUser() né navigate manuale → no race.
     } catch {
       setErr("Si è verificato un errore. Riprova tra qualche secondo.");
     } finally {

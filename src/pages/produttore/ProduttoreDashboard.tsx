@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { CreateRivenditoreDialog } from "@/components/produttore/CreateRivenditoreDialog";
+import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import {
   Users, Plus, Building2, AlertCircle, RefreshCw, Factory, CreditCard, CheckCircle2, Wallet,
 } from "lucide-react";
@@ -141,7 +142,7 @@ export default function ProduttoreDashboard() {
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <Badge variant={r.status === "active" ? "default" : "secondary"}>{r.status ?? "—"}</Badge>
+                <Badge variant={r.status === "active" ? "default" : "secondary"}>{companyStatusLabelIt(r.status)}</Badge>
                 {r.billing_comped ? (
                   <Badge variant="outline" className="gap-1 border-amber-200 text-amber-700">
                     <Factory className="h-3.5 w-3.5" /> Paghi tu

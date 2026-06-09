@@ -10,6 +10,7 @@ import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { AccessDenied } from "@/components/admin/AccessDenied";
 import { CreateProduttoreDialog } from "@/components/admin/produttori/CreateProduttoreDialog";
 import { cn } from "@/lib/utils";
+import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import {
   Factory, Users, Building2, Plus, ChevronDown, ChevronRight, AlertCircle, RefreshCw,
   BadgeEuro, Globe, ShieldCheck, CreditCard, Mail,
@@ -205,7 +206,7 @@ export default function ProduttoriDashboard() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate font-semibold">{p.name}</span>
-                      <Badge variant={p.status === "active" ? "default" : "secondary"} className="shrink-0">{p.status ?? "—"}</Badge>
+                      <Badge variant={p.status === "active" ? "default" : "secondary"} className="shrink-0">{companyStatusLabelIt(p.status)}</Badge>
                     </div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                       {p.admin_email && <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" /> {p.admin_email}</span>}
@@ -243,7 +244,7 @@ export default function ProduttoriDashboard() {
                           <li key={r.id} className="flex items-center justify-between gap-2 py-2 first:pt-0 last:pb-0">
                             <span className="truncate text-sm font-medium">{r.name}</span>
                             <div className="flex shrink-0 items-center gap-2">
-                              <Badge variant="secondary" className="text-[11px]">{r.status ?? "—"}</Badge>
+                              <Badge variant="secondary" className="text-[11px]">{companyStatusLabelIt(r.status)}</Badge>
                               {r.billing_comped
                                 ? <Badge variant="outline" className="gap-1 border-emerald-200 text-[11px] text-emerald-700"><Factory className="h-3 w-3" /> Comped</Badge>
                                 : <Badge variant="outline" className="gap-1 border-blue-200 text-[11px] text-blue-700"><CreditCard className="h-3 w-3" /> Paga</Badge>}

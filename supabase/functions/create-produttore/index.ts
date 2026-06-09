@@ -13,9 +13,8 @@ import { requireAuth } from "../_shared/auth.ts";
  *     produttore + dominio custom + create-reseller).
  *  4. Invita l'admin del produttore (ruolo produttore_admin sulla sua company).
  *
- * NB: user_roles NON ha company_id (l'azienda si lega via profiles.company_id) —
- * qui usiamo check-then-insert invece di un upsert con company_id (bug noto di
- * create-reseller).
+ * NB: user_roles NON ha company_id (l'azienda si lega via profiles.company_id) →
+ * check-then-insert sul ruolo (stesso pattern di create-reseller).
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
@@ -37,6 +36,16 @@ Deno.serve(async (req) => {
     const { data: roles } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", userId);
     const isSuperAdmin = (roles ?? []).some((r: { role: string }) => r.role === "super_admin");
     if (!isSuperAdmin) return errorResponse("Non autorizzato: richiesto super admin", 403, corsH);
+
+    // 1b. Idempotenza: niente produttori duplicati con la stessa email (retry-safe).
+    const { data: sameEmail } = await supabaseAdmin.from("companies").select("id").eq("email", emailNorm);
+    if (sameEmail && sameEmail.length > 0) {
+      const { data: agencyDup } = await supabaseAdmin
+        .from("company_branding").select("company_id")
+        .eq("whitelabel_tier", "agency")
+        .in("company_id", sameEmail.map((c: { id: string }) => c.id)).limit(1).maybeSingle();
+      if (agencyDup) return errorResponse("Esiste già un produttore con questa email.", 409, corsH);
+    }
 
     // 2. Crea la company produttore.
     const { data: produttore, error: cErr } = await supabaseAdmin
