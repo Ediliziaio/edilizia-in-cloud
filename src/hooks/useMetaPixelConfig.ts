@@ -58,64 +58,27 @@ export function useMetaPixelConfig(companyId: string | undefined) {
     }): Promise<MetaConversionPixelRow | null> => {
       if (!companyId) throw new Error("no_company_id");
 
-      // Strategy: prefer edge function (cifratura token), fallback insert plain
-      try {
-        const { data, error } = await supabase.functions.invoke<{
-          success: boolean;
-          pixel?: MetaConversionPixelRow;
-          error?: string;
-        }>("meta-pixel-configure", {
-          body: {
-            company_id: companyId,
-            pixel_id: input.pixel_id,
-            pixel_name: input.pixel_name,
-            capi_token: input.capi_token,
-          },
-        });
-        if (!error && data?.success && data.pixel) return data.pixel;
-        // Se la edge fn non esiste, fallback diretto DB
-      } catch {
-        // ignore, fallback
+      // SEMPRE via edge function: cifra il token CAPI lato server (AES-GCM).
+      // NESSUN fallback diretto su DB col token in chiaro: il token CAPI è
+      // long-lived e salvarlo plaintext sarebbe una falla di sicurezza. Se la
+      // edge function fallisce, propaghiamo l'errore senza persistere nulla.
+      const { data, error } = await supabase.functions.invoke<{
+        success: boolean;
+        pixel?: MetaConversionPixelRow;
+        error?: string;
+      }>("meta-pixel-configure", {
+        body: {
+          company_id: companyId,
+          pixel_id: input.pixel_id,
+          pixel_name: input.pixel_name,
+          capi_token: input.capi_token,
+        },
+      });
+      if (error) throw new Error(error.message ?? "Errore configurazione pixel");
+      if (!data?.success || !data.pixel) {
+        throw new Error(data?.error ?? "Configurazione pixel non riuscita");
       }
-
-      // Fallback: insert/update direct (senza cifratura — solo per dev)
-      try {
-        const existing = query.data;
-        if (existing) {
-          const { data, error } = await pixelTable()
-            .update({
-              pixel_id: input.pixel_id,
-              pixel_name: input.pixel_name ?? null,
-              // NB: in produzione cifrare prima di salvare
-              capi_token_encrypted: input.capi_token ?? existing.capi_token_encrypted,
-            })
-            .eq("id", existing.id)
-            .select("*")
-            .single();
-          if (error) throw error;
-          return data;
-        } else {
-          const { data, error } = await pixelTable()
-            .insert({
-              company_id: companyId,
-              pixel_id: input.pixel_id,
-              pixel_name: input.pixel_name ?? null,
-              capi_token_encrypted: input.capi_token ?? null,
-              is_active: true,
-            })
-            .select("*")
-            .single();
-          if (error) throw error;
-          return data;
-        }
-      } catch (err) {
-        const msg = String((err as Error).message ?? err);
-        if (msg.includes("does not exist") || msg.includes("schema cache")) {
-          console.warn("[useMetaPixelConfig] schema not applied");
-          return null;
-        }
-        throw err;
-      }
+      return data.pixel;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: metaPixelKeys.byCompany(companyId) });

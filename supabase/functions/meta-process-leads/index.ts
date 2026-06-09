@@ -260,12 +260,33 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
   }
 
   if (Object.keys(fieldMap).length === 0) {
-    if (fieldData.full_name) mappedData.full_name = fieldData.full_name;
-    if (fieldData.email) mappedData.email = fieldData.email;
-    if (fieldData.phone_number) mappedData.phone = fieldData.phone_number;
-    if (fieldData.city) mappedData.city = fieldData.city;
-    if (fieldData.first_name) mappedData.first_name = fieldData.first_name;
-    if (fieldData.last_name) mappedData.last_name = fieldData.last_name;
+    // Fallback senza mapping esplicito: copre i nomi-campo standard di Meta
+    // Lead Ads e le varianti più comuni, così non perdiamo telefono/indirizzo/
+    // CAP/provincia per i form privi di un integration_field_mappings salvato.
+    const pick = (...keys: string[]): string | undefined => {
+      for (const k of keys) {
+        if (fieldData[k] !== undefined && fieldData[k] !== "") return fieldData[k];
+      }
+      return undefined;
+    };
+    const fullName = pick("full_name");
+    const fName = pick("first_name");
+    const lName = pick("last_name");
+    const mail = pick("email");
+    const tel = pick("phone_number", "phone");
+    const cityV = pick("city");
+    const addr = pick("street_address", "address");
+    const zip = pick("zip_code", "post_code", "postal_code", "zip");
+    const prov = pick("province", "state", "region");
+    if (fullName) mappedData.full_name = fullName;
+    if (fName) mappedData.first_name = fName;
+    if (lName) mappedData.last_name = lName;
+    if (mail) mappedData.email = mail;
+    if (tel) mappedData.phone = tel;
+    if (cityV) mappedData.city = cityV;
+    if (addr) mappedData.address = addr;
+    if (zip) mappedData.postal_code = zip;
+    if (prov) mappedData.province = prov;
   }
 
   let firstName = mappedData.first_name || defaultValues.first_name || "";
@@ -284,7 +305,9 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
   const postalCode = mappedData.postal_code || defaultValues.postal_code || null;
   const province = mappedData.province || defaultValues.province || null;
 
-  const dedupePolicy = rules.dedupe_policy || "email";
+  // Default email_or_phone: i Lead Ads italiani spesso non hanno email (solo
+  // telefono) → con "email" puro quei lead non venivano mai deduplicati.
+  const dedupePolicy = rules.dedupe_policy || "email_or_phone";
   const updatePolicy = rules.update_policy || "upsert";
 
   let existingContact = null;
@@ -341,6 +364,7 @@ async function processLeadEvent(adminClient: any, event: any): Promise<{ contact
       if (city) updateData.city = city;
       if (address) updateData.address = address;
       if (postalCode) updateData.postal_code = postalCode;
+      if (province) updateData.province = province;
       // Always update attribution fields from Meta (most recent lead wins)
       updateData.attr_source = "facebook";
       updateData.attr_medium = "paid_social";

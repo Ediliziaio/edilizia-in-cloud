@@ -39,6 +39,12 @@ interface CapiEventRequest {
   event_source_url?: string;
   /** Action source — website | crm | email | phone_call | physical_store | system_generated | other */
   action_source?: "website" | "crm" | "email" | "phone_call" | "physical_store" | "system_generated" | "other";
+  /**
+   * Codice "Eventi di test" di Events Manager: se presente, l'evento NON viene
+   * conteggiato nei dati reali ma appare nella scheda "Eventi di test" → permette
+   * di verificare la configurazione CAPI senza inquinare le metriche di campagna.
+   */
+  test_event_code?: string;
   /** PII utente — verranno hashati */
   user_data: {
     email?: string;
@@ -48,6 +54,8 @@ interface CapiEventRequest {
     zip?: string;
     city?: string;
     country?: string; // ISO 3166-1 alpha-2 (es. "it")
+    /** ID univoco interno (es. contact.id CRM) — alza il match quality. */
+    external_id?: string;
     fbc?: string; // _fbc cookie (es. "fb.1.1554763741205.AbCdEfGhIjKlMnOp")
     fbp?: string; // _fbp cookie
     client_ip_address?: string;
@@ -126,26 +134,36 @@ Deno.serve(async (req) => {
     const hashedUserData: Record<string, string | string[]> = {};
 
     if (body.user_data.email) {
-      hashedUserData.em = await sha256Lower(body.user_data.email);
+      hashedUserData.em = await sha256Hex(body.user_data.email.trim().toLowerCase());
     }
     if (body.user_data.phone) {
-      // Telefoni: solo cifre, senza prefisso opzionale
-      hashedUserData.ph = await sha256Lower(body.user_data.phone.replace(/[^0-9]/g, ""));
+      // Telefono in E.164 (cifre + country code, senza '+'): senza prefisso
+      // paese Meta NON fa match. In Italia i numeri salvati spesso non hanno il
+      // 39 → lo aggiungiamo prima dell'hash.
+      const e164 = normalizePhoneE164(body.user_data.phone);
+      if (e164) hashedUserData.ph = await sha256Hex(e164);
     }
     if (body.user_data.first_name) {
-      hashedUserData.fn = await sha256Lower(body.user_data.first_name);
+      hashedUserData.fn = await sha256Hex(normalizeName(body.user_data.first_name));
     }
     if (body.user_data.last_name) {
-      hashedUserData.ln = await sha256Lower(body.user_data.last_name);
+      hashedUserData.ln = await sha256Hex(normalizeName(body.user_data.last_name));
     }
     if (body.user_data.zip) {
-      hashedUserData.zp = await sha256Lower(body.user_data.zip);
+      // CAP: solo cifre/lettere, no spazi.
+      hashedUserData.zp = await sha256Hex(body.user_data.zip.replace(/\s+/g, "").toLowerCase());
     }
     if (body.user_data.city) {
-      hashedUserData.ct = await sha256Lower(body.user_data.city);
+      // City: lowercase, senza spazi/punteggiatura (richiesto da Meta).
+      hashedUserData.ct = await sha256Hex(normalizeName(body.user_data.city).replace(/\s+/g, ""));
     }
     if (body.user_data.country) {
-      hashedUserData.country = await sha256Lower(body.user_data.country);
+      // Country ISO alpha-2 lowercase (es. "it").
+      hashedUserData.country = await sha256Hex(body.user_data.country.trim().toLowerCase().slice(0, 2));
+    }
+    if (body.user_data.external_id) {
+      // external_id: hashato per coerenza (Meta lo accetta hashed o plain).
+      hashedUserData.external_id = await sha256Hex(body.user_data.external_id.trim().toLowerCase());
     }
     // Cookie e network info NON vanno hashati
     if (body.user_data.fbc) hashedUserData.fbc = body.user_data.fbc;
@@ -179,6 +197,8 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         data: [event],
         access_token: capiToken,
+        // test_event_code → evento in "Eventi di test", non nei dati reali.
+        ...(body.test_event_code ? { test_event_code: body.test_event_code } : {}),
       }),
     });
 
@@ -194,34 +214,64 @@ Deno.serve(async (req) => {
 
     const result = await resp.json() as { events_received?: number; fbtrace_id?: string };
 
-    // Update pixel stats
-    await admin
-      .from("meta_conversion_pixel")
-      .update({
-        last_event_at: new Date().toISOString(),
-        capi_events_last_24h: 1, // INCREMENT non supportato direttamente, sarebbe meglio una function
-      })
-      .eq("company_id", body.company_id);
+    // events_received === 0 = Meta ha accettato la richiesta ma scartato l'evento
+    // (es. pixel disattivato/non valido): NON è un vero successo.
+    const accepted = (result.events_received ?? 0) > 0;
+
+    // Update pixel stats solo sugli eventi REALI (non i test).
+    if (accepted && !body.test_event_code) {
+      await admin
+        .from("meta_conversion_pixel")
+        .update({ last_event_at: new Date().toISOString() })
+        .eq("company_id", body.company_id);
+    }
 
     const out: CapiResponse = {
-      success: true,
+      success: accepted,
       events_received: result.events_received,
       fbtrace_id: result.fbtrace_id,
+      ...(accepted ? {} : { error: "no_events_received", detail: "Meta ha accettato la richiesta ma 0 eventi processati (pixel non valido o disattivo)." }),
     };
-    return json(out, 200, corsHeaders);
+    return json(out, accepted ? 200 : 502, corsHeaders);
   } catch (e) {
     console.error("[meta-capi-send-event] uncaught", e);
     return json({ error: "internal_error", detail: String(e) }, 500, corsHeaders);
   }
 });
 
-async function sha256Lower(input: string): Promise<string> {
-  const lower = input.trim().toLowerCase();
-  const bytes = new TextEncoder().encode(lower);
+/** SHA-256 hex della stringa COSÌ COM'È (la normalizzazione va fatta a monte). */
+async function sha256Hex(input: string): Promise<string> {
+  const bytes = new TextEncoder().encode(input);
   const hash = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(hash))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+}
+
+/** Normalizza nome/cognome/città: trim, lowercase (Meta confronta lowercase). */
+function normalizeName(input: string): string {
+  return input.trim().toLowerCase();
+}
+
+/**
+ * Normalizza un telefono a formato E.164 in sole cifre (senza '+'), così come
+ * richiesto da Meta CAPI. Gestisce numeri italiani salvati senza prefisso paese.
+ * - "+39 320 123 4567" → "393201234567"
+ * - "320 1234567"      → "393201234567"  (mobile IT → +39)
+ * - "06 1234567"       → "39061234567"   (fisso IT → +39, 0 mantenuto)
+ * - "0039 320..."      → "39320..."      (prefisso internazionale 00)
+ * - numeri esteri già con country code (es. +33...) vengono lasciati intatti.
+ */
+function normalizePhoneE164(raw: string): string {
+  const hadPlus = raw.trim().startsWith("+");
+  let d = raw.replace(/[^0-9]/g, "");
+  if (!d) return "";
+  if (d.startsWith("00")) return d.slice(2);            // prefisso internazionale 00XX
+  if (hadPlus) return d;                                 // già E.164 (+XX...)
+  if (d.startsWith("39") && d.length >= 11) return d;    // già con country code IT
+  if (d.startsWith("3") && d.length >= 9 && d.length <= 11) return "39" + d; // mobile IT
+  if (d.startsWith("0")) return "39" + d;               // fisso IT nazionale
+  return d.length >= 11 ? d : "39" + d;                 // fallback: lungo=estero, corto=IT
 }
 
 function json(payload: unknown, status: number, corsHeaders: Record<string, string>): Response {
