@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,10 +12,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Palette, Globe, Image as ImageIcon, Loader2, Save, ShieldCheck, AlertTriangle, Info, Building2,
-  Link2, RefreshCw, Trash2, Copy,
+  Link2, RefreshCw, Trash2, Copy, Upload,
 } from "lucide-react";
 
 const DEFAULT_HEX = "#1e293b";
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
 
 /** "#rrggbb" → "H S% L%" (formato triplet usato dalle CSS variables dell'app). */
 function hexToHslTriplet(hex: string): string {
@@ -97,8 +98,8 @@ interface BrandingRow {
 
 /**
  * Brand & dominio del PRODUTTORE — il white-label che i suoi rivenditori
- * erediteranno (create-reseller copia company_branding). Niente "Edilizia in
- * Cloud" per i rivenditori: vedono logo, colore e dominio impostati qui.
+ * erediteranno. Logo via UPLOAD (auto-salvato), colore primario, dominio custom
+ * con istruzioni DNS + verifica.
  */
 export default function ProduttoreBranding() {
   const { profile, effectiveCompany } = useAuth();
@@ -151,14 +152,14 @@ export default function ProduttoreBranding() {
         <Info className="mt-0.5 h-4 w-4 shrink-0" />
         <span>
           Questo è il brand che i tuoi rivenditori vedranno al posto di &ldquo;Edilizia in Cloud&rdquo;.
-          Le modifiche al logo/colore valgono per i <strong>nuovi</strong> rivenditori; quelli esistenti
-          mantengono la copia già ricevuta finché non la re-sincronizzi.
+          Le modifiche valgono per i <strong>nuovi</strong> rivenditori; quelli esistenti mantengono la copia
+          già ricevuta finché non la re-sincronizzi.
         </span>
       </div>
 
       <div className="space-y-4">
-        {/* key={companyId}: rimonta l'editor (re-inizializza lo stato dai dati) se cambia
-            azienda → niente setState-in-effect per idratare il form. */}
+        <LogoCard companyId={companyId} branding={branding ?? null} />
+        {/* key={companyId}: rimonta l'editor (re-inizializza lo stato dai dati) se cambia azienda. */}
         <BrandingEditor key={companyId ?? "none"} companyId={companyId} initial={branding ?? null} />
         <DomainCard companyId={companyId} branding={branding ?? null} />
       </div>
@@ -166,32 +167,112 @@ export default function ProduttoreBranding() {
   );
 }
 
-/** Logo, colore e attivazione white-label (campi idratati una volta al mount via key). */
+/** Logo via upload su storage (bucket white-label-assets) → auto-salvato in company_branding. */
+function LogoCard({ companyId, branding }: { companyId: string | null; branding: BrandingRow | null }) {
+  const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const logoUrl = branding?.logo_url ?? null;
+  const refresh = () => qc.invalidateQueries({ queryKey: ["produttore-branding", companyId] });
+
+  const upload = useMutation({
+    mutationFn: async (file: File) => {
+      if (!companyId) throw new Error("Azienda non trovata");
+      if (!file.type.startsWith("image/")) throw new Error("Carica un'immagine (PNG, SVG, JPG, WEBP)");
+      if (file.size > LOGO_MAX_BYTES) throw new Error("Immagine troppo grande (max 2 MB)");
+      // Path fisso (no estensione) → l'upsert SOSTITUISCE sempre il logo precedente.
+      const filePath = `${companyId}/produttore-logo`;
+      const { error: upErr } = await supabase.storage
+        .from("white-label-assets")
+        .upload(filePath, file, { upsert: true, contentType: file.type });
+      if (upErr) throw new Error(upErr.message);
+      const { data } = supabase.storage.from("white-label-assets").getPublicUrl(filePath);
+      const url = `${data.publicUrl}?t=${Date.now()}`; // cache-buster → il nuovo logo si vede subito
+      const { error: dbErr } = await supabase.from("company_branding")
+        .upsert({ company_id: companyId, logo_url: url }, { onConflict: "company_id" });
+      if (dbErr) throw new Error(dbErr.message);
+    },
+    onSuccess: () => { toast.success("Logo aggiornato", { description: "Logo sostituito e salvato." }); refresh(); },
+    onError: (e) => toast.error("Upload non riuscito", { description: (e as Error).message }),
+  });
+
+  const remove = useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error("Azienda non trovata");
+      const { error } = await supabase.from("company_branding")
+        .upsert({ company_id: companyId, logo_url: null }, { onConflict: "company_id" });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => { toast.success("Logo rimosso"); refresh(); },
+    onError: (e) => toast.error("Rimozione non riuscita", { description: (e as Error).message }),
+  });
+
+  const busy = upload.isPending || remove.isPending;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ImageIcon className="h-4 w-4" /> Logo
+        </CardTitle>
+        <CardDescription>PNG o SVG su sfondo trasparente, max 2 MB. Il caricamento sostituisce subito il logo attuale.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-4">
+          <div className="flex h-16 w-32 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted">
+            {upload.isPending ? (
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            ) : logoUrl ? (
+              <img src={logoUrl} alt="Logo produttore" className="max-h-full max-w-full object-contain" />
+            ) : (
+              <Building2 className="h-6 w-6 text-muted-foreground opacity-40" />
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/png,image/jpeg,image/svg+xml,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) upload.mutate(f);
+                e.target.value = ""; // permette di ricaricare lo stesso file
+              }}
+            />
+            <Button onClick={() => fileRef.current?.click()} disabled={busy} className="gap-1.5">
+              {upload.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              {logoUrl ? "Sostituisci logo" : "Carica logo"}
+            </Button>
+            {logoUrl && (
+              <Button variant="ghost" onClick={() => remove.mutate()} disabled={busy} className="gap-1.5 text-destructive hover:text-destructive">
+                <Trash2 className="h-4 w-4" /> Rimuovi
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Colore primario + attivazione white-label (campi idratati una volta al mount via key). */
 function BrandingEditor({ companyId, initial }: { companyId: string | null; initial: BrandingRow | null }) {
   const qc = useQueryClient();
-  const [logoUrl, setLogoUrl] = useState(initial?.logo_url ?? "");
   const [hex, setHex] = useState(initial?.primary_color ? hslTripletToHex(initial.primary_color) : DEFAULT_HEX);
   const [active, setActive] = useState(initial?.is_active ?? false);
 
   const save = useMutation({
     mutationFn: async () => {
       if (!companyId) throw new Error("Azienda non trovata");
-      // NB: il dominio NON è qui — ha un suo flusso (provision/verify) in DomainCard.
+      // Logo e dominio hanno i loro flussi dedicati: qui solo colore + attivazione.
       const { error } = await supabase.from("company_branding").upsert(
-        {
-          company_id: companyId,
-          logo_url: logoUrl.trim() || null,
-          primary_color: hexToHslTriplet(hex),
-          is_active: active,
-        },
+        { company_id: companyId, primary_color: hexToHslTriplet(hex), is_active: active },
         { onConflict: "company_id" },
       );
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
-      toast.success("Brand aggiornato", {
-        description: "I tuoi rivenditori erediteranno automaticamente questo brand.",
-      });
+      toast.success("Brand aggiornato", { description: "I tuoi rivenditori erediteranno questo brand." });
       qc.invalidateQueries({ queryKey: ["produttore-branding", companyId] });
     },
     onError: (e) => toast.error("Salvataggio fallito", { description: (e as Error).message }),
@@ -199,42 +280,6 @@ function BrandingEditor({ companyId, initial }: { companyId: string | null; init
 
   return (
     <>
-      {/* Logo */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ImageIcon className="h-4 w-4" /> Logo
-          </CardTitle>
-          <CardDescription>URL dell&apos;immagine del logo (PNG/SVG su sfondo trasparente consigliato).</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-32 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted">
-              {logoUrl.trim() ? (
-                <img
-                  src={logoUrl.trim()}
-                  alt="Anteprima logo"
-                  className="max-h-full max-w-full object-contain"
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.2"; }}
-                />
-              ) : (
-                <Building2 className="h-6 w-6 text-muted-foreground opacity-40" />
-              )}
-            </div>
-            <div className="flex-1 space-y-1.5">
-              <Label htmlFor="logo">URL logo</Label>
-              <Input
-                id="logo"
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                placeholder="https://.../logo.png"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Colore */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
@@ -253,14 +298,7 @@ function BrandingEditor({ companyId, initial }: { companyId: string | null; init
             />
             <div className="space-y-1.5">
               <Label htmlFor="hex">Colore (HEX)</Label>
-              <Input
-                id="hex"
-                value={hex}
-                onChange={(e) => setHex(e.target.value)}
-                className="w-40 font-mono"
-                placeholder="#1e293b"
-              />
-              <p className="text-xs text-muted-foreground">HSL salvato: <code>{hexToHslTriplet(hex)}</code></p>
+              <Input id="hex" value={hex} onChange={(e) => setHex(e.target.value)} className="w-40 font-mono" placeholder="#1e293b" />
             </div>
             <div className="ml-auto hidden flex-col items-center gap-1 sm:flex">
               <div className="h-12 w-24 rounded-lg border" style={{ backgroundColor: hex }} />
@@ -270,7 +308,6 @@ function BrandingEditor({ companyId, initial }: { companyId: string | null; init
         </CardContent>
       </Card>
 
-      {/* White-label attivo */}
       <Card>
         <CardContent className="flex items-center justify-between gap-4 py-4">
           <div>
@@ -286,7 +323,7 @@ function BrandingEditor({ companyId, initial }: { companyId: string | null; init
       <div className="flex justify-end">
         <Button onClick={() => save.mutate()} disabled={save.isPending} className="gap-1.5">
           {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Salva brand
+          Salva colore &amp; stato
         </Button>
       </div>
     </>
@@ -294,16 +331,18 @@ function BrandingEditor({ companyId, initial }: { companyId: string | null; init
 }
 
 /**
- * Dominio personalizzato — flusso reale: provision (Cloudflare) → record CNAME →
- * verify (DNS) → SSL automatico. Stato derivato dai dati branding (no effect).
+ * Dominio personalizzato — provision (Cloudflare) → istruzioni DNS step-by-step →
+ * verify (con diagnostica inline CNAME trovato/atteso) → SSL automatico.
  */
 function DomainCard({ companyId, branding }: { companyId: string | null; branding: BrandingRow | null }) {
   const qc = useQueryClient();
   const [domainInput, setDomainInput] = useState("");
+  const [verifyMsg, setVerifyMsg] = useState<string | null>(null);
 
   const currentDomain = branding?.custom_domain ?? null;
   const cname = branding?.custom_domain_cname ?? null;
   const verified = !!branding?.custom_domain_verified;
+  const rootHint = currentDomain ? currentDomain.split(".").slice(-2).join(".") : "tuobrand.it";
   const refresh = () => qc.invalidateQueries({ queryKey: ["produttore-branding", companyId] });
 
   const provision = useMutation({
@@ -317,43 +356,37 @@ function DomainCard({ companyId, branding }: { companyId: string | null; brandin
       const r = data as { success?: boolean; error?: string } | null;
       if (r && r.success === false) throw new Error(r.error ?? "Collegamento fallito");
     },
-    onSuccess: () => {
-      toast.success("Dominio collegato", { description: "Ora aggiungi il record CNAME indicato sotto." });
-      setDomainInput("");
-      refresh();
-    },
+    onSuccess: () => { toast.success("Dominio collegato", { description: "Ora aggiungi il record CNAME indicato sotto." }); setDomainInput(""); setVerifyMsg(null); refresh(); },
     onError: (e) => toast.error("Collegamento fallito", { description: (e as Error).message }),
   });
 
   const verify = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("verify-custom-domain", {
-        body: { company_id: companyId },
-      });
+      const { data, error } = await supabase.functions.invoke("verify-custom-domain", { body: { company_id: companyId } });
       if (error) throw new Error(error.message ?? "Errore durante la verifica");
-      const r = data as { verified?: boolean; error?: string } | null;
-      if (!r?.verified) throw new Error(r?.error ?? "DNS non ancora propagato. Riprova tra qualche minuto.");
+      return data as { verified?: boolean; error?: string } | null;
     },
-    onSuccess: () => {
-      toast.success("Dominio verificato", { description: "Il certificato SSL viene emesso automaticamente." });
-      refresh();
+    onSuccess: (r) => {
+      if (r?.verified) {
+        setVerifyMsg(null);
+        toast.success("Dominio verificato", { description: "Il certificato SSL viene emesso automaticamente." });
+        refresh();
+      } else {
+        // Diagnostica inline (es. "CNAME trovato: X — atteso: Y") invece di un toast che sparisce.
+        setVerifyMsg(r?.error ?? "DNS non ancora propagato. Riprova tra qualche minuto.");
+      }
     },
-    onError: (e) => toast.error("Verifica non riuscita", { description: (e as Error).message }),
+    onError: (e) => { setVerifyMsg(null); toast.error("Verifica non riuscita", { description: (e as Error).message }); },
   });
 
   const remove = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("remove-custom-domain", {
-        body: { company_id: companyId },
-      });
+      const { data, error } = await supabase.functions.invoke("remove-custom-domain", { body: { company_id: companyId } });
       if (error) throw new Error(error.message ?? "Errore durante la rimozione");
       const r = data as { success?: boolean; error?: string } | null;
       if (r && r.success === false) throw new Error(r.error ?? "Rimozione fallita");
     },
-    onSuccess: () => {
-      toast.success("Dominio rimosso");
-      refresh();
-    },
+    onSuccess: () => { toast.success("Dominio rimosso"); setVerifyMsg(null); refresh(); },
     onError: (e) => toast.error("Rimozione fallita", { description: (e as Error).message }),
   });
 
@@ -380,6 +413,7 @@ function DomainCard({ companyId, branding }: { companyId: string | null; brandin
                 className="font-mono"
                 onKeyDown={(e) => { if (e.key === "Enter" && !provision.isPending) provision.mutate(); }}
               />
+              <p className="text-xs text-muted-foreground">Usa un sottodominio del tuo dominio (es. <code>app.</code> o <code>portale.</code>), non il dominio radice.</p>
             </div>
             <Button onClick={() => provision.mutate()} disabled={provision.isPending} className="gap-1.5">
               {provision.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
@@ -401,10 +435,18 @@ function DomainCard({ companyId, branding }: { companyId: string | null; brandin
               )}
             </div>
 
-            {!verified && cname && (
+            {verified ? (
+              <p className="text-sm text-muted-foreground">
+                Tutto pronto: i tuoi rivenditori possono accedere da <strong>{currentDomain}</strong> col tuo brand.
+              </p>
+            ) : cname && (
               <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-                <p className="font-medium text-amber-900">Aggiungi questo record DNS dal pannello del tuo provider:</p>
-                <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-amber-900">
+                <p className="font-medium text-amber-900">Configura il DNS per attivarlo:</p>
+                <ol className="ml-4 list-decimal space-y-1 text-xs text-amber-900">
+                  <li>Apri il pannello DNS del provider dove gestisci <strong>{rootHint}</strong>.</li>
+                  <li>Aggiungi un nuovo record con questi valori:</li>
+                </ol>
+                <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 rounded-md bg-white/70 p-2 text-amber-900">
                   <span className="text-amber-700">Tipo</span>
                   <code className="font-mono">CNAME</code>
                   <span className="text-amber-700">Nome / Host</span>
@@ -416,7 +458,18 @@ function DomainCard({ companyId, branding }: { companyId: string | null; brandin
                     {cname} <Copy className="h-3 w-3 opacity-60" />
                   </button>
                 </div>
-                <p className="text-xs text-amber-700">La propagazione DNS può richiedere da pochi minuti fino a 24 ore.</p>
+                <p className="text-xs text-amber-700">
+                  Alcuni provider chiedono nel campo &ldquo;Nome&rdquo; solo la parte iniziale (es. <code>{currentDomain.split(".")[0]}</code>).
+                  La propagazione richiede da pochi minuti fino a 24 ore.
+                </p>
+              </div>
+            )}
+
+            {/* Diagnostica della verifica (CNAME trovato vs atteso) */}
+            {!verified && verifyMsg && (
+              <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-800">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{verifyMsg}</span>
               </div>
             )}
 
