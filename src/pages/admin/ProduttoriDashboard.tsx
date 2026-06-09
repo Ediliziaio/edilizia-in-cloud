@@ -18,12 +18,13 @@ import { AccessDenied } from "@/components/admin/AccessDenied";
 import { CreateProduttoreDialog } from "@/components/admin/produttori/CreateProduttoreDialog";
 import { ProduttoriAnalytics } from "@/components/admin/produttori/ProduttoriAnalytics";
 import { AccessControlDialog } from "@/components/admin/AccessControlDialog";
+import { EditEntityDialog } from "@/components/admin/EditEntityDialog";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import { formatEuro } from "@/lib/formatEuro";
 import { useNavigate } from "react-router-dom";
 import {
   Factory, Building2, Plus, ChevronDown, ChevronRight, AlertCircle, RefreshCw,
-  BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2, Play, Ban, Link2, Copy, Package, KeyRound, Search,
+  BadgeEuro, Globe, ShieldCheck, CreditCard, Mail, Percent, Save, Loader2, Play, Ban, Link2, Copy, Package, KeyRound, Search, Pencil,
 } from "lucide-react";
 
 interface Rivenditore {
@@ -376,6 +377,7 @@ function ProduttoreActions({ p, onChanged }: { p: Produttore; onChanged: () => v
   const [accessLink, setAccessLink] = useState<string | null>(null);
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const setConfig = useMutation({
     mutationFn: async (patch: { status?: string; reseller_limit?: number }) => {
@@ -426,6 +428,9 @@ function ProduttoreActions({ p, onChanged }: { p: Produttore; onChanged: () => v
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setAccessOpen(true)}>
             <KeyRound className="h-3.5 w-3.5" /> Accesso
           </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setEditOpen(true)}>
+            <Pencil className="h-3.5 w-3.5" /> Modifica
+          </Button>
         </div>
       </div>
 
@@ -472,6 +477,26 @@ function ProduttoreActions({ p, onChanged }: { p: Produttore; onChanged: () => v
         email={p.admin_email}
         label={p.name}
         onChanged={onChanged}
+      />
+
+      <EditEntityDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        title="Modifica produttore"
+        description="Aggiorna ragione sociale ed email di contatto dell'azienda."
+        fields={[
+          { key: "name", label: "Nome", required: true, maxLength: 120 },
+          { key: "email", label: "Email di contatto", type: "email", placeholder: "info@azienda.it" },
+        ]}
+        initial={{ name: p.name, email: p.email ?? "" }}
+        onSave={async (v) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error } = await (supabase as any).from("companies")
+            .update({ name: v.name.trim(), email: v.email.trim().toLowerCase() || null }).eq("id", p.id);
+          if (error) throw new Error(error.message);
+          toast.success("Produttore aggiornato");
+          onChanged();
+        }}
       />
     </div>
   );

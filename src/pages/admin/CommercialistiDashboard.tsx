@@ -19,8 +19,9 @@ import { AccessDenied } from "@/components/admin/AccessDenied";
 import { companyStatusLabelIt } from "@/lib/companyStatusLabel";
 import { CommercialistiAnalytics } from "@/components/admin/commercialisti/CommercialistiAnalytics";
 import { AccessControlDialog } from "@/components/admin/AccessControlDialog";
+import { EditEntityDialog } from "@/components/admin/EditEntityDialog";
 import {
-  Calculator, Building2, ChevronDown, ChevronRight, AlertCircle, RefreshCw, Mail, Users, Play, Ban, KeyRound, Search,
+  Calculator, Building2, ChevronDown, ChevronRight, AlertCircle, RefreshCw, Mail, Users, Play, Ban, KeyRound, Search, Pencil,
 } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,6 +35,9 @@ interface Studio {
   status: string | null;
   created_at: string | null;
   owner_email: string | null;
+  firm_email: string | null;
+  vat_number: string | null;
+  fiscal_code: string | null;
   members: Member[];
   members_count: number;
   companies: ManagedCompany[];
@@ -51,7 +55,7 @@ async function fetchStudi(): Promise<Studio[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
   const { data: firms, error: e1 } = await sb
-    .from("accountant_firms").select("id, name, status, owner_user_id, email, created_at")
+    .from("accountant_firms").select("id, name, status, owner_user_id, email, vat_number, fiscal_code, created_at")
     .order("created_at", { ascending: false });
   if (e1) throw new Error(e1.message);
   const firmIds: string[] = (firms ?? []).map((f: AnyRow) => f.id);
@@ -95,6 +99,9 @@ async function fetchStudi(): Promise<Studio[]> {
     return {
       id: f.id, name: f.name, status: f.status ?? null, created_at: f.created_at ?? null,
       owner_email: emailById.get(f.owner_user_id) ?? f.email ?? null,
+      firm_email: f.email ?? null,
+      vat_number: f.vat_number ?? null,
+      fiscal_code: f.fiscal_code ?? null,
       members: mem,
       members_count: mem.filter((m) => m.status === "active").length,
       companies: accessByFirm.get(f.id) ?? [],
@@ -109,6 +116,7 @@ export default function CommercialistiDashboard() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [suspendTarget, setSuspendTarget] = useState<Studio | null>(null);
   const [accessTarget, setAccessTarget] = useState<Studio | null>(null);
+  const [editTarget, setEditTarget] = useState<Studio | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortKey, setSortKey] = useState("recent");
@@ -269,6 +277,9 @@ export default function CommercialistiDashboard() {
                         <Button size="sm" variant="outline" className="gap-1.5" disabled={!s.owner_email} onClick={() => setAccessTarget(s)}>
                           <KeyRound className="h-3.5 w-3.5" /> Accesso
                         </Button>
+                        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setEditTarget(s)}>
+                          <Pencil className="h-3.5 w-3.5" /> Modifica
+                        </Button>
                         {s.status === "suspended" ? (
                           <Button size="sm" variant="outline" className="gap-1.5" disabled={setFirmStatus.isPending} onClick={() => setFirmStatus.mutate({ id: s.id, status: "active" })}>
                             <Play className="h-3.5 w-3.5" /> Riattiva
@@ -364,6 +375,39 @@ export default function CommercialistiDashboard() {
         email={accessTarget?.owner_email ?? null}
         label={accessTarget?.name}
         onChanged={() => qc.invalidateQueries({ queryKey: ["admin-commercialisti"] })}
+      />
+
+      <EditEntityDialog
+        open={!!editTarget}
+        onOpenChange={(o) => { if (!o) setEditTarget(null); }}
+        title="Modifica studio"
+        description="Aggiorna i dati anagrafici dello studio commercialista."
+        fields={[
+          { key: "name", label: "Ragione sociale", required: true, maxLength: 120 },
+          { key: "email", label: "Email", type: "email", placeholder: "studio@esempio.it" },
+          { key: "vat_number", label: "P.IVA", maxLength: 20, placeholder: "IT01234567890" },
+          { key: "fiscal_code", label: "Codice fiscale", maxLength: 16 },
+        ]}
+        initial={{
+          name: editTarget?.name ?? "",
+          email: editTarget?.firm_email ?? "",
+          vat_number: editTarget?.vat_number ?? "",
+          fiscal_code: editTarget?.fiscal_code ?? "",
+        }}
+        onSave={async (v) => {
+          if (!editTarget) return;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error } = await (supabase as any).from("accountant_firms").update({
+            name: v.name.trim(),
+            email: v.email.trim().toLowerCase() || null,
+            vat_number: v.vat_number.trim() || null,
+            fiscal_code: v.fiscal_code.trim().toUpperCase() || null,
+          }).eq("id", editTarget.id);
+          if (error) throw new Error(error.message);
+          toast.success("Studio aggiornato");
+          setEditTarget(null);
+          qc.invalidateQueries({ queryKey: ["admin-commercialisti"] });
+        }}
       />
     </div>
   );
