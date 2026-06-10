@@ -199,6 +199,11 @@ export function ChatConversazioniTab() {
           <p className="text-sm text-muted-foreground mt-1">
             Le sessioni appariranno quando gli utenti interagiranno con i tuoi agenti chat.
           </p>
+          {/* Audit AI 2026-06: stesso discorso delle conversazioni vocali —
+              il salvataggio sessioni dal widget/provider non è ancora cablato. */}
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+            Il salvataggio automatico delle sessioni chat non è ancora attivo.
+          </p>
         </div>
       ) : (
         <div className="space-y-2">

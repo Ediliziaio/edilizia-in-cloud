@@ -142,6 +142,12 @@ export function ConversazioniTab({ agentIdFilter }: ConversazioniTabProps = {}) 
           <p className="text-sm text-muted-foreground mt-1">
             Le conversazioni appariranno qui dopo che gli agenti gestiscono le prime chiamate o chat.
           </p>
+          {/* Audit AI 2026-06: senza il webhook eventi del provider vocale i
+              dati non arrivano MAI — dirlo evita di scambiare il vuoto per
+              "nessuna attività". */}
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+            La raccolta automatica delle conversazioni (webhook eventi provider) non è ancora attiva.
+          </p>
         </div>
       ) : (
         <div className="space-y-2">

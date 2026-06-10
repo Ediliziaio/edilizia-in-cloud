@@ -87,7 +87,17 @@ export function StatisticheTab() {
   }
 
   if (!analytics) {
-    return <p className="text-muted-foreground text-center py-12">Nessun dato disponibile</p>;
+    return (
+      <div className="py-12 text-center">
+        <p className="text-muted-foreground">Nessun dato disponibile</p>
+        {/* Audit AI 2026-06: i KPI dipendono dagli eventi conversazioni/chiamate
+            che il provider non invia ancora (webhook non cablato) — senza
+            questa nota lo zero sembrava "nessuna attività". */}
+        <p className="mx-auto mt-3 w-fit rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+          Le statistiche si popoleranno quando la raccolta eventi (webhook provider) sarà attiva.
+        </p>
+      </div>
+    );
   }
 
   const kpis = [
@@ -104,8 +114,18 @@ export function StatisticheTab() {
     value: a.count,
   }));
 
+  // Audit AI 2026-06: chiamate/chat restano a zero finché la raccolta eventi
+  // dal provider (webhook) non è cablata — senza la nota, gli zeri sembrano
+  // "nessuna attività degli agenti" invece di "dati non ancora raccolti".
+  const noEventData = (analytics.chiamate?.totali ?? 0) === 0 && (analytics.chat?.totali ?? 0) === 0;
+
   return (
     <div className="space-y-6">
+      {noEventData && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Chiamate e chat si popoleranno quando la raccolta eventi dal provider (webhook) sarà attiva.
+        </p>
+      )}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-foreground">Statistiche AI</h2>
         <Select value={giorni} onValueChange={setGiorni}>
