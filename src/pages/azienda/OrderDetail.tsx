@@ -1380,6 +1380,9 @@ function OrderDetailInner() {
                   orderId={id!}
                   companyId={companyId}
                   orderTotalAmount={order.total_amount ?? undefined}
+                  installments={displayInstallments}
+                  vatRate={order.vat_rate || 22}
+                  financingCost={order.payment_type === "financing" ? order.financing_cost ?? 0 : 0}
                 />
               )}
             </TabsContent>
@@ -1489,22 +1492,8 @@ function OrderDetailInner() {
               />
             )}
 
-            {/* Articoli */}
-            <OrdineArticoli
-              orderId={id!}
-              displayItems={displayItems}
-              orderItems={orderItems}
-              companyId={effectiveCompany?.id || ""}
-              onItemsChange={(newItems) => {
-                const newItem = newItems.find((ni) => !ni.id);
-                if (newItem) addItemMutation.mutate(newItem);
-              }}
-              onItemUpdate={handleItemUpdate}
-              onAttachmentsRefresh={handleAttachmentsRefresh}
-            />
-
-            {/* Economico (dettaglio) — esteso: bilancia l'altezza con la lunga
-                sidebar (evita lo spazio vuoto in basso). Il sommario è in cima.
+            {/* Economico (dettaglio) — PRIMA degli articoli: i pagamenti sono
+                la parte più consultata della commessa, stanno in alto.
                 L'id è il target del bottone "+ SAL" in testata (desktop): il
                 Riepilogo Finanziario col piano rate è il primo blocco. */}
             <div id="section-pagamenti" className="scroll-mt-24">
@@ -1522,6 +1511,20 @@ function OrderDetailInner() {
                 onInstallmentDateChange={handleInstallmentDateChange}
               />
             </div>
+
+            {/* Articoli */}
+            <OrdineArticoli
+              orderId={id!}
+              displayItems={displayItems}
+              orderItems={orderItems}
+              companyId={effectiveCompany?.id || ""}
+              onItemsChange={(newItems) => {
+                const newItem = newItems.find((ni) => !ni.id);
+                if (newItem) addItemMutation.mutate(newItem);
+              }}
+              onItemUpdate={handleItemUpdate}
+              onAttachmentsRefresh={handleAttachmentsRefresh}
+            />
           </div>
 
           {/* ── Right Column (1/3) ──────────────────────────────── */}
@@ -1775,6 +1778,9 @@ function OrderDetailInner() {
                 orderId={id!}
                 companyId={companyId}
                 orderTotalAmount={order.total_amount ?? undefined}
+                installments={displayInstallments}
+                vatRate={order.vat_rate || 22}
+                financingCost={order.payment_type === "financing" ? order.financing_cost ?? 0 : 0}
               />
             )}
           </div>
