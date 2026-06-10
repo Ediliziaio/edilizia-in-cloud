@@ -1025,11 +1025,11 @@ function OrderDetailInner() {
         orderType={order.order_type}
         onDuplica={() => setDuplicateDialogOpen(true)}
         onModifica={() => navigate(`/azienda/ordini/${id}/modifica`)}
-        onNuovoSAL={() => {
-          // "+ SAL" = stato avanzamento PAGAMENTI: porta al piano rate della
-          // commessa (lo stesso Riepilogo Finanziario impostato in
-          // creazione/modifica), dove ogni rata si segna Pagato/Non pagato con
-          // storico date. I verbali SAL formali restano nel tab/sezione SAL.
+        onRegistraIncasso={() => {
+          // "Registra incasso": porta al piano rate della commessa (lo stesso
+          // Riepilogo Finanziario impostato in creazione/modifica), dove ogni
+          // rata si segna Pagato/Non pagato con storico date. I verbali SAL
+          // (documenti) restano nel tab/sezione dedicata.
           const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
           if (isMobile) {
             setMobileTab("finanza");
@@ -1129,7 +1129,7 @@ function OrderDetailInner() {
               <TabsTrigger value="stato" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Stato</TabsTrigger>
               <TabsTrigger value="articoli" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Articoli</TabsTrigger>
               <TabsTrigger value="finanza" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Finanza</TabsTrigger>
-              <TabsTrigger value="sal" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">SAL</TabsTrigger>
+              <TabsTrigger value="sal" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Verbali SAL</TabsTrigger>
               <TabsTrigger value="cantiere" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Cantiere</TabsTrigger>
               <TabsTrigger value="campo" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">
                 <div className="flex items-center gap-1">

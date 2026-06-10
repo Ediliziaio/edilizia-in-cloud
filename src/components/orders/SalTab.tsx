@@ -283,13 +283,13 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FileBarChart2 className="h-5 w-5 text-primary" aria-hidden="true" />
-          <h3 className="font-semibold">SAL — Stato Avanzamento Lavori</h3>
+          <h3 className="font-semibold">Verbali SAL (documenti)</h3>
           {salList.length > 0 && (
             <Badge variant="secondary">{salList.length}</Badge>
           )}
         </div>
         <Button size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Nuovo SAL
+          <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Nuovo verbale
         </Button>
       </div>
 
@@ -360,15 +360,17 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
       )}
 
       {salList.length === 0 ? (
+        /* Empty state compatto: per gli incassi c'è già la card qui sopra.
+           I verbali servono solo a bonus edilizi, banche e appalti — una riga
+           informativa basta, senza rubare spazio alla pagina. */
         <Card>
-          <CardContent className="py-10 text-center space-y-3">
-            <FileBarChart2 className="h-12 w-12 text-muted-foreground/40 mx-auto" aria-hidden="true" />
-            <p className="text-sm font-medium text-muted-foreground">Nessun SAL registrato</p>
-            <p className="text-xs text-muted-foreground">
-              Crea il primo Stato Avanzamento Lavori per tenere traccia dei progressi di cantiere e generare documenti periodici.
+          <CardContent className="py-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground flex items-center gap-2 min-w-0">
+              <FileBarChart2 className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+              Nessun verbale. I verbali SAL certificano l'avanzamento lavori: servono per bonus edilizi, erogazioni bancarie e appalti.
             </p>
-            <Button size="sm" onClick={() => setDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Crea primo SAL
+            <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Crea verbale
             </Button>
           </CardContent>
         </Card>
@@ -475,7 +477,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileBarChart2 className="h-5 w-5" aria-hidden="true" />
-              Nuovo Stato Avanzamento Lavori
+              Nuovo verbale SAL (Stato Avanzamento Lavori)
             </DialogTitle>
           </DialogHeader>
 
@@ -624,7 +626,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
               {createSalMutation.isPending ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> Salvataggio...</>
               ) : (
-                "Crea SAL"
+                "Crea verbale"
               )}
             </Button>
           </DialogFooter>

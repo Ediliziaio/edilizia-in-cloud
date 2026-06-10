@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { BookOpen, ChevronRight, Copy, FileDown, HardHat, Loader2, MoreVertical, Pencil, TrendingUp, Trash2, ClipboardList } from "lucide-react";
+import { Banknote, BookOpen, ChevronRight, Copy, FileDown, HardHat, Loader2, MoreVertical, Pencil, Trash2, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { QuotePrimaryButton } from "@/components/marketing/preventivi/ui/builderUI";
 import {
@@ -22,7 +22,7 @@ interface OrdineDetailHeaderProps {
   orderType?: "cliente" | "appaltatore_lavoro" | null;
   onDuplica: () => void;
   onModifica: () => void;
-  onNuovoSAL: () => void;
+  onRegistraIncasso: () => void;
   onElimina: () => void;
   onDownloadPDF?: () => void;
   isGeneratingPDF?: boolean;
@@ -44,7 +44,7 @@ export function OrdineDetailHeader({
   orderType,
   onDuplica,
   onModifica,
-  onNuovoSAL,
+  onRegistraIncasso,
   onElimina,
   onDownloadPDF,
   isGeneratingPDF = false,
@@ -91,14 +91,14 @@ export function OrdineDetailHeader({
           </div>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-wrap justify-end w-full sm:w-auto">
-          {/* Primary: SAL — sempre visibile */}
+          {/* Primary: Registra incasso — sempre visibile, porta al piano rate */}
           <QuotePrimaryButton
             size="sm"
-            onClick={onNuovoSAL}
+            onClick={onRegistraIncasso}
             className="flex-1 sm:flex-none"
           >
-            <TrendingUp className="h-3.5 w-3.5" />
-            + SAL
+            <Banknote className="h-3.5 w-3.5" />
+            Registra incasso
           </QuotePrimaryButton>
           {/* Modifica — visibile solo se canEdit */}
           {canEdit && (
