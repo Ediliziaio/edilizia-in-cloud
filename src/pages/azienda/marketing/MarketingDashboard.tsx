@@ -95,73 +95,33 @@ export default function MarketingDashboard() {
     queryKey: ["marketing-dashboard-trend-12m", companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const from = new Date();
-      from.setMonth(from.getMonth() - 11);
-      from.setDate(1);
-      from.setHours(0, 0, 0, 0);
-      const fromIso = from.toISOString();
-      const fromDateOnly = fromIso.slice(0, 10);
-
-      const [leadsRes, apptsRes, contractsRes] = await Promise.all([
-        supabase
-          .from("marketing_contacts")
-          .select("created_at")
-          .eq("company_id", companyId)
-          .gte("created_at", fromIso),
-        supabase
-          .from("appointments")
-          .select("appointment_date")
-          .eq("company_id", companyId)
-          .gte("appointment_date", fromDateOnly),
-        // P1.4 — "Contratti vinti" = opportunità con status='won', bucket
-        // per `updated_at` (coerente con la KPI strip che legge la stessa
-        // tabella). Prima leggevamo `orders.created_at` che misurava
-        // qualcosa di completamente diverso.
-        supabase
-          .from("marketing_opportunities")
-          .select("updated_at")
-          .eq("company_id", companyId)
-          .eq("status", "won")
-          .gte("updated_at", fromIso),
-      ]);
-
-      const months = Array.from({ length: 12 }, (_, index) => {
+      // Aggregazione SERVER-SIDE (RPC marketing_trend_12m): vedi nota nella
+      // funzione gemella del Cruscotto — numeri esatti (niente cap righe
+      // PostgREST) e 12 righe di payload invece di migliaia.
+      const { data, error } = await supabase.rpc("marketing_trend_12m" as never, {
+        p_company_id: companyId,
+      } as never);
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as Array<{
+        mese_key: string; lead: number; appuntamenti: number; contratti: number;
+      }>;
+      const byKey = new Map(rows.map((r) => [r.mese_key, r]));
+      return Array.from({ length: 12 }, (_, index) => {
         const date = new Date();
         date.setMonth(date.getMonth() - (11 - index));
         date.setDate(1);
         date.setHours(0, 0, 0, 0);
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
         const monthLabel = date.toLocaleDateString("it-IT", { month: "short" }).replace(".", "");
+        const row = byKey.get(key);
         return {
           key,
           mese: `${monthLabel} '${String(date.getFullYear()).slice(-2)}`,
-          lead: 0,
-          appuntamenti: 0,
-          contratti: 0,
+          lead: safeNumber(row?.lead),
+          appuntamenti: safeNumber(row?.appuntamenti),
+          contratti: safeNumber(row?.contratti),
         };
       });
-      const byKey = new Map(months.map((m) => [m.key, m]));
-
-      const accumulate = (
-        rows: Array<{ created_at?: string | null; appointment_date?: string | null; updated_at?: string | null }> | null,
-        field: "lead" | "appuntamenti" | "contratti",
-      ) => {
-        (rows || []).forEach((row) => {
-          const raw = row.created_at ?? row.appointment_date ?? row.updated_at;
-          if (!raw) return;
-          const date = new Date(raw);
-          if (Number.isNaN(date.getTime())) return;
-          const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-          const month = byKey.get(key);
-          if (!month) return;
-          month[field] += 1;
-        });
-      };
-
-      accumulate(leadsRes.data ?? null, "lead");
-      accumulate(apptsRes.data ?? null, "appuntamenti");
-      accumulate(contractsRes.data ?? null, "contratti");
-      return months;
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
