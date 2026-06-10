@@ -28,6 +28,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import {
   TrendingUp, DollarSign, Tag, Pencil, Plus, Trash2,
@@ -666,6 +667,7 @@ function NewOverrideDialog({
 
 function DeleteOverrideButton({ id }: { id: string }) {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const mut = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("ai_pricing_overrides" as never).delete().eq("id", id);
@@ -681,7 +683,7 @@ function DeleteOverrideButton({ id }: { id: string }) {
     <Button
       size="sm"
       variant="ghost"
-      onClick={() => { if (confirm("Eliminare questa offerta?")) mut.mutate(); }}
+      onClick={async () => { if (await confirm({ title: "Eliminare questa offerta?", confirmLabel: "Elimina", variant: "destructive" })) mut.mutate(); }}
       disabled={mut.isPending}
     >
       <Trash2 className="h-4 w-4 text-rose-600" />

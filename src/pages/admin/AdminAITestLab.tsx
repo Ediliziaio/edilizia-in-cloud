@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import {
   Coins, Zap, Star, FlaskConical, TrendingUp, RefreshCw, Brain, Database,
@@ -790,6 +791,7 @@ function SmokeTestButton({ onComplete }: { onComplete?: () => void }) {
  * Operazione una-tantum / re-ingest dopo update del file MEGA_CERVELLO.
  */
 function KbIngestButton() {
+  const confirm = useConfirm();
   const [stats, setStats] = useState<{
     total_chunks?: number;
     inserted?: number;
@@ -819,10 +821,12 @@ function KbIngestButton() {
     },
   });
 
-  const handleIngest = () => {
-    const confirmed = window.confirm(
-      "Reimportare MEGA_CERVELLO? L'operazione sostituisce i chunk esistenti, puo durare diversi minuti e va lanciata solo dopo aver aggiornato il file sorgente."
-    );
+  const handleIngest = async () => {
+    const confirmed = await confirm({
+      title: "Reimportare MEGA_CERVELLO?",
+      description: "L'operazione sostituisce i chunk esistenti, puo durare diversi minuti e va lanciata solo dopo aver aggiornato il file sorgente.",
+      confirmLabel: "Reimporta",
+    });
     if (!confirmed) return;
     ingestMutation.mutate();
   };

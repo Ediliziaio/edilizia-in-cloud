@@ -12,9 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export function TierMaterialsTab() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [materialDialog, setMaterialDialog] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<any>(null);
   const [form, setForm] = useState({ name: "", description: "", type: "banner", file_url: "", thumbnail_url: "", min_tier: "bronze", sort_order: 0 });
@@ -145,8 +147,8 @@ export function TierMaterialsTab() {
                         <Button variant="ghost" size="icon" onClick={() => openEdit(m)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => {
-                          if (confirm("Eliminare questo materiale?")) deleteMaterial.mutate(m.id);
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={async () => {
+                          if (await confirm({ title: "Eliminare questo materiale?", confirmLabel: "Elimina", variant: "destructive" })) deleteMaterial.mutate(m.id);
                         }}>
                           <Trash2 className="h-4 w-4" />
                         </Button>

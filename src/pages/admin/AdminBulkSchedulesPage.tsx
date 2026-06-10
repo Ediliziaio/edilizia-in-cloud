@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   CalendarClock, Building2, Users, MessageSquare, Pause, Play, Trash2, Activity, AlertCircle, CheckCircle,
 } from "lucide-react";
@@ -65,6 +66,7 @@ interface CompanyLite { id: string; name: string }
 
 export default function AdminBulkSchedulesPage() {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const [filterCompany, setFilterCompany] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("published");
 
@@ -279,8 +281,13 @@ export default function AdminBulkSchedulesPage() {
                       <Button
                         size="icon" variant="ghost" className="h-7 w-7 text-rose-600"
                         title="Elimina"
-                        onClick={() => {
-                          if (confirm(`Eliminare "${f.name}"? L'azione è irreversibile.`)) {
+                        onClick={async () => {
+                          if (await confirm({
+                            title: `Eliminare "${f.name}"?`,
+                            description: "L'azione è irreversibile.",
+                            confirmLabel: "Elimina",
+                            variant: "destructive",
+                          })) {
                             deleteMut.mutate(f.id);
                           }
                         }}

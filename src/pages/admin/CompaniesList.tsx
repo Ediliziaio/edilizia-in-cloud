@@ -41,6 +41,7 @@ import { CompanySegmentFilters } from "@/components/admin/company/CompanySegment
 import { EMPTY_FILTERS, applyFiltersToQuery, countActiveFilters } from "@/hooks/superadmin/useCompanyFilters";
 import { getCompanyMonthlyRevenue, isRevenueEligibleCompany, getAdminRevenueState, type AdminRevenueState } from "@/lib/adminRevenue";
 import { AdminHeroHeader } from "@/components/admin/AdminHeroHeader";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 
 const TrialBadge = React.forwardRef<HTMLDivElement, { company: { status: string; trial_ends_at: string | null; created_at: string } }>(
@@ -171,6 +172,7 @@ export default function CompaniesList() {
   const { impersonateCompany, profile, role, company, user } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const confirm = useConfirm();
 
   // URL-derived filter state
   const statusFilter = searchParams.get("status") || "all";
@@ -967,7 +969,11 @@ export default function CompaniesList() {
       });
       return;
     }
-    const confirmed = window.confirm(`Stai per accedere come ${companyName}. Continua solo se devi fare assistenza o verifica operativa.`);
+    const confirmed = await confirm({
+      title: `Stai per accedere come ${companyName}`,
+      description: "Continua solo se devi fare assistenza o verifica operativa.",
+      confirmLabel: "Accedi",
+    });
     if (!confirmed) return;
     const impToken = await impersonateCompany(companyId, permissions);
     if (impToken) {

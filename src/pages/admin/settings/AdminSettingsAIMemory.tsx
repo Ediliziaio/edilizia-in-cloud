@@ -21,6 +21,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Brain, RefreshCw, Pencil, Trash2, Sparkles, Calendar, Tag, Bot, MessageSquare,
   Building2,
@@ -61,6 +62,7 @@ const SOURCE_LABELS: Record<string, { label: string; color: string }> = {
 
 export default function AdminSettingsAIMemory() {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
   const [editingFact, setEditingFact] = useState<BrainFact | null>(null);
   const [factSearch, setFactSearch] = useState("");
@@ -135,10 +137,12 @@ export default function AdminSettingsAIMemory() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const handleGlobalExtraction = () => {
-    const confirmed = window.confirm(
-      "Avviare l'estrazione globale della memoria Silvio su tutte le aziende? Operazione costosa: puo generare chiamate AI, durare diversi minuti e aggiornare fatti usati nei prompt."
-    );
+  const handleGlobalExtraction = async () => {
+    const confirmed = await confirm({
+      title: "Avviare l'estrazione globale della memoria Silvio su tutte le aziende?",
+      description: "Operazione costosa: puo generare chiamate AI, durare diversi minuti e aggiornare fatti usati nei prompt.",
+      confirmLabel: "Avvia",
+    });
     if (!confirmed) return;
     extractMut.mutate();
   };
@@ -277,7 +281,7 @@ export default function AdminSettingsAIMemory() {
                           </Button>
                           <Button
                             size="icon" variant="ghost" className="h-7 w-7"
-                            onClick={() => { if (confirm(`Eliminare "${f.fact_key}"?`)) deleteFactMut.mutate(f.id); }}
+                            onClick={async () => { if (await confirm({ title: `Eliminare "${f.fact_key}"?`, confirmLabel: "Elimina", variant: "destructive" })) deleteFactMut.mutate(f.id); }}
                           >
                             <Trash2 className="h-3.5 w-3.5 text-rose-600" />
                           </Button>

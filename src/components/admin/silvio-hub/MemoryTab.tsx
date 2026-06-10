@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Brain, Pencil, Plus, Save, Trash2, XCircle } from "lucide-react";
 
 interface PersonaOption {
@@ -312,6 +313,7 @@ function MemoryCard({
   onUpdate: (content: string) => void;
   onDelete: () => void;
 }) {
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(memory.content);
   const persona = personas.find((p) => p.persona_key === memory.persona_key);
@@ -406,8 +408,8 @@ function MemoryCard({
                     size="sm"
                     variant="ghost"
                     className="h-7 w-7 p-0 text-rose-600 hover:text-rose-700"
-                    onClick={() => {
-                      if (confirm("Eliminare questa memoria?")) onDelete();
+                    onClick={async () => {
+                      if (await confirm({ title: "Eliminare questa memoria?", confirmLabel: "Elimina", variant: "destructive" })) onDelete();
                     }}
                     title="Elimina"
                   >

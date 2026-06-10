@@ -132,6 +132,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { formatError } from "@/lib/errors";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -902,6 +903,7 @@ function HistoryList({
 // ── Main panel ──────────────────────────────────────────────────────────────
 export function EmailTemplatesPanel() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const templatesQuery = useEmailTemplates();
   const upsert = useUpsertEmailTemplate();
   const del = useDeleteEmailTemplate();
@@ -1355,21 +1357,27 @@ export function EmailTemplatesPanel() {
   };
 
   /** Guard quando si cambia template con modifiche non salvate. */
-  const handleSelectKey = (key: string) => {
+  const handleSelectKey = async (key: string) => {
     if (dirty) {
-      const ok = window.confirm(
-        "Ci sono modifiche non salvate. Cambiare template le perderà. Continuare?",
-      );
+      const ok = await confirm({
+        title: "Ci sono modifiche non salvate",
+        description: "Cambiare template le perderà. Continuare?",
+        confirmLabel: "Continua",
+        variant: "destructive",
+      });
       if (!ok) return;
     }
     setSelectedKey(key);
   };
 
-  const handleSelectVariant = (variant: string) => {
+  const handleSelectVariant = async (variant: string) => {
     if (dirty) {
-      const ok = window.confirm(
-        "Ci sono modifiche non salvate. Cambiare variante le perderà. Continuare?",
-      );
+      const ok = await confirm({
+        title: "Ci sono modifiche non salvate",
+        description: "Cambiare variante le perderà. Continuare?",
+        confirmLabel: "Continua",
+        variant: "destructive",
+      });
       if (!ok) return;
     }
     setSelectedVariant(variant);

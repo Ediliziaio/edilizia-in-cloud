@@ -22,6 +22,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Play, Plus, CheckCircle2, XCircle, Clock, AlertCircle, Trash2, Pencil, RefreshCw,
 } from "lucide-react";
@@ -51,6 +52,7 @@ const STATUS_CFG: Record<QaPair["last_status"], { label: string; color: string; 
 
 export function KbQaTestsTab() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [editPair, setEditPair] = useState<QaPair | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [running, setRunning] = useState(false);
@@ -221,8 +223,12 @@ export function KbQaTestsTab() {
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7 text-destructive"
-                        onClick={() => {
-                          if (window.confirm(`Eliminare il Q&A "${p.question.slice(0, 50)}…"?`)) {
+                        onClick={async () => {
+                          if (await confirm({
+                            title: `Eliminare il Q&A "${p.question.slice(0, 50)}…"?`,
+                            confirmLabel: "Elimina",
+                            variant: "destructive",
+                          })) {
                             deleteMutation.mutate(p.id);
                           }
                         }}

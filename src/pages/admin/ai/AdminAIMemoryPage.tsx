@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAIHubNested } from "@/components/admin/ai-shared/AIHubNestedContext";
 import {
   Brain, Plus, Search, Trash2, Edit2, EyeOff, Eye, Sparkles, Building2,
@@ -89,6 +90,7 @@ const EMPTY_FORM: FormData = {
 
 export default function AdminAIMemoryPage() {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { isNested } = useAIHubNested();
   const [filterCompany, setFilterCompany] = useState<string>("all");
   const [filterPersona, setFilterPersona] = useState<string>("all");
@@ -501,8 +503,13 @@ export default function AdminAIMemoryPage() {
                       size="icon"
                       variant="ghost"
                       className="h-7 w-7 text-rose-600 hover:text-rose-700"
-                      onClick={() => {
-                        if (confirm("Eliminare definitivamente questa memoria? L'azione è irreversibile.")) {
+                      onClick={async () => {
+                        if (await confirm({
+                          title: "Eliminare definitivamente questa memoria?",
+                          description: "L'azione è irreversibile.",
+                          confirmLabel: "Elimina",
+                          variant: "destructive",
+                        })) {
                           deleteMut.mutate(m.id);
                         }
                       }}

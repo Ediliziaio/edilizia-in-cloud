@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { Clock, RefreshCw } from "lucide-react";
@@ -19,6 +20,7 @@ import type { QueueAction } from "./shared";
 
 export function QueueTab() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const { data, isLoading, refetch, isFetching } = useQuery({
@@ -163,11 +165,12 @@ export function QueueTab() {
                               size="sm"
                               variant="ghost"
                               className="h-7 text-xs"
-                              onClick={() => {
+                              onClick={async () => {
                                 if (
-                                  window.confirm(
-                                    "Rimettere in coda questa azione fallita?",
-                                  )
+                                  await confirm({
+                                    title: "Rimettere in coda questa azione fallita?",
+                                    confirmLabel: "Riprova",
+                                  })
                                 )
                                   retryMutation.mutate(a.id);
                               }}
@@ -182,11 +185,13 @@ export function QueueTab() {
                               size="sm"
                               variant="ghost"
                               className="h-7 text-xs text-rose-600"
-                              onClick={() => {
+                              onClick={async () => {
                                 if (
-                                  window.confirm(
-                                    "Cancellare questa azione dalla coda Silvio?",
-                                  )
+                                  await confirm({
+                                    title: "Cancellare questa azione dalla coda Silvio?",
+                                    confirmLabel: "Cancella",
+                                    variant: "destructive",
+                                  })
                                 )
                                   cancelMutation.mutate(a.id);
                               }}

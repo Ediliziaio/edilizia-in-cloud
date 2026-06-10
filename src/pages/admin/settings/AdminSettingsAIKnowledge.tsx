@@ -26,6 +26,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   BookOpen, Plus, RefreshCw, Pencil, Trash2, Sparkles, FileText, Search,
 } from "lucide-react";
@@ -107,6 +108,7 @@ function normalizeCategory(category: string | null | undefined): string {
 
 export default function AdminSettingsAIKnowledge() {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<BrainDoc | null>(null);
   const [creating, setCreating] = useState(false);
@@ -279,7 +281,7 @@ export default function AdminSettingsAIKnowledge() {
                         </Button>
                         <Button
                           size="icon" variant="ghost" className="h-7 w-7"
-                          onClick={() => { if (confirm(`Eliminare "${doc.title}"?`)) deleteMut.mutate(doc.id); }}
+                          onClick={async () => { if (await confirm({ title: `Eliminare "${doc.title}"?`, confirmLabel: "Elimina", variant: "destructive" })) deleteMut.mutate(doc.id); }}
                           title="Elimina"
                         >
                           <Trash2 className="h-3.5 w-3.5 text-rose-600" />

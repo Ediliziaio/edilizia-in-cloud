@@ -25,6 +25,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ShieldCheck, Check, X, Pencil, Clock, ChevronsRight, Inbox } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -277,6 +278,7 @@ function ApprovalCard({
   onEdit: () => void;
   isLoading: boolean;
 }) {
+  const confirm = useConfirm();
   const expiresIn = formatDistanceToNow(new Date(approval.expires_at), {
     locale: it,
     addSuffix: true,
@@ -325,8 +327,12 @@ function ApprovalCard({
           <div className="flex gap-2 flex-wrap">
             <Button
               size="sm"
-              onClick={() => {
-                if (window.confirm("Approvare questa azione e metterla in coda di esecuzione?")) onApprove();
+              onClick={async () => {
+                if (await confirm({
+                  title: "Approvare questa azione?",
+                  description: "Verrà messa in coda di esecuzione.",
+                  confirmLabel: "Approva",
+                })) onApprove();
               }}
               disabled={isLoading}
               className="bg-emerald-600 hover:bg-emerald-700"
@@ -341,8 +347,13 @@ function ApprovalCard({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => {
-                if (window.confirm("Rifiutare questa azione? Non verra eseguita.")) onReject();
+              onClick={async () => {
+                if (await confirm({
+                  title: "Rifiutare questa azione?",
+                  description: "Non verra eseguita.",
+                  confirmLabel: "Rifiuta",
+                  variant: "destructive",
+                })) onReject();
               }}
               disabled={isLoading}
               className="border-rose-300 text-rose-700 hover:bg-rose-50"
