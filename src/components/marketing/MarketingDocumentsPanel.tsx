@@ -83,9 +83,9 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["marketing_documents"] });
-      toast.success("Documento caricato");
     },
-    onError: (e: any) => toast.error(e.message || "Errore upload"),
+    // Nessun toast per-file: il riepilogo (successi/fallimenti) lo mostra
+    // handleFileChange dopo l'upload sequenziale.
   });
 
   const getStoragePath = (fileUrl: string) => {
@@ -116,11 +116,27 @@ export function MarketingDocumentsPanel({ contactId, opportunityId, companyId, l
     onError: (e: any) => toast.error(e.message),
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
-    Array.from(files).forEach((file) => uploadMutation.mutate(file));
+    if (!files?.length) return;
+    const list = Array.from(files);
     e.target.value = "";
+    // Upload SEQUENZIALE con conteggio: prima erano N mutate() in parallelo →
+    // i fallimenti dei primi file venivano persi (un solo toast vinceva, e
+    // isPending rifletteva solo l'ultima mutation). Ora ogni esito è contato.
+    let ok = 0;
+    let fail = 0;
+    for (const file of list) {
+      try {
+        await uploadMutation.mutateAsync(file);
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
+    if (fail === 0) toast.success(ok === 1 ? "Documento caricato" : `${ok} documenti caricati`);
+    else if (ok === 0) toast.error(`Caricamento non riuscito (${fail} file)`);
+    else toast.warning(`${ok} caricati, ${fail} non riusciti`);
   };
 
   const textSize = compact ? "text-[11px]" : "text-sm";

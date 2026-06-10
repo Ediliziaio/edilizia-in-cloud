@@ -1014,6 +1014,8 @@ serve(async (req: Request) => {
       console.log(`[silvio-chat] AI Test Lab: tools disabilitati per ${effectiveModel} (legacy)`);
     }
 
+    // Firme delle tool-call per iterazione (per il loop-detection sotto).
+    const iterationSigs: string[] = [];
     while (!finalContent && iteration < MAX_TOOL_ITERATIONS) {
       iteration++;
       const idempotencyKey = `${idempotencyBase}_iter${iteration}`;
@@ -1071,12 +1073,16 @@ serve(async (req: Request) => {
         // se le ultime 3 iterazioni hanno la stessa firma di tool calls, l'LLM
         // sta loopando e va bloccato. La firma è "nome_tool_1|nome_tool_2|...".
         const currentSig = toolCalls.map((t) => t.function?.name).filter(Boolean).sort().join("|");
-        const recentSigs = toolCallsLog.slice(-2).map((log) => log.name).join("|");
-        if (currentSig && currentSig === recentSigs && iteration > 3) {
+        // Loop detection coerente: confronta la firma di QUESTA iterazione con le
+        // firme delle iterazioni precedenti (non con i log piatti dei singoli
+        // tool). 3 iterazioni consecutive con la stessa firma = loop → stop.
+        const last2 = iterationSigs.slice(-2);
+        if (currentSig && iteration > 3 && last2.length === 2 && last2.every((s) => s === currentSig)) {
           console.warn(`[silvio-chat] loop detected at iteration ${iteration} sig=${currentSig}, aborting`);
           finalContent = "Sto avendo difficoltà a completare la richiesta — sembra che stia ripetendo la stessa operazione. Riformula la domanda in modo più specifico, o dividila in passi più semplici.";
           break;
         }
+        iterationSigs.push(currentSig);
         // L'LLM vuole chiamare uno o più tool
         // Aggiungi assistant message con tool_calls a messages[]
         messages.push({
@@ -1333,7 +1339,12 @@ serve(async (req: Request) => {
         company_id: companyId,
         user_id: userId,
         persona_key: PERSONA_KEY,
-        trigger_type: "chat_user_request",
+        // Il CHECK su silvio_decision_log ammette solo: alert_proattivo,
+        // user_request, scheduled_review, playbook_orchestrator, cron_briefing,
+        // tool_propose_action. "chat_user_request" NON è valido → l'insert
+        // falliva in silenzio da mesi (0 righe chat in 90gg). La fonte resta
+        // distinguibile via trigger_source_type='internal_chat_message'.
+        trigger_type: "user_request",
         trigger_source_type: "internal_chat_message",
         trigger_source_id: insertedMsg?.id ?? null,
         trigger_metadata: {
