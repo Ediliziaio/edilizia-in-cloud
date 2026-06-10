@@ -25,7 +25,14 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { CHART_RULES } from "../_shared/chartRules.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
-import { getToolsForChannel, toolsToOpenAISpec, type ToolContext } from "../_shared/silvioTools.ts";
+import {
+  domainsForClassification,
+  getToolsForChannel,
+  TOOL_CONTRACT_LEGEND,
+  toolsToOpenAISpec,
+  type ToolContext,
+  type ToolDomain,
+} from "../_shared/silvioTools.ts";
 import { executeToolWithRouting } from "../_shared/silvioToolExecution.ts";
 import { buildEnrichedSystemPrompt } from "../_shared/promptBuilder.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
@@ -655,7 +662,13 @@ serve(async (req: Request) => {
       // Passa il flag cosi STRUCTURED_OUTPUT_SYSTEM_RULES non finisce nel prompt
       disableStructuredOutput: isWeakForcedModel,
     });
-    const enrichedSystemPrompt = builtPrompt.systemPrompt + CHART_RULES;
+    // Token-opt (audit 2026-06): system in DUE blocchi per il prompt caching
+    // Anthropic. Statico (preambolo+persona+playbook+CHART_RULES+legenda tool):
+    // byte-identico tra messaggi → cache-hit. Dinamico (data, memoria, RAG):
+    // dopo il breakpoint. aiRouter mette i breakpoint su Anthropic e fonde i
+    // due blocchi in un'unica stringa sugli altri provider.
+    const staticSystemPrompt = builtPrompt.systemPromptStatic + CHART_RULES + TOOL_CONTRACT_LEGEND;
+    const dynamicSystemPrompt = builtPrompt.systemPromptDynamic;
     const preamboloVersion = builtPrompt.preamboloVersion;
     const useStructured = builtPrompt.useStructured;
     if (!preamboloVersion) {
@@ -673,13 +686,57 @@ serve(async (req: Request) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const history: Array<{ sender_id: string; content: string }> = (historyRaw ?? []).reverse() as any;
 
+    // ── 6.5) Classificazione query (MP-09 + token-opt) ──────────────────
+    // Una sola classifyQuery riusata per DUE scopi:
+    //   a) filtro tool per dominio (sotto) — riduce ~185 tool a ~30-90 mirati
+    //      (≈ -20K token input per iterazione del loop);
+    //   b) auto-delegate al Council se multi-area (sezione 8.5).
+    // Le euristiche regex dentro classifyQuery coprono i casi comuni senza LLM.
+    // Kill-switch: SILVIO_TOOL_DOMAIN_FILTER_DISABLED=true → catalogo completo.
+    const TOOL_FILTER_ENABLED = Deno.env.get("SILVIO_TOOL_DOMAIN_FILTER_DISABLED") !== "true";
+    const ENABLE_COUNCIL_AUTO = Deno.env.get("ENABLE_COUNCIL_AUTO_DELEGATE") !== "false";
+    let classification: QueryClassification | null = null;
+    if (
+      (TOOL_FILTER_ENABLED || ENABLE_COUNCIL_AUTO) &&
+      userMessage.length >= 25 &&  // skip query troppo brevi (probabilmente conversational)
+      attachments.length === 0     // skip multi-modal (immagini/pdf): troppo costoso classificare
+    ) {
+      try {
+        classification = await classifyQuery({
+          supabase: supabaseAdmin,
+          query: userMessage,
+          currentPersona: PERSONA_KEY,
+          companyId,
+          userId,
+        });
+      } catch (e) {
+        // classifyQuery ha già il suo fallback interno; questo è solo belt-and-suspenders.
+        console.warn("[silvio-chat] classifyQuery failed (no tool filter):", e instanceof Error ? e.message : e);
+      }
+    }
+
     // ── 7) Ottieni tool disponibili per il ruolo ────────────────────────
+    // Filtro per dominio SOLO con classificazione affidabile. null = catalogo
+    // completo (query brevi/ambigue, allegati, aree strategic/tech, classifier
+    // in fallback). I domini core (kpi, knowledge, meta, ai, ...) sono sempre
+    // inclusi per non azzoppare le domande trasversali.
+    const toolDomains: ToolDomain[] | null = TOOL_FILTER_ENABLED && classification
+      ? domainsForClassification({
+        primaryArea: classification.primary_area,
+        involvedAreas: classification.involved_areas,
+      })
+      : null;
     const allowedTools = getToolsForChannel({
       channel: "internal_chat",
       role: primaryRole,
       personaKey: PERSONA_KEY,
+      domains: toolDomains,
     });
     const toolSchemas = toolsToOpenAISpec(allowedTools);
+    // Log per misurare prima/dopo su ai_router_usage_log (prompt_tokens) + qui (char).
+    console.log(
+      `[silvio-chat] tool filter: ${toolDomains ? toolDomains.join(",") : "FULL"} → ${allowedTools.length} tool, ~${JSON.stringify(toolSchemas).length} char`,
+    );
 
     const toolCtx: ToolContext = {
       supabase: supabaseAdmin,
@@ -698,9 +755,12 @@ serve(async (req: Request) => {
     };
 
     // ── 8) Costruisci messages iniziali ─────────────────────────────────
+    // Due system consecutivi (statico cacheabile + dinamico): aiRouter li
+    // converte in breakpoint cache su Anthropic e li fonde sugli altri provider.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const messages: any[] = [
-      { role: "system", content: enrichedSystemPrompt },
+      { role: "system", content: staticSystemPrompt },
+      ...(dynamicSystemPrompt ? [{ role: "system", content: dynamicSystemPrompt }] : []),
       ...history.map((m) => ({
         role: m.sender_id === SILVIO_SENDER_ID ? "assistant" : "user",
         // Token guard: messaggi history molto lunghi (doc incollati, risposte
@@ -888,21 +948,10 @@ serve(async (req: Request) => {
       synthesis_used?: boolean;
     } | null = null;
     let councilSynthesis: string | null = null;
-    const ENABLE_COUNCIL_AUTO = Deno.env.get("ENABLE_COUNCIL_AUTO_DELEGATE") !== "false";
-    if (
-      ENABLE_COUNCIL_AUTO &&
-      typeof userContent === "string" && // skip multi-modal (immagini/pdf): troppo costoso classificare
-      userMessage.length >= 25 &&         // skip query troppo brevi (probabilmente conversational)
-      attachments.length === 0
-    ) {
+    // Token-opt: riusa la classification calcolata in 6.5 (stessi gate:
+    // lunghezza >= 25, niente allegati → userContent è sempre string qui).
+    if (ENABLE_COUNCIL_AUTO && classification) {
       try {
-        const classification: QueryClassification = await classifyQuery({
-          supabase: supabaseAdmin,
-          query: userMessage,
-          currentPersona: PERSONA_KEY,
-          companyId,
-          userId,
-        });
         if (classification.is_multi_area && classification.estimated_complexity !== "simple") {
           console.log(
             `[silvio-chat] MP-09 council auto-delegate: ${classification.involved_personas.length} personas, complexity=${classification.estimated_complexity}`,
@@ -1072,7 +1121,8 @@ serve(async (req: Request) => {
         // Anti-loop guard (necessario dopo aver alzato MAX_TOOL_ITERATIONS a 12):
         // se le ultime 3 iterazioni hanno la stessa firma di tool calls, l'LLM
         // sta loopando e va bloccato. La firma è "nome_tool_1|nome_tool_2|...".
-        const currentSig = toolCalls.map((t) => t.function?.name).filter(Boolean).sort().join("|");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const currentSig = toolCalls.map((t: any) => t.function?.name).filter(Boolean).sort().join("|");
         // Loop detection coerente: confronta la firma di QUESTA iterazione con le
         // firme delle iterazioni precedenti (non con i log piatti dei singoli
         // tool). 3 iterazioni consecutive con la stessa firma = loop → stop.

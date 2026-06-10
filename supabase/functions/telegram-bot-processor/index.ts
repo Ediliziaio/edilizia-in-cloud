@@ -23,7 +23,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
-import { getToolsForChannel, toolsToOpenAISpec } from "../_shared/silvioTools.ts";
+import { getToolsForChannel, TOOL_CONTRACT_LEGEND, toolsToOpenAISpec } from "../_shared/silvioTools.ts";
 import { executeToolsParallel } from "../_shared/silvioToolExecution.ts";
 // 🛡️ Anti chain-of-thought leak — strip tool names + opener narrativi prima
 // di rispondere su Telegram.
@@ -260,7 +260,8 @@ Deno.serve(async (req) => {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const messages: any[] = [
-    { role: "system", content: persona.system_prompt },
+    // Token-opt: legenda dei tag compatti [contratto:...|rischio:...] nelle tool description.
+    { role: "system", content: toolsSpec ? persona.system_prompt + TOOL_CONTRACT_LEGEND : persona.system_prompt },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ...reversedHistory.map((h: any) => ({
       role: h.direction === "inbound" ? "user" : "assistant",

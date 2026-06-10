@@ -465,28 +465,63 @@ async function callOpenRouter(
     ?? (isReasoningModel ? 6000 : 2000);
 
   // ── Prompt caching Anthropic ──
-  // Il system prompt è grande e 100% statico per persona (preambolo + playbook +
-  // regole). Su Anthropic aggiungiamo un breakpoint cache_control "ephemeral" sul
-  // system → ~90% di sconto sugli input token in cache, enorme nei loop-tool
-  // (silvio fa fino a 12 iterazioni col solito system). Solo Anthropic: gli altri
-  // provider rifiutano il content-array, quindi restano col system come stringa.
+  // Il system prompt è grande e in larga parte statico per persona (preambolo +
+  // playbook + regole). Su Anthropic aggiungiamo breakpoint cache_control
+  // "ephemeral" sul system → ~90% di sconto sugli input token in cache, enorme
+  // nei loop-tool (silvio fa fino a 12 iterazioni col solito system).
+  //
+  // Token-opt (audit 2026-06): il caller può inviare PIÙ messaggi system
+  // consecutivi in testa (es. silvio-chat: [statico, dinamico]). Su Anthropic
+  // ogni blocco riceve il suo breakpoint (max 4): il blocco statico resta in
+  // cache anche TRA messaggi diversi della stessa conversazione, mentre prima
+  // il RAG/memoria dinamico in coda bustava la cache a ogni messaggio. Sugli
+  // altri provider (che rifiutano il content-array e/o i system multipli) i
+  // blocchi vengono fusi in un'unica stringa system → comportamento identico.
   // NON muta l'array in ingresso (riusato dal loop di fallback su altri modelli).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let finalMessages: any[] = messages;
-  const sys0 = messages[0];
   // Kill-switch: imposta AI_PROMPT_CACHE_DISABLED=true per disattivare al volo
   // (senza redeploy) se un provider dovesse rifiutare il formato content-array.
   const promptCacheEnabled = Deno.env.get("AI_PROMPT_CACHE_DISABLED") !== "true";
+  let leadingSystemCount = 0;
+  while (
+    leadingSystemCount < messages.length &&
+    messages[leadingSystemCount]?.role === "system" &&
+    typeof messages[leadingSystemCount]?.content === "string"
+  ) {
+    leadingSystemCount++;
+  }
+  const totalSystemLen = messages
+    .slice(0, leadingSystemCount)
+    .reduce((acc, m) => acc + (m.content as string).length, 0);
   if (
     promptCacheEnabled &&
     model.startsWith("anthropic/") &&
-    sys0?.role === "system" &&
-    typeof sys0.content === "string" &&
-    sys0.content.length > 800
+    leadingSystemCount >= 1 &&
+    totalSystemLen > 800
   ) {
+    // Max 4 breakpoint cache_control per richiesta Anthropic: i system oltre
+    // il 4° vengono fusi nel 4° (caso teorico, oggi i caller ne mandano 1-2).
+    const sysMsgs = messages.slice(0, leadingSystemCount);
+    const capped = sysMsgs.length > 4
+      ? [...sysMsgs.slice(0, 3), { role: "system", content: sysMsgs.slice(3).map((m) => m.content).join("\n\n") }]
+      : sysMsgs;
     finalMessages = [
-      { role: "system", content: [{ type: "text", text: sys0.content, cache_control: { type: "ephemeral" } }] },
-      ...messages.slice(1),
+      ...capped.map((m) => ({
+        role: "system",
+        content: [{ type: "text", text: m.content, cache_control: { type: "ephemeral" } }],
+      })),
+      ...messages.slice(leadingSystemCount),
+    ];
+  } else if (leadingSystemCount > 1) {
+    // Provider non-Anthropic (o cache disabilitata): un solo system string,
+    // formato universalmente accettato.
+    finalMessages = [
+      {
+        role: "system",
+        content: messages.slice(0, leadingSystemCount).map((m) => m.content).join("\n\n"),
+      },
+      ...messages.slice(leadingSystemCount),
     ];
   }
 

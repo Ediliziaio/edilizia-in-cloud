@@ -67,7 +67,15 @@ export type ToolDomain =
   | "generative"
   | "knowledge"
   | "titolare"
-  | "meta";
+  | "meta"
+  // Valori già usati nel catalogo (MP-SILVIO-ACTIONS/TWINS/COPILOT) ma assenti
+  // dal tipo: aggiunti per sanare l'incoerenza e renderli filtrabili.
+  | "sales"
+  | "finance"
+  | "warehouse"
+  | "operations"
+  | "support"
+  | "marketing";
 
 export interface ToolContext {
   supabase: SupabaseClient;
@@ -179,19 +187,38 @@ const DOMAIN_RESULT_CONTRACTS: Partial<Record<ToolDomain, string>> = {
   knowledge: "Usa come supporto, non sostituisce dati aziendali recenti; cita limiti e freschezza della fonte.",
 };
 
-function getRiskContract(risk: RiskLevel | undefined): string {
-  if (risk === "red") return "Azione red: non presentarla come eseguita; serve conferma/revisione umana.";
-  if (risk === "yellow") return "Azione yellow: se non pre-approvata, prepara proposta/bozza e chiedi conferma.";
-  return "Azione safe: puo leggere/calcolare; se mancano dati, non inventare.";
-}
+/**
+ * Token-opt: legenda UNICA dei contratti/rischi, da appendere UNA volta al
+ * system prompt dei caller che usano `toolsToOpenAISpec`. Le description dei
+ * tool portano solo un tag compatto `[contratto:<dominio>|rischio:<livello>]`
+ * (~25 char) invece di ~200 char ripetuti su ~185 tool (≈ -9K token/richiesta).
+ */
+export const TOOL_CONTRACT_LEGEND = [
+  "",
+  "## LEGENDA TOOL (tag compatti nelle description)",
+  "Ogni tool ha un tag `[contratto:<dominio>|rischio:<livello>]` (oppure `Contratto: ...` esplicito + `[rischio:...]`).",
+  "Contratto per dominio = come interpretare l'output del tool:",
+  ...Object.entries(DOMAIN_RESULT_CONTRACTS).map(([d, c]) => `- ${d}: ${c}`),
+  "- default: sintetizza dati in decisione operativa con perimetro, limiti e prossima azione.",
+  "Rischio:",
+  "- safe: puo leggere/calcolare; se mancano dati, non inventare.",
+  "- yellow: se non pre-approvata, prepara proposta/bozza e chiedi conferma.",
+  "- red: non presentarla come eseguita; serve conferma/revisione umana.",
+].join("\n");
 
 function enrichToolSchemaForLLM(tool: SilvioTool) {
   const schema = tool.schema ?? {};
   const originalDescription = String(schema?.function?.description ?? schema?.description ?? "").trim();
+  const risk = tool.riskLevel ?? "safe";
+  // Dominio con contratto dedicato in legenda; altrimenti "default".
+  const contractKey = tool.domain && DOMAIN_RESULT_CONTRACTS[tool.domain] ? tool.domain : "default";
   const compactContract = [
     originalDescription,
-    `Contratto: ${tool.resultContract ?? DOMAIN_RESULT_CONTRACTS[tool.domain ?? "meta"] ?? "sintetizza dati in decisione operativa con perimetro, limiti e prossima azione."}`,
-    getRiskContract(tool.riskLevel),
+    // I resultContract custom sono unici per tool (info non deduplicabile):
+    // restano inline. Per tutti gli altri solo il tag, spiegato in TOOL_CONTRACT_LEGEND.
+    tool.resultContract
+      ? `Contratto: ${tool.resultContract}\n[rischio:${risk}]`
+      : `[contratto:${contractKey}|rischio:${risk}]`,
   ].filter(Boolean).join("\n");
 
   if (schema?.function) {
@@ -5049,6 +5076,71 @@ export function getToolsForRole(role: string): SilvioTool[] {
 }
 
 /**
+ * Token-opt (audit 2026-06): domini SEMPRE inclusi quando si filtra per aree.
+ * Sono i tool cross-area (KPI overview, ricerca knowledge, memoria/AI, grafici,
+ * copilota app, calendario): senza di questi Silvio perde le domande trasversali.
+ */
+export const CORE_TOOL_DOMAINS: ToolDomain[] = [
+  "ai",
+  "calendar",
+  "generative",
+  "knowledge",
+  "kpi",
+  "meta",
+  "support",
+  "titolare",
+];
+
+/**
+ * Mappa `primary_area`/`involved_areas` (output di classifyQuery, _shared/queryClassifier.ts)
+ * → domini tool da inviare al modello. `null` = nessun filtro (catalogo completo):
+ * usato per le aree intrinsecamente cross-ecosystem (strategic) o rare (tech).
+ *
+ * Mappa volutamente GENEROSA (vincolo prodotto: "potente al 100%"): meglio 60-90
+ * tool sicuri che 30 che perdono i casi cross-area.
+ */
+const AREA_TOOL_DOMAINS: Record<string, ToolDomain[] | null> = {
+  // crm incluso: pipeline/forecast (get_pipeline_forecast & co.) sono domain crm
+  // ma servono alle domande finance su target venduto/incassi futuri.
+  finance: ["anomalie", "banking", "crm", "fattura", "finance", "preventivi"],
+  fiscal: ["banking", "compliance", "fattura", "finance"],
+  operations: ["anomalie", "cantiere", "filiera", "operations", "warehouse"],
+  sales: ["cantiere", "crm", "email", "preventivi", "sales"],
+  marketing: ["crm", "email", "marketing", "sales"],
+  hr: ["compliance", "finance", "hr"],
+  compliance: ["cantiere", "compliance", "filiera", "hr"],
+  client: ["crm", "email", "fattura", "preventivi", "sales"],
+  tech: null,
+  strategic: null,
+};
+
+/**
+ * Converte la classificazione della query (primary_area + involved_areas) nel
+ * set di domini tool da passare a `getToolsForChannel({ domains })`.
+ *
+ * Ritorna `null` (= catalogo completo) quando:
+ *   - una delle aree coinvolte è cross-ecosystem (strategic/tech) o sconosciuta;
+ *   - è anche il fallback naturale: classifyQuery in errore ritorna primary_area
+ *     della persona corrente ("strategic" per Silvio) → nessun filtro.
+ *
+ * Output ordinato e deduplicato → lista tool deterministica (stessa
+ * classificazione = stessi byte nel body → prompt cache Anthropic riusabile).
+ */
+export function domainsForClassification(opts: {
+  primaryArea: string;
+  involvedAreas?: string[];
+}): ToolDomain[] | null {
+  const areas = new Set<string>([opts.primaryArea, ...(opts.involvedAreas ?? [])]);
+  const out = new Set<ToolDomain>(CORE_TOOL_DOMAINS);
+  for (const area of areas) {
+    const mapped = AREA_TOOL_DOMAINS[area];
+    if (mapped === null || mapped === undefined) return null;
+    for (const d of mapped) out.add(d);
+  }
+  return [...out].sort();
+}
+
+/**
  * MP-AIE-01 v2 — filtra i tool per canale + role + persona + domain.
  * Funzione canonica usata da: silvio-chat, ai-orchestrator, whatsapp-ai-processor,
  * telegram-bot-processor, internal-agent-tools (voice).
@@ -5058,14 +5150,18 @@ export function getToolsForRole(role: string): SilvioTool[] {
  *   - allowedRoles vuoto/undefined o include "*" = disponibile per TUTTI i ruoli
  *   - allowedPersonas vuoto/undefined o include "*" = disponibile per TUTTE le personas
  *   - domain filter è opzionale (omettilo per ricevere tutti)
+ *   - domains (plurale) filtra in OR su un set di domini; i tool SENZA domain
+ *     dichiarato passano sempre (cross-area by definition). null/[] = no filtro.
  */
 export function getToolsForChannel(opts: {
   channel: Channel;
   role: string;
   personaKey?: string;
   domain?: ToolDomain;
+  domains?: ToolDomain[] | null;
 }): SilvioTool[] {
   const out: SilvioTool[] = [];
+  const domainSet = opts.domains && opts.domains.length > 0 ? new Set(opts.domains) : null;
   for (const tool of Object.values(SILVIO_TOOLS)) {
     // Channel filter
     if (tool.allowedChannels && tool.allowedChannels.length > 0) {
@@ -5079,8 +5175,10 @@ export function getToolsForChannel(opts: {
     if (opts.personaKey && tool.allowedPersonas && tool.allowedPersonas.length > 0) {
       if (!tool.allowedPersonas.includes(opts.personaKey) && !tool.allowedPersonas.includes("*")) continue;
     }
-    // Domain filter
+    // Domain filter (singolo, back-compat)
     if (opts.domain && tool.domain !== opts.domain) continue;
+    // Domain-set filter (token-opt): tool senza domain = sempre incluso
+    if (domainSet && tool.domain && !domainSet.has(tool.domain)) continue;
     out.push(tool);
   }
   return out;
