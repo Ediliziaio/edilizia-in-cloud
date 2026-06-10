@@ -87,6 +87,15 @@ export interface AiRouterCompleteOptions {
   estimatedCostEur?: number;
   /** Cambio USD→EUR. Default 0.92 (configurabile via env). */
   fxUsdToEur?: number;
+  /**
+   * Cache risposte (audit AI 2026-06) — SOLO per task deterministici
+   * (es. bank_categorize, fattura_classify): stesso input → stessa risposta.
+   * Se settato (>0) e companyId presente: lookup su ai_response_cache prima
+   * di chiamare il modello (hit = zero costo, zero addebito) e write-behind
+   * della risposta con TTL in giorni. Scoped per company. Best-effort:
+   * qualsiasi errore cache non blocca la chiamata normale.
+   */
+  cacheTtlDays?: number;
 }
 
 export interface AiRouterCompleteResult {
@@ -692,6 +701,12 @@ function extractJson(text: string): unknown | undefined {
  * Entry point principale: completa un task usando il router OpenRouter.
  * Tenta primary_model, poi fallback_models in ordine. Logga sempre.
  */
+/** SHA-256 hex di una stringa (per le chiavi della cache risposte). */
+async function sha256Hex(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export async function aiRouterComplete(
   opts: AiRouterCompleteOptions,
 ): Promise<AiRouterCompleteResult> {
@@ -702,6 +717,58 @@ export async function aiRouterComplete(
       opts.taskKey,
       [],
     );
+  }
+
+  // ── Cache risposte per task deterministici (opt-in, audit AI 2026-06) ──
+  // PRIMA di precheck credito/budget: un hit non costa nulla, quindi non
+  // deve nemmeno richiedere saldo disponibile.
+  let cacheInputHash: string | null = null;
+  if ((opts.cacheTtlDays ?? 0) > 0 && opts.companyId) {
+    try {
+      cacheInputHash = await sha256Hex(
+        `${opts.taskKey}|${JSON.stringify(opts.messages)}|${JSON.stringify(opts.responseFormat ?? null)}`,
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: hit } = await (opts.supabase as any)
+        .from("ai_response_cache")
+        .select("id, output_content, model_used, hits")
+        .eq("task_key", opts.taskKey)
+        .eq("company_id", opts.companyId)
+        .eq("input_hash", cacheInputHash)
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle();
+      if (hit?.output_content) {
+        // Contatore hit best-effort (fire-and-forget).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        void (opts.supabase as any)
+          .from("ai_response_cache")
+          .update({ hits: (hit.hits ?? 0) + 1 })
+          .eq("id", hit.id)
+          .then(() => undefined, () => undefined);
+        return {
+          content: hit.output_content,
+          rawResponse: { cached: true },
+          modelUsed: hit.model_used ?? "cache",
+          usedPrimary: true,
+          fallbackIndex: 0,
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          costUsd: 0,
+          costRealEur: 0,
+          costBilledEur: 0,
+          marginEur: 0,
+          durationMs: 0,
+          chargeSkipped: true,
+          prechargeReason: "cache_hit",
+        };
+      }
+    } catch (cacheErr) {
+      // Tabella assente (migration non applicata) o errore transitorio:
+      // procedi con la chiamata normale.
+      console.warn("[aiRouter] cache lookup skipped:", (cacheErr as Error)?.message ?? cacheErr);
+      cacheInputHash = null;
+    }
   }
 
   const baseConfig = await loadConfig(opts.supabase, opts.taskKey);
@@ -1059,6 +1126,28 @@ export async function aiRouterComplete(
           : null,
         responseExcerpt: typeof content === 'string' ? content : null,
       });
+
+      // Write-behind cache risposte (solo task opt-in con companyId, vedi
+      // cacheTtlDays). Best-effort: errori non bloccano la risposta.
+      if (cacheInputHash && (opts.cacheTtlDays ?? 0) > 0 && opts.companyId && content.trim()) {
+        try {
+          const expiresAt = new Date(Date.now() + (opts.cacheTtlDays as number) * 86400_000).toISOString();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (opts.supabase as any).from("ai_response_cache").upsert(
+            {
+              task_key: opts.taskKey,
+              company_id: opts.companyId,
+              input_hash: cacheInputHash,
+              output_content: content,
+              model_used: model,
+              expires_at: expiresAt,
+            },
+            { onConflict: "task_key,company_id,input_hash" },
+          );
+        } catch (cacheWriteErr) {
+          console.warn("[aiRouter] cache write skipped:", (cacheWriteErr as Error)?.message ?? cacheWriteErr);
+        }
+      }
 
       return {
         content,

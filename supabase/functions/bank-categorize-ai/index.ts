@@ -107,6 +107,9 @@ Esempio: {"items":[{"index":1,"category":"Utenze","confidence":95,"pattern":"ENE
         companyId,
         userId,
         idempotencyKey,
+        // Movimenti ricorrenti identici (stesso prompt) → risposta dalla
+        // cache senza richiamare il modello (audit AI 2026-06).
+        cacheTtlDays: 90,
       });
       responseText = result.content;
     } catch (err) {

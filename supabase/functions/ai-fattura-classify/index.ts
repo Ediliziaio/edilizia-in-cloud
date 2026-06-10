@@ -131,6 +131,9 @@ async function classifyOne(
     companyId,
     userId,
     idempotencyKey,
+    // Stessa fattura ri-classificata (retry, re-upload) → cache, niente
+    // seconda chiamata a pagamento (audit AI 2026-06).
+    cacheTtlDays: 90,
   });
 
   let parsed: AnyObj;
