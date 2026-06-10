@@ -22,6 +22,7 @@ interface OrdineEconomicoProps {
   }[];
   collectedAmount: number;
   onInstallmentPaidToggle: (installment: Installment, paid: boolean) => void;
+  onInstallmentDateChange?: (installment: Installment, field: 'paid_date' | 'expected_date', date?: Date) => void;
 }
 
 export function OrdineEconomico({
@@ -35,6 +36,7 @@ export function OrdineEconomico({
   items,
   collectedAmount,
   onInstallmentPaidToggle,
+  onInstallmentDateChange,
 }: OrdineEconomicoProps) {
   return (
     <div className="space-y-4">
@@ -46,6 +48,7 @@ export function OrdineEconomico({
         hasBuildingBonus={hasBuildingBonus}
         financingCost={financingCost}
         onInstallmentPaidToggle={onInstallmentPaidToggle}
+        onInstallmentDateChange={onInstallmentDateChange}
       />
       <OrderEconomics
         orderId={orderId}

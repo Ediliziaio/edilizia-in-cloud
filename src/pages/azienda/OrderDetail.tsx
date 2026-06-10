@@ -722,6 +722,34 @@ function OrderDetailInner() {
     updatePaymentMutation.mutate({ installment, paid });
   };
 
+  // SAL semplificato: data incasso/prevista modificabile direttamente dal
+  // dettaglio (solo rate già su DB — id presente). Scrittura immediata.
+  const updateInstallmentDateMutation = useMutation({
+    mutationFn: async ({ installment, field, date }: { installment: Installment; field: 'paid_date' | 'expected_date'; date?: Date }) => {
+      if (!installment.id) throw new Error("Rata non ancora salvata");
+      // en-CA = YYYY-MM-DD locale (mai toISOString: bug UTC serale)
+      const value = date ? date.toLocaleDateString('en-CA') : null;
+      const { error } = await supabase
+        .from("order_installments")
+        .update({ [field]: value })
+        .eq("id", installment.id);
+      if (error) throw error;
+    },
+    onSuccess: (_, { field }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.installments(id) });
+      toast.success(field === 'paid_date' ? "Data incasso aggiornata" : "Data prevista aggiornata");
+    },
+    onError: (error) => {
+      toast.error("Errore", {
+        description: error instanceof Error ? error.message : "Impossibile aggiornare la data.",
+      });
+    },
+  });
+
+  const handleInstallmentDateChange = (installment: Installment, field: 'paid_date' | 'expected_date', date?: Date) => {
+    updateInstallmentDateMutation.mutate({ installment, field, date });
+  };
+
   // Single item update mutation
   const updateSingleItemMutation = useMutation({
     mutationFn: async (item: OrderItem) => {
@@ -1160,6 +1188,7 @@ function OrderDetailInner() {
                 items={economicsItems}
                 collectedAmount={collectedAmount}
                 onInstallmentPaidToggle={handleInstallmentPaidToggle}
+                onInstallmentDateChange={handleInstallmentDateChange}
               />
               {/* Fatturazione e documenti */}
               <QuoteCard
@@ -1454,6 +1483,7 @@ function OrderDetailInner() {
               items={economicsItems}
               collectedAmount={collectedAmount}
               onInstallmentPaidToggle={handleInstallmentPaidToggle}
+              onInstallmentDateChange={handleInstallmentDateChange}
             />
           </div>
 

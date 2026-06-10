@@ -611,6 +611,9 @@ interface FinancialSummaryReadOnlyProps {
   hasBuildingBonus?: boolean;
   financingCost?: number;
   onInstallmentPaidToggle?: (installment: Installment, paid: boolean) => void;
+  /** Se presente, le date incasso/prevista diventano modificabili inline
+      (solo rate già su DB, cioè con id). */
+  onInstallmentDateChange?: (installment: Installment, field: 'paid_date' | 'expected_date', date?: Date) => void;
 }
 
 export function FinancialSummaryReadOnly({
@@ -621,6 +624,7 @@ export function FinancialSummaryReadOnly({
   hasBuildingBonus,
   financingCost,
   onInstallmentPaidToggle,
+  onInstallmentDateChange,
 }: FinancialSummaryReadOnlyProps) {
   const vatAmount = totalAmount * (vatRate / 100);
   const totalWithVat = totalAmount + vatAmount;
@@ -640,39 +644,112 @@ export function FinancialSummaryReadOnly({
     return format(new Date(dateStr), "dd/MM/yyyy", { locale: it });
   };
 
+  // SAL semplificato (richiesta utente): nel dettaglio commessa ogni rata si
+  // gestisce direttamente — bottoni Pagato/Non pagato ben visibili (prima era
+  // uno switch microscopico senza etichetta che nessuno riconosceva), data
+  // incasso/prevista modificabile inline, evidenza rossa sulle scadute.
   const renderPaymentRow = (inst: Installment, displayAmount?: number) => {
     const amount = displayAmount ?? inst.amount;
     if (amount <= 0 && inst.type !== 'balance') return null;
 
+    const oggi = new Date();
+    oggi.setHours(0, 0, 0, 0);
+    const scaduta = !inst.is_paid && !!inst.expected_date && new Date(inst.expected_date) < oggi;
+    const canEditDate = !!onInstallmentDateChange && !!inst.id;
+
     return (
-      <div key={inst.position} className="p-3 rounded-lg bg-muted/30 space-y-1">
-        <div className={cn("flex justify-between", inst.type === 'balance' && "pt-2 border-t")}>
-          <span className={inst.type === 'balance' ? "font-medium" : "text-muted-foreground"}>
-            {inst.label}
+      <div
+        key={inst.position}
+        className={cn(
+          "p-3 rounded-lg space-y-2",
+          scaduta
+            ? "bg-red-50 border border-red-200 dark:bg-red-950/20 dark:border-red-900"
+            : "bg-muted/30",
+        )}
+      >
+        <div className={cn("flex justify-between gap-2", inst.type === 'balance' && "pt-2 border-t")}>
+          <span className={cn("flex items-center gap-2 min-w-0", inst.type === 'balance' ? "font-medium" : "text-muted-foreground")}>
+            <span className="truncate">{inst.label}</span>
+            {scaduta && (
+              <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-900/50 dark:text-red-300">
+                Scaduta
+              </span>
+            )}
           </span>
           <span className={inst.type === 'balance' ? "font-bold text-lg" : "text-primary font-medium"}>
             {formatCurrency(amount)}
           </span>
         </div>
         {amount > 0 && (
-          <div className="flex items-center justify-between text-xs">
-            {inst.is_paid ? (
-              <span className="flex items-center gap-1 text-green-600">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {onInstallmentPaidToggle ? (
+              <div className="inline-flex rounded-lg border bg-background p-0.5" role="radiogroup" aria-label={`Stato pagamento ${inst.label}`}>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={!inst.is_paid}
+                  onClick={() => inst.is_paid && onInstallmentPaidToggle(inst, false)}
+                  className={cn(
+                    "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                    !inst.is_paid
+                      ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                      : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  <Clock className="h-3 w-3" />
+                  Non pagato
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={!!inst.is_paid}
+                  onClick={() => !inst.is_paid && onInstallmentPaidToggle(inst, true)}
+                  className={cn(
+                    "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                    inst.is_paid
+                      ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200"
+                      : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  <Check className="h-3 w-3" />
+                  {inst.type === 'financing' ? 'Incassato' : 'Pagato'}
+                </button>
+              </div>
+            ) : inst.is_paid ? (
+              <span className="flex items-center gap-1 text-xs text-green-600">
                 <Check className="h-3 w-3" />
-                {inst.type === 'financing' ? 'Incassato' : 'Pagato'} {inst.paid_date && `il ${formatPaymentDate(inst.paid_date)}`}
+                {inst.type === 'financing' ? 'Incassato' : 'Pagato'}
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-amber-600">
+              <span className="flex items-center gap-1 text-xs text-amber-600">
                 <Clock className="h-3 w-3" />
-                In attesa {inst.expected_date && `- Previsto ${formatPaymentDate(inst.expected_date)}`}
+                In attesa
               </span>
             )}
-            {onInstallmentPaidToggle && (
-              <Switch
-                checked={!!inst.is_paid}
-                onCheckedChange={(paid) => onInstallmentPaidToggle(inst, paid)}
-                className="scale-75"
+
+            {/* Data: modificabile inline quando possibile, altrimenti testo */}
+            {inst.is_paid ? (
+              canEditDate ? (
+                <DatePickerField
+                  label="Data incasso"
+                  date={inst.paid_date ? new Date(inst.paid_date) : undefined}
+                  onDateChange={(d) => onInstallmentDateChange!(inst, 'paid_date', d)}
+                />
+              ) : (
+                inst.paid_date && (
+                  <span className="text-xs text-muted-foreground">il {formatPaymentDate(inst.paid_date)}</span>
+                )
+              )
+            ) : canEditDate ? (
+              <DatePickerField
+                label="Data prevista"
+                date={inst.expected_date ? new Date(inst.expected_date) : undefined}
+                onDateChange={(d) => onInstallmentDateChange!(inst, 'expected_date', d)}
               />
+            ) : (
+              inst.expected_date && (
+                <span className="text-xs text-muted-foreground">Previsto {formatPaymentDate(inst.expected_date)}</span>
+              )
             )}
           </div>
         )}
@@ -711,6 +788,23 @@ export function FinancialSummaryReadOnly({
             <div className="font-semibold">{formatCurrency(dueAmount)}</div>
           </div>
         </div>
+        {/* Avanzamento incasso a colpo d'occhio */}
+        {(() => {
+          const incassabile = totalWithVat - financingCostValue;
+          if (incassabile <= 0) return null;
+          const pct = Math.min(100, Math.round((collectedAmount / incassabile) * 100));
+          return (
+            <div className="space-y-1">
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <p className="text-right text-[11px] text-muted-foreground">{pct}% incassato</p>
+            </div>
+          );
+        })()}
         {hasBuildingBonus && (() => {
           // Imponibile bancario = totale ivato / (1 + aliquota reale del documento).
           const bankTaxableBase = totalWithVat / (1 + vatRate / 100);
@@ -737,6 +831,17 @@ export function FinancialSummaryReadOnly({
         })()}
 
         <div className="pt-3 border-t space-y-3">
+          {/* Intestazione sezione: rende riconoscibile la gestione pagamenti */}
+          {(() => {
+            const visibili = installments.filter(i => i.amount > 0 || i.type === 'balance');
+            const pagate = visibili.filter(i => i.is_paid).length;
+            return (
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold">Pagamenti</span>
+                <span className="text-xs text-muted-foreground">{pagate}/{visibili.length} rate incassate</span>
+              </div>
+            );
+          })()}
           {/* Deposit installments */}
           {installments.filter(i => i.type === 'deposit').map(inst => renderPaymentRow(inst))}
 
