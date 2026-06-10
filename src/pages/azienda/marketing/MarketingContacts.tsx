@@ -594,7 +594,7 @@ export default function MarketingContacts() {
       while (hasMore) {
         let query = supabase
           .from("marketing_contacts")
-          .select("id, first_name, last_name, email, phone, company_name, city, province, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, lead_score, last_activity_at, lifecycle_stage, call_center_status, call_center_assigned_to, call_center_last_call_at, call_center_next_call_at, call_center_call_count, call_center_notes")
+          .select("id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, unsubscribed, unsubscribed_at")
           .eq("company_id", companyId)
           .order("created_at", { ascending: false })
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
@@ -902,10 +902,16 @@ export default function MarketingContacts() {
       let query = supabase
         .from("marketing_contacts")
         // Select chirurgico (stesso elenco usato per l'export a riga ~597):
-        // marketing_contacts è larga (lead scoring + call center + custom),
-        // `select("*")` scaricava colonne inutili a ogni pagina.
+        // marketing_contacts è larga (~78 colonne), `select("*")` scaricava
+        // colonne inutili a ogni pagina. ATTENZIONE: con le colonne esplicite
+        // PostgREST risponde 400 se UNA non esiste → lista vuota in prod
+        // (successo il 2026-06-10 con 7 colonne inesistenti: lifecycle_stage
+        // e call_center_*). Le select-stringa lunghe NON sono type-checked da
+        // tsc: prima di toccare l'elenco, validare contro information_schema.
+        // L'elenco copre l'interfaccia MarketingContact (ContactsTable) incl.
+        // opt_out/optout_*/unsubscribed usati da badge consensi e KPI qualità.
         .select(
-          "id, first_name, last_name, email, phone, company_name, city, province, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, lead_score, last_activity_at, lifecycle_stage, call_center_status, call_center_assigned_to, call_center_last_call_at, call_center_next_call_at, call_center_call_count, call_center_notes",
+          "id, first_name, last_name, email, phone, company_name, address, city, province, postal_code, country, website, date_of_birth, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, last_activity_at, call_center_id, attr_source, attr_campaign, lead_score, icp_score, score, ai_score, ai_score_tier, ai_score_reasoning, ai_next_action, preferred_channel, opt_out, optout_email, optout_sms, optout_whatsapp, unsubscribed, unsubscribed_at",
           { count: "exact" },
         )
         .eq("company_id", companyId)
