@@ -1546,7 +1546,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                 })),
               ].map(f => (
                 <button key={f.key} onClick={() => setFilterAssignee(f.key)}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${filterAssignee === f.key ? "bg-violet-600 text-white shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
+                  className={`inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${filterAssignee === f.key ? "bg-violet-600 text-white shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
                   {f.label}
                 </button>
               ))}
@@ -1563,7 +1563,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               { key: "completate", label: "Completate", count: stats.completed },
             ] as const).map(f => (
               <button key={f.key} onClick={() => { setFilter(f.key); setSelectedIds(new Set()); }}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${filter === f.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
+                className={`inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${filter === f.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
                 {f.label}
                 {f.count != null && f.count > 0 && <span className={`text-[10px] ${filter === f.key ? "opacity-80" : ""}`}>({f.count})</span>}
               </button>
