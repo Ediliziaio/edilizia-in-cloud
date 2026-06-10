@@ -434,7 +434,7 @@ export default function RenderPergoleNew() {
             </CardContent>
           </Card>
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1 gap-2" onClick={downloadResult}><Download className="h-4 w-4" />Download</Button>
+            <Button variant="outline" className="flex-1 gap-2" onClick={downloadResult}><Download className="h-4 w-4" />Scarica</Button>
             <Button variant="outline" className="flex-1 gap-2" onClick={shareWhatsApp}><Share2 className="h-4 w-4" />WhatsApp</Button>
           </div>
           <RenderResultRefinementPanel

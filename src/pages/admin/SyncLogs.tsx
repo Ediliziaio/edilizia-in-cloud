@@ -643,7 +643,7 @@ function DunningAttemptsTab() {
               <TableHead>Tipo email</TableHead>
               <TableHead>Stato</TableHead>
               <TableHead>Inviato</TableHead>
-              <TableHead className="text-right">Retry</TableHead>
+              <TableHead className="text-right">Tentativi</TableHead>
               <TableHead>Errore</TableHead>
             </TableRow>
           </TableHeader>

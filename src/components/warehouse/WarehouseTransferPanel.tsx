@@ -400,7 +400,13 @@ export function WarehouseTransferPanel({ open, onOpenChange }: WarehouseTransfer
           </Button>
           {showConfirm ? (
             <Button
-              onClick={() => { createMutation.mutate(); setShowConfirm(false); }}
+              onClick={() => {
+                // Guard anti doppio-click: il `disabled` arriva solo al re-render
+                // successivo, due click rapidi registrerebbero due trasferimenti.
+                if (createMutation.isPending) return;
+                createMutation.mutate();
+                setShowConfirm(false);
+              }}
               disabled={createMutation.isPending}
               variant="default"
             >

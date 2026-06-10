@@ -442,7 +442,9 @@ export function FinancialSummary({
             <span>{formatCurrency(totalWithVat)}</span>
           </div>
           {hasBuildingBonus && (() => {
-            const bankTaxableBase = totalWithVat / 1.22;
+            // Imponibile bancario = totale ivato / (1 + aliquota): l'IVA edilizia
+            // è spesso 10% o 4%, non 22% → il /1.22 hardcoded sottostimava la base.
+            const bankTaxableBase = totalWithVat / (1 + vat / 100);
             const bankWithholding = bankTaxableBase * 0.11;
             return (
               <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-1">
@@ -665,7 +667,8 @@ export function FinancialSummaryReadOnly({
           </div>
         </div>
         {hasBuildingBonus && (() => {
-          const bankTaxableBase = totalWithVat / 1.22;
+          // Imponibile bancario = totale ivato / (1 + aliquota reale del documento).
+          const bankTaxableBase = totalWithVat / (1 + vatRate / 100);
           const bankWithholding = bankTaxableBase * 0.11;
           return (
             <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-1">

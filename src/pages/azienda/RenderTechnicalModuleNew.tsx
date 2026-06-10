@@ -512,7 +512,7 @@ export default function RenderTechnicalModuleNew({ moduleId }: { moduleId: Techn
           </Card>
 
           <div className="grid gap-2 sm:grid-cols-3">
-            <Button variant="outline" className="gap-2" onClick={downloadResult}><Download className="h-4 w-4" />Download</Button>
+            <Button variant="outline" className="gap-2" onClick={downloadResult}><Download className="h-4 w-4" />Scarica</Button>
             <Button variant="outline" className="gap-2" onClick={shareWhatsApp}><Share2 className="h-4 w-4" />WhatsApp</Button>
             <Button className="gap-2" onClick={() => navigate(`/azienda/render/${moduleId}/gallery`)}>Apri galleria</Button>
           </div>
