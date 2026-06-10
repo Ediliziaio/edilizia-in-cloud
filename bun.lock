@@ -142,9 +142,6 @@
   },
   "overrides": {
     "@radix-ui/react-compose-refs": "1.1.3",
-    "@react-pdf/image": "3.0.4",
-    "@react-pdf/layout": "4.4.2",
-    "@react-pdf/render": "4.3.2",
     "serialize-javascript": ">=7.0.5",
   },
   "packages": {
@@ -858,25 +855,25 @@
 
     "@react-pdf/font": ["@react-pdf/font@4.0.8", "", { "dependencies": { "@react-pdf/pdfkit": "^5.1.1", "@react-pdf/types": "^2.11.1", "fontkit": "^2.0.2", "is-url": "^1.2.4" } }, "sha512-deNd+emtZAJho1IlzKL9bRoLAGv/6oXOIKO2oZfs4RuXUrK1onLHbJO7e2YoVLPFP/sQxisRTnzdJFtd35iKwA=="],
 
-    "@react-pdf/image": ["@react-pdf/image@3.0.4", "", { "dependencies": { "@react-pdf/png-js": "^3.0.0", "jay-peg": "^1.1.1" } }, "sha512-z0ogVQE0bKqgXQ5smgzIU857rLV7bMgVdrYsu3UfXDDLSzI7QPvzf6MFTFllX6Dx2rcsF13E01dqKPtJEM799g=="],
+    "@react-pdf/image": ["@react-pdf/image@3.1.0", "", { "dependencies": { "@react-pdf/svg": "^1.1.0", "jay-peg": "^1.1.1", "png-js": "^2.0.0" } }, "sha512-ks7Ry8v711r8NvKWSELehj0BXBNPRihSnWsM09nDD8Ur175zbWBCK217LLwQMKDNYDVpkZaipdoJPom1LGaE9g=="],
 
-    "@react-pdf/layout": ["@react-pdf/layout@4.4.2", "", { "dependencies": { "@react-pdf/fns": "3.1.2", "@react-pdf/image": "^3.0.4", "@react-pdf/primitives": "^4.1.1", "@react-pdf/stylesheet": "^6.1.2", "@react-pdf/textkit": "^6.1.0", "@react-pdf/types": "^2.9.2", "emoji-regex-xs": "^1.0.0", "queue": "^6.0.1", "yoga-layout": "^3.2.1" } }, "sha512-gNu2oh8MiGR+NJZYTJ4c4q0nWCESBI6rKFiodVhE7OeVAjtzZzd6l65wsN7HXdWJqOZD3ttD97iE+tf5SOd/Yg=="],
+    "@react-pdf/layout": ["@react-pdf/layout@4.6.1", "", { "dependencies": { "@react-pdf/fns": "3.1.3", "@react-pdf/image": "^3.1.0", "@react-pdf/primitives": "^4.3.0", "@react-pdf/stylesheet": "^6.2.1", "@react-pdf/textkit": "^6.3.0", "@react-pdf/types": "^2.11.1", "emoji-regex-xs": "^1.0.0", "queue": "^6.0.1", "yoga-layout": "^3.2.1" } }, "sha512-gN6PmWoEffvlIkifLfEhMsVucRywVMyH3rnxdyOVOhGy0nWJKKGpHyPc4plbDdpP6EfZ0r8prHXujDSkIG2nSA=="],
 
     "@react-pdf/pdfkit": ["@react-pdf/pdfkit@5.1.1", "", { "dependencies": { "@babel/runtime": "^7.20.13", "@noble/ciphers": "^1.0.0", "@noble/hashes": "^1.6.0", "browserify-zlib": "^0.2.0", "fontkit": "^2.0.2", "jay-peg": "^1.1.1", "js-md5": "^0.8.3", "linebreak": "^1.1.0", "png-js": "^2.0.0", "vite-compatible-readable-stream": "^3.6.1" } }, "sha512-wNcdSsNlNYyGHGAgIdt453egBF7fiF9UxpRlklUfVvu8OWCrUppG9xiUrPLVoKiqWet5tMi0w6LmuFUJuYqjEg=="],
-
-    "@react-pdf/png-js": ["@react-pdf/png-js@3.0.0", "", { "dependencies": { "browserify-zlib": "^0.2.0" } }, "sha512-eSJnEItZ37WPt6Qv5pncQDxLJRK15eaRwPT+gZoujP548CodenOVp49GST8XJvKMFt9YqIBzGBV/j9AgrOQzVA=="],
 
     "@react-pdf/primitives": ["@react-pdf/primitives@4.3.0", "", {}, "sha512-nYXoZ36pvwNzbc54+DbL8RCn15jU7woJ9D/svnh5tpUXekJ+CbI4mZLo6boSv24CvJgychOu6h7gxX03B4ps0A=="],
 
     "@react-pdf/reconciler": ["@react-pdf/reconciler@2.0.0", "", { "dependencies": { "object-assign": "^4.1.1", "scheduler": "0.25.0-rc-603e6108-20241029" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-7zaPRujpbHSmCpIrZ+b9HSTJHthcVZzX0Wx7RzvQGsGBUbHP4p6s5itXrAIOuQuPvDepoHGNOvf6xUuMVvdoyw=="],
 
-    "@react-pdf/render": ["@react-pdf/render@4.3.2", "", { "dependencies": { "@babel/runtime": "^7.20.13", "@react-pdf/fns": "3.1.2", "@react-pdf/primitives": "^4.1.1", "@react-pdf/textkit": "^6.1.0", "@react-pdf/types": "^2.9.2", "abs-svg-path": "^0.1.1", "color-string": "^1.9.1", "normalize-svg-path": "^1.1.0", "parse-svg-path": "^0.1.2", "svg-arc-to-cubic-bezier": "^3.2.0" } }, "sha512-el5KYM1sH/PKcO4tRCIm8/AIEmhtraaONbwCrBhFdehoGv6JtgnXiMxHGAvZbI5kEg051GbyP+XIU6f6YbOu6Q=="],
+    "@react-pdf/render": ["@react-pdf/render@4.5.1", "", { "dependencies": { "@babel/runtime": "^7.20.13", "@react-pdf/fns": "3.1.3", "@react-pdf/primitives": "^4.3.0", "@react-pdf/textkit": "^6.3.0", "@react-pdf/types": "^2.11.1", "abs-svg-path": "^0.1.1", "color-string": "^2.1.4", "normalize-svg-path": "^1.1.0", "parse-svg-path": "^0.1.2", "svg-arc-to-cubic-bezier": "^3.2.0" } }, "sha512-IW/N4HWJWtioBXCf7n02IR24VJJ8gbdS3jGypf+vW/rSErEx3/URRzh9UK6Ma8Fpog9+T/W6GE2NHJ5AAKHhVA=="],
 
     "@react-pdf/renderer": ["@react-pdf/renderer@4.5.1", "", { "dependencies": { "@babel/runtime": "^7.20.13", "@react-pdf/fns": "3.1.3", "@react-pdf/font": "^4.0.8", "@react-pdf/layout": "^4.6.1", "@react-pdf/pdfkit": "^5.1.1", "@react-pdf/primitives": "^4.3.0", "@react-pdf/reconciler": "^2.0.0", "@react-pdf/render": "^4.5.1", "@react-pdf/types": "^2.11.1", "events": "^3.3.0", "object-assign": "^4.1.1", "prop-types": "^15.6.2", "queue": "^6.0.1" }, "peerDependencies": { "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-5r1VQrE6FRLXX5wWUxwZzM24E2BJMo6g8AQWuS8WyPs9ugu5yMnb2g8/RpPYka/Z6J+RUEWc32wty2NoUJF42Q=="],
 
-    "@react-pdf/stylesheet": ["@react-pdf/stylesheet@6.1.2", "", { "dependencies": { "@react-pdf/fns": "3.1.2", "@react-pdf/types": "^2.9.2", "color-string": "^1.9.1", "hsl-to-hex": "^1.0.0", "media-engine": "^1.0.3", "postcss-value-parser": "^4.1.0" } }, "sha512-E3ftGRYUQGKiN3JOgtGsLDo0hGekA6dmkmi/MYACytmPTKxQRBSO3126MebmCq+t1rgU9uRlREIEawJ+8nzSbw=="],
+    "@react-pdf/stylesheet": ["@react-pdf/stylesheet@6.2.1", "", { "dependencies": { "@react-pdf/fns": "3.1.3", "@react-pdf/types": "^2.11.1", "color-string": "^2.1.4", "hsl-to-hex": "^1.0.0", "media-engine": "^1.0.3", "postcss-value-parser": "^4.1.0" } }, "sha512-2+UEk+7e+z8baaWi2l5kPLWmwtJeOI+T5wW9GGeN3iDH7vd3kbTqOpN1yt9mmfNVZFxQsnDHpznFb5v5UF983A=="],
 
-    "@react-pdf/textkit": ["@react-pdf/textkit@6.1.0", "", { "dependencies": { "@react-pdf/fns": "3.1.2", "bidi-js": "^1.0.2", "hyphen": "^1.6.4", "unicode-properties": "^1.4.1" } }, "sha512-sFlzDC9CDFrJsnL3B/+NHrk9+Advqk7iJZIStiYQDdskbow8GF/AGYrpIk+vWSnh35YxaGbHkqXq53XOxnyrjQ=="],
+    "@react-pdf/svg": ["@react-pdf/svg@1.1.0", "", { "dependencies": { "@react-pdf/primitives": "^4.3.0" } }, "sha512-cTIHXiz9x1HrbfqzfxfZP3FRdDwUXG77QWF6Fb5MP/lV3ONxR+g0Z3hwtBatCS9HeGBQCpxX/Lzb8wHE+co1PA=="],
+
+    "@react-pdf/textkit": ["@react-pdf/textkit@6.3.0", "", { "dependencies": { "@react-pdf/fns": "3.1.3", "bidi-js": "^1.0.2", "hyphen": "^1.6.4", "unicode-properties": "^1.4.1" } }, "sha512-v6+V8nAcVwm7s2s1jIG2MD3Iw//x/k+XrH1foWOELBE4b32pyDgKyPXN/6KJE0dnX7+fVy27uctLNCLNMvzKzQ=="],
 
     "@react-pdf/types": ["@react-pdf/types@2.11.1", "", { "dependencies": { "@react-pdf/font": "^4.0.8", "@react-pdf/primitives": "^4.3.0", "@react-pdf/stylesheet": "^6.2.1" } }, "sha512-i9xQgfaDU9QoeNnbp6rltXCWg1huEh195rpOuN8cE4BZ2FuLdQrsIcb2dhFF9aOxXf+XBA6LOSpIW051MDD/bw=="],
 
@@ -1372,9 +1369,9 @@
 
     "color-convert": ["color-convert@2.0.1", "", { "dependencies": { "color-name": "~1.1.4" } }, "sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ=="],
 
-    "color-name": ["color-name@1.1.4", "", {}, "sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA=="],
+    "color-name": ["color-name@2.1.0", "", {}, "sha512-1bPaDNFm0axzE4MEAzKPuqKWeRaT43U/hyxKPBdqTfmPF+d6n7FSoTFxLVULUJOmiLp01KjhIPPH+HrXZJN4Rg=="],
 
-    "color-string": ["color-string@1.9.1", "", { "dependencies": { "color-name": "^1.0.0", "simple-swizzle": "^0.2.2" } }, "sha512-shrVawQFojnZv6xM40anx4CkoDP+fZsw/ZerEMsW/pyzsRbElpsL/DBVW7q3ExxwusdNXI3lXpuhEZkzs8p5Eg=="],
+    "color-string": ["color-string@2.1.4", "", { "dependencies": { "color-name": "^2.0.0" } }, "sha512-Bb6Cq8oq0IjDOe8wJmi4JeNn763Xs9cfrBcaylK1tPypWzyoy2G3l90v9k64kjphl/ZJjPIShFztenRomi8WTg=="],
 
     "commander": ["commander@10.0.1", "", {}, "sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug=="],
 
@@ -1399,8 +1396,6 @@
     "crc32-stream": ["crc32-stream@4.0.3", "", { "dependencies": { "crc-32": "^1.2.0", "readable-stream": "^3.4.0" } }, "sha512-NT7w2JVU7DFroFdYkeq8cywxrgjPHWkdX1wjpRQXPX5Asews3tA+Ght6lddQO5Mkumffp3X7GEqku3epj2toIw=="],
 
     "cross-spawn": ["cross-spawn@7.0.6", "", { "dependencies": { "path-key": "^3.1.0", "shebang-command": "^2.0.0", "which": "^2.0.1" } }, "sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA=="],
-
-    "crypto-js": ["crypto-js@4.2.0", "", {}, "sha512-KALDyEYgpY+Rlob/iriUtjV6d5Eq+Y191A5g4UqLAi8CyGP9N1+FdVbkc1SxKc2r4YAYqG8JzO2KGL+AizD70Q=="],
 
     "crypto-random-string": ["crypto-random-string@2.0.0", "", {}, "sha512-v1plID3y9r/lPhviJ1wrXpLeyUIGAZ2SHNYTEapm7/8A9nLPoyvVp3RK/EPFqn5kEznyWgYZNsRtYYIWbuG8KA=="],
 
@@ -1757,8 +1752,6 @@
     "iobuffer": ["iobuffer@5.4.0", "", {}, "sha512-DRebOWuqDvxunfkNJAlc3IzWIPD5xVxwUNbHr7xKB8E6aLJxIPfNX3CoMJghcFjpv6RWQsrcJbghtEwSPoJqMA=="],
 
     "is-array-buffer": ["is-array-buffer@3.0.5", "", { "dependencies": { "call-bind": "^1.0.8", "call-bound": "^1.0.3", "get-intrinsic": "^1.2.6" } }, "sha512-DDfANUiiG2wC1qawP66qlTugJeL5HyzMpfr8lLK+jMQirGzNod0B12cFB/9q838Ru27sBwfw78/rdoU7RERz6A=="],
-
-    "is-arrayish": ["is-arrayish@0.3.4", "", {}, "sha512-m6UrgzFVUYawGBh1dUsWR5M2Clqic9RVXC/9f8ceNlv2IcO9j9J/z8UoCLPqtsPBFNzEpfR3xftohbfqDx8EQA=="],
 
     "is-async-function": ["is-async-function@2.1.1", "", { "dependencies": { "async-function": "^1.0.0", "call-bound": "^1.0.3", "get-proto": "^1.0.1", "has-tostringtag": "^1.0.2", "safe-regex-test": "^1.1.0" } }, "sha512-9dgM/cZBnNvjzaMYHVoxxfPj2QXt22Ev7SuuPrs+xav0ukGB0S6d4ydZdEiM48kLx5kDV+QBPrpVnFyefL8kkQ=="],
 
@@ -2322,8 +2315,6 @@
 
     "signal-exit": ["signal-exit@3.0.7", "", {}, "sha512-wnD2ZE+l+SPC/uoS0vXeE9L1+0wuaMqKlfz9AMUo38JsyLSBWSFcHR1Rri62LZc12vLr1gb3jl7iwQhgwpAbGQ=="],
 
-    "simple-swizzle": ["simple-swizzle@0.2.4", "", { "dependencies": { "is-arrayish": "^0.3.1" } }, "sha512-nAu1WFPQSMNr2Zn9PGSZK9AGn4t/y97lEm+MXTtUDwfP0ksAIX4nO+6ruD9Jwut4C49SB1Ws+fbXsm/yScWOHw=="],
-
     "sisteransi": ["sisteransi@1.0.5", "", {}, "sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg=="],
 
     "slice-ansi": ["slice-ansi@4.0.0", "", { "dependencies": { "ansi-styles": "^4.0.0", "astral-regex": "^2.0.0", "is-fullwidth-code-point": "^3.0.0" } }, "sha512-qMCMfhY040cVHT43K9BFygqYbUPFZKHOg7K73mtTWJRb8pyP3fzf4Ixd5SzdEJQ6MRUg/WBnOLxghZtKKurENQ=="],
@@ -2724,31 +2715,13 @@
 
     "@radix-ui/react-visually-hidden/@radix-ui/react-primitive": ["@radix-ui/react-primitive@2.1.5", "", { "dependencies": { "@radix-ui/react-slot": "1.2.5" }, "peerDependencies": { "@types/react": "*", "@types/react-dom": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc", "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" }, "optionalPeers": ["@types/react", "@types/react-dom"] }, "sha512-zifXeB8Y88qCYx8PLZ5oQb32KwZub+s925mMoZsBBq9KUQqWKkREubTfs6ASjRPPBe7Jt9O8OHH89+95VG+grA=="],
 
-    "@react-pdf/layout/@react-pdf/fns": ["@react-pdf/fns@3.1.2", "", {}, "sha512-qTKGUf0iAMGg2+OsUcp9ffKnKi41RukM/zYIWMDJ4hRVYSr89Q7e3wSDW/Koqx3ea3Uy/z3h2y3wPX6Bdfxk6g=="],
-
-    "@react-pdf/layout/@react-pdf/primitives": ["@react-pdf/primitives@4.1.1", "", {}, "sha512-IuhxYls1luJb7NUWy6q5avb1XrNaVj9bTNI40U9qGRuS6n7Hje/8H8Qi99Z9UKFV74bBP3DOf3L1wV2qZVgVrQ=="],
-
-    "@react-pdf/layout/@react-pdf/types": ["@react-pdf/types@2.9.2", "", { "dependencies": { "@react-pdf/font": "^4.0.4", "@react-pdf/primitives": "^4.1.1", "@react-pdf/stylesheet": "^6.1.2" } }, "sha512-dufvpKId9OajLLbgn9q7VLUmyo1Jf+iyGk2ZHmCL8nIDtL8N1Ejh9TH7+pXXrR0tdie1nmnEb5Bz9U7g4hI4/g=="],
-
     "@react-pdf/pdfkit/@babel/runtime": ["@babel/runtime@7.29.2", "", {}, "sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g=="],
 
     "@react-pdf/reconciler/scheduler": ["scheduler@0.25.0-rc-603e6108-20241029", "", {}, "sha512-pFwF6H1XrSdYYNLfOcGlM28/j8CGLu8IvdrxqhjWULe2bPcKiKW4CV+OWqR/9fT52mywx65l7ysNkjLKBda7eA=="],
 
-    "@react-pdf/render/@react-pdf/fns": ["@react-pdf/fns@3.1.2", "", {}, "sha512-qTKGUf0iAMGg2+OsUcp9ffKnKi41RukM/zYIWMDJ4hRVYSr89Q7e3wSDW/Koqx3ea3Uy/z3h2y3wPX6Bdfxk6g=="],
-
-    "@react-pdf/render/@react-pdf/primitives": ["@react-pdf/primitives@4.1.1", "", {}, "sha512-IuhxYls1luJb7NUWy6q5avb1XrNaVj9bTNI40U9qGRuS6n7Hje/8H8Qi99Z9UKFV74bBP3DOf3L1wV2qZVgVrQ=="],
-
-    "@react-pdf/render/@react-pdf/types": ["@react-pdf/types@2.9.2", "", { "dependencies": { "@react-pdf/font": "^4.0.4", "@react-pdf/primitives": "^4.1.1", "@react-pdf/stylesheet": "^6.1.2" } }, "sha512-dufvpKId9OajLLbgn9q7VLUmyo1Jf+iyGk2ZHmCL8nIDtL8N1Ejh9TH7+pXXrR0tdie1nmnEb5Bz9U7g4hI4/g=="],
+    "@react-pdf/render/@babel/runtime": ["@babel/runtime@7.29.2", "", {}, "sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g=="],
 
     "@react-pdf/renderer/@babel/runtime": ["@babel/runtime@7.29.2", "", {}, "sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g=="],
-
-    "@react-pdf/stylesheet/@react-pdf/fns": ["@react-pdf/fns@3.1.2", "", {}, "sha512-qTKGUf0iAMGg2+OsUcp9ffKnKi41RukM/zYIWMDJ4hRVYSr89Q7e3wSDW/Koqx3ea3Uy/z3h2y3wPX6Bdfxk6g=="],
-
-    "@react-pdf/stylesheet/@react-pdf/types": ["@react-pdf/types@2.9.2", "", { "dependencies": { "@react-pdf/font": "^4.0.4", "@react-pdf/primitives": "^4.1.1", "@react-pdf/stylesheet": "^6.1.2" } }, "sha512-dufvpKId9OajLLbgn9q7VLUmyo1Jf+iyGk2ZHmCL8nIDtL8N1Ejh9TH7+pXXrR0tdie1nmnEb5Bz9U7g4hI4/g=="],
-
-    "@react-pdf/textkit/@react-pdf/fns": ["@react-pdf/fns@3.1.2", "", {}, "sha512-qTKGUf0iAMGg2+OsUcp9ffKnKi41RukM/zYIWMDJ4hRVYSr89Q7e3wSDW/Koqx3ea3Uy/z3h2y3wPX6Bdfxk6g=="],
-
-    "@react-pdf/types/@react-pdf/stylesheet": ["@react-pdf/stylesheet@6.2.1", "", { "dependencies": { "@react-pdf/fns": "3.1.3", "@react-pdf/types": "^2.11.1", "color-string": "^2.1.4", "hsl-to-hex": "^1.0.0", "media-engine": "^1.0.3", "postcss-value-parser": "^4.1.0" } }, "sha512-2+UEk+7e+z8baaWi2l5kPLWmwtJeOI+T5wW9GGeN3iDH7vd3kbTqOpN1yt9mmfNVZFxQsnDHpznFb5v5UF983A=="],
 
     "@reduxjs/toolkit/immer": ["immer@11.1.8", "", {}, "sha512-/tbkHMW7y10Lx6i1crLjD4/OhNkRG+Fo7byZHtah0547nIeXYcpIXaUh0IAQY6gO5459qpGGYapcEOHtFXkIuA=="],
 
@@ -2807,6 +2780,8 @@
     "cliui/wrap-ansi": ["wrap-ansi@6.2.0", "", { "dependencies": { "ansi-styles": "^4.0.0", "string-width": "^4.1.0", "strip-ansi": "^6.0.0" } }, "sha512-r6lPcBGxZXlIcymEu7InxDMhdW0KDxpLgoFLcguasxCaJ/SOIZwINatK9KY/tf+ZrlywOKU0UDj3ATXUBfxJXA=="],
 
     "cmdk/@radix-ui/react-dialog": ["@radix-ui/react-dialog@1.1.14", "", { "dependencies": { "@radix-ui/primitive": "1.1.2", "@radix-ui/react-compose-refs": "1.1.2", "@radix-ui/react-context": "1.1.2", "@radix-ui/react-dismissable-layer": "1.1.10", "@radix-ui/react-focus-guards": "1.1.2", "@radix-ui/react-focus-scope": "1.1.7", "@radix-ui/react-id": "1.1.1", "@radix-ui/react-portal": "1.1.9", "@radix-ui/react-presence": "1.1.4", "@radix-ui/react-primitive": "2.1.3", "@radix-ui/react-slot": "1.2.3", "@radix-ui/react-use-controllable-state": "1.2.2", "aria-hidden": "^1.2.4", "react-remove-scroll": "^2.6.3" }, "peerDependencies": { "@types/react": "*", "@types/react-dom": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc", "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" } }, "sha512-+CpweKjqpzTmwRwcYECQcNYbI8V9VSQt0SNFKeEBLgfucbsLssU6Ppq7wUdNXEGb573bMjFhVjKVll8rmV6zMw=="],
+
+    "color-convert/color-name": ["color-name@1.1.4", "", {}, "sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA=="],
 
     "core-js-compat/browserslist": ["browserslist@4.28.1", "", { "dependencies": { "baseline-browser-mapping": "^2.9.0", "caniuse-lite": "^1.0.30001759", "electron-to-chromium": "^1.5.263", "node-releases": "^2.0.27", "update-browserslist-db": "^1.2.0" }, "bin": "cli.js" }, "sha512-ZC5Bd0LgJXgwGqUknZY/vkUQ04r8NXnJZ3yYi4vDmSiZmC/pdSN0NbNRPxZpbtO4uAfDUAFffO8IZoM3Gj8IkA=="],
 
@@ -2940,16 +2915,6 @@
 
     "@radix-ui/react-visually-hidden/@radix-ui/react-primitive/@radix-ui/react-slot": ["@radix-ui/react-slot@1.2.5", "", { "dependencies": { "@radix-ui/react-compose-refs": "1.1.3" }, "peerDependencies": { "@types/react": "*", "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc" }, "optionalPeers": ["@types/react"] }, "sha512-rCMO3QsIVKv5JTY5CVbo2MvO77SpEqqYc8AvRE7OWqRDOIqAKjsp+DrmnY9uc8NPdxB5E2z47HTYGeE2+NTptg=="],
 
-    "@react-pdf/layout/@react-pdf/types/@react-pdf/font": ["@react-pdf/font@4.0.4", "", { "dependencies": { "@react-pdf/pdfkit": "^4.1.0", "@react-pdf/types": "^2.9.2", "fontkit": "^2.0.2", "is-url": "^1.2.4" } }, "sha512-8YtgGtL511txIEc9AjiilpZ7yjid8uCd8OGUl6jaL3LIHnrToUupSN4IzsMQpVTCMYiDLFnDNQzpZsOYtRS/Pg=="],
-
-    "@react-pdf/render/@react-pdf/types/@react-pdf/font": ["@react-pdf/font@4.0.4", "", { "dependencies": { "@react-pdf/pdfkit": "^4.1.0", "@react-pdf/types": "^2.9.2", "fontkit": "^2.0.2", "is-url": "^1.2.4" } }, "sha512-8YtgGtL511txIEc9AjiilpZ7yjid8uCd8OGUl6jaL3LIHnrToUupSN4IzsMQpVTCMYiDLFnDNQzpZsOYtRS/Pg=="],
-
-    "@react-pdf/stylesheet/@react-pdf/types/@react-pdf/font": ["@react-pdf/font@4.0.4", "", { "dependencies": { "@react-pdf/pdfkit": "^4.1.0", "@react-pdf/types": "^2.9.2", "fontkit": "^2.0.2", "is-url": "^1.2.4" } }, "sha512-8YtgGtL511txIEc9AjiilpZ7yjid8uCd8OGUl6jaL3LIHnrToUupSN4IzsMQpVTCMYiDLFnDNQzpZsOYtRS/Pg=="],
-
-    "@react-pdf/stylesheet/@react-pdf/types/@react-pdf/primitives": ["@react-pdf/primitives@4.1.1", "", {}, "sha512-IuhxYls1luJb7NUWy6q5avb1XrNaVj9bTNI40U9qGRuS6n7Hje/8H8Qi99Z9UKFV74bBP3DOf3L1wV2qZVgVrQ=="],
-
-    "@react-pdf/types/@react-pdf/stylesheet/color-string": ["color-string@2.1.4", "", { "dependencies": { "color-name": "^2.0.0" } }, "sha512-Bb6Cq8oq0IjDOe8wJmi4JeNn763Xs9cfrBcaylK1tPypWzyoy2G3l90v9k64kjphl/ZJjPIShFztenRomi8WTg=="],
-
     "@types/fs-extra/@types/node/undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
 
     "@types/papaparse/@types/node/undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
@@ -3033,14 +2998,6 @@
     "yargs/find-up/locate-path": ["locate-path@5.0.0", "", { "dependencies": { "p-locate": "^4.1.0" } }, "sha512-t7hw9pI+WvuwNJXwk5zVHpyhIqzg2qTlklJOf0mVxGSbe3Fp2VieZcduNYjaLDoy6p9uGpQEGWG87WpMKlNq8g=="],
 
     "zip-stream/archiver-utils/glob": ["glob@7.2.3", "", { "dependencies": { "fs.realpath": "^1.0.0", "inflight": "^1.0.4", "inherits": "2", "minimatch": "^3.1.1", "once": "^1.3.0", "path-is-absolute": "^1.0.0" } }, "sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q=="],
-
-    "@react-pdf/layout/@react-pdf/types/@react-pdf/font/@react-pdf/pdfkit": ["@react-pdf/pdfkit@4.1.0", "", { "dependencies": { "@babel/runtime": "^7.20.13", "@react-pdf/png-js": "^3.0.0", "browserify-zlib": "^0.2.0", "crypto-js": "^4.2.0", "fontkit": "^2.0.2", "jay-peg": "^1.1.1", "linebreak": "^1.1.0", "vite-compatible-readable-stream": "^3.6.1" } }, "sha512-Wm/IOAv0h/U5Ra94c/PltFJGcpTUd/fwVMVeFD6X9tTTPCttIwg0teRG1Lqq617J8K4W7jpL/B0HTH0mjp3QpQ=="],
-
-    "@react-pdf/render/@react-pdf/types/@react-pdf/font/@react-pdf/pdfkit": ["@react-pdf/pdfkit@4.1.0", "", { "dependencies": { "@babel/runtime": "^7.20.13", "@react-pdf/png-js": "^3.0.0", "browserify-zlib": "^0.2.0", "crypto-js": "^4.2.0", "fontkit": "^2.0.2", "jay-peg": "^1.1.1", "linebreak": "^1.1.0", "vite-compatible-readable-stream": "^3.6.1" } }, "sha512-Wm/IOAv0h/U5Ra94c/PltFJGcpTUd/fwVMVeFD6X9tTTPCttIwg0teRG1Lqq617J8K4W7jpL/B0HTH0mjp3QpQ=="],
-
-    "@react-pdf/stylesheet/@react-pdf/types/@react-pdf/font/@react-pdf/pdfkit": ["@react-pdf/pdfkit@4.1.0", "", { "dependencies": { "@babel/runtime": "^7.20.13", "@react-pdf/png-js": "^3.0.0", "browserify-zlib": "^0.2.0", "crypto-js": "^4.2.0", "fontkit": "^2.0.2", "jay-peg": "^1.1.1", "linebreak": "^1.1.0", "vite-compatible-readable-stream": "^3.6.1" } }, "sha512-Wm/IOAv0h/U5Ra94c/PltFJGcpTUd/fwVMVeFD6X9tTTPCttIwg0teRG1Lqq617J8K4W7jpL/B0HTH0mjp3QpQ=="],
-
-    "@react-pdf/types/@react-pdf/stylesheet/color-string/color-name": ["color-name@2.1.0", "", {}, "sha512-1bPaDNFm0axzE4MEAzKPuqKWeRaT43U/hyxKPBdqTfmPF+d6n7FSoTFxLVULUJOmiLp01KjhIPPH+HrXZJN4Rg=="],
 
     "@typescript-eslint/eslint-plugin/@typescript-eslint/utils/@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
 
