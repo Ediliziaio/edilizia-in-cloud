@@ -23,6 +23,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 // MP-SILVIO-CREATIVE-01: canoni brand condivisi (single source chat+social)
 import { aspectToOpenAiSize, buildBrandedImagePrompt } from "../_shared/brandCreativeRules.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
+import { chargeDirectAiCall } from "../_shared/directAiLedger.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") || "";
 const OPENAI_IMAGE_MODEL = Deno.env.get("OPENAI_IMAGE_MODEL") || "gpt-image-1";
@@ -37,6 +39,12 @@ interface ImageGenRequest {
   quality?: "standard" | "hd";
   /** Optional tags per catalogazione */
   tags?: string[];
+  /**
+   * Id stabile generato dal client per la singola richiesta: un retry di
+   * rete riusa lo stesso id → l'addebito nel ledger è deduplicato
+   * (UNIQUE su idempotency_key in charge_ai_call).
+   */
+  client_request_id?: string;
 }
 
 interface ImageGenResponse {
@@ -95,6 +103,11 @@ Deno.serve(async (req) => {
       const isSA = (roles ?? []).some((r) => r.role === "super_admin");
       if (!isSA) return json({ error: "forbidden" }, 403, corsHeaders);
     }
+
+    // Gate carta (audit AI 2026-06): generazione immagini a costo OpenAI
+    // diretto, prima senza alcun controllo sul metodo di pagamento.
+    const paymentBlock = await gateAiPayment(admin, body.company_id, corsHeaders);
+    if (paymentBlock) return paymentBlock;
 
     // Mapping aspect_ratio → size OpenAI (canone condiviso brandCreativeRules)
     const ar = body.aspect_ratio ?? "1:1";
@@ -183,6 +196,10 @@ Deno.serve(async (req) => {
         : ar === "1:1"
         ? 4
         : 6;
+    // Costo reale stimato in USD per il ledger (listino gpt-image-1 2026,
+    // coerente con i commenti in testa al file).
+    const costRealUsd =
+      quality === "hd" ? (ar === "1:1" ? 0.08 : 0.13) : ar === "1:1" ? 0.04 : 0.065;
 
     // INSERT in ad_media
     const [widthStr, heightStr] = size.split("x");
@@ -219,6 +236,32 @@ Deno.serve(async (req) => {
         }, 503, corsHeaders);
       }
       return json({ error: "ad_media_insert_failed", detail: msg }, 500, corsHeaders);
+    }
+
+    // Addebito nel ledger AI centrale (audit AI 2026-06): prima il costo
+    // restava SOLO su ad_media → invisibile al billing aziendale e ai cap
+    // di budget, e un retry generava doppia spesa non rilevabile. Best-effort:
+    // l'immagine è già stata generata e salvata, un errore di charge non
+    // deve negarla all'utente (fail-open con log, come AI_DIRECT_ALLOW_CHARGE_FAIL_OPEN).
+    const idempotencyKey = body.client_request_id
+      ? `ads-image:${body.company_id}:${body.client_request_id}`
+      : `ads-image:${crypto.randomUUID()}`;
+    try {
+      await chargeDirectAiCall({
+        supabase: admin,
+        idempotencyKey,
+        companyId: body.company_id,
+        userId: user.id,
+        taskKey: "ads_image_generate",
+        tierKey: "t2_vision",
+        modelUsed: OPENAI_IMAGE_MODEL,
+        tokensIn: 0,
+        tokensOut: 0,
+        costRealUsd,
+        metadata: { media_id: media?.id ?? null, aspect_ratio: ar, quality },
+      });
+    } catch (chargeErr) {
+      console.error("[ai-ads-image-generate] ledger charge failed (image già consegnata):", chargeErr);
     }
 
     const result: ImageGenResponse = {
