@@ -1,11 +1,12 @@
 import { useMemo } from "react";
-import {
-  Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis,
-} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Calculator, Building2, CheckCircle2, Users, Clock } from "lucide-react";
 
+// Barre custom in div (pattern ReferralMegaDashboard): recharts 3.x non disegna
+// le Pie a fetta singola né i BarChart layout="vertical" di questo caso d'uso
+// (settori senza path / barra orientata male e clippata) — i div sono
+// deterministici, accessibili e più leggeri.
 const COLOR = {
   blue: "hsl(214 80% 50%)",
   emerald: "hsl(160 84% 39%)",
@@ -14,7 +15,7 @@ const COLOR = {
   rose: "hsl(347 77% 50%)",
   slate: "hsl(215 16% 55%)",
 };
-const PIE_COLORS = [COLOR.blue, COLOR.violet, COLOR.emerald, COLOR.amber, COLOR.rose, COLOR.slate];
+const BAR_COLORS = [COLOR.blue, COLOR.violet, COLOR.emerald, COLOR.amber, COLOR.rose, COLOR.slate];
 
 const MODE_LABEL: Record<string, string> = {
   operational: "Operativo",
@@ -42,7 +43,7 @@ export function CommercialistiAnalytics({ studi, inactiveCount, onInactiveClick 
     const topStudi = [...studi]
       .sort((a, b) => b.companies.length - a.companies.length)
       .slice(0, 6)
-      .map((s) => ({ name: s.name.length > 16 ? s.name.slice(0, 15) + "…" : s.name, aziende: s.companies.length }));
+      .map((s) => ({ name: s.name, value: s.companies.length }));
 
     return { totStudi, attivi, aziendeGestite, membri, modeDist, topStudi };
   }, [studi]);
@@ -59,33 +60,11 @@ export function CommercialistiAnalytics({ studi, inactiveCount, onInactiveClick 
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <ChartCard title="Aziende per modalità di accesso">
-          {m.modeDist.length === 0 ? <Empty /> : (
-            <>
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie data={m.modeDist} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={68} paddingAngle={2}>
-                    {m.modeDist.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                  </Pie>
-                  <RTooltip />
-                </PieChart>
-              </ResponsiveContainer>
-              <Legend2 items={m.modeDist.map((d, i) => ({ label: d.name, value: d.value, color: PIE_COLORS[i % PIE_COLORS.length] }))} />
-            </>
-          )}
+          {m.modeDist.length === 0 ? <Empty /> : <HBars items={m.modeDist} />}
         </ChartCard>
 
         <ChartCard title="Top studi per aziende gestite">
-          {m.topStudi.length === 0 ? <Empty /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={m.topStudi} layout="vertical" margin={{ left: 4, right: 16, top: 4, bottom: 4 }}>
-                <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="hsl(215 16% 90%)" />
-                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11 }} />
-                <RTooltip />
-                <Bar dataKey="aziende" fill={COLOR.violet} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+          {m.topStudi.length === 0 ? <Empty /> : <HBars items={m.topStudi} singleColor={COLOR.violet} />}
         </ChartCard>
       </div>
     </div>
@@ -132,14 +111,23 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
   );
 }
 
-function Legend2({ items }: { items: { label: string; value: number; color: string }[] }) {
+/** Barre orizzontali deterministiche: etichetta, barra proporzionale, valore. */
+function HBars({ items, singleColor }: { items: { name: string; value: number }[]; singleColor?: string }) {
+  const max = Math.max(1, ...items.map((i) => i.value));
   return (
-    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-      {items.map((it) => (
-        <div key={it.label} className="flex items-center gap-1.5 text-xs">
-          <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: it.color }} />
-          <span className="text-muted-foreground">{it.label}</span>
-          <span className="font-medium">{it.value}</span>
+    <div className="space-y-2.5 py-1">
+      {items.map((it, i) => (
+        <div key={it.name} className="space-y-1">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="truncate text-muted-foreground" title={it.name}>{it.name}</span>
+            <span className="shrink-0 font-semibold">{it.value}</span>
+          </div>
+          <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full transition-[width]"
+              style={{ width: `${Math.max(3, (it.value / max) * 100)}%`, backgroundColor: singleColor ?? BAR_COLORS[i % BAR_COLORS.length] }}
+            />
+          </div>
         </div>
       ))}
     </div>
@@ -147,5 +135,5 @@ function Legend2({ items }: { items: { label: string; value: number; color: stri
 }
 
 function Empty() {
-  return <div className="flex h-[180px] items-center justify-center text-xs text-muted-foreground">Nessun dato</div>;
+  return <div className="flex h-[120px] items-center justify-center text-xs text-muted-foreground">Nessun dato</div>;
 }
