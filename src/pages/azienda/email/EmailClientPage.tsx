@@ -647,6 +647,11 @@ function MailboxPreview() {
 
   return (
     <div className="relative overflow-hidden rounded-[30px] border border-blue-100 bg-white p-3 shadow-2xl shadow-blue-100/70">
+      {/* Etichetta esplicita: la preview è così realistica (caselle, contatori
+          non lette) che senza badge sembrava una inbox vera con dati reali. */}
+      <div className="absolute right-6 top-6 z-10 rounded-full border border-amber-200 bg-amber-50/95 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 shadow-sm">
+        Anteprima demo · dati di esempio
+      </div>
       <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-blue-100/50 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-16 left-20 h-40 w-40 rounded-full bg-orange-100/50 blur-3xl" />
       <div className="relative grid h-[560px] overflow-hidden rounded-[24px] border border-slate-200 bg-white md:grid-cols-[176px_minmax(0,1fr)] 2xl:grid-cols-[172px_minmax(0,1fr)_260px]">

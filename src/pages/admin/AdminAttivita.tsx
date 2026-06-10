@@ -112,7 +112,10 @@ function AdminAttivitaHeader() {
   const oggi = format(new Date(), "EEEE d MMMM yyyy", { locale: it });
   const ora = new Date().getHours();
   const saluto = ora < 12 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera";
-  const nome = profile?.first_name || "Admin";
+  // first_name può essere il prefix dell'email da auto-provisioning
+  // (es. "flo.andriciuc"): per il saluto basta il primo segmento, capitalizzato.
+  const rawNome = profile?.first_name || "Admin";
+  const nome = (rawNome.split(/[._-]/)[0] || rawNome).replace(/^./, (c) => c.toUpperCase());
 
   return (
     <div>

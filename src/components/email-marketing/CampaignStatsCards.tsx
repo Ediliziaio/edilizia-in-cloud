@@ -17,10 +17,10 @@ interface CampaignStatsCardsProps {
 
 export function CampaignStatsCards({ stats }: CampaignStatsCardsProps) {
   const cards = [
-    { label: "Email Consegna", value: stats.delivered, icon: CheckCircle, color: "text-green-600" },
-    { label: "Respinto", value: stats.bounced, icon: AlertTriangle, color: "text-orange-600" },
-    { label: "Annullato l'iscrizione", value: stats.unsubscribed, icon: UserMinus, color: "text-red-600" },
-    { label: "Reclami di spam", value: stats.spam, icon: ShieldAlert, color: "text-destructive" },
+    { label: "Email consegnate", value: stats.delivered, icon: CheckCircle, color: "text-green-600" },
+    { label: "Respinte (bounce)", value: stats.bounced, icon: AlertTriangle, color: "text-orange-600" },
+    { label: "Disiscrizioni", value: stats.unsubscribed, icon: UserMinus, color: "text-red-600" },
+    { label: "Segnalazioni spam", value: stats.spam, icon: ShieldAlert, color: "text-destructive" },
   ];
 
   return (

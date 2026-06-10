@@ -81,17 +81,17 @@ export default function AdminSettingsAI() {
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto p-1">
           <TabsTrigger value="routing" className="gap-2 py-2">
             <Route className="h-4 w-4" />
-            <span className="hidden sm:inline">Routing & Models</span>
+            <span className="hidden sm:inline">Routing & Modelli</span>
             <span className="sm:hidden">Routing</span>
           </TabsTrigger>
           <TabsTrigger value="economics" className="gap-2 py-2">
             <Coins className="h-4 w-4" />
-            <span className="hidden sm:inline">Economics</span>
+            <span className="hidden sm:inline">Costi & Margini</span>
             <span className="sm:hidden">€</span>
           </TabsTrigger>
           <TabsTrigger value="content" className="gap-2 py-2">
             <Library className="h-4 w-4" />
-            <span>Content</span>
+            <span>Contenuti</span>
           </TabsTrigger>
           <TabsTrigger value="governance" className="gap-2 py-2">
             <ShieldAlert className="h-4 w-4" />
@@ -104,7 +104,7 @@ export default function AdminSettingsAI() {
         <TabsContent value="routing" className="space-y-3">
           {isCatMounted("routing") && <>
           <CategoryDescription
-            title="Routing & Models"
+            title="Routing & Modelli"
               description="Configura i modelli AI per ogni task e personalizza le 18 personas cliente. Le 21 personas interne di Silvio Superadmin restano governate dal Silvio Hub."
           />
           <Tabs defaultValue="router" className="space-y-3">
@@ -136,7 +136,7 @@ export default function AdminSettingsAI() {
         <TabsContent value="economics" className="space-y-3">
           {isCatMounted("economics") && <>
           <CategoryDescription
-            title="Economics"
+            title="Costi & Margini"
             description="Pricing & margini sui task AI: markup per modello, sconti per azienda, monitoraggio costi reali OpenRouter."
           />
           <Suspense fallback={fallback}>
@@ -149,7 +149,7 @@ export default function AdminSettingsAI() {
         <TabsContent value="content" className="space-y-3">
           {isCatMounted("content") && <>
           <CategoryDescription
-            title="Content"
+            title="Contenuti"
             description="Contesto che l'AI usa per rispondere: knowledge base universale (RAG), memoria contestuale per-azienda, voci sintetizzate ElevenLabs."
           />
           <Tabs defaultValue="knowledge" className="space-y-3">

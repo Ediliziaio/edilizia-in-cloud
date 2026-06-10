@@ -54,7 +54,7 @@ export function EmailTopCampaignsTable({ campaigns }: EmailTopCampaignsTableProp
         <CardTitle className="text-base">Email con le migliori prestazioni</CardTitle>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Mostra in numeri</span>
+            <span className="text-muted-foreground">Valori assoluti</span>
             <Switch checked={showNumbers} onCheckedChange={setShowNumbers} />
           </div>
           <Select value={sortBy} onValueChange={setSortBy}>

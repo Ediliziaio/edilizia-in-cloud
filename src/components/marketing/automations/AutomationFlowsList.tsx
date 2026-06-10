@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { useMarketingRoutePrefix } from "@/hooks/useMarketingRoutePrefix";
-import { withClientTimeout } from "@/lib/query-timeout";
+import { withClientTimeout, retryListQuery } from "@/lib/query-timeout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -160,6 +160,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       return data;
     },
     enabled: !!effectiveCompany?.id,
+    retry: retryListQuery,
   });
 
   // Load ALL flows (flat, we group client-side)
@@ -188,6 +189,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       return data as AutomationFlow[];
     },
     enabled: !!effectiveCompany?.id,
+    retry: retryListQuery,
   });
 
   // Enrollment counts
@@ -212,6 +214,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       return counts;
     },
     enabled: !!effectiveCompany?.id,
+    retry: retryListQuery,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
@@ -237,9 +240,21 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       return Object.fromEntries(Object.entries(grouped).map(([flowId, nodes]) => [flowId, summarizeNodes(nodes)]));
     },
     enabled: !!effectiveCompany?.id,
+    retry: retryListQuery,
     staleTime: 60 * 1000,
     gcTime: 5 * 60 * 1000,
   });
+
+  // Invalidation unica per tutte le mutation: prima ogni mutation invalidava
+  // solo "automation-flows" e i KPI (automation-overview-stats), la struttura
+  // e gli iscritti restavano stale — es. "Flussi totali" fermo al valore
+  // precedente dopo un'eliminazione.
+  const invalidateAutomationData = () => {
+    void queryClient.invalidateQueries({ queryKey: ["automation-flows"] });
+    void queryClient.invalidateQueries({ queryKey: ["automation-overview-stats"] });
+    void queryClient.invalidateQueries({ queryKey: ["automation-node-summaries"] });
+    void queryClient.invalidateQueries({ queryKey: ["automation-enrollment-counts"] });
+  };
 
   // --- Mutations (kept from original) ---
   const deleteMutation = useMutation({
@@ -264,7 +279,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["automation-flows"] });
+      invalidateAutomationData();
       toast({ title: "Automazione eliminata" });
       setDeleteId(null);
     },
@@ -348,7 +363,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["automation-flows"] });
+      invalidateAutomationData();
       toast({ title: "Automazione duplicata" });
     },
     onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
@@ -389,7 +404,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         });
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["automation-flows"] }),
+    onSuccess: () => invalidateAutomationData(),
     onError: (err: any) => toast({ title: "Errore", description: err.message, variant: "destructive" }),
   });
 
@@ -409,7 +424,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["automation-flows"] });
+      invalidateAutomationData();
       toast({ title: "Automazioni eliminate" });
       setSelectedIds(new Set());
       setBulkDeleteOpen(false);
@@ -532,6 +547,10 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           onClick={() => {
             void refetchFlows();
             void refetchFolders();
+            // Anche struttura e iscritti: se erano in errore, senza questo il
+            // retry lasciava tutte le righe a "0 trigger · 0 step".
+            void queryClient.invalidateQueries({ queryKey: ["automation-node-summaries"] });
+            void queryClient.invalidateQueries({ queryKey: ["automation-enrollment-counts"] });
           }}
         >
           {flowsFetching || foldersFetching ? (
@@ -564,7 +583,10 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const renderFlowRow = (flow: AutomationFlow, indented = false) => {
     const badge = STATUS_BADGE[flow.status] || STATUS_BADGE.draft;
     const counts = enrollmentCounts?.[flow.id] || { total: 0, active: 0 };
-    const summary = nodeSummaries?.[flow.id] || { triggerCount: 0, actionCount: 0, issueCount: flow.status === "published" ? 0 : 1, firstIssue: "Struttura non ancora verificata" };
+    // null = dati struttura non (ancora) disponibili → "—", non un falso
+    // "0 trigger · 0 step". Se la query è risolta ma il flusso non ha nodi,
+    // summarizeNodes([]) dà il vero stato ("Aggiungi almeno un trigger…").
+    const summary = nodeSummaries ? (nodeSummaries[flow.id] ?? summarizeNodes([])) : null;
     const cat = CATEGORY_ICON_MAP[flow.category] || CATEGORY_ICON_MAP.generale;
     const folderName = flow.folder_id ? folderMap[flow.folder_id] : null;
 
@@ -588,7 +610,9 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           <Badge className={cn("text-xs", badge.className)}>{badge.label}</Badge>
         </TableCell>
         <TableCell>
-          {summary.issueCount > 0 ? (
+          {!summary ? (
+            <span className="text-xs text-muted-foreground/50">—</span>
+          ) : summary.issueCount > 0 ? (
             <span className="inline-flex max-w-[220px] items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800" title={summary.firstIssue || undefined}>
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{summary.firstIssue}</span>
@@ -602,7 +626,7 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
         </TableCell>
         <TableCell>
           <span className="text-xs text-muted-foreground">
-            {summary.triggerCount} trigger · {summary.actionCount} step
+            {summary ? `${summary.triggerCount} trigger · ${summary.actionCount} step` : "—"}
           </span>
         </TableCell>
         <TableCell>
@@ -660,7 +684,8 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
   const renderFlowCard = (flow: AutomationFlow) => {
     const badge = STATUS_BADGE[flow.status] || STATUS_BADGE.draft;
     const counts = enrollmentCounts?.[flow.id] || { total: 0, active: 0 };
-    const summary = nodeSummaries?.[flow.id] || { triggerCount: 0, actionCount: 0, issueCount: flow.status === "published" ? 0 : 1, firstIssue: "Struttura non ancora verificata" };
+    // Stessa semantica della riga tabella: null = struttura non disponibile.
+    const summary = nodeSummaries ? (nodeSummaries[flow.id] ?? summarizeNodes([])) : null;
     return (
       <div
         key={flow.id}
@@ -676,15 +701,17 @@ export function AutomationFlowsList({ statusFilter: externalStatus, searchQuery 
           <Badge className={cn("text-xs", badge.className)}>{badge.label}</Badge>
         </div>
         <h3 className="font-medium text-sm mb-2 line-clamp-2">{flow.name}</h3>
-        <div className={cn(
-          "mb-3 rounded-md border px-2 py-1.5 text-xs",
-          summary.issueCount > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"
-        )}>
-          {summary.issueCount > 0 ? summary.firstIssue : "Pronta per la pubblicazione"}
-        </div>
+        {summary && (
+          <div className={cn(
+            "mb-3 rounded-md border px-2 py-1.5 text-xs",
+            summary.issueCount > 0 ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"
+          )}>
+            {summary.issueCount > 0 ? summary.firstIssue : "Pronta per la pubblicazione"}
+          </div>
+        )}
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>{counts.total.toLocaleString("it-IT")} iscritti</span>
-          <span>{summary.triggerCount} trigger · {summary.actionCount} step</span>
+          <span>{summary ? `${summary.triggerCount} trigger · ${summary.actionCount} step` : "—"}</span>
           <span>{formatDate(flow.updated_at)}</span>
         </div>
       </div>

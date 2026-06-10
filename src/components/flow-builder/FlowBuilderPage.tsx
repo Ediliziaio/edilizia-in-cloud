@@ -651,13 +651,21 @@ export function FlowBuilderPage() {
       toast.info("Nessun nodo da riordinare");
       return;
     }
+    // Niente da muovere → niente updateNodePositions: marcava il flusso come
+    // "modifiche non salvate" (pallino su Salva + prompt all'uscita) senza
+    // alcuna modifica reale.
+    if (movedCount === 0) {
+      try { reactFlowInstance?.fitView?.({ padding: 0.2, duration: 400 }); } catch { /* noop */ }
+      toast.success("Il flusso è già ordinato");
+      return;
+    }
     setRfNodes((nds) => nds.map((n) => (positions[n.id] ? { ...n, position: positions[n.id] } : n)));
     updateNodePositions(positions);
     // Rinquadra la vista sul nuovo layout (dopo l'applicazione delle posizioni).
     window.setTimeout(() => {
       try { reactFlowInstance?.fitView?.({ padding: 0.2, duration: 400 }); } catch { /* noop */ }
     }, 60);
-    toast.success(movedCount > 0 ? "Flusso riordinato" : "Il flusso è già ordinato");
+    toast.success("Flusso riordinato");
   }, [rfNodes, rfEdges, setRfNodes, updateNodePositions, reactFlowInstance]);
 
 

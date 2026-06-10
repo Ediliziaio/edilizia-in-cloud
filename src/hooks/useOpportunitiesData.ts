@@ -6,7 +6,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useEffect, useMemo } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
-import { withClientTimeout } from "@/lib/query-timeout";
+import { withClientTimeout, retryListQuery } from "@/lib/query-timeout";
 
 export function usePipelines() {
   const { effectiveCompany } = useAuth();
@@ -30,7 +30,9 @@ export function usePipelines() {
       }));
     },
     enabled: !!companyId,
-    retry: false,
+    // Timeout transitorio al primo load → 1 retry (era retry:false: il
+    // kanban restava in errore al primo colpo freddo).
+    retry: retryListQuery,
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
   });
@@ -195,7 +197,7 @@ export function useOpportunities(pipelineId: string | null) {
       return lastPage.length === PAGE_SIZE ? lastPageParam + 1 : undefined;
     },
     enabled: !!companyId && !!pipelineId,
-    retry: false,
+    retry: retryListQuery,
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });

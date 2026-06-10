@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,7 @@ export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
   const routePrefix = useMarketingRoutePrefix();
   const companyId = useEffectiveCompanyId();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const [cerca, setCerca] = useState("");
   const [difficoltaFiltro, setDifficoltaFiltro] = useState<string | null>(null);
@@ -62,6 +64,10 @@ export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
     }
 
     setActivatingId(template.id);
+    // Tracciato fuori dal try: se gli insert di nodi/connessioni falliscono
+    // DOPO la creazione del flow, il catch lo ripulisce — prima restava una
+    // bozza fantasma vuota ("0 trigger · 0 step") nella lista.
+    let createdFlowId: string | null = null;
     try {
       // 1. Create flow
       const { data: flow, error: flowErr } = await supabase
@@ -80,6 +86,7 @@ export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
       if (flowErr || !flow) throw flowErr ?? new Error("Impossibile creare il flow");
 
       const flowId = (flow as any).id as string;
+      createdFlowId = flowId;
 
       // 2. Insert nodes
       const nodeInserts = template.nodes.map(n => ({
@@ -121,10 +128,27 @@ export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
         if (connErr) throw connErr;
       }
 
+      // Senza invalidation, tornando alla lista il nuovo flusso non appariva
+      // per tutto lo staleTime (5 min) e i KPI restavano al conteggio vecchio.
+      void queryClient.invalidateQueries({ queryKey: ["automation-flows"] });
+      void queryClient.invalidateQueries({ queryKey: ["automation-overview-stats"] });
+      void queryClient.invalidateQueries({ queryKey: ["automation-node-summaries"] });
+      void queryClient.invalidateQueries({ queryKey: ["automation-enrollment-counts"] });
+
       toast.success(`Template "${template.nome}" creato! Apro il builder...`);
       navigate(`${routePrefix}/automazioni/${flowId}`);
     } catch (err: any) {
       console.error("Errore attivazione template:", err);
+      // Rollback best-effort della bozza orfana (nodi/connessioni inclusi).
+      if (createdFlowId) {
+        try {
+          await supabase.from("automation_connections").delete().eq("flow_id", createdFlowId);
+          await supabase.from("automation_nodes").delete().eq("flow_id", createdFlowId);
+          await supabase.from("automation_flows").delete().eq("id", createdFlowId);
+        } catch {
+          /* best-effort: se anche il cleanup fallisce, resta la bozza ma l'utente è avvisato dall'errore */
+        }
+      }
       toast.error("Errore nella creazione dell'automazione");
     } finally {
       setActivatingId(null);

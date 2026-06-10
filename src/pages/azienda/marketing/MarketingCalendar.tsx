@@ -1045,7 +1045,7 @@ export default function MarketingCalendar() {
             onClick={handleSyncExternalCalendars}
             disabled={syncingExternal}
             className="h-9 gap-1.5"
-            title="Sincronizza disponibilita' e appuntamenti con i calendari esterni collegati"
+            title="Sincronizza disponibilità e appuntamenti con i calendari esterni collegati"
           >
             <RefreshCw className={cn("h-4 w-4", syncingExternal && "animate-spin")} />
             <span className="hidden sm:inline">Sync</span>
@@ -1359,7 +1359,7 @@ export default function MarketingCalendar() {
                       </p>
                       <div className="mt-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
                         <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                        <span>Prima crea almeno un calendario attivo, poi imposta disponibilita' e collegamenti Google/Apple.</span>
+                        <span>Prima crea almeno un calendario attivo, poi imposta disponibilità e collegamenti Google/Apple.</span>
                       </div>
                       <div className="mt-5 flex flex-wrap gap-2">
                         <Button className="gap-1.5" onClick={() => navigate(calendarSettingsPath)}>
@@ -1376,7 +1376,7 @@ export default function MarketingCalendar() {
                     <div className="grid gap-2 text-sm">
                       {[
                         { icon: Users, title: "Assegna al team", text: "Ogni link puo' puntare a un commerciale o reparto." },
-                        { icon: Clock, title: "Definisci disponibilita'", text: "Imposta giorni e orari prima di pubblicare il link." },
+                        { icon: Clock, title: "Definisci disponibilità", text: "Imposta giorni e orari prima di pubblicare il link." },
                         { icon: Link2, title: "Condividi o embedda", text: "Usa link diretto, iframe o bottone sul sito." },
                       ].map((item) => (
                         <div key={item.title} className="rounded-lg border bg-muted/20 p-3">

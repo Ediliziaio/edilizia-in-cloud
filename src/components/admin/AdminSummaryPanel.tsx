@@ -136,17 +136,21 @@ export function AdminSummaryPanel({
                     >
                       <KpiIcon className="h-4 w-4" />
                     </span>
-                    <span className="min-w-0">
+                    {/* div, non p/span: value e caption sono ReactNode e i
+                        chiamanti ci passano <Skeleton/> (un div) durante il
+                        load → div-dentro-p è HTML invalido (hydration error
+                        in console su AdminFatturatoHub). */}
+                    <div className="min-w-0">
                       <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-100">
                         {kpi.label}
                       </span>
-                      <span className="block truncate text-xl font-bold text-white">
+                      <div className="truncate text-xl font-bold text-white">
                         {kpi.value}
-                      </span>
+                      </div>
                       {kpi.caption ? (
-                        <span className="mt-0.5 block text-xs text-blue-50/70">{kpi.caption}</span>
+                        <div className="mt-0.5 text-xs text-blue-50/70">{kpi.caption}</div>
                       ) : null}
-                    </span>
+                    </div>
                   </div>
                 </div>
               );
@@ -190,7 +194,7 @@ export function AdminSummaryPanel({
                       className={cn("rounded-xl border bg-white px-3 py-2 shadow-sm", tone.border)}
                     >
                       <p className="text-[10px] font-semibold uppercase text-slate-500">{stat.label}</p>
-                      <p className={cn("mt-0.5 text-base font-bold", tone.text)}>{stat.value}</p>
+                      <div className={cn("mt-0.5 text-base font-bold", tone.text)}>{stat.value}</div>
                     </div>
                   );
                 })}

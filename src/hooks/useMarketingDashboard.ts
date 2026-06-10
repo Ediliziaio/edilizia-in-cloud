@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useState, useMemo, useCallback } from "react";
 import { getDateRange } from "@/lib/dateRangeUtils";
-import { withClientTimeout } from "@/lib/query-timeout";
+import { withClientTimeout, retryListQuery } from "@/lib/query-timeout";
 
 const MARKETING_DASHBOARD_TIMEOUT_MS = 12_000;
 
@@ -167,7 +167,10 @@ export function useMarketingDashboard() {
     enabled: !!companyId,
     staleTime: 3 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
-    retry: false,
+    // Era retry:false — la RPC è pesante e al primo load freddo un timeout
+    // transitorio lasciava la dashboard in errore; un retry la salva quasi
+    // sempre (il secondo colpo trova DB/plan caldi).
+    retry: retryListQuery,
   });
 
   const updateFilters = useCallback((partial: Partial<DashboardFiltersState>) => {

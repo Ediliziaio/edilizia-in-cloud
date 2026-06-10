@@ -97,7 +97,11 @@ function useFatturatoSnapshot() {
       const arr = mrr * 12;
       const arpu = breakdown.payingCompanies > 0 ? mrr / breakdown.payingCompanies : 0;
 
-      // Chart: ultimi 12 mesi di MRR snapshot (cents → euros)
+      // Chart: ultimi 12 mesi di MRR snapshot (cents → euros).
+      // Un errore qui NON è fatale (i KPI vengono da subsRes) ma nemmeno
+      // silente: prima finiva mascherato da "Nessun snapshot MRR disponibile"
+      // come fosse un dato reale.
+      const chartError = !!snapshotsRes.error;
       const snapshots = (snapshotsRes.data ?? []) as Array<{
         data: string;
         mrr_stripe_cents: number;
@@ -124,6 +128,7 @@ function useFatturatoSnapshot() {
         paidCount: paidCompanies.length,
         excludedMrr: breakdown.excludedMrr,
         chart,
+        chartError,
       };
     },
     staleTime: 5 * 60_000,
@@ -293,6 +298,22 @@ export default function AdminFatturatoHub() {
                 {[60, 92, 48, 130, 78, 155, 105, 184].map((height, index) => (
                   <Skeleton key={index} className="flex-1 rounded-t-md" style={{ height }} />
                 ))}
+              </div>
+            ) : snapshot?.chartError ? (
+              <div className="grid h-full place-items-center text-center">
+                <div>
+                  <p className="text-sm font-medium text-slate-700">Storico MRR non caricato</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Errore nel leggere <code className="rounded bg-slate-100 px-1 text-[10px]">mrr_snapshots</code>.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void refetch()}
+                    className="mt-2 text-xs font-medium text-blue-600 underline underline-offset-2"
+                  >
+                    {isFetching ? "Ricarico…" : "Riprova"}
+                  </button>
+                </div>
               </div>
             ) : (snapshot?.chart.length ?? 0) === 0 ? (
               <div className="grid h-full place-items-center text-center">

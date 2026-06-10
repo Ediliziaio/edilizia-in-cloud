@@ -153,6 +153,10 @@ const allNavItems: AdminNavItem[] = [
   { title: "Referral", url: "/admin/referral", icon: Gift, permission: "can_manage_referrals", subcategory: "sa_growth" },
   { title: "Produttori", url: "/admin/produttori", icon: Factory, permission: "can_manage_companies", subcategory: "sa_growth" },
   { title: "Commercialisti", url: "/admin/commercialisti", icon: Calculator, permission: "can_manage_companies", subcategory: "sa_growth" },
+  // Route esistenti e funzionanti ma prima raggiungibili solo da URL diretto
+  // (nessuna voce nav le linkava — emerse dall'audit superadmin 2026-06).
+  { title: "Cohort", url: "/admin/cohort", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_growth" },
+  { title: "Campagne A/B", url: "/admin/campagne", icon: Megaphone, permission: "can_manage_marketing", subcategory: "sa_growth" },
 ];
 
 const adminMarketingNavItems: AdminNavItem[] = [

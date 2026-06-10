@@ -15,6 +15,7 @@
  */
 import { lazy, Suspense } from "react";
 import { PlatformCompanyProvider } from "@/components/admin/PlatformCompanyProvider";
+import { AdminTransactionalLogPanel } from "@/components/admin/AdminTransactionalLogPanel";
 import { Loader2 } from "lucide-react";
 
 const EmailClientPage = lazy(() => import("@/pages/azienda/email/EmailClientPage"));
@@ -22,6 +23,12 @@ const EmailClientPage = lazy(() => import("@/pages/azienda/email/EmailClientPage
 export default function AdminEmailClientPage() {
   return (
     <PlatformCompanyProvider>
+      {/* Log transazionali REALI (email_delivery_log) sopra il client: prima
+          la pagina mostrava solo l'empty-state OAuth con preview demo e le
+          email di sistema davvero inviate non erano visibili da nessuna parte. */}
+      <div className="mb-4">
+        <AdminTransactionalLogPanel />
+      </div>
       <div className="-m-3 md:-m-6">
         <Suspense fallback={
           <div className="flex h-[60vh] items-center justify-center">

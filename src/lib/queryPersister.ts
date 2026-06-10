@@ -109,6 +109,17 @@ const PERSIST_WHITELIST = new Set<string>([
   "admin-companies-reseller-info",   // badge Rivenditore in CompaniesList
   "admin-companies-accountant-info", // badge Studio in CompaniesList
   "admin-companies-producer-info",   // badge Produttore in CompaniesList
+  // 2026-06-10 — pagina Automazioni: al primo load freddo le 4 query
+  // (flussi, cartelle, struttura, iscritti) andavano in timeout a 12s.
+  // Con lo snapshot persistito la lista appare subito dalla cache e il
+  // refetch in background la aggiorna senza errori a schermo.
+  "automation-flows",
+  "automation-folders-all",
+  "automation-node-summaries",
+  "automation-enrollment-counts",
+  "automation-overview-stats",
+  "platform-admin-company-id",   // AdminTeamChat: id quasi statico, sblocca il mount immediato
+  "admin-attivita-tasks",        // /admin/attivita: lista task subito dalla cache
 ]);
 
 export function shouldPersistQuery(queryKey: readonly unknown[]): boolean {

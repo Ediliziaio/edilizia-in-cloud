@@ -558,7 +558,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
                 <p className="font-medium">Dopo il salvataggio</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Apri disponibilita' per impostare giorni e orari, poi condividi link diretto o codice embed.
+                  Apri disponibilità per impostare giorni e orari, poi condividi link diretto o codice embed.
                 </p>
                 <Button
                   type="button"

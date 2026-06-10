@@ -707,7 +707,9 @@ export default function MioProfilo() {
               {/* v8.6.39 M7 — nota separata in fondo: info su modifica email
                   che prima era sotto l'input email duplicato. */}
               <p className="text-xs text-muted-foreground border-t pt-3">
-                Per modificare l'email contatta l'amministratore della tua azienda.
+                {role === "super_admin"
+                  ? "L'email di accesso del super admin si gestisce dal pannello Supabase (Auth → Users)."
+                  : "Per modificare l'email contatta l'amministratore della tua azienda."}
               </p>
             </CardContent>
           </Card>
@@ -733,7 +735,12 @@ export default function MioProfilo() {
                 <div>
                   <p className="text-muted-foreground text-xs">Ultimo accesso</p>
                   <p className="font-medium">
-                    {profile?.last_login_at ? format(new Date(profile.last_login_at), "d MMM yyyy, HH:mm", { locale: it }) : "—"}
+                    {(() => {
+                      // profiles.last_login_at non viene popolato per tutti gli
+                      // utenti (es. super admin): fallback al dato auth nativo.
+                      const lastAccess = profile?.last_login_at ?? user?.last_sign_in_at;
+                      return lastAccess ? format(new Date(lastAccess), "d MMM yyyy, HH:mm", { locale: it }) : "—";
+                    })()}
                   </p>
                 </div>
               </div>
