@@ -5,6 +5,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/headers.ts";
+import { requireCompanyAccess } from "../_shared/auth.ts";
 
 interface RequestBody { company_id: string; pacchetto_id: string }
 
@@ -35,6 +36,15 @@ Deno.serve(async (req: Request) => {
 
     const { company_id, pacchetto_id } = await req.json() as RequestBody;
     if (!company_id || !pacchetto_id) return json({ error: "Parametri obbligatori mancanti" }, 400);
+
+    // Tenant check: l'utente deve appartenere alla company. Prima si poteva
+    // creare un PaymentIntent e accreditare crediti SMS su un'azienda arbitraria.
+    try {
+      await requireCompanyAccess(adminClient, user.id, company_id, corsHeaders);
+    } catch (accessErr) {
+      if (accessErr instanceof Response) return accessErr;
+      return json({ error: "Non autorizzato per questa azienda" }, 403);
+    }
 
     // Leggi pacchetto
     const { data: pacchetto, error: packErr } = await adminClient

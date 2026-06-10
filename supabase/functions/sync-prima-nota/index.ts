@@ -1,4 +1,4 @@
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 
 /**
@@ -17,6 +17,16 @@ Deno.serve(async (req: Request) => {
 
     const { company_id, action = "both" } = await req.json();
     if (!company_id) return errorResponse("company_id obbligatorio", 400);
+
+    // Tenant check: l'utente deve appartenere alla company. Senza, si potevano
+    // importare/scrivere prima_nota_entries per un'azienda arbitraria (e il
+    // company_id finisce anche in una SQL string interpolata più sotto).
+    try {
+      await requireCompanyAccess(supabaseAdmin, userId, company_id, corsH);
+    } catch (accessErr) {
+      if (accessErr instanceof Response) return accessErr;
+      return errorResponse("Forbidden", 403);
+    }
 
     let importedBanking = 0;
     let importedInvoices = 0;

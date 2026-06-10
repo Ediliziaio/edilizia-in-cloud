@@ -9,6 +9,7 @@ import {
   errorResponse,
   jsonResponse,
 } from "../_shared/headers.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 
 interface LiquidazioneParams {
   company_id: string;
@@ -23,9 +24,15 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: getCorsHeaders(req) });
   }
 
+  const corsH = getCorsHeaders(req);
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
+    // Auth: valida il JWT utente (prima si controllava solo la presenza header).
+    let userId: string;
+    try {
+      const auth = await requireAuth(req, corsH);
+      userId = auth.userId;
+    } catch (authErr) {
+      if (authErr instanceof Response) return authErr;
       return errorResponse("Unauthorized", 401);
     }
 
@@ -38,6 +45,15 @@ Deno.serve(async (req) => {
 
     if (!company_id || !periodo || !anno) {
       return errorResponse("company_id, periodo e anno sono obbligatori", 400);
+    }
+
+    // Tenant check: l'utente deve appartenere alla company richiesta. Prima si
+    // leggevano i dati IVA di QUALSIASI azienda passando il company_id nel body.
+    try {
+      await requireCompanyAccess(supabase, userId, company_id, corsH);
+    } catch (accessErr) {
+      if (accessErr instanceof Response) return accessErr;
+      return errorResponse("Forbidden", 403);
     }
 
     // Calcola date inizio/fine del periodo
