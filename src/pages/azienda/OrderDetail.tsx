@@ -10,7 +10,7 @@ import { OrderSupplierOrders } from "@/components/orders/OrderSupplierOrders";
 import { OrderEconomicsSummary } from "@/components/orders/OrderEconomicsSummary";
 import { RitenuteTab } from "@/components/ritenute/RitenuteTab";
 import { formatDateTime, formatCurrency } from "@/lib/formatters";
-import { differenceInDays, parseISO, isBefore, startOfDay } from "date-fns";
+import { differenceInDays, parseISO, isBefore, startOfDay, format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
@@ -88,10 +88,40 @@ function parseValidOrderDate(value: string | null): Date | null {
 
 function getOrderAlerts(
   order: { expected_date: string | null; warehouse_arrival_date: string | null },
-  items: { name: string; status: string }[]
+  items: { name: string; status: string }[],
+  installments: { label: string; amount: number; is_paid: boolean; expected_date?: string | null }[] = []
 ): OrderAlert[] {
   const alerts: OrderAlert[] = [];
   const today = startOfDay(new Date());
+
+  // "Prossima azione" incassi: la rata scaduta (urgente) o il prossimo
+  // incasso atteso — così la cosa più importante si legge in testata senza
+  // scendere fino al tab Finanza.
+  const nonPagateConData = installments
+    .filter(i => !i.is_paid && i.amount > 0 && i.expected_date)
+    .sort((a, b) => (a.expected_date! < b.expected_date! ? -1 : 1));
+  if (nonPagateConData.length > 0) {
+    const prossima = nonPagateConData[0];
+    const dataRata = parseValidOrderDate(prossima.expected_date!);
+    if (dataRata) {
+      const giorni = differenceInDays(startOfDay(dataRata), today);
+      if (giorni < 0) {
+        alerts.push({
+          type: 'urgent',
+          title: `Rata scaduta da ${Math.abs(giorni)} giorn${Math.abs(giorni) === 1 ? 'o' : 'i'}`,
+          description: `${prossima.label} di ${formatCurrency(prossima.amount)} era previsto il ${format(dataRata, "dd/MM/yyyy")} — sollecita l'incasso.`,
+          icon: <AlertTriangle className="h-4 w-4" />,
+        });
+      } else if (giorni <= 14) {
+        alerts.push({
+          type: 'info',
+          title: giorni === 0 ? 'Incasso previsto oggi' : `Prossimo incasso tra ${giorni} giorn${giorni === 1 ? 'o' : 'i'}`,
+          description: `${prossima.label} di ${formatCurrency(prossima.amount)} previsto il ${format(dataRata, "dd/MM/yyyy")}.`,
+          icon: <AlertCircle className="h-4 w-4" />,
+        });
+      }
+    }
+  }
 
   const itemsDaOrdinare = items.filter(i => i.status === 'da_ordinare');
   const itemsOrdinati = items.filter(i => i.status === 'ordinato');
@@ -870,8 +900,8 @@ function OrderDetailInner() {
 
   const orderAlerts = useMemo(() => {
     if (!order) return [];
-    return getOrderAlerts(order, displayItems);
-  }, [order, displayItems]);
+    return getOrderAlerts(order, displayItems, displayInstallments);
+  }, [order, displayItems, displayInstallments]);
 
   const handleAttachmentsRefresh = () => { refetchAttachments(); };
 

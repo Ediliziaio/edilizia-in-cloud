@@ -73,13 +73,16 @@ export function OrdineStatusStrip({
 
           return (
             <div key={status.id} className="flex items-center">
-              {/* Step */}
+              {/* Step — title + hover ring: era cliccabile ma non lo sembrava
+                  (nessuna affordance), gli utenti non sapevano di poter
+                  avanzare lo stato da qui */}
               <div
                 className="flex flex-col items-center gap-1 cursor-pointer group"
                 onClick={() => onStatusChange?.(status.id)}
+                title={isCurrent ? `Stato attuale: ${status.name}` : `Imposta stato "${status.name}"`}
               >
                 <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all text-xs font-medium"
+                  className="w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all text-xs font-medium group-hover:scale-110 group-hover:shadow-md"
                   style={circleStyle}
                 >
                   {isCompleted ? (
