@@ -17,7 +17,7 @@ import { CalendarIcon, Plus, Trash2, Loader2, Link as LinkIcon, Wallet, Trending
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatDateIt } from "@/lib/formatters";
 
 const METODI = [
   { value: "bonifico", label: "Bonifico" },
@@ -196,6 +196,7 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
                 <Label className="text-sm">Importo €</Label>
                 <Input
                   type="number"
+                  inputMode="decimal"
                   step="0.01"
                   value={formImporto}
                   onChange={(e) => setFormImporto(e.target.value)}
@@ -303,7 +304,7 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
                   <tbody>
                     {(movimenti ?? []).map((m) => (
                       <tr key={m.id} className="border-b hover:bg-muted/30">
-                        <td className="p-3">{m.data_movimento}</td>
+                        <td className="p-3 whitespace-nowrap">{formatDateIt(m.data_movimento)}</td>
                         <td className="p-3">
                           {m.documento_id ? (
                             <Button
@@ -371,7 +372,7 @@ export default function RegistroIncassi({ embedded = false }: RegistroIncassiPro
                 <div className="flex items-center gap-6 text-sm">
                   <div className="text-right">
                     <p className="font-mono">{formatCurrency(d.totale_da_pagare - d.importo_pagato)}</p>
-                    <p className="text-xs text-muted-foreground">Scad. {d.data_scadenza}</p>
+                    <p className="text-xs text-muted-foreground">Scad. {formatDateIt(d.data_scadenza)}</p>
                   </div>
                   <Badge variant={d.urgency === "scaduta" ? "destructive" : d.urgency === "oggi" ? "outline" : "secondary"}>
                     {d.urgency === "scaduta" ? `${Math.abs(d.diff)} gg fa` : d.urgency === "oggi" ? "Oggi" : `tra ${d.diff} gg`}

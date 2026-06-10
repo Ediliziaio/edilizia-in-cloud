@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { formatDateIt } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -616,7 +617,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{tx.description || "—"}</p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {tx.creditor_name || tx.debtor_name || "—"} · {tx.booking_date || "—"}
+                        {tx.creditor_name || tx.debtor_name || "—"} · {formatDateIt(tx.booking_date)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {tx.bank_accounts?.display_name || tx.bank_accounts?.account_name || ""}
@@ -663,7 +664,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                         <p className="text-sm font-medium">{inv.invoice_number || "—"}</p>
                         <p className="text-xs text-muted-foreground truncate">{inv.client_company_name || "—"}</p>
                         <p className="text-xs text-muted-foreground">
-                          Scad. {inv.due_date || "—"}
+                          Scad. {formatDateIt(inv.due_date)}
                         </p>
                       </div>
                       <div className="text-right ml-2">
@@ -749,7 +750,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
               <div className="bg-accent/30 rounded-lg p-3 text-sm">
                 <p className="font-medium">{selectedTx.description || "—"}</p>
                 <p className="text-muted-foreground text-xs">
-                  {selectedTx.creditor_name || selectedTx.debtor_name || ""} · {selectedTx.booking_date}
+                  {selectedTx.creditor_name || selectedTx.debtor_name || ""} · {formatDateIt(selectedTx.booking_date)}
                 </p>
                 <p className="font-bold text-green-600 mt-1">+{fmtEur(Math.abs(selectedTx.amount))}</p>
               </div>

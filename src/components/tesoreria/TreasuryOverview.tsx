@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Wallet, TrendingUp, TrendingDown, ArrowUpDown, AlertTriangle, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Line, ComposedChart } from "recharts";
-import { formatCurrencyCompact } from "@/lib/formatters";
+import { formatCurrencyCompact, formatDateIt } from "@/lib/formatters";
 import { toast } from "sonner";
 import { formatTreasuryCurrency, toFiniteAmount } from "@/lib/treasury";
 
@@ -218,7 +218,7 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
                     )}
                     <div>
                       <p className="text-sm font-medium truncate max-w-[300px]">{tx.description || "—"}</p>
-                      <p className="text-xs text-muted-foreground">{tx.booking_date}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateIt(tx.booking_date)}</p>
                     </div>
                   </div>
                   <span className={`font-semibold text-sm ${tx.transaction_type === "credit" ? "text-green-600" : "text-red-600"}`}>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
+import { formatDateIt } from "@/lib/formatters";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -376,7 +377,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
                       setEditNote(tx.note || "");
                     }}
                   >
-                    <td className="p-3 whitespace-nowrap">{tx.booking_date || "—"}</td>
+                    <td className="p-3 whitespace-nowrap">{formatDateIt(tx.booking_date)}</td>
                     <td className="p-3">
                       <p className="truncate max-w-[300px]">{tx.description || "—"}</p>
                       {(tx.creditor_name || tx.debtor_name) && (
@@ -454,8 +455,8 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
           {selectedTx && (
             <div className="space-y-4 mt-6">
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><Label className="text-muted-foreground">Data Booking</Label><p>{selectedTx.booking_date || "—"}</p></div>
-                <div><Label className="text-muted-foreground">Data Valuta</Label><p>{selectedTx.value_date || "—"}</p></div>
+                <div><Label className="text-muted-foreground">Data contabile</Label><p>{formatDateIt(selectedTx.booking_date)}</p></div>
+                <div><Label className="text-muted-foreground">Data valuta</Label><p>{formatDateIt(selectedTx.value_date)}</p></div>
                 <div><Label className="text-muted-foreground">Importo</Label>
                   <p className={`font-bold ${selectedTx.transaction_type === "credit" ? "text-green-600" : "text-red-600"}`}>
                     {formatEur(selectedTx.amount)}

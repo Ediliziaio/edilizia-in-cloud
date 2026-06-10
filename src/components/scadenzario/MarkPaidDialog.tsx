@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,20 +26,26 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
   const [notes, setNotes] = useState("");
   const [accountLabel, setAccountLabel] = useState("banca");
 
-  const handleOpen = (o: boolean) => {
-    if (o && scadenza) {
-      setAmount(String(remaining));
+  // Prefill all'APERTURA. NB: con dialog controllato Radix invoca onOpenChange solo
+  // per interazioni interne (Esc/X/overlay), mai quando il parent setta open=true →
+  // il vecchio handleOpen non scattava: importo mai precompilato col residuo e, alla
+  // seconda apertura su un'ALTRA scadenza, restavano importo/note precedenti
+  // (rischio di registrare un pagamento sbagliato).
+  const scadenzaId = scadenza?.id;
+  useEffect(() => {
+    if (open && scadenza) {
+      setAmount(String(scadenza.amount - scadenza.paid_amount));
       setMethod(scadenza.payment_method || "bonifico");
       setDate(new Date().toLocaleDateString("en-CA"));
       setNotes("");
     }
-    onOpenChange(o);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, scadenzaId]);
 
   if (!scadenza) return null;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Registra Pagamento</DialogTitle>
@@ -56,6 +62,7 @@ export default function MarkPaidDialog({ scadenza, open, onOpenChange, onConfirm
             <Label>Importo pagato</Label>
             <Input
               type="number"
+              inputMode="decimal"
               step="0.01"
               min="0.01"
               max={remaining}

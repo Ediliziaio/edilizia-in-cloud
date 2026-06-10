@@ -68,8 +68,9 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
         </Button>
       </div>
 
-      {/* Month grid */}
-      <div className="grid grid-cols-12">
+      {/* Month grid — su mobile scorre in orizzontale: con grid-cols-12 fisse le celle
+          scendevano a ~31px (testo su 3-4 righe, tap impossibile) */}
+      <div className="flex overflow-x-auto scrollbar-none sm:grid sm:grid-cols-12">
         {months.map((month) => {
           const isSelected = selectedMonth === month.key;
           const isCurrent = month.key === currentMonthKey;
@@ -79,7 +80,7 @@ export function MonthlyTimeline({ months, selectedMonth, onSelectMonth, year, on
               key={month.key}
               onClick={() => onSelectMonth(isSelected ? null : month.key)}
               className={cn(
-                "border-r last:border-r-0 border-border px-1 py-2.5 text-center transition-colors hover:bg-accent/50 relative",
+                "min-w-[64px] flex-1 shrink-0 sm:min-w-0 border-r last:border-r-0 border-border px-1 py-2.5 text-center transition-colors hover:bg-accent/50 relative",
                 isSelected && "bg-primary/10 ring-inset ring-1 ring-primary/30",
                 isCurrent && !isSelected && "bg-accent/40"
               )}

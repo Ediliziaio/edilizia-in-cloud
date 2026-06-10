@@ -282,7 +282,7 @@ export function CostFormDialog({
               </div>
               <div>
                 <Label>Importo (€) *</Label>
-                <Input type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} placeholder="0.00" />
+                <Input type="number" inputMode="decimal" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} placeholder="0.00" />
               </div>
             </div>
             <div className="flex items-center gap-3">

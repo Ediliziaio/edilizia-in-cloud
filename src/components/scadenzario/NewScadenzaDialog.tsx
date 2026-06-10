@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -103,10 +103,13 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
     setOrderId("");
   };
 
-  const handleOpen = (o: boolean) => {
-    if (o) reset();
-    onOpenChange(o);
-  };
+  // Reset all'APERTURA: con dialog controllato Radix non invoca onOpenChange quando il
+  // parent setta open=true → il vecchio handleOpen non scattava e i valori della
+  // scadenza precedente restavano nel form.
+  useEffect(() => {
+    if (open) reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const isValid = description.trim() && Number(amount) > 0 && dueDate;
   const showSupplier = tipo === "pagamento_fornitore";
@@ -116,7 +119,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
   const selectedOrder = orders.find((o) => o.id === orderId);
 
   return (
-    <Dialog open={open} onOpenChange={handleOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Nuova Scadenza</DialogTitle>
@@ -207,7 +210,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Importo (€)</Label>
-              <Input type="number" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Input type="number" inputMode="decimal" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Scadenza</Label>

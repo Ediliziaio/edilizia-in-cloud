@@ -368,7 +368,9 @@ export function CostsTable({
       ) : (
         <>
         <div className="rounded-md border overflow-hidden">
-          <Table className="table-fixed">
+          {/* min-w: con table-fixed + w-full la tabella si comprimeva alla larghezza dello
+              schermo (a 375px colonne da 11-30px illeggibili) invece di scrollare in orizzontale */}
+          <Table className="min-w-[900px] table-fixed">
               <TableHeader>
               <TableRow>
                 <TableHead className="w-[3%]">

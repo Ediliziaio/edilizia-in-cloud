@@ -113,10 +113,13 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
     setAttachmentFile(null);
   };
 
-  const handleOpen = (o: boolean) => {
-    if (o) reset();
-    onOpenChange(o);
-  };
+  // Reset all'APERTURA: con dialog controllato Radix non invoca onOpenChange quando il
+  // parent setta open=true → il vecchio handleOpen non scattava e la registrazione
+  // precedente restava nel form (rischio doppioni/valori sbagliati).
+  useEffect(() => {
+    if (open) reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const isValid = description.trim() && Number(amount) > 0 && entryDate;
   const showSupplier = category === "fornitore";
@@ -173,7 +176,7 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nuova Registrazione</DialogTitle>
@@ -271,10 +274,11 @@ export default function NewEntryDialog({ open, onOpenChange, onConfirm, isPendin
             <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="es. Pagamento fornitore ABC" />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          {/* 2 colonne su mobile: con 3 i campi scendevano a ~98px (data clippata) */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="space-y-2">
               <Label>Importo (€)</Label>
-              <Input type="number" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Input type="number" inputMode="decimal" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Data</Label>

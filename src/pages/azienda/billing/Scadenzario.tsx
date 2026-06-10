@@ -148,9 +148,11 @@ export default function Scadenzario() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(1); }} className="flex-1">
             <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start">
-              <TabsTrigger value="tutte">Tutte ({counts.tutte})</TabsTrigger>
-              <TabsTrigger value="da_incassare">Da Incassare ({counts.da_incassare})</TabsTrigger>
-              <TabsTrigger value="da_pagare">Da Pagare ({counts.da_pagare})</TabsTrigger>
+              {/* Conteggio solo sul tab attivo: per gli inattivi non è noto (paginato server-side)
+                  e mostrare "(0)" faceva credere che non ci fosse nulla da incassare/pagare */}
+              <TabsTrigger value="tutte">Tutte{tab === "tutte" ? ` (${counts.tutte})` : ""}</TabsTrigger>
+              <TabsTrigger value="da_incassare">Da Incassare{tab === "da_incassare" ? ` (${counts.da_incassare})` : ""}</TabsTrigger>
+              <TabsTrigger value="da_pagare">Da Pagare{tab === "da_pagare" ? ` (${counts.da_pagare})` : ""}</TabsTrigger>
               <TabsTrigger value="scadute">
                 Scadute {counts.scadute > 0 && <span className="ml-1 text-destructive font-bold">({counts.scadute})</span>}
               </TabsTrigger>

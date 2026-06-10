@@ -734,7 +734,7 @@ function DocumentiFiscaliListInner() {
 
       {/* ── Bulk Actions Bar ───────────────────────────── */}
       {someSelected && (
-        <div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2.5">
           <span className="text-sm font-medium">{selectedIds.size} selezionat{selectedIds.size === 1 ? "o" : "i"}</span>
 
           <Button variant="outline" size="sm" onClick={handleBulkExport}>

@@ -46,7 +46,11 @@ export default function InvoicesList() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices")
-        .select("id, company_id, invoice_number, invoice_type, status, issue_date, due_date, total, subtotal, vat_amount, currency, customer_id, order_id, notes, provider, external_id, pdf_url, xml_url, created_at, updated_at")
+        // NB: client_company_name/paid_amount/document_type/external_provider sono USATE da
+        // KPI, ricerca e card — senza di esse PostgREST ritorna undefined → KPI sempre 0,00 €,
+        // ricerca per cliente muta, card senza intestatario. (Il tipo della select lunga degrada
+        // a loose, quindi tsc non lo segnala.)
+        .select("id, company_id, invoice_number, invoice_type, status, issue_date, due_date, total, subtotal, vat_amount, currency, customer_id, order_id, notes, provider, external_id, pdf_url, xml_url, created_at, updated_at, client_company_name, paid_amount, document_type, external_provider")
         .eq("company_id", companyId!)
         .order("issue_date", { ascending: false, nullsFirst: false })
         .limit(500);
@@ -62,10 +66,11 @@ export default function InvoicesList() {
   const { data: integration } = useQuery({
     queryKey: ["billing_integration", companyId],
     queryFn: async () => {
-      // S2-03: select chirurgico — UI usa solo last_sync_at
+      // select chirurgico — la UI usa last_sync_at + provider (badge intestazione e
+      // invoke billing-import: senza, provider arrivava undefined alla function)
       const { data } = await supabase
         .from("billing_integrations")
-        .select("id, last_sync_at")
+        .select("id, last_sync_at, provider")
         .eq("company_id", companyId!)
         .eq("is_active", true)
         .limit(1)
@@ -177,8 +182,8 @@ export default function InvoicesList() {
         </Card>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header — in colonna su mobile: con provider connesso la riga superava i 375px */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <FileText className="h-7 w-7 text-primary" />
           <h1 className="text-2xl font-bold">Fatturazione</h1>

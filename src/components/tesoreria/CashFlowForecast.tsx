@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatDateIt } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -133,7 +134,7 @@ export default function CashFlowForecast({ companyId, refreshKey = 0 }: Props) {
                   <div key={i} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
                     <div>
                       <p className="font-medium truncate max-w-[200px]">{item.client || item.invoice_number}</p>
-                      <p className="text-xs text-muted-foreground">{item.due_date}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateIt(item.due_date)}</p>
                     </div>
                     <span className="text-green-600 font-medium">{formatEur(item.amount)}</span>
                   </div>
@@ -161,7 +162,7 @@ export default function CashFlowForecast({ companyId, refreshKey = 0 }: Props) {
                   <div key={i} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
                     <div>
                       <p className="font-medium truncate max-w-[200px]">{item.description}</p>
-                      <p className="text-xs text-muted-foreground">{item.due_date}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateIt(item.due_date)}</p>
                     </div>
                     <span className="text-red-600 font-medium">-{formatEur(item.amount)}</span>
                   </div>
