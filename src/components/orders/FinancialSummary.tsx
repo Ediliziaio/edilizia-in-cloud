@@ -474,15 +474,18 @@ export function FinancialSummary({
             {!readOnly && (
               <div className="space-y-2">
                 <Label>Numero Rate</Label>
+                {/* Include anche 1 (solo Saldo): le commesse salvate senza acconti
+                    hanno numInstallments=1 — senza l'opzione il trigger restava
+                    VUOTO (value fuori lista) e sembrava un campo rotto. */}
                 <Select
                   value={numInstallments.toString()}
                   onValueChange={(v) => onNumInstallmentsChange(parseInt(v))}
                 >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Seleziona numero rate" /></SelectTrigger>
                   <SelectContent>
-                    {[2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
                       <SelectItem key={n} value={n.toString()}>
-                        {n} rate ({n - 1} {n - 1 === 1 ? 'Acconto' : 'Acconti'} + Saldo)
+                        {n === 1 ? "1 (solo Saldo, nessun acconto)" : `${n} rate (${n - 1} ${n - 1 === 1 ? 'Acconto' : 'Acconti'} + Saldo)`}
                       </SelectItem>
                     ))}
                   </SelectContent>
