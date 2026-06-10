@@ -1,5 +1,4 @@
 import { FinancialSummaryReadOnly, type PaymentType } from "./FinancialSummary";
-import { OrderEconomics } from "./OrderEconomics";
 import { OrderCommissions } from "./OrderCommissions";
 import type { Installment } from "@/lib/orderUtils";
 
@@ -11,20 +10,14 @@ interface OrdineEconomicoProps {
   installments: Installment[];
   hasBuildingBonus: boolean;
   financingCost?: number;
-  items: {
-    name: string;
-    quantity: number;
-    purchase_price?: number;
-    vat_rate?: number;
-    unit_price?: number;
-    discount_percent?: number;
-    standard_cost?: number;
-  }[];
   collectedAmount: number;
   onInstallmentPaidToggle: (installment: Installment, paid: boolean) => void;
   onInstallmentDateChange?: (installment: Installment, field: 'paid_date' | 'expected_date', date?: Date) => void;
 }
 
+// NB: niente card "Conto Economico" qui — il conto economico completo
+// (consuntivo incluso) è già in OrderEconomicsSummary in cima alla pagina;
+// duplicarlo qui mostrava gli stessi numeri due volte e sparava 4 query extra.
 export function OrdineEconomico({
   orderId,
   totalAmount,
@@ -33,7 +26,6 @@ export function OrdineEconomico({
   installments,
   hasBuildingBonus,
   financingCost,
-  items,
   collectedAmount,
   onInstallmentPaidToggle,
   onInstallmentDateChange,
@@ -49,13 +41,6 @@ export function OrdineEconomico({
         financingCost={financingCost}
         onInstallmentPaidToggle={onInstallmentPaidToggle}
         onInstallmentDateChange={onInstallmentDateChange}
-      />
-      <OrderEconomics
-        orderId={orderId}
-        totalAmount={totalAmount}
-        collectedAmount={collectedAmount}
-        vatRate={vatRate}
-        items={items}
       />
       <OrderCommissions
         orderId={orderId}
