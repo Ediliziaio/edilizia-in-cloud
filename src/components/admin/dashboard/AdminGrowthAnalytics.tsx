@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Area,
   Bar,
@@ -109,7 +111,7 @@ function LoadingState() {
   );
 }
 
-function CompanyRows({ rows, emptyText }: { rows: GrowthCompanyRow[]; emptyText: string }) {
+function CompanyRows({ rows, emptyText, producerIds }: { rows: GrowthCompanyRow[]; emptyText: string; producerIds?: Set<string> }) {
   if (rows.length === 0) {
     return <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">{emptyText}</div>;
   }
@@ -125,13 +127,19 @@ function CompanyRows({ rows, emptyText }: { rows: GrowthCompanyRow[]; emptyText:
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{row.companyName}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {row.planName} · {format(new Date(row.date), "dd MMM yyyy", { locale: it })}
+              {/* I produttori non hanno piano per design: etichetta corretta, non "Nessun piano" */}
+              {producerIds?.has(row.companyId) ? "Fabbrica white-label" : row.planName} · {format(new Date(row.date), "dd MMM yyyy", { locale: it })}
             </p>
           </div>
           <div className="flex flex-col items-end gap-1">
-            <Badge variant={row.status === "active" ? "default" : "secondary"} className="text-[10px]">
-              {row.status || "n/d"}
-            </Badge>
+            <div className="flex items-center gap-1">
+              {producerIds?.has(row.companyId) && (
+                <Badge variant="outline" className="border-violet-300 bg-violet-50 text-[10px] text-violet-700">Produttore</Badge>
+              )}
+              <Badge variant={row.status === "active" ? "default" : "secondary"} className="text-[10px]">
+                {row.status || "n/d"}
+              </Badge>
+            </div>
             {row.monthlyRevenue > 0 && (
               <span className="text-xs font-semibold">{formatCurrency(row.monthlyRevenue)}/mese</span>
             )}
@@ -145,6 +153,20 @@ function CompanyRows({ rows, emptyText }: { rows: GrowthCompanyRow[]; emptyText:
 export function AdminGrowthAnalytics() {
   const [range, setRange] = useState(getDefaultDateRange);
   const { data, isLoading, isFetching, isError, refetch } = useAdminGrowthAnalytics(range);
+
+  // Produttori white-label (stessa queryKey di CompaniesList → cache condivisa):
+  // nelle liste sotto vanno etichettati come fabbriche, non "Nessun piano".
+  const { data: producerIdList } = useQuery({
+    queryKey: ["admin-companies-producer-info"],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<string[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const { data: rows } = await sb.from("company_branding").select("company_id").eq("whitelabel_tier", "agency");
+      return ((rows ?? []) as { company_id: string }[]).map((r) => r.company_id);
+    },
+  });
+  const producerIds = useMemo(() => new Set(producerIdList ?? []), [producerIdList]);
 
   if (isLoading) return <LoadingState />;
 
@@ -305,7 +327,7 @@ export function AdminGrowthAnalytics() {
             </div>
           </CardHeader>
           <CardContent>
-            <CompanyRows rows={data.newPayingRows} emptyText="Nessuna nuova azienda pagante nel periodo selezionato." />
+            <CompanyRows rows={data.newPayingRows} producerIds={producerIds} emptyText="Nessuna nuova azienda pagante nel periodo selezionato." />
           </CardContent>
         </Card>
 
@@ -319,7 +341,7 @@ export function AdminGrowthAnalytics() {
             </div>
           </CardHeader>
           <CardContent>
-            <CompanyRows rows={data.trialRows} emptyText="Nessun trial avviato nel periodo selezionato." />
+            <CompanyRows rows={data.trialRows} producerIds={producerIds} emptyText="Nessun trial avviato nel periodo selezionato." />
           </CardContent>
         </Card>
       </div>

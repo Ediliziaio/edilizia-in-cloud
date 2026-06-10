@@ -99,6 +99,16 @@ const PERSIST_WHITELIST = new Set<string>([
   "platform-announcements",     // banner annunci platform
   "subscription-plans",         // KPI piano corrente
   "integrations",               // hub /azienda/impostazioni/integrazioni
+  // 2026-06-10 — area SUPERADMIN: le pagine Growth rifacevano da zero 3+ query
+  // remote a ogni visita (skeleton 10s+). Dati piccoli e serializzabili; il
+  // refetch in background li tiene freschi, la cache li mostra subito.
+  "admin-produttori",            // ProduttoriDashboard (lista + analytics)
+  "admin-commercialisti",        // CommercialistiDashboard (studi + analytics)
+  "admin-activity",              // badge "ultima attività" (get-admin-activity)
+  "admin-wholesale-mrr",         // card Wholesale/mese nel dashboard SA
+  "admin-companies-reseller-info",   // badge Rivenditore in CompaniesList
+  "admin-companies-accountant-info", // badge Studio in CompaniesList
+  "admin-companies-producer-info",   // badge Produttore in CompaniesList
 ]);
 
 export function shouldPersistQuery(queryKey: readonly unknown[]): boolean {

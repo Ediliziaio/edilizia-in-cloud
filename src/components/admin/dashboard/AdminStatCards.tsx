@@ -96,11 +96,13 @@ export function AdminStatCards({ stats, mrrStats, previousStats }: Props) {
       iconBg: "bg-primary/10 text-primary",
     },
     {
-      title: "Accessi Non Paganti",
+      // Era "Accessi Non Paganti": criptico. Sono le aziende comped/regalate
+      // (demo, partner, white-label) + quelle su piano free.
+      title: "Aziende Comped",
       value: stats.nonPayingActiveCompanies + stats.freeActiveCompanies,
       delta: null,
       icon: Gift,
-      description: `${formatCurrency(stats.excludedMrr)} MRR escluso`,
+      description: `${formatCurrency(stats.excludedMrr)} a listino non fatturati`,
       href: "/admin/aziende?noPayment=1",
       accent: "from-orange-500/10 to-orange-500/5 dark:from-orange-500/20 dark:to-orange-500/10",
       iconBg: "bg-orange-500/10 text-orange-600 dark:text-orange-400",

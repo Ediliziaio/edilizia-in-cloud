@@ -16,6 +16,8 @@ interface KPIStripProps {
     subscription_plans: { price_monthly: number; price_yearly?: number | null } | null;
   }>;
   healthData: Record<string, { score: number; health: string }>;
+  /** True mentre i dati caricano: mostra skeleton invece di "0" finti. */
+  isLoading?: boolean;
   /** Quale KPI è attualmente highlighted (matcha il filtro applicato) */
   activeKpi?: "active" | "paying" | "mrr" | "excluded" | "atRisk" | null;
   /** Callback al click su una KPI: applica il filtro corrispondente */
@@ -32,7 +34,25 @@ interface KPIStripProps {
  *
  * Active state: ring-2 + bg accentato. Hover: lift + shadow.
  */
-export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onKpiClick }: KPIStripProps) {
+export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onKpiClick, isLoading = false }: KPIStripProps) {
+  // Durante il load i KPI mostravano "0"/"0,00 €" come fossero dati reali —
+  // skeleton finché i numeri non sono veri.
+  if (isLoading && companies.length === 0) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Card key={i} className="p-4 flex items-center gap-3">
+            <div className="h-10 w-10 shrink-0 animate-pulse rounded-lg bg-muted" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+              <div className="h-5 w-14 animate-pulse rounded bg-muted" />
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
   const revenue = getAdminRevenueBreakdown(companies);
   const activeCount = revenue.accessActiveCompanies;
   const payingCount = revenue.payingCompanies;

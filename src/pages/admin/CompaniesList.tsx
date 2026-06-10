@@ -302,7 +302,7 @@ export default function CompaniesList() {
   // ⚠️ Lightweight all-companies summary loaded EARLY (used by KPI strip,
   // preset counts e revenue state filter). Spostato sopra alla main query così
   // possiamo precomputare `revenueFilterIds` prima del paged query.
-  const { data: allCompaniesSummary = [] } = useQuery({
+  const { data: allCompaniesSummary = [], isLoading: summaryLoading } = useQuery({
     queryKey: ["admin-companies-summary", permissions.allowed_company_ids],
     queryFn: async () => {
       let q = supabase
@@ -1109,6 +1109,7 @@ export default function CompaniesList() {
           subscription_plans: c.subscription_plans as { price_monthly: number } | null,
         }))}
         healthData={healthData}
+        isLoading={summaryLoading}
         activeKpi={
           revenueFilter === "paying" ? "paying"
           : revenueFilter === "complimentary" ? "excluded"
@@ -1285,7 +1286,8 @@ export default function CompaniesList() {
             <Select value={healthFilter} onValueChange={(v) => { setFilter({ health: v }); setActivePreset(null); }}>
               <SelectTrigger className="w-full sm:w-[130px]"><SelectValue placeholder="Health" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tutti</SelectItem>
+                {/* "Tutti" da solo era ambiguo nel trigger chiuso (5 select in fila) */}
+                <SelectItem value="all">Health: tutti</SelectItem>
                 <SelectItem value="healthy">Healthy</SelectItem>
                 <SelectItem value="at_risk">A rischio</SelectItem>
                 <SelectItem value="critical">Critico</SelectItem>
