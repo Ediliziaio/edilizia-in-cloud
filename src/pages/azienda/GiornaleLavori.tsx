@@ -394,7 +394,7 @@ export default function GiornaleLavori() {
 
       {/* ───── Sheet inserimento ───── */}
       <Sheet open={sheetOpen} onOpenChange={(open) => { if (!open) resetForm(); setSheetOpen(open); }}>
-        <SheetContent side="bottom" className="h-[95vh] overflow-y-auto">
+        <SheetContent side="bottom" className="h-[95dvh] overflow-y-auto">
           <SheetHeader className="pb-4">
             <SheetTitle className="flex items-center gap-2">
               <NotebookPen className="h-5 w-5" />
@@ -584,7 +584,7 @@ export default function GiornaleLavori() {
                       <button
                         type="button"
                         onClick={() => removeFoto(i)}
-                        className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5"
+                        className="tap-compact absolute top-1 right-1 bg-black/60 rounded-full p-1.5"
                       >
                         <X className="h-3 w-3 text-white" />
                       </button>
@@ -699,9 +699,11 @@ export default function GiornaleLavori() {
       {/* Mobile FAB — fixed above bottom nav */}
       <button
         onClick={openNew}
-        className="md:hidden fixed bottom-20 right-4 z-40 flex items-center justify-center h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all"
+        className="md:hidden fixed right-4 z-40 flex items-center justify-center h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 active:scale-95 transition-all"
         aria-label="Nuovo report giornaliero"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        // safe-area sull'OFFSET, non come padding interno: il padding schiacciava
+        // il content-box del cerchio h-14 e l'icona finiva decentrata/clippata
+        style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
       >
         <Plus className="h-7 w-7" aria-hidden="true" />
       </button>

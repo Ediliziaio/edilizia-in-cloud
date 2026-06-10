@@ -115,7 +115,7 @@ export function MobileBrandSwitcher() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Cerca azienda…"
-              className="h-9 pl-8 text-sm"
+              className="h-9 pl-8 text-base"
               aria-label="Cerca azienda"
             />
           </div>

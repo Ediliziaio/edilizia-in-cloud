@@ -1278,7 +1278,8 @@ function OrderDetailInner() {
                       ))}
                     </div>
                   )}
-                  <div className="grid grid-cols-4 gap-2">
+                  {/* 2 colonne su mobile: con 4, "Proforma"/"N. Credito" (whitespace-nowrap) strabordavano a 375px */}
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
                       variant="outline"
                       size="sm"

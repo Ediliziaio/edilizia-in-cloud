@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -98,7 +99,12 @@ function OrdersListInner() {
   const setStatusFilter = useCallback((v: string) => setURLParam("statusFilter", v), [setURLParam]);
   const paymentFilter = urlFilters.paymentFilter as "all" | "pending" | "paid";
   const setPaymentFilter = useCallback((v: "all" | "pending" | "paid") => setURLParam("paymentFilter", v), [setURLParam]);
-  const viewMode = urlFilters.viewMode as "table" | "pipeline";
+  // Su mobile la pipeline (kanban drag) non è usabile e il toggle è hidden sm:flex:
+  // un link condiviso ?view=pipeline (o il localStorage del desktop) lasciava il
+  // telefono inchiodato sulla pipeline senza via d'uscita → forziamo la tabella.
+  const isMobile = useIsMobile();
+  const rawViewMode = urlFilters.viewMode as "table" | "pipeline";
+  const viewMode: "table" | "pipeline" = isMobile ? "table" : rawViewMode;
   const setViewMode = useCallback((v: "table" | "pipeline") => {
     try { localStorage.setItem("orders-view-mode", v); } catch { /* Safari Private Browsing */ }
     setURLParam("viewMode", v);
@@ -1605,7 +1611,8 @@ function OrdersListInner() {
   const isWorkflowStatsLoading = isEconomicStatsLoading || (!!effectiveCompany?.id && isLoadingStatuses);
 
   return (
-    <div className="flex flex-col gap-4 pb-20 sm:gap-6 sm:pb-0">
+    // pb-20 rimosso: la bottom nav mobile non è più overlay (è sotto il main) — erano 160px di vuoto
+    <div className="flex flex-col gap-4 sm:gap-6">
       {/* Header */}
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-orange-50/40 px-3 sm:px-6 py-3 sm:py-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
@@ -1835,7 +1842,7 @@ function OrdersListInner() {
                     ) : (
                       <>
                         <span className="block truncate text-xl font-bold text-white">
-                          {stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                          {stats.totalGross.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
                         </span>
                         <span className="mt-0.5 block text-xs text-blue-50/70">
                           media commessa {monthlySalesAverages.soldPerOrder.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
@@ -1861,7 +1868,7 @@ function OrdersListInner() {
                     ) : (
                       <>
                         <span className="block truncate text-xl font-bold text-white">
-                          {stats.collected.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                          {stats.collected.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
                         </span>
                         <span className="mt-0.5 block text-xs text-blue-50/70">
                           media mese {monthlySalesAverages.collectedPerMonth.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
@@ -1887,7 +1894,7 @@ function OrdersListInner() {
                     ) : (
                       <>
                         <span className="block truncate text-xl font-bold text-white">
-                          {stats.pending.toLocaleString("it-IT", { style: "currency", currency: "EUR" })}
+                          {stats.pending.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 })}
                         </span>
                         <span className="mt-0.5 block text-xs text-blue-50/70">
                           {monthlySalesAverages.pendingRatio.toLocaleString("it-IT", { maximumFractionDigits: 1 })}% del venduto
@@ -2379,7 +2386,7 @@ export default function OrdersList() {
   }, [activeTab, requestedTab, setSearchParams]);
 
   return (
-    <div className="space-y-4 pb-20 sm:space-y-6 sm:pb-0 overflow-x-hidden">
+    <div className="space-y-4 sm:space-y-6 overflow-x-hidden">
       {/* ─── Tab navigation ─────────────────────────────────────────── */}
       <div className="rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
         <nav

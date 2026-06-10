@@ -53,7 +53,6 @@ import {
   FormInput,
   MapPin,
   ClipboardList,
-  Loader2,
   AtSign,
   Banknote,
   QrCode,
@@ -1667,7 +1666,9 @@ export function CompanyLayout() {
     <SidebarProvider>
       <div className="min-h-screen md:min-h-screen flex w-full md:h-auto h-[100dvh] overflow-hidden">
         <CompanySidebar />
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* pt-safe: in PWA standalone iOS (status-bar translucent + viewport-fit=cover) l'header
+            finiva sotto notch/orologio. In browser e su nativo Capacitor env()=0 → no-op. */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden pt-safe">
           {/* Skip to main content — keyboard / screen-reader accessibility */}
           <a
             href="#main-content"
@@ -1806,11 +1807,21 @@ export function CompanyLayout() {
           </header>
           <OfflineBanner />
           {deferredRealtimeReady && <LifecycleNotificationsBanner />}
-          <main className="flex-1 overflow-y-auto p-3 md:p-6 bg-muted/30 pb-4 md:pb-6" id="main-content" aria-label="Contenuto principale">
+          {/* overflow-x-hidden: niente scroll laterale di pagina su mobile (richiesta utente:
+              "spazi vuoti ai lati quando scrollo") — le tabelle scrollano nei loro wrapper */}
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6 bg-muted/30 pb-4 md:pb-6" id="main-content" aria-label="Contenuto principale">
             <ErrorBoundary title="Errore nel caricamento della pagina">
+              {/* Skeleton (non spinner) al cambio pagina: percezione di velocità sul primo paint mobile */}
               <Suspense fallback={
-                <div className="flex items-center justify-center min-h-[200px]">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <div className="space-y-4" aria-busy="true" aria-label="Caricamento pagina">
+                  <Skeleton className="h-8 w-48" />
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <Skeleton className="h-24 rounded-xl" />
+                    <Skeleton className="h-24 rounded-xl" />
+                    <Skeleton className="hidden h-24 rounded-xl sm:block" />
+                    <Skeleton className="hidden h-24 rounded-xl lg:block" />
+                  </div>
+                  <Skeleton className="h-64 rounded-xl" />
                 </div>
               }>
                 <Outlet />
@@ -1843,7 +1854,13 @@ export function CompanyLayout() {
       {deferredRealtimeReady && <PWAInstallBanner />}
       <NpsModal open={npsOpen} onClose={() => setNpsOpen(false)} />
       {/* Silvio FAB — visibile da tablet/desktop; su mobile si usa la voce Chat */}
-      {deferredRealtimeReady && <SilvioFAB />}
+      {/* Boundary dedicato: un errore dentro Silvio (FAB/chat sheet) non deve più
+          buttare giù l'INTERA area azienda con la pagina "Errore nell'area azienda" */}
+      {deferredRealtimeReady && (
+        <ErrorBoundary title="Silvio non è al momento disponibile">
+          <SilvioFAB />
+        </ErrorBoundary>
+      )}
     </SidebarProvider>
     </>
   );

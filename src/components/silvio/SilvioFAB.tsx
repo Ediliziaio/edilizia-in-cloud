@@ -235,6 +235,8 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
   //     { detail: { draft: "Riassumi candidato Marco" } }))
   useEffect(() => {
     const openHandler = (e: Event) => {
+      // consuma l'eventuale flag pending (vedi sotto) per evitare riaperture a un futuro remount
+      (window as unknown as { __silvioOpenPending?: boolean }).__silvioOpenPending = false;
       setOpen(false); // chiudi popover FAB se aperto
       const detail = (e as CustomEvent<{ draft?: string }>).detail;
       if (detail?.draft) {
@@ -244,6 +246,13 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
       setChatOpen(true);
     };
     window.addEventListener("silvio:open-chat", openHandler);
+    // Il FAB è montato in differita (deferredRealtimeReady): se l'utente ha toccato
+    // il punch button della bottom nav PRIMA del mount, l'evento è andato perso —
+    // il punch lascia un flag e qui lo onoriamo (niente tap "muti" al primo secondo).
+    if ((window as unknown as { __silvioOpenPending?: boolean }).__silvioOpenPending) {
+      (window as unknown as { __silvioOpenPending?: boolean }).__silvioOpenPending = false;
+      setChatOpen(true);
+    }
     return () => window.removeEventListener("silvio:open-chat", openHandler);
   }, []);
   const [tipIdx, setTipIdx] = useState(0);

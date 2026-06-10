@@ -42,7 +42,8 @@ const MOBILE_HIDDEN_URLS = new Set<string>([
   "/azienda/marketing/reputazione",
   "/azienda/automazioni",
   "/azienda/marketing/email",
-  "/azienda/whatsapp",
+  // "/azienda/whatsapp" RIENTRA nella griglia: rispondere su WhatsApp è il caso
+  // d'uso più mobile che esista — era l'unica nav completa senza percorso.
   "/azienda/agenti-ai",
   "/azienda/sms",
 ]);
@@ -371,7 +372,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
     <Sheet open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setSearch(""); }}>
       <SheetContent
         side="bottom"
-        className="h-[92vh] rounded-t-3xl p-0 overflow-hidden [&>button]:hidden"
+        className="h-[92dvh] rounded-t-3xl p-0 overflow-hidden [&>button]:hidden"
       >
         <div className="flex flex-col h-full">
           {/* Header */}
@@ -395,7 +396,7 @@ export function MobileAppGrid({ open, onOpenChange }: MobileAppGridProps) {
                 placeholder="Cerca app"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full h-10 pl-10 pr-4 rounded-xl border border-border/60 bg-muted/30 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="w-full h-10 pl-10 pr-4 rounded-xl border border-border/60 bg-muted/30 text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 aria-label="Cerca app"
               />
             </div>

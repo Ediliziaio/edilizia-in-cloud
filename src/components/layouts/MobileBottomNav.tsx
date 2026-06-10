@@ -24,6 +24,7 @@ import {
   Package,
   BarChart3,
   Sparkles,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -54,6 +55,9 @@ const MARKETING_ITEMS: BottomNavItem[] = [
 /** Gestione operativa — ordine di priorità, prende i primi 2 accessibili */
 const GESTIONE_ITEMS: BottomNavItem[] = [
   { label: "Commesse", icon: ClipboardList, href: "/azienda/ordini", permissionKey: "canViewOrders" },
+  // Email prima di Magazzino (richiesta utente 2026-06): la posta è l'azione
+  // mobile più frequente; il Magazzino resta raggiungibile dall'App grid.
+  { label: "Email", icon: Mail, href: "/azienda/email" },
   { label: "Magazzino", icon: Package, href: "/azienda/magazzino", permissionKey: "canViewWarehouse" },
   { label: "Finanza", icon: Euro, href: "/azienda/documenti", permissionKey: "canViewBilling" },
   { label: "Cantieri", icon: HardHat, href: "/azienda/ordini", permissionKey: "canViewOrders" },
@@ -224,18 +228,20 @@ export function MobileBottomNav() {
     }
   })();
 
-  // Home link punta alla dashboard della sezione corrente
+  // Home link: per la sezione gestione punta ad ATTIVITÀ (richiesta utente 2026-06:
+  // "quando apro l'app deve finire in attività") — coerente col logo header.
   const homeHref = section === "marketing"
     ? "/azienda/marketing"
     : section === "cruscotto"
       ? (permissions.isLoading ? "/azienda/cruscotto" : getSmartCruscottoPath(permissions, role))
-      : "/azienda";
+      : "/azienda/attivita";
 
   const isHomeActive = section === "marketing"
     ? location.pathname === "/azienda/marketing" || location.pathname === "/azienda/marketing/"
     : section === "cruscotto"
       ? location.pathname.startsWith("/azienda/cruscotto")
-      : location.pathname === "/azienda" || location.pathname === "/azienda/";
+      : location.pathname.startsWith("/azienda/attivita") ||
+        location.pathname === "/azienda" || location.pathname === "/azienda/";
 
   const isActive = (href: string, exact?: boolean) => {
     if (exact) return location.pathname === href;
@@ -306,7 +312,12 @@ export function MobileBottomNav() {
               <button
                 key="silvio"
                 className="flex-1 flex flex-col items-center justify-end gap-1 relative min-w-0 pb-1"
-                onClick={() => window.dispatchEvent(new Event("silvio:open-chat"))}
+                onClick={() => {
+                  // Flag per il caso "FAB non ancora montato" (mount differito): SilvioFAB
+                  // lo legge al mount e apre comunque la chat — nessun tap perso.
+                  (window as unknown as { __silvioOpenPending?: boolean }).__silvioOpenPending = true;
+                  window.dispatchEvent(new Event("silvio:open-chat"));
+                }}
                 aria-label="Apri chat con Silvio"
                 type="button"
               >

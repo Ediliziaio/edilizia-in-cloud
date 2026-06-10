@@ -100,6 +100,14 @@ const SECTIONS: Section[] = [
 export default function SettingsMobileHub() {
   const { signOut, user, profile } = useAuth();
   const [logoutOpen, setLogoutOpen] = useState(false);
+  // Filtro rapido: ~23 card senza ricerca obbligavano a scorrere tutto l'hub
+  // (su desktop esiste SettingsSearch, su mobile non c'era nulla).
+  const [filtro, setFiltro] = useState("");
+  const q = filtro.trim().toLowerCase();
+  const sezioniFiltrate = SECTIONS.map((section) => ({
+    ...section,
+    items: q ? section.items.filter((i) => i.label.toLowerCase().includes(q)) : section.items,
+  })).filter((s) => s.items.length > 0);
 
   return (
     <div className="space-y-6 pb-4">
@@ -115,7 +123,20 @@ export default function SettingsMobileHub() {
         </div>
       </div>
 
-      {SECTIONS.map((section) => (
+      <input
+        type="text"
+        value={filtro}
+        onChange={(e) => setFiltro(e.target.value)}
+        placeholder="Cerca un'impostazione…"
+        aria-label="Cerca un'impostazione"
+        className="w-full h-10 rounded-xl border border-border/60 bg-muted/30 px-4 text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+      />
+
+      {q && sezioniFiltrate.length === 0 && (
+        <p className="px-1 text-sm text-muted-foreground">Nessuna impostazione trovata per «{filtro}».</p>
+      )}
+
+      {sezioniFiltrate.map((section) => (
         <section key={section.label} className="space-y-2">
           <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
             {section.label}

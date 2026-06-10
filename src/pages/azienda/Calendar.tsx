@@ -1123,7 +1123,7 @@ function CalendarInner() {
           {statusFilter !== "all" && (
             <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
               Stato: {statuses.find(s => s.id === statusFilter)?.name ?? statusFilter}
-              <button onClick={() => setStatusFilter("all")} className="ml-0.5 hover:text-destructive">
+              <button onClick={() => setStatusFilter("all")} className="tap-compact ml-0.5 p-1 -m-1 hover:text-destructive">
                 <X className="h-3 w-3" />
               </button>
             </Badge>
@@ -1131,7 +1131,7 @@ function CalendarInner() {
           {customerFilter !== "all" && (
             <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
               Cliente: {uniqueCustomers.find(c => c.id === customerFilter)?.last_name ?? customerFilter}
-              <button onClick={() => setCustomerFilter("all")} className="ml-0.5 hover:text-destructive">
+              <button onClick={() => setCustomerFilter("all")} className="tap-compact ml-0.5 p-1 -m-1 hover:text-destructive">
                 <X className="h-3 w-3" />
               </button>
             </Badge>
@@ -1139,7 +1139,7 @@ function CalendarInner() {
           {employeeFilter !== "all" && (
             <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
               Operaio: {workEmployees.find(e => e.id === employeeFilter)?.last_name ?? employeeFilter}
-              <button onClick={() => setEmployeeFilter("all")} className="ml-0.5 hover:text-destructive">
+              <button onClick={() => setEmployeeFilter("all")} className="tap-compact ml-0.5 p-1 -m-1 hover:text-destructive">
                 <X className="h-3 w-3" />
               </button>
             </Badge>
@@ -1147,7 +1147,7 @@ function CalendarInner() {
           {externalTeamFilter !== "all" && (
             <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
               Squadra: {externalTeams.find(t => t.id === externalTeamFilter)?.name ?? externalTeamFilter}
-              <button onClick={() => setExternalTeamFilter("all")} className="ml-0.5 hover:text-destructive">
+              <button onClick={() => setExternalTeamFilter("all")} className="tap-compact ml-0.5 p-1 -m-1 hover:text-destructive">
                 <X className="h-3 w-3" />
               </button>
             </Badge>
@@ -1155,7 +1155,7 @@ function CalendarInner() {
           {assignedToFilter !== "all" && (
             <Badge variant="secondary" className="gap-1 pl-2 pr-1 py-1">
               Assegnato: {assignableWorkUsers.find(u => u.id === assignedToFilter)?.last_name ?? assignedToFilter}
-              <button onClick={() => setAssignedToFilter("all")} className="ml-0.5 hover:text-destructive">
+              <button onClick={() => setAssignedToFilter("all")} className="tap-compact ml-0.5 p-1 -m-1 hover:text-destructive">
                 <X className="h-3 w-3" />
               </button>
             </Badge>
@@ -1213,7 +1213,7 @@ function CalendarInner() {
       {/* Mobile Layer Sheet */}
       {isMobile && (
         <Sheet open={mobileLayerOpen} onOpenChange={setMobileLayerOpen}>
-          <SheetContent side="bottom" className="h-[80vh]">
+          <SheetContent side="bottom" className="h-[80dvh]">
             <SheetHeader>
               <SheetTitle>Gestisci visualizzazione</SheetTitle>
             </SheetHeader>

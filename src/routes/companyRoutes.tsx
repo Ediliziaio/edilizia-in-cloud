@@ -374,6 +374,19 @@ const ArchivioSostitutivo = lazy(() => import("@/pages/azienda/ArchivioSostituti
 // `./company/_shared.tsx` per riuso e modularizzazione futura router.
 import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
 import { Routes } from "react-router-dom";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+/**
+ * Index /azienda: su MOBILE atterra su Attività (richiesta utente 2026-06:
+ * "quando apro l'app deve finire in attività" — coerente con logo header e
+ * tab Home della bottom nav). Su desktop resta il Cruscotto/Dashboard gated.
+ * NB: Attività non ha permission gate → ok anche per ruoli senza dashboard.
+ */
+function AziendaIndex() {
+  const isMobile = useIsMobile();
+  if (isMobile) return <Navigate to="/azienda/attivita" replace />;
+  return <>{withCompanyPermission("canViewDashboard", <CompanyDashboard />)}</>;
+}
 
 /**
  * v8.6.110 — Lazy-loadable container che wrappa tutte le route /azienda/*.
@@ -451,7 +464,7 @@ export default function CompanyRoutesContainer() {
           </ProtectedRoute>
         }
       >
-        <Route index element={withCompanyPermission("canViewDashboard", <CompanyDashboard />)} />
+        <Route index element={<AziendaIndex />} />
         <Route path="onboarding" element={<OnboardingPage />} />
         <Route path="onboarding/vertical" element={<ErrorBoundary title="Errore nel caricamento onboarding settore"><OnboardingVertical /></ErrorBoundary>} />
         <Route path="cruscotto" element={withCompanyPermission("canViewCruscotto", <CruscottoDashboardPage />)} />
