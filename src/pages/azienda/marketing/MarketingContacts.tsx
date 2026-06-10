@@ -882,10 +882,13 @@ export default function MarketingContacts() {
             finalIds = ids;
           }
         } else {
-          // Multiple groups: OR (union) the results
+          // Multiple groups: OR (union) the results — valutati in PARALLELO
+          // (prima erano in serie: N round-trip sequenziali = waterfall).
           const allIds = new Set<string>();
-          for (const group of activeGroups) {
-            const ids = await applyGroupRules(group, companyId);
+          const idArrays = await Promise.all(
+            activeGroups.map((group) => applyGroupRules(group, companyId)),
+          );
+          for (const ids of idArrays) {
             if (ids !== null) ids.forEach((id) => allIds.add(id));
           }
           if (allIds.size === 0) return { contacts: [] as MarketingContact[], count: 0 };
@@ -898,7 +901,13 @@ export default function MarketingContacts() {
 
       let query = supabase
         .from("marketing_contacts")
-        .select("*", { count: "exact" })
+        // Select chirurgico (stesso elenco usato per l'export a riga ~597):
+        // marketing_contacts è larga (lead scoring + call center + custom),
+        // `select("*")` scaricava colonne inutili a ogni pagina.
+        .select(
+          "id, first_name, last_name, email, phone, company_name, city, province, notes, contact_type, source, tags, assigned_to, company_id, created_at, updated_at, lead_score, last_activity_at, lifecycle_stage, call_center_status, call_center_assigned_to, call_center_last_call_at, call_center_next_call_at, call_center_call_count, call_center_notes",
+          { count: "exact" },
+        )
         .eq("company_id", companyId)
         .order(sortField, { ascending: sortDirection === "asc" })
         .range(from, to);

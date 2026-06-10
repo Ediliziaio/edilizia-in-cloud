@@ -52,6 +52,9 @@ export function useFotoCantiere(orderId?: string) {
         .eq('company_id', companyId!)
         .order('taken_at', { ascending: false });
       if (orderId) q = q.eq('order_id', orderId);
+      // Vista azienda (senza orderId): cap a 500 per non scaricare migliaia di
+      // foto cantiere di tutta l'impresa. La vista per-ordine resta completa.
+      else q = q.limit(500);
       const { data, error } = await q;
       if (error) throw new Error(`[useFotoCantiere] ${error.message}`);
       return (data ?? []) as FotoCantiere[];

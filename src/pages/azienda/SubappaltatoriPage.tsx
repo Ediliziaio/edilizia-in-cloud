@@ -131,7 +131,8 @@ export default function SubappaltatoriPage() {
       const { data, error } = await (supabase as any)
         .from('v_subappaltatori_dashboard')
         .select('*')
-        .eq('company_id', companyId);
+        .eq('company_id', companyId)
+        .limit(500); // cap di sicurezza: evita di scaricare l'intera vista
       if (error) throw error;
       return (data ?? []) as SubappaltatoreConDashboard[];
     },

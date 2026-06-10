@@ -87,6 +87,13 @@ export function useWidgetLayoutPersistence(
           }
         }
         setIsLoading(false);
+      })
+      .catch((err) => {
+        // La Promise può rejectare (errore di rete/fetch) senza passare dal ramo
+        // {error}: senza questo catch isLoading resterebbe true per sempre →
+        // spinner infinito sulla dashboard. Fail-safe verso lo stato "caricato".
+        console.error("Errore caricamento preferenze dashboard (network):", err);
+        setIsLoading(false);
       });
   }, [userId]);
 

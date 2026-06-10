@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 /** Genera firma HMAC-SHA256 per il payload del token (SEC-014) */
@@ -19,8 +19,10 @@ Deno.serve(async (req) => {
 
   const corsH = getCorsHeaders(req);
   // Verifica JWT: solo utenti autenticati possono generare link (SEC-014)
+  let userId: string;
   try {
-    await requireAuth(req, corsH);
+    const auth = await requireAuth(req, corsH);
+    userId = auth.userId;
   } catch (authErr) {
     if (authErr instanceof Response) return authErr;
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -56,6 +58,18 @@ Deno.serve(async (req) => {
     if (doc.tipo !== "preventivo") {
       return new Response(JSON.stringify({ error: "Solo i preventivi possono generare link di accettazione" }), {
         status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
+
+    // IDOR fix: verifica che il preventivo appartenga all'azienda del chiamante.
+    // Prima, qualsiasi utente autenticato poteva generare un link pubblico
+    // firmato per il documento di UN'ALTRA azienda passandone semplicemente l'id.
+    try {
+      await requireCompanyAccess(supabase, userId, doc.company_id, corsH);
+    } catch (accessErr) {
+      if (accessErr instanceof Response) return accessErr;
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsH, "Content-Type": "application/json" },
       });
     }
 
