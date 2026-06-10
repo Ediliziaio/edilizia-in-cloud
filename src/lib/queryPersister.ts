@@ -127,9 +127,15 @@ export function shouldPersistQuery(queryKey: readonly unknown[]): boolean {
  */
 export function shouldPersistQuerySafe(query: {
   queryKey: readonly unknown[];
-  state: { data: unknown };
+  state: { data: unknown; status?: string };
 }): boolean {
   if (!shouldPersistQuery(query.queryKey)) return false;
+  // Solo query risolte: dehydratare una query "pending" non salva alcun dato
+  // (utile solo per SSR streaming, non per IndexedDB) e al restore react-query
+  // la ri-esegue PRIMA che la sessione Supabase sia pronta → reject + spam
+  // console "A query that was dehydrated as pending ended up rejecting"
+  // (visto ×15 su platform-feature-flags ad ogni load).
+  if (query.state.status !== "success") return false;
   if (typeof structuredClone !== "function") return true; // ambiente legacy: comportamento precedente
   try {
     structuredClone(query.state.data);
