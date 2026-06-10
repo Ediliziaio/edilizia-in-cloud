@@ -440,6 +440,21 @@ export default function CompaniesList() {
   const accountantFirmByCompany = useMemo(() => accountantInfo?.firmByCompany ?? {}, [accountantInfo]);
   const accountantIdSet = useMemo(() => new Set(Object.keys(accountantFirmByCompany)), [accountantFirmByCompany]);
 
+  // Info produttori: le aziende con branding white-label "agency" sono FABBRICHE
+  // (accessi da produttore, niente piano/gestionale proprio) — badge "Produttore",
+  // NON anomalia "senza piano".
+  const { data: producerIds } = useQuery({
+    queryKey: ["admin-companies-producer-info"],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<string[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const { data } = await sb.from("company_branding").select("company_id").eq("whitelabel_tier", "agency");
+      return ((data ?? []) as { company_id: string }[]).map((r) => r.company_id);
+    },
+  });
+  const producerIdSet = useMemo(() => new Set(producerIds ?? []), [producerIds]);
+
   const { data: pagedResult, isLoading, isError, refetch } = useQuery({
     queryKey: [
       ...queryKeys.admin.companiesFull,
@@ -1515,6 +1530,7 @@ export default function CompaniesList() {
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <Badge variant={cfg.variant} className="text-[10px] px-1.5 py-0">{cfg.label}</Badge>
                         {resellerIdSet.has(company.id) && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-violet-300 bg-violet-50 text-violet-700">Rivenditore{parentNameByChild[company.id] ? ` · ${parentNameByChild[company.id]}` : ""}</Badge>}
+                        {producerIdSet.has(company.id) && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-violet-300 bg-violet-50 text-violet-700">Produttore</Badge>}
                         {accountantIdSet.has(company.id) && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-teal-300 bg-teal-50 text-teal-700">Studio{accountantFirmByCompany[company.id] ? ` · ${accountantFirmByCompany[company.id]}` : ""}</Badge>}
                         {plan && <Badge variant="outline" className="text-[10px] px-1.5 py-0">{plan.name}</Badge>}
                         {plan && (
@@ -1602,6 +1618,7 @@ export default function CompaniesList() {
                           <p className="font-medium truncate">{company.name}</p>
                           {resellerIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-violet-300 bg-violet-50 text-violet-700" title={`Rivenditore di ${parentNameByChild[company.id] || "—"}`}>Riv.</Badge>}
                           {accountantIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-teal-300 bg-teal-50 text-teal-700" title={`Studio: ${accountantFirmByCompany[company.id] || "—"}`}>Studio</Badge>}
+                          {producerIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-violet-300 bg-violet-50 text-violet-700" title="Fabbrica white-label (accessi da produttore)">Prod.</Badge>}
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{company.email}</p>
                       </div>
@@ -1758,6 +1775,7 @@ export default function CompaniesList() {
                                 <p className="font-medium">{company.name}</p>
                                 {resellerIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-violet-300 bg-violet-50 text-violet-700" title={`Rivenditore di ${parentNameByChild[company.id] || "—"}`}>Riv.</Badge>}
                                 {accountantIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-teal-300 bg-teal-50 text-teal-700" title={`Studio: ${accountantFirmByCompany[company.id] || "—"}`}>Studio</Badge>}
+                                {producerIdSet.has(company.id) && <Badge variant="outline" className="h-4 shrink-0 px-1 text-[10px] border-violet-300 bg-violet-50 text-violet-700" title="Fabbrica white-label (accessi da produttore)">Prod.</Badge>}
                               </div>
                               <p className="text-xs text-muted-foreground">{company.email}</p>
                             </div>

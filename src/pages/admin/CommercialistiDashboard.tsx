@@ -72,12 +72,15 @@ async function fetchStudi(): Promise<Studio[]> {
   const firmIds: string[] = (firms ?? []).map((f: AnyRow) => f.id);
   if (firmIds.length === 0) return [];
 
-  const { data: members } = await sb
-    .from("accountant_firm_members").select("firm_id, user_id, role, status").in("firm_id", firmIds);
-  const { data: access } = await sb
-    .from("accountant_company_access")
-    .select("firm_id, company_id, status, access_mode, company:companies!inner(id, name, status)")
-    .in("firm_id", firmIds).in("status", ["active", "invited", "suspended"]);
+  // PERF: membri e deleghe dipendono solo dai firmIds → in parallelo (4→3 RTT).
+  const [membersRes, accessRes] = await Promise.all([
+    sb.from("accountant_firm_members").select("firm_id, user_id, role, status").in("firm_id", firmIds),
+    sb.from("accountant_company_access")
+      .select("firm_id, company_id, status, access_mode, company:companies!inner(id, name, status)")
+      .in("firm_id", firmIds).in("status", ["active", "invited", "suspended"]),
+  ]);
+  const members = membersRes.data;
+  const access = accessRes.data;
 
   const userIds: string[] = [...new Set([
     ...(members ?? []).map((m: AnyRow) => m.user_id),

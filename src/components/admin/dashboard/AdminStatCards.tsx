@@ -1,8 +1,50 @@
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
-import { Building, Euro, Hourglass, MessageSquare, TrendingUp, TrendingDown, Minus, Activity, CalendarDays, CreditCard, Gift } from "lucide-react";
+import { Building, Euro, Hourglass, MessageSquare, TrendingUp, TrendingDown, Minus, Activity, CalendarDays, CreditCard, Gift, Factory } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
+import { supabase } from "@/integrations/supabase/client";
 import type { AdminDashboardStats, AdminMrrStats } from "@/hooks/useAdminDashboardData";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyRow = any;
+
+/**
+ * Incasso wholesale/mese dai produttori white-label: somma dei piani dei
+ * rivenditori comped scontata della % wholesale del produttore padre. Era
+ * visibile solo in /admin/produttori — il dashboard mostrava "0,00 €" ovunque
+ * mentre i soldi veri stavano qui. Query self-contained (cache 5 min).
+ */
+function useWholesaleMrr() {
+  return useQuery({
+    queryKey: ["admin-wholesale-mrr"],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<number> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const { data: brand } = await sb
+        .from("company_branding").select("company_id").eq("whitelabel_tier", "agency");
+      const ids: string[] = [...new Set((brand ?? []).map((b: AnyRow) => b.company_id).filter(Boolean))];
+      if (ids.length === 0) return 0;
+      const [parentsRes, rivsRes] = await Promise.all([
+        sb.from("companies").select("id, reseller_wholesale_pct").in("id", ids),
+        sb.from("companies")
+          .select("parent_company_id, billing_comped, subscription_plans:subscription_plan_id(price_monthly)")
+          .in("parent_company_id", ids).eq("billing_comped", true),
+      ]);
+      const pctById = new Map<string, number>(
+        ((parentsRes.data ?? []) as AnyRow[]).map((p) => [p.id, Number(p.reseller_wholesale_pct ?? 0)]),
+      );
+      let tot = 0;
+      for (const r of (rivsRes.data ?? []) as AnyRow[]) {
+        const price = Number(r.subscription_plans?.price_monthly ?? 0);
+        const pct = Math.min(100, Math.max(0, pctById.get(r.parent_company_id) ?? 0));
+        tot += price * (1 - pct / 100);
+      }
+      return Math.round(tot * 100) / 100;
+    },
+  });
+}
 
 interface Props {
   stats: AdminDashboardStats;
@@ -40,6 +82,7 @@ function DeltaBadge({ delta }: { delta: number | null }) {
 
 export function AdminStatCards({ stats, mrrStats, previousStats }: Props) {
   const navigate = useNavigate();
+  const { data: wholesaleMrr } = useWholesaleMrr();
 
   const statCards = [
     {
@@ -71,6 +114,16 @@ export function AdminStatCards({ stats, mrrStats, previousStats }: Props) {
       href: "/admin/aziende?revenue=paying",
       accent: "from-blue-500/10 to-blue-500/5 dark:from-blue-500/20 dark:to-blue-500/10",
       iconBg: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    },
+    {
+      title: "Wholesale/mese",
+      value: wholesaleMrr === undefined ? "…" : formatCurrency(wholesaleMrr),
+      delta: null,
+      icon: Factory,
+      description: "Incasso dai produttori white-label",
+      href: "/admin/produttori",
+      accent: "from-violet-500/10 to-violet-500/5 dark:from-violet-500/20 dark:to-violet-500/10",
+      iconBg: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
     },
     {
       title: "Trial in scadenza",

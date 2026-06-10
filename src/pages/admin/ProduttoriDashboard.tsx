@@ -67,6 +67,11 @@ async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;
 
+  // PERF: 5 round-trip sequenziali → 3 livelli. I ruoli produttore_admin non
+  // dipendono dal branding → partono SUBITO in parallelo; companies+rivenditori
+  // dipendono solo dagli ids → in parallelo tra loro.
+  const rolesPromise = sb.from("user_roles").select("user_id").eq("role", "produttore_admin");
+
   // 1. Produttori = aziende con branding agency.
   const { data: brand, error: e1 } = await sb
     .from("company_branding")
@@ -76,21 +81,20 @@ async function fetchProduttori(): Promise<{ produttori: Produttore[]; totals: { 
   const ids: string[] = [...new Set((brand ?? []).map((b: AnyRow) => b.company_id).filter(Boolean))];
   if (ids.length === 0) return { produttori: [], totals: { produttori: 0, rivenditori: 0, comped: 0 } };
 
-  const { data: comps, error: e2 } = await sb
-    .from("companies")
-    .select("id, name, email, status, reseller_billing_mode, reseller_wholesale_pct, reseller_limit, created_at")
-    .in("id", ids);
+  const [compsRes, rivsRes, rolesRes] = await Promise.all([
+    sb.from("companies")
+      .select("id, name, email, status, reseller_billing_mode, reseller_wholesale_pct, reseller_limit, created_at")
+      .in("id", ids),
+    sb.from("companies")
+      .select("id, name, parent_company_id, billing_comped, status, created_at, subscription_plan_id, subscription_plans:subscription_plan_id(name, price_monthly)")
+      .in("parent_company_id", ids),
+    rolesPromise,
+  ]);
+  const { data: comps, error: e2 } = compsRes;
   if (e2) throw new Error(e2.message);
-
-  // 2. Rivenditori (figli) di tutti i produttori.
-  const { data: rivs, error: e3 } = await sb
-    .from("companies")
-    .select("id, name, parent_company_id, billing_comped, status, created_at, subscription_plan_id, subscription_plans:subscription_plan_id(name, price_monthly)")
-    .in("parent_company_id", ids);
+  const { data: rivs, error: e3 } = rivsRes;
   if (e3) throw new Error(e3.message);
-
-  // 3. Email dell'admin produttore (profiles dei produttore_admin di quelle aziende).
-  const { data: roleRows } = await sb.from("user_roles").select("user_id").eq("role", "produttore_admin");
+  const roleRows = rolesRes.data;
   const adminIds: string[] = [...new Set((roleRows ?? []).map((r: AnyRow) => r.user_id).filter(Boolean))];
   const { data: profs } = adminIds.length
     ? await sb.from("profiles").select("id, company_id, email").in("company_id", ids).in("id", adminIds)
