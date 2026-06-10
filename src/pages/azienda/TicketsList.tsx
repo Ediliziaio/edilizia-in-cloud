@@ -533,7 +533,7 @@ const TicketsList = React.forwardRef<HTMLDivElement>((_, ref) => {
               key={tab.value}
               onClick={() => setTipoFilter(tab.value)}
               className={cn(
-                "flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all whitespace-nowrap",
+                "flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition-all whitespace-nowrap",
                 active
                   ? "bg-orange-50 text-orange-700 shadow-sm ring-1 ring-orange-100"
                   : "text-muted-foreground hover:bg-slate-50 hover:text-slate-900"

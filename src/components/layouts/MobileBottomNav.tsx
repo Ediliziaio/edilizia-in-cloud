@@ -9,9 +9,17 @@
  *
  * Chat e App sono sempre presenti.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
+import { Capacitor } from "@capacitor/core";
+import { Haptics, ImpactStyle } from "@capacitor/haptics";
+
+/** Feedback aptico leggero al cambio tab (solo app nativa, fire-and-forget). */
+function tabHaptic() {
+  if (!Capacitor.isNativePlatform()) return;
+  Haptics.impact({ style: ImpactStyle.Light }).catch(() => { /* no-op */ });
+}
 import {
   LayoutDashboard,
   HardHat,
@@ -137,6 +145,28 @@ export function MobileBottomNav() {
   const { role } = useAuth();
   const isMobile = useIsMobile();
   const [appGridOpen, setAppGridOpen] = useState(false);
+  // Hide-on-scroll stile Instagram: la pillola scivola via scrollando GIÙ e
+  // riappare scrollando SU (o vicino al top). Listener in CAPTURE: lo scroll
+  // avviene su <main id="main-content"> (overflow-y-auto), non su window.
+  const [navHidden, setNavHidden] = useState(false);
+  useEffect(() => {
+    let lastY = 0;
+    let lastEl: EventTarget | null = null;
+    const onScroll = (e: Event) => {
+      const t = e.target;
+      const el = t instanceof Element ? t : document.scrollingElement;
+      if (!el || el.scrollHeight - el.clientHeight < 80) return; // scroller irrilevanti
+      const y = el.scrollTop;
+      if (t !== lastEl) { lastEl = t; lastY = y; return; }
+      const dy = y - lastY;
+      if (Math.abs(dy) < 8) return; // dead-zone anti-jitter
+      if (y < 48) setNavHidden(false);
+      else setNavHidden(dy > 0);
+      lastY = y;
+    };
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => document.removeEventListener("scroll", onScroll, { capture: true });
+  }, []);
   const commercialistaParams = new URLSearchParams(location.search);
   const isCommercialistaMode = commercialistaParams.get("commercialistaMode") === "1";
   const commercialistaSearch = isCommercialistaMode
@@ -277,14 +307,17 @@ export function MobileBottomNav() {
       }}
       aria-label="Navigazione principale"
     >
-      <div className="flex h-16 items-stretch rounded-[28px] border border-border/40 bg-background/70 shadow-lg shadow-black/10 backdrop-blur-xl backdrop-saturate-150">
+      <div className={cn(
+        "flex h-16 items-stretch rounded-[28px] border border-border/40 bg-background/70 shadow-lg shadow-black/10 backdrop-blur-xl backdrop-saturate-150 transition-transform duration-300 will-change-transform",
+        navHidden && !appGridOpen && "translate-y-[140%]",
+      )}>
         {navSlots.map((slot) => {
           if (slot.type === "app") {
             return (
               <button
                 key="app"
                 className="flex-1 flex flex-col items-center justify-center gap-1 relative min-w-0"
-                onClick={() => setAppGridOpen(true)}
+                onClick={() => { tabHaptic(); setAppGridOpen(true); }}
                 aria-label="Apri menu app"
                 type="button"
               >
@@ -324,6 +357,7 @@ export function MobileBottomNav() {
               <Link
                 key="silvio"
                 to="/azienda/silvio-ai"
+                onClick={tabHaptic}
                 className="flex-1 flex flex-col items-center justify-end gap-1 relative min-w-0 pb-1"
                 aria-label="Apri Silvio AI"
               >
@@ -344,6 +378,7 @@ export function MobileBottomNav() {
             <Link
               key={slot.href}
               to={slot.href}
+              onClick={tabHaptic}
               className="flex-1 flex flex-col items-center justify-center gap-1 relative min-w-0"
               aria-label={slot.label}
               aria-current={active ? "page" : undefined}

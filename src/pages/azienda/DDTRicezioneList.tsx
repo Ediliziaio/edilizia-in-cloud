@@ -548,7 +548,7 @@ export default function DDTRicezioneList() {
                 type="button"
                 onClick={() => setTab(f.key)}
                 className={cn(
-                  "px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-all flex items-center gap-1.5",
+                  "shrink-0 px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-all flex items-center gap-1.5",
                   isActive
                     ? "bg-orange-50 text-slate-950 shadow-sm ring-1 ring-orange-100"
                     : "text-muted-foreground hover:bg-white hover:text-slate-900"

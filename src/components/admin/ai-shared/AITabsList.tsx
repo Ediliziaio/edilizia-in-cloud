@@ -51,7 +51,7 @@ export function AITabsList({ tabs, contents, value, onValueChange, defaultValue 
                 key={t.value}
                 value={t.value}
                 className="
-                  relative gap-2 px-3.5 py-2.5 text-sm font-medium
+                  relative shrink-0 gap-2 px-3.5 py-2.5 text-sm font-medium
                   data-[state=active]:bg-gradient-to-br
                   data-[state=active]:from-orange-500
                   data-[state=active]:to-rose-500

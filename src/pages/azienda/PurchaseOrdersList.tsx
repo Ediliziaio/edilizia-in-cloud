@@ -474,7 +474,7 @@ export default function PurchaseOrdersList() {
                   type="button"
                   onClick={() => setTab(item.key)}
                   className={cn(
-                    "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                    "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-all",
                     isActive
                       ? "bg-orange-50 text-slate-950 shadow-sm ring-1 ring-orange-100"
                       : "text-slate-500 hover:bg-white hover:text-slate-900"

@@ -1691,7 +1691,35 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
               ) : filteredTasks.length === 0 ? (
                 <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">
                   <Filter className="h-6 w-6 mx-auto mb-2 text-muted-foreground opacity-40" />
-                  <p className="text-sm text-muted-foreground">Nessuna attività trovata per questo filtro</p>
+                  <p className="text-sm text-muted-foreground">
+                    {(() => {
+                      // Messaggio contestuale: dice ESATTAMENTE quale combinazione
+                      // di filtri è vuota (es. "Nessuna attività scaduta di Mario
+                      // Bianchi"), invece del generico "per questo filtro".
+                      const who = filterAssignee === "me"
+                        ? " assegnata a te"
+                        : filterAssignee !== "all"
+                          ? (() => {
+                              const m = teamMembers.find((t) => t.id === filterAssignee);
+                              return m ? ` di ${[m.first_name, m.last_name].filter(Boolean).join(" ")}` : "";
+                            })()
+                          : "";
+                      const what = filter === "scadute" ? " scaduta"
+                        : filter === "oggi" ? " per oggi"
+                          : filter === "settimana" ? " questa settimana"
+                            : filter === "completate" ? " completata" : "";
+                      return `Nessuna attività${what}${who}${searchQuery ? ` per «${searchQuery}»` : ""}`;
+                    })()}
+                  </p>
+                  {(filterAssignee !== "all" || filter !== "tutte" || !!searchQuery) && (
+                    <button
+                      type="button"
+                      onClick={() => { setFilterAssignee("all"); setFilter("tutte"); setSearchQuery(""); setSelectedIds(new Set()); }}
+                      className="mt-2 text-xs font-semibold text-primary hover:underline"
+                    >
+                      Mostra tutte le attività
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className={compact ? "space-y-1" : "space-y-2"}>{filteredTasks.map(renderTask)}</div>
