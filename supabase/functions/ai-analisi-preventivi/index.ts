@@ -1,5 +1,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 
@@ -25,6 +26,10 @@ Deno.serve(async (req) => {
 
     if (!company_id) return errorResponse("company_id obbligatorio", 400, corsH);
     await requireCompanyAccess(supabaseAdmin, userId, company_id, corsH);
+
+    // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+    const paymentBlock = await gateAiPayment(supabaseAdmin, company_id, corsH);
+    if (paymentBlock) return paymentBlock;
 
     // Calculate date cutoff using proper month arithmetic
     const cutoff = new Date();

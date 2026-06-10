@@ -22,6 +22,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 
 interface Payload {
   query: string;
@@ -54,6 +55,10 @@ Deno.serve(async (req) => {
       .maybeSingle();
     const companyId = (profile as { company_id?: string } | null)?.company_id;
     if (!companyId) return errorResponse("Nessuna company associata", 400, cors);
+
+    // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+    const paymentBlock = await gateAiPayment(supabaseAdmin, companyId, cors);
+    if (paymentBlock) return paymentBlock;
 
     // Decisione trigger: invoca council se valore alto OR red
     const value = body.value_eur ?? 0;

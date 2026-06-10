@@ -37,6 +37,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
 
 interface Payload {
@@ -83,6 +84,10 @@ Deno.serve(async (req) => {
       .maybeSingle();
     const companyId = (profile as { company_id?: string } | null)?.company_id;
     if (!companyId) return errorResponse("company not found", 400, cors);
+
+    // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+    const paymentBlock = await gateAiPayment(supabaseAdmin, companyId, cors);
+    if (paymentBlock) return paymentBlock;
 
     // 1) STT via OpenAI Whisper
     let transcription = "";

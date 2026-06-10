@@ -10,6 +10,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 
 const SYSTEM_PROMPT = `Sei un customer success manager esperto per un'azienda edile italiana.
 Analizzi reclami e feedback negativi/positivi dei clienti per produrre una risposta empatica e professionale, e suggerire azioni operative interne.
@@ -94,6 +95,10 @@ Deno.serve(async (req) => {
   if (error || !complaint) {
     return jsonErr(`complaint_not_found: ${error?.message ?? ""}`, 404);
   }
+
+  // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+  const paymentBlock = await gateAiPayment(supabase, body.company_id, { "Content-Type": "application/json" });
+  if (paymentBlock) return paymentBlock;
 
   // Mark analyzing
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

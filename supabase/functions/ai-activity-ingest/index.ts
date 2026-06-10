@@ -23,6 +23,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { generateEmbeddingsBatch, contentHash } from "../_shared/brainEmbed.ts";
 import { chargeDirectAiCall, estimateEmbeddingUsage } from "../_shared/directAiLedger.ts";
 
@@ -218,6 +219,9 @@ serve(async (req) => {
         .single();
       if (error || !row) return errorResponse(`activity not found: ${error?.message}`, 404, cors);
       await requireCompanyAccess(supabaseAdmin, userId, row.company_id, cors);
+      // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+      const paymentBlock = await gateAiPayment(supabaseAdmin, row.company_id, cors);
+      if (paymentBlock) return paymentBlock;
       if (row.brain_doc_id) {
         return jsonResponse({ already_ingested: true, brain_doc_id: row.brain_doc_id }, 200, cors);
       }
@@ -227,6 +231,9 @@ serve(async (req) => {
 
     if (!body.company_id) return errorResponse("company_id required", 400, cors);
     await requireCompanyAccess(supabaseAdmin, userId, body.company_id, cors);
+    // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+    const paymentBlock = await gateAiPayment(supabaseAdmin, body.company_id, cors);
+    if (paymentBlock) return paymentBlock;
 
     const limit = Math.min(Math.max(body.limit ?? 25, 1), MAX_BATCH);
 

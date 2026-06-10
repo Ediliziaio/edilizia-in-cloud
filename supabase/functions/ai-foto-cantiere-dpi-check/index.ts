@@ -28,6 +28,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 
 interface Payload {
   photo_url: string;
@@ -97,6 +98,13 @@ Deno.serve(async (req) => {
       status: 400,
       headers: { ...cors, "Content-Type": "application/json" },
     });
+  }
+
+  // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+  // company_id è opzionale (trigger DB può non passarlo): gate solo quando presente.
+  if (body.company_id) {
+    const paymentBlock = await gateAiPayment(supabase, body.company_id, cors);
+    if (paymentBlock) return paymentBlock;
   }
 
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");

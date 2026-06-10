@@ -12,6 +12,7 @@
  */
 
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
@@ -47,6 +48,10 @@ Deno.serve(async (req: Request) => {
 
     if (!company_id) return errorResponse("company_id obbligatorio", 400, cors);
     await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
+
+    // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+    const paymentBlock = await gateAiPayment(supabaseAdmin, company_id, cors);
+    if (paymentBlock) return paymentBlock;
 
     // Step 1: ricalcola snapshots deterministici
     const { data: computeData, error: computeErr } = await supabaseAdmin

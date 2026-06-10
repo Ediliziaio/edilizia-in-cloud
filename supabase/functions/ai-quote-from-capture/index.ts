@@ -25,6 +25,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { generateEmbedding } from "../_shared/brainEmbed.ts";
 import { requireCompanyAccess } from "../_shared/auth.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
@@ -219,6 +220,10 @@ Deno.serve(async (req) => {
     if (e instanceof Response) return e;
     return jsonOk({ error: "tenant_access_check_failed" }, 403, cors);
   }
+
+  // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+  const paymentBlock = await gateAiPayment(supabase, companyId, cors);
+  if (paymentBlock) return paymentBlock;
 
   const t0 = Date.now();
   const summary: {

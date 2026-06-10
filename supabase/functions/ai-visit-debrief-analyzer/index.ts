@@ -11,6 +11,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 
 const SYSTEM_PROMPT = `Sei un sales coach esperto in B2B edile italiano. Analizzi appunti/audio di visite commerciali fatte da rappresentanti.
 
@@ -81,6 +82,10 @@ Deno.serve(async (req) => {
   if (dErr || !debrief) {
     return jsonErr(`debrief_not_found: ${dErr?.message ?? ""}`, 404);
   }
+
+  // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+  const paymentBlock = await gateAiPayment(supabase, body.company_id, { "Content-Type": "application/json" });
+  if (paymentBlock) return paymentBlock;
 
   // Mark processing
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -29,6 +29,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 
 interface AnalyzeRequest {
   storage_bucket: string;
@@ -544,6 +545,10 @@ serve(async (req) => {
     const companyId = company_id ?? profile?.company_id;
     if (!companyId) return errorResponse("company_id non risolto per utente", 403, cors);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, cors);
+
+    // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+    const paymentBlock = await gateAiPayment(supabaseAdmin, companyId, cors);
+    if (paymentBlock) return paymentBlock;
 
     // ── 1) Hash file (idempotency) ──────────────────────────────────────
     const sha256 = await hashStorageFile(supabaseAdmin, storage_bucket, storage_path);

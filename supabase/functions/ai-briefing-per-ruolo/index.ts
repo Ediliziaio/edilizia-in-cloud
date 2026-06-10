@@ -13,6 +13,7 @@
  */
 
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
@@ -83,6 +84,10 @@ Deno.serve(async (req: Request) => {
     const companyId = bodyCompanyId ?? profile.company_id;
     if (!companyId) return errorResponse("company_id non determinabile", 400, cors);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, cors);
+
+    // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+    const paymentBlock = await gateAiPayment(supabaseAdmin, companyId, cors);
+    if (paymentBlock) return paymentBlock;
 
     const { data: rolesData } = await supabaseAdmin
       .from("user_roles")

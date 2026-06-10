@@ -46,6 +46,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { chat, InsufficientCreditsError } from "../_shared/ai-provider/index.ts";
 
 interface BuildRequest {
@@ -248,6 +249,10 @@ Deno.serve(async (req) => {
     if (!isSA && profileRes.data?.company_id !== body.company_id) {
       return json({ error: "forbidden" }, 403, corsHeaders);
     }
+
+    // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+    const paymentBlock = await gateAiPayment(admin, body.company_id, corsHeaders);
+    if (paymentBlock) return paymentBlock;
 
     // Carica profilo azienda (solo per CONTESTO — non per generare l'offerta!)
     const { data: company } = await admin

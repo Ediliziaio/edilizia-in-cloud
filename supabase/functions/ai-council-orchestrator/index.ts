@@ -15,6 +15,7 @@
  *   { multi_area, classification, sub_outputs?, synthesis?, cost_guard }
  */
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { classifyQuery } from "../_shared/queryClassifier.ts";
@@ -64,6 +65,10 @@ Deno.serve(async (req) => {
       return errorResponse("query, current_persona, company_id required", 400, cors);
     }
     await requireCompanyAccess(supabaseAdmin, userId, company_id, cors);
+
+    // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+    const paymentBlock = await gateAiPayment(supabaseAdmin, company_id, cors);
+    if (paymentBlock) return paymentBlock;
 
     // 1. Classify
     const classification = await classifyQuery({

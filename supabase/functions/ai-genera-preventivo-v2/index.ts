@@ -1,5 +1,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { getSystemPromptForVertical } from "../_shared/ai-prompts/index.ts";
 import { extractJsonFromLLM } from "../_shared/extractJson.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
@@ -143,6 +144,10 @@ Deno.serve(async (req) => {
 
     if (!company_id) return errorResponse("company_id obbligatorio", 400, corsH);
     await requireCompanyAccess(supabaseAdmin, userId, company_id, corsH);
+
+    // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+    const paymentBlock = await gateAiPayment(supabaseAdmin, company_id, corsH);
+    if (paymentBlock) return paymentBlock;
 
     // FASE 8.5: leggi vertical della company per scegliere il system prompt.
     const { data: company } = await supabaseAdmin

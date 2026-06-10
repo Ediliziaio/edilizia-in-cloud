@@ -19,6 +19,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { generateEmbeddingsBatch, contentHash, chunkTextSliding } from "../_shared/brainEmbed.ts";
 import { buildStableAiIdempotencyKey, chargeDirectAiCall, estimateEmbeddingUsage } from "../_shared/directAiLedger.ts";
 
@@ -147,6 +148,10 @@ serve(async (req: Request) => {
     const companyId: string | null = profile?.company_id ?? null;
     if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
     const access = await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
+
+    // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+    const paymentBlock = await gateAiPayment(supabaseAdmin, companyId, corsHeaders);
+    if (paymentBlock) return paymentBlock;
 
     const body = await req.json();
     const mode = body?.mode ?? "items";

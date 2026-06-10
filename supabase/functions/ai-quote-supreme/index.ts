@@ -49,6 +49,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { generateEmbeddingsBatch } from "../_shared/brainEmbed.ts";
 
 interface AdviseRequest {
@@ -200,6 +201,10 @@ serve(async (req) => {
     const companyId = profile?.company_id;
     if (!companyId) return errorResponse("company_id non risolto", 403, cors);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, cors);
+
+    // Gate carta (audit AI 2026-06): strumento a costo senza controllo pagamento.
+    const paymentBlock = await gateAiPayment(supabaseAdmin, companyId, cors);
+    if (paymentBlock) return paymentBlock;
 
     const projectValue = typeof body.project_estimated_value_eur === "number"
       ? body.project_estimated_value_eur
