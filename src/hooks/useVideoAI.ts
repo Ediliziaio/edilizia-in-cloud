@@ -61,6 +61,11 @@ export type VideoAISetupStatus = "unknown" | "checking" | "configured" | "not_co
 const POLL_INTERVAL_MS = 4_000;
 const MAX_JOBS_STORED = 20;
 const STORAGE_KEY_PREFIX = "eic_video_jobs_";
+// Tetto al polling (audit AI 2026-06): se una prediction Replicate resta
+// appesa su "processing", senza limite il polling girava all'infinito
+// (edge function ai-ads-video-status chiamata ogni 4s a vuoto). 10 minuti
+// è ampiamente oltre il tempo di rendering di un video breve.
+const MAX_POLL_MS = 10 * 60 * 1000;
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -103,7 +108,22 @@ export function useVideoAI(
     const active = jobs.filter(j => j.status === "pending" || j.status === "processing");
     if (active.length === 0) return;
 
-    for (const job of active) {
+    // Timeout: i job appesi oltre MAX_POLL_MS vengono chiusi come "failed"
+    // così il polling si ferma (il loop si arma solo se restano job attivi).
+    const now = Date.now();
+    const timedOut = active.filter(j => now - j.started_at > MAX_POLL_MS);
+    if (timedOut.length > 0) {
+      const timedOutIds = new Set(timedOut.map(j => j.id));
+      setJobs(prev => prev.map(j =>
+        timedOutIds.has(j.id)
+          ? { ...j, status: "failed" as VideoJobStatus, error: "Timeout: generazione troppo lunga, riprova." }
+          : j,
+      ));
+    }
+    const stillActive = active.filter(j => now - j.started_at <= MAX_POLL_MS);
+    if (stillActive.length === 0) return;
+
+    for (const job of stillActive) {
       try {
         const { data, error } = await supabase.functions.invoke<{
           status: VideoJobStatus;
