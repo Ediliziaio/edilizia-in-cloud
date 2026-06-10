@@ -47,6 +47,7 @@ import { formatCurrencyCompact } from "@/lib/formatters";
 import { safeNumber } from "@/lib/numberUtils";
 import { cn } from "@/lib/utils";
 import {
+  Area,
   Bar,
   CartesianGrid,
   ComposedChart,
@@ -435,13 +436,28 @@ export default function CruscottoAziendale() {
                 <div className="mt-4 h-[260px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={executiveTrend} margin={{ top: 8, right: 4, left: -10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
-                      <XAxis dataKey="mese" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" />
+                      <defs>
+                        <linearGradient id="cruVendutoGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#2563eb" stopOpacity={0.95} />
+                          <stop offset="100%" stopColor="#2563eb" stopOpacity={0.55} />
+                        </linearGradient>
+                        <linearGradient id="cruIncassatoGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f97316" stopOpacity={0.95} />
+                          <stop offset="100%" stopColor="#f97316" stopOpacity={0.55} />
+                        </linearGradient>
+                        <linearGradient id="cruCassaArea" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#059669" stopOpacity={0.22} />
+                          <stop offset="100%" stopColor="#059669" stopOpacity={0.03} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#edf2f7" />
+                      <XAxis dataKey="mese" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" tickMargin={8} />
                       <YAxis
                         tickLine={false}
                         axisLine={false}
                         fontSize={10}
                         stroke="#94a3b8"
+                        tickMargin={6}
                         tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
                       />
                       <RechartsTooltip
@@ -451,21 +467,35 @@ export default function CruscottoAziendale() {
                           border: "1px solid #e2e8f0",
                           boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
                         }}
-                        formatter={(value, name) => [
-                          Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }),
-                          name === "venduto" ? "Venduto" : name === "incassato" ? "Incassato" : "Cassa netta",
-                        ]}
+                        formatter={(value, name) =>
+                          name === "cassaArea"
+                            ? [null, null]
+                            : [
+                                Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }),
+                                name === "venduto" ? "Venduto" : name === "incassato" ? "Incassato" : "Cassa netta",
+                              ]
+                        }
                         labelFormatter={(label) => `Mese: ${label}`}
                       />
-                      <Bar dataKey="venduto" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={22} />
-                      <Bar dataKey="incassato" fill="#f97316" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                      <Bar dataKey="venduto" fill="url(#cruVendutoGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                      <Bar dataKey="incassato" fill="url(#cruIncassatoGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                      {/* Area sfumata sotto la linea cassa (stesso dataKey, solo fill) */}
+                      <Area
+                        type="monotone"
+                        dataKey="cassa"
+                        name="cassaArea"
+                        stroke="transparent"
+                        fill="url(#cruCassaArea)"
+                        legendType="none"
+                        tooltipType="none"
+                      />
                       <Line
                         type="monotone"
                         dataKey="cassa"
                         stroke="#059669"
                         strokeWidth={2.5}
-                        dot={{ r: 3, fill: "#059669", strokeWidth: 0 }}
-                        activeDot={{ r: 4 }}
+                        dot={{ r: 4, fill: "#ffffff", stroke: "#059669", strokeWidth: 2 }}
+                        activeDot={{ r: 5, fill: "#059669", stroke: "#ffffff", strokeWidth: 2 }}
                       />
                     </ComposedChart>
                   </ResponsiveContainer>

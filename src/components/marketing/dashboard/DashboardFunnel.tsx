@@ -1,7 +1,7 @@
-import { memo } from "react";
+import { memo, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { FunnelChart, type FunnelChartStage } from "@/components/ui/funnel-chart";
 import type { FunnelStage } from "@/hooks/useMarketingDashboard";
 import { cn } from "@/lib/utils";
 import { AlertTriangle } from "lucide-react";
@@ -13,7 +13,48 @@ interface Props {
   compact?: boolean;
 }
 
+/** Palette funnel: ciclo sulle chart vars del tema (coerente con gli altri grafici). */
+const STAGE_COLORS = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
+];
+
 export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading, compact }: Props) {
+  const [hovered, setHovered] = useState<number | null>(null);
+
+  const stages = funnel || [];
+
+  // Collo di bottiglia: stage con la conversione più bassa (escluso il primo)
+  const bottleneckIdx = useMemo(() => {
+    let idx = -1;
+    let lowestConv = Infinity;
+    stages.forEach((stage, i) => {
+      if (i === 0) return;
+      const prevCount = stages[i - 1].count;
+      if (prevCount > 0) {
+        const conv = stage.count / prevCount;
+        if (conv < lowestConv && prevCount >= 2) {
+          lowestConv = conv;
+          idx = i;
+        }
+      }
+    });
+    return idx;
+  }, [stages]);
+
+  const chartData: FunnelChartStage[] = useMemo(
+    () =>
+      stages.map((stage, i) => ({
+        label: stage.name,
+        value: stage.count,
+        color: i === bottleneckIdx ? "hsl(var(--destructive))" : STAGE_COLORS[i % STAGE_COLORS.length],
+      })),
+    [stages, bottleneckIdx],
+  );
+
   if (isLoading) {
     return (
       <Card>
@@ -25,100 +66,89 @@ export const DashboardFunnel = memo(function DashboardFunnel({ funnel, isLoading
     );
   }
 
-  const stages = funnel || [];
-  const maxCount = Math.max(...stages.map(s => s.count), 1);
-
-  // Find bottleneck: stage with lowest conversion rate (excluding first stage)
-  let bottleneckIdx = -1;
-  let lowestConv = Infinity;
-  stages.forEach((stage, idx) => {
-    if (idx === 0) return;
-    const prevCount = stages[idx - 1].count;
-    if (prevCount > 0) {
-      const conv = stage.count / prevCount;
-      if (conv < lowestConv && prevCount >= 2) {
-        lowestConv = conv;
-        bottleneckIdx = idx;
-      }
-    }
-  });
-
   const Wrapper = compact ? "div" : Card;
   const wrapperProps = compact ? { className: "" } : {};
 
   return (
-    <TooltipProvider delayDuration={200}>
-      <Wrapper {...wrapperProps}>
-        {!compact && (
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Pipeline</CardTitle>
-          </CardHeader>
-        )}
-        <CardContent className={compact ? "p-0" : ""}>
-          {stages.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Nessuno stage configurato</p>
-          ) : (
-            <div className={cn("space-y-2", compact && "space-y-1")}>
+    <Wrapper {...wrapperProps}>
+      {!compact && (
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Pipeline</CardTitle>
+        </CardHeader>
+      )}
+      <CardContent className={compact ? "p-0" : ""}>
+        {stages.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">Nessuno stage configurato</p>
+        ) : (
+          <div className="space-y-3">
+            <FunnelChart
+              data={chartData}
+              hoveredIndex={hovered}
+              onHoverChange={setHovered}
+              layers={3}
+              gap={compact ? 2 : 4}
+              showLabels={!compact}
+              showValues
+              showPercentage={!compact}
+              labelLayout={compact ? "grouped" : "spread"}
+              style={{ aspectRatio: compact ? "2.6 / 1" : "2.2 / 1" }}
+            />
+
+            {/* Dettaglio per fase: valore €, conversione, giorni medi.
+                Le righe si illuminano in sync con l'hover del funnel. */}
+            <div className={cn("space-y-1", compact && "hidden")}>
               {stages.map((stage, idx) => {
-                const widthPct = Math.max((stage.count / maxCount) * 100, 8);
                 const prevCount = idx > 0 ? stages[idx - 1].count : null;
                 const convRate = prevCount && prevCount > 0 ? Math.round((stage.count / prevCount) * 100) : null;
                 const isBottleneck = idx === bottleneckIdx;
+                const dotColor = isBottleneck ? "hsl(var(--destructive))" : STAGE_COLORS[idx % STAGE_COLORS.length];
 
                 return (
-                  <Tooltip key={stage.stage_id}>
-                    <TooltipTrigger asChild>
-                      <div className="group cursor-default">
-                        <div className="flex items-center justify-between text-xs mb-1 gap-1">
-                          <div className="flex items-center gap-1 min-w-0">
-                            <span className={cn("font-medium truncate text-[11px] sm:text-xs", isBottleneck && "text-red-600 dark:text-red-400")}>{stage.name}</span>
-                            {isBottleneck && <AlertTriangle className="h-3 w-3 text-red-500 flex-shrink-0" />}
-                          </div>
-                          <div className="flex items-center gap-1.5 sm:gap-3 text-muted-foreground shrink-0">
-                            {stage.avg_days_in_stage > 0 && (
-                              <span className="text-[9px] sm:text-[10px] hidden sm:inline">{stage.avg_days_in_stage}gg</span>
-                            )}
-                            {convRate !== null && (
-                              <span className={cn("text-[9px] sm:text-[10px]", isBottleneck && "text-red-600 dark:text-red-400 font-semibold")}>{convRate}%</span>
-                            )}
-                            <span className="font-semibold text-foreground text-[11px] sm:text-xs">{stage.count}</span>
-                          </div>
-                        </div>
-                        <div className={cn("bg-muted rounded-md overflow-hidden", compact ? "h-5" : "h-7")}>
-                          <div
-                            className={cn(
-                              "h-full rounded-md transition-all duration-500 flex items-center px-2",
-                              isBottleneck
-                                ? "bg-red-500/80 group-hover:bg-red-500"
-                                : "bg-blue-500/80 group-hover:bg-blue-500"
-                            )}
-                            style={{ width: `${widthPct}%` }}
-                          >
-                            {stage.total_value > 0 && (
-                              <span className="text-[10px] text-white font-medium truncate">
-                                {fmtCur(stage.total_value)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <div className="text-xs space-y-1">
-                        <p><strong>{stage.name}</strong>: {stage.count} opportunità</p>
-                        {stage.total_value > 0 && <p>Valore: {fmtCur(stage.total_value)}</p>}
-                        {convRate !== null && <p>Conversione: {convRate}%</p>}
-                        {stage.avg_days_in_stage > 0 && <p>Tempo medio in fase: {stage.avg_days_in_stage} giorni</p>}
-                        {isBottleneck && <p className="text-red-500 font-semibold">⚠️ Possibile collo di bottiglia</p>}
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
+                  <div
+                    key={stage.stage_id}
+                    onMouseEnter={() => setHovered(idx)}
+                    onMouseLeave={() => setHovered(null)}
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-md px-2 py-1 text-xs transition-colors cursor-default",
+                      hovered === idx && "bg-muted/60",
+                      hovered !== null && hovered !== idx && "opacity-50",
+                    )}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: dotColor }} />
+                      <span className={cn("font-medium truncate", isBottleneck && "text-red-600 dark:text-red-400")}>
+                        {stage.name}
+                      </span>
+                      {isBottleneck && <AlertTriangle className="h-3 w-3 shrink-0 text-red-500" />}
+                    </div>
+                    <div className="flex items-center gap-2.5 shrink-0 text-muted-foreground tabular-nums">
+                      {stage.avg_days_in_stage > 0 && (
+                        <span className="hidden sm:inline text-[10px]">{stage.avg_days_in_stage}gg</span>
+                      )}
+                      {convRate !== null && (
+                        <span className={cn("text-[10px]", isBottleneck && "text-red-600 dark:text-red-400 font-semibold")}>
+                          {convRate}%
+                        </span>
+                      )}
+                      {stage.total_value > 0 && (
+                        <span className="hidden sm:inline text-[10px]">{fmtCur(stage.total_value)}</span>
+                      )}
+                      <span className="font-semibold text-foreground">{stage.count}</span>
+                    </div>
+                  </div>
                 );
               })}
             </div>
-          )}
-        </CardContent>
-      </Wrapper>
-    </TooltipProvider>
+
+            {bottleneckIdx >= 0 && (
+              <p className="flex items-center gap-1.5 text-[11px] text-red-600 dark:text-red-400">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                Possibile collo di bottiglia in "{stages[bottleneckIdx].name}" — conversione più bassa del funnel.
+              </p>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Wrapper>
   );
 });

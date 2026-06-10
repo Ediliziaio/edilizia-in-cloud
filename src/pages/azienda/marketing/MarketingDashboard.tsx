@@ -7,7 +7,7 @@ import {
   CalendarCheck, Trophy, UserPlus,
 } from "lucide-react";
 import {
-  Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer,
+  Area, Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer,
   Tooltip as RechartsTooltip, XAxis, YAxis,
 } from "recharts";
 
@@ -468,9 +468,23 @@ export default function MarketingDashboard() {
               <div className="mt-4 h-[260px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={marketingTrend} margin={{ top: 8, right: 4, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
-                    <XAxis dataKey="mese" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" />
-                    <YAxis tickLine={false} axisLine={false} fontSize={10} stroke="#94a3b8" allowDecimals={false} />
+                    <defs>
+                      <linearGradient id="mktLeadGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#2563eb" stopOpacity={0.95} />
+                        <stop offset="100%" stopColor="#2563eb" stopOpacity={0.55} />
+                      </linearGradient>
+                      <linearGradient id="mktApptGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f97316" stopOpacity={0.95} />
+                        <stop offset="100%" stopColor="#f97316" stopOpacity={0.55} />
+                      </linearGradient>
+                      <linearGradient id="mktContrattiArea" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#059669" stopOpacity={0.22} />
+                        <stop offset="100%" stopColor="#059669" stopOpacity={0.03} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#edf2f7" />
+                    <XAxis dataKey="mese" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" tickMargin={8} />
+                    <YAxis tickLine={false} axisLine={false} fontSize={10} stroke="#94a3b8" allowDecimals={false} tickMargin={6} />
                     <RechartsTooltip
                       cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
                       contentStyle={{
@@ -478,21 +492,35 @@ export default function MarketingDashboard() {
                         border: "1px solid #e2e8f0",
                         boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
                       }}
-                      formatter={(value: number, name) => [
-                        Number(value).toLocaleString("it-IT"),
-                        name === "lead" ? "Lead" : name === "appuntamenti" ? "Appuntamenti" : "Contratti",
-                      ]}
+                      formatter={(value: number, name) =>
+                        name === "contrattiArea"
+                          ? [null, null]
+                          : [
+                              Number(value).toLocaleString("it-IT"),
+                              name === "lead" ? "Lead" : name === "appuntamenti" ? "Appuntamenti" : "Contratti",
+                            ]
+                      }
                       labelFormatter={(label) => `Mese: ${label}`}
                     />
-                    <Bar dataKey="lead" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={22} />
-                    <Bar dataKey="appuntamenti" fill="#f97316" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                    <Bar dataKey="lead" fill="url(#mktLeadGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                    <Bar dataKey="appuntamenti" fill="url(#mktApptGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                    {/* Area sfumata sotto la linea contratti (stesso dataKey, solo fill) */}
+                    <Area
+                      type="monotone"
+                      dataKey="contratti"
+                      name="contrattiArea"
+                      stroke="transparent"
+                      fill="url(#mktContrattiArea)"
+                      legendType="none"
+                      tooltipType="none"
+                    />
                     <Line
                       type="monotone"
                       dataKey="contratti"
                       stroke="#059669"
                       strokeWidth={2.5}
-                      dot={{ r: 3, fill: "#059669", strokeWidth: 0 }}
-                      activeDot={{ r: 4 }}
+                      dot={{ r: 4, fill: "#ffffff", stroke: "#059669", strokeWidth: 2 }}
+                      activeDot={{ r: 5, fill: "#059669", stroke: "#ffffff", strokeWidth: 2 }}
                     />
                   </ComposedChart>
                 </ResponsiveContainer>
