@@ -11,10 +11,14 @@ export function formatCurrency(amount: number | string | null | undefined): stri
   // Difesa: Intl.NumberFormat.format(undefined|NaN) stampa "NaN €" (trappola
   // ricorrente, es. tariffe/costi non valorizzati). Coercizziamo a numero finito,
   // fallback 0, così nessuna card mostra mai "NaN €".
+  // useGrouping "always": il CLDR italiano omette il separatore migliaia sotto
+  // le 5 cifre (1250 → "1250,00 €" ma 12500 → "12.500,00 €") — nello stesso
+  // riepilogo sembrava un'incoerenza. Forziamo "1.250,00 €" ovunque.
   const n = typeof amount === "number" ? amount : Number(amount);
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: "EUR",
+    useGrouping: "always",
   }).format(Number.isFinite(n) ? n : 0);
 }
 

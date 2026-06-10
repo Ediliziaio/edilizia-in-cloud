@@ -51,6 +51,7 @@ import {
   createDefaultInstallments,
   buildInstallmentsFromLegacy,
   installmentsToLegacyColumns,
+  prefillExpectedDates,
 } from "@/lib/orderUtils";
 import { calculateCollectedNetFromInstallments, calculateCommissionGross } from "@/lib/commissions";
 
@@ -189,7 +190,8 @@ function EditOrderInner() {
         newInstallments[idx] = { ...inst, is_paid: existingBalance.is_paid, paid_date: existingBalance.paid_date, expected_date: existingBalance.expected_date };
       }
     });
-    setInstallments(newInstallments);
+    // Date previste suggerite a 30/60/90gg per le rate nuove (modificabili)
+    setInstallments(prefillExpectedDates(newInstallments));
   };
 
   // Fetch order data
@@ -359,6 +361,18 @@ function EditOrderInner() {
     }
   }, [existingItems, draftRestored]);
 
+  // Auto-heal: in alcune aperture lo state perde il cliente (race load/draft
+  // già nota — il guard sull'auto-save sotto ne è la cicatrice) e l'utente si
+  // ritrovava "Seleziona un cliente" su una commessa che il cliente CE L'HA:
+  // submit bloccata finché non lo risceglieva a mano. Se la commessa ha un
+  // customer_id e lo state è vuoto, riagganciamo quello — mai un cliente
+  // diverso da quello già salvato, quindi nessun rischio di scrittura errata.
+  useEffect(() => {
+    if (dataLoaded && customerId === "" && order?.customer_id) {
+      setCustomerId(order.customer_id);
+    }
+  }, [dataLoaded, customerId, order?.customer_id]);
+
   // Auto-save draft
   useEffect(() => {
     if (!dataLoaded) return;
@@ -447,7 +461,10 @@ function EditOrderInner() {
 
   // Update order mutation
   const updateOrderMutation = useMutation({
-    mutationFn: async () => {
+    // customerId via argomento, NON dallo state: setCustomerId nel submit è
+    // async e la closure leggerebbe il valore vecchio (rischio customer_id
+    // vuoto scritto a DB quando scatta l'auto-heal della race cliente).
+    mutationFn: async (args?: { customerId?: string }) => {
       if (!effectiveCompany?.id) throw new Error("Azienda non trovata");
       const installmentsForSave = installments.map(i =>
         i.type === 'balance' ? { ...i, amount: balance } : i
@@ -457,7 +474,7 @@ function EditOrderInner() {
       const { error } = await supabase
         .from("orders")
         .update({
-          customer_id: customerId,
+          customer_id: args?.customerId || customerId,
           order_code: orderCode.trim() || null,
           description,
           total_amount: total,
@@ -673,10 +690,15 @@ function EditOrderInner() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!customerId) {
+    // Se lo state ha perso il cliente ma la commessa ne ha già uno salvato,
+    // usiamo quello (vedi auto-heal sopra): bloccare qui costringeva l'utente
+    // a riselezionare un cliente che non è mai cambiato.
+    const effectiveCustomerId = customerId || order?.customer_id || "";
+    if (!effectiveCustomerId) {
       toast.error("Campo obbligatorio", { description: "Seleziona un cliente." });
       return;
     }
+    if (!customerId) setCustomerId(effectiveCustomerId);
     if (!description.trim()) {
       toast.error("Campo obbligatorio", { description: "Inserisci una descrizione del lavoro." });
       return;
@@ -711,7 +733,7 @@ function EditOrderInner() {
       }
     }
 
-    updateOrderMutation.mutate();
+    updateOrderMutation.mutate({ customerId: effectiveCustomerId });
   };
 
   const handleCustomerCreated = (newCustomerId: string) => {

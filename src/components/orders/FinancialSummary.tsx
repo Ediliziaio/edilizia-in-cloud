@@ -87,48 +87,70 @@ function PaymentStatusRow({ label, amount, paid, paidDate, expectedDate, onPaidC
   if (amount <= 0) return null;
 
   const status: PaymentStatus = paid ? 'pagato' : 'non_pagato';
+  // Rata scaduta: non pagata con data prevista nel passato (confronto su
+  // mezzanotte locale: una rata che scade oggi NON è in ritardo).
+  const oggi = new Date();
+  oggi.setHours(0, 0, 0, 0);
+  const scaduta = !paid && !!expectedDate && expectedDate < oggi;
 
   const handleStatusChange = (newStatus: PaymentStatus) => {
+    // SOLO onPaidChange: il parent (handleInstallmentPaidChange) già azzera
+    // expected_date/paid_date nello STESSO update. La seconda chiamata qui
+    // (onExpectedDateChange/onPaidDateChange) partiva dalla closure STALE di
+    // installments e SOVRASCRIVEVA il toggle appena fatto → "Pagato" tornava
+    // subito "Non pagato" e il cambio non si salvava mai (bug segnalato).
     onPaidChange?.(newStatus === 'pagato');
-    if (newStatus === 'pagato') {
-      onExpectedDateChange?.(undefined);
-    } else {
-      onPaidDateChange?.(undefined);
-    }
   };
 
   return (
-    <div className="flex flex-col gap-2 p-3 rounded-lg bg-muted/30 border">
-      <div className="flex justify-between items-center">
-        <span className="font-medium">{label}</span>
+    <div className={`flex flex-col gap-2 p-3 rounded-lg border ${scaduta ? 'bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-900' : 'bg-muted/30'}`}>
+      <div className="flex justify-between items-center gap-2">
+        <span className="font-medium flex items-center gap-2 min-w-0">
+          <span className="truncate">{label}</span>
+          {scaduta && (
+            <span className="shrink-0 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-900/50 dark:text-red-300">
+              Scaduta
+            </span>
+          )}
+        </span>
         <span className="font-semibold">{formatCurrency(amount)}</span>
       </div>
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex items-center gap-2 flex-1 min-w-[140px]">
-          <Label className="text-xs text-muted-foreground whitespace-nowrap">Stato:</Label>
-          <Select
-            value={status}
-            onValueChange={handleStatusChange}
-            disabled={readOnly}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="non_pagato">
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3 text-amber-500" />
-                  Non Pagato
-                </span>
-              </SelectItem>
-              <SelectItem value="pagato">
-                <span className="flex items-center gap-1">
-                  <Check className="h-3 w-3 text-green-500" />
-                  Pagato
-                </span>
-              </SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Bottoni segmented al posto della select: 1 tap invece di 2 e lo
+            stato si legge a colpo d'occhio (richiesta utente, mobile-friendly). */}
+        <div className="flex items-center gap-2 flex-1 min-w-[180px]">
+          <div className="inline-flex rounded-lg border bg-background p-0.5" role="radiogroup" aria-label={`Stato pagamento ${label}`}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={status === 'non_pagato'}
+              disabled={readOnly}
+              onClick={() => handleStatusChange('non_pagato')}
+              className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-60 ${
+                status === 'non_pagato'
+                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+                  : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              <Clock className="h-3 w-3" />
+              Non pagato
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={status === 'pagato'}
+              disabled={readOnly}
+              onClick={() => handleStatusChange('pagato')}
+              className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-60 ${
+                status === 'pagato'
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200'
+                  : 'text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              <Check className="h-3 w-3" />
+              Pagato
+            </button>
+          </div>
         </div>
         
         {paid ? (
@@ -270,7 +292,8 @@ export function FinancialSummary({
       i.position === position ? {
         ...i,
         is_paid: paid,
-        paid_date: paid ? new Date().toISOString().split('T')[0] : null,
+        // Data LOCALE (en-CA): toISOString è UTC e di sera segnava ieri
+        paid_date: paid ? new Date().toLocaleDateString('en-CA') : null,
         expected_date: paid ? null : i.expected_date,
       } : i
     );
@@ -281,7 +304,9 @@ export function FinancialSummary({
     const updated = installments.map(i =>
       i.position === position ? {
         ...i,
-        [field]: date ? date.toISOString().split('T')[0] : null,
+        // en-CA = YYYY-MM-DD LOCALE: toISOString() è UTC e di sera salvava
+        // il giorno prima (bug sistemico già corretto altrove).
+        [field]: date ? date.toLocaleDateString('en-CA') : null,
       } : i
     );
     onInstallmentsChange(updated);
@@ -460,8 +485,13 @@ export function FinancialSummary({
                   <span className="text-amber-700 dark:text-amber-300">Ritenuta 11%</span>
                   <span className="text-amber-800 dark:text-amber-200">{formatCurrency(bankWithholding)}</span>
                 </div>
+                {/* Il numero che interessa davvero: quanto entra in cassa */}
+                <div className="flex justify-between text-sm font-bold border-t border-amber-200 dark:border-amber-800 pt-1 mt-1">
+                  <span className="text-amber-900 dark:text-amber-100">Incasso netto (dopo ritenuta)</span>
+                  <span className="text-amber-900 dark:text-amber-100">{formatCurrency(totalWithVat - bankWithholding)}</span>
+                </div>
                 <p className="text-[10px] text-amber-600 dark:text-amber-400">
-                  Importo trattenuto dalla banca — recuperabile in dichiarazione
+                  Ritenuta trattenuta dalla banca — recuperabile in dichiarazione
                 </p>
               </div>
             );
@@ -490,6 +520,18 @@ export function FinancialSummary({
                     ))}
                   </SelectContent>
                 </Select>
+                {(() => {
+                  // Sintesi a colpo d'occhio: quanto è già allocato in acconti
+                  // e quanto resta a saldo, senza dover scorrere i singoli campi.
+                  const deposits = installments.filter(i => i.type === 'deposit');
+                  if (deposits.length === 0) return null;
+                  const depositsTotal = deposits.reduce((s, d) => s + (d.amount || 0), 0);
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      {deposits.length} {deposits.length === 1 ? 'acconto' : 'acconti'} per {formatCurrency(depositsTotal)} · Saldo {formatCurrency(balance)}
+                    </p>
+                  );
+                })()}
               </div>
             )}
 

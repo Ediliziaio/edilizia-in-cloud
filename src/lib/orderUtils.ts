@@ -14,6 +14,23 @@ export interface Installment {
   expected_date?: string | null;
 }
 
+/**
+ * Precompila le date previste mancanti a passi di 30 giorni (30/60/90…)
+ * nell'ordine delle rate. Tocca SOLO le rate senza data (quelle esistenti,
+ * scelte a mano dall'utente, restano intatte). Date in YYYY-MM-DD LOCALE
+ * (en-CA), mai toISOString (bug UTC serale).
+ */
+export function prefillExpectedDates(installments: Installment[]): Installment[] {
+  let step = 0;
+  return installments.map((inst) => {
+    step += 1;
+    if (inst.expected_date || inst.is_paid) return inst;
+    const d = new Date();
+    d.setDate(d.getDate() + 30 * step);
+    return { ...inst, expected_date: d.toLocaleDateString('en-CA') };
+  });
+}
+
 export function createDefaultInstallments(paymentType: PaymentType, numInstallments: number = 2): Installment[] {
   if (paymentType === 'financing') {
     const numDeposits = Math.max(0, numInstallments - 2);

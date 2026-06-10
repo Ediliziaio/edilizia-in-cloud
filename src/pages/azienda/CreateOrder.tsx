@@ -57,6 +57,7 @@ import {
   type Installment,
   createDefaultInstallments,
   installmentsToLegacyColumns,
+  prefillExpectedDates,
 } from "@/lib/orderUtils";
 import { orderSchema, orderDefaultValues, type OrderFormValues } from "@/lib/orderSchema";
 import { WarehouseSelect } from "@/components/warehouse/WarehouseSelect";
@@ -180,7 +181,8 @@ function CreateOrderInner() {
         newInstallments[idx] = { ...inst, is_paid: existingBalance.is_paid, paid_date: existingBalance.paid_date, expected_date: existingBalance.expected_date };
       }
     });
-    setInstallments(newInstallments);
+    // Date previste suggerite a 30/60/90gg per le rate nuove (modificabili)
+    setInstallments(prefillExpectedDates(newInstallments));
   };
 
   // ── Draft auto-save ─────────────────────────────────────────
