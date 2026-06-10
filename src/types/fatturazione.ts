@@ -183,7 +183,7 @@ export interface ClienteSnapshot {
 }
 
 export type StatoDocumento =
-  | 'bozza' | 'emessa' | 'inviata_sdi' | 'consegnata' | 'accettata'
+  | 'bozza' | 'emessa' | 'in_invio' | 'inviata_sdi' | 'consegnata' | 'accettata'
   | 'rifiutata' | 'scaduta' | 'pagata' | 'parzialmente_pagata' | 'stornata' | 'annullata';
 
 export type TipoDocumento =

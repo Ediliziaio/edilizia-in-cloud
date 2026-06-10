@@ -4,6 +4,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { generateXML } from "../_shared/generateXML.ts";
 import { utf8ToBase64 } from "../_shared/base64.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
+import { valutaPreInvio, claimDocumentoPerInvio, rilasciaClaimInvio } from "../_shared/sdiInvioGuard.ts";
 
 /** Validate Italian P.IVA (11 digits, with Luhn-like check) */
 function isValidPartitaIva(piva: string | null | undefined): boolean {
@@ -44,6 +45,11 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
+
+  // Claim atomico anti doppio invio (bug #1): se l'invio fallisce DOPO il claim,
+  // questi servono a ripristinare lo stato precedente del documento.
+  let claimPrevStato: string | null = null;
+  let claimedDocId: string | null = null;
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -86,12 +92,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verify stato
-    if (doc.stato !== "emessa") {
-      const statoMsg = doc.stato === "bozza"
-        ? "Il documento è in stato 'bozza'. Azione: aprire il documento e cliccare 'Emetti' prima di inviare all'SDI."
-        : `Il documento deve essere in stato 'emessa' per inviare a SDI (stato attuale: '${doc.stato}').`;
-      return new Response(JSON.stringify({ error: statoMsg }), { status: 422, headers: getCorsHeaders(req) });
+    // Verify stato — pre-check con messaggi chiari. La VERA guardia anti doppio
+    // invio è il claim atomico più sotto. Accetta 'emessa' (primo invio) e
+    // 'rifiutata'/'scartata' (reinvio dopo scarto SDI — bug #2), bloccando le
+    // fatture già prese in carico/accettate dallo SDI.
+    const preInvio = valutaPreInvio(doc);
+    if (!preInvio.ok) {
+      return new Response(
+        JSON.stringify({ error: preInvio.error, code: preInvio.code }),
+        { status: preInvio.status, headers: getCorsHeaders(req) },
+      );
     }
 
     // Load azienda
@@ -167,10 +177,35 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── Claim atomico anti doppio invio (bug #1) ──
+    // Porta il documento da uno stato inviabile a 'in_invio' in modo ATOMICO
+    // (RPC con SELECT ... FOR UPDATE). Solo il claim vincente prosegue alla POST:
+    // due chiamate concorrenti (doppio click / retry / due tab) → l'altra riceve
+    // claimed=false e abortisce qui SENZA inviare. Va PRIMA del ProgressivoInvio
+    // così il "perdente" non consuma un progressivo né genera/trasmette XML.
+    const claim = await claimDocumentoPerInvio(supabase, doc.id);
+    if (!claim.claimed) {
+      const esito = valutaPreInvio({
+        stato: claim.currentStato,
+        sdi_stato: doc.sdi_stato,
+        sdi_id_trasmissione: doc.sdi_id_trasmissione,
+      });
+      const error = esito.ok ? "Invio già in corso o documento non più inviabile." : esito.error;
+      const status = esito.ok ? 409 : esito.status;
+      return new Response(
+        JSON.stringify({ error, code: "claim_negato" }),
+        { status, headers: getCorsHeaders(req) },
+      );
+    }
+    claimPrevStato = claim.previousStato;
+    claimedDocId = doc.id;
+
     // Generate atomic ProgressivoInvio (unique per company)
     const { data: progressivoData, error: progErr } = await supabase
       .rpc("incrementa_progressivo_sdi", { p_company_id: doc.company_id });
     if (progErr || !progressivoData) {
+      // Rilascia il claim: nessun invio è avvenuto, il documento deve restare inviabile.
+      await rilasciaClaimInvio(supabase, doc.id, claimPrevStato!);
       return new Response(
         JSON.stringify({ error: "Impossibile generare ProgressivoInvio", details: progErr?.message }),
         { status: 500, headers: getCorsHeaders(req) }
@@ -241,6 +276,8 @@ Deno.serve(async (req) => {
       if (!firmatoP7m && firmaProvider === "manuale") {
         // Modalità manuale: l'XML non firmato è stato salvato in storage.
         // Per le fatture PA la firma è OBBLIGATORIA — blocchiamo l'invio con istruzioni chiare.
+        // Rilascia il claim: il documento non è stato trasmesso, deve restare reinviabile.
+        await rilasciaClaimInvio(supabase, doc.id, claimPrevStato!);
         return new Response(
           JSON.stringify({
             error: "Fattura PA richiede firma digitale. Scaricare l'XML, firmarlo con software certificato (es. Aruba Sign, Namirial, DiKe), e ricaricare il file .p7m tramite l'apposita funzione.",
@@ -253,6 +290,7 @@ Deno.serve(async (req) => {
 
       // Se Aruba Sign è configurato ma la firma non è riuscita, blocca anche in quel caso
       if (!firmatoP7m) {
+        await rilasciaClaimInvio(supabase, doc.id, claimPrevStato!);
         return new Response(
           JSON.stringify({
             error: "Firma digitale per fattura PA non riuscita. Verificare la configurazione Aruba Sign o procedere con firma manuale.",
@@ -465,10 +503,14 @@ Deno.serve(async (req) => {
     }
 
     if (sdiErrors) {
-      // Keep stato as emessa, log error
+      // Invio fallito: registra l'errore e RIPRISTINA lo stato precedente
+      // (rilascia il claim 'in_invio' → torna a 'emessa'/'rifiutata') così il
+      // documento resta reinviabile (bug #1/#2). Aggiorniamo prima sdi_errori
+      // senza toccare `stato`, poi lo ripristiniamo in modo guardato.
       await supabase.from("documenti_fiscali")
         .update({ sdi_errori: sdiErrors, sdi_file_xml_url: xmlPath })
         .eq("id", doc.id);
+      await rilasciaClaimInvio(supabase, doc.id, claimPrevStato!);
 
       await supabase.from("sdi_log").insert({
         company_id: doc.company_id,
@@ -513,6 +555,13 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("invia-sdi error:", e);
+    // Se avevamo già ottenuto il claim, ripristina lo stato per non lasciare il
+    // documento bloccato in 'in_invio' (best-effort).
+    if (claimPrevStato !== null && claimedDocId) {
+      try {
+        await rilasciaClaimInvio(supabase, claimedDocId, claimPrevStato);
+      } catch { /* non mascherare l'errore originale */ }
+    }
     return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: getCorsHeaders(req) });
   }
 });

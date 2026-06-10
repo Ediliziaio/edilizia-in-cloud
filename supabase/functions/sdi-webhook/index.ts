@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts";
 import { corsHeaders } from "../_shared/headers.ts";
+import { aggiornaStatoDaNotifica } from "../_shared/sdiInvioGuard.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -134,18 +135,32 @@ Deno.serve(async (req) => {
         break;
     }
 
-    // Update document
+    // Se il documento è in trasmissione (claim atomico 'in_invio' di invia-sdi),
+    // NON sovrascrivere lo stato: l'esito sarà impostato da invia-sdi al termine
+    // dell'invio. Registriamo comunque sdi_stato e la notifica per non perderla.
+    // (Fast-path: la vera guardia è atomica, nell'update dello stato più sotto.)
+    if (doc.stato === "in_invio") {
+      newStato = null;
+    }
+
+    // Update metadati SDI (sempre, anche durante un invio in corso)
     const updateData: Record<string, any> = {
       sdi_stato: tipo || tipoNotifica,
       sdi_notifica_tipo: tipoNotifica,
     };
-    if (newStato) updateData.stato = newStato;
     if (tipo === "RC") updateData.sdi_data_consegna = new Date().toISOString();
     if (erroriRaw) updateData.sdi_errori = [{ tipo: tipoNotifica, messaggio: erroriRaw }];
 
     await supabase.from("documenti_fiscali")
       .update(updateData)
       .eq("id", doc.id);
+
+    // Update stato con guardia ATOMICA anti-TOCTOU: se tra la lettura di
+    // doc.stato e questo punto invia-sdi ha fatto il claim ('in_invio'),
+    // il .neq() a livello DB impedisce la sovrascrittura.
+    if (newStato) {
+      await aggiornaStatoDaNotifica(supabase, doc.id, newStato);
+    }
 
     // Log
     await supabase.from("sdi_log").insert({

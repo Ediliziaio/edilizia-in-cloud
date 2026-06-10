@@ -53,6 +53,7 @@ const TIPO_LABELS: Record<string, string> = {
 const STATO_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   bozza: { label: "Bozza", variant: "secondary" },
   emessa: { label: "Emessa", variant: "default" },
+  in_invio: { label: "Invio in corso", variant: "outline" },
   inviata_sdi: { label: "Inviata SDI", variant: "default" },
   consegnata: { label: "Consegnata", variant: "default" },
   accettata: { label: "Accettata", variant: "default" },

@@ -19,6 +19,11 @@ const CONFIG: Record<string, {
     className: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:border-sky-800",
     icon: Send,
   },
+  in_invio: {
+    label: "Invio in corso",
+    className: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800",
+    icon: Clock,
+  },
   inviata_sdi: {
     label: "Inviata SDI",
     className: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800",

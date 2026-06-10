@@ -16,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Download, RefreshCw, ExternalLink, FileText, Search, Eye, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
+import { puoReinviare, isInvioInCorso } from "@/lib/fatturazione/sdiCassetto";
 
 const SDI_QUERY_TIMEOUT_MS = 12_000;
 
@@ -85,7 +86,7 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
           .eq("company_id", companyId!)
           .is("deleted_at", null)
           .or(`anno.eq.${anno},and(anno.is.null,data_emissione.gte.${anno}-01-01,data_emissione.lte.${anno}-12-31)`)
-          .in("stato", ["inviata_sdi", "consegnata", "accettata", "rifiutata"])
+          .in("stato", ["in_invio", "inviata_sdi", "consegnata", "accettata", "rifiutata"])
           .order("data_emissione", { ascending: false })
           .abortSignal(timeout.signal);
 
@@ -104,7 +105,7 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
     const trasmesse = documenti.length;
     const consegnate = documenti.filter(d => d.sdi_stato === "RC" || d.stato === "consegnata").length;
     const scartate = documenti.filter(d => d.sdi_stato === "NS" || d.stato === "rifiutata").length;
-    const inAttesa = documenti.filter(d => d.sdi_stato === "AT" || d.stato === "inviata_sdi").length;
+    const inAttesa = documenti.filter(d => d.sdi_stato === "AT" || d.stato === "inviata_sdi" || d.stato === "in_invio").length;
     return { trasmesse, consegnate, scartate, inAttesa };
   }, [documenti]);
 
@@ -140,6 +141,7 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
         throw new Error(detail?.error || error.message);
       }
       toast.success("Documento reinviato a SDI");
+      void refetch();
     } catch (e: any) {
       toast.error(e.message || "Errore nel reinvio");
     }
@@ -325,11 +327,15 @@ export default function CassettoSDI({ embedded = false }: CassettoSDIProps = {})
                               <FileText className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {(doc.sdi_stato === "NS" || doc.stato === "rifiutata") && (
+                          {isInvioInCorso(doc) ? (
+                            <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Invio in corso" disabled>
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            </Button>
+                          ) : puoReinviare(doc) ? (
                             <Button variant="ghost" size="icon" className="h-9 w-9 md:h-7 md:w-7" title="Reinvia" onClick={() => handleReinvia(doc.id)}>
                               <RefreshCw className="h-3.5 w-3.5" />
                             </Button>
-                          )}
+                          ) : null}
                         </div>
                       </TableCell>
                     </TableRow>
