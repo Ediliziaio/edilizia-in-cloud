@@ -506,7 +506,8 @@ const App = () => (
   >
     <TooltipProvider>
      <ConfirmProvider>
-      <Sonner />
+      {/* mobileOffset: i toast non coprono la bottom nav mobile (h-16 + safe-area) né il composer chat */}
+      <Sonner mobileOffset={{ bottom: 88 }} />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <BootGuardDismiss />
         <SubdomainTitleSetter />

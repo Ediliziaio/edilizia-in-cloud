@@ -43,6 +43,25 @@
     min-width: 0;
   }
 
+  /* Calendario (react-day-picker): la griglia 7×6 di giorni non può avere bottoni
+     44×44 (si sovrapporrebbero) — dimensionati a 40px in calendar.tsx. */
+  .rdp-root button {
+    min-height: 0;
+    min-width: 0;
+  }
+
+  /* Niente flash grigio WebKit al tap: il feedback è l'active:scale dei bottoni
+     (button.tsx) — sempre in coppia, mai da solo. */
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Web mobile (Safari/PWA): lo scroll dei pannelli interni non "trascina" il body
+     (rubber-band). Su nativo è già coperto dalla regola html.capacitor più sotto. */
+  body {
+    overscroll-behavior-y: contain;
+  }
+
   /* Smooth momentum scroll on iOS */
   .overflow-auto, .overflow-y-auto, .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
