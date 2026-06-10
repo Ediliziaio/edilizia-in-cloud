@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -194,6 +194,8 @@ export default function CruscottoAziendale() {
     return max / (max - min);
   }, [executiveTrend]);
 
+  const navigate = useNavigate();
+
   // Legenda interattiva: click su una voce per nascondere/mostrare la serie
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   const toggleSeries = useCallback((key: string) => {
@@ -224,14 +226,14 @@ export default function CruscottoAziendale() {
     const eur = (v: number) =>
       v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
     return [
-      { key: "venduto", label: "Venduto", color: "#2563eb", formatter: eur },
-      { key: "incassato", label: "Incassato", color: "#f97316", formatter: eur },
+      { key: "venduto", label: "Venduto", color: "hsl(var(--chart-1))", formatter: eur },
+      { key: "incassato", label: "Incassato", color: "hsl(var(--chart-3))", formatter: eur },
       {
         key: "cassa",
         label: "Cassa netta",
-        color: (v) => (v < 0 ? "#dc2626" : "#059669"),
+        color: (v) => (v < 0 ? "hsl(var(--chart-5))" : "hsl(var(--chart-2))"),
         formatter: eur,
-        valueColor: (v) => (v < 0 ? "#dc2626" : "#059669"),
+        valueColor: (v) => (v < 0 ? "hsl(var(--chart-5))" : "hsl(var(--chart-2))"),
       },
     ];
   }, []);
@@ -491,7 +493,7 @@ export default function CruscottoAziendale() {
                       aria-pressed={!hiddenSeries.has("venduto")}
                       className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("venduto") && "opacity-40 line-through")}
                     >
-                      <span className="h-2 w-2 rounded-full bg-blue-500" /> Venduto
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-1))" }} /> Venduto
                     </button>
                     <button
                       type="button"
@@ -499,7 +501,7 @@ export default function CruscottoAziendale() {
                       aria-pressed={!hiddenSeries.has("incassato")}
                       className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("incassato") && "opacity-40 line-through")}
                     >
-                      <span className="h-2 w-2 rounded-full bg-orange-500" /> Incassato
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-3))" }} /> Incassato
                     </button>
                     <button
                       type="button"
@@ -507,7 +509,7 @@ export default function CruscottoAziendale() {
                       aria-pressed={!hiddenSeries.has("cassa")}
                       className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("cassa") && "opacity-40 line-through")}
                     >
-                      <span className="h-2 w-2 rounded-full" style={{ background: "linear-gradient(180deg, #059669 50%, #dc2626 50%)" }} /> Cassa (+/−)
+                      <span className="h-2 w-2 rounded-full" style={{ background: "linear-gradient(180deg, hsl(var(--chart-2)) 50%, hsl(var(--chart-5)) 50%)" }} /> Cassa (+/−)
                     </button>
                   </div>
                 </div>
@@ -520,26 +522,37 @@ export default function CruscottoAziendale() {
                     </div>
                   ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={executiveTrend} margin={{ top: 8, right: 4, left: -10, bottom: 0 }}>
+                    <ComposedChart
+                      data={executiveTrend}
+                      margin={{ top: 8, right: 4, left: -10, bottom: 0 }}
+                      className="cursor-pointer"
+                      onClick={(state) => {
+                        // Drill-down: click sul mese -> commesse del periodo
+                        const key = (state?.activePayload?.[0]?.payload as { key?: string } | undefined)?.key;
+                        if (!key) return;
+                        const [anno, mese] = key.split("-");
+                        navigate(`/azienda/ordini?anno=${anno}&mese=${Number(mese) - 1}`);
+                      }}
+                    >
                       <defs>
                         <linearGradient id="cruVendutoGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#2563eb" stopOpacity={0.95} />
-                          <stop offset="100%" stopColor="#2563eb" stopOpacity={0.55} />
+                          <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.95} />
+                          <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.55} />
                         </linearGradient>
                         <linearGradient id="cruIncassatoGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#f97316" stopOpacity={0.95} />
-                          <stop offset="100%" stopColor="#f97316" stopOpacity={0.55} />
+                          <stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.95} />
+                          <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0.55} />
                         </linearGradient>
                         {/* Bicolore con crossover sullo zero: verde sopra, rosso sotto */}
                         <linearGradient id="cruCassaStroke" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset={cassaZeroOffset} stopColor="#059669" />
-                          <stop offset={cassaZeroOffset} stopColor="#dc2626" />
+                          <stop offset={cassaZeroOffset} stopColor="hsl(var(--chart-2))" />
+                          <stop offset={cassaZeroOffset} stopColor="hsl(var(--chart-5))" />
                         </linearGradient>
                         <linearGradient id="cruCassaArea" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#059669" stopOpacity={0.22} />
-                          <stop offset={cassaZeroOffset} stopColor="#059669" stopOpacity={0.03} />
-                          <stop offset={cassaZeroOffset} stopColor="#dc2626" stopOpacity={0.03} />
-                          <stop offset="100%" stopColor="#dc2626" stopOpacity={0.22} />
+                          <stop offset="0%" stopColor="hsl(var(--chart-2))" stopOpacity={0.22} />
+                          <stop offset={cassaZeroOffset} stopColor="hsl(var(--chart-2))" stopOpacity={0.03} />
+                          <stop offset={cassaZeroOffset} stopColor="hsl(var(--chart-5))" stopOpacity={0.03} />
+                          <stop offset="100%" stopColor="hsl(var(--chart-5))" stopOpacity={0.22} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#edf2f7" />
@@ -593,7 +606,7 @@ export default function CruscottoAziendale() {
                             r={4}
                             fill="#ffffff"
                             strokeWidth={2}
-                            stroke={safeNumber(props.payload?.cassa) < 0 ? "#dc2626" : "#059669"}
+                            stroke={safeNumber(props.payload?.cassa) < 0 ? "hsl(var(--chart-5))" : "hsl(var(--chart-2))"}
                           />
                         )}
                         activeDot={(props: { cx?: number; cy?: number; index?: number; payload?: { cassa?: number } }) => (
@@ -602,7 +615,7 @@ export default function CruscottoAziendale() {
                             cx={props.cx}
                             cy={props.cy}
                             r={5}
-                            fill={safeNumber(props.payload?.cassa) < 0 ? "#dc2626" : "#059669"}
+                            fill={safeNumber(props.payload?.cassa) < 0 ? "hsl(var(--chart-5))" : "hsl(var(--chart-2))"}
                             strokeWidth={2}
                             stroke="#ffffff"
                           />
@@ -612,6 +625,9 @@ export default function CruscottoAziendale() {
                   </ResponsiveContainer>
                   )}
                 </div>
+                {!trendIsEmpty && (
+                  <p className="mt-2 text-right text-[10px] text-slate-400">Clicca su un mese per aprire le commesse del periodo</p>
+                )}
               </aside>
             </div>
           </section>

@@ -125,7 +125,18 @@ function OrdersListInner() {
   const setControlFocus = useCallback((v: "all" | "low_margin" | "missing_data") => setURLParam("controlFocus", v), [setURLParam]);
   const hideCompleted = urlFilters.hideCompleted;
   const setHideCompleted = useCallback((v: boolean) => setURLParam("hideCompleted", v), [setURLParam]);
-  const [contractDateRange, setContractDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+  const [contractDateRange, setContractDateRange] = useState<DateRange>(() => {
+    // Deep-link (drill-down dai grafici trend): con ?mese=N[&anno=YYYY] il
+    // range date deve valere anche al primo load — prima lo impostavano solo
+    // gli handler interattivi, quindi il link diretto non filtrava nulla.
+    const month = parseInt(urlFilters.monthFilter);
+    if (urlFilters.monthFilter !== "all" && Number.isInteger(month) && month >= 0 && month <= 11) {
+      const annoNum = Number(urlFilters.yearFilter);
+      const year = urlFilters.yearFilter !== "all" && Number.isInteger(annoNum) ? annoNum : new Date().getFullYear();
+      return { from: new Date(year, month, 1), to: new Date(year, month + 1, 0) };
+    }
+    return { from: undefined, to: undefined };
+  });
   const [warehouseDateRange, setWarehouseDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [expectedDateRange, setExpectedDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [amountMin, setAmountMin] = useState<string>("");

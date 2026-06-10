@@ -191,12 +191,12 @@ function ManagementOverview({
               <BarChart data={monthlyBalance.slice(-6)} margin={{ top: 8, right: 6, left: -18, bottom: 0 }}>
                 <defs>
                   <linearGradient id="opEntrateGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#2563eb" stopOpacity={0.95} />
-                    <stop offset="100%" stopColor="#2563eb" stopOpacity={0.55} />
+                    <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.55} />
                   </linearGradient>
                   <linearGradient id="opUsciteGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f97316" stopOpacity={0.95} />
-                    <stop offset="100%" stopColor="#f97316" stopOpacity={0.55} />
+                    <stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0.55} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e2e8f0" />
@@ -209,9 +209,9 @@ function ManagementOverview({
                       data={monthlyBalance.slice(-6)}
                       xKey="month"
                       series={[
-                        { key: "entrate", label: "Venduto", color: "#2563eb", formatter: formatCurrency },
+                        { key: "entrate", label: "Venduto", color: "hsl(var(--chart-1))", formatter: formatCurrency },
                         // Costi: delta in AUMENTO = rosso (invertDelta)
-                        { key: "uscite", label: "Costi pianificati", color: "#f97316", formatter: formatCurrency, invertDelta: true },
+                        { key: "uscite", label: "Costi pianificati", color: "hsl(var(--chart-3))", formatter: formatCurrency, invertDelta: true },
                       ]}
                     />
                   }

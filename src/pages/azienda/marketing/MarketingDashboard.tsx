@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle, AlertTriangle, ArrowUpRight, BarChart3, Download, LayoutDashboard,
@@ -167,6 +167,8 @@ export default function MarketingDashboard() {
     staleTime: 5 * 60 * 1000,
   });
 
+  const navigate = useNavigate();
+
   // Legenda interattiva: click su una voce per nascondere/mostrare la serie
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   const toggleSeries = useCallback((key: string) => {
@@ -196,9 +198,9 @@ export default function MarketingDashboard() {
   const trendTooltipSeries = useMemo<TrendTooltipSeries[]>(() => {
     const num = (v: number) => v.toLocaleString("it-IT");
     return [
-      { key: "lead", label: "Lead", color: "#2563eb", formatter: num },
-      { key: "appuntamenti", label: "Appuntamenti", color: "#f97316", formatter: num },
-      { key: "contratti", label: "Contratti", color: "#059669", formatter: num },
+      { key: "lead", label: "Lead", color: "hsl(var(--chart-1))", formatter: num },
+      { key: "appuntamenti", label: "Appuntamenti", color: "hsl(var(--chart-3))", formatter: num },
+      { key: "contratti", label: "Contratti", color: "hsl(var(--chart-2))", formatter: num },
     ];
   }, []);
 
@@ -502,7 +504,7 @@ export default function MarketingDashboard() {
                     aria-pressed={!hiddenSeries.has("lead")}
                     className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("lead") && "opacity-40 line-through")}
                   >
-                    <span className="h-2 w-2 rounded-full bg-blue-500" /> Lead
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-1))" }} /> Lead
                   </button>
                   <button
                     type="button"
@@ -510,7 +512,7 @@ export default function MarketingDashboard() {
                     aria-pressed={!hiddenSeries.has("appuntamenti")}
                     className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("appuntamenti") && "opacity-40 line-through")}
                   >
-                    <span className="h-2 w-2 rounded-full bg-orange-500" /> Appuntamenti
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-3))" }} /> Appuntamenti
                   </button>
                   <button
                     type="button"
@@ -518,7 +520,7 @@ export default function MarketingDashboard() {
                     aria-pressed={!hiddenSeries.has("contratti")}
                     className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("contratti") && "opacity-40 line-through")}
                   >
-                    <span className="h-2 w-2 rounded-full bg-emerald-600" /> Contratti
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-2))" }} /> Contratti
                   </button>
                 </div>
               </div>
@@ -531,19 +533,29 @@ export default function MarketingDashboard() {
                   </div>
                 ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={marketingTrend} margin={{ top: 8, right: 4, left: -10, bottom: 0 }}>
+                  <ComposedChart
+                    data={marketingTrend}
+                    margin={{ top: 8, right: 4, left: -10, bottom: 0 }}
+                    className="cursor-pointer"
+                    onClick={(state) => {
+                      // Drill-down: click sul mese -> contatti creati nel periodo
+                      const key = (state?.activePayload?.[0]?.payload as { key?: string } | undefined)?.key;
+                      if (!key) return;
+                      navigate(`/azienda/marketing/contatti?mese=${key}`);
+                    }}
+                  >
                     <defs>
                       <linearGradient id="mktLeadGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#2563eb" stopOpacity={0.95} />
-                        <stop offset="100%" stopColor="#2563eb" stopOpacity={0.55} />
+                        <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.95} />
+                        <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.55} />
                       </linearGradient>
                       <linearGradient id="mktApptGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#f97316" stopOpacity={0.95} />
-                        <stop offset="100%" stopColor="#f97316" stopOpacity={0.55} />
+                        <stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.95} />
+                        <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0.55} />
                       </linearGradient>
                       <linearGradient id="mktContrattiArea" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#059669" stopOpacity={0.22} />
-                        <stop offset="100%" stopColor="#059669" stopOpacity={0.03} />
+                        <stop offset="0%" stopColor="hsl(var(--chart-2))" stopOpacity={0.22} />
+                        <stop offset="100%" stopColor="hsl(var(--chart-2))" stopOpacity={0.03} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#edf2f7" />
@@ -580,15 +592,18 @@ export default function MarketingDashboard() {
                       type="monotone"
                       dataKey="contratti"
                       hide={hiddenSeries.has("contratti")}
-                      stroke="#059669"
+                      stroke="hsl(var(--chart-2))"
                       strokeWidth={2.5}
-                      dot={{ r: 4, fill: "#ffffff", stroke: "#059669", strokeWidth: 2 }}
-                      activeDot={{ r: 5, fill: "#059669", stroke: "#ffffff", strokeWidth: 2 }}
+                      dot={{ r: 4, fill: "#ffffff", stroke: "hsl(var(--chart-2))", strokeWidth: 2 }}
+                      activeDot={{ r: 5, fill: "hsl(var(--chart-2))", stroke: "#ffffff", strokeWidth: 2 }}
                     />
                   </ComposedChart>
                 </ResponsiveContainer>
                 )}
               </div>
+              {!trendIsEmpty && (
+                <p className="mt-2 text-right text-[10px] text-slate-400">Clicca su un mese per vedere i lead del periodo</p>
+              )}
             </aside>
           </div>
         </section>
