@@ -827,8 +827,9 @@ const ChatListItem = React.memo(function ChatListItem({
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onTogglePin(); }}
                 className={cn(
-                  "p-1 rounded hover:bg-foreground/10 transition-opacity",
-                  isPinned ? "opacity-80 hover:opacity-100" : "opacity-0 group-hover/listitem:opacity-60 hover:!opacity-100",
+                  // tap-compact + visibile su mobile: senza hover il pin era invisibile e impinnabile da telefono
+                  "tap-compact p-1 rounded hover:bg-foreground/10 transition-opacity",
+                  isPinned ? "opacity-80 hover:opacity-100" : "max-md:opacity-60 opacity-0 group-hover/listitem:opacity-60 hover:!opacity-100",
                 )}
                 aria-label={isPinned ? "Rimuovi pin" : "Pinna chat"}
                 title={isPinned ? "Rimuovi pin" : "Pinna chat in alto"}
@@ -966,7 +967,9 @@ const MessageBubble = React.memo(function MessageBubble({
   const replySender = replyMsg ? profileMap.get(replyMsg.sender_id) : undefined;
 
   return (
-    <div className={cn("group flex mb-1", isMe ? "justify-end" : "justify-start", showAvatar && "mt-3")}>
+    // tabIndex: su touch (niente hover) il TAP sul messaggio dà focus al contenitore
+    // → le azioni (reagisci/rispondi/pinna/elimina) appaiono via group-focus-within.
+    <div tabIndex={0} className={cn("group flex mb-1 outline-none", isMe ? "justify-end" : "justify-start", showAvatar && "mt-3")}>
       {/* Left avatar for others */}
       {!isMe && (
         <div className="w-8 shrink-0 self-end mr-1">
@@ -1140,15 +1143,15 @@ const MessageBubble = React.memo(function MessageBubble({
           </div>
         )}
 
-        {/* Hover actions */}
+        {/* Azioni: hover su desktop, TAP sul messaggio su touch (group-focus-within) */}
         <div className={cn(
-          "absolute -top-3 opacity-0 group-hover:opacity-100 transition-opacity z-10",
+          "absolute -top-3 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity z-10",
           isMe ? "left-0" : "right-0",
         )}>
           <div className="flex items-center gap-0.5 bg-white dark:bg-gray-800 rounded-lg shadow-md border px-1 py-0.5">
             <Popover>
               <PopoverTrigger asChild>
-                <button type="button" className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Reagisci" aria-label="Reagisci al messaggio">
+                <button type="button" className="tap-compact p-2 md:p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Reagisci" aria-label="Reagisci al messaggio">
                   <Smile className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
               </PopoverTrigger>
@@ -1163,17 +1166,17 @@ const MessageBubble = React.memo(function MessageBubble({
                 </div>
               </PopoverContent>
             </Popover>
-            <button type="button" onClick={onReply} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Rispondi" aria-label="Rispondi al messaggio">
+            <button type="button" onClick={onReply} className="tap-compact p-2 md:p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Rispondi" aria-label="Rispondi al messaggio">
               <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
-            <button type="button" onClick={onPin} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+            <button type="button" onClick={onPin} className="tap-compact p-2 md:p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
               title={msg.is_pinned ? "Rimuovi pin" : "Pinna"} aria-label={msg.is_pinned ? "Rimuovi pin dal messaggio" : "Pinna messaggio"}>
               {msg.is_pinned
                 ? <PinOff className="h-3.5 w-3.5 text-amber-500" />
                 : <Pin className="h-3.5 w-3.5 text-muted-foreground" />}
             </button>
             {isMe && onDelete && (
-              <button type="button" onClick={onDelete} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/40" title="Elimina messaggio" aria-label="Elimina messaggio">
+              <button type="button" onClick={onDelete} className="tap-compact p-2 md:p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/40" title="Elimina messaggio" aria-label="Elimina messaggio">
                 <Trash2 className="h-3.5 w-3.5 text-red-500" />
               </button>
             )}

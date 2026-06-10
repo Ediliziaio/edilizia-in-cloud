@@ -1577,7 +1577,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                 placeholder="Cerca attività..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="h-9 text-sm pl-8"
+                className="h-9 text-base md:text-sm pl-8"
               />
               <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               {searchQuery && <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground" aria-label="Pulisci ricerca"><X className="h-3 w-3" /></button>}
@@ -1646,7 +1646,7 @@ function MieAttivita({ initialDueDate, calendarDate, onCalendarDateClear }: { in
                   <Input ref={quickAddRef} placeholder="+ Aggiungi attività veloce... (Invio)" value={quickAddTitle}
                     onChange={e => setQuickAddTitle(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter") handleQuickAdd(); if (e.key === "Escape") { setQuickAddTitle(""); quickAddRef.current?.blur(); } }}
-                    className="h-9 text-sm pr-8" />
+                    className="h-9 text-base md:text-sm pr-8" />
                   {quickAddTitle && <button onClick={() => setQuickAddTitle("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
                 </div>
                 <Button variant="outline" size="sm" className="h-9 shrink-0" onClick={handleQuickAdd} disabled={!quickAddTitle.trim() || createTask.isPending}>

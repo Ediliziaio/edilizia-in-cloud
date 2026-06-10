@@ -865,10 +865,18 @@ function vimeoId(url: string): string | null {
   return m ? m[1] : null;
 }
 
+// iOS (Safari/WKWebView) renderizza i PDF in iframe mostrando SOLO la prima pagina,
+// senza scroll (limite WebKit) → su iPhone/iPad i materiali multi-pagina vanno aperti
+// esternamente. Guard typeof per il prerender Node; Macintosh+maxTouchPoints = iPadOS 13+.
+const IS_IOS =
+  typeof navigator !== "undefined" &&
+  (/iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (navigator.userAgent.includes("Macintosh") && navigator.maxTouchPoints > 1));
+
 function MaterialViewer({ asset, url }: { asset: PortalLearningAsset; url: string | null }) {
   if (asset.type === "testo") {
     return (
-      <div className="max-h-[70vh] overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+      <div className="max-h-[55dvh] overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-4 text-sm leading-6 text-slate-700 sm:max-h-[70dvh]">
         {asset.content || "Nessun contenuto."}
       </div>
     );
@@ -908,11 +916,23 @@ function MaterialViewer({ asset, url }: { asset: PortalLearningAsset; url: strin
         </div>
       );
     }
-    return <video src={url} controls className="max-h-[72vh] w-full rounded-lg bg-black" />;
+    return <video src={url} controls playsInline className="max-h-[60dvh] w-full rounded-lg bg-black sm:max-h-[72dvh]" />;
   }
 
   if (asset.type === "pdf" || asset.type === "documento" || asset.type === "procedura") {
-    return <iframe src={url} title={asset.title} className="h-[72vh] w-full rounded-lg border border-slate-200" />;
+    if (IS_IOS) {
+      return (
+        <div className="rounded-lg bg-slate-50 p-8 text-center">
+          <p className="text-sm text-slate-600">Su iPhone e iPad il documento si apre a schermo intero.</p>
+          <a href={url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block">
+            <Button className="gap-2">
+              <ExternalLink className="h-4 w-4" /> Apri il documento
+            </Button>
+          </a>
+        </div>
+      );
+    }
+    return <iframe src={url} title={asset.title} className="h-[60dvh] w-full rounded-lg border border-slate-200 sm:h-[72dvh]" />;
   }
 
   // link / quiz / altro non embeddabile → apri esterno

@@ -868,7 +868,7 @@ export default function SilvioAIPage() {
           <DropdownMenuTrigger asChild>
             <button
               onClick={(e) => e.stopPropagation()}
-              className="hidden group-hover:block text-slate-400 hover:text-orange-500 transition"
+              className="md:hidden md:group-hover:block text-slate-400 hover:text-orange-500 transition"
               aria-label="Sposta in cartella"
               title="Sposta in cartella"
             >
@@ -907,7 +907,8 @@ export default function SilvioAIPage() {
             void togglePin(c.id, !isPin);
           }}
           className={cn(
-            "hidden group-hover:block transition",
+            // visibile su mobile (niente hover sui touch), hover-only da md in su
+            "md:hidden md:group-hover:block transition",
             isPin ? "text-orange-500" : "text-slate-400 hover:text-orange-500",
           )}
           aria-label={isPin ? "Rimuovi dai fissati" : "Fissa in alto"}
@@ -920,7 +921,7 @@ export default function SilvioAIPage() {
             e.stopPropagation();
             void handleElimina(c.id);
           }}
-          className="hidden group-hover:block text-slate-400 hover:text-rose-500 transition"
+          className="md:hidden md:group-hover:block text-slate-400 hover:text-rose-500 transition"
           aria-label="Elimina"
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -1179,7 +1180,7 @@ export default function SilvioAIPage() {
                   </button>
                   <button
                     onClick={() => void handleRinominaCartella(folder.id, folder.nome)}
-                    className="opacity-0 group-hover/f:opacity-100 text-slate-400 hover:text-slate-600 transition"
+                    className="md:opacity-0 md:group-hover/f:opacity-100 text-slate-400 hover:text-slate-600 transition"
                     title="Rinomina cartella"
                     aria-label="Rinomina cartella"
                   >
@@ -1187,7 +1188,7 @@ export default function SilvioAIPage() {
                   </button>
                   <button
                     onClick={() => void handleEliminaCartella(folder.id)}
-                    className="opacity-0 group-hover/f:opacity-100 text-slate-400 hover:text-rose-500 transition"
+                    className="md:opacity-0 md:group-hover/f:opacity-100 text-slate-400 hover:text-rose-500 transition"
                     title="Elimina cartella"
                     aria-label="Elimina cartella"
                   >
@@ -1528,8 +1529,9 @@ export default function SilvioAIPage() {
                     }
                   }}
                   rows={1}
+                  enterKeyHint="send"
                   placeholder={attachments.length > 0 ? "Descrivi cosa vuoi che analizzi…" : "Scrivi a Silvio…  (Invio per inviare)"}
-                  className="flex-1 resize-none outline-none text-sm text-slate-700 placeholder:text-slate-400 max-h-40 py-1.5"
+                  className="flex-1 resize-none outline-none text-base md:text-sm text-slate-700 placeholder:text-slate-400 max-h-40 py-1.5"
                 />
                 {voice.recording && (
                   <span className="shrink-0 self-center text-xs font-medium text-rose-500 tabular-nums">

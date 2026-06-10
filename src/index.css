@@ -50,6 +50,14 @@
     min-width: 0;
   }
 
+  /* Opt-out puntuale dal min 44×44 per icone inline in righe dense (lista chat,
+     azioni sul messaggio, righe conversazioni Silvio): gonfiarle a 44px rompeva il
+     layout della riga. L'hit-area resta decorosa via padding nel componente. */
+  button.tap-compact {
+    min-height: 0;
+    min-width: 0;
+  }
+
   /* Niente flash grigio WebKit al tap: il feedback è l'active:scale dei bottoni
      (button.tsx) — sempre in coppia, mai da solo. */
   html {
