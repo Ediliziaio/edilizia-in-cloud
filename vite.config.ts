@@ -418,7 +418,15 @@ export default defineConfig(() => ({
         // any chunk that imports them. Merging into "vendor-dates" forces a new
         // URL that has never been poisoned.
         manualChunks(id) {
-          if (id.includes("date-fns") || id.includes("react-day-picker")) {
+          // ROOT CAUSE FIX (Apple reject 2.1a, iPad): le librerie che chiamano
+          // React.forwardRef/createContext AL MOMENTO DELL'EVAL del modulo NON
+          // devono stare in un chunk manuale separato da react: la separazione
+          // forzata crea un ciclo tra chunk e su WebKit (WKWebView) il binding
+          // di React risulta non inizializzato → "undefined is not an object
+          // (evaluating 's.forwardRef')" in vendor-radix → app morta al boot.
+          // react-day-picker: niente regola manuale (auto-chunk coi consumer
+          // lazy); @radix-ui: stesso chunk di react (serve comunque al boot).
+          if (id.includes("date-fns")) {
             return "vendor-dates";
           }
           // v8.6.127 — RIMOSSO manualChunks vendor-jspdf.
@@ -480,7 +488,7 @@ export default defineConfig(() => ({
             return "vendor-qr";
           }
           if (id.includes("@radix-ui/")) {
-            return "vendor-radix";
+            return "vendor-react-core";
           }
           if (id.includes("/zod/")) {
             return "vendor-zod";
