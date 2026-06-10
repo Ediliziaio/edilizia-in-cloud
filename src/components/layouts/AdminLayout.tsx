@@ -153,12 +153,11 @@ const allNavItems: AdminNavItem[] = [
   { title: "Referral", url: "/admin/referral", icon: Gift, permission: "can_manage_referrals", subcategory: "sa_growth" },
   { title: "Produttori", url: "/admin/produttori", icon: Factory, permission: "can_manage_companies", subcategory: "sa_growth" },
   { title: "Commercialisti", url: "/admin/commercialisti", icon: Calculator, permission: "can_manage_companies", subcategory: "sa_growth" },
-  // Route esistente e funzionante ma prima raggiungibile solo da URL diretto
-  // (nessuna voce nav la linkava — emersa dall'audit superadmin 2026-06).
-  // NB: /admin/campagne (A/B test legacy su crm_campaigns) resta volutamente
-  // FUORI dalla nav: duplica l'Email Marketing dell'hub e confonde — la route
-  // vive solo per i deep link.
-  { title: "Cohort", url: "/admin/cohort", icon: BarChart3, permission: "can_view_platform_stats", subcategory: "sa_growth" },
+  // NB (audit superadmin 2026-06): le route orfane /admin/campagne (A/B test
+  // legacy su crm_campaigns, duplica l'Email Marketing dell'hub) e
+  // /admin/cohort (la UI è pronta ma cohort_revenue_view NON esiste nel DB →
+  // la pagina mostra solo un errore) restano volutamente FUORI dalla nav.
+  // Cohort si potrà linkare quando la view verrà creata via migration.
 ];
 
 const adminMarketingNavItems: AdminNavItem[] = [
