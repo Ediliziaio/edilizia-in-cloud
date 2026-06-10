@@ -342,14 +342,19 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
 
   if (hidden) return null;
 
-  return (
-    <>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
+  // In azienda il FAB porta DIRETTAMENTE alla pagina Silvio AI (richiesta
+  // utente): niente popover intermedio. Sulla pagina stessa il FAB sparisce
+  // (sarebbe un bottone che riapre la pagina corrente). In admin resta la
+  // "Regia Silvio" a popover.
+  const goesToSilvioPage = mode === "azienda";
+  if (goesToSilvioPage && location.pathname.startsWith("/azienda/silvio-ai")) return null;
+
+  const fabButton = (
 	          <motion.button
 	            type="button"
 	            aria-label="Apri assistente Silvio"
-              aria-expanded={open}
+              aria-expanded={goesToSilvioPage ? undefined : open}
+              onClick={goesToSilvioPage ? () => navigate("/azienda/silvio-ai") : undefined}
 	            className="fixed bottom-4 right-4 z-40 hidden h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 text-white shadow-xl shadow-orange-300/40 transition-all hover:scale-105 hover:shadow-2xl md:bottom-6 md:right-6 md:flex md:w-auto md:gap-2 md:px-4"
               style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
 	            whileHover={{ rotate: [0, -5, 5, 0] }}
@@ -388,7 +393,13 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
 	              )}
             </AnimatePresence>
           </motion.button>
-        </PopoverTrigger>
+  );
+
+  return (
+    <>
+      {goesToSilvioPage ? fabButton : (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>{fabButton}</PopoverTrigger>
 
         <PopoverContent
           side="top"
@@ -657,6 +668,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
           </form>
         </PopoverContent>
       </Popover>
+      )}
 
       {/* Smart Document Import Modal — gestito dal FAB (lazy: carica al primo open) */}
       {smartImportOpen && (
