@@ -1026,20 +1026,22 @@ function OrderDetailInner() {
         onDuplica={() => setDuplicateDialogOpen(true)}
         onModifica={() => navigate(`/azienda/ordini/${id}/modifica`)}
         onNuovoSAL={() => {
-          // Su mobile: cambia tab Tabs a "sal" + scroll in cima
-          // Su desktop: scroll to #section-sal (desktop layout)
+          // "+ SAL" = stato avanzamento PAGAMENTI: porta al piano rate della
+          // commessa (lo stesso Riepilogo Finanziario impostato in
+          // creazione/modifica), dove ogni rata si segna Pagato/Non pagato con
+          // storico date. I verbali SAL formali restano nel tab/sezione SAL.
           const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
           if (isMobile) {
-            setMobileTab("sal");
+            setMobileTab("finanza");
             // Aspetta che il tab si renderizzi prima dello scroll
             setTimeout(() => {
-              const mobileSalContent = document.querySelector('[data-state="active"][data-radix-collection-item][role="tabpanel"], [role="tabpanel"][data-state="active"]');
-              const target = mobileSalContent || document.querySelector('[role="tablist"]');
+              const mobileFinanzaContent = document.querySelector('[role="tabpanel"][data-state="active"]');
+              const target = mobileFinanzaContent || document.querySelector('[role="tablist"]');
               if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 50);
           } else {
-            const salEl = document.getElementById('section-sal');
-            if (salEl) salEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const pagamentiEl = document.getElementById('section-pagamenti');
+            if (pagamentiEl) pagamentiEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }
         }}
         onElimina={() => setDeleteConfirmOpen(true)}
@@ -1502,20 +1504,24 @@ function OrderDetailInner() {
             />
 
             {/* Economico (dettaglio) — esteso: bilancia l'altezza con la lunga
-                sidebar (evita lo spazio vuoto in basso). Il sommario è in cima. */}
-            <OrdineEconomico
-              orderId={id!}
-              totalAmount={order.total_amount}
-              vatRate={order.vat_rate || 22}
-              paymentType={(order.payment_type as PaymentType) || "standard"}
-              installments={displayInstallments}
-              hasBuildingBonus={order.has_building_bonus}
-              financingCost={order.financing_cost ?? undefined}
-              items={economicsItems}
-              collectedAmount={collectedAmount}
-              onInstallmentPaidToggle={handleInstallmentPaidToggle}
-              onInstallmentDateChange={handleInstallmentDateChange}
-            />
+                sidebar (evita lo spazio vuoto in basso). Il sommario è in cima.
+                L'id è il target del bottone "+ SAL" in testata (desktop): il
+                Riepilogo Finanziario col piano rate è il primo blocco. */}
+            <div id="section-pagamenti" className="scroll-mt-24">
+              <OrdineEconomico
+                orderId={id!}
+                totalAmount={order.total_amount}
+                vatRate={order.vat_rate || 22}
+                paymentType={(order.payment_type as PaymentType) || "standard"}
+                installments={displayInstallments}
+                hasBuildingBonus={order.has_building_bonus}
+                financingCost={order.financing_cost ?? undefined}
+                items={economicsItems}
+                collectedAmount={collectedAmount}
+                onInstallmentPaidToggle={handleInstallmentPaidToggle}
+                onInstallmentDateChange={handleInstallmentDateChange}
+              />
+            </div>
           </div>
 
           {/* ── Right Column (1/3) ──────────────────────────────── */}
