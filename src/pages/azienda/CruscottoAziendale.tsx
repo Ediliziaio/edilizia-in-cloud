@@ -179,6 +179,19 @@ export default function CruscottoAziendale() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Punto di crossover dello zero per la linea cassa: sopra lo zero verde,
+  // sotto ROSSO (una cassa negativa dipinta di verde è fuorviante). L'offset
+  // è calcolato sul dominio reale dei valori (bounding box del path, con lo
+  // zero incluso: stesso riferimento usato dall'Area che ha baseline a 0).
+  const cassaZeroOffset = useMemo(() => {
+    const values = executiveTrend.map((m) => safeNumber(m.cassa));
+    const max = Math.max(...values, 0);
+    const min = Math.min(...values, 0);
+    if (max <= 0) return 0; // tutta negativa → tutta rossa
+    if (min >= 0) return 1; // tutta positiva → tutta verde
+    return max / (max - min);
+  }, [executiveTrend]);
+
   const hasOrders = operations.activeOrders > 0 || finance.revenueThisMonth > 0;
   const hasLeads = (marketing?.kpi?.leads_total ?? 0) > 0;
   const hasCosts = finance.supplierDebt > 0 || finance.thisMonthOutflow > 0;
@@ -429,7 +442,7 @@ export default function CruscottoAziendale() {
                   <div className="flex flex-wrap items-center gap-3 text-xs">
                     <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-blue-500" /> Venduto</span>
                     <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-orange-500" /> Incassato</span>
-                    <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-emerald-600" /> Cassa</span>
+                    <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full" style={{ background: "linear-gradient(180deg, #059669 50%, #dc2626 50%)" }} /> Cassa (+/−)</span>
                   </div>
                 </div>
 
@@ -445,9 +458,16 @@ export default function CruscottoAziendale() {
                           <stop offset="0%" stopColor="#f97316" stopOpacity={0.95} />
                           <stop offset="100%" stopColor="#f97316" stopOpacity={0.55} />
                         </linearGradient>
+                        {/* Bicolore con crossover sullo zero: verde sopra, rosso sotto */}
+                        <linearGradient id="cruCassaStroke" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset={cassaZeroOffset} stopColor="#059669" />
+                          <stop offset={cassaZeroOffset} stopColor="#dc2626" />
+                        </linearGradient>
                         <linearGradient id="cruCassaArea" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="#059669" stopOpacity={0.22} />
-                          <stop offset="100%" stopColor="#059669" stopOpacity={0.03} />
+                          <stop offset={cassaZeroOffset} stopColor="#059669" stopOpacity={0.03} />
+                          <stop offset={cassaZeroOffset} stopColor="#dc2626" stopOpacity={0.03} />
+                          <stop offset="100%" stopColor="#dc2626" stopOpacity={0.22} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#edf2f7" />
@@ -467,14 +487,21 @@ export default function CruscottoAziendale() {
                           border: "1px solid #e2e8f0",
                           boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
                         }}
-                        formatter={(value, name) =>
-                          name === "cassaArea"
-                            ? [null, null]
-                            : [
-                                Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }),
-                                name === "venduto" ? "Venduto" : name === "incassato" ? "Incassato" : "Cassa netta",
-                              ]
-                        }
+                        formatter={(value, name) => {
+                          if (name === "cassaArea") return [null, null];
+                          const num = Number(value);
+                          const formatted = num.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+                          if (name === "cassa") {
+                            // Valore colorato per segno: rosso se negativa
+                            return [
+                              <span key="cassa-val" style={{ color: num < 0 ? "#dc2626" : "#059669", fontWeight: 600 }}>
+                                {formatted}
+                              </span>,
+                              "Cassa netta",
+                            ];
+                          }
+                          return [formatted, name === "venduto" ? "Venduto" : "Incassato"];
+                        }}
                         labelFormatter={(label) => `Mese: ${label}`}
                       />
                       <Bar dataKey="venduto" fill="url(#cruVendutoGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
@@ -492,10 +519,30 @@ export default function CruscottoAziendale() {
                       <Line
                         type="monotone"
                         dataKey="cassa"
-                        stroke="#059669"
+                        stroke="url(#cruCassaStroke)"
                         strokeWidth={2.5}
-                        dot={{ r: 4, fill: "#ffffff", stroke: "#059669", strokeWidth: 2 }}
-                        activeDot={{ r: 5, fill: "#059669", stroke: "#ffffff", strokeWidth: 2 }}
+                        dot={(props: { cx?: number; cy?: number; index?: number; payload?: { cassa?: number } }) => (
+                          <circle
+                            key={`cassa-dot-${props.index}`}
+                            cx={props.cx}
+                            cy={props.cy}
+                            r={4}
+                            fill="#ffffff"
+                            strokeWidth={2}
+                            stroke={safeNumber(props.payload?.cassa) < 0 ? "#dc2626" : "#059669"}
+                          />
+                        )}
+                        activeDot={(props: { cx?: number; cy?: number; index?: number; payload?: { cassa?: number } }) => (
+                          <circle
+                            key={`cassa-adot-${props.index}`}
+                            cx={props.cx}
+                            cy={props.cy}
+                            r={5}
+                            fill={safeNumber(props.payload?.cassa) < 0 ? "#dc2626" : "#059669"}
+                            strokeWidth={2}
+                            stroke="#ffffff"
+                          />
+                        )}
                       />
                     </ComposedChart>
                   </ResponsiveContainer>
