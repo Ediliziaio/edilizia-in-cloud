@@ -58,6 +58,26 @@ export interface PaymentMethodCheck {
  * uno strumento a costo (email, AI, WhatsApp, render, firma). Fail-safe: in caso
  * di errore di lettura ritorna allowed=false (blocca) per non far passare costi.
  */
+/**
+ * Variante drop-in per le edge function: ritorna `null` se l'azienda può
+ * usare strumenti a costo, altrimenti una Response 402 pronta (stesso
+ * code "payment_method_required" che il client intercetta per mostrare
+ * il dialog carta). Nato dall'audit AI 2026-06: ~45 funzioni ai-* erogavano
+ * AI a pagamento senza alcun gate.
+ */
+export async function gateAiPayment(
+  client: SupabaseLikeClient,
+  companyId: string,
+  corsHeaders: Record<string, string>,
+): Promise<Response | null> {
+  const check = await checkPaymentMethod(client, companyId);
+  if (check.allowed) return null;
+  return new Response(
+    JSON.stringify({ error: check.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE, code: "payment_method_required" }),
+    { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
+}
+
 export async function checkPaymentMethod(
   client: SupabaseLikeClient,
   companyId: string,

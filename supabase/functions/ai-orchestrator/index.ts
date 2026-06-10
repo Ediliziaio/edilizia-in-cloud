@@ -46,6 +46,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { aiRouterComplete, type AiRouterMessage } from "../_shared/aiRouter.ts";
 import { buildEnrichedSystemPrompt } from "../_shared/promptBuilder.ts";
 // MP-AIE-02 v2 — tool calling loop unificato col registry centrale silvioTools.ts
@@ -198,6 +199,12 @@ serve(async (req: Request) => {
     const { companyId, primaryRole, userName } = await getCompanyAndRole(supabaseAdmin, userId);
     if (!companyId) return errorResponse("Nessuna azienda associata", 400, corsHeaders);
     await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
+
+    // Gate carta (audit AI 2026-06): orchestratore delle 18 personas — fino a
+    // 12 iterazioni di tool-calling a pagamento senza alcun controllo carta.
+    // Demo company e comped esenti (logica dentro il gate).
+    const paymentBlock = await gateAiPayment(supabaseAdmin, companyId, corsHeaders);
+    if (paymentBlock) return paymentBlock;
 
     // 4) RBAC check
     const { data: rbacResult, error: rbacErr } = await supabaseAdmin.rpc("can_user_use_persona", {

@@ -24,6 +24,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { CHART_RULES } from "../_shared/chartRules.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
+import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { getToolsForChannel, toolsToOpenAISpec, type ToolContext } from "../_shared/silvioTools.ts";
 import { executeToolWithRouting } from "../_shared/silvioToolExecution.ts";
@@ -330,6 +331,13 @@ serve(async (req: Request) => {
 
     const companyId: string = channel.company_id;
     await requireCompanyAccess(supabaseAdmin, userId, companyId, corsHeaders);
+
+    // ── Gate carta (audit AI 2026-06): l'ENTRY POINT principale di Silvio
+    // erogava chiamate AI a pagamento senza alcun controllo sul metodo di
+    // pagamento — i cap di budget intervenivano solo a costi già sostenuti.
+    // Demo company e aziende comped restano esenti (logica nel gate).
+    const paymentBlock = await gateAiPayment(supabaseAdmin, companyId, corsHeaders);
+    if (paymentBlock) return paymentBlock;
 
     // ── AI Test Lab — server-side gating del body.model ───────────────────
     // Resolve user email per la conferma; ignora il param se NON demo.
