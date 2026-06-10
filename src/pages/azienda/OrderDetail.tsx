@@ -614,6 +614,8 @@ function OrderDetailInner() {
   });
 
   const handleInstallmentPaidToggle = (installment: Installment, paid: boolean) => {
+    // Anti doppio-click: una scrittura alla volta (il bottone non e' disabled)
+    if (updatePaymentMutation.isPending) return;
     updatePaymentMutation.mutate({ installment, paid });
   };
 
@@ -642,6 +644,7 @@ function OrderDetailInner() {
   });
 
   const handleInstallmentDateChange = (installment: Installment, field: 'paid_date' | 'expected_date', date?: Date) => {
+    if (updateInstallmentDateMutation.isPending) return;
     updateInstallmentDateMutation.mutate({ installment, field, date });
   };
 

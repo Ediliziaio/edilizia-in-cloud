@@ -60,6 +60,7 @@ export default function EmailTriagePage() {
     queryKey: ["email-inbox", effectiveCompany?.id, tab],
     enabled: !!effectiveCompany?.id,
     refetchInterval: 60_000,
+    staleTime: 30_000,
     queryFn: async (): Promise<EmailRow[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let q = (supabase as any)

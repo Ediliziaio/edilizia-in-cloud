@@ -554,6 +554,8 @@ function CreateOrderInner() {
   });
 
   const onSubmit = (values: OrderFormValues) => {
+    // Enter sul form bypassa il disabled del bottone submit: guardia esplicita
+    if (createOrderMutation.isPending) return;
     const totalVal = parseDecimalIT(values.total_amount);
     if (totalVal <= 0) {
       toast.error("Importo non valido", { description: "L'importo totale deve essere maggiore di zero." });
