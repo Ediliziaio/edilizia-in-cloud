@@ -835,7 +835,7 @@ export default function MarketingContacts() {
     }
 
     // Intersect opp + cf (AND)
-    let filterIds: string[] | null = null;
+    let filterIds: string[] | null;
     if (oppContactIds && cfContactIds) {
       const cfSet = new Set(cfContactIds);
       filterIds = oppContactIds.filter((id) => cfSet.has(id));
@@ -1551,10 +1551,11 @@ export default function MarketingContacts() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
+            {/* Mobile: flex-1 — la CTA riempie la riga (niente vuoto a destra del bottone) */}
+            <Button className="flex-1 sm:flex-initial bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={() => { setEditingContact(null); setDialogOpen(true); }} disabled={!canEditContacts}>
               <Plus className="h-4 w-4 mr-1" />
               <span className="hidden sm:inline">Aggiungi Contatto</span>
-              <span className="sm:hidden">Aggiungi</span>
+              <span className="sm:hidden">Aggiungi contatto</span>
             </Button>
           </div>
         </div>
@@ -1577,24 +1578,27 @@ export default function MarketingContacts() {
         <>
           {/* Quality cockpit */}
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            {/* v8.7 — header ripulito su feedback utente: via il badge "pagina corrente"
+                (gergo interno) e l'hint sull'anteprima laterale, che su mobile non esiste
+                nemmeno → resta solo su desktop, dove è vero. */}
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-blue-600" />
-                  <p className="font-semibold text-slate-950">Igiene CRM</p>
-                  <Badge variant="secondary" className="text-[11px]">pagina corrente</Badge>
+                  <p className="font-semibold text-slate-950">Qualità dei contatti</p>
                 </div>
                 <p className="mt-1 text-sm text-slate-500">
-                  Controlli rapidi su recapiti, fonte, consensi e duplicati prima di liste, export o automazioni.
+                  Recapiti, consensi e duplicati sotto controllo prima di liste, export o automazioni.
                 </p>
               </div>
-              <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              <div className="hidden items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600 lg:flex">
                 <PanelRightOpen className="h-3.5 w-3.5 text-slate-500" />
                 Clic sulla riga: anteprima laterale. Clic sul nome: scheda completa.
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
+            {/* Mobile: 2×2 invece di 4 card impilate (metà altezza prima della lista) */}
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4">
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold uppercase text-amber-700">Da sistemare</span>
