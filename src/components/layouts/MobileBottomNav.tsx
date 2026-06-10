@@ -11,6 +11,7 @@
  */
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { motion } from "framer-motion";
 import {
   LayoutDashboard,
   HardHat,
@@ -266,13 +267,17 @@ export function MobileBottomNav() {
 
   const bottomNav = (
     <nav
-      className="shrink-0 bg-background border-t border-border/50 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] md:hidden"
+      // "Liquid glass" stile iOS 26 (richiesta utente, rif. video Instagram/App
+      // Store): la barra diventa una PILLOLA flottante in vetro traslucido,
+      // staccata dai bordi, con la bolla dell'elemento attivo che scivola
+      // liquida tra le voci (motion layoutId + spring, vedi sotto).
+      className="shrink-0 bg-transparent px-3 md:hidden"
       style={{
-        paddingBottom: "env(safe-area-inset-bottom)",
+        paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)",
       }}
       aria-label="Navigazione principale"
     >
-      <div className="flex items-stretch h-16">
+      <div className="flex h-16 items-stretch rounded-[28px] border border-border/40 bg-background/70 shadow-lg shadow-black/10 backdrop-blur-xl backdrop-saturate-150">
         {navSlots.map((slot) => {
           if (slot.type === "app") {
             return (
@@ -283,12 +288,17 @@ export function MobileBottomNav() {
                 aria-label="Apri menu app"
                 type="button"
               >
-                <div className={cn(
-                  "relative flex items-center justify-center w-10 h-8",
-                  appGridOpen && "bg-blue-50 rounded-2xl w-12"
-                )}>
+                <div className="relative flex h-8 w-12 items-center justify-center">
+                  {appGridOpen && (
+                    <motion.div
+                      layoutId="bottomnav-liquid"
+                      initial={false}
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                      className="absolute inset-0 rounded-2xl bg-blue-100/90"
+                    />
+                  )}
                   <LayoutGrid className={cn(
-                    "h-5 w-5 stroke-[1.5]",
+                    "relative h-5 w-5 stroke-[1.5]",
                     appGridOpen ? "text-blue-600 stroke-[2.5]" : "text-muted-foreground"
                   )} />
                   {unreadCount > 0 && (
@@ -338,15 +348,20 @@ export function MobileBottomNav() {
               aria-label={slot.label}
               aria-current={active ? "page" : undefined}
             >
-              <div
-                className={cn(
-                  "flex items-center justify-center rounded-2xl transition-all duration-200",
-                  active ? "bg-blue-50 w-12 h-8" : "w-10 h-8"
+              <div className="relative flex h-8 w-12 items-center justify-center">
+                {/* Bolla "liquida" condivisa: layoutId fa scivolare la stessa
+                    bolla tra le voci con fisica spring (effetto iOS 26). */}
+                {active && !appGridOpen && (
+                  <motion.div
+                    layoutId="bottomnav-liquid"
+                    initial={false}
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    className="absolute inset-0 rounded-2xl bg-blue-100/90"
+                  />
                 )}
-              >
                 <Icon
                   className={cn(
-                    "h-5 w-5 transition-all duration-200",
+                    "relative h-5 w-5 transition-all duration-200",
                     active
                       ? "text-blue-600 stroke-[2.5]"
                       : "text-muted-foreground stroke-[1.5]"
