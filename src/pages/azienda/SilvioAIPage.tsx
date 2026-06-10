@@ -46,6 +46,7 @@ import {
   FolderPlus,
   FolderInput,
   ChevronRight,
+  MoreVertical,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { ChatMarkdown } from "@/components/ui/ChatMarkdown";
@@ -65,6 +66,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuLabel,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import { SILVIO_SKILLS } from "@/lib/silvio-skills";
 import { useVoiceInput } from "@/hooks/useVoiceInput";
@@ -235,7 +239,11 @@ export default function SilvioAIPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Aperta di default solo da md in su: su mobile è un drawer a tutta altezza
+  // che coprirebbe l'hero al primo ingresso nella pagina.
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => typeof window === "undefined" || window.innerWidth >= 768,
+  );
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -847,6 +855,33 @@ export default function SilvioAIPage() {
   // Riga conversazione (riusata sia nelle cartelle sia nei gruppi per data).
   const renderConvRow = (c: Conversazione) => {
     const isPin = !!c.pinned;
+    // Voci "Sposta in…" condivise tra dropdown desktop e sottomenu mobile.
+    const spostaItems = (
+      <>
+        {cartelle.length === 0 && (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">Nessuna cartella ancora</div>
+        )}
+        {cartelle.map((f) => (
+          <DropdownMenuItem key={f.id} className="gap-2" onClick={() => void spostaInCartella(c.id, f.id)}>
+            <Folder className="h-3.5 w-3.5 text-orange-500" />
+            <span className="truncate">{f.nome}</span>
+            {c.folder_id === f.id && <Check className="ml-auto h-3.5 w-3.5 text-orange-500" />}
+          </DropdownMenuItem>
+        ))}
+        {c.folder_id && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="gap-2 text-slate-600" onClick={() => void spostaInCartella(c.id, null)}>
+              <X className="h-3.5 w-3.5" /> Togli dalla cartella
+            </DropdownMenuItem>
+          </>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="gap-2" onClick={() => void handleNuovaCartella()}>
+          <FolderPlus className="h-3.5 w-3.5" /> Nuova cartella…
+        </DropdownMenuItem>
+      </>
+    );
     return (
       <div
         key={c.id}
@@ -864,11 +899,14 @@ export default function SilvioAIPage() {
         <span className="text-[10px] text-slate-400 group-hover:hidden">
           {isPin ? <Pin className="h-3 w-3 fill-orange-400 text-orange-400" /> : formatOra(c.ultimo_messaggio_at)}
         </span>
+        {/* Desktop: 3 azioni inline che compaiono in hover (com'erano). Su mobile
+            erano SEMPRE visibili e, gonfiate dal min-44 globale, schiacciavano il
+            titolo a 2-3 lettere → sostituite da un unico menu "⋯". */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               onClick={(e) => e.stopPropagation()}
-              className="md:hidden md:group-hover:block text-slate-400 hover:text-orange-500 transition"
+              className="hidden md:group-hover:block text-slate-400 hover:text-orange-500 transition"
               aria-label="Sposta in cartella"
               title="Sposta in cartella"
             >
@@ -877,28 +915,7 @@ export default function SilvioAIPage() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52" onClick={(e) => e.stopPropagation()}>
             <DropdownMenuLabel className="text-xs">Sposta in…</DropdownMenuLabel>
-            {cartelle.length === 0 && (
-              <div className="px-2 py-1.5 text-xs text-muted-foreground">Nessuna cartella ancora</div>
-            )}
-            {cartelle.map((f) => (
-              <DropdownMenuItem key={f.id} className="gap-2" onClick={() => void spostaInCartella(c.id, f.id)}>
-                <Folder className="h-3.5 w-3.5 text-orange-500" />
-                <span className="truncate">{f.nome}</span>
-                {c.folder_id === f.id && <Check className="ml-auto h-3.5 w-3.5 text-orange-500" />}
-              </DropdownMenuItem>
-            ))}
-            {c.folder_id && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="gap-2 text-slate-600" onClick={() => void spostaInCartella(c.id, null)}>
-                  <X className="h-3.5 w-3.5" /> Togli dalla cartella
-                </DropdownMenuItem>
-              </>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2" onClick={() => void handleNuovaCartella()}>
-              <FolderPlus className="h-3.5 w-3.5" /> Nuova cartella…
-            </DropdownMenuItem>
+            {spostaItems}
           </DropdownMenuContent>
         </DropdownMenu>
         <button
@@ -907,8 +924,7 @@ export default function SilvioAIPage() {
             void togglePin(c.id, !isPin);
           }}
           className={cn(
-            // visibile su mobile (niente hover sui touch), hover-only da md in su
-            "md:hidden md:group-hover:block transition",
+            "hidden md:group-hover:block transition",
             isPin ? "text-orange-500" : "text-slate-400 hover:text-orange-500",
           )}
           aria-label={isPin ? "Rimuovi dai fissati" : "Fissa in alto"}
@@ -921,11 +937,39 @@ export default function SilvioAIPage() {
             e.stopPropagation();
             void handleElimina(c.id);
           }}
-          className="md:hidden md:group-hover:block text-slate-400 hover:text-rose-500 transition"
+          className="hidden md:group-hover:block text-slate-400 hover:text-rose-500 transition"
           aria-label="Elimina"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
+        {/* Mobile: tutte le azioni in un menu solo — il titolo respira */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              onClick={(e) => e.stopPropagation()}
+              className="md:hidden -my-1 rounded-md p-2 text-slate-400 active:bg-slate-100"
+              aria-label="Azioni conversazione"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuItem className="gap-2" onClick={() => void togglePin(c.id, !isPin)}>
+              <Pin className={cn("h-3.5 w-3.5", isPin && "fill-orange-400 text-orange-400")} />
+              {isPin ? "Rimuovi dai fissati" : "Fissa in alto"}
+            </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="gap-2">
+                <FolderInput className="h-3.5 w-3.5" /> Sposta in…
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-52">{spostaItems}</DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="gap-2 text-rose-600 focus:text-rose-600" onClick={() => void handleElimina(c.id)}>
+              <Trash2 className="h-3.5 w-3.5" /> Elimina
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     );
   };
@@ -1100,6 +1144,18 @@ export default function SilvioAIPage() {
             : "-translate-x-full md:translate-x-0 md:w-0 md:opacity-0",
         )}
       >
+        {/* Mobile: intestazione del drawer con chiusura esplicita (prima si
+            chiudeva solo toccando lo sfondo — non si capiva). */}
+        <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2 md:hidden">
+          <span className="text-sm font-semibold text-slate-800">Le tue chat</span>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="-mr-1 rounded-md p-2 text-slate-400 active:bg-slate-100"
+            aria-label="Chiudi elenco conversazioni"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
         <div className="p-2 border-b border-slate-100">
           {searchOpen ? (
             <div className="relative">
@@ -1178,9 +1234,11 @@ export default function SilvioAIPage() {
                     <span className="truncate">{folder.nome}</span>
                     <span className="font-normal text-slate-400">{folder.items.length}</span>
                   </button>
+                  {/* tap-compact: senza, il min-44 globale gonfia le due icone
+                      e ruba metà riga al nome della cartella su mobile */}
                   <button
                     onClick={() => void handleRinominaCartella(folder.id, folder.nome)}
-                    className="md:opacity-0 md:group-hover/f:opacity-100 text-slate-400 hover:text-slate-600 transition"
+                    className="tap-compact p-1.5 md:p-0 md:opacity-0 md:group-hover/f:opacity-100 text-slate-400 hover:text-slate-600 transition"
                     title="Rinomina cartella"
                     aria-label="Rinomina cartella"
                   >
@@ -1188,7 +1246,7 @@ export default function SilvioAIPage() {
                   </button>
                   <button
                     onClick={() => void handleEliminaCartella(folder.id)}
-                    className="md:opacity-0 md:group-hover/f:opacity-100 text-slate-400 hover:text-rose-500 transition"
+                    className="tap-compact p-1.5 md:p-0 md:opacity-0 md:group-hover/f:opacity-100 text-slate-400 hover:text-rose-500 transition"
                     title="Elimina cartella"
                     aria-label="Elimina cartella"
                   >
@@ -1334,8 +1392,13 @@ export default function SilvioAIPage() {
         </header>
 
         {showHero ? (
-          /* Hero pulito, centrato verticalmente */
-          <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center gap-6 px-4 py-10">
+          /* Hero centrato MA scroll-safe: justify-center direttamente sul
+             contenitore overflow tagliava avatar (sopra) e banner (sotto)
+             quando il contenuto superava il viewport — su mobile era
+             irraggiungibile. min-h-full sul wrapper interno: se il contenuto
+             ci sta è centrato, se è più alto scorre normalmente dall'alto. */
+          <div className="flex-1 overflow-y-auto">
+            <div className="flex min-h-full w-full flex-col items-center justify-center gap-4 px-4 py-6 md:gap-6 md:py-10">
             <AIAssistantInterface onSend={handleSend} disabled={sending} userName={firstName} />
             {!onboarded && (
               <div className="w-full max-w-2xl rounded-xl border border-orange-200 bg-orange-50/70 px-4 py-3 text-sm text-slate-600">
@@ -1353,6 +1416,7 @@ export default function SilvioAIPage() {
                 </div>
               </div>
             )}
+            </div>
           </div>
         ) : (
           <div className="relative flex-1 overflow-hidden">

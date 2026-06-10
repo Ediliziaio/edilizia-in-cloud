@@ -49,6 +49,11 @@ export function AIAssistantInterface({
   const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const voice = useVoiceInput((t) => setInputValue((p) => (p ? `${p} ${t}` : t)));
+  // Autofocus solo da md in su: su mobile apriva la tastiera (mezzo schermo)
+  // a ogni ingresso nella pagina, coprendo i suggerimenti.
+  const [autoFocusDesktop] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches,
+  );
 
   const send = (text: string) => {
     const t = text.trim();
@@ -75,10 +80,10 @@ export function AIAssistantInterface({
         transition={{ duration: 0.4, delay: 0.05 }}
         className="mb-7 text-center"
       >
-        <h1 className="text-[28px] leading-tight font-bold text-slate-800 mb-1.5">
+        <h1 className="text-2xl md:text-[28px] leading-tight font-bold text-slate-800 mb-1.5">
           A cosa stai pensando{userName ? `, ${userName}` : ""}?
         </h1>
-        <p className="text-slate-500 text-[15px]">
+        <p className="text-slate-500 text-sm md:text-[15px]">
           Chiedi a <span className="font-medium text-orange-600">Silvio</span> di cantieri, finanza, clienti e molto altro.
         </p>
       </motion.div>
@@ -92,11 +97,12 @@ export function AIAssistantInterface({
       >
         <input
           ref={inputRef}
-          autoFocus
+          autoFocus={autoFocusDesktop}
           type="text"
           placeholder="Fai una domanda a Silvio…"
           value={inputValue}
           disabled={disabled}
+          enterKeyHint="send"
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -104,7 +110,7 @@ export function AIAssistantInterface({
               send(inputValue);
             }
           }}
-          className="flex-1 min-w-0 bg-transparent text-slate-700 text-[15px] outline-none placeholder:text-slate-400 disabled:opacity-60"
+          className="flex-1 min-w-0 bg-transparent text-slate-700 text-base md:text-[15px] outline-none placeholder:text-slate-400 disabled:opacity-60"
         />
         <button
           type="button"
@@ -141,8 +147,9 @@ export function AIAssistantInterface({
         </button>
       </motion.div>
 
-      {/* Carte suggerimento */}
-      <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-5">
+      {/* Carte suggerimento — su mobile 2×2 compatte (solo titolo): 4 carte
+          impilate col testo del prompt spingevano il banner fuori schermo */}
+      <div className="w-full grid grid-cols-2 gap-2 sm:gap-2.5 mt-4 md:mt-5">
         {SUGGESTIONS.map((s, i) => {
           const Icon = s.icon;
           return (
@@ -154,14 +161,14 @@ export function AIAssistantInterface({
               transition={{ duration: 0.3, delay: 0.15 + i * 0.05 }}
               onClick={() => send(s.prompt)}
               disabled={disabled}
-              className="group flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 bg-white text-left hover:border-orange-200 hover:bg-orange-50/40 hover:shadow-sm transition-all disabled:opacity-60"
+              className="group flex items-start gap-2.5 sm:gap-3 p-3 sm:p-3.5 rounded-xl border border-slate-200 bg-white text-left hover:border-orange-200 hover:bg-orange-50/40 hover:shadow-sm transition-all disabled:opacity-60 active:scale-[0.98]"
             >
-              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-500 group-hover:bg-orange-100">
+              <span className="mt-0.5 flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-500 group-hover:bg-orange-100">
                 <Icon className="h-4 w-4" />
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-medium text-slate-700">{s.title}</span>
-                <span className="block text-xs text-slate-400 line-clamp-2">{s.prompt}</span>
+                <span className="hidden sm:block text-xs text-slate-400 line-clamp-2">{s.prompt}</span>
               </span>
             </motion.button>
           );
