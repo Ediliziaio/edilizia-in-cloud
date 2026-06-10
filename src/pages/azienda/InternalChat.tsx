@@ -947,6 +947,7 @@ function AttachmentPreview({ msg, isMe }: { msg: Message; isMe: boolean }) {
 const MessageBubble = React.memo(function MessageBubble({
   msg, isMe, sender, showAvatar, replyMsg, profileMap,
   onReply, onPin, onReaction, onDelete, userId, onAskFollowup,
+  showRunMeta = false,
 }: {
   msg: Message; isMe: boolean;
   sender: Profile | undefined; showAvatar: boolean;
@@ -954,6 +955,12 @@ const MessageBubble = React.memo(function MessageBubble({
   onReply: () => void; onPin: () => void; onDelete?: () => void;
   onReaction: (emoji: string) => void; userId?: string;
   onAskFollowup?: (query: string) => void;
+  /**
+   * AIRunFooter (⏱ tempo · modello · $costo) è meta dev/debug del Test Lab:
+   * visibile SOLO a demo company + super_admin (aiSelector.showSelector).
+   * Gli utenti normali NON devono vedere quanto costa la chiamata AI.
+   */
+  showRunMeta?: boolean;
 }) {
   // Detect AI bot type from sender_id.
   // Silvio cliente e Silvio Superadmin sono visivamente IDENTICI (stesso "Silvio")
@@ -1089,8 +1096,11 @@ const MessageBubble = React.memo(function MessageBubble({
               onAskFollowup={onAskFollowup}
             />
           )}
-          {/* AI Test Lab — footer ⏱ tempo · 🟠 modello · $costo (solo demo) */}
-          {isAIMsg && msg.last_model_id && (
+          {/* AI Test Lab — footer ⏱ tempo · 🟠 modello · $costo (solo demo)
+              Fix 2026-06: gate esplicito showRunMeta (demo/super_admin) — prima
+              bastava last_model_id (sempre persistito) e TUTTI gli utenti
+              vedevano il costo della chiamata AI in chat. */}
+          {showRunMeta && isAIMsg && msg.last_model_id && (
             <AIRunFooter
               meta={{
                 model_id: msg.last_model_id,
@@ -2595,6 +2605,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                           onReaction={(emoji) => toggleReaction(msg.id, emoji, msg.reactions)}
                           userId={userId}
                           onAskFollowup={(isSilvioChannel || isSilvioAdminChannel) ? sendToSilvio : undefined}
+                          showRunMeta={aiSelector.showSelector}
                         />
                       </React.Fragment>
                     );

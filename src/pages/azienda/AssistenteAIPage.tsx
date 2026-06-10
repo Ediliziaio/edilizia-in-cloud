@@ -32,6 +32,7 @@ import {
   Send, Plus, Bot, MessageSquare, Coins, AlertTriangle, Loader2, Search, ArrowLeft,
 } from "lucide-react";
 import { PERSONA_ICON_MAP, PERSONA_COLOR_RING } from "@/lib/personaVisuals";
+import { useShowAIRunMeta } from "@/lib/ai/use-ai-model-selector";
 
 // Alias locali per minimizzare diff con il resto del file.
 const ICON_MAP = PERSONA_ICON_MAP;
@@ -303,6 +304,11 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
     [messages],
   );
 
+  // Regola prodotto (2026-06): costi AI MAI visibili in chat agli utenti
+  // normali (solo demo Test Lab + super_admin). Restano nelle impostazioni
+  // azienda (AIPersonasSessionsTab) e nelle pagine superadmin.
+  const showRunMeta = useShowAIRunMeta();
+
   // ─── HANDLERS ─────────────────────────────────────────────────────────
   const handleSelectPersona = (key: string) => {
     setActivePersonaKey(key);
@@ -451,7 +457,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                         <div className="font-medium truncate">{s.title}</div>
                         <div className="text-muted-foreground flex items-center justify-between">
                           <span>{s.message_count} msg</span>
-                          <span>{fmtEur(s.total_cost_billed_eur, 2)}</span>
+                          {showRunMeta && <span>{fmtEur(s.total_cost_billed_eur, 2)}</span>}
                         </div>
                       </button>
                     ))
@@ -604,11 +610,15 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
                   {(messages ?? []).reduce((s, m) => s + (m.tokens_out ?? 0), 0)}
                 </span>
               </div>
-              <Separator />
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">Costo sessione</span>
-                <span className="font-mono font-semibold">{fmtEur(totalSessionCost, 4)}</span>
-              </div>
+              {showRunMeta && (
+                <>
+                  <Separator />
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Costo sessione</span>
+                    <span className="font-mono font-semibold">{fmtEur(totalSessionCost, 4)}</span>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -734,6 +744,8 @@ function PersonaIcon({ icon, color, size = "sm" }: { icon: string; color: string
 function MessageBubble({ message, persona }: { message: ChatMessage; persona: Persona | null }) {
   const isUser = message.role === "user";
   const isError = message.metadata?.error === true;
+  // Costo/token/modello sotto il messaggio: meta dev/debug, MAI per utenti normali.
+  const showRunMeta = useShowAIRunMeta();
 
   return (
     <div className={cn("flex gap-3", isUser && "flex-row-reverse")}>
@@ -745,7 +757,7 @@ function MessageBubble({ message, persona }: { message: ChatMessage; persona: Pe
         isUser ? "bg-violet-600 text-white" : isError ? "bg-rose-50 border border-rose-200 text-rose-900" : "bg-muted",
       )}>
         {message.content}
-        {!isUser && message.cost_billed_eur != null && (
+        {showRunMeta && !isUser && message.cost_billed_eur != null && (
           <div className="text-[10px] opacity-60 mt-1.5 flex items-center gap-2">
             <span>{message.tokens_in} → {message.tokens_out} tok</span>
             <span>·</span>

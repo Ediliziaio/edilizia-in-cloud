@@ -50,6 +50,29 @@ interface UseAIModelSelectorResult {
   refresh: () => Promise<void>;
 }
 
+/**
+ * useShowAIRunMeta — gate UNICO per i metadati di run AI (costo €/$, token,
+ * modello, latenza) nelle CHAT. Stessa logica di gating di useAIModelSelector
+ * ma senza fetch dei modelli: ritorna solo il flag.
+ *
+ * Regola prodotto (2026-06): l'utente normale NON deve mai vedere in chat
+ * quanto costa la chiamata AI. Run-meta visibile solo a:
+ *  - demo company tester (AI Test Lab)
+ *  - super_admin
+ * Le pagine impostazioni azienda (AIPersonasSessionsTab) e superadmin
+ * (AdminSettingsAIUsage, AIOperatePage) NON usano questo gate: lì i costi
+ * restano visibili per design.
+ */
+export function useShowAIRunMeta(): boolean {
+  const { user, effectiveCompany, role } = useAuth();
+  return useMemo(() => {
+    const isDemoUser =
+      effectiveCompany?.id === DEMO_COMPANY_ID &&
+      user?.email?.toLowerCase() === DEMO_USER_EMAIL;
+    return isDemoUser || role === 'super_admin';
+  }, [effectiveCompany?.id, user?.email, role]);
+}
+
 function lsKey(feature: AIFeature): string {
   return `ai_model_pref:${feature}`;
 }

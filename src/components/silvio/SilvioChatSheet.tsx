@@ -1432,6 +1432,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                   streaming={streamingMessageIds.has(m.id)}
                   onAskFollowup={(q) => setDraft(q)}
                   silvioSenderId={silvioSenderId}
+                  showRunMeta={aiSelector.showSelector}
                 />
               ))}
             </AnimatePresence>
@@ -2025,12 +2026,19 @@ function MessageBubble({
   streaming,
   onAskFollowup,
   silvioSenderId = SILVIO_SENDER_ID,
+  showRunMeta = false,
 }: {
   message: SilvioMessage;
   isMe: boolean;
   streaming: boolean;
   onAskFollowup?: (query: string) => void;
   silvioSenderId?: string;
+  /**
+   * AIRunFooter (⏱ tempo · modello · $costo) è meta dev/debug del Test Lab:
+   * visibile SOLO a demo company + super_admin (aiSelector.showSelector).
+   * Gli utenti normali NON devono vedere quanto costa la chiamata AI.
+   */
+  showRunMeta?: boolean;
 }) {
   const isSilvio = message.sender_id === silvioSenderId;
   const isImage = message.message_type === "image" && message.attachment_url;
@@ -2156,8 +2164,11 @@ function MessageBubble({
         )}
         {/* AI Test Lab — footer ⏱ tempo · 🟠 modello · $costo (solo demo)
             v8.6.72 — Nascosto su mobile: meta dev/debug, su mobile occupa
-            spazio prezioso. Resta su tablet/desktop (sm+). */}
-        {isSilvio && !isStillTyping && message.last_model_id && (
+            spazio prezioso. Resta su tablet/desktop (sm+).
+            Fix 2026-06: gate esplicito showRunMeta (demo/super_admin) — prima
+            bastava last_model_id (sempre persistito) e TUTTI gli utenti
+            vedevano il costo della chiamata AI in chat. */}
+        {showRunMeta && isSilvio && !isStillTyping && message.last_model_id && (
           <div className="hidden sm:block">
             <AIRunFooter meta={{
               model_id: message.last_model_id,
