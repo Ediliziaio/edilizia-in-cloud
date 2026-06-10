@@ -1,7 +1,7 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { format, isSameDay, parseISO, isToday } from "date-fns";
 import { it } from "date-fns/locale";
-import { DndContext, DragOverlay, PointerSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff, User } from "lucide-react";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
@@ -53,8 +53,11 @@ export default function MarketingCalendarDayView({
   const slotInfo = getSlotHeight(slotDurationMinutes);
   const pxPerMinute = slotInfo.px / slotDurationMinutes;
 
+  // Mouse 5px + Touch long-press 180ms (vedi MonthView): lo scroll col dito
+  // sopra un appuntamento non deve riprogrammarlo.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } })
   );
 
   const timeSlots = useMemo(() => buildTimeSlots(slotDurationMinutes), [slotDurationMinutes]);

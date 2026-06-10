@@ -115,13 +115,16 @@ export default function DraggableAppointment({
       {...attributes}
       className={cn("relative group", isDragging && "opacity-30")}
       style={{
-        touchAction: "none",
+        // "manipulation" (non "none"): con l'attivazione touch a long-press (vedi
+        // sensors nelle viste) lo scroll nativo deve restare possibile anche
+        // partendo da un appuntamento; "none" lo bloccava → ogni swipe era un drag.
+        touchAction: "manipulation",
         ...(spanHeight != null ? { height: spanHeight, zIndex: 5 } : {}),
         ...(topOffsetPx ? { marginTop: topOffsetPx } : {}),
       }}
       data-resize-id={appointment.id}
     >
-      <div {...listeners} className="h-full" style={{ touchAction: "none" }}>
+      <div {...listeners} className="h-full" style={{ touchAction: "manipulation" }}>
         {children}
       </div>
       {onResize && startTime && (

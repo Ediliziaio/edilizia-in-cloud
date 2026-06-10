@@ -1322,9 +1322,15 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
       </div>
 
       {/* ══════════ RIGHT SIDEBAR ══════════ */}
-      {/* Content panel (conditionally shown) */}
+      {/* Content panel: sidebar su desktop, BOTTOM PANEL su mobile.
+          Prima era hidden md:flex → su mobile la quick action "Appunt." non
+          produceva nulla e i 10 pannelli (Documenti, Note, Opportunità…) erano
+          irraggiungibili da telefono. */}
       {rightPanelOpen && (
-        <div className="hidden md:flex w-64 border-l flex-col bg-background">
+        <>
+          {/* Backdrop solo mobile: tap fuori = chiudi */}
+          <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setRightTab(null)} aria-hidden="true" />
+          <div className="fixed inset-x-0 bottom-0 z-50 flex h-[72dvh] flex-col rounded-t-2xl border-t bg-background shadow-2xl md:static md:z-auto md:h-auto md:w-64 md:rounded-none md:border-l md:border-t-0 md:shadow-none">
           {/* Panel header */}
           <div className="h-11 border-b flex items-center justify-between px-3 shrink-0">
             <div className="flex items-center gap-2">
@@ -1340,6 +1346,24 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setRightTab(null)}>
               <X className="h-3.5 w-3.5" />
             </Button>
+          </div>
+
+          {/* Su mobile: strip orizzontale per passare tra i pannelli (su desktop c'è la colonna icone a destra) */}
+          <div className="flex gap-1 overflow-x-auto scrollbar-none border-b px-2 py-1.5 md:hidden">
+            {RIGHT_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setRightTab(tab.key)}
+                className={cn(
+                  "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                  rightTab === tab.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                )}
+              >
+                <tab.icon className="h-3.5 w-3.5" />
+                {tab.label}
+              </button>
+            ))}
           </div>
 
           <ScrollArea className="flex-1">
@@ -1536,7 +1560,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
               )}
             </div>
           </ScrollArea>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Vertical icon strip — solo desktop (su mobile usa l'hero quick actions) */}

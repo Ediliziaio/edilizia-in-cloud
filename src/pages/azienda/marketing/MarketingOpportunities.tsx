@@ -637,7 +637,8 @@ function MarketingOpportunitiesContent() {
           </DropdownMenu>
         </div>
       </div>
-      <div className="shrink-0 hidden md:block"><OpportunityStatsStrip opportunities={filteredOpportunities} /></div>
+      {/* KPI pipeline anche su mobile (prima hidden md:block → zero numeri da telefono) */}
+      <div className="shrink-0"><OpportunityStatsStrip opportunities={filteredOpportunities} /></div>
       {isFetchingNextPage && (
         <div className="flex items-center gap-2 px-1 shrink-0">
           <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
@@ -709,7 +710,7 @@ function MarketingOpportunitiesContent() {
             placeholder="Cerca opportunità…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="h-10 sm:h-8 w-full pl-8 text-sm sm:text-xs"
+            className="h-10 sm:h-8 w-full pl-8 text-base sm:text-xs"
             aria-label="Cerca opportunità, contatto, azienda, email o telefono"
           />
         </div>

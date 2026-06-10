@@ -18,8 +18,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   Mail, MessageSquare, MessageCircle, StickyNote, Search, Inbox,
-  AlertCircle, ChevronLeft, User, Briefcase, RefreshCw, UserCheck, CheckCircle2, RotateCcw,
+  AlertCircle, ChevronLeft, User, Briefcase, RefreshCw, UserCheck, CheckCircle2, RotateCcw, Info,
 } from "lucide-react";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import ConversazioneComposer from "./ConversazioneComposer";
 import ContactDetailPanel from "./ContactDetailPanel";
 import { toast } from "sonner";
@@ -63,6 +65,8 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
   const [statoFilter, setStatoFilter] = useState<"tutte" | "non_lette" | "mie" | "chiuse">("tutte");
   const [canaleFilter, setCanaleFilter] = useState<CanaleConversazione | "tutti">("tutti");
   const [shownCount, setShownCount] = useState(30);
+  // Scheda contatto/cliente in Sheet sotto xl (il pannello laterale fisso esiste solo da xl in su)
+  const [schedaOpen, setSchedaOpen] = useState(false);
 
   const qc = useQueryClient();
   const { data: lista = [], isLoading, isError, isFetching } = useConversazioniList(companyId);
@@ -277,8 +281,8 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
           ) : isError ? (
             <div className="p-6 text-center text-sm text-muted-foreground">
               <AlertCircle className="h-5 w-5 mx-auto mb-2 text-amber-500" />
-              Inbox non ancora attivo.
-              <p className="text-xs mt-1">Applica la migration <code className="text-[11px]">conversazioni</code> per abilitare l'aggregatore.</p>
+              Non riesco a caricare le conversazioni.
+              <p className="text-xs mt-1">Riprova tra qualche secondo. Se il problema persiste, contatta l'assistenza.</p>
             </div>
           ) : filtrate.length === 0 ? (
             <div className="p-6 text-center text-sm text-muted-foreground">
@@ -339,7 +343,14 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
       </aside>
 
       {/* ═══ Thread ═══ */}
-      <section className={cn("flex-1 min-w-0 flex flex-col bg-muted/20", selectedItem ? "flex" : "hidden md:flex")}>
+      {/* key per conversazione + slide-in su mobile: il passaggio lista→thread non è più uno scatto secco */}
+      <section
+        key={selectedKey ?? "vuota"}
+        className={cn(
+          "flex-1 min-w-0 flex flex-col bg-muted/20",
+          selectedItem ? "flex max-md:animate-in max-md:slide-in-from-right-4 max-md:fade-in-0 max-md:duration-200" : "hidden md:flex",
+        )}
+      >
         {!selectedItem ? (
           <div className="flex-1 flex items-center justify-center text-center text-muted-foreground p-8">
             <div>
@@ -371,8 +382,15 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
                   {selectedItem.telefono && <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{selectedItem.telefono}</span>}
                 </div>
               </div>
-              {/* Azioni GHL: assegna a me / chiudi-riapri */}
+              {/* Azioni GHL: scheda (sotto xl) / assegna a me / chiudi-riapri */}
               <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  variant="ghost" size="icon" className="h-8 w-8 xl:hidden"
+                  aria-label="Apri scheda contatto"
+                  onClick={() => setSchedaOpen(true)}
+                >
+                  <Info className="h-4 w-4" />
+                </Button>
                 <Button
                   variant={selectedItem.assegnato_a === user?.id ? "secondary" : "ghost"}
                   size="sm" className="h-8 gap-1.5 text-xs"
@@ -446,9 +464,21 @@ export default function ConversazioniInbox({ companyIdOverride }: Props = {}) {
         )}
       </section>
 
-      {/* ═══ Pannello laterale scheda (GHL-style) ═══ */}
+      {/* ═══ Pannello laterale scheda (GHL-style) — fisso da xl in su ═══ */}
       {selectedItem && (
-        <ContactDetailPanel entitaTipo={selectedItem.entita_tipo} entitaId={selectedItem.entita_id} />
+        <div className="hidden w-72 shrink-0 border-l xl:flex xl:w-80">
+          <ContactDetailPanel entitaTipo={selectedItem.entita_tipo} entitaId={selectedItem.entita_id} />
+        </div>
+      )}
+
+      {/* Scheda in Sheet sotto xl (prima era irraggiungibile da mobile/tablet) */}
+      {selectedItem && (
+        <Sheet open={schedaOpen} onOpenChange={setSchedaOpen}>
+          <SheetContent side="right" className="p-0 sm:max-w-md">
+            <VisuallyHidden><SheetTitle>Scheda contatto</SheetTitle></VisuallyHidden>
+            <ContactDetailPanel entitaTipo={selectedItem.entita_tipo} entitaId={selectedItem.entita_id} />
+          </SheetContent>
+        </Sheet>
       )}
     </div>
   );

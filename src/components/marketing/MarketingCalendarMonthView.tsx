@@ -9,7 +9,7 @@ import {
   isToday,
   format,
 } from "date-fns";
-import { DndContext, DragOverlay, PointerSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { MarketingAppointment } from "@/types/marketingCalendar";
@@ -63,8 +63,12 @@ export default function MarketingCalendarMonthView({
   const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
   const justDragged = useRef(false);
+  // Mouse: drag dopo 5px (evita click accidentali). Touch: long-press 180ms
+  // (come il kanban Opportunità) — prima il solo PointerSensor partiva dopo 5px
+  // anche col dito → fare SCROLL sopra un appuntamento lo riprogrammava.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } })
   );
 
   const weeks = useMemo(() => {

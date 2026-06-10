@@ -239,7 +239,7 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
                       value={v}
                       onChange={(e) => setVars((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
                       placeholder={`Valore {{${i + 1}}}`}
-                      className="h-8 text-xs"
+                      className="h-9 text-base sm:h-8 sm:text-xs"
                     />
                   </div>
                 );

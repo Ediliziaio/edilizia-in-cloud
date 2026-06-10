@@ -199,8 +199,9 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
         {/* Top: Checkbox + Name + Owner Avatar */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-2 min-w-0">
+            {/* checkbox visibile anche su mobile: senza, la selezione multipla (BulkEditSheet) era impossibile da telefono */}
             {!isOverlay && onSelect && (
-              <div onClick={handleCheckboxChange} onPointerDown={(e) => e.stopPropagation()} className="pt-0.5 hidden md:block">
+              <div onClick={handleCheckboxChange} onPointerDown={(e) => e.stopPropagation()} className="pt-0.5">
                 <Checkbox checked={!!selected} className="h-4 w-4" />
               </div>
             )}

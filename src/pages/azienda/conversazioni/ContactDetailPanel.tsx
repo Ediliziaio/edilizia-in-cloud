@@ -97,7 +97,8 @@ export default function ContactDetailPanel({ entitaTipo, entitaId }: Props) {
       : `/azienda/clienti/${entitaId}`;
 
   return (
-    <aside className="w-72 xl:w-80 shrink-0 border-l bg-background hidden xl:flex flex-col">
+    // Layout deciso dal PARENT (colonna fissa da xl, Sheet sotto xl): il pannello riempie il contenitore
+    <aside className="flex h-full w-full flex-col overflow-y-auto bg-background">
       {isLoading ? (
         <div className="p-4 space-y-3">
           <Skeleton className="h-16 w-16 rounded-full mx-auto" />

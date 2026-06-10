@@ -1655,7 +1655,7 @@ export default function MarketingContacts() {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 placeholder="Cerca contatti..."
-                className="pl-8 h-9 w-full text-sm"
+                className="pl-8 h-9 w-full text-base md:text-sm"
                 value={searchInput}
                 onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
               />
