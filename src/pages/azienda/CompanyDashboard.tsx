@@ -35,6 +35,7 @@ import {
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { TrendTooltip } from "@/components/charts/TrendTooltip";
 import { queryKeys } from "@/lib/queryKeys";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -203,14 +204,17 @@ function ManagementOverview({
                 <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={formatCurrencyCompact} tickLine={false} axisLine={false} tickMargin={4} />
                 <RechartsTooltip
                   cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
-                  formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                  contentStyle={{
-                    backgroundColor: "white",
-                    borderColor: "#e2e8f0",
-                    borderRadius: 12,
-                    fontSize: 12,
-                    boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
-                  }}
+                  content={
+                    <TrendTooltip
+                      data={monthlyBalance.slice(-6)}
+                      xKey="month"
+                      series={[
+                        { key: "entrate", label: "Venduto", color: "#2563eb", formatter: formatCurrency },
+                        // Costi: delta in AUMENTO = rosso (invertDelta)
+                        { key: "uscite", label: "Costi pianificati", color: "#f97316", formatter: formatCurrency, invertDelta: true },
+                      ]}
+                    />
+                  }
                 />
                 <Bar dataKey="entrate" name="Venduto" fill="url(#opEntrateGrad)" radius={[6, 6, 0, 0]} barSize={14} />
                 <Bar dataKey="uscite" name="Costi pianificati" fill="url(#opUsciteGrad)" radius={[6, 6, 0, 0]} barSize={14} />

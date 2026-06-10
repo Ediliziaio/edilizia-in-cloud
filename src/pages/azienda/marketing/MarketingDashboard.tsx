@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -7,9 +7,10 @@ import {
   CalendarCheck, Trophy, UserPlus,
 } from "lucide-react";
 import {
-  Area, Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer,
+  Area, Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer,
   Tooltip as RechartsTooltip, XAxis, YAxis,
 } from "recharts";
+import { TrendTooltip, type TrendTooltipSeries } from "@/components/charts/TrendTooltip";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -165,6 +166,41 @@ export default function MarketingDashboard() {
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Legenda interattiva: click su una voce per nascondere/mostrare la serie
+  const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+  const toggleSeries = useCallback((key: string) => {
+    setHiddenSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  // Linea di riferimento: media lead 12 mesi (benchmark onesto senza config)
+  const avgLead = useMemo(() => {
+    if (!marketingTrend.length) return 0;
+    return marketingTrend.reduce((s, m) => s + safeNumber(m.lead), 0) / marketingTrend.length;
+  }, [marketingTrend]);
+
+  const trendIsEmpty = useMemo(
+    () =>
+      marketingTrend.length > 0 &&
+      marketingTrend.every(
+        (m) => safeNumber(m.lead) === 0 && safeNumber(m.appuntamenti) === 0 && safeNumber(m.contratti) === 0,
+      ),
+    [marketingTrend],
+  );
+
+  const trendTooltipSeries = useMemo<TrendTooltipSeries[]>(() => {
+    const num = (v: number) => v.toLocaleString("it-IT");
+    return [
+      { key: "lead", label: "Lead", color: "#2563eb", formatter: num },
+      { key: "appuntamenti", label: "Appuntamenti", color: "#f97316", formatter: num },
+      { key: "contratti", label: "Contratti", color: "#059669", formatter: num },
+    ];
+  }, []);
 
   // ── Executive state (analogo al Cruscotto Aziendale) ─────────────────────
   const executiveState = useMemo(() => {
@@ -458,14 +494,42 @@ export default function MarketingDashboard() {
                   <h3 className="mt-1 text-base font-semibold text-slate-950">Lead, appuntamenti e contratti</h3>
                   <p className="mt-0.5 text-[11px] text-slate-400">Storico fisso · indipendente dai filtri periodo</p>
                 </div>
+                {/* Legenda interattiva: click per nascondere/mostrare la serie */}
                 <div className="flex flex-wrap items-center gap-3 text-xs">
-                  <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-blue-500" /> Lead</span>
-                  <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-orange-500" /> Appuntamenti</span>
-                  <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-emerald-600" /> Contratti</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSeries("lead")}
+                    aria-pressed={!hiddenSeries.has("lead")}
+                    className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("lead") && "opacity-40 line-through")}
+                  >
+                    <span className="h-2 w-2 rounded-full bg-blue-500" /> Lead
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleSeries("appuntamenti")}
+                    aria-pressed={!hiddenSeries.has("appuntamenti")}
+                    className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("appuntamenti") && "opacity-40 line-through")}
+                  >
+                    <span className="h-2 w-2 rounded-full bg-orange-500" /> Appuntamenti
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleSeries("contratti")}
+                    aria-pressed={!hiddenSeries.has("contratti")}
+                    className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("contratti") && "opacity-40 line-through")}
+                  >
+                    <span className="h-2 w-2 rounded-full bg-emerald-600" /> Contratti
+                  </button>
                 </div>
               </div>
 
               <div className="mt-4 h-[260px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                {trendIsEmpty ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
+                    <p className="text-sm font-medium text-slate-500">Ancora nessun dato negli ultimi 12 mesi</p>
+                    <p className="text-xs text-slate-400">Aggiungi il primo lead o collega una fonte per vedere l'andamento.</p>
+                  </div>
+                ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={marketingTrend} margin={{ top: 8, right: 4, left: -10, bottom: 0 }}>
                     <defs>
@@ -487,28 +551,26 @@ export default function MarketingDashboard() {
                     <YAxis tickLine={false} axisLine={false} fontSize={10} stroke="#94a3b8" allowDecimals={false} tickMargin={6} />
                     <RechartsTooltip
                       cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
-                      contentStyle={{
-                        borderRadius: 12,
-                        border: "1px solid #e2e8f0",
-                        boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
-                      }}
-                      formatter={(value: number, name) =>
-                        name === "contrattiArea"
-                          ? [null, null]
-                          : [
-                              Number(value).toLocaleString("it-IT"),
-                              name === "lead" ? "Lead" : name === "appuntamenti" ? "Appuntamenti" : "Contratti",
-                            ]
-                      }
-                      labelFormatter={(label) => `Mese: ${label}`}
+                      content={<TrendTooltip data={marketingTrend} xKey="mese" series={trendTooltipSeries} />}
                     />
-                    <Bar dataKey="lead" fill="url(#mktLeadGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
-                    <Bar dataKey="appuntamenti" fill="url(#mktApptGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                    {/* Benchmark onesto: media lead degli ultimi 12 mesi */}
+                    {avgLead > 0 && !hiddenSeries.has("lead") && (
+                      <ReferenceLine
+                        y={avgLead}
+                        stroke="#94a3b8"
+                        strokeDasharray="6 4"
+                        strokeWidth={1}
+                        label={{ value: "media", position: "insideTopRight", fontSize: 10, fill: "#94a3b8" }}
+                      />
+                    )}
+                    <Bar dataKey="lead" hide={hiddenSeries.has("lead")} fill="url(#mktLeadGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                    <Bar dataKey="appuntamenti" hide={hiddenSeries.has("appuntamenti")} fill="url(#mktApptGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
                     {/* Area sfumata sotto la linea contratti (stesso dataKey, solo fill) */}
                     <Area
                       type="monotone"
                       dataKey="contratti"
                       name="contrattiArea"
+                      hide={hiddenSeries.has("contratti")}
                       stroke="transparent"
                       fill="url(#mktContrattiArea)"
                       legendType="none"
@@ -517,6 +579,7 @@ export default function MarketingDashboard() {
                     <Line
                       type="monotone"
                       dataKey="contratti"
+                      hide={hiddenSeries.has("contratti")}
                       stroke="#059669"
                       strokeWidth={2.5}
                       dot={{ r: 4, fill: "#ffffff", stroke: "#059669", strokeWidth: 2 }}
@@ -524,6 +587,7 @@ export default function MarketingDashboard() {
                     />
                   </ComposedChart>
                 </ResponsiveContainer>
+                )}
               </div>
             </aside>
           </div>
