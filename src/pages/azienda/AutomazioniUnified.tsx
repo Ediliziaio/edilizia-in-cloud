@@ -18,6 +18,7 @@ import { AutomationFlowsList } from "@/components/marketing/automations/Automati
 import { AutomationOverviewStats } from "@/components/marketing/automations/AutomationOverviewStats";
 import { AutomazioniTemplateGallery } from "@/components/automazioni/AutomazioniTemplateGallery";
 import { BulkScheduleWizard } from "@/components/automazioni/BulkScheduleWizard";
+import { CreaAutomazioneAIDialog } from "@/components/automazioni/CreaAutomazioneAIDialog";
 import { CalendarClock } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -49,6 +50,7 @@ export default function AutomazioniUnified() {
   const [vistaTemplates, setVistaTemplates] = useState(false);
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [bulkScheduleWizardOpen, setBulkScheduleWizardOpen] = useState(false);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
 
   const createFolderMutation = useMutation({
     mutationFn: async (name: string) => {
@@ -102,7 +104,7 @@ export default function AutomazioniUnified() {
               <FolderPlus className="w-4 h-4 mr-1.5" />
               Crea Cartella
             </Button>
-            <Button variant="outline" className="border-orange-200 bg-white/80 text-orange-700 hover:bg-orange-50" onClick={() => navigate(`${routePrefix}/automazioni/nuova?panel=ai`)}>
+            <Button variant="outline" className="border-orange-200 bg-white/80 text-orange-700 hover:bg-orange-50" onClick={() => setAiDialogOpen(true)} disabled={!effectiveCompany?.id}>
               <Sparkles className="w-4 h-4 mr-1.5" />
               Crea tramite AI
             </Button>
@@ -197,6 +199,11 @@ export default function AutomazioniUnified() {
       <BulkScheduleWizard
         open={bulkScheduleWizardOpen}
         onClose={() => setBulkScheduleWizardOpen(false)}
+      />
+
+      <CreaAutomazioneAIDialog
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
       />
     </div>
   );

@@ -113,8 +113,8 @@ export function FlowBuilderSidebar({ activePanel, onPanelChange, flowId, errors 
                   <li>Esegui un test su un contatto reale di prova.</li>
                 </ol>
               </div>
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                La generazione automatica completa via AI non è ancora collegata a un endpoint dedicato. Il pulsante “Crea tramite AI” apre questo pannello guidato senza promettere una funzione inesistente.
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+                Per generare un intero flusso da una descrizione, usa il pulsante “Crea tramite AI” nella lista automazioni: l’AI prepara una bozza completa che poi rifinisci qui.
               </div>
             </div>
           )}
