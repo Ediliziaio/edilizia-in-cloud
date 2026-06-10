@@ -1376,8 +1376,10 @@ function CashflowSvg({ years, primary, breakEvenColor = "#15803D" }: {
       {yTicks.map((v, i) => (
         <G key={`yt-${i}`}>
           <Path d={`M ${padL - 3} ${yOf(v)} L ${padL} ${yOf(v)}`} stroke="#94A3B8" strokeWidth={0.5} />
+          {/* Stringa UNICA: il Text dentro <Svg> con children misti
+              (stringa+numero) renderizzava glifi rotti ("€ θ k") */}
           <Text x={padL - 6} y={yOf(v) + 3} fill="#64748B" style={{ fontSize: 7, textAnchor: "end" } as never}>
-            € {Math.round(v / 1000)}k
+            {`€ ${Math.round(v / 1000)}k`}
           </Text>
         </G>
       ))}
@@ -2784,7 +2786,9 @@ export function SerramentoPDF({
                 <Text style={styles.priceLabel}>Totale preventivo</Text>
                 <Text style={styles.priceValueCompact}>
                   € {fmtEuro(totaleDocumento, 2)}
-                  <Text style={styles.priceSuffix}>{p.iva_inclusa ? "IVA inclusa" : "IVA esclusa"}</Text>
+                  {/* Spazio esplicito: i Text annidati in react-pdf vengono
+                      concatenati senza separatore → usciva "€1554,19IVA inclusa" */}
+                  <Text style={styles.priceSuffix}>{"  "}{p.iva_inclusa ? "IVA inclusa" : "IVA esclusa"}</Text>
                 </Text>
                 <Text style={{ fontSize: 9, color: C.primary, marginTop: 4 }}>
                   Imponibile € {fmtEuro(totaleImponibile, 2)} · IVA € {fmtEuro(totaleIva, 2)}
@@ -3563,7 +3567,8 @@ export function SerramentoPDF({
                     <Text style={[styles.tableHeaderText, { color: C.primary }]}>Nuovo</Text>
                   </View>
                   <View style={{ flex: 0.7, alignItems: "flex-end" }}>
-                    <Text style={[styles.tableHeaderText, { color: C.successText }]}>Δ</Text>
+                    {/* "Δ" non esiste in Helvetica WinAnsi (usciva «"») */}
+                    <Text style={[styles.tableHeaderText, { color: C.successText }]}>Miglioria</Text>
                   </View>
                 </View>
                 {confrontoRighe.map((r, i) => (
