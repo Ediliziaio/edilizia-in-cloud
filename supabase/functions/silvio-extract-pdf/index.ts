@@ -28,6 +28,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
+import { arrayBufferToBase64 } from "../_shared/base64.ts";
 // pdfjs-dist legacy entry-point — funziona in ambienti senza Worker (Deno edge)
 // `?bundle&no-check` evita di tirare dentro `canvas.node` (binding nativo che
 // rompeva il deploy: "Module not found canvas.node?target=denonext")
@@ -179,8 +180,14 @@ Deno.serve(async (req: Request) => {
                   text: "Estrai tutto il testo da questo documento PDF scansionato. Riporta una pagina alla volta.",
                 },
                 {
-                  type: "image_url",
-                  image_url: { url: signed.signedUrl, detail: "high" },
+                  // PDF nativo (type:file): i modelli vision NON leggono un PDF
+                  // passato come image_url-URL → prima OCR vuoto silenzioso sui
+                  // PDF scansionati. Inviamo i byte del PDF in base64.
+                  type: "file",
+                  file: {
+                    filename: "documento.pdf",
+                    file_data: `data:application/pdf;base64,${arrayBufferToBase64(arrayBuffer)}`,
+                  },
                 },
               ],
             },

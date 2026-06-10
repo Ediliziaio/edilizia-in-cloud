@@ -162,7 +162,8 @@ async function callOpenAIChunk(
           role: "user",
           content: [
             { type: "text", text: userTextParts.join("\n") },
-            { type: "image_url", image_url: { url: `data:application/pdf;base64,${pdfBase64}`, detail: "high" } },
+            // PDF nativo (type:file): image_url non legge i PDF in modo affidabile.
+            { type: "file", file: { filename: "tabella.pdf", file_data: `data:application/pdf;base64,${pdfBase64}` } },
           ] as any,
         },
       ],

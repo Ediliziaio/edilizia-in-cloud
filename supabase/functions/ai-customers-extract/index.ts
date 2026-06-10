@@ -150,13 +150,20 @@ async function callOpenAI(
 
         content: [
           { type: "text", text: userText },
-          {
-            type: "image_url",
-            image_url: {
-              url: `data:${contentType};base64,${fileBase64}`,
-              detail: "high",
-            },
-          },
+          // PDF → formato nativo type:file (image_url non legge i PDF in modo
+          // affidabile). Immagini (biz card/foto) → image_url come prima.
+          contentType === "application/pdf"
+            ? {
+                type: "file",
+                file: {
+                  filename: "documento.pdf",
+                  file_data: `data:application/pdf;base64,${fileBase64}`,
+                },
+              }
+            : {
+                type: "image_url",
+                image_url: { url: `data:${contentType};base64,${fileBase64}`, detail: "high" },
+              },
         ] as any,
       },
     ],

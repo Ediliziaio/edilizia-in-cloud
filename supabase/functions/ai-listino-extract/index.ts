@@ -113,10 +113,13 @@ async function callOpenAI(
       content: [
         { type: "text", text: userPrompt },
         {
-          type: "image_url",
-          image_url: {
-            url: `data:application/pdf;base64,${pdfBase64}`,
-            detail: "high",
+          // PDF nativo (formato OpenRouter type:file). Inviarlo come image_url
+          // non è affidabile e i modelli text-only non lo leggono affatto →
+          // prima output vuoto/spazzatura sui listini PDF.
+          type: "file",
+          file: {
+            filename: "listino.pdf",
+            file_data: `data:application/pdf;base64,${pdfBase64}`,
           },
         },
       ],
