@@ -1,6 +1,9 @@
 /**
  * MP-CHAN-01 — Telegram Bot Processor
  *
+ * Deploy 2026-06-10: token-opt (TOOL_CONTRACT_LEGEND nel system, description
+ * tool compatte da silvioTools).
+ *
  * Webhook entrypoint per il bot Telegram aziendale. Riusa il registry
  * centrale silvioTools.ts (channel='telegram') e il loop tool calling
  * pattern di silvio-chat / ai-orchestrator.

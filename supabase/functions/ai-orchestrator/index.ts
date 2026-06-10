@@ -1,6 +1,9 @@
 /**
  * Edge Function: ai-orchestrator
  *
+ * Deploy 2026-06-10: token-opt (TOOL_CONTRACT_LEGEND nel system, description
+ * tool compatte da silvioTools).
+ *
  * Entry point per chat con le 18 personas AI.
  *
  * Flow:

@@ -1,6 +1,10 @@
 /**
  * Edge Function: silvio-chat
  *
+ * Deploy 2026-06-10: token-opt attivo (tool filtrati per dominio via
+ * classifyQuery + contratti compatti + prompt cache a prefisso statico).
+ * Kill-switch: SILVIO_TOOL_DOMAIN_FILTER_DISABLED / AI_PROMPT_CACHE_DISABLED.
+ *
  * Bridge Internal Chat (Chat Team) ↔ Silvio (meta-persona orchestrator AI).
  * Supporta TOOL CALLING: Silvio invoca tool RPC su dati reali aziendali
  * (commesse, fatture, cashflow, preventivi, clienti) via OpenRouter
