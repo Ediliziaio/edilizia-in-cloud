@@ -308,18 +308,14 @@ export function MobileBottomNav() {
           }
 
           if (slot.type === "silvio") {
+            // Il punch button porta DIRETTAMENTE alla pagina Silvio AI
+            // (richiesta utente): niente più sheet chat via evento.
             return (
-              <button
+              <Link
                 key="silvio"
+                to="/azienda/silvio-ai"
                 className="flex-1 flex flex-col items-center justify-end gap-1 relative min-w-0 pb-1"
-                onClick={() => {
-                  // Flag per il caso "FAB non ancora montato" (mount differito): SilvioFAB
-                  // lo legge al mount e apre comunque la chat — nessun tap perso.
-                  (window as unknown as { __silvioOpenPending?: boolean }).__silvioOpenPending = true;
-                  window.dispatchEvent(new Event("silvio:open-chat"));
-                }}
-                aria-label="Apri chat con Silvio"
-                type="button"
+                aria-label="Apri Silvio AI"
               >
                 {/* Punch button: tondo, gradient arancione, leggermente sollevato */}
                 <div className="-mt-4 h-12 w-12 rounded-full bg-gradient-to-br from-orange-500 to-amber-400 text-white flex items-center justify-center shadow-lg shadow-orange-300/50 ring-4 ring-background active:scale-95 transition-transform">
@@ -328,7 +324,7 @@ export function MobileBottomNav() {
                 <span className="text-[10px] leading-none font-semibold text-orange-600">
                   Silvio
                 </span>
-              </button>
+              </Link>
             );
           }
 
