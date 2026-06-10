@@ -255,7 +255,11 @@ async function loadConfig(supabase: SupabaseClient, taskKey: string): Promise<Ro
     return {
       task_key: taskKey,
       primary_model: "openai/gpt-4o-mini",
-      fallback_models: ["openrouter/auto"],
+      // Audit AI 2026-06: era ["openrouter/auto"] — delega la scelta a
+      // OpenRouter che può selezionare modelli premium (costo imprevedibile,
+      // 10-40x i tier economici). Catena deterministica e cheap, allineata
+      // alla migration 20260610180000.
+      fallback_models: ["meta-llama/llama-3.3-70b-instruct", "anthropic/claude-haiku-4.5"],
       default_params: { temperature: 0.3, max_tokens: 2000 },
       tier_key: "t2_vision",
       is_default: true,
@@ -1084,6 +1088,13 @@ export async function aiRouterComplete(
       );
       if (isDemo) {
         console.warn(`[aiRouter][AI-TEST-LAB] modello richiesto fallito: ${model} | errore: ${errMsg.slice(0, 300)}`);
+      }
+      // Backoff con jitter prima del fallback, SOLO su errori transitori
+      // (rate-limit/overload/timeout): senza pausa il modello successivo —
+      // spesso sullo stesso provider via OpenRouter — incassava lo stesso
+      // rate-limit a catena. Errori "di modello" (4xx, schema) non aspettano.
+      if (i < modelsToTry.length - 1 && /rate|overload|temporar|timeout|unavailable|429|5\d\d/i.test(errMsg)) {
+        await new Promise((r) => setTimeout(r, 350 * (i + 1) + Math.floor(Math.random() * 300)));
       }
       // Continua con il prossimo fallback
     }
