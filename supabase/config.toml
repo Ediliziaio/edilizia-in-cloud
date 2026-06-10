@@ -173,6 +173,12 @@ verify_jwt = false
 [functions.process-email-outbox]
 verify_jwt = false
 
+# Alert soglie spesa AI: pg_cron la chiama ogni 30' con solo x-cron-secret
+# (nessun JWT). Senza verify_jwt=false il gateway respingeva la chiamata con
+# 401 → gli alert email sul superamento budget non partivano mai.
+[functions.check-ai-usage-alerts]
+verify_jwt = false
+
 [functions.check-scheduled-triggers]
 verify_jwt = false
 
