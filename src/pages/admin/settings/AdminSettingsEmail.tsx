@@ -46,6 +46,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { EmailTestPanel } from "@/components/admin/settings/EmailTestPanel";
+import { AdminTransactionalLogPanel } from "@/components/admin/AdminTransactionalLogPanel";
 
 // Lazy import dei sub-component pesanti.
 // NOTA: i nomi dei tab e i sub-component sono invariati rispetto alla versione
@@ -332,9 +333,15 @@ export default function AdminSettingsEmail() {
                   una sola volta (preserva stato interno tra cambi tab). */}
               <div role="tabpanel" aria-label={activeDef.label}>
                 {activeTab === "settings" && isMounted("settings") && (
-                  <Suspense fallback={<Skeleton className="h-[400px]" />}>
-                    <EmailSettingsTab />
-                  </Suspense>
+                  <div className="space-y-4">
+                    <Suspense fallback={<Skeleton className="h-[400px]" />}>
+                      <EmailSettingsTab />
+                    </Suspense>
+                    {/* Log invii transazionali reali (email_delivery_log):
+                        sta qui accanto alla configurazione del provider, NON
+                        in /admin/email che è il client di posta personale. */}
+                    <AdminTransactionalLogPanel />
+                  </div>
                 )}
                 {activeTab === "templates" && isMounted("templates") && (
                   <Suspense fallback={<Skeleton className="h-[500px]" />}>
