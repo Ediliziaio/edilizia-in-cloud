@@ -365,21 +365,6 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
     requestAnimationFrame(() => draftTextareaRef.current?.focus());
   }, [draftTextareaRef, open, prefillDraft]);
 
-  // F4 — Daily auto-brief: quando il canale si carica per la prima volta oggi,
-  // invia automaticamente "Cosa conta ora?" senza che l'utente debba cliccare.
-  // Deduplica via localStorage (una sola volta per company per giornata).
-  useEffect(() => {
-    if (!open || !channelId || loadingChannel || mode !== "azienda" || !companyId) return;
-    const briefKey = `silvio_brief_${companyId}`;
-    const todayStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD UTC
-    if (localStorage.getItem(briefKey) === todayStr) return;
-    localStorage.setItem(briefKey, todayStr);
-    setDraft("Cosa conta ora?");
-    setAutoSendPending(true);
-  // channelId cambia solo se la company cambia — stabile durante la sessione
-   
-  }, [open, channelId, loadingChannel, mode, companyId]);
-
   // F4 — Trigger effettivo invio quando draft è sincronizzato allo stato
   useEffect(() => {
     if (!autoSendPending || !draft.trim() || sending) return;
@@ -457,6 +442,25 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
     enabled: !!companyId && !!userId && open,
     staleTime: 60_000,
   });
+
+  // F4 — Daily auto-brief: quando il canale si carica per la prima volta oggi,
+  // invia automaticamente "Cosa conta ora?" senza che l'utente debba cliccare.
+  // Deduplica via localStorage (una sola volta per company per giornata).
+  // NB: DEVE stare DOPO la dichiarazione di channelId qui sopra — prima era più
+  // in alto e le deps dell'effect leggevano `channelId` in TDZ → ReferenceError
+  // "Cannot access 'channelId' before initialization": OGNI apertura della chat
+  // Silvio buttava giù l'area azienda con la pagina di errore.
+  useEffect(() => {
+    if (!open || !channelId || loadingChannel || mode !== "azienda" || !companyId) return;
+    const briefKey = `silvio_brief_${companyId}`;
+    const todayStr = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD locale (no shift UTC notturno)
+    if (localStorage.getItem(briefKey) === todayStr) return;
+    localStorage.setItem(briefKey, todayStr);
+    setDraft("Cosa conta ora?");
+    setAutoSendPending(true);
+  // channelId cambia solo se la company cambia — stabile durante la sessione
+
+  }, [open, channelId, loadingChannel, mode, companyId]);
 
   // ── 2. Carica gli ULTIMI N messaggi (Element 4 Sprint AI Uploads:
   //       Supabase Realtime invece di polling — risparmio batteria mobile
