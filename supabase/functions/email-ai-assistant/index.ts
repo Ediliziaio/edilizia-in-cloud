@@ -20,6 +20,7 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
+import { chargeDirectAiCall } from "../_shared/directAiLedger.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -149,6 +150,11 @@ interface CallClaudeOptions {
   jsonMode?: boolean;
   maxTokens?: number;
   temperature?: number;
+  // Se presente, registra la chiamata nel ledger centrale ai_call_ledger
+  // (audit AI 2026-06: prima questa funzione spendeva su OpenRouter senza
+  // tracciamento costi). Best-effort: un errore di charge non blocca.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ledger?: { supabase: any; companyId: string | null; userId: string | null };
 }
 
 async function callClaude(
@@ -191,7 +197,33 @@ async function callClaude(
     const err = await res.text();
     throw new Error(`openrouter_${res.status}: ${err.slice(0, 300)}`);
   }
-  const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const json = await res.json() as {
+    choices?: Array<{ message?: { content?: string } }>;
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
+  };
+
+  // Registra nel ledger centrale (best-effort). Haiku 4.5: $1/1M in, $5/1M out.
+  if (options.ledger?.companyId) {
+    try {
+      const tokIn = json.usage?.prompt_tokens ?? 0;
+      const tokOut = json.usage?.completion_tokens ?? 0;
+      await chargeDirectAiCall({
+        supabase: options.ledger.supabase,
+        idempotencyKey: `email-ai-assistant:${crypto.randomUUID()}`,
+        companyId: options.ledger.companyId,
+        userId: options.ledger.userId,
+        taskKey: "email_ai_assistant",
+        tierKey: "t3_balanced",
+        modelUsed: MODEL_ID,
+        tokensIn: tokIn,
+        tokensOut: tokOut,
+        costRealUsd: (tokIn / 1_000_000) * 1.0 + (tokOut / 1_000_000) * 5.0,
+      });
+    } catch (e) {
+      console.warn("[email-ai-assistant] ledger charge skipped:", e instanceof Error ? e.message : String(e));
+    }
+  }
+
   return json.choices?.[0]?.message?.content ?? "";
 }
 
@@ -905,6 +937,12 @@ Deno.serve(async (req) => {
 
   const threadText = formatThread(messages as ThreadMessage[]);
   const language = body.language ?? "italiano";
+  // Contesto per il tracking costi nel ledger centrale (audit AI 2026-06).
+  const ledgerCtx = {
+    supabase,
+    companyId: (thread as { company_id?: string | null }).company_id ?? body.company_id ?? null,
+    userId,
+  };
 
   try {
     if (body.action === "summary") {
@@ -916,7 +954,7 @@ Rispondi SOLO JSON valido (no markdown, no testo extra):
 
 Lingua: ${language}. Conciso, asciutto, focus operativo.`;
       const userPrompt = `Thread email:\n\n${threadText}`;
-      const raw = await callClaude(sys, userPrompt, { jsonMode: true, maxTokens: 350, temperature: 0.3 });
+      const raw = await callClaude(sys, userPrompt, { jsonMode: true, maxTokens: 350, temperature: 0.3, ledger: ledgerCtx });
       const parsed = safeJsonParse<{ summary?: string; action_items?: string[] }>(raw);
       return jsonRes({
         ok: true,
@@ -933,6 +971,7 @@ Lingua: ${language}. Conciso, asciutto, focus operativo.`;
         jsonMode: true,
         maxTokens: 900,
         temperature: 0.2,
+        ledger: ledgerCtx,
       });
       const analysis = parseAnalysis(raw);
       const latestMessage = (messages as ThreadMessage[])[(messages as ThreadMessage[]).length - 1];
@@ -998,7 +1037,7 @@ Regole:
 Rispondi SOLO JSON valido (no markdown):
 {"suggestions":[{"tone":"conferma","label":"...","body":"..."},{"tone":"domanda","label":"...","body":"..."},{"tone":"rilancio","label":"...","body":"..."}]}`;
     const userPrompt = `Thread email (ultimo messaggio = più recente):\n\n${threadText}`;
-    const raw = await callClaude(sys, userPrompt, { jsonMode: true, maxTokens: 700, temperature: 0.5 });
+    const raw = await callClaude(sys, userPrompt, { jsonMode: true, maxTokens: 700, temperature: 0.5, ledger: ledgerCtx });
     const parsed = safeJsonParse<{ suggestions?: Array<{ tone: string; label: string; body: string }> }>(raw);
     return jsonRes({
       ok: true,

@@ -19,6 +19,39 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import {
   validaPiano, matchDeterministico, serveSonnet, stimaCostoToken, type Piano,
 } from "../_shared/silvio-orchestratore-logic.ts";
+import { chargeDirectAiCall } from "../_shared/directAiLedger.ts";
+
+// Costo reale USD per modello (listino 2026), per registrare nel ledger
+// centrale ai_call_ledger oltre al budget Silvio già contato (silvio_budget_consuma).
+const MODEL_COST_USD: Record<string, { in: number; out: number; tier: string }> = {
+  "claude-haiku-4-5": { in: 1.0, out: 5.0, tier: "t3_balanced" },
+  "claude-sonnet-4-5": { in: 3.0, out: 15.0, tier: "t4_premium" },
+};
+
+// Registra una chiamata Anthropic nel ledger centrale (best-effort: un errore
+// di charge non deve negare il risultato già prodotto).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function ledgerCharge(supa: any, companyId: string, userId: string | null, model: string, tokenIn: number, tokenOut: number) {
+  const c = MODEL_COST_USD[model];
+  if (!c || !companyId) return;
+  try {
+    await chargeDirectAiCall({
+      supabase: supa,
+      idempotencyKey: `silvio-orch:${crypto.randomUUID()}`,
+      companyId,
+      userId,
+      taskKey: "silvio_orchestratore",
+      tierKey: c.tier,
+      modelUsed: model,
+      personaKey: "silvio",
+      tokensIn: tokenIn,
+      tokensOut: tokenOut,
+      costRealUsd: (tokenIn / 1_000_000) * c.in + (tokenOut / 1_000_000) * c.out,
+    });
+  } catch (e) {
+    console.warn("[silvio-orchestratore] ledger charge skipped:", e instanceof Error ? e.message : String(e));
+  }
+}
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -162,11 +195,13 @@ Se non sei sicuro o serve giudizio, metti serve_ragionamento=true. Non inventare
         const r = await callAnthropic(HAIKU, sys, richiesta, body.contesto);
         tokenIn += r.tokenIn; tokenOut += r.tokenOut;
         piano = r.piano;
+        await ledgerCharge(supa, companyId, userId, HAIKU, r.tokenIn, r.tokenOut);
         if (piano && serveSonnet(piano)) {
           gradino = 2;
           const r2 = await callAnthropic(SONNET, sys, richiesta, body.contesto);
           tokenIn += r2.tokenIn; tokenOut += r2.tokenOut;
           if (r2.piano) piano = r2.piano;
+          await ledgerCharge(supa, companyId, userId, SONNET, r2.tokenIn, r2.tokenOut);
         }
       }
     }
