@@ -1425,18 +1425,24 @@ function Step2Immobile({
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
 }) {
   const [geoLoading, setGeoLoading] = useState(false);
+  // Ultimo indirizzo geocodificato con successo — evita richieste duplicate
+  // quando il blur scatta senza che l'utente abbia cambiato il testo.
+  const lastGeocodedRef = useRef<string>("");
 
   // Geocoding indirizzo→coordinate (edge fv-geocode). Se non configurato,
   // l'utente resta sull'inserimento manuale (fallback graceful).
-  const cercaCoordinate = async () => {
+  // silent=true: invocato in automatico al blur del campo indirizzo —
+  // niente toast d'errore per non disturbare mentre si compila.
+  const cercaCoordinate = async (silent = false) => {
     const indirizzo = [data.indirizzo, data.comune, data.provincia, data.cap]
       .filter(Boolean)
       .join(", ")
       .trim();
     if (indirizzo.length < 4) {
-      toast.error("Inserisci prima l'indirizzo");
+      if (!silent) toast.error("Inserisci prima l'indirizzo");
       return;
     }
+    if (silent && indirizzo === lastGeocodedRef.current) return;
     setGeoLoading(true);
     try {
       const { data: r, error } = await supabase.functions.invoke("fv-geocode", {
@@ -1445,22 +1451,42 @@ function Step2Immobile({
       if (error) throw error;
       const res = r as {
         lat?: number; lng?: number; comune?: string | null;
-        provincia?: string | null; cap?: string | null; in_italia?: boolean;
+        provincia?: string | null; cap?: string | null;
+        regione?: string | null; in_italia?: boolean;
       };
       if (res?.lat == null || res?.lng == null) {
-        toast.error("Indirizzo non trovato. Inserisci lat/lng manualmente.");
+        if (!silent) toast.error("Indirizzo non trovato. Inserisci lat/lng manualmente.");
         return;
       }
+      lastGeocodedRef.current = indirizzo;
       update("latitudine", Math.round(res.lat * 1e6) / 1e6);
       update("longitudine", Math.round(res.lng * 1e6) / 1e6);
-      if (res.comune && !data.comune) update("comune", res.comune);
-      if (res.provincia && !data.provincia) update("provincia", res.provincia);
-      if (res.cap && !data.cap) update("cap", res.cap);
-      toast.success(`Coordinate trovate: ${res.lat.toFixed(5)}, ${res.lng.toFixed(5)}`);
+      // La risposta del geocoder è autorevole: compila sempre i campi che
+      // restituisce (l'utente può comunque correggerli a mano dopo).
+      if (res.comune) update("comune", res.comune);
+      if (res.provincia) update("provincia", res.provincia);
+      if (res.cap) update("cap", res.cap);
+      if (res.regione) update("regione", res.regione);
+      toast.success(
+        res.comune
+          ? `Trovato: ${res.comune}${res.provincia ? ` (${res.provincia})` : ""} — coordinate impostate`
+          : `Coordinate trovate: ${res.lat.toFixed(5)}, ${res.lng.toFixed(5)}`,
+      );
     } catch (e) {
-      toast.error(`Geocoding non disponibile (${describeError(e)}). Inserisci lat/lng a mano.`);
+      if (!silent) {
+        toast.error(`Geocoding non disponibile (${describeError(e)}). Inserisci lat/lng a mano.`);
+      }
     } finally {
       setGeoLoading(false);
+    }
+  };
+
+  // Auto-geocoding al blur del campo indirizzo: i campi comune/prov/CAP/
+  // coordinate si compilano da soli senza dover cliccare il bottone.
+  const handleIndirizzoBlur = () => {
+    if (geoLoading) return;
+    if ((data.indirizzo ?? "").trim().length >= 8) {
+      void cercaCoordinate(true);
     }
   };
 
@@ -1486,12 +1512,16 @@ function Step2Immobile({
               placeholder="Via Roma 12, 20100 Milano (MI)"
               value={data.indirizzo}
               onChange={(e) => update("indirizzo", e.target.value)}
+              onBlur={handleIndirizzoBlur}
               autoComplete="street-address"
             />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Comune, provincia, CAP e coordinate si compilano da soli appena esci dal campo.
+            </p>
           </div>
           <button
             type="button"
-            onClick={cercaCoordinate}
+            onClick={() => cercaCoordinate()}
             disabled={geoLoading}
             className="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-60"
           >
