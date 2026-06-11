@@ -40,6 +40,7 @@ import {
 import { useState } from "react";
 import { ChiediASilvio } from "@/components/silvio/ChiediASilvio";
 import { CustomerProfileCard } from "@/components/clients/CustomerProfileCard";
+import DistanceFromBase from "@/components/customers/DistanceFromBase";
 import { CustomerActivityTimeline } from "@/components/clients/CustomerActivityTimeline";
 import { CustomerComposeBar } from "@/components/clients/CustomerComposeBar";
 const AppointmentDialog = lazy(() =>
@@ -689,6 +690,12 @@ export default function CompanyCustomerDetail() {
                   📍 {[customer.address, customer.city].filter(Boolean).join(" · ")}
                 </span>
               )}
+              <DistanceFromBase
+                address={customer.address}
+                city={customer.city}
+                province={customer.province}
+                className="text-[11px]"
+              />
             </div>
           </div>
 

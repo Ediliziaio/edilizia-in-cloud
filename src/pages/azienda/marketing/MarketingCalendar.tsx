@@ -55,6 +55,8 @@ import MarketingCalendarWeekView from "@/components/marketing/MarketingCalendarW
 import MarketingCalendarDayView from "@/components/marketing/MarketingCalendarDayView";
 import type { TravelLeg } from "@/types/marketingCalendar";
 import { timeToMin, addMinutesToTimeStr } from "@/lib/marketingCalendarConstants";
+import { getRoute, formatDurationText, formatDistanceText } from "@/lib/routing";
+import { useCompanyBase } from "@/hooks/useCompanyBase";
 import MarketingCalendarMonthView from "@/components/marketing/MarketingCalendarMonthView";
 import MarketingCalendarFilters from "@/components/marketing/MarketingCalendarFilters";
 import MarketingAppointmentsList from "@/components/marketing/MarketingAppointmentsList";
@@ -416,7 +418,8 @@ export default function MarketingCalendar() {
     return Math.min(...durations);
   }, [calendars, selectedCalendarIds]);
 
-  // Get base waypoint from selected calendar
+  // Get base waypoint from selected calendar; fallback: sede operativa azienda
+  const companyBase = useCompanyBase();
   const baseCalendarWaypoint = useMemo(() => {
     if (selectedCalendarIds.length === 1) {
       const cal = calendars.find((c: any) => c.id === selectedCalendarIds[0]);
@@ -424,8 +427,8 @@ export default function MarketingCalendar() {
         return { lat: (cal as any).base_lat, lng: (cal as any).base_lng };
       }
     }
-    return null;
-  }, [selectedCalendarIds, calendars]);
+    return companyBase;
+  }, [selectedCalendarIds, calendars, companyBase]);
 
   // ── Helper: get appointments with coords for a specific date ──
   const getApptsWithCoordsForDate = useCallback((targetDate: Date) => {
@@ -441,41 +444,42 @@ export default function MarketingCalendar() {
   }, [filteredAppointments]);
 
   // ── Compute travel legs for a given date ──
+  // 2026-06-11: passato da maps-proxy (Google Directions — chiave mai
+  // configurata, tornava sempre []) a getRoute() → HERE con traffico reale
+  // e fallback OSRM. I legs HERE sono per-tratta nello stesso ordine.
   const computeTravelLegsForDate = useCallback(async (aptsWithCoords: any[]): Promise<TravelLeg[]> => {
     const waypoints: { lat: number; lng: number }[] = [];
     if (baseCalendarWaypoint) waypoints.push(baseCalendarWaypoint);
     waypoints.push(...aptsWithCoords.map((a: any) => ({ lat: a.lat, lng: a.lng })));
     if (waypoints.length < 2) return [];
     try {
-      const { data, error } = await supabase.functions.invoke("maps-proxy", {
-        body: { action: "directions", waypoints },
-      });
-      if (error || !data?.legs) return [];
+      const route = await getRoute(waypoints);
+      if (!route?.legs?.length) return [];
       const offset = baseCalendarWaypoint ? 1 : 0;
-      return data.legs.map((leg: any, i: number) => {
+      return route.legs.map((leg, i: number) => {
         const fromIdx = i - offset;
         const toIdx = i - offset + 1;
         if (fromIdx < -1 || toIdx >= aptsWithCoords.length) return null;
         const fromApt = fromIdx >= 0 ? aptsWithCoords[fromIdx] as any : null;
         const toApt = aptsWithCoords[toIdx] as any;
         if (!toApt) return null;
-      const fromEnd = fromApt ? (fromApt.appointment_end_time?.slice(0, 5) || addMinutesToTimeStr(fromApt.appointment_time?.slice(0, 5) || "09:00", 60)) : "08:00";
-        const travelMin = Math.ceil(leg.duration_s / 60);
+        const fromEnd = fromApt ? (fromApt.appointment_end_time?.slice(0, 5) || addMinutesToTimeStr(fromApt.appointment_time?.slice(0, 5) || "09:00", 60)) : "08:00";
+        const travelMin = Math.ceil(leg.durationSec / 60);
         const arrivalMin = timeToMin(fromEnd) + travelMin;
         const toStart = timeToMin(toApt.appointment_time?.slice(0, 5) || "09:00");
         const isLate = arrivalMin > toStart;
         const delayMinutes = isLate ? arrivalMin - toStart : 0;
         return {
-          duration_s: leg.duration_s,
-          distance_m: leg.distance_m,
-          duration_text: leg.duration_text,
-          distance_text: leg.distance_text,
+          duration_s: Math.round(leg.durationSec),
+          distance_m: Math.round(leg.distanceMeters),
+          duration_text: formatDurationText(leg.durationSec),
+          distance_text: formatDistanceText(leg.distanceMeters),
           fromId: fromApt?.id || "base",
           toId: toApt.id,
           isLate,
           delayMinutes,
         } as TravelLeg;
-      }).filter(Boolean);
+      }).filter(Boolean) as TravelLeg[];
     } catch {
       return [];
     }

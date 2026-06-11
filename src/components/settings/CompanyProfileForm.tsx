@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Loader2, Save, Building2, FileText, Phone, MapPin, StickyNote } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { forwardGeocode } from "@/lib/geocoding";
 import { toast } from "sonner";
 import { logger } from "@/utils/logger";
 import { Button } from "@/components/ui/button";
@@ -90,6 +91,22 @@ export function CompanyProfileForm() {
 
     setIsSaving(true);
     try {
+      // Geocodifica la sede operativa: alimenta operational_lat/lng usate dai
+      // travel legs dei calendari e dal badge distanza in scheda cliente.
+      // Best-effort: se il geocoding fallisce si salva comunque senza coordinate.
+      let operationalCoords: { lat: number; lng: number } | null = null;
+      const opAddressFull = [
+        operationalAddress.trim(),
+        operationalPostalCode.trim(),
+        operationalCity.trim(),
+        operationalProvince.trim(),
+      ].filter(Boolean).join(", ");
+      if (opAddressFull) {
+        try {
+          operationalCoords = await forwardGeocode(opAddressFull);
+        } catch { /* best-effort */ }
+      }
+
       const { error } = await supabase
         .from("companies")
         .update({
@@ -108,6 +125,9 @@ export function CompanyProfileForm() {
           operational_city: operationalCity.trim() || null,
           operational_province: operationalProvince.trim() || null,
           operational_postal_code: operationalPostalCode.trim() || null,
+          ...(operationalCoords
+            ? { operational_lat: operationalCoords.lat, operational_lng: operationalCoords.lng }
+            : {}),
           notes: notes.trim() || null,
         })
         .eq("id", company.id);

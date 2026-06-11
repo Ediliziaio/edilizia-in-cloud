@@ -91,6 +91,19 @@ function formatDuration(seconds: number): string {
   return m > 0 ? `${h} or${h > 1 ? "e" : "a"} ${m} min` : `${h} or${h > 1 ? "e" : "a"}`;
 }
 
+/** Formato compatto per badge UI, es. "12 min" / "1h 5m" */
+export function formatDurationText(seconds: number): string {
+  const minutes = seconds / 60;
+  if (minutes < 60) return `${Math.max(1, Math.round(minutes))} min`;
+  return `${Math.floor(minutes / 60)}h ${Math.round(minutes % 60)}m`;
+}
+
+/** Formato compatto per badge UI, es. "850 m" / "5.2 km" */
+export function formatDistanceText(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+}
+
 // ── OSRM Route ────────────────────────────────────────────────────────────────
 const OSRM_BASE = "https://router.project-osrm.org";
 const OSRM_TIMEOUT_MS = 10_000;
