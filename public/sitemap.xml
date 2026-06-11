@@ -62,6 +62,14 @@
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/pianifica-migrazione/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/pianifica-migrazione/"/>
   </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/novita/</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/novita/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/novita/"/>
+  </url>
 
   <!-- ── Blog index ───────────────────────────────────────────── -->
   <url>
@@ -71,6 +79,34 @@
     <priority>0.8</priority>
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/blog/"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/miglior-gestionale-edilizia-guida-scelta/</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/miglior-gestionale-edilizia-guida-scelta/"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/quanto-costa-gestionale-impresa-edile/</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/quanto-costa-gestionale-impresa-edile/"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/patente-a-crediti-edilizia-guida/</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/patente-a-crediti-edilizia-guida/"/>
+  </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/durc-congruita-manodopera-soglie/</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/durc-congruita-manodopera-soglie/"/>
   </url>
 
   <!-- ── Blog category pages ────────────────────────────────────── -->

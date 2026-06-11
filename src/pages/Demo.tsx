@@ -571,6 +571,16 @@ export default function Demo() {
                     {submitting ? "Invio in corso..." : (renderContext?.submitLabel || "Richiedi la Demo Gratuita →")}
                   </button>
 
+                  <p className="text-center text-sm text-[#111111]/60 pt-1">
+                    Preferisci parlare subito con una persona?{" "}
+                    <a
+                      href="tel:+390287198520"
+                      className="font-bold text-[#F97415] hover:text-[#C94F06] whitespace-nowrap"
+                    >
+                      Chiama 02 87198520
+                    </a>
+                  </p>
+
                   <p className="text-center text-[#111111]/45 text-xs pt-1 leading-relaxed">
                     Titolare del trattamento: <strong>Domus Group S.r.l.</strong> — Via Aurelio Saffi 29, 20123 Milano.{" "}
                     Per esercitare i tuoi diritti (accesso, rettifica, cancellazione) scrivi a{" "}

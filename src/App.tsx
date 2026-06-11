@@ -1,4 +1,7 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+// Alias: tutti i lazy() delle route ritentano l'import con cache-bust se un
+// deploy invalida i chunk (vedi lazyWithRetry per la diagnosi completa).
+import { lazyWithRetry as lazy } from "@/lib/lazyWithRetry";
 import { trackPixel } from "@/lib/meta/fbcTracker";
 // Home is imported eagerly — it's the LCP page and must be in the critical JS bundle
 
@@ -89,9 +92,9 @@ const PageLoader = () => {
     >
       <div className="max-w-sm rounded-xl border bg-card p-6 shadow-sm">
         <Loader2 className="mx-auto h-7 w-7 animate-spin text-primary" />
-        <p className="mt-4 text-sm font-semibold text-foreground">Caricamento applicazione...</p>
+        <p className="mt-4 text-sm font-semibold text-foreground">Caricamento in corso…</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Sto preparando menu, permessi e pagina richiesta.
+          Un attimo, stiamo aprendo la pagina.
         </p>
         {slow && (
           <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
@@ -187,6 +190,7 @@ const CommercialistaEdilizia = lazy(() => import("@/pages/per/CommercialistaEdil
 const ReferralLanding  = lazy(() => import("@/pages/ReferralLanding"));
 const DiventaPartner   = lazy(() => import("@/pages/DiventaPartner"));
 const PianificaMigrazione = lazy(() => import("@/pages/PianificaMigrazione"));
+const Novita = lazy(() => import("@/pages/Novita"));
 const LandingAIImprenditoreEdile = lazy(() => import("@/app/landing/ai-imprenditore-edile/page"));
 const AiEdilizia = lazy(() => import("@/app/ai-edilizia/page"));
 const PartnerPayoutPreview = lazy(() => import("@/pages/partner/PartnerPayoutPreview"));
@@ -661,6 +665,7 @@ const App = () => (
               <Route path="/ref/:code" element={<ReferralLanding />} />
               <Route path="/diventa-partner" element={<DiventaPartner />} />
               <Route path="/pianifica-migrazione" element={<PianificaMigrazione />} />
+              <Route path="/novita" element={<Novita />} />
               <Route path="/landing/ai-imprenditore-edile" element={<LandingAIImprenditoreEdile />} />
               <Route path="/ai-edilizia" element={<AiEdilizia />} />
               <Route

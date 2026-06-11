@@ -339,7 +339,7 @@ export default function Funzionalita() {
                 </span>
               </header>
 
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {cat.items.map((f) => (
                   <FeatureCard key={f.slug} feature={f} />
                 ))}
@@ -367,7 +367,7 @@ export default function Funzionalita() {
                 </span>
               </header>
 
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {filteredCategories.renderItems.map((f) => (
                   <FeatureCard key={f.slug} feature={f} variant="render" />
                 ))}
@@ -511,7 +511,7 @@ function FeatureCard({
   return (
     <Link
       to={feature.slug}
-      className={`group relative flex flex-col gap-2 rounded-2xl border p-5 transition-all hover:-translate-y-0.5 hover:shadow-md ${
+      className={`group relative flex flex-col gap-2 rounded-2xl border p-4 md:p-5 transition-all hover:-translate-y-0.5 hover:shadow-md ${
         isRender
           ? "border-[#F97415]/25 bg-white hover:border-[#F97415]"
           : "border-gray-200 bg-white hover:border-[#F97415]/50"

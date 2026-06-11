@@ -465,12 +465,20 @@ export default function Prezzi() {
                   <span key={i} className="text-white/70 font-medium">{item}</span>
                 ))}
               </div>
-              <Link
-                to="/demo/"
-                className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
-              >
-                Inizia la prova gratuita <ArrowRight className="w-5 h-5" />
-              </Link>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Link
+                  to="/demo/"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl bg-[#F97415] text-white font-bold text-lg hover:bg-[#e8650e] hover:scale-105 transition-all shadow-lg shadow-[#F97415]/30"
+                >
+                  Inizia la prova gratuita <ArrowRight className="w-5 h-5" />
+                </Link>
+                <a
+                  href="#piani"
+                  className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl border border-white/20 text-white/90 font-semibold hover:border-white/40 hover:bg-white/5 transition-all"
+                >
+                  Vai ai piani e prezzi ↓
+                </a>
+              </div>
               <p className="text-white/30 text-xs mt-4">Dopo i 31 giorni scegli il piano o cancelli — nessun addebito automatico</p>
             </div>
           </div>
@@ -524,8 +532,8 @@ export default function Prezzi() {
                     },
                     {
                       label: "Edilizia in Cloud",
-                      value: "da 0€/mese",
-                      note: "Un unico flusso operativo",
+                      value: "~0€ netti",
+                      note: "Il canone si ripaga col risparmio: un unico flusso operativo",
                       tone: "emerald",
                     },
                   ].map((row) => (
@@ -597,7 +605,7 @@ export default function Prezzi() {
       </section>
 
       {/* ── 2. PIANI ────────────────────────────────────────────────────────── */}
-      <section className="py-16 px-4 bg-[#f7f9fc]">
+      <section id="piani" className="scroll-mt-20 py-16 px-4 bg-[#f7f9fc]">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>

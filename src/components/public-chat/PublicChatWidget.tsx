@@ -270,8 +270,14 @@ export function PublicChatWidget({
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Apri chat"
-        className={`fixed ${positionClasses} z-50 h-14 w-14 rounded-full shadow-lg hover:scale-110 transition-all flex items-center justify-center text-white`}
-        style={{ backgroundColor: primaryColor }}
+        className={`fixed ${position === "bottom-right" ? "right-4 sm:right-6" : "left-4 sm:left-6"} z-50 h-14 w-14 rounded-full shadow-lg hover:scale-110 transition-all flex items-center justify-center text-white`}
+        style={{
+          backgroundColor: primaryColor,
+          // --eic-chat-lift: alzato da StickyBottomBar quando visibile, così
+          // il FAB non copre la barra CTA che occupa la stessa zona.
+          bottom: "calc(1rem + var(--eic-chat-lift, 0px))",
+          transition: "bottom 0.4s ease",
+        }}
       >
         <MessageCircle className="h-6 w-6" />
       </button>

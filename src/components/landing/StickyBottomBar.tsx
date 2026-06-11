@@ -19,6 +19,15 @@ export default function StickyBottomBar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Quando la barra è visibile alza il FAB della chat pubblica (stessa zona
+  // fixed bottom-right): PublicChatWidget legge --eic-chat-lift sul bottom.
+  useEffect(() => {
+    document.documentElement.style.setProperty("--eic-chat-lift", visible ? "64px" : "0px");
+    return () => {
+      document.documentElement.style.setProperty("--eic-chat-lift", "0px");
+    };
+  }, [visible]);
+
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     openContactModal();

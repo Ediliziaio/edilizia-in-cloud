@@ -392,6 +392,20 @@ export default function Confronto() {
               </Link>
             ))}
           </div>
+
+          {/* Obiezione migrazione: il confronto convince, il passaggio spaventa */}
+          <div className="mt-6 flex flex-col items-center justify-between gap-3 rounded-2xl border border-[#F97415]/25 bg-[#F97415]/5 px-5 py-4 text-center sm:flex-row sm:text-left">
+            <p className="text-sm text-[#111111]">
+              <strong>Usi già uno di questi software?</strong> La migrazione è assistita e gratuita:
+              importiamo anagrafiche, preventivi, fatture e cantieri, con setup in 48 ore.
+            </p>
+            <Link
+              to="/pianifica-migrazione/"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#F97415] px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-[#e8650e]"
+            >
+              Come funziona la migrazione <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -434,6 +448,9 @@ export default function Confronto() {
           </div>
 
           {/* Comparison table */}
+          <p className="mb-2 flex items-center justify-end gap-1 text-[11px] font-medium text-gray-400 md:hidden">
+            Scorri la tabella per vedere tutte le colonne <span aria-hidden="true">→</span>
+          </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm mb-10">
             <table className="w-full min-w-[640px]">
               <thead className="sticky top-0 z-10 bg-white">
@@ -508,6 +525,9 @@ export default function Confronto() {
             </p>
           </div>
 
+          <p className="mb-2 flex items-center justify-end gap-1 text-[11px] font-medium text-gray-400 md:hidden">
+            Scorri la tabella per vedere tutte le colonne <span aria-hidden="true">→</span>
+          </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm mb-10 bg-white">
             <table className="w-full min-w-[580px]">
               <thead className="sticky top-0 z-10 bg-white">
@@ -630,6 +650,9 @@ export default function Confronto() {
           </div>
 
           {/* Table */}
+          <p className="mb-2 flex items-center justify-end gap-1 text-[11px] font-medium text-gray-400 md:hidden">
+            Scorri la tabella per vedere tutte le colonne <span aria-hidden="true">→</span>
+          </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm mb-10">
             <table className="w-full min-w-[640px]">
               <thead className="sticky top-0 z-10">
@@ -697,6 +720,9 @@ export default function Confronto() {
             ))}
           </div>
 
+          <p className="mb-2 flex items-center justify-end gap-1 text-[11px] font-medium text-gray-400 md:hidden">
+            Scorri la tabella per vedere tutte le colonne <span aria-hidden="true">→</span>
+          </p>
           <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm mb-10 bg-white">
             <table className="w-full min-w-[700px]">
               <thead className="sticky top-0 z-10">

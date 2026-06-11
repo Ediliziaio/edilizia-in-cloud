@@ -4682,6 +4682,248 @@ export const blogPosts: BlogPost[] = [
       },
     ],
   },
+  {
+    id: "58",
+    slug: "miglior-gestionale-edilizia-guida-scelta",
+    title: "Miglior gestionale per l'edilizia nel 2026: la guida completa alla scelta",
+    excerpt:
+      "Cloud o desktop? Verticale o ERP generalista? I 7 criteri che contano davvero per scegliere il gestionale della tua impresa edile, con i range di prezzo reali e gli errori da evitare.",
+    category: "Digitalizzazione",
+    tags: ["gestionale edilizia", "software edilizia", "confronto software", "digitalizzazione"],
+    publishedAt: "2026-06-11",
+    updatedAt: "2026-06-11",
+    readTime: 9,
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=1600&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Il miglior gestionale per un'impresa edile non è il più famoso né il più costoso: è quello che il capocantiere usa davvero dal telefono e che dice al titolare, in tempo reale, se una commessa sta guadagnando o perdendo. In questa guida confrontiamo le categorie di software disponibili in Italia nel 2026 — ERP generalisti, software tecnici desktop, gestionali cloud verticali — con criteri misurabili e range di prezzo reali.",
+      },
+      {
+        type: "section",
+        heading: "Le tre famiglie di software per l'edilizia",
+        body: "Gli ERP generalisti (TeamSystem, Zucchetti) coprono contabilità e processi di qualsiasi settore: potentissimi per gruppi strutturati con un ufficio IT, ma richiedono mesi di implementazione, consulenti e canoni che partono spesso da 200-500€/mese più setup. I software tecnici desktop (Primus di ACCA, STR Vision) eccellono su computi metrici e contabilità lavori: restano lo standard per studi tecnici e progettisti, meno per la gestione quotidiana dell'impresa che esegue. I gestionali cloud verticali per l'edilizia, come Edilizia in Cloud, nascono invece per il flusso completo dell'impresa: preventivo, cantiere, SAL, fattura elettronica, operai e margini in un'unica piattaforma accessibile da smartphone.",
+      },
+      {
+        type: "section",
+        heading: "I 7 criteri che contano davvero",
+        body: "Dopo centinaia di migrazioni da Excel e da altri software, questi sono i criteri che separano una scelta azzeccata da un abbonamento abbandonato dopo tre mesi.",
+      },
+      {
+        type: "list",
+        items: [
+          "1. Usabilità in cantiere: se il capocantiere non riesce a compilare un rapportino dal telefono in 2 minuti, il software resterà inutilizzato.",
+          "2. Marginalità per commessa in tempo reale: il preventivo confrontato con i costi reali (materiali, manodopera, subappalti) mentre il cantiere è aperto, non sei mesi dopo.",
+          "3. Fatturazione elettronica SDI nativa: fatture B2B e PA, reverse charge edilizia, note di credito e conservazione decennale senza moduli aggiuntivi.",
+          "4. Adempimenti edili italiani: giornale lavori, subappalti con ritenute, DURC, Cassa Edile, congruità manodopera. Un software internazionale qui si ferma.",
+          "5. Tempo di avvio: settimane, non mesi. Chiedi sempre quanto dura l'onboarding e chi importa i tuoi dati storici.",
+          "6. Costo totale trasparente: canone tutto incluso vs canone base + moduli + utenti extra + assistenza a pagamento.",
+          "7. AI operativa: nel 2026 un gestionale moderno scrive preventivi dal computo, prepara render per il cliente e risponde alle domande sui dati aziendali.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Quanto costano le alternative nel 2026",
+        body: "Gli ERP generalisti partono da 200-500€/mese a cui vanno aggiunti setup, formazione e spesso canoni per modulo. I software desktop prevedono licenze una tantum di centinaia o migliaia di euro più aggiornamenti annuali. I gestionali cloud verticali vanno dai 50€ ai 550€/mese in base alla dimensione dell'impresa: Edilizia in Cloud, ad esempio, parte da 127€/mese con utenti illimitati e tutte le funzionalità incluse, senza costi di attivazione.",
+      },
+      {
+        type: "section",
+        heading: "Quando NON scegliere un gestionale verticale cloud",
+        body: "Onestà prima di tutto: se la tua attività principale è la progettazione e il computo metrico estimativo per conto terzi, un software tecnico come Primus resta la scelta giusta. Se sei un general contractor da decine di milioni con un ufficio IT interno e processi contabili complessi multi-società, un ERP enterprise può avere senso. Per la PMI edile italiana che esegue i lavori — da 1 a 50 dipendenti — il gestionale verticale cloud è quasi sempre la scelta con il miglior rapporto valore/costo.",
+      },
+      {
+        type: "quote",
+        quote: "Abbiamo provato un ERP famoso: dopo sei mesi lo usava solo l'amministrazione. Con un gestionale nato per l'edilizia, in una settimana anche i capisquadra caricavano ore e foto dal cantiere.",
+        author: "Titolare impresa edile, 18 dipendenti, Lombardia",
+      },
+      {
+        type: "section",
+        heading: "La checklist prima di firmare",
+        body: "Chiedi sempre una prova gratuita completa (non una demo guidata di 30 minuti), verifica che l'esportazione dei dati sia libera e in formato standard, fatti dire il prezzo totale del primo anno per iscritto e misura quanto ci mette il fornitore a rispondere a un ticket. Questi quattro test eliminano da soli l'80% delle delusioni.",
+      },
+      {
+        type: "cta",
+        body: "Vuoi vedere come funziona un gestionale nato per le imprese edili italiane? Prova Edilizia in Cloud gratis per 31 giorni: setup incluso, migrazione dati assistita e nessun vincolo.",
+      },
+    ],
+  },
+  {
+    id: "59",
+    slug: "quanto-costa-gestionale-impresa-edile",
+    title: "Quanto costa un gestionale per impresa edile? Prezzi reali 2026",
+    excerpt:
+      "Dai 200-500€/mese degli ERP alle licenze una tantum dei software desktop, fino ai gestionali cloud verticali: tutti i range di prezzo 2026, i costi nascosti e come calcolare il ritorno reale.",
+    category: "Finanza Edilizia",
+    tags: ["prezzi gestionale", "costi software edilizia", "ROI", "budget impresa edile"],
+    publishedAt: "2026-06-11",
+    updatedAt: "2026-06-11",
+    readTime: 8,
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1600&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "Un gestionale per impresa edile costa da 50€ a oltre 500€ al mese nel 2026, ma il numero sul listino è solo metà della storia: setup, moduli aggiuntivi, utenti extra e formazione possono raddoppiare la spesa reale del primo anno. Ecco i range veri per ogni categoria di software e il metodo per capire quanto ti costa davvero — o meglio, quanto ti costa NON averlo.",
+      },
+      {
+        type: "section",
+        heading: "I range di prezzo per categoria nel 2026",
+        body: "ERP generalisti (TeamSystem, Zucchetti e simili): canoni tipicamente da 200 a 500€/mese, più costi di implementazione che spesso superano i 3.000-10.000€ una tantum tra consulenza, configurazione e formazione. Software tecnici desktop (Primus, STR Vision): licenze una tantum da alcune centinaia a diverse migliaia di euro, più aggiornamenti annuali; Primus in versione cloud parte da circa 85€/mese. Gestionali cloud verticali per l'edilizia: da 50 a 550€/mese tutto incluso in base alla dimensione dell'impresa, senza costi di attivazione. Edilizia in Cloud, per trasparenza totale: piano Gestionale 127€/mese (imprese fino a 500K € di fatturato), Professionista 247€/mese (500K-2M €), Impresa AI 547€/mese (oltre 2M €), sempre con utenti illimitati.",
+      },
+      {
+        type: "section",
+        heading: "I 5 costi nascosti da chiedere sempre",
+        body: "Il listino non basta: prima di firmare, fatti mettere per iscritto queste cinque voci.",
+      },
+      {
+        type: "list",
+        items: [
+          "Setup e attivazione: da 0€ (cloud verticali) a oltre 10.000€ (ERP con consulenza).",
+          "Costo per utente aggiuntivo: alcuni software raddoppiano il canone quando aggiungi i capicantiere; verifica se gli utenti sono illimitati.",
+          "Moduli a pagamento: fatturazione elettronica, app mobile e API a volte sono extra. Chiedi il prezzo della configurazione completa.",
+          "Formazione e assistenza: l'assistenza prioritaria o telefonica in alcuni listini è un canone separato.",
+          "Migrazione dei dati: importare anagrafiche, preventivi e fatture storiche può costare ore di consulenza — oppure essere inclusa e assistita.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Il vero confronto: quanto costa NON avere un gestionale",
+        body: "Il 78% delle PMI edili italiane gestisce ancora i cantieri con Excel. Il costo apparente è zero, quello reale no: 10 ore a settimana di lavoro amministrativo manuale a un costo imprenditoriale medio di 50€/ora valgono circa 24.000€/anno, senza contare gli errori di fatturazione e i cantieri che perdono margine senza che nessuno se ne accorga. Su questi numeri anche il piano più completo di un gestionale si ripaga in poche settimane.",
+      },
+      {
+        type: "section",
+        heading: "Come calcolare il TUO punto di pareggio",
+        body: "Formula semplice: (ore amministrative recuperate a settimana × costo orario × 52) + (margine recuperato sulle commesse, anche solo l'1% del fatturato) − costo annuo del software. Per un'impresa da 1M € di fatturato che recupera 6 ore/settimana e l'1% di marginalità, il beneficio annuo supera i 25.000€ contro un costo software di 1.500-3.000€. Il punto di pareggio arriva tipicamente entro il primo mese.",
+      },
+      {
+        type: "quote",
+        quote: "Pagavamo 800€/mese per un ERP che non capiva l'edilizia. Oggi spendiamo 247€/mese e finalmente sappiamo quanto guadagniamo su ogni cantiere.",
+        author: "Impresa di ristrutturazioni, Campania",
+      },
+      {
+        type: "cta",
+        body: "Vuoi i numeri della tua impresa invece delle medie? Sulla pagina prezzi di Edilizia in Cloud trovi il calcolatore ROI: inserisci fatturato, cantieri e ore amministrative e vedi in quanto tempo si ripaga. Prova gratis 31 giorni.",
+      },
+    ],
+  },
+  {
+    id: "60",
+    slug: "patente-a-crediti-edilizia-guida",
+    title: "Patente a crediti in edilizia: come funziona, punteggi e sanzioni",
+    excerpt:
+      "Obbligatoria dal 1° ottobre 2024 per chi opera nei cantieri: come si ottiene la patente a crediti, come si perdono e si recuperano i punti, chi è esonerato e cosa rischia chi lavora sotto soglia.",
+    category: "Normativa",
+    tags: ["patente a crediti", "sicurezza cantieri", "D.Lgs 81/2008", "normativa edilizia"],
+    publishedAt: "2026-06-11",
+    updatedAt: "2026-06-11",
+    readTime: 8,
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1600&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "La patente a crediti è il sistema di qualificazione obbligatorio per imprese e lavoratori autonomi che operano nei cantieri temporanei o mobili in Italia. Introdotta dal D.L. 19/2024 (decreto PNRR) che ha riscritto l'articolo 27 del D.Lgs 81/2008, è operativa dal 1° ottobre 2024: senza patente — o con meno di 15 crediti — non si può lavorare in cantiere. Ecco come funziona il meccanismo e come proteggere il punteggio della tua impresa.",
+      },
+      {
+        type: "section",
+        heading: "Chi deve averla (e chi è esonerato)",
+        body: "Sono obbligati tutte le imprese e i lavoratori autonomi che operano fisicamente nei cantieri di cui all'art. 89 del D.Lgs 81/2008, comprese le imprese estere che lavorano in Italia. Sono esonerati i soggetti che effettuano mere forniture o prestazioni di natura intellettuale (ingegneri, architetti, geometri) e le imprese in possesso di attestazione SOA in classifica pari o superiore alla III. La patente si richiede in via telematica sul portale dell'Ispettorato Nazionale del Lavoro, autocertificando i requisiti: iscrizione CCIAA, adempimenti formativi, DURC, DVR e — dove dovuto — DURF.",
+      },
+      {
+        type: "section",
+        heading: "Come funziona il punteggio",
+        body: "La dotazione iniziale è di 30 crediti. Il punteggio può crescere nel tempo (storicità dell'impresa, investimenti in formazione e sicurezza, certificazioni) fino a un massimo di 100 crediti. La soglia operativa è 15: sotto quel livello l'impresa non può operare in cantiere, salvo completare le lavorazioni già in corso se è stato eseguito più del 30% dei lavori.",
+      },
+      {
+        type: "section",
+        heading: "Cosa fa perdere crediti",
+        body: "Le decurtazioni scattano con provvedimenti definitivi: le più pesanti riguardano gli infortuni. La morte di un lavoratore comporta la decurtazione di 20 crediti, l'inabilità permanente fino a 15, e le violazioni gravi in materia di salute e sicurezza (quelle richiamate dall'Allegato I al D.Lgs 81/2008) tolgono punti in proporzione alla gravità. I crediti persi si possono recuperare frequentando corsi specifici in materia di sicurezza e con comportamenti virtuosi certificati.",
+      },
+      {
+        type: "section",
+        heading: "Le sanzioni per chi lavora senza patente",
+        body: "Operare in cantiere senza patente o con punteggio sotto soglia comporta una sanzione amministrativa pari al 10% del valore dei lavori e comunque non inferiore a 6.000€, oltre all'esclusione dai lavori pubblici per sei mesi. Anche il committente o il responsabile dei lavori che non verifica il possesso della patente delle imprese esecutrici rischia sanzioni: la verifica va documentata.",
+      },
+      {
+        type: "section",
+        heading: "Come proteggere il punteggio: la prevenzione organizzata",
+        body: "La patente trasforma la sicurezza da costo a asset misurabile: ogni violazione evitata è punteggio salvato e cantieri che continuano a lavorare. In pratica servono tre presidi: scadenzario degli adempimenti (DURC, formazione, visite mediche, verifiche attrezzature) con alert automatici; documentazione di cantiere sempre aggiornata e accessibile (POS, giornale lavori, verbali); tracciabilità di presenze e lavorazioni per dimostrare la diligenza dell'impresa in caso di contestazioni. Un gestionale verticale come Edilizia in Cloud centralizza questi presidi: scadenze DURC e formazione con promemoria, giornale lavori digitale conforme e registro presenze geolocalizzato.",
+      },
+      {
+        type: "list",
+        items: [
+          "Verifica oggi il punteggio della tua impresa sul portale INL.",
+          "Nomina un responsabile interno del monitoraggio crediti.",
+          "Metti a calendario tutte le scadenze formative e documentali con alert.",
+          "Conserva digitalmente le prove degli adempimenti: in caso di ispezione, la velocità di risposta conta.",
+          "Nei subappalti, verifica e archivia la patente di ogni impresa che entra nel tuo cantiere.",
+        ],
+      },
+      {
+        type: "cta",
+        body: "Con Edilizia in Cloud tieni sotto controllo DURC, formazione, giornale lavori e presenze da un'unica piattaforma: la conformità diventa routine, non emergenza. Provalo gratis per 31 giorni.",
+      },
+    ],
+  },
+  {
+    id: "61",
+    slug: "durc-congruita-manodopera-soglie",
+    title: "DURC di congruità: soglie di manodopera e come evitare lo scarto",
+    excerpt:
+      "Per i lavori pubblici e i privati sopra 70.000€ l'incidenza della manodopera deve rispettare le soglie del DM 143/2021. Come funziona la verifica CNCE, le percentuali per categoria e come monitorarle in corso d'opera.",
+    category: "Normativa",
+    tags: ["congruità manodopera", "DURC", "CNCE Edilconnect", "cassa edile", "lavori pubblici"],
+    publishedAt: "2026-06-11",
+    updatedAt: "2026-06-11",
+    readTime: 8,
+    author: { name: "Florin Andriciuc", role: "Founder & CEO", avatar: FLO_AVATAR },
+    coverImage:
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1600&q=80",
+    content: [
+      {
+        type: "intro",
+        body: "La verifica di congruità della manodopera controlla che l'incidenza del costo del lavoro denunciato alle Casse Edili sia proporzionata al valore dell'opera: serve a contrastare il lavoro nero in edilizia. Introdotta dal DM 143/2021 in attuazione dell'accordo tra le parti sociali, si applica a tutti i lavori pubblici e ai lavori privati di importo pari o superiore a 70.000€. Senza attestazione di congruità, il saldo finale si blocca e l'irregolarità pesa sul DURC.",
+      },
+      {
+        type: "section",
+        heading: "Come funziona la verifica",
+        body: "L'impresa principale denuncia il cantiere su CNCE Edilconnect, la piattaforma nazionale delle Casse Edili, indicando valore complessivo dell'opera, categoria prevalente e date. Durante i lavori, le denunce mensili alle Casse Edili (proprie e dei subappaltatori) alimentano il conteggio della manodopera. Al termine — prima del saldo finale — il sistema confronta la manodopera denunciata con quella attesa in base alle percentuali minime: se il rapporto regge, viene rilasciata l'attestazione di congruità; se manca manodopera, parte la richiesta di regolarizzazione.",
+      },
+      {
+        type: "section",
+        heading: "Le soglie minime per categoria (DM 143/2021)",
+        body: "Le percentuali rappresentano l'incidenza minima del costo della manodopera sul valore dell'opera per la categoria prevalente. Indicativamente: nuova edilizia civile (incluse opere impiantistiche) 14,28%; nuova edilizia industriale (esclusi impianti) 5,36%; ristrutturazione di edifici civili 22%; ristrutturazione di edifici industriali (esclusi impianti) 6,69%; restauro e manutenzione di beni tutelati 30%. Verifica sempre la tabella allegata al decreto e gli aggiornamenti delle parti sociali per il tuo caso specifico: la categoria prevalente determina la soglia dell'intero cantiere.",
+      },
+      {
+        type: "section",
+        heading: "Perché tante imprese 'sane' rischiano lo scarto",
+        body: "Il problema raramente è il nero: è il disallineamento documentale. Subappaltatori che denunciano in ritardo o su Casse Edili diverse, lavorazioni in economia non registrate, valore dell'opera aggiornato da varianti ma mai comunicato alla piattaforma, manodopera specializzata esterna non tracciata. Il risultato è un cantiere formalmente sotto soglia che blocca il saldo per settimane proprio quando servono i soldi.",
+      },
+      {
+        type: "list",
+        items: [
+          "Denuncia il cantiere su CNCE Edilconnect prima dell'inizio lavori, non a metà opera.",
+          "Monitora ogni mese l'incidenza manodopera maturata rispetto alla soglia: la congruità si gestisce in corso d'opera, non a consuntivo.",
+          "Chiedi ai subappaltatori evidenza delle denunce mensili in Cassa Edile e archiviala.",
+          "Aggiorna il valore dell'opera quando intervengono varianti: la soglia si calcola sull'importo reale.",
+          "In caso di scarto, hai la possibilità di regolarizzare entro i termini indicati dalla Cassa Edile: rispondere subito evita l'iscrizione dell'irregolarità ai fini DURC.",
+        ],
+      },
+      {
+        type: "section",
+        heading: "Tenere la congruità sotto controllo senza fogli di calcolo",
+        body: "Il calcolo manuale dell'incidenza è il punto in cui le imprese sbagliano: ore di operai propri e dei subappaltatori, costi orari contrattuali, valore aggiornato dell'opera. Con un gestionale come Edilizia in Cloud le presenze di cantiere geolocalizzate, i costi della manodopera per commessa e il valore aggiornato dei lavori sono già collegati: vedere l'incidenza manodopera in tempo reale per ogni cantiere significa arrivare al fine lavori con la congruità già verificata.",
+      },
+      {
+        type: "cta",
+        body: "Vuoi vedere l'incidenza manodopera dei tuoi cantieri in tempo reale, con presenze e subappalti già tracciati? Prova Edilizia in Cloud gratis per 31 giorni.",
+      },
+    ],
+  },
 ];
 
 export const categories = [

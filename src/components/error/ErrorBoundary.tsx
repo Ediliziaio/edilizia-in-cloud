@@ -215,11 +215,18 @@ export class ErrorBoundary extends React.Component<Props, State> {
           }
         };
 
-        // Auto-reload SOLO se sotto la soglia
+        // Auto-reload SOLO se sotto la soglia, con backoff crescente: i chunk
+        // mancano tipicamente per la finestra di propagazione del deploy
+        // (secondi); reload immediati bruciano i 3 tentativi dentro la
+        // finestra e portano al blocco manuale senza motivo.
+        const RELOAD_BACKOFF_MS = [1500, 5000, 12000];
         if (!tooManyAttempts) {
           if (!this.chunkReloadScheduled) {
             this.chunkReloadScheduled = true;
-            window.setTimeout(triggerReload, 0);
+            window.setTimeout(
+              triggerReload,
+              RELOAD_BACKOFF_MS[Math.min(attemptInfo.count, RELOAD_BACKOFF_MS.length - 1)],
+            );
           }
           return (
             <div className="flex flex-col items-center justify-center min-h-[400px] p-8 text-center">
@@ -228,7 +235,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
               </div>
               <h2 className="text-xl font-semibold mb-2">Aggiornamento in corso…</h2>
               <p className="text-muted-foreground text-sm mb-6 max-w-md">
-                Tentativo {attemptInfo.count + 1} di {MAX_AUTO_ATTEMPTS}. La pagina si ricaricherà automaticamente.
+                Tentativo {attemptInfo.count + 1} di {MAX_AUTO_ATTEMPTS}. La pagina si ricaricherà
+                automaticamente tra pochi secondi.
               </p>
             </div>
           );

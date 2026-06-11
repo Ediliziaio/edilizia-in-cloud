@@ -9,6 +9,9 @@ interface Stat {
   value: number;
   suffix: string;
   decimals?: number;
+  // Valore di partenza dell'animazione: i rating non devono mai mostrare
+  // valori bassi intermedi (es. "3.0/5" a metà count-up).
+  startFrom?: number;
   label: string;
   sublabel: string;
 }
@@ -36,6 +39,7 @@ const stats: Stat[] = [
     value: 4.9,
     suffix: "/5",
     decimals: 1,
+    startFrom: 4.5,
     label: "Soddisfazione Media",
     sublabel: "valutazione media dei nostri clienti attivi",
   },
@@ -49,8 +53,8 @@ const stats: Stat[] = [
   },
 ];
 
-function useCountUp(target: number, duration: number, active: boolean, decimals = 0) {
-  const [count, setCount] = useState(0);
+function useCountUp(target: number, duration: number, active: boolean, decimals = 0, startFrom = 0) {
+  const [count, setCount] = useState(startFrom);
   const rafRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
 
@@ -63,7 +67,7 @@ function useCountUp(target: number, duration: number, active: boolean, decimals 
       const progress = Math.min(elapsed / duration, 1);
       // Ease out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
-      setCount(parseFloat((eased * target).toFixed(decimals)));
+      setCount(parseFloat((startFrom + eased * (target - startFrom)).toFixed(decimals)));
 
       if (progress < 1) {
         rafRef.current = requestAnimationFrame(animate);
@@ -77,13 +81,13 @@ function useCountUp(target: number, duration: number, active: boolean, decimals 
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       startTimeRef.current = null;
     };
-  }, [active, target, duration, decimals]);
+  }, [active, target, duration, decimals, startFrom]);
 
   return count;
 }
 
 function StatCard({ stat, isVisible, delay }: { stat: Stat; isVisible: boolean; delay: number }) {
-  const count = useCountUp(stat.value, 2000, isVisible, stat.decimals ?? 0);
+  const count = useCountUp(stat.value, 2000, isVisible, stat.decimals ?? 0, stat.startFrom ?? 0);
 
   return (
     <div

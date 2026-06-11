@@ -117,6 +117,7 @@ const STATIC_ROUTES = [
   "/per/grandi-imprese",
   "/per/impiantisti",
   "/per/imprese-edili",
+  "/novita",
   "/per/medie-imprese",
   "/per/piccole-imprese",
   "/per/ristrutturatori",

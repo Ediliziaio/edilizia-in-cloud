@@ -41,15 +41,18 @@
  *   trattata come app bootstrap e passa sempre da RoleBasedRedirect/Login.
  */
 
-import { lazy, Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useSubdomainRoute } from "@/hooks/useSubdomainRoute";
 import { useAuth } from "@/contexts/AuthContext";
 import { RoleBasedRedirect } from "@/components/auth/RoleBasedRedirect";
 import { isMobileAppRuntime } from "@/lib/mobile/platform";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
+import { lazyWithRetry } from "@/lib/lazyWithRetry";
 
-const Home = lazy(() => import("@/pages/Home"));
+// La home è il chunk più richiesto del sito: retry con cache-bust se un
+// deploy invalida gli asset (stessa protezione delle route in App.tsx).
+const Home = lazyWithRetry(() => import("@/pages/Home"));
 
 /**
  * 🆕 Spinner full-screen "definitivo" — `fixed inset-0 z-50` lo mette sopra

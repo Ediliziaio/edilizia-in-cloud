@@ -1991,6 +1991,30 @@ const ROUTES = {
     ],
   },
 
+  "/novita": {
+    title: "Novità del Prodotto | Edilizia in Cloud",
+    description:
+      "Le novità di Edilizia in Cloud mese per mese: AI, commesse, dashboard, mobile e preventivi. Aggiornamenti settimanali sempre inclusi nel canone, per tutti i piani.",
+    h1: "Le novità di Edilizia in Cloud",
+    intro:
+      "Edilizia in Cloud rilascia miglioramenti ogni settimana, inclusi nel canone per tutti i piani e senza moduli a pagamento. Negli ultimi mesi sono arrivati: creazione di automazioni descrivendole in linguaggio naturale, incassi SAL semplificati con alert sulla prossima azione, dashboard con drill-down e cashflow reale, knowledge graph 3D della memoria AI, Render AI v6 con slider prima/dopo e firma digitale dei preventivi con QR e WhatsApp.",
+    extra: `
+    <h2>Ultimi rilasci principali</h2>
+    <ul>
+      <li><strong>Giugno 2026</strong> — Automazioni create dall'AI a partire da una descrizione testuale; incassi SAL con "Registra incasso" e avanzamento visibile; grafici della dashboard con drill-down per mese; navigazione mobile ridisegnata con accesso diretto a Silvio AI.</li>
+      <li><strong>Maggio 2026</strong> — Cervello AI con knowledge graph 3D esplorabile; sei nuovi sistemi AI operativi: chatbot pubblico, pricing dinamico, gestione visite, video di sicurezza, ottimizzazione percorsi e gestione reclami.</li>
+      <li><strong>Aprile 2026</strong> — Dashboard "War Room" con semafori di salute aziendale e cashflow reale; HR con contributi CCNL Edilizia, alert DURC e stato cedolini; Render AI v6 con slider prima/dopo; app da cantiere più veloce con installazione PWA.</li>
+      <li><strong>Marzo 2026</strong> — Firma digitale dei preventivi con QR code e condivisione WhatsApp; conversione del preventivo accettato in cantiere con un click; storico versioni e reminder automatici di scadenza.</li>
+    </ul>
+    <p>Tutti gli aggiornamenti di Edilizia in Cloud sono inclusi nel canone di ogni piano — Gestionale, Professionista e Impresa AI — senza costi aggiuntivi né interventi di installazione: essendo una piattaforma cloud, le novità arrivano automaticamente a tutte le imprese.</p>
+    `,
+    links: [
+      { href: "/funzionalita", label: "Tutte le Funzionalità" },
+      { href: "/prezzi", label: "Prezzi" },
+      { href: "/demo", label: "Richiedi Demo" },
+    ],
+  },
+
   "/pianifica-migrazione": {
     title: "Migrazione Gestionale Edilizia in 48 Ore | Edilizia in Cloud",
     description:
