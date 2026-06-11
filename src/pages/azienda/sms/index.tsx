@@ -33,6 +33,7 @@ import { SmsCampagneList } from "@/pages/azienda/sms-marketing/components/SmsCam
 import { SmsContattiList } from "@/pages/azienda/sms-marketing/components/SmsContattiList";
 import { SmsTemplateList } from "@/pages/azienda/sms-marketing/components/SmsTemplateList";
 import { SmsOnboarding } from "@/pages/azienda/sms-marketing/components/SmsOnboarding";
+import { PlatformSmsActivationCard } from "./PlatformSmsActivationCard";
 import { SmsWalletBadge } from "@/pages/azienda/sms-marketing/components/SmsWalletBadge";
 import { SmsRicaricaModal } from "@/pages/azienda/sms-marketing/components/SmsRicaricaModal";
 
@@ -43,6 +44,9 @@ import { SmsAutomations } from "./SmsAutomations";
 
 interface SmsHubPageProps {
   defaultTab?: string;
+  /** Area super admin: la piattaforma non paga il canone €30/mese
+   *  (è il prezzo rivenduto alle aziende) → onboarding dedicato. */
+  platformMode?: boolean;
 }
 
 // Mapping retro-compatibile per i vecchi tab name di sms-marketing
@@ -56,7 +60,7 @@ const TAB_ALIASES: Record<string, string> = {
   automazioni: "automazioni",
 };
 
-export default function SmsPage({ defaultTab = "panoramica" }: SmsHubPageProps) {
+export default function SmsPage({ defaultTab = "panoramica", platformMode = false }: SmsHubPageProps) {
   const initial = TAB_ALIASES[defaultTab] ?? defaultTab;
   const [activeTab, setActiveTab] = useState(initial);
   const [ricaricaOpen, setRicaricaOpen] = useState(false);
@@ -93,9 +97,14 @@ export default function SmsPage({ defaultTab = "panoramica" }: SmsHubPageProps) 
         {onboardingOk && <SmsWalletBadge onRicarica={() => setRicaricaOpen(true)} />}
       </div>
 
-      {/* Onboarding bloccante: se manca Telnyx, mostra solo l'onboarding */}
+      {/* Onboarding bloccante: se manca Telnyx, mostra solo l'onboarding.
+          In platformMode (super admin) niente paywall €30/mese. */}
       {!onboardingOk ? (
-        <SmsOnboarding onCompleted={() => { /* react-query si invalida automaticamente */ }} />
+        platformMode ? (
+          <PlatformSmsActivationCard />
+        ) : (
+          <SmsOnboarding onCompleted={() => { /* react-query si invalida automaticamente */ }} />
+        )
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full max-w-4xl grid-cols-3 sm:grid-cols-7">

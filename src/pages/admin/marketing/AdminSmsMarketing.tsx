@@ -20,7 +20,9 @@ export default function AdminSmsMarketing() {
   return (
     <PlatformCompanyProvider>
       <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
-        <SmsMarketing />
+        {/* platformMode: la piattaforma non paga il canone €30/mese
+            (è il prezzo rivenduto alle aziende) */}
+        <SmsMarketing platformMode />
       </Suspense>
     </PlatformCompanyProvider>
   );
