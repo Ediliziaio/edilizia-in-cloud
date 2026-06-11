@@ -24,7 +24,9 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const telnyxApiKey = Deno.env.get("TELNYX_API_KEY");
-    const telnyxFrom = Deno.env.get("TELNYX_FROM_NUMBER");
+    // 2026-06-11: fallback mittente alfanumerico — gli OTP partono anche
+    // senza numero dedicato di piattaforma (standard SMS Italia).
+    const telnyxFrom = Deno.env.get("TELNYX_FROM_NUMBER") || "EdiliziaEiC";
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 

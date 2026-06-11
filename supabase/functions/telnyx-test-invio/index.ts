@@ -50,14 +50,27 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Parametri obbligatori mancanti" }, 400);
     }
 
-    // Verifica numero attivo
+    // Numero attivo se presente, altrimenti mittente alfanumerico
+    // (nome azienda max 11 char — standard SMS Italia, vedi telnyx-invia-sms)
     const { data: numero } = await adminClient
       .from("sms_telnyx_numbers")
       .select("numero_e164")
       .eq("company_id", company_id)
       .eq("stato", "attivo")
       .maybeSingle();
-    if (!numero) return json({ error: "Nessun numero SMS attivo" }, 400);
+
+    let mittente: string;
+    if (numero) {
+      mittente = numero.numero_e164;
+    } else {
+      const { data: comp } = await adminClient
+        .from("companies")
+        .select("name, business_name")
+        .eq("id", company_id)
+        .maybeSingle();
+      const rawName = (comp?.business_name || comp?.name || "EdiliziaEiC").trim();
+      mittente = rawName.replace(/[^a-zA-Z0-9]/g, "").slice(0, 11) || "EdiliziaEiC";
+    }
 
     // Verifica crediti
     const { data: pricing } = await adminClient
@@ -79,7 +92,7 @@ Deno.serve(async (req: Request) => {
         const res = await fetch("https://api.telnyx.com/v2/messages", {
           method: "POST",
           headers: { "Authorization": `Bearer ${masterApiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ from: numero.numero_e164, to: telefono_destinatario, text: messaggio_test }),
+          body: JSON.stringify({ from: mittente, to: telefono_destinatario, text: messaggio_test }),
         });
         if (res.ok) {
           const body = await res.json() as { data: { id: string } };

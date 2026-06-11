@@ -53,19 +53,28 @@ Deno.serve(async (req: Request) => {
       throw e;
     }
 
-    // ── Leggi numero mittente attivo ─────────────────────────────
-    const { data: numero, error: errNumero } = await admin
+    // ── Leggi numero mittente attivo (o mittente alfanumerico) ──
+    // 2026-06-11: senza numero dedicato si invia con mittente alfanumerico
+    // (nome azienda max 11 char — standard SMS Italia). Il numero dedicato
+    // resta necessario solo per RICEVERE risposte.
+    const { data: numero } = await admin
       .from("sms_telnyx_numbers")
       .select("numero_e164, telnyx_phone_number_id, messaging_profile_id")
       .eq("company_id", company_id)
       .eq("stato", "attivo")
       .maybeSingle();
 
-    if (errNumero || !numero) {
-      return json({
-        ok: false,
-        error: "Nessun numero SMS attivo. Attiva prima un numero nel modulo SMS Marketing.",
-      }, 400);
+    let mittente: string;
+    if (numero) {
+      mittente = numero.numero_e164;
+    } else {
+      const { data: comp } = await admin
+        .from("companies")
+        .select("name, business_name")
+        .eq("id", company_id)
+        .maybeSingle();
+      const rawName = (comp?.business_name || comp?.name || "EdiliziaEiC").trim();
+      mittente = rawName.replace(/[^a-zA-Z0-9]/g, "").slice(0, 11) || "EdiliziaEiC";
     }
 
     // ── Leggi account Telnyx sub-account ─────────────────────────
@@ -112,7 +121,7 @@ Deno.serve(async (req: Request) => {
         direction: "outbound",
         status: "queued",
         to_number,
-        from_number: numero.numero_e164,
+        from_number: mittente,
         body: msgBody,
         trigger_type: trigger_type ?? "manual",
         trigger_entity: trigger_entity ?? null,
@@ -130,12 +139,12 @@ Deno.serve(async (req: Request) => {
 
     // ── Chiama Telnyx API ─────────────────────────────────────────
     const telnyxBody: Record<string, unknown> = {
-      from: numero.numero_e164,
+      from: mittente,
       to: to_number,
       text: msgBody,
       type: "SMS",
     };
-    if (numero.messaging_profile_id) {
+    if (numero?.messaging_profile_id && !numero.messaging_profile_id.startsWith("mock_")) {
       telnyxBody.messaging_profile_id = numero.messaging_profile_id;
     }
 

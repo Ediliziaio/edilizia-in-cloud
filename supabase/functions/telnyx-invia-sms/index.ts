@@ -79,14 +79,30 @@ Deno.serve(async (req: Request) => {
     const prezzoPerSms   = Number(pricing?.prezzo_per_sms   ?? 0.06);
     const costoWholesale = Number(pricing?.costo_wholesale_sms ?? 0.008);
 
-    // Leggi numero mittente
+    // Leggi numero mittente. 2026-06-11: il numero dedicato NON è più un
+    // requisito — senza numero si invia con MITTENTE ALFANUMERICO (nome
+    // azienda, max 11 caratteri, standard per SMS in Italia). Il numero
+    // dedicato resta l'upgrade per ricevere risposte (bidirezionale).
     const { data: numero } = await adminClient
       .from("sms_telnyx_numbers")
       .select("numero_e164, telnyx_phone_number_id")
       .eq("company_id", company_id)
       .eq("stato", "attivo")
       .maybeSingle();
-    if (!numero) return json({ error: "Nessun numero SMS attivo. Attiva prima il numero nel modulo SMS." }, 400);
+
+    let mittente: string;
+    if (numero) {
+      mittente = numero.numero_e164;
+    } else {
+      const { data: comp } = await adminClient
+        .from("companies")
+        .select("name, business_name")
+        .eq("id", company_id)
+        .maybeSingle();
+      const rawName = (comp?.business_name || comp?.name || "EdiliziaEiC").trim();
+      // Solo lettere/numeri, max 11 char (spec mittente alfanumerico GSM)
+      mittente = rawName.replace(/[^a-zA-Z0-9]/g, "").slice(0, 11) || "EdiliziaEiC";
+    }
 
     // Leggi destinatari
     let contactQuery = adminClient
@@ -163,10 +179,9 @@ Deno.serve(async (req: Request) => {
                 method: "POST",
                 headers: { "Authorization": `Bearer ${masterApiKey}`, "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  from: numero.numero_e164,
+                  from: mittente,
                   to: contatto.telefono,
                   text: campagna.messaggio,
-                  messaging_profile_id: null,
                 }),
               });
               if (res.ok) {

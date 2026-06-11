@@ -75,21 +75,35 @@ Deno.serve(async (req: Request) => {
     let telnyxPhoneNumberId = `mock_num_${numero_e164.replace(/[^0-9]/g, "")}`;
     const messagingProfileId  = `mock_profile_${company_id.slice(0, 8)}`;
 
-    // Acquisto reale se API key disponibile
+    // Acquisto reale se API key disponibile.
+    // 2026-06-11 (fix bug + endpoint): prima un fallimento Telnyx veniva
+    // INGHIOTTITO e il numero risultava "attivo" nel DB senza esistere
+    // (soldi veri, dato falso). Ora: errore Telnyx → errore all'utente,
+    // niente insert. Il mock resta SOLO quando la chiave non è configurata
+    // (ambiente dev). Endpoint corretto: /v2/number_orders (l'acquisto
+    // numeri Telnyx passa da un ordine, non da POST /v2/phone_numbers).
     if (masterApiKey) {
-      try {
-        const res = await fetch("https://api.telnyx.com/v2/phone_numbers", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${masterApiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ phone_number: numero_e164 }),
-        });
-        if (res.ok) {
-          const body = await res.json() as { data: { id: string } };
-          telnyxPhoneNumberId = body.data.id;
-        }
-      } catch {
-        // Continua con mock
+      const res = await fetch("https://api.telnyx.com/v2/number_orders", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${masterApiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone_numbers: [{ phone_number: numero_e164 }],
+        }),
+      });
+      if (!res.ok) {
+        const errBody = await res.text();
+        console.error("[telnyx-acquista-numero] Telnyx order failed", res.status, errBody.slice(0, 500));
+        // I numeri +39 richiedono i requisiti regolatori AGCOM (dati
+        // dell'utilizzatore finale) configurati sull'account Telnyx.
+        const hint = errBody.includes("requirement")
+          ? " Il numero italiano richiede i dati di registrazione dell'azienda (normativa AGCOM): completa i requirement nel portale Telnyx o contatta il supporto."
+          : "";
+        return json({ error: `Acquisto numero non riuscito (Telnyx ${res.status}).${hint}` }, 502);
       }
+      const body = await res.json() as {
+        data: { id: string; phone_numbers?: Array<{ id?: string; phone_number?: string }> };
+      };
+      telnyxPhoneNumberId = body.data.phone_numbers?.[0]?.id ?? body.data.id;
     }
 
     const prossimoRinnovo = new Date();
