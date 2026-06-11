@@ -674,7 +674,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "get_quotes_summary",
-        description: "Ritorna pipeline preventivi con valori e breakdown per status. Usa per 'preventivi aperti', 'pipeline vendite', 'preventivi vinti'.",
+        description: "Riepilogo SOLO PREVENTIVI (conteggi, valori, breakdown per status, recenti). Usa per 'preventivi aperti/vinti/persi'. ATTENZIONE: per la pipeline vendite COMPLETA usa get_pipeline_forecast, che include anche le opportunità CRM (molte aziende fanno preventivi cartacei fuori EiC).",
         parameters: {
           type: "object",
           properties: {
