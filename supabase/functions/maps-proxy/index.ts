@@ -33,16 +33,23 @@ Deno.serve(async (req) => {
       });
     }
 
+    // 2026-06-11: autocomplete e place-details passano a HERE (free tier
+    // 250k/mese) — la chiave Google Places non è mai stata configurata e
+    // l'autocomplete indirizzi era rotto da sempre. Google resta come
+    // fallback se mai venisse aggiunta la chiave. "directions" resta su
+    // Google (deprecato: i nuovi call site usano geo-router/getRoute).
+    const HERE_API_KEY = Deno.env.get("HERE_API_KEY");
     const GOOGLE_MAPS_API_KEY = await getPlatformSetting("google_maps_api_key", "GOOGLE_MAPS_API_KEY");
-    if (!GOOGLE_MAPS_API_KEY) {
+
+    const body = await req.json();
+    const action = body.action as string;
+
+    if (!HERE_API_KEY && !GOOGLE_MAPS_API_KEY) {
       return new Response(JSON.stringify({ error: "Maps API key not configured" }), {
         status: 500,
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
     }
-
-    const body = await req.json();
-    const action = body.action as string;
 
     // ── AUTOCOMPLETE ──
     if (action === "autocomplete") {
@@ -53,11 +60,40 @@ Deno.serve(async (req) => {
         });
       }
 
+      if (HERE_API_KEY) {
+        // HERE Autosuggest: "at" è obbligatorio come bias — centro Italia.
+        const params = new URLSearchParams({
+          q: query,
+          at: "42.5,12.5",
+          in: "countryCode:ITA",
+          limit: "6",
+          lang: "it",
+          apiKey: HERE_API_KEY,
+        });
+        const res = await fetch(
+          `https://autosuggest.search.hereapi.com/v1/autosuggest?${params}`
+        );
+        const data = await res.json();
+
+        const predictions = (data.items || [])
+          .filter((it: any) => it.id && it.address?.label)
+          .map((it: any) => ({
+            place_id: it.id,
+            description: it.address.label,
+            structured: { main_text: it.title, secondary_text: it.address.label },
+          }));
+
+        return new Response(JSON.stringify({ predictions }), {
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      // Fallback Google Places
       const params = new URLSearchParams({
         input: query,
         components: `country:${body.country || "it"}`,
         language: "it",
-        key: GOOGLE_MAPS_API_KEY,
+        key: GOOGLE_MAPS_API_KEY!,
       });
 
       const res = await fetch(
@@ -82,6 +118,52 @@ Deno.serve(async (req) => {
       if (!placeId) {
         return new Response(JSON.stringify({ error: "place_id required" }), {
           status: 400,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+
+      // Gli id HERE iniziano per "here:" — usali con HERE Lookup; gli id
+      // Google (selezionati prima della migrazione o dal fallback) restano
+      // sul ramo Google.
+      if (HERE_API_KEY && placeId.startsWith("here:")) {
+        const params = new URLSearchParams({
+          id: placeId,
+          lang: "it",
+          apiKey: HERE_API_KEY,
+        });
+        const res = await fetch(
+          `https://lookup.search.hereapi.com/v1/lookup?${params}`
+        );
+        if (!res.ok) {
+          return new Response(JSON.stringify({ error: "Place not found" }), {
+            status: 404,
+            headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+          });
+        }
+        const it = await res.json();
+        const a = it.address || {};
+        const addressLine = a.street
+          ? `${a.street}${a.houseNumber ? ` ${a.houseNumber}` : ""}`
+          : "";
+
+        return new Response(
+          JSON.stringify({
+            formatted_address: a.label || "",
+            lat: it.position?.lat,
+            lng: it.position?.lng,
+            address_line: addressLine,
+            city: a.city || "",
+            postal_code: a.postalCode || "",
+            province: a.countyCode || a.county || "",
+            country: a.countryName || "",
+          }),
+          { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!GOOGLE_MAPS_API_KEY) {
+        return new Response(JSON.stringify({ error: "Place not found" }), {
+          status: 404,
           headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
         });
       }
@@ -130,8 +212,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── DIRECTIONS ──
+    // ── DIRECTIONS ── (deprecato: usare geo-router action=route / getRoute)
     if (action === "directions") {
+      if (!GOOGLE_MAPS_API_KEY) {
+        return new Response(
+          JSON.stringify({ error: "directions richiede GOOGLE_MAPS_API_KEY — usare geo-router (HERE)" }),
+          { status: 501, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } }
+        );
+      }
       const waypoints = body.waypoints as Array<{ lat: number; lng: number }>;
       if (!waypoints || waypoints.length < 2) {
         return new Response(
