@@ -31,6 +31,8 @@ export interface PrimaNotaEntry {
   suppliers?: { name: string } | null;
   invoices?: { invoice_number: string } | null;
   orders?: { order_code: string } | null;
+  /** Fattura/NC nativa che ha generato la registrazione (incasso fattura) */
+  documenti_fiscali?: { id: string; numero: string | null; tipo: string } | null;
 }
 
 export interface PrimaNotaSaldo {
@@ -60,7 +62,7 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
     queryFn: async () => {
       let query = supabase
         .from("prima_nota_entries")
-        .select(`*, suppliers(name), invoices(invoice_number), orders(order_code)`, { count: "exact" })
+        .select(`*, suppliers(name), invoices(invoice_number), orders(order_code), documenti_fiscali(id, numero, tipo)`, { count: "exact" })
         .eq("company_id", companyId!);
 
       if (filters.fromDate) query = query.gte("entry_date", filters.fromDate);
