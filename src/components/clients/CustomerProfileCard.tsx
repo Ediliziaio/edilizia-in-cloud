@@ -39,6 +39,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { InlineField } from "@/components/marketing/contacts/InlineField";
 import { queryKeys } from "@/lib/queryKeys";
+import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
 
 interface LinkedContact {
   id: string;
@@ -114,11 +115,38 @@ export function CustomerProfileCard({ customer, linkedContact, onSaved }: Custom
         .update({ [field]: value } as never)
         .eq("id", customer.id);
       if (error) throw error;
+      return { field, value };
     },
-    onSuccess: () => {
+    onSuccess: ({ field, value }) => {
       queryClient.invalidateQueries({ queryKey: ["company-customer-detail", customer.id] });
       queryClient.invalidateQueries({ queryKey: queryKeys.customersList.all });
       onSaved?.();
+
+      // Geocoding automatico best-effort: quando cambia un campo indirizzo,
+      // aggiorna le coordinate in background (residenza → address_lat/lng,
+      // cantiere → site_lat/lng). Fire-and-forget: errori ignorati.
+      const residenceFields = ["address", "city", "postal_code", "province"];
+      const siteFields = ["site_address", "site_city", "site_postal_code", "site_province"];
+      const merged = { ...customer, [field]: value } as Record<string, string | null>;
+      if (residenceFields.includes(field)) {
+        void geocodeBestEffort([merged.address, merged.postal_code, merged.city, merged.province])
+          .then((coords) => {
+            if (!coords) return;
+            return supabase
+              .from("profiles")
+              .update({ address_lat: coords.lat, address_lng: coords.lng } as never)
+              .eq("id", customer.id);
+          });
+      } else if (siteFields.includes(field)) {
+        void geocodeBestEffort([merged.site_address, merged.site_postal_code, merged.site_city, merged.site_province])
+          .then((coords) => {
+            if (!coords) return;
+            return supabase
+              .from("profiles")
+              .update({ site_lat: coords.lat, site_lng: coords.lng } as never)
+              .eq("id", customer.id);
+          });
+      }
     },
     onError: (e) => {
       toast({

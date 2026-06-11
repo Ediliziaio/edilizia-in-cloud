@@ -21,6 +21,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
+import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
 import { useToast } from "@/hooks/use-toast";
 import { useAppaltatoreModuleEnabled } from "@/hooks/useAppaltatoreModule";
 import { logger } from "@/utils/logger";
@@ -223,6 +224,18 @@ export default function CreateLavoroAppaltatore() {
         .single();
       if (error) throw error;
       const orderId = (data as { id: string }).id;
+
+      // Geocoding automatico cantiere (best-effort, in background):
+      // popola work_lat/lng senza bloccare la creazione del lavoro.
+      if (workAddress.trim()) {
+        void geocodeBestEffort([workAddress]).then((coords) => {
+          if (!coords) return;
+          return supabase
+            .from("orders")
+            .update({ work_lat: coords.lat, work_lng: coords.lng } as never)
+            .eq("id", orderId);
+        });
+      }
 
       // Persisti anche le rate nella tabella order_installments per
       // coerenza con il resto dell'app (FinancialSummary, dashboard,

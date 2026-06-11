@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { logger } from "@/utils/logger";
 import { parseDecimalIT } from "@/lib/parseDecimalIT";
+import { geocodeBestEffort } from "@/lib/geo/geocodeBestEffort";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -505,6 +506,19 @@ function EditOrderInner() {
         .eq("company_id", effectiveCompany.id);
 
       if (error) throw error;
+
+      // Geocoding automatico cantiere (best-effort, in background):
+      // aggiorna work_lat/lng senza bloccare né far fallire il salvataggio.
+      if (orderTypeState === "appaltatore_lavoro" && workAddress.trim()) {
+        void geocodeBestEffort([workAddress]).then((coords) => {
+          if (!coords) return;
+          return supabase
+            .from("orders")
+            .update({ work_lat: coords.lat, work_lng: coords.lng } as never)
+            .eq("id", id!)
+            .eq("company_id", effectiveCompany.id);
+        });
+      }
 
       // Upsert installments: delete old, insert new
       {
