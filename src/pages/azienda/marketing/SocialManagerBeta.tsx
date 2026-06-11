@@ -4030,11 +4030,13 @@ export default function SocialManagerBeta() {
   const goToIntegrations = useCallback(() => navigate("/azienda/impostazioni/integrazioni"), [navigate]);
 
   const handlePostScheduled = useCallback((post: ScheduledPost) => {
-    void addPost(post);
+    // L'errore e' gia' notificato dall'onError della mutation: qui evitiamo
+    // solo la unhandled rejection di mutateAsync.
+    addPost(post).catch(() => {});
   }, [addPost]);
 
   const handleUpdatePost = useCallback((id: string, changes: Partial<ScheduledPost>) => {
-    void updatePost(id, changes);
+    updatePost(id, changes).catch(() => {});
   }, [updatePost]);
 
   const handleUseInPost = useCallback((item: MediaItem) => {

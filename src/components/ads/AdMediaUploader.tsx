@@ -171,6 +171,9 @@ export function AdMediaUploader({ companyId, onUploaded }: Props) {
         onUploaded?.(media as { id: string; public_url: string });
         resetUploadState();
       } catch (e) {
+        // Cleanup best-effort: senza riga DB il file in storage resterebbe
+        // orfano (pubblico e non tracciato) per sempre.
+        await supabase.storage.from(STORAGE_BUCKET).remove([fileName]).catch(() => {});
         toast.error("Errore inserimento DB", {
           description: String((e as Error).message ?? e),
         });

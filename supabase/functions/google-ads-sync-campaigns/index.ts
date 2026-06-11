@@ -283,7 +283,18 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("[google-ads-sync-campaigns] error:", e);
-    return new Response(JSON.stringify({ error: (e as Error).message }), {
+    const msg = (e as Error).message ?? "";
+    // Refresh token assente (OAuth senza consenso offline): errore azionabile,
+    // non un 500 generico.
+    if (msg.includes("No refresh token")) {
+      return new Response(JSON.stringify({
+        error: "google_reconnect_required",
+        detail: "Riconnetti Google Ads dalle Integrazioni: manca il consenso offline (refresh token).",
+      }), {
+        status: 400, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
     });
   }

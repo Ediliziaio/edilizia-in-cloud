@@ -149,13 +149,22 @@ Deno.serve(async (req) => {
               (a) => a.action_type === "lead" || a.action_type === "leadgen.other",
             );
 
+            const today = new Date().toISOString().split("T")[0];
             const insightRow = {
               company_id: c.company_id,
               campaign_id: lc.id,
-              adset_id: null,
-              ad_id: null,
-              date_start: row.date_start ?? new Date().toISOString().split("T")[0],
-              date_stop: row.date_stop ?? new Date().toISOString().split("T")[0],
+              // Sentinel uuid-zero (le colonne sono uuid NOT NULL e fanno
+              // parte della chiave unica meta_insights_cache_campaign_daily_key:
+              // i NULL non collidono mai in un indice unico → niente dedupe).
+              adset_id: "00000000-0000-0000-0000-000000000000",
+              ad_id: "00000000-0000-0000-0000-000000000000",
+              level: "campaign",
+              date_start: row.date_start ?? today,
+              date_stop: row.date_stop ?? today,
+              // date_end e' NOT NULL senza default (usata dall'api-proxy):
+              // senza questo campo l'insert falliva in silenzio → il sync
+              // non ha MAI scritto una riga di insights.
+              date_end: row.date_stop ?? today,
               spend_cents: Math.round(parseFloat(row.spend ?? "0") * 100),
               impressions: parseInt(row.impressions ?? "0", 10),
               clicks: parseInt(row.clicks ?? "0", 10),
@@ -171,9 +180,13 @@ Deno.serve(async (req) => {
               raw: row,
             };
 
+            // onConflict allineato all'indice unico
+            // meta_insights_cache_campaign_daily_key (prima puntava a colonne
+            // SENZA constraint → 42P10 a ogni upsert, e il fallback insert
+            // falliva muto per date_end NOT NULL: zero righe scritte).
             const { error: upsertErr } = await admin
               .from("meta_insights_cache")
-              .upsert(insightRow, { onConflict: "company_id,campaign_id,date_start,date_stop" });
+              .upsert(insightRow, { onConflict: "company_id,campaign_id,adset_id,ad_id,date_start,date_stop" });
             if (upsertErr) {
               const msg = String(upsertErr.message ?? "");
               if (msg.includes("does not exist") || msg.includes("schema cache")) {
@@ -181,12 +194,7 @@ Deno.serve(async (req) => {
                 // Stop intero processing per quella company
                 break;
               }
-              if (msg.includes("on conflict") || msg.includes("constraint")) {
-                // Insight schema potrebbe non avere il composite unique - prova insert plain
-                await admin.from("meta_insights_cache").insert(insightRow);
-              } else {
-                errors.push(`insight_upsert:${msg.substring(0, 100)}`);
-              }
+              errors.push(`insight_upsert:${msg.substring(0, 100)}`);
             } else {
               insightsRows += 1;
             }

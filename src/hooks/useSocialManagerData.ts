@@ -249,8 +249,12 @@ export function useSocialManagerData(companyId: string | undefined) {
 
   return useMemo(() => ({
     connectedAccounts: accountsQuery.data ?? localAccounts,
-    posts: postsQuery.data && postsQuery.data.length > 0 ? postsQuery.data : localPosts,
-    mediaItems: mediaQuery.data && mediaQuery.data.length > 0 ? mediaQuery.data : localMedia,
+    // ?? e non length>0: la query ritorna null solo se lo schema manca
+    // (fallback beta su localStorage) e [] se il DB e' vuoto. Col vecchio
+    // check, un DB legittimamente vuoto faceva RISORGERE i post cancellati
+    // rimasti nel localStorage.
+    posts: postsQuery.data ?? localPosts,
+    mediaItems: mediaQuery.data ?? localMedia,
     addPost,
     updatePost,
     addMedia,
