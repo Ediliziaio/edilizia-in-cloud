@@ -30,7 +30,10 @@ interface Props {
   position?: "bottom-right" | "bottom-left";
 }
 
-// Default fallback token (seed migration 20270518110000 — Domus Group widget per ediliziaincloud.com).
+// Default fallback token (seed migration 20270518110000): widget del sito
+// ediliziaincloud.com, intestato alla company piattaforma "Platform Admin CRM"
+// (fix 20270727000000 — il seed lo aveva agganciato per errore a Demo Azienda
+// e i lead della chat finivano nel CRM della demo).
 // Override via VITE_PUBLIC_CHAT_TOKEN per usare un widget diverso (es. brand secondario).
 const DEFAULT_PLATFORM_TOKEN = "859db08e-494d-4b15-ba85-7da57849df87";
 
