@@ -1,17 +1,27 @@
 /**
  * src/lib/routing.ts
- * Client OSRM per routing multi-waypoint.
+ * Routing multi-waypoint: HERE API (primario) con fallback OSRM demo.
  *
- * Endpoint: http://router.project-osrm.org (demo pubblico)
- * ⚠️  Demo server: rate limit non documentato. Per produzione usare istanza self-hosted.
- * Fallback: GraphHopper public API (5000 req/giorno) se OSRM non risponde.
+ * Primario: edge function geo-router → HERE Routing v8
+ *   - 250k req/mese free tier, tempi con TRAFFICO REALE
+ *   - restituisce durate per singola tratta (legs) → ETA precisi
+ * Fallback: http://router.project-osrm.org (demo pubblico, no traffico)
+ *   - usato se HERE_API_KEY non configurata o quota esaurita
  *
- * Polyline encoding: algoritmo Google Encoded Polyline (implementato inline).
+ * Polyline encoding OSRM: algoritmo Google Encoded Polyline (inline).
+ * La polyline HERE (flexible polyline) è decodificata server-side.
  */
+
+import { supabase } from "@/integrations/supabase/client";
 
 export interface RouteWaypoint {
   lat: number;
   lng: number;
+}
+
+export interface RouteLeg {
+  durationSec: number;
+  distanceMeters: number;
 }
 
 export interface RouteResult {
@@ -23,6 +33,10 @@ export interface RouteResult {
   distanceMeters: number;
   /** Durata formattata in italiano, es. "25 minuti" */
   durationLabel: string;
+  /** Durate per singola tratta (solo HERE) — per ETA precisi */
+  legs?: RouteLeg[];
+  /** Provider effettivamente usato */
+  provider: "here" | "osrm";
 }
 
 // ── Polyline decoder (Google Encoded Polyline Algorithm) ──────────────────────
@@ -125,6 +139,7 @@ export async function getOsrmRoute(
       durationSec: route.duration,
       distanceMeters: route.distance,
       durationLabel: formatDuration(route.duration),
+      provider: "osrm",
     };
   } catch (err: unknown) {
     if (err instanceof Error && err.name === "AbortError") {
@@ -134,6 +149,54 @@ export async function getOsrmRoute(
     }
     return null;
   }
+}
+
+// ── HERE Route (via edge function geo-router) ─────────────────────────────────
+/**
+ * Calcola il percorso con HERE Routing v8 (traffico reale, legs per-tratta).
+ * Restituisce null se HERE non è configurata o la chiamata fallisce —
+ * il chiamante deve fare fallback su getOsrmRoute.
+ */
+async function getHereRoute(
+  waypoints: RouteWaypoint[]
+): Promise<RouteResult | null> {
+  if (waypoints.length < 2) return null;
+
+  try {
+    const { data, error } = await supabase.functions.invoke("geo-router", {
+      body: { action: "route", waypoints },
+    });
+
+    if (error || !data || data.error || !Array.isArray(data.coordinates)) {
+      return null;
+    }
+
+    return {
+      coordinates: data.coordinates as [number, number][],
+      durationSec: data.durationSec,
+      distanceMeters: data.distanceMeters,
+      durationLabel: formatDuration(data.durationSec),
+      legs: data.legs,
+      provider: "here",
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Routing multi-waypoint con fallback automatico:
+ * 1. HERE (traffico reale, ETA per tratta)
+ * 2. OSRM demo (gratuito, no traffico)
+ *
+ * Usare questa funzione nei nuovi sviluppi al posto di getOsrmRoute.
+ */
+export async function getRoute(
+  waypoints: RouteWaypoint[]
+): Promise<RouteResult | null> {
+  const hereResult = await getHereRoute(waypoints);
+  if (hereResult) return hereResult;
+  return getOsrmRoute(waypoints);
 }
 
 /**

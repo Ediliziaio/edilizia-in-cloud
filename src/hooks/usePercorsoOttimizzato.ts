@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { forwardGeocode } from "@/lib/geocoding";
 import { nearestNeighborTSP } from "@/lib/tsp";
-import { getOsrmRoute } from "@/lib/routing";
+import { getRoute } from "@/lib/routing";
 import type { RouteResult } from "@/lib/routing";
 
 export interface InterventoConCoords {
@@ -152,17 +152,21 @@ export function usePercorsoOttimizzato(): PercorsoOttimizzatoState & PercorsoOtt
       ...ordered.map((i) => ({ lat: i.lat, lng: i.lng })),
     ];
 
-    const routeResult = await getOsrmRoute(waypoints);
+    const routeResult = await getRoute(waypoints);
 
-    // Stima tempi di arrivo
+    // Stima tempi di arrivo: usa le durate per-tratta reali (HERE) quando
+    // disponibili; altrimenti fallback alla divisione uniforme (OSRM non
+    // restituisce i legs in questa implementazione).
     let cumulativeSec = 0;
-    const legsPerStop = routeResult
+    const uniformLegSec = routeResult
       ? Math.floor(routeResult.durationSec / ordered.length)
       : null;
 
     const orderedWithTimes = orderedAll.map((item, idx) => {
-      if (legsPerStop && idx < ordered.length) {
-        cumulativeSec += legsPerStop;
+      if (routeResult && idx < ordered.length) {
+        const legSec = routeResult.legs?.[idx]?.durationSec ?? uniformLegSec;
+        if (legSec == null) return { ...item, arrivoStimato: null };
+        cumulativeSec += legSec;
         const now = new Date();
         now.setSeconds(now.getSeconds() + cumulativeSec);
         return {
