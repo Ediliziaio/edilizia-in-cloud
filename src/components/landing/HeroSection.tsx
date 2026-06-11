@@ -432,33 +432,43 @@ export default function HeroSection() {
       {/* Real photo background with parallax — <img> tag for LCP eligibility.
           Responsive srcset + WebP per ridurre il LCP mobile:
           PSI flaggava 387KB caricati per un'immagine coperta da gradient 92%.
-          Mobile (≤640px) carica 640w WebP ~30KB invece di 1920w JPEG ~387KB. */}
-      <img
-        ref={backgroundRef}
-        // v8.6.121 — Hero image SELF-HOSTED in public/hero/ invece di Unsplash.
-        // Vantaggi:
-        //   • -1 preconnect a images.unsplash.com (risparmio handshake)
-        //   • Servito da Cloudflare Pages same-origin (no CORS preflight)
-        //   • Cache headers controllabili (immutable 1y)
-        //   • PageSpeed flag "Use a CDN" → soddisfatto
-        src="/hero/cantiere-1024.webp"
-        srcSet="
-          /hero/cantiere-480.webp 480w,
-          /hero/cantiere-768.webp 768w,
-          /hero/cantiere-1024.webp 1024w,
-          /hero/cantiere-1440.webp 1440w,
-          /hero/cantiere-1920.webp 1920w
-        "
-        sizes="100vw"
-        alt="Cantiere edile italiano gestito con Edilizia in Cloud"
-        fetchPriority="high"
-        loading="eager"
-        decoding="async"
-        width={1920}
-        height={1080}
-        className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none"
-        style={{ willChange: "transform" }}
-      />
+          Il <picture> limita i telefoni (≤640px CSS) alla variante 768w (~55KB):
+          con sizes=100vw un display 3x sceglieva la 1440w da 152KB — è l'elemento
+          LCP e su 4G valeva da solo ~2.5s (audit Lighthouse 11/06: LCP 8.9s).
+          768w su 390px@3x = ~2x effettivo: indistinguibile sotto gradient. */}
+      <picture>
+        <source
+          media="(max-width: 640px)"
+          srcSet="/hero/cantiere-480.webp 480w, /hero/cantiere-768.webp 768w"
+          sizes="100vw"
+        />
+        <img
+          ref={backgroundRef}
+          // v8.6.121 — Hero image SELF-HOSTED in public/hero/ invece di Unsplash.
+          // Vantaggi:
+          //   • -1 preconnect a images.unsplash.com (risparmio handshake)
+          //   • Servito da Cloudflare Pages same-origin (no CORS preflight)
+          //   • Cache headers controllabili (immutable 1y)
+          //   • PageSpeed flag "Use a CDN" → soddisfatto
+          src="/hero/cantiere-1024.webp"
+          srcSet="
+            /hero/cantiere-480.webp 480w,
+            /hero/cantiere-768.webp 768w,
+            /hero/cantiere-1024.webp 1024w,
+            /hero/cantiere-1440.webp 1440w,
+            /hero/cantiere-1920.webp 1920w
+          "
+          sizes="100vw"
+          alt="Cantiere edile italiano gestito con Edilizia in Cloud"
+          fetchPriority="high"
+          loading="eager"
+          decoding="async"
+          width={1920}
+          height={1080}
+          className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none"
+          style={{ willChange: "transform" }}
+        />
+      </picture>
 
       {/* Gradient overlay */}
       <div

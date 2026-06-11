@@ -371,13 +371,17 @@
           s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
           document.head.appendChild(s);
         }
-        var EVENTS = ['scroll', 'click', 'keydown', 'touchstart', 'mousemove'];
+        // No 'mousemove': su desktop scatta al primo pixel di movimento e
+        // vanifica il defer. Fallback: DOPO l'evento load (mai in gara con
+        // l'LCP su rete lenta — prima il timer 3.5s partiva durante il
+        // caricamento critico), +1.5s di margine.
+        var EVENTS = ['scroll', 'click', 'keydown', 'touchstart'];
         function onInteract() {
           EVENTS.forEach(function(e){ window.removeEventListener(e, onInteract, { passive: true, capture: true }); });
           loadGA();
         }
         EVENTS.forEach(function(e){ window.addEventListener(e, onInteract, { passive: true, capture: true }); });
-        setTimeout(loadGA, 3500);
+        window.addEventListener('load', function(){ setTimeout(loadGA, 1500); }, { once: true });
       })();
     </script>
 
@@ -417,13 +421,16 @@
           t.src = 'https://connect.facebook.net/en_US/fbevents.js';
           document.head.appendChild(t);
         }
-        var PX_EVENTS = ['scroll', 'click', 'keydown', 'touchstart', 'mousemove'];
+        // Stessa strategia di GA: niente 'mousemove', fallback dopo load
+        // (fbevents pesa ~150KB: prima il timer 3.5s lo metteva in gara con
+        // l'LCP su mobile 4G).
+        var PX_EVENTS = ['scroll', 'click', 'keydown', 'touchstart'];
         function onPxInteract() {
           PX_EVENTS.forEach(function (e) { window.removeEventListener(e, onPxInteract, { passive: true, capture: true }); });
           loadPixel();
         }
         PX_EVENTS.forEach(function (e) { window.addEventListener(e, onPxInteract, { passive: true, capture: true }); });
-        setTimeout(loadPixel, 3500);
+        window.addEventListener('load', function(){ setTimeout(loadPixel, 1500); }, { once: true });
       })();
     </script>
     <!-- Critical CSS: above-the-fold hero + layout -->

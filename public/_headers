@@ -28,7 +28,10 @@
 /
   Link: </fonts/inter-latin-400-normal.woff2>; rel=preload; as=font; type=font/woff2; crossorigin
   Link: </fonts/inter-latin-700-normal.woff2>; rel=preload; as=font; type=font/woff2; crossorigin
-  Link: </hero/cantiere-1024.webp>; rel=preload; as=image; imagesrcset="/hero/cantiere-480.webp 480w,/hero/cantiere-768.webp 768w,/hero/cantiere-1024.webp 1024w,/hero/cantiere-1440.webp 1440w,/hero/cantiere-1920.webp 1920w"; imagesizes="100vw"; fetchpriority=high
+# Preload hero RIMOSSO (perf 11/06): l'<img> sta nell'HTML prerenderato con
+# fetchpriority=high (discovery immediata) e il nuovo <picture> limita i
+# telefoni alla 768w — il Link header con imagesizes=100vw avrebbe
+# precaricato la 1440w in parallelo = doppio download su mobile.
 
 # Security headers for all pages
 /*
