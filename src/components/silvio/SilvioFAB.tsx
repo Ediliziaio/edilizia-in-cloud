@@ -31,6 +31,7 @@ import {
   Network,
   Send,
   UploadCloud,
+  FileText,
 } from "lucide-react";
 import { SilvioAvatar } from "@/components/silvio/SilvioAvatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -43,6 +44,9 @@ const SmartDocumentImportModal = lazy(() =>
 );
 const SilvioChatSheet = lazy(() =>
   import("@/components/silvio/SilvioChatSheet").then(m => ({ default: m.SilvioChatSheet })),
+);
+const PdfToolkitDialog = lazy(() =>
+  import("@/components/documenti/PdfToolkitDialog").then(m => ({ default: m.PdfToolkitDialog })),
 );
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -214,6 +218,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
     },
   });
   const [smartImportOpen, setSmartImportOpen] = useState(false);
+  const [pdfToolsOpen, setPdfToolsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   // Una volta aperta la prima volta, manteniamo SilvioChatSheet montato (anche
   // quando chatOpen=false). Così non si ricarica ogni apertura: messaggi, query
@@ -334,7 +339,10 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
       return;
     }
     if (action === "command_palette") {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+      // document + bubbles: il listener azienda è su document, quello admin
+      // su window — un dispatch su window non raggiunge MAI i listener su
+      // document, quindi il bottone era muto in azienda.
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
       return;
     }
     // Actions routing: usa la mappa mode-aware
@@ -543,6 +551,17 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
               </div>
             )}
 
+            {content.uploadCard.visible && (
+              <button
+                type="button"
+                onClick={() => { setOpen(false); setPdfToolsOpen(true); }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-left"
+              >
+                <FileText className="h-3.5 w-3.5 text-slate-500" />
+                <span className="text-xs text-slate-700 flex-1">Strumenti PDF: immagini→PDF, unisci, ruota</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => handleAction("command_palette")}
@@ -674,6 +693,13 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
             open={smartImportOpen}
             onOpenChange={setSmartImportOpen}
           />
+        </Suspense>
+      )}
+
+      {/* Strumenti PDF (immagini→PDF, unisci/ruota/riordina) — lazy al primo open */}
+      {pdfToolsOpen && (
+        <Suspense fallback={null}>
+          <PdfToolkitDialog open={pdfToolsOpen} onOpenChange={setPdfToolsOpen} />
         </Suspense>
       )}
 
