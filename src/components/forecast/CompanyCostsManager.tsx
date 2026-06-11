@@ -587,6 +587,17 @@ export default function CompanyCostsManager() {
             </Alert>
           )}
 
+          {/* Avviso troncamento: con 1000+ costi nel periodo i totali sono parziali */}
+          {data.costsTruncated && (
+            <Alert className="border-amber-300 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-700">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-800 dark:text-amber-300">
+                Stai visualizzando i primi 1.000 costi del periodo: i totali potrebbero essere parziali.
+                Restringi il periodo (es. mese o trimestre) per avere numeri completi.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Alert Banner — Overdue payments */}
           {data.stats.overdueCount > 0 && (
             <Alert className="border-orange-300 bg-orange-50 dark:bg-orange-900/10 dark:border-orange-700">

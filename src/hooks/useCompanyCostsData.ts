@@ -566,5 +566,8 @@ export function useCompanyCostsData(companyId: string | undefined, filters: Cost
     exportCostsCSV,
     allCostsUnfiltered,
     breakEvenData: calculateBreakEven(fixedCosts, 0),
+    // La query costi ha .limit(1000): se torna esattamente 1000 righe i
+    // totali potrebbero essere PARZIALI — il chiamante mostra un avviso.
+    costsTruncated: costs.length >= 1000,
   };
 }

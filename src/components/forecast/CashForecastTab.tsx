@@ -260,9 +260,12 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
       }
     });
 
-    // Build cumulative
+    // Build cumulative — partendo dal SALDO INIZIALE reale (prima nota).
+    // Prima partiva da 0: il grafico "saldo" non coincideva col KPI "Saldo
+    // finale previsto" (= saldo iniziale + flussi) mostrato sulla stessa
+    // pagina, e con saldo iniziale negativo il chart sembrava in positivo.
     const sorted = Array.from(weekMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-    let running = 0;
+    let running = initialBalance;
     return sorted.map(([, v]) => {
       const net = v.income - v.expenses;
       running += net;
@@ -275,7 +278,7 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
         cumulative: Math.round(running),
       };
     });
-  }, [transactions]);
+  }, [transactions, initialBalance]);
 
   // Cash flow alert threshold
   const CASH_FLOW_WARNING_THRESHOLD = 5000;
@@ -398,7 +401,7 @@ export function CashForecastTab({ stats, expectedPayments, expectedExpenses, exp
       {weeklyChartData.length > 1 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Cash Flow Cumulativo</CardTitle>
+            <CardTitle className="text-base">Saldo previsto (cumulativo)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[250px]">
