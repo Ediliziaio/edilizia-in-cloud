@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle, AlertTriangle, ArrowUpRight, BarChart3, Download, LayoutDashboard,
@@ -7,9 +7,10 @@ import {
   CalendarCheck, Trophy, UserPlus,
 } from "lucide-react";
 import {
-  Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer,
+  Area, Bar, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer,
   Tooltip as RechartsTooltip, XAxis, YAxis,
 } from "recharts";
+import { TrendTooltip, type TrendTooltipSeries } from "@/components/charts/TrendTooltip";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -94,77 +95,74 @@ export default function MarketingDashboard() {
     queryKey: ["marketing-dashboard-trend-12m", companyId],
     queryFn: async () => {
       if (!companyId) return [];
-      const from = new Date();
-      from.setMonth(from.getMonth() - 11);
-      from.setDate(1);
-      from.setHours(0, 0, 0, 0);
-      const fromIso = from.toISOString();
-      const fromDateOnly = fromIso.slice(0, 10);
-
-      const [leadsRes, apptsRes, contractsRes] = await Promise.all([
-        supabase
-          .from("marketing_contacts")
-          .select("created_at")
-          .eq("company_id", companyId)
-          .gte("created_at", fromIso),
-        supabase
-          .from("appointments")
-          .select("appointment_date")
-          .eq("company_id", companyId)
-          .gte("appointment_date", fromDateOnly),
-        // P1.4 — "Contratti vinti" = opportunità con status='won', bucket
-        // per `updated_at` (coerente con la KPI strip che legge la stessa
-        // tabella). Prima leggevamo `orders.created_at` che misurava
-        // qualcosa di completamente diverso.
-        supabase
-          .from("marketing_opportunities")
-          .select("updated_at")
-          .eq("company_id", companyId)
-          .eq("status", "won")
-          .gte("updated_at", fromIso),
-      ]);
-
-      const months = Array.from({ length: 12 }, (_, index) => {
+      // Aggregazione SERVER-SIDE (RPC marketing_trend_12m): vedi nota nella
+      // funzione gemella del Cruscotto — numeri esatti (niente cap righe
+      // PostgREST) e 12 righe di payload invece di migliaia.
+      const { data, error } = await supabase.rpc("marketing_trend_12m" as never, {
+        p_company_id: companyId,
+      } as never);
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as Array<{
+        mese_key: string; lead: number; appuntamenti: number; contratti: number;
+      }>;
+      const byKey = new Map(rows.map((r) => [r.mese_key, r]));
+      return Array.from({ length: 12 }, (_, index) => {
         const date = new Date();
         date.setMonth(date.getMonth() - (11 - index));
         date.setDate(1);
         date.setHours(0, 0, 0, 0);
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
         const monthLabel = date.toLocaleDateString("it-IT", { month: "short" }).replace(".", "");
+        const row = byKey.get(key);
         return {
           key,
           mese: `${monthLabel} '${String(date.getFullYear()).slice(-2)}`,
-          lead: 0,
-          appuntamenti: 0,
-          contratti: 0,
+          lead: safeNumber(row?.lead),
+          appuntamenti: safeNumber(row?.appuntamenti),
+          contratti: safeNumber(row?.contratti),
         };
       });
-      const byKey = new Map(months.map((m) => [m.key, m]));
-
-      const accumulate = (
-        rows: Array<{ created_at?: string | null; appointment_date?: string | null; updated_at?: string | null }> | null,
-        field: "lead" | "appuntamenti" | "contratti",
-      ) => {
-        (rows || []).forEach((row) => {
-          const raw = row.created_at ?? row.appointment_date ?? row.updated_at;
-          if (!raw) return;
-          const date = new Date(raw);
-          if (Number.isNaN(date.getTime())) return;
-          const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-          const month = byKey.get(key);
-          if (!month) return;
-          month[field] += 1;
-        });
-      };
-
-      accumulate(leadsRes.data ?? null, "lead");
-      accumulate(apptsRes.data ?? null, "appuntamenti");
-      accumulate(contractsRes.data ?? null, "contratti");
-      return months;
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
   });
+
+  const navigate = useNavigate();
+
+  // Legenda interattiva: click su una voce per nascondere/mostrare la serie
+  const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+  const toggleSeries = useCallback((key: string) => {
+    setHiddenSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  // Linea di riferimento: media lead 12 mesi (benchmark onesto senza config)
+  const avgLead = useMemo(() => {
+    if (!marketingTrend.length) return 0;
+    return marketingTrend.reduce((s, m) => s + safeNumber(m.lead), 0) / marketingTrend.length;
+  }, [marketingTrend]);
+
+  const trendIsEmpty = useMemo(
+    () =>
+      marketingTrend.length > 0 &&
+      marketingTrend.every(
+        (m) => safeNumber(m.lead) === 0 && safeNumber(m.appuntamenti) === 0 && safeNumber(m.contratti) === 0,
+      ),
+    [marketingTrend],
+  );
+
+  const trendTooltipSeries = useMemo<TrendTooltipSeries[]>(() => {
+    const num = (v: number) => v.toLocaleString("it-IT");
+    return [
+      { key: "lead", label: "Lead", color: "hsl(var(--chart-1))", formatter: num },
+      { key: "appuntamenti", label: "Appuntamenti", color: "hsl(var(--chart-3))", formatter: num },
+      { key: "contratti", label: "Contratti", color: "hsl(var(--chart-2))", formatter: num },
+    ];
+  }, []);
 
   // ── Executive state (analogo al Cruscotto Aziendale) ─────────────────────
   const executiveState = useMemo(() => {
@@ -458,45 +456,114 @@ export default function MarketingDashboard() {
                   <h3 className="mt-1 text-base font-semibold text-slate-950">Lead, appuntamenti e contratti</h3>
                   <p className="mt-0.5 text-[11px] text-slate-400">Storico fisso · indipendente dai filtri periodo</p>
                 </div>
+                {/* Legenda interattiva: click per nascondere/mostrare la serie */}
                 <div className="flex flex-wrap items-center gap-3 text-xs">
-                  <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-blue-500" /> Lead</span>
-                  <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-orange-500" /> Appuntamenti</span>
-                  <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-emerald-600" /> Contratti</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSeries("lead")}
+                    aria-pressed={!hiddenSeries.has("lead")}
+                    className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("lead") && "opacity-40 line-through")}
+                  >
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-1))" }} /> Lead
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleSeries("appuntamenti")}
+                    aria-pressed={!hiddenSeries.has("appuntamenti")}
+                    className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("appuntamenti") && "opacity-40 line-through")}
+                  >
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-3))" }} /> Appuntamenti
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleSeries("contratti")}
+                    aria-pressed={!hiddenSeries.has("contratti")}
+                    className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("contratti") && "opacity-40 line-through")}
+                  >
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-2))" }} /> Contratti
+                  </button>
                 </div>
               </div>
 
               <div className="mt-4 h-[260px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                {trendIsEmpty ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
+                    <p className="text-sm font-medium text-slate-500">Ancora nessun dato negli ultimi 12 mesi</p>
+                    <p className="text-xs text-slate-400">Aggiungi il primo lead o collega una fonte per vedere l'andamento.</p>
+                  </div>
+                ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={marketingTrend} margin={{ top: 8, right: 4, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
-                    <XAxis dataKey="mese" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" />
-                    <YAxis tickLine={false} axisLine={false} fontSize={10} stroke="#94a3b8" allowDecimals={false} />
+                  <ComposedChart
+                    data={marketingTrend}
+                    margin={{ top: 8, right: 4, left: -10, bottom: 0 }}
+                    className="cursor-pointer"
+                    onClick={(state) => {
+                      // Drill-down: click sul mese -> contatti creati nel periodo
+                      const key = (state?.activePayload?.[0]?.payload as { key?: string } | undefined)?.key;
+                      if (!key) return;
+                      navigate(`/azienda/marketing/contatti?mese=${key}`);
+                    }}
+                  >
+                    <defs>
+                      <linearGradient id="mktLeadGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.95} />
+                        <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.55} />
+                      </linearGradient>
+                      <linearGradient id="mktApptGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.95} />
+                        <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0.55} />
+                      </linearGradient>
+                      <linearGradient id="mktContrattiArea" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="hsl(var(--chart-2))" stopOpacity={0.22} />
+                        <stop offset="100%" stopColor="hsl(var(--chart-2))" stopOpacity={0.03} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#edf2f7" />
+                    <XAxis dataKey="mese" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" tickMargin={8} />
+                    <YAxis tickLine={false} axisLine={false} fontSize={10} stroke="#94a3b8" allowDecimals={false} tickMargin={6} />
                     <RechartsTooltip
                       cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
-                      contentStyle={{
-                        borderRadius: 12,
-                        border: "1px solid #e2e8f0",
-                        boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
-                      }}
-                      formatter={(value: number, name) => [
-                        Number(value).toLocaleString("it-IT"),
-                        name === "lead" ? "Lead" : name === "appuntamenti" ? "Appuntamenti" : "Contratti",
-                      ]}
-                      labelFormatter={(label) => `Mese: ${label}`}
+                      content={<TrendTooltip data={marketingTrend} xKey="mese" series={trendTooltipSeries} />}
                     />
-                    <Bar dataKey="lead" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={22} />
-                    <Bar dataKey="appuntamenti" fill="#f97316" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                    {/* Benchmark onesto: media lead degli ultimi 12 mesi */}
+                    {avgLead > 0 && !hiddenSeries.has("lead") && (
+                      <ReferenceLine
+                        y={avgLead}
+                        stroke="#94a3b8"
+                        strokeDasharray="6 4"
+                        strokeWidth={1}
+                        label={{ value: "media", position: "insideTopRight", fontSize: 10, fill: "#94a3b8" }}
+                      />
+                    )}
+                    <Bar dataKey="lead" hide={hiddenSeries.has("lead")} fill="url(#mktLeadGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                    <Bar dataKey="appuntamenti" hide={hiddenSeries.has("appuntamenti")} fill="url(#mktApptGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                    {/* Area sfumata sotto la linea contratti (stesso dataKey, solo fill) */}
+                    <Area
+                      type="monotone"
+                      dataKey="contratti"
+                      name="contrattiArea"
+                      hide={hiddenSeries.has("contratti")}
+                      stroke="transparent"
+                      fill="url(#mktContrattiArea)"
+                      legendType="none"
+                      tooltipType="none"
+                    />
                     <Line
                       type="monotone"
                       dataKey="contratti"
-                      stroke="#059669"
+                      hide={hiddenSeries.has("contratti")}
+                      stroke="hsl(var(--chart-2))"
                       strokeWidth={2.5}
-                      dot={{ r: 3, fill: "#059669", strokeWidth: 0 }}
-                      activeDot={{ r: 4 }}
+                      dot={{ r: 4, fill: "#ffffff", stroke: "hsl(var(--chart-2))", strokeWidth: 2 }}
+                      activeDot={{ r: 5, fill: "hsl(var(--chart-2))", stroke: "#ffffff", strokeWidth: 2 }}
                     />
                   </ComposedChart>
                 </ResponsiveContainer>
+                )}
               </div>
+              {!trendIsEmpty && (
+                <p className="mt-2 text-right text-[10px] text-slate-400">Clicca su un mese per vedere i lead del periodo</p>
+              )}
             </aside>
           </div>
         </section>

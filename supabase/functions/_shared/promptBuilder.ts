@@ -83,6 +83,19 @@ export interface BuildEnrichedSystemPromptArgs extends BuildPersonaPromptArgs {
 
 export interface BuiltPersonaPrompt {
   systemPrompt: string;
+  /**
+   * Token-opt (prompt caching): parte STATICA del system prompt — preambolo +
+   * persona prompt + playbooks + regole structured output. Byte-identica tra
+   * messaggi della stessa persona/variant → cacheabile con breakpoint Anthropic.
+   * Include il preambolo. Usare in coppia con `systemPromptDynamic`.
+   */
+  systemPromptStatic: string;
+  /**
+   * Parte DINAMICA (cambia per messaggio): contesto temporale, user context,
+   * memoria, RAG, citation rules. Va DOPO il blocco statico (dopo il breakpoint
+   * cache). Può essere stringa vuota.
+   */
+  systemPromptDynamic: string;
   preamboloVersion: number | null;
   /** Se != null, sta venendo servito un proposal A/B in_test */
   abVariantId: string | null;
@@ -220,63 +233,31 @@ async function loadRuntimePromptVariant(
 }
 
 /**
- * Funzione master per costruire il system prompt persona-aware con A/B test.
+ * Compone i layer del prompt in DUE forme:
+ *  - `systemPrompt`: stringa unica, ORDINE STORICO INVARIATO (back-compat per
+ *    tutti i caller esistenti: ai-orchestrator, ai-quote-supreme, ecc.)
+ *  - `systemPromptStatic` + `systemPromptDynamic`: split per prompt caching
+ *    Anthropic (statico = preambolo+persona+playbooks+regole; dinamico = data,
+ *    user context, memoria, RAG, citation). Il caller che usa lo split mette il
+ *    breakpoint cache a fine blocco statico.
  */
-export async function buildPersonaPrompt(
+async function composePromptLayers(
   supabase: SupabaseClient,
   args: BuildPersonaPromptArgs,
-): Promise<BuiltPersonaPrompt> {
-  // ── 1) Determina se servire variant A/B ─────────────────────────────────
-  const runtimeVariant = await loadRuntimePromptVariant(supabase, args);
-  if (runtimeVariant?.prompt) {
-    const ragCount = args.ragSourcesCount ?? 0;
-    const citationRulesBlock = ragCount > 0 ? CITATION_FORMAT_RULES : "";
-    const useStructured = !args.disableStructuredOutput
-      && shouldUseStructured(args.recommendedTierKey ?? null);
-    const structuredRulesBlock = useStructured ? STRUCTURED_OUTPUT_SYSTEM_RULES : "";
-    const personaWithContext = [
-      runtimeVariant.prompt,
-      buildRuntimeContextBlock(),
-      args.userContext ?? "",
-      GENERAL_EXECUTION_PLAYBOOKS,
-      TOOL_SELECTION_AND_RESULT_PLAYBOOK,
-      getPersonaExecutionPlaybook(args.personaKey),
-      args.memoryContext ?? "",
-      args.ragContextBlock ?? "",
-      citationRulesBlock,
-      structuredRulesBlock,
-    ].filter(Boolean).join("\n\n");
-    const { prompt: systemPrompt, preamboloVersion } = await buildSystemPrompt(supabase, personaWithContext);
-
-    return {
-      systemPrompt,
-      preamboloVersion,
-      abVariantId: runtimeVariant.isVariant ? runtimeVariant.testId : null,
-      useStructured,
-      effectivePersonaVersion: runtimeVariant.isVariant ? null : (args.personaVersion ?? null),
-      abTestId: runtimeVariant.testId,
-      abVariantServed: runtimeVariant.isVariant,
-    };
-  }
-
-  // Fallback retrocompatibile: se la RPC MP-05 non è disponibile o non ha test
-  // attivi, usa la tabella proposals storica.
-  const proposals = await loadInTestProposals(supabase);
-  const abVariant = pickAbVariant(proposals, args.personaKey, args.sessionId ?? null, args.companyId ?? null);
-  const personaPrompt = abVariant ? abVariant.proposed_prompt : args.basePrompt;
-
-  // ── 2) Citation rules (solo se RAG iniettato) ─────────────────────────
+  personaPrompt: string,
+): Promise<{
+  systemPrompt: string;
+  systemPromptStatic: string;
+  systemPromptDynamic: string;
+  preamboloVersion: number | null;
+  useStructured: boolean;
+}> {
   const ragCount = args.ragSourcesCount ?? 0;
   const citationRulesBlock = ragCount > 0 ? CITATION_FORMAT_RULES : "";
-
-  // ── 3) Structured output (tier balanced/premium) ──────────────────────
-  // AI Test Lab: se il demo user forza un modello debole (Ministral, Gemma 2B,
-  // Llama 8B, etc.), bypassiamo lo structured output a livello di prompt.
   const useStructured = !args.disableStructuredOutput
     && shouldUseStructured(args.recommendedTierKey ?? null);
   const structuredRulesBlock = useStructured ? STRUCTURED_OUTPUT_SYSTEM_RULES : "";
 
-  // ── 4) Compose persona-with-context ───────────────────────────────────
   const personaWithContext = [
     personaPrompt,
     buildRuntimeContextBlock(),
@@ -289,15 +270,71 @@ export async function buildPersonaPrompt(
     citationRulesBlock,
     structuredRulesBlock,
   ].filter(Boolean).join("\n\n");
-
-  // ── 5) Antepone preambolo costituzionale ──────────────────────────────
   const { prompt: systemPrompt, preamboloVersion } = await buildSystemPrompt(supabase, personaWithContext);
 
+  // Blocco statico: cambia solo con versione persona/preambolo/playbook → cache-hit
+  // tra messaggi. buildSystemPrompt antepone il preambolo (cache interna 60s).
+  const staticPart = [
+    personaPrompt,
+    GENERAL_EXECUTION_PLAYBOOKS,
+    TOOL_SELECTION_AND_RESULT_PLAYBOOK,
+    getPersonaExecutionPlaybook(args.personaKey),
+    structuredRulesBlock,
+  ].filter(Boolean).join("\n\n");
+  const { prompt: systemPromptStatic } = await buildSystemPrompt(supabase, staticPart);
+
+  const systemPromptDynamic = [
+    buildRuntimeContextBlock(),
+    args.userContext ?? "",
+    args.memoryContext ?? "",
+    args.ragContextBlock ?? "",
+    citationRulesBlock,
+  ].filter(Boolean).join("\n\n");
+
+  return { systemPrompt, systemPromptStatic, systemPromptDynamic, preamboloVersion, useStructured };
+}
+
+/**
+ * Funzione master per costruire il system prompt persona-aware con A/B test.
+ */
+export async function buildPersonaPrompt(
+  supabase: SupabaseClient,
+  args: BuildPersonaPromptArgs,
+): Promise<BuiltPersonaPrompt> {
+  // ── 1) Determina se servire variant A/B ─────────────────────────────────
+  const runtimeVariant = await loadRuntimePromptVariant(supabase, args);
+  if (runtimeVariant?.prompt) {
+    const layers = await composePromptLayers(supabase, args, runtimeVariant.prompt);
+
+    return {
+      systemPrompt: layers.systemPrompt,
+      systemPromptStatic: layers.systemPromptStatic,
+      systemPromptDynamic: layers.systemPromptDynamic,
+      preamboloVersion: layers.preamboloVersion,
+      abVariantId: runtimeVariant.isVariant ? runtimeVariant.testId : null,
+      useStructured: layers.useStructured,
+      effectivePersonaVersion: runtimeVariant.isVariant ? null : (args.personaVersion ?? null),
+      abTestId: runtimeVariant.testId,
+      abVariantServed: runtimeVariant.isVariant,
+    };
+  }
+
+  // Fallback retrocompatibile: se la RPC MP-05 non è disponibile o non ha test
+  // attivi, usa la tabella proposals storica.
+  const proposals = await loadInTestProposals(supabase);
+  const abVariant = pickAbVariant(proposals, args.personaKey, args.sessionId ?? null, args.companyId ?? null);
+  const personaPrompt = abVariant ? abVariant.proposed_prompt : args.basePrompt;
+
+  // ── 2..5) Compose layer (citation, structured, contesto, preambolo) ────
+  const layers = await composePromptLayers(supabase, args, personaPrompt);
+
   return {
-    systemPrompt,
-    preamboloVersion,
+    systemPrompt: layers.systemPrompt,
+    systemPromptStatic: layers.systemPromptStatic,
+    systemPromptDynamic: layers.systemPromptDynamic,
+    preamboloVersion: layers.preamboloVersion,
     abVariantId: abVariant?.id ?? null,
-    useStructured,
+    useStructured: layers.useStructured,
     effectivePersonaVersion: abVariant ? null : (args.personaVersion ?? null),
     abTestId: null,
     abVariantServed: Boolean(abVariant),

@@ -13,9 +13,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, FileBarChart2, Loader2, Download, Trash2, Sparkles, Wand2 } from "lucide-react";
+import { Plus, FileBarChart2, Loader2, Download, Trash2, Sparkles, Wand2, Banknote, Check, Clock } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { PrintPreviewModal } from "@/components/shared/PrintPreviewModal";
+import type { Installment } from "@/lib/orderUtils";
 
 interface SalVoce {
   id: string;
@@ -57,6 +58,12 @@ interface SalTabProps {
   orderId: string;
   companyId: string;
   orderTotalAmount?: number;
+  /** Piano rate della commessa: se presente mostra l'avanzamento incassi in
+      cima alla sezione (stesso riepilogo impostato in creazione/modifica). */
+  installments?: Installment[];
+  vatRate?: number;
+  /** Costo finanziaria già "gated" dal chiamante (0 se non financing). */
+  financingCost?: number;
 }
 
 interface VoceForm {
@@ -73,7 +80,7 @@ const emptyVoce = (): VoceForm => ({
   note: "",
 });
 
-export function SalTab({ orderId, companyId, orderTotalAmount }: SalTabProps) {
+export function SalTab({ orderId, companyId, orderTotalAmount, installments, vatRate = 22, financingCost = 0 }: SalTabProps) {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -244,6 +251,31 @@ export function SalTab({ orderId, companyId, orderTotalAmount }: SalTabProps) {
 
   const totalDialogImporto = voci.reduce((sum, v) => sum + computedImporto(v), 0);
 
+  // ── Avanzamento incassi (piano rate della commessa) ─────────────────
+  // Stessa matematica di FinancialSummaryReadOnly: il saldo è il residuo del
+  // totale ivato al netto delle altre rate e del costo finanziaria.
+  const totalWithVat = (orderTotalAmount ?? 0) * (1 + vatRate / 100);
+  const nonBalanceSum = (installments ?? [])
+    .filter((i) => i.type !== "balance")
+    .reduce((s, i) => s + i.amount, 0);
+  const balanceAmount = Math.max(0, totalWithVat - nonBalanceSum - financingCost);
+  const oggi = new Date();
+  oggi.setHours(0, 0, 0, 0);
+  const recapRows = (installments ?? [])
+    .map((inst) => ({ inst, amount: inst.type === "balance" ? balanceAmount : inst.amount }))
+    .filter(({ inst, amount }) => amount > 0 || inst.type === "balance")
+    .map((row) => ({
+      ...row,
+      scaduta: !row.inst.is_paid && !!row.inst.expected_date && new Date(row.inst.expected_date) < oggi,
+    }));
+  const incassato = recapRows.filter((r) => r.inst.is_paid).reduce((s, r) => s + r.amount, 0);
+  const incassoTarget = Math.max(0, totalWithVat - financingCost);
+  const incassoPct = incassoTarget > 0 ? Math.round((incassato / incassoTarget) * 100) : 0;
+  const rateIncassate = recapRows.filter((r) => r.inst.is_paid).length;
+  const fmtDateIt = (d: string) => {
+    try { return new Date(d).toLocaleDateString("it-IT"); } catch { return d; }
+  };
+
   if (isLoading) return <Skeleton className="h-40 w-full" />;
 
   return (
@@ -251,26 +283,94 @@ export function SalTab({ orderId, companyId, orderTotalAmount }: SalTabProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FileBarChart2 className="h-5 w-5 text-primary" aria-hidden="true" />
-          <h3 className="font-semibold">SAL — Stato Avanzamento Lavori</h3>
+          <h3 className="font-semibold">Verbali SAL (documenti)</h3>
           {salList.length > 0 && (
             <Badge variant="secondary">{salList.length}</Badge>
           )}
         </div>
         <Button size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Nuovo SAL
+          <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Nuovo verbale
         </Button>
       </div>
 
-      {salList.length === 0 ? (
+      {/* Avanzamento incassi: riporta qui il piano rate della commessa (lo
+          stesso Riepilogo Finanziario di creazione/modifica) così lo stato
+          finanziario è visibile direttamente nella sezione SAL. */}
+      {recapRows.length > 0 && (
         <Card>
-          <CardContent className="py-10 text-center space-y-3">
-            <FileBarChart2 className="h-12 w-12 text-muted-foreground/40 mx-auto" aria-hidden="true" />
-            <p className="text-sm font-medium text-muted-foreground">Nessun SAL registrato</p>
-            <p className="text-xs text-muted-foreground">
-              Crea il primo Stato Avanzamento Lavori per tenere traccia dei progressi di cantiere e generare documenti periodici.
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Banknote className="h-4 w-4 text-primary" aria-hidden="true" />
+                Avanzamento incassi
+              </CardTitle>
+              <span className="text-xs text-muted-foreground">
+                {rateIncassate}/{recapRows.length} rate incassate
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <div className="flex items-center justify-between text-xs mb-1">
+                <span className="text-muted-foreground">
+                  Incassato {formatCurrency(incassato)} su {formatCurrency(incassoTarget)}
+                </span>
+                <span className="font-semibold">{Math.min(100, incassoPct)}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-green-500 transition-all"
+                  style={{ width: `${Math.min(100, incassoPct)}%` }}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              {recapRows.map(({ inst, amount, scaduta }) => (
+                <div key={inst.position} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground truncate">{inst.label}</span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    <span className="font-medium">{formatCurrency(amount)}</span>
+                    {inst.is_paid ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-800 dark:bg-green-900/40 dark:text-green-200">
+                        <Check className="h-3 w-3" aria-hidden="true" />
+                        Pagato{inst.paid_date ? ` il ${fmtDateIt(inst.paid_date)}` : ""}
+                      </span>
+                    ) : (
+                      <span
+                        className={
+                          scaduta
+                            ? "inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                            : "inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                        }
+                      >
+                        <Clock className="h-3 w-3" aria-hidden="true" />
+                        {scaduta ? "Scaduta" : "Non pagato"}
+                        {inst.expected_date ? ` · prev. ${fmtDateIt(inst.expected_date)}` : ""}
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Per segnare una rata come pagata usa i bottoni Pagato/Non pagato nel Riepilogo Finanziario (sezione Pagamenti).
             </p>
-            <Button size="sm" onClick={() => setDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Crea primo SAL
+          </CardContent>
+        </Card>
+      )}
+
+      {salList.length === 0 ? (
+        /* Empty state compatto: per gli incassi c'è già la card qui sopra.
+           I verbali servono solo a bonus edilizi, banche e appalti — una riga
+           informativa basta, senza rubare spazio alla pagina. */
+        <Card>
+          <CardContent className="py-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground flex items-center gap-2 min-w-0">
+              <FileBarChart2 className="h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+              Nessun verbale. I verbali SAL certificano l'avanzamento lavori: servono per bonus edilizi, erogazioni bancarie e appalti.
+            </p>
+            <Button size="sm" variant="outline" onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Crea verbale
             </Button>
           </CardContent>
         </Card>
@@ -377,7 +477,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount }: SalTabProps) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileBarChart2 className="h-5 w-5" aria-hidden="true" />
-              Nuovo Stato Avanzamento Lavori
+              Nuovo verbale SAL (Stato Avanzamento Lavori)
             </DialogTitle>
           </DialogHeader>
 
@@ -526,7 +626,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount }: SalTabProps) {
               {createSalMutation.isPending ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> Salvataggio...</>
               ) : (
-                "Crea SAL"
+                "Crea verbale"
               )}
             </Button>
           </DialogFooter>

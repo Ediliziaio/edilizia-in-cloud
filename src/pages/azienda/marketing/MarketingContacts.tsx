@@ -479,6 +479,8 @@ export default function MarketingContacts() {
     // Deep-link preset usato da dashboard / executive summary marketing.
     filter: { key: "filter", defaultValue: "" },
     quality: { key: "qualita", defaultValue: "all" },
+    // Drill-down dai grafici trend marketing (formato YYYY-MM)
+    meseFilter: { key: "mese", defaultValue: "" },
   });
 
   const normalizedUrl = useMemo(
@@ -535,6 +537,22 @@ export default function MarketingContacts() {
   const stalePreset = urlFilters.filter as "stale" | "stale_2h" | "" | undefined;
   const stalePresetActive = stalePreset === "stale" || stalePreset === "stale_2h";
   const clearStalePreset = useCallback(() => setURLParam("filter", ""), [setURLParam]);
+
+  // Drill-down dai grafici trend: ?mese=YYYY-MM filtra per mese di creazione
+  const meseFilter = urlFilters.meseFilter;
+  const meseRange = useMemo(() => {
+    const m = /^(\d{4})-(\d{2})$/.exec(meseFilter || "");
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    if (mo < 0 || mo > 11) return null;
+    return {
+      start: new Date(y, mo, 1).toISOString(),
+      end: new Date(y, mo + 1, 1).toISOString(),
+      label: new Date(y, mo, 1).toLocaleDateString("it-IT", { month: "long", year: "numeric" }),
+    };
+  }, [meseFilter]);
+  const clearMeseFilter = useCallback(() => setURLParam("meseFilter", ""), [setURLParam]);
 
   useEffect(() => {
     setSearchInput(urlFilters.searchInput);
@@ -865,7 +883,7 @@ export default function MarketingContacts() {
 
   // Fetch contacts with grouped filter rules
   const { data, isLoading } = useQuery({
-    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters, activeTab, stalePreset, qualityFilter],
+    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters, activeTab, stalePreset, qualityFilter, meseFilter],
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
 
@@ -924,6 +942,9 @@ export default function MarketingContacts() {
       }
 
       if (finalIds) query = query.in("id", finalIds);
+
+      // Drill-down per mese (dai grafici trend)
+      if (meseRange) query = query.gte("created_at", meseRange.start).lt("created_at", meseRange.end);
 
       if (qualityFilter === "issues") {
         query = query.or("email.is.null,email.eq.,phone.is.null,phone.eq.,source.is.null,source.eq.,unsubscribed.eq.true,optout_email.eq.true,opt_out.eq.true,last_activity_at.is.null");
@@ -1484,6 +1505,20 @@ export default function MarketingContacts() {
             size="sm"
             className="h-7 self-start border-amber-300 bg-white text-amber-900 hover:bg-amber-100 sm:self-auto"
             onClick={clearStalePreset}
+          >
+            Mostra tutti i contatti
+          </Button>
+        </div>
+      )}
+
+      {meseRange && (
+        <div className="flex flex-col gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
+          <span><strong>Filtro mese attivo:</strong> contatti creati a {meseRange.label}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 self-start border-blue-300 bg-white text-blue-900 hover:bg-blue-100 sm:self-auto"
+            onClick={clearMeseFilter}
           >
             Mostra tutti i contatti
           </Button>

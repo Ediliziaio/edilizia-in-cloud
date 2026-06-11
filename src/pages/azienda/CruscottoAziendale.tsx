@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCruscottoData } from "@/hooks/useCruscottoData";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -47,15 +47,18 @@ import { formatCurrencyCompact } from "@/lib/formatters";
 import { safeNumber } from "@/lib/numberUtils";
 import { cn } from "@/lib/utils";
 import {
+  Area,
   Bar,
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import { TrendTooltip, type TrendTooltipSeries } from "@/components/charts/TrendTooltip";
 
 type ExecutiveTone = "green" | "orange" | "red" | "blue";
 
@@ -94,89 +97,99 @@ export default function CruscottoAziendale() {
     queryKey: ["cruscotto-executive-trend-12m", effectiveCompanyId],
     queryFn: async () => {
       if (!effectiveCompanyId) return [];
-      const from = new Date();
-      from.setMonth(from.getMonth() - 11);
-      from.setDate(1);
-      from.setHours(0, 0, 0, 0);
-
-      const [ordersRes, collectedRes, costsRes] = await Promise.all([
-        supabase
-          .from("orders")
-          .select("created_at, total_amount")
-          .eq("company_id", effectiveCompanyId)
-          .gte("created_at", from.toISOString()),
-        supabase
-          .from("order_installments")
-          .select("amount, paid_date, order:orders!inner(company_id)")
-          .eq("order.company_id", effectiveCompanyId)
-          .eq("is_paid", true)
-          .gte("paid_date", from.toISOString().slice(0, 10)),
-        supabase
-          .from("company_costs")
-          .select("amount, paid_date")
-          .eq("company_id", effectiveCompanyId)
-          .eq("is_paid", true)
-          .gte("paid_date", from.toISOString().slice(0, 10)),
-      ]);
-
-      if (ordersRes.error) throw ordersRes.error;
-      if (collectedRes.error) throw collectedRes.error;
-      if (costsRes.error) throw costsRes.error;
-
-      const months = Array.from({ length: 12 }, (_, index) => {
+      // Aggregazione SERVER-SIDE (RPC cruscotto_trend_12m): prima scaricavamo
+      // le righe grezze di orders/installments/costs e sommavamo in JS — il
+      // cap righe PostgREST (~1000) troncava silenziosamente i totali sulle
+      // aziende grandi. La RPC fa GROUP BY mensile in Postgres (bucket
+      // Europe/Rome, stessa logica del vecchio client): numeri esatti e
+      // payload di 12 righe invece di migliaia.
+      const { data, error } = await supabase.rpc("cruscotto_trend_12m" as never, {
+        p_company_id: effectiveCompanyId,
+      } as never);
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as Array<{
+        mese_key: string; venduto: number; incassato: number; cassa: number;
+      }>;
+      const byKey = new Map(rows.map((r) => [r.mese_key, r]));
+      // Le etichette mese ("gen '26") restano generate client-side: stesso
+      // formato e stesso ordine di prima.
+      return Array.from({ length: 12 }, (_, index) => {
         const date = new Date();
         date.setMonth(date.getMonth() - (11 - index));
         date.setDate(1);
         date.setHours(0, 0, 0, 0);
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
         const monthLabel = date.toLocaleDateString("it-IT", { month: "short" }).replace(".", "");
+        const row = byKey.get(key);
         return {
           key,
           mese: `${monthLabel} '${String(date.getFullYear()).slice(-2)}`,
-          venduto: 0,
-          incassato: 0,
-          cassa: 0,
+          venduto: safeNumber(row?.venduto),
+          incassato: safeNumber(row?.incassato),
+          cassa: safeNumber(row?.cassa),
         };
       });
-      const byKey = new Map(months.map((month) => [month.key, month]));
-
-      (ordersRes.data || []).forEach((row) => {
-        if (!row.created_at) return;
-        const date = new Date(row.created_at);
-        if (Number.isNaN(date.getTime())) return;
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        const month = byKey.get(key);
-        if (!month) return;
-        month.venduto += safeNumber(row.total_amount);
-      });
-
-      (collectedRes.data || []).forEach((row) => {
-        if (!row.paid_date) return;
-        const date = new Date(row.paid_date);
-        if (Number.isNaN(date.getTime())) return;
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        const month = byKey.get(key);
-        if (!month) return;
-        const amount = safeNumber(row.amount);
-        month.incassato += amount;
-        month.cassa += amount;
-      });
-
-      (costsRes.data || []).forEach((row) => {
-        if (!row.paid_date) return;
-        const date = new Date(row.paid_date);
-        if (Number.isNaN(date.getTime())) return;
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-        const month = byKey.get(key);
-        if (!month) return;
-        month.cassa -= safeNumber(row.amount);
-      });
-
-      return months;
     },
     enabled: !!effectiveCompanyId,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Punto di crossover dello zero per la linea cassa: sopra lo zero verde,
+  // sotto ROSSO (una cassa negativa dipinta di verde è fuorviante). L'offset
+  // è calcolato sul dominio reale dei valori (bounding box del path, con lo
+  // zero incluso: stesso riferimento usato dall'Area che ha baseline a 0).
+  const cassaZeroOffset = useMemo(() => {
+    const values = executiveTrend.map((m) => safeNumber(m.cassa));
+    const max = Math.max(...values, 0);
+    const min = Math.min(...values, 0);
+    if (max <= 0) return 0; // tutta negativa → tutta rossa
+    if (min >= 0) return 1; // tutta positiva → tutta verde
+    return max / (max - min);
+  }, [executiveTrend]);
+
+  const navigate = useNavigate();
+
+  // Legenda interattiva: click su una voce per nascondere/mostrare la serie
+  const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+  const toggleSeries = useCallback((key: string) => {
+    setHiddenSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  // Linea di riferimento: media venduto 12 mesi (benchmark onesto senza config)
+  const avgVenduto = useMemo(() => {
+    if (!executiveTrend.length) return 0;
+    return executiveTrend.reduce((s, m) => s + safeNumber(m.venduto), 0) / executiveTrend.length;
+  }, [executiveTrend]);
+
+  const trendIsEmpty = useMemo(
+    () =>
+      executiveTrend.length > 0 &&
+      executiveTrend.every(
+        (m) => safeNumber(m.venduto) === 0 && safeNumber(m.incassato) === 0 && safeNumber(m.cassa) === 0,
+      ),
+    [executiveTrend],
+  );
+
+  const trendTooltipSeries = useMemo<TrendTooltipSeries[]>(() => {
+    const eur = (v: number) =>
+      v.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+    return [
+      { key: "venduto", label: "Venduto", color: "hsl(var(--chart-1))", formatter: eur },
+      { key: "incassato", label: "Incassato", color: "hsl(var(--chart-3))", formatter: eur },
+      {
+        key: "cassa",
+        label: "Cassa netta",
+        color: (v) => (v < 0 ? "hsl(var(--chart-5))" : "hsl(var(--chart-2))"),
+        formatter: eur,
+        valueColor: (v) => (v < 0 ? "hsl(var(--chart-5))" : "hsl(var(--chart-2))"),
+      },
+    ];
+  }, []);
 
   const hasOrders = operations.activeOrders > 0 || finance.revenueThisMonth > 0;
   const hasLeads = (marketing?.kpi?.leads_total ?? 0) > 0;
@@ -425,51 +438,149 @@ export default function CruscottoAziendale() {
                     <h3 className="mt-1 text-base font-semibold text-slate-950">Venduto, incassato e cassa</h3>
                     <p className="mt-0.5 text-[11px] text-slate-400">Storico fisso · indipendente dai filtri periodo</p>
                   </div>
+                  {/* Legenda interattiva: click per nascondere/mostrare la serie */}
                   <div className="flex flex-wrap items-center gap-3 text-xs">
-                    <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-blue-500" /> Venduto</span>
-                    <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-orange-500" /> Incassato</span>
-                    <span className="inline-flex items-center gap-1 text-slate-600"><span className="h-2 w-2 rounded-full bg-emerald-600" /> Cassa</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleSeries("venduto")}
+                      aria-pressed={!hiddenSeries.has("venduto")}
+                      className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("venduto") && "opacity-40 line-through")}
+                    >
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-1))" }} /> Venduto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleSeries("incassato")}
+                      aria-pressed={!hiddenSeries.has("incassato")}
+                      className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("incassato") && "opacity-40 line-through")}
+                    >
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "hsl(var(--chart-3))" }} /> Incassato
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleSeries("cassa")}
+                      aria-pressed={!hiddenSeries.has("cassa")}
+                      className={cn("inline-flex items-center gap-1 text-slate-600 transition-opacity hover:opacity-80", hiddenSeries.has("cassa") && "opacity-40 line-through")}
+                    >
+                      <span className="h-2 w-2 rounded-full" style={{ background: "linear-gradient(180deg, hsl(var(--chart-2)) 50%, hsl(var(--chart-5)) 50%)" }} /> Cassa (+/−)
+                    </button>
                   </div>
                 </div>
 
                 <div className="mt-4 h-[260px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                  {trendIsEmpty ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
+                      <p className="text-sm font-medium text-slate-500">Ancora nessun movimento negli ultimi 12 mesi</p>
+                      <p className="text-xs text-slate-400">Registra il primo incasso o crea una commessa per vedere l'andamento.</p>
+                    </div>
+                  ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={executiveTrend} margin={{ top: 8, right: 4, left: -10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#edf2f7" />
-                      <XAxis dataKey="mese" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" />
+                    <ComposedChart
+                      data={executiveTrend}
+                      margin={{ top: 8, right: 4, left: -10, bottom: 0 }}
+                      className="cursor-pointer"
+                      onClick={(state) => {
+                        // Drill-down: click sul mese -> commesse del periodo
+                        const key = (state?.activePayload?.[0]?.payload as { key?: string } | undefined)?.key;
+                        if (!key) return;
+                        const [anno, mese] = key.split("-");
+                        navigate(`/azienda/ordini?anno=${anno}&mese=${Number(mese) - 1}`);
+                      }}
+                    >
+                      <defs>
+                        <linearGradient id="cruVendutoGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.95} />
+                          <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.55} />
+                        </linearGradient>
+                        <linearGradient id="cruIncassatoGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.95} />
+                          <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0.55} />
+                        </linearGradient>
+                        {/* Bicolore con crossover sullo zero: verde sopra, rosso sotto */}
+                        <linearGradient id="cruCassaStroke" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset={cassaZeroOffset} stopColor="hsl(var(--chart-2))" />
+                          <stop offset={cassaZeroOffset} stopColor="hsl(var(--chart-5))" />
+                        </linearGradient>
+                        <linearGradient id="cruCassaArea" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(var(--chart-2))" stopOpacity={0.22} />
+                          <stop offset={cassaZeroOffset} stopColor="hsl(var(--chart-2))" stopOpacity={0.03} />
+                          <stop offset={cassaZeroOffset} stopColor="hsl(var(--chart-5))" stopOpacity={0.03} />
+                          <stop offset="100%" stopColor="hsl(var(--chart-5))" stopOpacity={0.22} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#edf2f7" />
+                      <XAxis dataKey="mese" tickLine={false} axisLine={false} fontSize={11} stroke="#64748b" tickMargin={8} />
                       <YAxis
                         tickLine={false}
                         axisLine={false}
                         fontSize={10}
                         stroke="#94a3b8"
+                        tickMargin={6}
                         tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
                       />
                       <RechartsTooltip
                         cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
-                        contentStyle={{
-                          borderRadius: 12,
-                          border: "1px solid #e2e8f0",
-                          boxShadow: "0 12px 30px rgba(15, 23, 42, 0.12)",
-                        }}
-                        formatter={(value, name) => [
-                          Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }),
-                          name === "venduto" ? "Venduto" : name === "incassato" ? "Incassato" : "Cassa netta",
-                        ]}
-                        labelFormatter={(label) => `Mese: ${label}`}
+                        content={<TrendTooltip data={executiveTrend} xKey="mese" series={trendTooltipSeries} />}
                       />
-                      <Bar dataKey="venduto" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={22} />
-                      <Bar dataKey="incassato" fill="#f97316" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                      {/* Benchmark onesto: media venduto degli ultimi 12 mesi */}
+                      {avgVenduto > 0 && !hiddenSeries.has("venduto") && (
+                        <ReferenceLine
+                          y={avgVenduto}
+                          stroke="#94a3b8"
+                          strokeDasharray="6 4"
+                          strokeWidth={1}
+                          label={{ value: "media", position: "insideTopRight", fontSize: 10, fill: "#94a3b8" }}
+                        />
+                      )}
+                      <Bar dataKey="venduto" hide={hiddenSeries.has("venduto")} fill="url(#cruVendutoGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                      <Bar dataKey="incassato" hide={hiddenSeries.has("incassato")} fill="url(#cruIncassatoGrad)" radius={[6, 6, 0, 0]} maxBarSize={22} />
+                      {/* Area sfumata sotto la linea cassa (stesso dataKey, solo fill) */}
+                      <Area
+                        type="monotone"
+                        dataKey="cassa"
+                        name="cassaArea"
+                        hide={hiddenSeries.has("cassa")}
+                        stroke="transparent"
+                        fill="url(#cruCassaArea)"
+                        legendType="none"
+                        tooltipType="none"
+                      />
                       <Line
                         type="monotone"
                         dataKey="cassa"
-                        stroke="#059669"
+                        hide={hiddenSeries.has("cassa")}
+                        stroke="url(#cruCassaStroke)"
                         strokeWidth={2.5}
-                        dot={{ r: 3, fill: "#059669", strokeWidth: 0 }}
-                        activeDot={{ r: 4 }}
+                        dot={(props: { cx?: number; cy?: number; index?: number; payload?: { cassa?: number } }) => (
+                          <circle
+                            key={`cassa-dot-${props.index}`}
+                            cx={props.cx}
+                            cy={props.cy}
+                            r={4}
+                            fill="#ffffff"
+                            strokeWidth={2}
+                            stroke={safeNumber(props.payload?.cassa) < 0 ? "hsl(var(--chart-5))" : "hsl(var(--chart-2))"}
+                          />
+                        )}
+                        activeDot={(props: { cx?: number; cy?: number; index?: number; payload?: { cassa?: number } }) => (
+                          <circle
+                            key={`cassa-adot-${props.index}`}
+                            cx={props.cx}
+                            cy={props.cy}
+                            r={5}
+                            fill={safeNumber(props.payload?.cassa) < 0 ? "hsl(var(--chart-5))" : "hsl(var(--chart-2))"}
+                            strokeWidth={2}
+                            stroke="#ffffff"
+                          />
+                        )}
                       />
                     </ComposedChart>
                   </ResponsiveContainer>
+                  )}
                 </div>
+                {!trendIsEmpty && (
+                  <p className="mt-2 text-right text-[10px] text-slate-400">Clicca su un mese per aprire le commesse del periodo</p>
+                )}
               </aside>
             </div>
           </section>

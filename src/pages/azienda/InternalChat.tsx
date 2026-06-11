@@ -18,6 +18,12 @@ import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { useAutoSizeTextarea } from "@/hooks/useAutoSizeTextarea";
 import { AIModelSelector } from "@/components/ai/AIModelSelector";
 import { AIRunFooter } from "@/components/ai/AIRunFooter";
+import {
+  channelMessagesQueryKey,
+  readChannelMessagesHasOlder,
+  readChannelMessagesItems,
+  type ChannelMessagesCache,
+} from "@/lib/chat/channelMessagesCache";
 import { useAIModelSelector } from "@/lib/ai/use-ai-model-selector";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -629,14 +635,13 @@ function useInternalChat(companyIdOverride?: string) {
 // Il pulsante "Carica messaggi precedenti" carica altri 5 alla volta.
 const MESSAGES_PAGE_SIZE = 5;
 
-type ChannelMessagesData = {
-  items: Message[];
-  hasOlder: boolean;
-};
+// FIX 2026-06: shape canonica condivisa con SilvioChatSheet (stesso queryKey).
+// Vedi src/lib/chat/channelMessagesCache.ts per il razionale anti-crash.
+type ChannelMessagesData = ChannelMessagesCache<Message>;
 
 function useChannelMessages(channelId: string | null, onNewMessage?: () => void) {
   const queryClient = useQueryClient();
-  const queryKey = useMemo(() => ["internal-chat-messages", channelId], [channelId]);
+  const queryKey = useMemo(() => channelMessagesQueryKey(channelId), [channelId]);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const { data, isError, refetch } = useQuery({
     queryKey,
@@ -657,10 +662,10 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
     retry: 2,
   });
 
-  const messages = useMemo(() => data?.items ?? [], [data?.items]);
+  const messages = useMemo(() => readChannelMessagesItems<Message>(data), [data]);
 
   const loadOlder = useCallback(async () => {
-    if (!channelId || isLoadingOlder || messages.length === 0 || data?.hasOlder === false) return;
+    if (!channelId || isLoadingOlder || messages.length === 0 || readChannelMessagesHasOlder(data) === false) return;
     const oldest = messages[0];
     setIsLoadingOlder(true);
     try {
@@ -686,7 +691,7 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
     } finally {
       setIsLoadingOlder(false);
     }
-  }, [channelId, data?.hasOlder, isLoadingOlder, messages, queryClient, queryKey]);
+  }, [channelId, data, isLoadingOlder, messages, queryClient, queryKey]);
 
   useEffect(() => {
     if (!channelId) return;
@@ -705,7 +710,7 @@ function useChannelMessages(channelId: string | null, onNewMessage?: () => void)
     return () => { supabase.removeChannel(sub); };
   }, [channelId, queryClient, onNewMessage]);
 
-  return { messages, isError, refetch, hasOlder: data?.hasOlder ?? false, loadOlder, isLoadingOlder };
+  return { messages, isError, refetch, hasOlder: readChannelMessagesHasOlder(data) ?? false, loadOlder, isLoadingOlder };
 }
 
 // ─── Chat List Item ──────────────────────────────────────────────────────────
@@ -947,6 +952,7 @@ function AttachmentPreview({ msg, isMe }: { msg: Message; isMe: boolean }) {
 const MessageBubble = React.memo(function MessageBubble({
   msg, isMe, sender, showAvatar, replyMsg, profileMap,
   onReply, onPin, onReaction, onDelete, userId, onAskFollowup,
+  showRunMeta = false,
 }: {
   msg: Message; isMe: boolean;
   sender: Profile | undefined; showAvatar: boolean;
@@ -954,6 +960,12 @@ const MessageBubble = React.memo(function MessageBubble({
   onReply: () => void; onPin: () => void; onDelete?: () => void;
   onReaction: (emoji: string) => void; userId?: string;
   onAskFollowup?: (query: string) => void;
+  /**
+   * AIRunFooter (⏱ tempo · modello · $costo) è meta dev/debug del Test Lab:
+   * visibile SOLO a demo company + super_admin (aiSelector.showSelector).
+   * Gli utenti normali NON devono vedere quanto costa la chiamata AI.
+   */
+  showRunMeta?: boolean;
 }) {
   // Detect AI bot type from sender_id.
   // Silvio cliente e Silvio Superadmin sono visivamente IDENTICI (stesso "Silvio")
@@ -1089,8 +1101,11 @@ const MessageBubble = React.memo(function MessageBubble({
               onAskFollowup={onAskFollowup}
             />
           )}
-          {/* AI Test Lab — footer ⏱ tempo · 🟠 modello · $costo (solo demo) */}
-          {isAIMsg && msg.last_model_id && (
+          {/* AI Test Lab — footer ⏱ tempo · 🟠 modello · $costo (solo demo)
+              Fix 2026-06: gate esplicito showRunMeta (demo/super_admin) — prima
+              bastava last_model_id (sempre persistito) e TUTTI gli utenti
+              vedevano il costo della chiamata AI in chat. */}
+          {showRunMeta && isAIMsg && msg.last_model_id && (
             <AIRunFooter
               meta={{
                 model_id: msg.last_model_id,
@@ -2595,6 +2610,7 @@ Vuoi che la salvi nelle fatture ricevute? Rispondi "salva fattura" e procedo.`;
                           onReaction={(emoji) => toggleReaction(msg.id, emoji, msg.reactions)}
                           userId={userId}
                           onAskFollowup={(isSilvioChannel || isSilvioAdminChannel) ? sendToSilvio : undefined}
+                          showRunMeta={aiSelector.showSelector}
                         />
                       </React.Fragment>
                     );

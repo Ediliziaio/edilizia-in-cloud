@@ -31,6 +31,7 @@ function TicketColumn({
   onNewClick,
   newLabel,
   isLoading,
+  isError,
 }: {
   icon: React.ElementType;
   title: string;
@@ -40,6 +41,7 @@ function TicketColumn({
   onNewClick?: () => void;
   newLabel?: string;
   isLoading?: boolean;
+  isError?: boolean;
 }) {
   const navigate = useNavigate();
   return (
@@ -64,6 +66,12 @@ function TicketColumn({
       <CardContent className="flex-1 space-y-2">
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-lg" />)
+        ) : isError ? (
+          /* Prima una query fallita mostrava "Nessun elemento": fuorviante */
+          <div className="flex flex-col items-center justify-center py-8 text-sm gap-2 text-red-600 dark:text-red-400">
+            <AlertTriangle className="h-8 w-8 opacity-40" />
+            <p>Errore di caricamento. Ricarica la pagina.</p>
+          </div>
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-muted-foreground text-sm gap-2">
             <CheckCircle2 className="h-8 w-8 opacity-30" />
@@ -109,7 +117,7 @@ export default function AssistenzaLavoriHub() {
   startOfMonth.setHours(0, 0, 0, 0);
 
   // Query ticket aperti
-  const { data: tickets = [], isLoading: loadingTickets } = useQuery({
+  const { data: tickets = [], isLoading: loadingTickets, isError: ticketsError } = useQuery({
     queryKey: ["hub-tickets", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -128,7 +136,7 @@ export default function AssistenzaLavoriHub() {
   });
 
   // Query interventi programmati (aperti / in lavorazione)
-  const { data: interventi = [], isLoading: loadingInterventi } = useQuery({
+  const { data: interventi = [], isLoading: loadingInterventi, isError: interventiError } = useQuery({
     queryKey: ["hub-interventi", effectiveCompany?.id, today, in7Days],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -147,7 +155,7 @@ export default function AssistenzaLavoriHub() {
   });
 
   // Query manutenzioni in scadenza (prossimi 7 giorni)
-  const { data: manutenzioni = [], isLoading: loadingManutenzioni } = useQuery({
+  const { data: manutenzioni = [], isLoading: loadingManutenzioni, isError: manutenzioniError } = useQuery({
     queryKey: ["hub-manutenzioni", effectiveCompany?.id, today, in7Days],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -288,6 +296,7 @@ export default function AssistenzaLavoriHub() {
           onNewClick={() => navigate("/azienda/assistenza/nuovo")}
           newLabel="Ticket"
           isLoading={loadingTickets}
+          isError={ticketsError}
         />
         <TicketColumn
           icon={Wrench}
@@ -298,6 +307,7 @@ export default function AssistenzaLavoriHub() {
           onNewClick={() => setDialogOpen(true)}
           newLabel="Intervento"
           isLoading={loadingInterventi}
+          isError={interventiError}
         />
         <TicketColumn
           icon={Settings}
@@ -308,6 +318,7 @@ export default function AssistenzaLavoriHub() {
           onNewClick={() => navigate("/azienda/manutenzione")}
           newLabel="Vai a Manut."
           isLoading={loadingManutenzioni}
+          isError={manutenzioniError}
         />
       </div>
 

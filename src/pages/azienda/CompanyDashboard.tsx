@@ -35,6 +35,7 @@ import {
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
+import { TrendTooltip } from "@/components/charts/TrendTooltip";
 import { queryKeys } from "@/lib/queryKeys";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -188,15 +189,35 @@ function ManagementOverview({
           <div className="mt-4 h-[180px] rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={monthlyBalance.slice(-6)} margin={{ top: 8, right: 6, left: -18, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={formatCurrencyCompact} tickLine={false} axisLine={false} />
+                <defs>
+                  <linearGradient id="opEntrateGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.55} />
+                  </linearGradient>
+                  <linearGradient id="opUsciteGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--chart-3))" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="hsl(var(--chart-3))" stopOpacity={0.55} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} tickMargin={8} />
+                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={formatCurrencyCompact} tickLine={false} axisLine={false} tickMargin={4} />
                 <RechartsTooltip
-                  formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                  contentStyle={{ backgroundColor: "white", borderColor: "#e2e8f0", borderRadius: 10, fontSize: 12 }}
+                  cursor={{ fill: "rgba(15, 23, 42, 0.04)" }}
+                  content={
+                    <TrendTooltip
+                      data={monthlyBalance.slice(-6)}
+                      xKey="month"
+                      series={[
+                        { key: "entrate", label: "Venduto", color: "hsl(var(--chart-1))", formatter: formatCurrency },
+                        // Costi: delta in AUMENTO = rosso (invertDelta)
+                        { key: "uscite", label: "Costi pianificati", color: "hsl(var(--chart-3))", formatter: formatCurrency, invertDelta: true },
+                      ]}
+                    />
+                  }
                 />
-                <Bar dataKey="entrate" name="Venduto" fill="#2563eb" radius={[4, 4, 0, 0]} barSize={14} />
-                <Bar dataKey="uscite" name="Costi pianificati" fill="#f97316" radius={[4, 4, 0, 0]} barSize={14} />
+                <Bar dataKey="entrate" name="Venduto" fill="url(#opEntrateGrad)" radius={[6, 6, 0, 0]} barSize={14} />
+                <Bar dataKey="uscite" name="Costi pianificati" fill="url(#opUsciteGrad)" radius={[6, 6, 0, 0]} barSize={14} />
               </BarChart>
             </ResponsiveContainer>
           </div>

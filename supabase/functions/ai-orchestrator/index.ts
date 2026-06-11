@@ -1,6 +1,9 @@
 /**
  * Edge Function: ai-orchestrator
  *
+ * Deploy 2026-06-10: token-opt (TOOL_CONTRACT_LEGEND nel system, description
+ * tool compatte da silvioTools).
+ *
  * Entry point per chat con le 18 personas AI.
  *
  * Flow:
@@ -50,7 +53,7 @@ import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { aiRouterComplete, type AiRouterMessage } from "../_shared/aiRouter.ts";
 import { buildEnrichedSystemPrompt } from "../_shared/promptBuilder.ts";
 // MP-AIE-02 v2 — tool calling loop unificato col registry centrale silvioTools.ts
-import { getToolsForChannel, toolsToOpenAISpec } from "../_shared/silvioTools.ts";
+import { getToolsForChannel, TOOL_CONTRACT_LEGEND, toolsToOpenAISpec } from "../_shared/silvioTools.ts";
 import { executeToolsParallel, type ToolExecutionResult } from "../_shared/silvioToolExecution.ts";
 // MP-01: pre-RAG automatico per le 18 personas
 import { buildPreRagContext, type RagSource } from "../_shared/ragInjector.ts";
@@ -449,7 +452,9 @@ serve(async (req: Request) => {
     const toolsSpec = availableTools.length > 0 ? toolsToOpenAISpec(availableTools) : undefined;
 
     const messages: AiRouterMessage[] = [
-      { role: "system", content: systemPromptComplete },
+      // Token-opt: le description dei tool usano tag compatti [contratto:...|rischio:...]
+      // spiegati una sola volta dalla legenda (solo se ci sono tool).
+      { role: "system", content: toolsSpec ? systemPromptComplete + TOOL_CONTRACT_LEGEND : systemPromptComplete },
       ...history.map(h => ({
         role: h.role,
         content: h.content,

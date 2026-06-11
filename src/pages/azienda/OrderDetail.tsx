@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -272,6 +272,22 @@ function OrderDetailInner() {
   const queryClient = useQueryClient();
 
   const { downloadPDF, isGenerating: isGeneratingPDF } = useOrdinePDF();
+  // true mentre carichiamo on-demand i dati ricchi del PDF (vedi handleDownloadPDF)
+  const [pdfPreparing, setPdfPreparing] = useState(false);
+
+  // Monta UN SOLO layout (mobile O desktop): prima erano entrambi nel tree
+  // nascosti via CSS → ogni card della pagina renderizzava due volte.
+  // Breakpoint allineato a Tailwind `sm` (640px), lo stesso delle classi
+  // sm:hidden / hidden sm:grid usate dai due container.
+  const [isNarrow, setIsNarrow] = useState<boolean>(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches
+  );
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 639px)");
+    const onChange = (e: MediaQueryListEvent) => setIsNarrow(e.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
 
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [editedNotes, setEditedNotes] = useState("");
@@ -423,161 +439,10 @@ function OrderDetailInner() {
     gcTime: 10 * 60 * 1000,
   });
 
-  // Fetch labor costs for PDF
-  const { data: pdfLaborEmployees = [] } = useQuery({
-    queryKey: ["order-employees-pdf", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_employees")
-        .select("*, employee:employees(first_name, last_name)")
-        .eq("order_id", id!);
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!id && !!user,
-    staleTime: 120_000,
-  });
-
-  const { data: pdfLaborTeams = [] } = useQuery({
-    queryKey: ["order-external-teams-pdf", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_external_teams")
-        .select("*, external_team:external_teams(name)")
-        .eq("order_id", id!);
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!id && !!user,
-    staleTime: 120_000,
-  });
-
-  const { data: pdfSalList = [] } = useQuery({
-    queryKey: ["sal-list-pdf", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sal_records")
-        .select("*, sal_voci(*)")
-        .eq("order_id", id!)
-        .order("numero_sal");
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!id && !!user,
-    staleTime: 120_000,
-  });
-
-  // Fetch salespeople for PDF
-  const { data: pdfSalespeople = [] } = useQuery({
-    queryKey: ["order-salespeople-pdf", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_salespeople")
-        .select("*, salesperson:salespeople(first_name, last_name)")
-        .eq("order_id", id!);
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!id && !!user,
-    staleTime: 120_000,
-  });
-
-  // Fetch purchase orders for PDF
-  const { data: pdfPurchaseOrders = [] } = useQuery({
-    queryKey: ["linked-purchase-orders-pdf", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("purchase_orders")
-        .select("id, oda_number, status, total, suppliers(name)")
-        .eq("order_id", id!)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!id && !!user,
-    staleTime: 120_000,
-  });
-
-  // Fetch campo assignments for PDF
-  const { data: pdfCampoAssignments = [] } = useQuery({
-    queryKey: ["order-campo-assignments-pdf", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_campo_assignments")
-        .select("*, user:profiles(first_name, last_name), subappaltatore:external_teams(name)")
-        .eq("order_id", id!);
-      if (error) throw error;
-      return ((data ?? []) as Array<{ subappaltatore?: { name?: string } | null }>).map((d) => ({
-        ...d,
-        subappaltatore: d.subappaltatore ? { nome: d.subappaltatore.name } : null,
-      }));
-    },
-    enabled: !!id && !!user,
-    staleTime: 120_000,
-  });
-
-  // Fetch giornale lavori for PDF
-  const { data: pdfGiornaleLavori = [] } = useQuery({
-    queryKey: ["giornale-lavori-pdf", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("giornale_lavori")
-        .select("*, giornale_foto(id, url, caption)")
-        .eq("order_id", id!)
-        .order("data_lavori", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!id && !!user,
-    staleTime: 120_000,
-  });
-
-  // Fetch varianti for PDF (both OdV and varianti_cliente)
-  const { data: pdfVarianti = [] } = useQuery({
-    queryKey: ["varianti-pdf", id],
-    queryFn: async () => {
-      const [odv, vc] = await Promise.all([
-        supabase.from("ordini_variazione").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
-        supabase.from("varianti_cliente").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
-      ]);
-      return [...(odv.data ?? []), ...(vc.data ?? [])];
-    },
-    enabled: !!id && !!user,
-    staleTime: 120_000,
-  });
-
-  // Fetch diary events + messages for PDF
-  const { data: pdfDiaryEvents = [] } = useQuery({
-    queryKey: ["diary-events-pdf", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_events")
-        .select("id, event_type, payload, actor_name, created_at")
-        .eq("order_id", id!)
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!id && !!user,
-    staleTime: 120_000,
-  });
-
-  const { data: pdfDiaryMessages = [] } = useQuery({
-    queryKey: ["diary-messages-pdf", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_messages")
-        .select("id, channel, direction, subject, body, to_name, status, sent_by_name, created_at")
-        .eq("order_id", id!)
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      return data ?? [];
-    },
-    enabled: !!id && !!user,
-    staleTime: 120_000,
-  });
+  // NB: i dati "ricchi" del PDF (giornale lavori, diario, varianti, ODA,
+  // squadre, SAL…) NON si caricano più qui: prima erano 11 query sparate a
+  // ogni apertura pagina per un export usato di rado. Ora si caricano
+  // on-demand dentro handleDownloadPDF al click su "Scarica PDF".
 
   // Update status mutation
   const updateStatusMutation = useMutation({
@@ -749,6 +614,8 @@ function OrderDetailInner() {
   });
 
   const handleInstallmentPaidToggle = (installment: Installment, paid: boolean) => {
+    // Anti doppio-click: una scrittura alla volta (il bottone non e' disabled)
+    if (updatePaymentMutation.isPending) return;
     updatePaymentMutation.mutate({ installment, paid });
   };
 
@@ -777,6 +644,7 @@ function OrderDetailInner() {
   });
 
   const handleInstallmentDateChange = (installment: Installment, field: 'paid_date' | 'expected_date', date?: Date) => {
+    if (updateInstallmentDateMutation.isPending) return;
     updateInstallmentDateMutation.mutate({ installment, field, date });
   };
 
@@ -957,26 +825,55 @@ function OrderDetailInner() {
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   };
 
-  const handleDownloadPDF = useCallback(() => {
-    if (!order) return;
-    downloadPDF({
-      order,
-      items: orderItems,
-      laborEmployees: pdfLaborEmployees,
-      laborTeams: pdfLaborTeams,
-      salList: pdfSalList,
-      salespeople: pdfSalespeople,
-      purchaseOrders: pdfPurchaseOrders,
-      campoAssignments: pdfCampoAssignments,
-      installments: displayInstallments,
-      giornaleLavori: pdfGiornaleLavori,
-      varianti: pdfVarianti,
-      diaryEvents: pdfDiaryEvents,
-      diaryMessages: pdfDiaryMessages,
-      statuses,
-      companyName: effectiveCompany?.name,
-    });
-  }, [order, orderItems, pdfLaborEmployees, pdfLaborTeams, pdfSalList, pdfSalespeople, pdfPurchaseOrders, pdfCampoAssignments, displayInstallments, pdfGiornaleLavori, pdfVarianti, pdfDiaryEvents, pdfDiaryMessages, statuses, effectiveCompany, downloadPDF]);
+  const handleDownloadPDF = useCallback(async () => {
+    if (!order || pdfPreparing) return;
+    setPdfPreparing(true);
+    try {
+      // Tutti i dati "ricchi" in parallelo, solo ora che servono davvero.
+      const [
+        laborEmployees, laborTeams, salList, salespeople, purchaseOrders,
+        campoAssignmentsRaw, giornaleLavori, odv, vc, diaryEvents, diaryMessages,
+      ] = await Promise.all([
+        supabase.from("order_employees").select("*, employee:employees(first_name, last_name)").eq("order_id", id!),
+        supabase.from("order_external_teams").select("*, external_team:external_teams(name)").eq("order_id", id!),
+        supabase.from("sal_records").select("*, sal_voci(*)").eq("order_id", id!).order("numero_sal"),
+        supabase.from("order_salespeople").select("*, salesperson:salespeople(first_name, last_name)").eq("order_id", id!),
+        supabase.from("purchase_orders").select("id, oda_number, status, total, suppliers(name)").eq("order_id", id!).order("created_at", { ascending: false }),
+        supabase.from("order_campo_assignments").select("*, user:profiles(first_name, last_name), subappaltatore:external_teams(name)").eq("order_id", id!),
+        supabase.from("giornale_lavori").select("*, giornale_foto(id, url, caption)").eq("order_id", id!).order("data_lavori", { ascending: false }),
+        supabase.from("ordini_variazione").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
+        supabase.from("varianti_cliente").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
+        supabase.from("order_events").select("id, event_type, payload, actor_name, created_at").eq("order_id", id!).order("created_at", { ascending: false }).limit(100),
+        supabase.from("order_messages").select("id, channel, direction, subject, body, to_name, status, sent_by_name, created_at").eq("order_id", id!).order("created_at", { ascending: false }).limit(100),
+      ]);
+      const campoAssignments = ((campoAssignmentsRaw.data ?? []) as Array<{ subappaltatore?: { name?: string } | null }>).map((d) => ({
+        ...d,
+        subappaltatore: d.subappaltatore ? { nome: d.subappaltatore.name } : null,
+      }));
+      downloadPDF({
+        order,
+        items: orderItems,
+        laborEmployees: laborEmployees.data ?? [],
+        laborTeams: laborTeams.data ?? [],
+        salList: salList.data ?? [],
+        salespeople: salespeople.data ?? [],
+        purchaseOrders: purchaseOrders.data ?? [],
+        campoAssignments,
+        installments: displayInstallments,
+        giornaleLavori: giornaleLavori.data ?? [],
+        varianti: [...(odv.data ?? []), ...(vc.data ?? [])],
+        diaryEvents: diaryEvents.data ?? [],
+        diaryMessages: diaryMessages.data ?? [],
+        statuses,
+        companyName: effectiveCompany?.name,
+      });
+    } catch (e) {
+      console.error("[OrderDetail] preparazione dati PDF fallita:", e);
+      toast.error("Impossibile preparare i dati per il PDF. Riprova.");
+    } finally {
+      setPdfPreparing(false);
+    }
+  }, [order, pdfPreparing, id, orderItems, displayInstallments, statuses, effectiveCompany, downloadPDF]);
 
   if (orderLoading) {
     return (
@@ -1025,26 +922,28 @@ function OrderDetailInner() {
         orderType={order.order_type}
         onDuplica={() => setDuplicateDialogOpen(true)}
         onModifica={() => navigate(`/azienda/ordini/${id}/modifica`)}
-        onNuovoSAL={() => {
-          // Su mobile: cambia tab Tabs a "sal" + scroll in cima
-          // Su desktop: scroll to #section-sal (desktop layout)
+        onRegistraIncasso={() => {
+          // "Registra incasso": porta al piano rate della commessa (lo stesso
+          // Riepilogo Finanziario impostato in creazione/modifica), dove ogni
+          // rata si segna Pagato/Non pagato con storico date. I verbali SAL
+          // (documenti) restano nel tab/sezione dedicata.
           const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
           if (isMobile) {
-            setMobileTab("sal");
+            setMobileTab("finanza");
             // Aspetta che il tab si renderizzi prima dello scroll
             setTimeout(() => {
-              const mobileSalContent = document.querySelector('[data-state="active"][data-radix-collection-item][role="tabpanel"], [role="tabpanel"][data-state="active"]');
-              const target = mobileSalContent || document.querySelector('[role="tablist"]');
+              const mobileFinanzaContent = document.querySelector('[role="tabpanel"][data-state="active"]');
+              const target = mobileFinanzaContent || document.querySelector('[role="tablist"]');
               if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 50);
           } else {
-            const salEl = document.getElementById('section-sal');
-            if (salEl) salEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const pagamentiEl = document.getElementById('section-pagamenti');
+            if (pagamentiEl) pagamentiEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
           }
         }}
         onElimina={() => setDeleteConfirmOpen(true)}
         onDownloadPDF={handleDownloadPDF}
-        isGeneratingPDF={isGeneratingPDF}
+        isGeneratingPDF={pdfPreparing || isGeneratingPDF}
         canEdit={permissions.canEditOrders}
         canDelete={permissions.canEditOrders}
       />
@@ -1121,13 +1020,14 @@ function OrderDetailInner() {
         </ErrorBoundary>
 
         {/* ── MOBILE: tab layout ──────────────────────────────── */}
+        {isNarrow && (
         <div className="sm:hidden">
           <Tabs value={mobileTab} onValueChange={setMobileTab}>
             <TabsList className="w-full flex overflow-x-auto scrollbar-hide h-auto gap-0.5 bg-white border border-slate-200 rounded-lg p-1">
               <TabsTrigger value="stato" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Stato</TabsTrigger>
               <TabsTrigger value="articoli" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Articoli</TabsTrigger>
               <TabsTrigger value="finanza" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Finanza</TabsTrigger>
-              <TabsTrigger value="sal" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">SAL</TabsTrigger>
+              <TabsTrigger value="sal" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Verbali SAL</TabsTrigger>
               <TabsTrigger value="cantiere" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Cantiere</TabsTrigger>
               <TabsTrigger value="campo" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">
                 <div className="flex items-center gap-1">
@@ -1215,7 +1115,6 @@ function OrderDetailInner() {
                 installments={displayInstallments}
                 hasBuildingBonus={order.has_building_bonus}
                 financingCost={order.financing_cost ?? undefined}
-                items={economicsItems}
                 collectedAmount={collectedAmount}
                 onInstallmentPaidToggle={handleInstallmentPaidToggle}
                 onInstallmentDateChange={handleInstallmentDateChange}
@@ -1378,6 +1277,9 @@ function OrderDetailInner() {
                   orderId={id!}
                   companyId={companyId}
                   orderTotalAmount={order.total_amount ?? undefined}
+                  installments={displayInstallments}
+                  vatRate={order.vat_rate || 22}
+                  financingCost={order.payment_type === "financing" ? order.financing_cost ?? 0 : 0}
                 />
               )}
             </TabsContent>
@@ -1470,8 +1372,11 @@ function OrderDetailInner() {
             </TabsContent>
           </Tabs>
         </div>
+        )}
 
         {/* ── DESKTOP: 2-column layout ─────────────────────────── */}
+        {!isNarrow && (
+        <>
         <div className="hidden sm:grid gap-6 lg:grid-cols-3">
           {/* ── Left Column (2/3) ──────────────────────────────── */}
           <div className="lg:col-span-2 space-y-6">
@@ -1487,6 +1392,25 @@ function OrderDetailInner() {
               />
             )}
 
+            {/* Economico (dettaglio) — PRIMA degli articoli: i pagamenti sono
+                la parte più consultata della commessa, stanno in alto.
+                L'id è il target del bottone "+ SAL" in testata (desktop): il
+                Riepilogo Finanziario col piano rate è il primo blocco. */}
+            <div id="section-pagamenti" className="scroll-mt-24">
+              <OrdineEconomico
+                orderId={id!}
+                totalAmount={order.total_amount}
+                vatRate={order.vat_rate || 22}
+                paymentType={(order.payment_type as PaymentType) || "standard"}
+                installments={displayInstallments}
+                hasBuildingBonus={order.has_building_bonus}
+                financingCost={order.financing_cost ?? undefined}
+                collectedAmount={collectedAmount}
+                onInstallmentPaidToggle={handleInstallmentPaidToggle}
+                onInstallmentDateChange={handleInstallmentDateChange}
+              />
+            </div>
+
             {/* Articoli */}
             <OrdineArticoli
               orderId={id!}
@@ -1499,22 +1423,6 @@ function OrderDetailInner() {
               }}
               onItemUpdate={handleItemUpdate}
               onAttachmentsRefresh={handleAttachmentsRefresh}
-            />
-
-            {/* Economico (dettaglio) — esteso: bilancia l'altezza con la lunga
-                sidebar (evita lo spazio vuoto in basso). Il sommario è in cima. */}
-            <OrdineEconomico
-              orderId={id!}
-              totalAmount={order.total_amount}
-              vatRate={order.vat_rate || 22}
-              paymentType={(order.payment_type as PaymentType) || "standard"}
-              installments={displayInstallments}
-              hasBuildingBonus={order.has_building_bonus}
-              financingCost={order.financing_cost ?? undefined}
-              items={economicsItems}
-              collectedAmount={collectedAmount}
-              onInstallmentPaidToggle={handleInstallmentPaidToggle}
-              onInstallmentDateChange={handleInstallmentDateChange}
             />
           </div>
 
@@ -1769,6 +1677,9 @@ function OrderDetailInner() {
                 orderId={id!}
                 companyId={companyId}
                 orderTotalAmount={order.total_amount ?? undefined}
+                installments={displayInstallments}
+                vatRate={order.vat_rate || 22}
+                financingCost={order.payment_type === "financing" ? order.financing_cost ?? 0 : 0}
               />
             )}
           </div>
@@ -1793,6 +1704,8 @@ function OrderDetailInner() {
             </>
           )}
         </div>
+        </>
+        )}
       </div>
 
       {/* ── Dialogs ──────────────────────────────────────────── */}

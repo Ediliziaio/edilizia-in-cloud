@@ -505,12 +505,12 @@ export default function CompanyRoutesContainer() {
         <Route path="ordini/:id" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel dettaglio commessa"><OrderDetail /></ErrorBoundary>)} />
         <Route path="ordini/:id/diario" element={withCompanyPermissionOrCommercialista("canViewOrders", <ErrorBoundary title="Errore nel diario commessa"><OrderDiaryPage /></ErrorBoundary>)} />
         <Route path="ordini/:id/modifica" element={withCompanyPermissionOrCommercialista("canEditOrders", <CommercialistaOrderEditGuard><EditOrder /></CommercialistaOrderEditGuard>)} />
-        <Route path="magazzino" element={withCompanyPermissionOrCommercialista("canViewWarehouse", <Warehouse />)} />
+        <Route path="magazzino" element={withCompanyPermissionOrCommercialista("canViewWarehouse", <ErrorBoundary title="Errore nel caricamento magazzino"><Warehouse /></ErrorBoundary>)} />
         <Route path="magazzino/gestione" element={withCompanyPermissionOrCommercialista("canEditWarehouse", <CommercialistaWriteGuard fallback="/azienda/magazzino"><WarehouseManager /></CommercialistaWriteGuard>)} />
         <Route path="calendario" element={withCompanyPermission("canViewCalendar", <ErrorBoundary title="Errore nel caricamento calendario"><Calendar /></ErrorBoundary>)} />
-        <Route path="clienti" element={withCompanyPermission("canViewCustomers", <CustomersList />)} />
+        <Route path="clienti" element={withCompanyPermission("canViewCustomers", <ErrorBoundary title="Errore nel caricamento clienti"><CustomersList /></ErrorBoundary>)} />
         <Route path="clienti/nuovo" element={withCompanyPermission("canEditCustomers", <CreateCustomer />)} />
-        <Route path="clienti/:id" element={withCompanyPermission("canViewCustomers", <CompanyCustomerDetail />)} />
+        <Route path="clienti/:id" element={withCompanyPermission("canViewCustomers", <ErrorBoundary title="Errore nel dettaglio cliente"><CompanyCustomerDetail /></ErrorBoundary>)} />
         
         <Route path="assistenza-lavori" element={withCompanyPermission("canViewTickets", <ErrorBoundary title="Errore nel caricamento assistenza lavori"><AssistenzaLavoriHub /></ErrorBoundary>)} />
         <Route path="assistenza" element={withCompanyPermission("canViewTickets", <ErrorBoundary title="Errore nel caricamento assistenza"><TicketsList /></ErrorBoundary>)} />

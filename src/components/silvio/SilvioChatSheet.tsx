@@ -65,6 +65,12 @@ import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { AIModelSelector } from "@/components/ai/AIModelSelector";
 import { AIRunFooter } from "@/components/ai/AIRunFooter";
 import { useAIModelSelector } from "@/lib/ai/use-ai-model-selector";
+import {
+  channelMessagesQueryKey,
+  readChannelMessagesItems,
+  upsertChannelMessage,
+  type ChannelMessagesCache,
+} from "@/lib/chat/channelMessagesCache";
 import { useAutoSizeTextarea } from "@/hooks/useAutoSizeTextarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -468,18 +474,27 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
   //       i 30 più VECCHI; ora DESC + reverse client-side per latest-N
   //       (stesso pattern di InternalChat.tsx) e cache compatibile. ────────
   const MESSAGES_PAGE_SIZE = 30;
-  const { data: liveMessages = [] } = useQuery({
-    queryKey: ["internal-chat-messages", channelId],
-    queryFn: async (): Promise<SilvioMessage[]> => {
-      if (!channelId) return [];
+  // FIX 2026-06 (crash "liveMessages.map is not a function"): la cache è
+  // CONDIVISA con InternalChat (stesso queryKey) che scrive { items, hasOlder }.
+  // Qui prima scrivevamo/leggevamo un array nudo → shape collision → crash
+  // aprendo la sheet dopo Chat Team sullo stesso canale. Ora shape canonica
+  // ovunque (vedi src/lib/chat/channelMessagesCache.ts) + lettura tollerante.
+  const { data: liveData } = useQuery({
+    queryKey: channelMessagesQueryKey(channelId),
+    queryFn: async (): Promise<ChannelMessagesCache<SilvioMessage>> => {
+      if (!channelId) return { items: [], hasOlder: false };
       const { data } = await supabase
         .from("internal_chat_messages")
         .select("*")
         .eq("channel_id", channelId)
         .order("created_at", { ascending: false })
-        .limit(MESSAGES_PAGE_SIZE);
+        .limit(MESSAGES_PAGE_SIZE + 1); // +1 per calcolare hasOlder senza count
+      const rows = (data ?? []) as SilvioMessage[];
       // Reverse client-side: ordine ASC per render UI (più vecchio in alto).
-      return ((data ?? []) as SilvioMessage[]).slice().reverse();
+      return {
+        items: rows.slice(0, MESSAGES_PAGE_SIZE).reverse(),
+        hasOlder: rows.length > MESSAGES_PAGE_SIZE,
+      };
     },
     enabled: !!channelId && open,
     // staleTime alto: il refresh viene pilotato dal realtime listener qui sotto
@@ -487,6 +502,10 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
     // gcTime alto: la cache sopravvive a chiusura/riapertura sheet senza fetch
     gcTime: 60 * 60 * 1000,
   });
+  const liveMessages = useMemo(
+    () => readChannelMessagesItems<SilvioMessage>(liveData),
+    [liveData],
+  );
 
   // ── 2.a Paginazione backward — "Carica messaggi più vecchi" ──────────
   // Quando l'utente vuole vedere conversazioni storiche oltre i 30 caricati,
@@ -565,7 +584,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
   // changes direttamente alla cache React Query (`setQueryData`).
   useEffect(() => {
     if (!channelId || !open) return;
-    const queryKey = ["internal-chat-messages", channelId];
+    const queryKey = channelMessagesQueryKey(channelId);
     const channel = supabase
       .channel(`${modeCfg.realtimePrefix}-${channelId}`)
       .on(
@@ -582,11 +601,11 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
             qc.invalidateQueries({ queryKey });
             return;
           }
-          qc.setQueryData<SilvioMessage[]>(queryKey, (prev) => {
-            if (!prev) return [newMsg];
-            if (prev.some((m) => m.id === newMsg.id)) return prev; // dedup
-            return [...prev, newMsg];
-          });
+          // upsert shape-canonica { items, hasOlder } — dedup incluso
+          qc.setQueryData<ChannelMessagesCache<SilvioMessage>>(
+            queryKey,
+            (prev) => upsertChannelMessage(prev, newMsg),
+          );
         },
       )
       .on(
@@ -605,15 +624,11 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
             qc.invalidateQueries({ queryKey });
             return;
           }
-          qc.setQueryData<SilvioMessage[]>(queryKey, (prev) => {
-            if (!prev) return [updMsg];
-            const idx = prev.findIndex((m) => m.id === updMsg.id);
-            if (idx === -1) return [...prev, updMsg];
-            // Replace inplace senza ricostruire l'intero array (perf)
-            const next = prev.slice();
-            next[idx] = updMsg;
-            return next;
-          });
+          // upsert shape-canonica: replace se esiste, append altrimenti
+          qc.setQueryData<ChannelMessagesCache<SilvioMessage>>(
+            queryKey,
+            (prev) => upsertChannelMessage(prev, updMsg),
+          );
         },
       )
       .subscribe();
@@ -1304,7 +1319,8 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                 <DropdownMenuItem
                   onClick={() => {
                     if (confirm("Pulire la cronologia visibile? I messaggi rimangono in DB.")) {
-                      qc.setQueryData(["internal-chat-messages", channelId], []);
+                      // shape canonica condivisa con InternalChat (mai array nudo)
+                      qc.setQueryData(channelMessagesQueryKey(channelId), { items: [], hasOlder: false });
                     }
                   }}
                   className="text-rose-600"
@@ -1432,6 +1448,7 @@ export function SilvioChatSheet({ open, onOpenChange, prefillDraft, mode = "azie
                   streaming={streamingMessageIds.has(m.id)}
                   onAskFollowup={(q) => setDraft(q)}
                   silvioSenderId={silvioSenderId}
+                  showRunMeta={aiSelector.showSelector}
                 />
               ))}
             </AnimatePresence>
@@ -2025,12 +2042,19 @@ function MessageBubble({
   streaming,
   onAskFollowup,
   silvioSenderId = SILVIO_SENDER_ID,
+  showRunMeta = false,
 }: {
   message: SilvioMessage;
   isMe: boolean;
   streaming: boolean;
   onAskFollowup?: (query: string) => void;
   silvioSenderId?: string;
+  /**
+   * AIRunFooter (⏱ tempo · modello · $costo) è meta dev/debug del Test Lab:
+   * visibile SOLO a demo company + super_admin (aiSelector.showSelector).
+   * Gli utenti normali NON devono vedere quanto costa la chiamata AI.
+   */
+  showRunMeta?: boolean;
 }) {
   const isSilvio = message.sender_id === silvioSenderId;
   const isImage = message.message_type === "image" && message.attachment_url;
@@ -2156,8 +2180,11 @@ function MessageBubble({
         )}
         {/* AI Test Lab — footer ⏱ tempo · 🟠 modello · $costo (solo demo)
             v8.6.72 — Nascosto su mobile: meta dev/debug, su mobile occupa
-            spazio prezioso. Resta su tablet/desktop (sm+). */}
-        {isSilvio && !isStillTyping && message.last_model_id && (
+            spazio prezioso. Resta su tablet/desktop (sm+).
+            Fix 2026-06: gate esplicito showRunMeta (demo/super_admin) — prima
+            bastava last_model_id (sempre persistito) e TUTTI gli utenti
+            vedevano il costo della chiamata AI in chat. */}
+        {showRunMeta && isSilvio && !isStillTyping && message.last_model_id && (
           <div className="hidden sm:block">
             <AIRunFooter meta={{
               model_id: message.last_model_id,
