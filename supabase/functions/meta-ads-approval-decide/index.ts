@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
     // LOAD CAMPAIGN
     const { data: campaign, error: campErr } = await admin
       .from("meta_campaigns")
-      .select("id, name, status, daily_budget_cents, builder_state, ad_account_id, created_by")
+      .select("id, name, status, daily_budget_cents, builder_state, ad_account_id, created_by, meta_campaign_id")
       .eq("id", body.campaign_id)
       .eq("company_id", body.company_id)
       .maybeSingle();
@@ -111,22 +111,24 @@ Deno.serve(async (req) => {
 
     // decision === "approve"
     if (body.publish_live) {
-      // Chiamata interna a meta-ads-create-campaign con dry_run=false
-      // Per ora marchiamo la campagna come "published" e l'utente userà
-      // il bottone "Pubblica live" separatamente dal frontend
+      // STATUS ONESTO: "published" ha senso solo se la campagna esiste GIÀ
+      // su Meta (meta_campaign_id presente). Prima veniva marcata published
+      // anche senza nulla su Meta → il titolare credeva fosse live.
+      const isOnMeta = !!campaign.meta_campaign_id;
       await admin
         .from("meta_campaigns")
-        .update({
-          status: "published",
-          last_published_at: new Date().toISOString(),
-        })
+        .update(isOnMeta
+          ? { status: "published", last_published_at: new Date().toISOString() }
+          : { status: "draft", publish_error: null })
         .eq("id", body.campaign_id);
 
       return json({
         success: true,
         decision: "approve",
-        new_status: "published",
-        note: "Campagna approvata. Per la pubblicazione live usa il bottone 'Pubblica su Meta' nella UI.",
+        new_status: isOnMeta ? "published" : "draft",
+        note: isOnMeta
+          ? "Campagna approvata (già presente su Meta)."
+          : "Campagna approvata: ora puoi pubblicarla con 'Pubblica su Meta' nella UI.",
       }, 200, corsHeaders);
     }
 

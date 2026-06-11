@@ -67,11 +67,11 @@ Deno.serve(async (req) => {
     for (const guard of guards ?? []) {
       try {
         // Calcola spesa giornaliera e mensile
-        const filter = guard.ad_account_id
-          ? { ad_account_id: guard.ad_account_id }
-          : {};
-
-        // Spesa giornaliera = insights di oggi (level=campaign)
+        // Spesa giornaliera = insights di oggi (level=campaign).
+        // FIX SOLDI: il filtro per ad_account era calcolato ma MAI applicato
+        // alle query → un guard per-account sommava la spesa di TUTTA
+        // l'azienda e poteva autopausare campagne di un account per
+        // l'overspend di un altro.
         const dailyQuery = admin
           .from("meta_insights_cache")
           .select("spend_cents, campaign_id")
@@ -84,6 +84,11 @@ Deno.serve(async (req) => {
           .select("spend_cents")
           .eq("company_id", guard.company_id)
           .gte("date_start", monthStart);
+
+        if (guard.ad_account_id) {
+          dailyQuery.eq("ad_account_id", guard.ad_account_id);
+          monthlyQuery.eq("ad_account_id", guard.ad_account_id);
+        }
 
         const [dailyRes, monthlyRes] = await Promise.all([dailyQuery, monthlyQuery]);
 
