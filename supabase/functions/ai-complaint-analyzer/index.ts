@@ -11,6 +11,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { aiRouterComplete } from "../_shared/aiRouter.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 
 const SYSTEM_PROMPT = `Sei un customer success manager esperto per un'azienda edile italiana.
 Analizzi reclami e feedback negativi/positivi dei clienti per produrre una risposta empatica e professionale, e suggerire azioni operative interne.
@@ -81,6 +82,18 @@ Deno.serve(async (req) => {
 
   if (!body.complaint_id || !body.company_id) {
     return jsonErr("missing_fields");
+  }
+
+  // Auth gate (audit AI 2026-06): valida che il chiamante sia autenticato E
+  // appartenga alla company richiesta dal body PRIMA del gate carta. super_admin
+  // cross-azienda è gestito internamente da requireCompanyAccess.
+  const JSON_HEADERS = { "Content-Type": "application/json" };
+  try {
+    const { userId, supabaseAdmin } = await requireAuth(req, JSON_HEADERS);
+    await requireCompanyAccess(supabaseAdmin, userId, body.company_id, JSON_HEADERS);
+  } catch (err) {
+    if (err instanceof Response) return err;
+    return jsonErr("unauthorized", 401);
   }
 
   // Carica complaint
