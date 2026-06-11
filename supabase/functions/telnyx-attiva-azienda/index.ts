@@ -54,23 +54,41 @@ Deno.serve(async (req: Request) => {
 
     let telnyxAccountId = `mock_${company_id.slice(0, 8)}`;
 
-    // Se la master API key è disponibile, crea il vero SubAccount Telnyx
+    // Se la master API key è disponibile, prova a creare il Managed Account
+    // Telnyx (endpoint corretto: /v2/managed_accounts — /v2/accounts non
+    // esiste). NOTA: i managed accounts richiedono l'abilitazione reseller
+    // sull'account Telnyx; se non abilitati il fallback resta l'id locale,
+    // che è OK perché l'invio usa comunque la master key. Il fallimento
+    // viene loggato (prima era inghiottito in silenzio).
     if (masterApiKey) {
       try {
-        const res = await fetch("https://api.telnyx.com/v2/accounts", {
+        const { data: comp } = await adminClient
+          .from("companies")
+          .select("name, business_name")
+          .eq("id", company_id)
+          .maybeSingle();
+        const res = await fetch("https://api.telnyx.com/v2/managed_accounts", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${masterApiKey}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ email: `sms+${company_id.slice(0, 8)}@ediliziaincloud.com` }),
+          body: JSON.stringify({
+            business_name: comp?.business_name || comp?.name || `EiC ${company_id.slice(0, 8)}`,
+            email: `sms+${company_id.slice(0, 8)}@ediliziaincloud.com`,
+          }),
         });
         if (res.ok) {
           const body = await res.json() as { data: { id: string } };
           telnyxAccountId = body.data.id;
+        } else {
+          const errText = await res.text();
+          console.warn(
+            `[telnyx-attiva-azienda] Managed account non creato (${res.status}) — uso id locale, invii via master key. Dettaglio: ${errText.slice(0, 300)}`,
+          );
         }
-      } catch {
-        // Fallback a mock ID in sviluppo
+      } catch (e) {
+        console.warn("[telnyx-attiva-azienda] Errore rete managed account — uso id locale:", e);
       }
     }
 

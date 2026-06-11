@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
         const newStatus = statusMap[eventType] || "unknown";
         const costAmount = record?.cost?.amount ? parseFloat(record.cost.amount) : 0;
 
-        // Aggiorna sms_logs (campagne marketing)
+        // Aggiorna sms_logs (automazioni/AI)
         await supabase
           .from("sms_logs")
           .update({
@@ -104,6 +104,26 @@ Deno.serve(async (req) => {
             error_detail: eventType === "message.failed" ? JSON.stringify(record?.errors || []) : null,
             updated_at: new Date().toISOString(),
           })
+          .eq("telnyx_message_id", telnyxMsgId);
+
+        // 2026-06-11 FIX: le CAMPAGNE marketing loggano su sms_log (colonne
+        // italiane) — prima il webhook non la toccava e le consegne delle
+        // campagne non si aggiornavano MAI (restavano "inviato" per sempre).
+        const statoItaliano: Record<string, string> = {
+          sent: "inviato",
+          delivered: "consegnato",
+          failed: "fallito",
+        };
+        const campagnaUpdate: Record<string, unknown> = {
+          stato: statoItaliano[newStatus] ?? newStatus,
+        };
+        if (newStatus === "delivered") campagnaUpdate.consegnato_at = new Date().toISOString();
+        if (newStatus === "failed") {
+          campagnaUpdate.errore_dettaglio = JSON.stringify(record?.errors || []).slice(0, 500);
+        }
+        await supabase
+          .from("sms_log")
+          .update(campagnaUpdate)
           .eq("telnyx_message_id", telnyxMsgId);
 
         // Aggiorna sms_messages (SMS transazionali)
@@ -131,6 +151,10 @@ Deno.serve(async (req) => {
 
         // P2-2: sanitize phone via helper e `.in()`/`.ilike()` senza
         // interpolazione raw nel DSL PostgREST.
+        // 2026-06-11 FIX: prima il lookup guardava SOLO i numeri degli
+        // agenti vocali AI (ai_agent_phone_numbers) — gli SMS in arrivo
+        // sui numeri comprati col MODULO SMS (sms_telnyx_numbers) venivano
+        // scartati in silenzio. Ora si cercano entrambe le tabelle.
         let companyId: string | null = null;
         if (toNumber) {
           const safeTo = sanitizePhoneForQuery(toNumber);
@@ -143,6 +167,17 @@ Deno.serve(async (req) => {
               .limit(1)
               .maybeSingle();
             companyId = phoneRecord?.company_id || null;
+
+            if (!companyId) {
+              const { data: smsNumber } = await supabase
+                .from("sms_telnyx_numbers")
+                .select("company_id")
+                .in("numero_e164", [safeTo, `+${digits}`])
+                .eq("stato", "attivo")
+                .limit(1)
+                .maybeSingle();
+              companyId = smsNumber?.company_id || null;
+            }
           }
         }
 
@@ -366,24 +401,29 @@ Deno.serve(async (req) => {
 
 // ── Telnyx Call Control API helper ──
 async function telnyxCallControl(callControlId: string, command: string, params: Record<string, unknown>) {
-  // Get Telnyx API key from telnyx_settings (first available)
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  // 2026-06-11 FIX: prima leggeva SOLO telnyx_settings.api_key_encrypted
+  // ("may be plain or encrypted, try directly" — se cifrata falliva muto).
+  // Ora: TELNYX_API_KEY env (configurata, verificata healthy) come primario,
+  // telnyx_settings come fallback legacy.
+  let apiKey = Deno.env.get("TELNYX_API_KEY") ?? "";
 
-  const { data: settings } = await supabase
-    .from("telnyx_settings")
-    .select("api_key_encrypted")
-    .limit(1)
-    .maybeSingle();
+  if (!apiKey) {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  if (!settings?.api_key_encrypted) {
-    console.error("[telnyx-webhook] No Telnyx API key found in settings");
-    return;
+    const { data: settings } = await supabase
+      .from("telnyx_settings")
+      .select("api_key_encrypted")
+      .limit(1)
+      .maybeSingle();
+    apiKey = settings?.api_key_encrypted ?? "";
   }
 
-  // The api_key_encrypted may be plain or encrypted; try to use it directly
-  const apiKey = settings.api_key_encrypted;
+  if (!apiKey) {
+    console.error("[telnyx-webhook] No Telnyx API key found (env or settings)");
+    return;
+  }
 
   const url = `https://api.telnyx.com/v2/calls/${callControlId}/actions/${command}`;
   const res = await fetch(url, {
