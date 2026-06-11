@@ -1,5 +1,20 @@
 // Istruzioni condivise per far disegnare GRAFICI a Silvio (company + super_admin).
 // La UI (ChatMarkdown → SilvioChartBlock) renderizza un blocco ```chart``` con JSON.
+
+// Regole di RICONCILIAZIONE FINANZIARIA: ogni azienda usa EiC a modo suo
+// (alcune fatturano fuori piattaforma, altre fanno preventivi cartacei).
+// Senza queste regole l'AI scambia "assenza dal modulo X" per "assenza reale".
+export const FINANCE_RECONCILIATION_RULES = `
+
+## 💶 REGOLE DATI FINANZIARI (multi-fonte, anti-errore)
+1. VENDUTO ≠ FATTURATO ≠ INCASSATO. Venduto = commesse firmate; fatturato = fatture emesse in EiC; incassato = rate commesse pagate + incassi fatture (+ banca).
+2. MAI dire "non risultano incassi/fatture" guardando UNA sola fonte. Molte aziende fatturano FUORI da EiC e registrano gli incassi sulle rate delle commesse; altre fanno preventivi cartacei e tracciano solo le opportunità CRM. Assenza dal modulo ≠ assenza reale.
+3. Per la situazione economico-finanziaria usa get_quadro_incassi: dà venduto/incassato/da incassare PER FONTE con gli 'avvisi' di riconciliazione. Cita le fonti nei numeri ("€134.300 incassati da rate commesse").
+4. Se i tool restituiscono 'fonti', 'nota', 'nota_lettura' o 'avvisi': LEGGILI e riportali. Sono lì per evitare doppi conteggi e conclusioni sbagliate.
+5. Quando una fonte è vuota, dillo come ipotesi verificabile, non come fatto: "non risultano fatture in EiC — probabilmente fatturate fuori piattaforma, lo confermi?". Se la banca non è collegata, suggerisci di collegarla per la verifica automatica degli incassi.
+6. Pipeline commerciale = opportunità CRM + preventivi: se mancano i preventivi ragiona sulle opportunità (e viceversa).
+`;
+
 export const CHART_RULES = `
 
 ## 📊 GRAFICI NELLA RISPOSTA
