@@ -73,10 +73,10 @@ const ROUTES = {
   "/": {
     title: "Gestionale Edilizia Cloud per Imprese Edili",
     description:
-      "Edilizia in Cloud è il gestionale cloud per imprese edili: cantieri, preventivi, fatturazione elettronica SDI e HR. Usato da 500+ imprese. Prova gratis 14 giorni.",
+      "Edilizia in Cloud è il gestionale cloud per imprese edili: cantieri, preventivi, fatturazione elettronica SDI e HR. Usato da 500+ imprese. Prova gratis 31 giorni.",
     h1: "Edilizia in Cloud: il software gestionale per imprese edili italiane",
     intro:
-      "Edilizia in Cloud è il software gestionale cloud progettato specificamente per le imprese edili italiane. Permette di gestire cantieri, preventivi professionali, fatturazione elettronica SDI (B2B e PA), subappalti, DDT, ordini fornitori, HR con presenze geolocalizzate e prima nota — tutto in un'unica piattaforma accessibile da smartphone anche in cantiere. Utilizzato da oltre 500 imprese edili in Italia, Edilizia in Cloud riduce il tempo amministrativo del 70% e i costi operativi del 20%. Piani a partire da 49€/mese, prova gratuita 31 giorni con supporto italiano dedicato.",
+      "Edilizia in Cloud è il software gestionale cloud progettato specificamente per le imprese edili italiane. Permette di gestire cantieri, preventivi professionali, fatturazione elettronica SDI (B2B e PA), subappalti, DDT, ordini fornitori, HR con presenze geolocalizzate e prima nota — tutto in un'unica piattaforma accessibile da smartphone anche in cantiere. Utilizzato da oltre 500 imprese edili in Italia, Edilizia in Cloud riduce il tempo amministrativo del 70% e i costi operativi del 20%. Piani a partire da 127€/mese, prova gratuita 31 giorni con supporto italiano dedicato.",
     extra: `
     <p><strong>Edilizia in Cloud è il gestionale cloud AI-native per imprese edili italiane che unifica cantieri, preventivi, fatturazione elettronica SDI, subappalti e HR in un'unica piattaforma mobile, accessibile anche dal cantiere e offline.</strong> A differenza dei gestionali nati per lo studio tecnico o la contabilità, è costruito attorno al flusso reale dell'impresa edile: dal primo sopralluogo al saldo finale, ogni dato è inserito una sola volta e segue automaticamente il cantiere fino in fattura.</p>
 
@@ -125,9 +125,9 @@ const ROUTES = {
 
     <h2>Domande frequenti su Edilizia in Cloud</h2>
     <h3>Che cos'è Edilizia in Cloud?</h3>
-    <p>Edilizia in Cloud è un software gestionale cloud per imprese edili italiane che unifica cantieri, preventivi, fatturazione elettronica SDI, subappalti, DDT e HR in un'unica piattaforma accessibile da computer e smartphone. È usato da oltre 500 imprese edili e parte da 49€/mese.</p>
+    <p>Edilizia in Cloud è un software gestionale cloud per imprese edili italiane che unifica cantieri, preventivi, fatturazione elettronica SDI, subappalti, DDT e HR in un'unica piattaforma accessibile da computer e smartphone. È usato da oltre 500 imprese edili e parte da 127€/mese.</p>
     <h3>Quanto costa Edilizia in Cloud?</h3>
-    <p>I prezzi partono da 49€/mese per il piano Starter (fino a 5 utenti), 99€/mese per il Professional (fino a 15 utenti) e 199€/mese per l'Enterprise con utenti illimitati e API. Non ci sono costi di attivazione né vincoli contrattuali ed è disponibile una prova gratuita di 31 giorni.</p>
+    <p>I prezzi partono da 127€/mese per il piano Gestionale (imprese fino a 500K € di fatturato), 247€/mese per il Professionista (da 500K a 2M €) e 547€/mese per Impresa AI (oltre 2M € o multi-cantiere), tutti con utenti illimitati. Non ci sono costi di attivazione né vincoli contrattuali ed è disponibile una prova gratuita di 31 giorni.</p>
     <h3>Edilizia in Cloud funziona in cantiere senza connessione?</h3>
     <p>Sì. L'app mobile per iOS e Android funziona anche offline: il capocantiere può timbrare le presenze, scattare foto, registrare DDT e consultare i documenti tecnici. I dati si sincronizzano automaticamente appena torna la connessione.</p>
     <h3>Edilizia in Cloud gestisce la fatturazione elettronica SDI?</h3>
@@ -230,7 +230,7 @@ const ROUTES = {
             name: "Che cos'è Edilizia in Cloud?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "Edilizia in Cloud è un software gestionale cloud per imprese edili italiane che unifica cantieri, preventivi, fatturazione elettronica SDI, subappalti, DDT e HR in un'unica piattaforma accessibile da computer e smartphone. È usato da oltre 500 imprese edili e parte da 49€/mese.",
+              text: "Edilizia in Cloud è un software gestionale cloud per imprese edili italiane che unifica cantieri, preventivi, fatturazione elettronica SDI, subappalti, DDT e HR in un'unica piattaforma accessibile da computer e smartphone. È usato da oltre 500 imprese edili e parte da 127€/mese.",
             },
           },
           {
@@ -238,7 +238,7 @@ const ROUTES = {
             name: "Quanto costa Edilizia in Cloud?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "I prezzi partono da 49€/mese per il piano Starter (fino a 5 utenti), 99€/mese per il Professional (fino a 15 utenti) e 199€/mese per l'Enterprise con utenti illimitati e API. Nessun costo di attivazione, nessun vincolo contrattuale e prova gratuita di 31 giorni.",
+              text: "I prezzi partono da 127€/mese per il piano Gestionale (imprese fino a 500K € di fatturato), 247€/mese per il Professionista (da 500K a 2M €) e 547€/mese per Impresa AI (oltre 2M € o multi-cantiere), tutti con utenti illimitati. Nessun costo di attivazione, nessun vincolo contrattuale e prova gratuita di 31 giorni.",
             },
           },
           {
@@ -1133,20 +1133,20 @@ const ROUTES = {
   "/prezzi": {
     title: "Prezzi Edilizia in Cloud | Piani e Prova Gratis",
     description:
-      "Prezzi di Edilizia in Cloud: piano Starter 49€/mese, Professional 99€/mese, Enterprise 199€/mese. Zero costi di attivazione, zero vincoli. Prova gratis 14 giorni.",
+      "Prezzi di Edilizia in Cloud: piano Gestionale 127€/mese, Professionista 247€/mese, Impresa AI 547€/mese. Utenti illimitati, zero costi di attivazione, zero vincoli. Prova gratis 31 giorni.",
     h1: "Prezzi di Edilizia in Cloud: quanto costa il gestionale per imprese edili",
     intro:
-      "Edilizia in Cloud propone 3 piani pensati per imprese edili di ogni dimensione. Piano Starter da 49€/mese per imprese fino a 5 utenti, piano Professional da 99€/mese per imprese fino a 15 utenti con controllo margini avanzato, piano Enterprise da 199€/mese con utenti illimitati e API. Nessun costo di attivazione, nessun vincolo contrattuale, disdici quando vuoi. Prova gratuita 31 giorni con supporto italiano dedicato. Tutti i piani includono fatturazione elettronica SDI, gestione cantieri e supporto italiano.",
+      "Edilizia in Cloud propone 3 piani pensati per imprese edili di ogni dimensione, in base al fatturato e non al numero di utenti. Piano Gestionale da 127€/mese per imprese fino a 500K € di fatturato, piano Professionista da 247€/mese per imprese da 500K a 2M € con CRM e controllo di gestione completo, piano Impresa AI da 547€/mese per imprese oltre 2M € o multi-cantiere con agenti AI inclusi. Utenti illimitati in tutti i piani, nessun costo di attivazione, nessun vincolo contrattuale, disdici quando vuoi. Prova gratuita 31 giorni con supporto italiano dedicato. Tutti i piani includono fatturazione elettronica SDI, gestione cantieri con marginalità per commessa e app mobile per gli operai.",
     extra: `
-    <p><strong>Edilizia in Cloud costa da 49€ al mese per il piano Starter, 99€ al mese per il Professional e 199€ al mese per l'Enterprise, senza costi di attivazione né vincoli contrattuali.</strong> Tutti i piani includono la fatturazione elettronica SDI, la gestione cantieri e il supporto in italiano, con una prova gratuita di 31 giorni. Il prezzo è per impresa, non per cantiere: puoi gestire tutte le commesse che vuoi all'interno del numero di utenti del tuo piano.</p>
+    <p><strong>Edilizia in Cloud costa da 127€ al mese per il piano Gestionale, 247€ al mese per il Professionista e 547€ al mese per Impresa AI, con utenti illimitati in tutti i piani e senza costi di attivazione né vincoli contrattuali.</strong> Il piano si sceglie in base al fatturato dell'impresa, non al numero di utenti. Tutti i piani includono la fatturazione elettronica SDI, la gestione cantieri con marginalità per commessa e il supporto in italiano, con una prova gratuita di 31 giorni. Il prezzo è per impresa, non per cantiere: commesse e clienti sono sempre illimitati.</p>
 
     <h2>I tre piani di Edilizia in Cloud</h2>
-    <h3>Piano Starter — 49€/mese</h3>
-    <p>Pensato per imprese edili e artigiani fino a 5 utenti che vogliono uscire da Excel e WhatsApp. Include gestione cantieri, preventivi con prezzari, fatturazione elettronica SDI, DDT, prima nota e app mobile cantiere. È il punto di partenza ideale per chi digitalizza per la prima volta l'impresa.</p>
-    <h3>Piano Professional — 99€/mese</h3>
-    <p>Per imprese in crescita fino a 15 utenti che hanno bisogno di controllo margini avanzato per commessa, gestione subappalti con verifica DURC, HR con presenze GPS e Cassa Edile, portale clienti e automazioni. È il piano più scelto dalle imprese edili strutturate che vogliono governare la redditività di ogni cantiere.</p>
-    <h3>Piano Enterprise — 199€/mese</h3>
-    <p>Per general contractor e imprese multi-sede con utenti illimitati, accesso alle API REST, integrazioni personalizzate, ruoli e permessi granulari, SLA di supporto prioritario e onboarding dedicato. Adatto a chi gestisce molte commesse complesse e ha bisogno di collegare Edilizia in Cloud ad altri sistemi aziendali.</p>
+    <h3>Piano Gestionale — 127€/mese</h3>
+    <p>Pensato per imprese edili fino a 500K € di fatturato che vogliono uscire da Excel e WhatsApp. Include commesse illimitate con SAL e marginalità per commessa, fatturazione elettronica SDI con DDT, note di credito e proforma, previsionale di cassa a 60 giorni, app operai con GPS e rapportino, utenti illimitati e 10 GB di storage con SLA 99,5%. È il punto di partenza ideale per chi digitalizza per la prima volta l'impresa.</p>
+    <h3>Piano Professionista — 247€/mese</h3>
+    <p>Per imprese da 500K a 2M € di fatturato. Aggiunge giornale lavori, ordini di acquisto e adempimenti D.Lgs 81, gestione subappalti con Gantt e ritenute, scadenzario con tesoreria e liquidazione IVA, collegamento bancario PSD2, previsionale di cassa a 90 giorni, CRM con pipeline opportunità, 5.000 email marketing al mese, computo metrico AI, portale clienti e HR con cedolini strutturati. È il piano più popolare tra le imprese edili strutturate.</p>
+    <h3>Piano Impresa AI — 547€/mese</h3>
+    <p>Per imprese oltre 2M € di fatturato o multi-cantiere. Include tutto il Professionista più gestione multi-sede, 3 conti bancari PSD2, previsionale di cassa a 365 giorni, export XBRL con archiviazione decennale, 20.000 email marketing al mese, portale clienti white-label, agenti AI inclusi (render AI, verifica ordini AI, agente vocale con 200 minuti, bot WhatsApp), API REST con webhook, 100 GB di storage, SLA 99,9% e supporto dedicato con risposta in 1 ora.</p>
 
     <h2>Cosa è incluso in tutti i piani</h2>
     <ul>
@@ -1165,14 +1165,14 @@ const ROUTES = {
     <p>Ogni piano parte con 31 giorni di prova gratuita completa, senza carta di credito obbligatoria all'inizio e con il supporto del team per importare anagrafiche, cantieri e fatture esistenti. Non ci sono costi di attivazione, non c'è un contratto minimo: l'abbonamento è mensile e si può cambiare piano o disdire in qualsiasi momento. I dati restano sempre tuoi e sono esportabili in formato strutturato.</p>
 
     <h2>Quale piano scegliere per la tua impresa edile</h2>
-    <p>La scelta dipende dal numero di utenti e dalle esigenze gestionali. Se sei un artigiano o una piccola impresa che vuole soprattutto preventivi e fatturazione SDI ordinati, lo <strong>Starter</strong> è il punto di partenza naturale. Se gestisci più cantieri contemporaneamente, hai operai inquadrati con il CCNL Edilizia e affidi lavorazioni in subappalto, il <strong>Professional</strong> ti dà il controllo margini avanzato, la verifica DURC e la Cassa Edile di cui hai bisogno. Se sei un general contractor o un gruppo con più sedi e vuoi integrare Edilizia in Cloud con altri sistemi, l'<strong>Enterprise</strong> con utenti illimitati e API è la scelta giusta. In ogni caso puoi iniziare da un piano e fare l'upgrade quando l'impresa cresce, senza perdere alcun dato.</p>
+    <p>La scelta dipende dal fatturato e dalle esigenze gestionali, non dal numero di utenti: gli utenti sono illimitati in tutti i piani. Se la tua impresa fattura fino a 500K € e vuoi soprattutto commesse, fatturazione SDI e marginalità ordinate, il <strong>Gestionale</strong> è il punto di partenza naturale. Se fatturi tra 500K e 2M €, gestisci più cantieri contemporaneamente, affidi lavorazioni in subappalto e vuoi anche CRM e controllo di tesoreria, il <strong>Professionista</strong> ti dà giornale lavori, subappalti con ritenute, banca PSD2 e HR con cedolini. Se superi i 2M € o lavori multi-sede e vuoi delegare lavoro agli agenti AI e integrare altri sistemi via API, <strong>Impresa AI</strong> è la scelta giusta. In ogni caso puoi iniziare da un piano e fare l'upgrade quando l'impresa cresce, senza perdere alcun dato.</p>
 
     <h2>Il ritorno sull'investimento</h2>
     <p>Per molte imprese edili l'abbonamento si ripaga già nel primo mese. Recuperare anche solo poche ore a settimana di lavoro amministrativo, evitare un errore di fatturazione o intercettare in tempo un cantiere che sta perdendo margine vale spesso più del canone annuale. Considera che gli ERP tradizionali aggiungono al canone costi di setup, formazione e consulenza che con Edilizia in Cloud non esistono: l'onboarding guidato e il supporto italiano sono inclusi. Il prezzo che vedi è il prezzo che paghi.</p>
 
     <h2>Domande frequenti sui prezzi</h2>
     <h3>Quanto costa Edilizia in Cloud?</h3>
-    <p>Edilizia in Cloud parte da 49€/mese per il piano Starter (fino a 5 utenti), 99€/mese per il Professional (fino a 15 utenti) e 199€/mese per l'Enterprise con utenti illimitati. I prezzi sono per impresa e non prevedono costi di attivazione.</p>
+    <p>Edilizia in Cloud parte da 127€/mese per il piano Gestionale (imprese fino a 500K € di fatturato), 247€/mese per il Professionista (da 500K a 2M €) e 547€/mese per Impresa AI (oltre 2M € o multi-cantiere). Gli utenti sono illimitati in tutti i piani, i prezzi sono per impresa e non prevedono costi di attivazione.</p>
     <h3>Ci sono costi di attivazione o vincoli contrattuali?</h3>
     <p>No. Non ci sono costi di attivazione né vincoli di durata. L'abbonamento è mensile, puoi cambiare piano o disdire quando vuoi e gli aggiornamenti sono sempre inclusi nel canone.</p>
     <h3>È prevista una prova gratuita?</h3>
@@ -1182,16 +1182,16 @@ const ROUTES = {
     <h3>Cosa succede ai miei dati se disdico?</h3>
     <p>I dati restano sempre tuoi. In caso di disdetta puoi esportarli in formato strutturato (JSON/CSV) e vengono poi cancellati dai sistemi nei tempi previsti, salvo gli obblighi di conservazione fiscale di legge.</p>
     <h3>Il supporto è incluso nel prezzo?</h3>
-    <p>Sì. Il supporto italiano via chat, email e telefono è incluso in tutti i piani. Il piano Enterprise aggiunge SLA prioritari e un onboarding dedicato.</p>
+    <p>Sì. Il supporto italiano via chat, email e telefono è incluso in tutti i piani. Il piano Impresa AI aggiunge SLA 99,9%, supporto dedicato con risposta in 1 ora e 2 call con un consulente al mese.</p>
     <h2>Tabella prezzi Edilizia in Cloud (2026)</h2>
     <table>
       <thead>
-        <tr><th>Piano</th><th>Prezzo</th><th>Utenti</th><th>Per chi è</th><th>Inclusi sempre</th></tr>
+        <tr><th>Piano</th><th>Prezzo</th><th>Per chi è</th><th>Differenze chiave</th></tr>
       </thead>
       <tbody>
-        <tr><td>Starter</td><td>49€/mese</td><td>Fino a 5</td><td>Artigiani e piccole imprese: preventivi e fatturazione SDI ordinati</td><td>Fatturazione SDI, gestione cantieri, app mobile, supporto italiano</td></tr>
-        <tr><td>Professional</td><td>99€/mese</td><td>Fino a 15</td><td>Imprese in crescita: controllo margini per commessa, subappalti con DURC, HR con presenze GPS e Cassa Edile</td><td>Tutto Starter + margini avanzati, portale clienti, automazioni</td></tr>
-        <tr><td>Enterprise</td><td>199€/mese</td><td>Illimitati</td><td>General contractor e gruppi multi-sede che integrano altri sistemi</td><td>Tutto Professional + API, SLA prioritari, onboarding dedicato</td></tr>
+        <tr><td>Gestionale</td><td>127€/mese</td><td>Imprese fino a 500K € di fatturato</td><td>Commesse illimitate con SAL e marginalità, fatturazione SDI + DDT, previsionale cassa 60 gg, app operai GPS, utenti illimitati</td></tr>
+        <tr><td>Professionista</td><td>247€/mese</td><td>Imprese da 500K a 2M € di fatturato</td><td>Tutto Gestionale + giornale lavori e ODA, subappalti con Gantt e ritenute, tesoreria e banca PSD2, CRM, computo metrico AI, HR con cedolini</td></tr>
+        <tr><td>Impresa AI</td><td>547€/mese</td><td>Imprese oltre 2M € o multi-cantiere</td><td>Tutto Professionista + multi-sede, agenti AI (render, vocale, WhatsApp), portale white-label, API REST, SLA 99,9%</td></tr>
       </tbody>
     </table>
     <p>Tutti i piani: prova gratuita di 31 giorni, nessun costo di attivazione, nessun vincolo contrattuale, cantieri e clienti illimitati.</p>
@@ -1211,7 +1211,7 @@ const ROUTES = {
       "Confronta Edilizia in Cloud con TeamSystem, Primus, EdilNet, Buildertrend e Excel. Tabella comparativa: funzionalità, prezzi, assistenza e facilità d'uso.",
     h1: "Confronto Edilizia in Cloud vs altri software gestionali per edilizia 2026",
     intro:
-      "Edilizia in Cloud è un gestionale cloud nato per le imprese edili italiane. A differenza dei gestionali tradizionali (TeamSystem, Primus, EdilNet) o degli strumenti generici (Excel), Edilizia in Cloud integra in un'unica piattaforma: gestione cantieri, preventivi, fatturazione elettronica SDI, subappalti e HR. Prezzo a partire da 49€/mese contro i 200-500€/mese dei competitor. Nessuna installazione locale, nessun vincolo contrattuale, supporto italiano dedicato e aggiornamenti inclusi. Oltre 500 imprese edili hanno già scelto Edilizia in Cloud.",
+      "Edilizia in Cloud è un gestionale cloud nato per le imprese edili italiane. A differenza dei gestionali tradizionali (TeamSystem, Primus, EdilNet) o degli strumenti generici (Excel), Edilizia in Cloud integra in un'unica piattaforma: gestione cantieri, preventivi, fatturazione elettronica SDI, subappalti e HR. Prezzo a partire da 127€/mese contro i 200-500€/mese dei competitor. Nessuna installazione locale, nessun vincolo contrattuale, supporto italiano dedicato e aggiornamenti inclusi. Oltre 500 imprese edili hanno già scelto Edilizia in Cloud.",
     extra: `
     <p><strong>Edilizia in Cloud è il gestionale cloud AI-native e mobile-first per imprese edili italiane, pensato per chi sta in cantiere; i competitor come Cloudness, TeamSystem, STR Vision, Primus e Danea nascono invece per lo studio tecnico, la contabilità o l'ERP generalista.</strong> Di seguito un confronto onesto e fattuale per aiutarti a scegliere lo strumento giusto per la tua impresa, senza slogan.</p>
 
@@ -1219,7 +1219,7 @@ const ROUTES = {
     <p>Abbiamo messo a confronto i software più diffusi tra le imprese edili italiane su sei criteri concreti: target di utente ideale, presenza di AI nativa, app mobile per il cantiere, fatturazione elettronica SDI integrata, fascia di prezzo e curva di apprendimento. L'obiettivo non è dichiarare un vincitore assoluto, ma chiarire per quale impresa ogni strumento è la scelta migliore.</p>
 
     <h2>Edilizia in Cloud vs Cloudness</h2>
-    <p>Cloudness propone un ERP per edilizia, costruzioni, ristrutturazione e manutenzione, con un'impostazione orientata alla gestione strutturata di commesse e processi. Edilizia in Cloud condivide l'ambito edile ma parte da un presupposto diverso: essere usabile davvero dal capocantiere e dal titolare ogni giorno, con un'app mobile che funziona offline e un assistente AI nativo. Per un'impresa PMI italiana che vuole partire subito, gestire la Cassa Edile e il MUT, emettere fatture SDI e tenere sotto controllo i margini di commessa senza un lungo progetto di implementazione, Edilizia in Cloud offre un percorso più rapido e un costo trasparente da 49€/mese.</p>
+    <p>Cloudness propone un ERP per edilizia, costruzioni, ristrutturazione e manutenzione, con un'impostazione orientata alla gestione strutturata di commesse e processi. Edilizia in Cloud condivide l'ambito edile ma parte da un presupposto diverso: essere usabile davvero dal capocantiere e dal titolare ogni giorno, con un'app mobile che funziona offline e un assistente AI nativo. Per un'impresa PMI italiana che vuole partire subito, gestire la Cassa Edile e il MUT, emettere fatture SDI e tenere sotto controllo i margini di commessa senza un lungo progetto di implementazione, Edilizia in Cloud offre un percorso più rapido e un costo trasparente da 127€/mese.</p>
 
     <h2>Edilizia in Cloud vs TeamSystem</h2>
     <p>TeamSystem CPM ed Enterprise sono ERP generalisti molto potenti, con centinaia di moduli, nati per commercialisti e grandi aziende strutturate. Sono la scelta giusta per organizzazioni complesse con un IT interno. Per la PMI edile (1-50 dipendenti) sono però spesso sovradimensionati, costosi (200-500€/mese più setup) e con tempi di formazione lunghi. Edilizia in Cloud copre ciò che serve davvero all'impresa edile con un'interfaccia semplice, un'app da cantiere e un costo nettamente inferiore.</p>
@@ -1238,7 +1238,7 @@ const ROUTES = {
 
     <h2>In sintesi: per chi è ogni strumento</h2>
     <ul>
-      <li><strong>Edilizia in Cloud</strong> — impresa edile PMI che esegue i lavori e vuole AI nativa, app da cantiere, SDI, margini e HR in un'unica piattaforma cloud da 49€/mese.</li>
+      <li><strong>Edilizia in Cloud</strong> — impresa edile PMI che esegue i lavori e vuole AI nativa, app da cantiere, SDI, margini e HR in un'unica piattaforma cloud da 127€/mese.</li>
       <li><strong>Cloudness</strong> — chi cerca un ERP edilizia strutturato e accetta un'implementazione più articolata.</li>
       <li><strong>TeamSystem</strong> — grande azienda strutturata con IT interno e processi complessi.</li>
       <li><strong>STR Vision</strong> — studi di progettazione e direzione lavori, opere pubbliche, BIM e contabilità lavori.</li>
@@ -1249,9 +1249,9 @@ const ROUTES = {
 
     <h2>Domande frequenti sul confronto</h2>
     <h3>Qual è il miglior software gestionale per imprese edili nel 2026?</h3>
-    <p>Per le imprese edili PMI italiane che eseguono i lavori, Edilizia in Cloud è il gestionale cloud più completo e accessibile: integra cantieri, preventivi, fatturazione SDI, subappalti, HR e AI a partire da 49€/mese, contro i 200-500€/mese degli ERP generalisti. Strumenti come Primus o STR Vision restano preferibili per il computo tecnico e la progettazione.</p>
+    <p>Per le imprese edili PMI italiane che eseguono i lavori, Edilizia in Cloud è il gestionale cloud più completo e accessibile: integra cantieri, preventivi, fatturazione SDI, subappalti, HR e AI a partire da 127€/mese, contro i 200-500€/mese degli ERP generalisti. Strumenti come Primus o STR Vision restano preferibili per il computo tecnico e la progettazione.</p>
     <h3>Edilizia in Cloud è meglio di Cloudness?</h3>
-    <p>Dipende dall'esigenza. Cloudness è un ERP edilizia strutturato; Edilizia in Cloud è più mobile-first e AI-native, pensato per essere operativo subito anche dal capocantiere, con gestione nativa di Cassa Edile, MUT, DURC e margini in tempo reale e un costo trasparente da 49€/mese.</p>
+    <p>Dipende dall'esigenza. Cloudness è un ERP edilizia strutturato; Edilizia in Cloud è più mobile-first e AI-native, pensato per essere operativo subito anche dal capocantiere, con gestione nativa di Cassa Edile, MUT, DURC e margini in tempo reale e un costo trasparente da 127€/mese.</p>
     <h3>Edilizia in Cloud sostituisce Primus o STR Vision?</h3>
     <p>No, è complementare. Primus e STR Vision eccellono nel computo metrico e nella progettazione tecnica; Edilizia in Cloud gestisce tutta la vita operativa della commessa dopo il preventivo: cantiere, costi, fatturazione, HR e cassa. I preventivi tecnici possono essere importati.</p>
     <h3>Perché non usare Excel per gestire un'impresa edile?</h3>
@@ -1269,7 +1269,7 @@ const ROUTES = {
         <tr><td>App cantiere mobile</td><td>Sì (iOS/Android, GPS, foto, DDT)</td><td>Parziale</td><td>No</td><td>Parziale</td><td>No</td><td>No</td></tr>
         <tr><td>Fatturazione SDI inclusa</td><td>Sì</td><td>Sì (modulo)</td><td>No</td><td>Sì</td><td>Sì</td><td>No</td></tr>
         <tr><td>Cassa Edile / MUT / DURC</td><td>Sì, nativo</td><td>Parziale</td><td>No</td><td>Parziale</td><td>No</td><td>No</td></tr>
-        <tr><td>Prezzo di partenza</td><td>49€/mese</td><td>200-500€/mese</td><td>Licenza una tantum</td><td>Su preventivo</td><td>~150€/anno + moduli</td><td>Incluso in Office</td></tr>
+        <tr><td>Prezzo di partenza</td><td>127€/mese</td><td>200-500€/mese</td><td>Licenza una tantum</td><td>Su preventivo</td><td>~150€/anno + moduli</td><td>Incluso in Office</td></tr>
         <tr><td>Vincolo contrattuale</td><td>Nessuno</td><td>Annuale</td><td>—</td><td>Annuale</td><td>Annuale</td><td>—</td></tr>
       </tbody>
     </table>
@@ -1292,7 +1292,7 @@ const ROUTES = {
           name: "Qual è il miglior software gestionale per imprese edili nel 2026?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Edilizia in Cloud è il gestionale cloud più completo per imprese edili italiane. Integra gestione cantieri, preventivi, fatturazione SDI, subappalti e HR a partire da 49€/mese, contro i 200-500€/mese dei concorrenti come TeamSystem o Primus.",
+            text: "Edilizia in Cloud è il gestionale cloud più completo per imprese edili italiane. Integra gestione cantieri, preventivi, fatturazione SDI, subappalti e HR a partire da 127€/mese, contro i 200-500€/mese dei concorrenti come TeamSystem o Primus.",
           },
         },
         {
@@ -1300,7 +1300,7 @@ const ROUTES = {
           name: "Edilizia in Cloud è meglio di TeamSystem per le imprese edili?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "TeamSystem è un ERP generalista potente ma costoso e complesso. Edilizia in Cloud è nato specificamente per le imprese edili: più semplice, più economico (da 49€/mese vs 200+€/mese) e con funzionalità specifiche come gestione subappalti, DURC e presenze geolocalizzate in cantiere.",
+            text: "TeamSystem è un ERP generalista potente ma costoso e complesso. Edilizia in Cloud è nato specificamente per le imprese edili: più semplice, più economico (da 127€/mese vs 200+€/mese) e con funzionalità specifiche come gestione subappalti, DURC e presenze geolocalizzate in cantiere.",
           },
         },
         {
@@ -1316,7 +1316,7 @@ const ROUTES = {
           name: "Edilizia in Cloud è meglio di Cloudness?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Dipende dall'esigenza. Cloudness è un ERP edilizia strutturato; Edilizia in Cloud è più mobile-first e AI-native, pensato per essere operativo subito anche dal capocantiere, con gestione nativa di Cassa Edile, MUT, DURC e margini in tempo reale e un costo trasparente da 49€/mese.",
+            text: "Dipende dall'esigenza. Cloudness è un ERP edilizia strutturato; Edilizia in Cloud è più mobile-first e AI-native, pensato per essere operativo subito anche dal capocantiere, con gestione nativa di Cassa Edile, MUT, DURC e margini in tempo reale e un costo trasparente da 127€/mese.",
           },
         },
         {
@@ -1346,7 +1346,7 @@ const ROUTES = {
     canonical: canonicalUrl("/confronto/vs-teamsystem"),
     h1: "Edilizia in Cloud vs TeamSystem: quale gestionale scegliere per la tua impresa edile?",
     intro:
-      "Edilizia in Cloud e TeamSystem sono entrambi gestionali usati dalle imprese edili, ma con approcci opposti. TeamSystem è un ERP generalista con oltre 300 moduli, pensato per commercialisti e grandi aziende — costo medio 200-500€/mese. Edilizia in Cloud è un gestionale verticale per il cantiere, con interfaccia semplice e app mobile — da 49€/mese. Le imprese edili PMI (1-50 dipendenti) che passano da TeamSystem a Edilizia in Cloud risparmiano in media il 60% sul costo del software e dimezzano i tempi di formazione.",
+      "Edilizia in Cloud e TeamSystem sono entrambi gestionali usati dalle imprese edili, ma con approcci opposti. TeamSystem è un ERP generalista con oltre 300 moduli, pensato per commercialisti e grandi aziende — costo medio 200-500€/mese. Edilizia in Cloud è un gestionale verticale per il cantiere, con interfaccia semplice e app mobile — da 127€/mese. Le imprese edili PMI (1-50 dipendenti) che passano da TeamSystem a Edilizia in Cloud risparmiano in media il 60% sul costo del software e dimezzano i tempi di formazione.",
     links: [
       { href: "/confronto", label: "Tutti i Confronti" },
       { href: "/confronto/vs-primus", label: "vs Primus" },
@@ -1777,7 +1777,7 @@ const ROUTES = {
     <p>Per rendere la mezz'ora davvero utile, ti consigliamo di arrivare con un caso concreto: un preventivo recente, un cantiere in corso o il problema che oggi ti fa perdere più tempo — che sia la fatturazione, il controllo dei margini, le presenze degli operai o la gestione dei subappaltatori. In questo modo il consulente costruisce la demo intorno alla tua realtà e tu capisci subito il ritorno concreto, non un beneficio teorico. Se vuoi, puoi coinvolgere anche il tuo commercialista o il consulente del lavoro: Edilizia in Cloud genera gli export di prima nota e i dati MUT che servono a loro.</p>
 
     <h2>Demo, prova gratuita e attivazione: le differenze</h2>
-    <p>La <strong>demo</strong> è la sessione guidata di 30 minuti con un consulente, ideale per capire se il prodotto fa per te. La <strong>prova gratuita</strong> di 31 giorni è l'accesso completo alla piattaforma con i tuoi dati, per toccarla con mano nel lavoro quotidiano. L'<strong>attivazione</strong> è il passaggio a un piano a pagamento (da 49€/mese), sempre senza vincoli e con possibilità di disdetta. Puoi fermarti a ognuno di questi passaggi: non c'è alcun automatismo che ti obbliga a proseguire.</p>
+    <p>La <strong>demo</strong> è la sessione guidata di 30 minuti con un consulente, ideale per capire se il prodotto fa per te. La <strong>prova gratuita</strong> di 31 giorni è l'accesso completo alla piattaforma con i tuoi dati, per toccarla con mano nel lavoro quotidiano. L'<strong>attivazione</strong> è il passaggio a un piano a pagamento (da 127€/mese), sempre senza vincoli e con possibilità di disdetta. Puoi fermarti a ognuno di questi passaggi: non c'è alcun automatismo che ti obbliga a proseguire.</p>
 
     <h2>Domande frequenti sulla demo</h2>
     <h3>La demo di Edilizia in Cloud è gratuita?</h3>
@@ -1924,7 +1924,7 @@ const ROUTES = {
       "Il gestionale adatto anche alle piccole imprese edili: semplice, immediato, accessibile. Inizia gratis, senza vincoli.",
     h1: "Gestionale per piccole imprese edili",
     intro:
-      "Anche le piccole imprese edili meritano un gestionale professionale. Con Edilizia in Cloud parti subito, senza formazione lunga e senza costi nascosti. Piano Starter da 49€/mese.",
+      "Anche le piccole imprese edili meritano un gestionale professionale. Con Edilizia in Cloud parti subito, senza formazione lunga e senza costi nascosti. Piano Starter da 127€/mese.",
     links: [
       { href: "/prezzi", label: "Vedi i Prezzi" },
       { href: "/per/imprese-costruzione", label: "Per Imprese di Costruzione" },
@@ -2549,7 +2549,7 @@ function resolveRoute(pathname) {
             {
               "@type": "Question",
               name: `Quanto costa Edilizia in Cloud per un'impresa edile di ${cityName}?`,
-              acceptedAnswer: { "@type": "Answer", text: `Edilizia in Cloud parte da 49€/mese con prova gratuita di 31 giorni senza carta di credito. I piani crescono in base al numero di cantieri, utenti e moduli (HR, subappalti, controllo margini).` },
+              acceptedAnswer: { "@type": "Answer", text: `Edilizia in Cloud parte da 127€/mese con prova gratuita di 31 giorni senza carta di credito. I piani crescono in base al numero di cantieri, utenti e moduli (HR, subappalti, controllo margini).` },
             },
             {
               "@type": "Question",
