@@ -161,6 +161,30 @@ Deno.serve(async (req) => {
           localUpdate.name = body.patch.name;
         }
         if (body.patch?.daily_budget_cents != null) {
+          // SPEND GUARD anche sull'update: prima si poteva alzare il budget
+          // di una campagna ATTIVA oltre cap/soglia senza alcun controllo
+          // (il guard esisteva solo in create-campaign).
+          const { data: guards } = await admin
+            .from("ad_spend_guard")
+            .select("*")
+            .eq("company_id", body.company_id)
+            .or(`ad_account_id.eq.${campaign.ad_account_id},ad_account_id.is.null`);
+          const guard = (guards ?? []).find((g: { ad_account_id: string | null }) => g.ad_account_id === campaign.ad_account_id)
+            ?? (guards ?? []).find((g: { ad_account_id: string | null }) => g.ad_account_id === null);
+          if (guard?.is_active) {
+            if (body.patch.daily_budget_cents > guard.campaign_approval_threshold_cents && !isSuperAdmin) {
+              return json({
+                error: "spend_guard_block",
+                detail: `Budget ${(body.patch.daily_budget_cents / 100).toFixed(0)}€/g sopra la soglia approvazione (${(guard.campaign_approval_threshold_cents / 100).toFixed(0)}€/g). Serve super_admin.`,
+              }, 403, corsHeaders);
+            }
+            if (body.patch.daily_budget_cents > guard.daily_cap_cents) {
+              return json({
+                error: "spend_guard_block",
+                detail: `Budget ${(body.patch.daily_budget_cents / 100).toFixed(0)}€/g supera il cap giornaliero (${(guard.daily_cap_cents / 100).toFixed(0)}€/g).`,
+              }, 403, corsHeaders);
+            }
+          }
           metaPayload.daily_budget = body.patch.daily_budget_cents;
           localUpdate.daily_budget_cents = body.patch.daily_budget_cents;
         }

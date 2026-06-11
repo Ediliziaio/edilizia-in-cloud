@@ -1,4 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+
+const PdfToolkitDialog = lazy(() =>
+  import("@/components/documenti/PdfToolkitDialog").then((m) => ({ default: m.PdfToolkitDialog })),
+);
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -1122,6 +1126,7 @@ export default function ContenutiMultimediali() {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showSmartImport, setShowSmartImport] = useState(false);
+  const [showPdfTools, setShowPdfTools] = useState(false);
   const [showSmartInbox, setShowSmartInbox] = useState(false);
   const [showFolderDialog, setShowFolderDialog] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
@@ -1401,6 +1406,10 @@ export default function ContenutiMultimediali() {
           <Button variant="outline" onClick={() => setShowSmartInbox(true)}>
             <Inbox className="mr-2 h-4 w-4" />
             Inbox AI
+          </Button>
+          <Button variant="outline" onClick={() => setShowPdfTools(true)}>
+            <FileText className="mr-2 h-4 w-4" />
+            Strumenti PDF
           </Button>
           <Button onClick={() => setShowSmartImport(true)}>
             <UploadCloud className="mr-2 h-4 w-4" />
@@ -1706,6 +1715,12 @@ export default function ContenutiMultimediali() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {showPdfTools && (
+        <Suspense fallback={null}>
+          <PdfToolkitDialog open={showPdfTools} onOpenChange={setShowPdfTools} />
+        </Suspense>
+      )}
 
       <SmartDocumentImportModal
         open={showSmartImport}

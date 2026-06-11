@@ -21,7 +21,7 @@
  * Il tab attivo è persisted in URL via ?tab=... per condivisione link + history.
  */
 import { useSearchParams } from "react-router-dom";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Brain, MessageSquare, History, Network } from "lucide-react";
@@ -40,6 +40,25 @@ function isValidTab(v: string | null): v is TabKey {
 
 export default function AIPersonasHub() {
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Prefetch in idle dei chunk lazy: il Cervello (grafo + starfield + NLP)
+  // è un bundle pesante — senza prefetch il primo click sul tab pagava
+  // download+parse a freddo (la lentezza percepita). Così quando l'utente
+  // cambia tab il codice è già caldo e restano solo le query dati.
+  useEffect(() => {
+    const prefetch = () => {
+      void import("@/components/ai/AIBrainGraph");
+      void import("@/pages/azienda/AIMemoryPage");
+      void import("./AIPersonasSessionsTab");
+      void import("@/pages/azienda/AssistenteAIPage");
+    };
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(prefetch, { timeout: 3000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const t = window.setTimeout(prefetch, 1500);
+    return () => window.clearTimeout(t);
+  }, []);
   const tabParam = searchParams.get("tab");
   const activeTab: TabKey = isValidTab(tabParam) ? tabParam : "chat";
 
@@ -84,7 +103,7 @@ export default function AIPersonasHub() {
         </TabsContent>
 
         <TabsContent value="cervello" className="mt-4">
-          <Suspense fallback={<TabSkeleton />}>
+          <Suspense fallback={<CervelloSkeleton />}>
             <AIBrainGraph />
           </Suspense>
         </TabsContent>
@@ -95,6 +114,19 @@ export default function AIPersonasHub() {
           </Suspense>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+/** Fallback coerente col loader interno del grafo (sfondo scuro + brain
+    pulsante): niente flash bianco di skeleton generici prima del canvas. */
+function CervelloSkeleton() {
+  return (
+    <div className="flex h-[500px] items-center justify-center rounded-xl border border-slate-800 bg-slate-950">
+      <div className="flex flex-col items-center gap-3">
+        <Brain className="h-10 w-10 animate-pulse text-orange-400" />
+        <p className="text-sm text-slate-300">Caricamento cervello AI…</p>
+      </div>
     </div>
   );
 }

@@ -29,6 +29,7 @@ import type {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSearchParams } from "react-router-dom";
 import { DEMO_COMPANY_ID } from "@/lib/constants/demoCompany";
 import {
   DEMO_AI_PERSONAS,
@@ -51,7 +52,7 @@ import {
   Brain, Maximize2, Minimize2, RotateCcw,
   Filter, X, Sparkles, Network, Camera,
   Flame, Palette, ChevronRight, ChevronDown,
-  Link2, Zap, Ghost, Settings2, ZoomIn, ZoomOut,
+  Link2, Zap, Ghost, Settings2, ZoomIn, ZoomOut, MessageSquare,
 } from "lucide-react";
 import {
   Popover, PopoverTrigger, PopoverContent,
@@ -1664,6 +1665,9 @@ interface AIBrainGraphProps {
 export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = {}) {
   const { effectiveCompany } = useAuth();
   const isAdmin = scope === "admin";
+  // Per i cross-link verso gli altri tab dell'hub (?tab=chat / ?tab=memoria);
+  // in scope admin i bottoni che lo usano sono nascosti.
+  const [, setSearchParams] = useSearchParams();
   const qc = useQueryClient();
   const graphRef = useRef<BrainGraphCanvasHandle | null>(null);
   // Vista: 2D piatto | 3D libero | Nucleo rotante (3D + camera orbit auto)
@@ -2463,14 +2467,43 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && fullscreen) {
-        setFullscreen(false);
-        if (document.fullscreenElement) void document.exitFullscreen?.();
+      // Niente shortcut mentre si digita (ricerca semantica, form)
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      switch (event.key) {
+        case "Escape":
+          if (fullscreen) {
+            setFullscreen(false);
+            if (document.fullscreenElement) void document.exitFullscreen?.();
+          } else {
+            setSelectedNode(null);
+          }
+          break;
+        case "+":
+        case "=":
+          event.preventDefault();
+          zoomInGraph();
+          break;
+        case "-":
+        case "_":
+          event.preventDefault();
+          zoomOutGraph();
+          break;
+        case "0":
+          event.preventDefault();
+          fitGraphToView();
+          break;
+        case "f":
+        case "F":
+          event.preventDefault();
+          void toggleFullscreen();
+          break;
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [fullscreen]);
+  }, [fullscreen, zoomInGraph, zoomOutGraph, fitGraphToView, toggleFullscreen]);
 
   useEffect(() => {
     if (!fullscreen) return undefined;
@@ -2587,6 +2620,20 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
             >
               <Sparkles className="h-3.5 w-3.5" />
               {isSeeding ? "Popolamento…" : "Popola con memorie demo"}
+            </Button>
+          )}
+          {!isDemoCompany && !isAdmin && (
+            <Button
+              size="sm"
+              className="mt-3 gap-2 bg-orange-500 hover:bg-orange-600 text-white"
+              onClick={() => setSearchParams((prev) => {
+                const sp = new URLSearchParams(prev);
+                sp.set("tab", "chat");
+                return sp;
+              })}
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              Vai alla Chat AI
             </Button>
           )}
         </div>
@@ -2952,7 +2999,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               className="h-7 w-7 rounded-none border-0 text-slate-300 hover:bg-slate-800 hover:text-white"
               onClick={zoomOutGraph}
               aria-label="Zoom indietro"
-              title="Zoom indietro"
+              title="Zoom indietro (−)"
             >
               <ZoomOut className="h-3.5 w-3.5" />
             </Button>
@@ -2963,7 +3010,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               className="h-7 w-7 rounded-none border-0 border-l border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
               onClick={zoomInGraph}
               aria-label="Zoom avanti"
-              title="Zoom avanti"
+              title="Zoom avanti (+)"
             >
               <ZoomIn className="h-3.5 w-3.5" />
             </Button>
@@ -2974,7 +3021,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
               className="h-7 w-7 rounded-none border-0 border-l border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
               onClick={fitGraphToView}
               aria-label="Adatta grafo alla vista"
-              title="Adatta grafo alla vista"
+              title="Adatta grafo alla vista (0)"
             >
               <Network className="h-3.5 w-3.5" />
             </Button>
@@ -2999,7 +3046,7 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
             className="h-7 w-7 bg-slate-900/95 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-600 backdrop-blur-sm shadow-sm"
             onClick={toggleFullscreen}
             aria-label="Modalita fullscreen grafo"
-            title={fullscreen ? "Esci fullscreen" : "Fullscreen"}
+            title={fullscreen ? "Esci fullscreen (F)" : "Fullscreen (F)"}
           >
             {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
           </Button>
@@ -3092,6 +3139,9 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                     <Sparkles className="h-3 w-3" />
                     Report PDF executive
                   </button>
+                  <p className="pt-1.5 text-[9px] text-slate-400 text-center">
+                    Tastiera: <kbd className="px-1 rounded bg-slate-800 border border-slate-700">+</kbd> <kbd className="px-1 rounded bg-slate-800 border border-slate-700">−</kbd> zoom · <kbd className="px-1 rounded bg-slate-800 border border-slate-700">0</kbd> adatta · <kbd className="px-1 rounded bg-slate-800 border border-slate-700">F</kbd> fullscreen · <kbd className="px-1 rounded bg-slate-800 border border-slate-700">Esc</kbd> chiudi
+                  </p>
                 </div>
               </div>
             </PopoverContent>
@@ -3219,6 +3269,19 @@ export default function AIBrainGraph({ scope = "azienda" }: AIBrainGraphProps = 
                 Fonti affidabili: <span className="text-emerald-300 font-semibold">{memoryQuality.trustedSourcePct}%</span>
                 {memoryQuality.demoCount > 0 && <> · demo preview: {memoryQuality.demoCount}</>}
               </p>
+              {!isAdmin && (
+                <button
+                  className="mt-1.5 w-full h-6 text-[10px] text-orange-300 hover:text-orange-200 hover:bg-orange-500/10 rounded-md border border-orange-500/30 flex items-center justify-center gap-1 transition-colors"
+                  onClick={() => setSearchParams((prev) => {
+                    const sp = new URLSearchParams(prev);
+                    sp.set("tab", "memoria");
+                    return sp;
+                  })}
+                >
+                  <Settings2 className="h-3 w-3" />
+                  Gestisci memorie nel tab Memoria
+                </button>
+              )}
             </div>
 
             {/* Community intelligence */}

@@ -469,6 +469,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ai-persona-memory"] });
     },
+    onError: (e) => toast.error("Errore aggiornamento memory", { description: String(e) }),
   });
 
   const deleteMut = useMutation({
@@ -484,6 +485,7 @@ export default function AIMemoryPage({ embedded = false }: AIMemoryPageProps = {
       toast.success("Memory eliminata");
       void qc.invalidateQueries({ queryKey: ["ai-persona-memory"] });
     },
+    onError: (e) => toast.error("Errore eliminazione memory", { description: String(e) }),
   });
 
   const openCreate = () => {

@@ -26,14 +26,11 @@ import {
   ArrowRight,
   AlertTriangle,
   // 🆕 Icon set espansa
-  Calculator,
   Sparkles,
   Inbox,
   Network,
   Send,
   UploadCloud,
-  Clock3,
-  Route,
   FileText,
 } from "lucide-react";
 import { SilvioAvatar } from "@/components/silvio/SilvioAvatar";
@@ -47,6 +44,9 @@ const SmartDocumentImportModal = lazy(() =>
 );
 const SilvioChatSheet = lazy(() =>
   import("@/components/silvio/SilvioChatSheet").then(m => ({ default: m.SilvioChatSheet })),
+);
+const PdfToolkitDialog = lazy(() =>
+  import("@/components/documenti/PdfToolkitDialog").then(m => ({ default: m.PdfToolkitDialog })),
 );
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -127,12 +127,9 @@ const MODE_CONTENT: Record<"azienda" | "admin", ModeContent> = {
       description: "Silvio classifica PDF, foto, computi, fatture, DDT e contratti.",
       chips: ["Computo", "Foto/voce", "DDT", "Fatture"],
     },
-    hub: [
-      { icon: Inbox, title: "Azioni AI", subtitle: "Da approvare", tone: "amber", action: "azioni_proposte" },
-      { icon: Sparkles, title: "Personas", subtitle: "18 esperti AI", tone: "orange", action: "personas_18" },
-      { icon: Brain, title: "Memoria", subtitle: "Cosa sa di te", tone: "emerald", action: "ai_memoria" },
-      { icon: Calculator, title: "Computo", subtitle: "Preventivo AI", tone: "blue", action: "import_computo" },
-    ],
+    // 2026-06-11 (richiesta utente): niente griglia "Hub AI" nel popover
+    // azienda — le stesse destinazioni restano in sidebar e ⌘K.
+    hub: [],
     searchPlaceholder: "Cerca clienti, cantieri, fatture…",
     routes: {
       azioni_proposte: "/azienda/azioni-proposte",
@@ -221,6 +218,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
     },
   });
   const [smartImportOpen, setSmartImportOpen] = useState(false);
+  const [pdfToolsOpen, setPdfToolsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   // Una volta aperta la prima volta, manteniamo SilvioChatSheet montato (anche
   // quando chatOpen=false). Così non si ricarica ogni apertura: messaggi, query
@@ -281,27 +279,36 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
     return "Pagina corrente";
   }, [location.pathname, pageContext?.route_label]);
 
-  const operationalPriorities = useMemo(() => {
-    const fromBriefing = morningBrief?.key_points?.slice(0, 3).map((point) => ({
+  type PriorityItem = {
+    text: string;
+    severity: "info" | "attention" | "urgent";
+    action: string;
+    /** Cosa fa il click: chat con prefill (default), modal documento, tips, route */
+    kind?: "chat" | "smart_doc" | "tips" | "route";
+    route?: string;
+  };
+
+  const operationalPriorities = useMemo<PriorityItem[]>(() => {
+    const fromBriefing = morningBrief?.key_points?.slice(0, 3).map((point): PriorityItem => ({
       text: point.text,
       severity: point.severity ?? "info",
       action: point.action_hint ?? "Apri dettaglio",
     })) ?? [];
     if (fromBriefing.length > 0) return fromBriefing;
-    // Default suggestions specifiche al mode
+    // Default specifici al mode — ogni voce fa davvero ciò che il label promette
     if (mode === "admin") {
       return [
-        { text: "Approvazioni AI in attesa — rivedi le azioni proposte", severity: "attention", action: "Apri approvazioni" },
-        { text: `Chiedi a Silvio Superadmin cosa conta ora in ${pageContextLabel}`, severity: "info", action: "Apri chat" },
-        { text: "Aziende a rischio churn — controlla salute clienti", severity: "info", action: "Vedi aziende" },
+        { text: "Approvazioni AI in attesa — rivedi le azioni proposte", severity: "attention", action: "Apri approvazioni", kind: "route", route: content.routes.azioni_proposte },
+        { text: `Chiedi a Silvio Superadmin cosa conta ora in ${pageContextLabel}`, severity: "info", action: "Apri chat", kind: "chat" },
+        { text: "Aziende a rischio churn — controlla salute clienti", severity: "info", action: "Vedi aziende", kind: "route", route: content.routes.cross_tenant },
       ];
     }
     return [
-      { text: "Controlla le cose da sapere prima di cambiare pagina", severity: "attention", action: "Vedi priorita" },
-      { text: `Chiedi a Silvio cosa conta ora in ${pageContextLabel}`, severity: "info", action: "Apri chat" },
-      { text: "Carica documenti, foto o computi senza scegliere il modulo", severity: "info", action: "Importa file" },
+      { text: `Chiedi a Silvio cosa conta ora in ${pageContextLabel}`, severity: "attention", action: "Apri chat", kind: "chat" },
+      { text: "Carica documenti, foto o computi senza scegliere il modulo", severity: "info", action: "Importa file", kind: "smart_doc" },
+      { text: "Scopri cosa sa fare Silvio per te", severity: "info", action: "Vedi suggerimenti", kind: "tips" },
     ];
-  }, [morningBrief?.key_points, pageContextLabel, mode]);
+  }, [morningBrief?.key_points, pageContextLabel, mode, content.routes]);
 
   const pendingActionsCount = operationalPriorities.length + (morningBrief && !morningBrief.read_at ? 1 : 0);
 
@@ -332,7 +339,10 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
       return;
     }
     if (action === "command_palette") {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+      // document + bubbles: il listener azienda è su document, quello admin
+      // su window — un dispatch su window non raggiunge MAI i listener su
+      // document, quindi il bottone era muto in azienda.
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
       return;
     }
     // Actions routing: usa la mappa mode-aware
@@ -342,19 +352,17 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
 
   if (hidden) return null;
 
-  // In azienda il FAB porta DIRETTAMENTE alla pagina Silvio AI (richiesta
-  // utente): niente popover intermedio. Sulla pagina stessa il FAB sparisce
-  // (sarebbe un bottone che riapre la pagina corrente). In admin resta la
-  // "Regia Silvio" a popover.
-  const goesToSilvioPage = mode === "azienda";
-  if (goesToSilvioPage && location.pathname.startsWith("/azienda/silvio-ai")) return null;
+  // 2026-06-11 (richiesta utente): il click sul FAB desktop apre la
+  // "Regia Silvio" a popover con le azioni rapide in TUTTE le modalità
+  // (prima in azienda navigava dritto a /azienda/silvio-ai). Sulla pagina
+  // Silvio AI resta nascosto: lì la chat è già a tutto schermo.
+  if (mode === "azienda" && location.pathname.startsWith("/azienda/silvio-ai")) return null;
 
   const fabButton = (
 	          <motion.button
 	            type="button"
 	            aria-label="Apri assistente Silvio"
-              aria-expanded={goesToSilvioPage ? undefined : open}
-              onClick={goesToSilvioPage ? () => navigate("/azienda/silvio-ai") : undefined}
+              aria-expanded={open}
 	            className="fixed bottom-4 right-4 z-40 hidden h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 via-orange-500 to-amber-400 text-white shadow-xl shadow-orange-300/40 transition-all hover:scale-105 hover:shadow-2xl md:bottom-6 md:right-6 md:flex md:w-auto md:gap-2 md:px-4"
               style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
 	            whileHover={{ rotate: [0, -5, 5, 0] }}
@@ -397,7 +405,6 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
 
   return (
     <>
-      {goesToSilvioPage ? fabButton : (
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>{fabButton}</PopoverTrigger>
 
@@ -419,7 +426,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-black leading-tight text-slate-950">Regia Silvio</p>
                   <span className="rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[10px] font-bold text-orange-700">
-                    {pendingActionsCount} priorita
+                    {pendingActionsCount} priorità
                   </span>
                 </div>
                 <p className="mt-0.5 truncate text-[11px] leading-tight text-slate-600">
@@ -464,16 +471,18 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
             )}
 
             <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-[10px] font-black uppercase tracking-wide text-slate-600">Priorita operative</p>
-                <span className="text-[10px] font-semibold text-orange-600">{operationalPriorities.length} da vedere</span>
-              </div>
+              <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-600">Priorità operative</p>
               <div className="space-y-1.5">
                 {operationalPriorities.map((priority, index) => (
                   <button
                     key={`${priority.text}-${index}`}
                     type="button"
-                    onClick={() => openChat(priority.text)}
+                    onClick={() => {
+                      if (priority.kind === "smart_doc") { setOpen(false); setSmartImportOpen(true); return; }
+                      if (priority.kind === "tips") { setTipsExpanded(true); return; }
+                      if (priority.kind === "route" && priority.route) { setOpen(false); navigate(priority.route); return; }
+                      openChat(priority.text);
+                    }}
                     className="group flex w-full items-start gap-2 rounded-xl border border-white bg-white px-2.5 py-2 text-left shadow-sm transition-colors hover:border-orange-200 hover:bg-orange-50/50"
                   >
                     <span className={`mt-0.5 h-2 w-2 rounded-full ${
@@ -484,7 +493,7 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
                           : "bg-sky-500"
                     }`} />
                     <span className="min-w-0 flex-1">
-                      <span className="line-clamp-1 text-[12px] font-semibold text-slate-800">{priority.text}</span>
+                      <span className="line-clamp-2 text-[12px] font-semibold text-slate-800">{priority.text}</span>
                       <span className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-orange-600">
                         {priority.action} <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
                       </span>
@@ -522,23 +531,36 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
               </div>
             </button>
 
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1 mb-1.5">
-                {mode === "admin" ? "Hub AI Superadmin" : "Hub AI"}
-              </p>
-              <div className="grid grid-cols-2 gap-1.5">
-                {content.hub.map((item) => (
-                  <ActionCard
-                    key={item.action}
-                    icon={item.icon}
-                    title={item.title}
-                    subtitle={item.subtitle}
-                    tone={item.tone}
-                    onClick={() => handleAction(item.action)}
-                  />
-                ))}
+            {content.hub.length > 0 && (
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 px-1 mb-1.5">
+                  {mode === "admin" ? "Hub AI Superadmin" : "Hub AI"}
+                </p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {content.hub.map((item) => (
+                    <ActionCard
+                      key={item.action}
+                      icon={item.icon}
+                      title={item.title}
+                      subtitle={item.subtitle}
+                      tone={item.tone}
+                      onClick={() => handleAction(item.action)}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+
+            {content.uploadCard.visible && (
+              <button
+                type="button"
+                onClick={() => { setOpen(false); setPdfToolsOpen(true); }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-left"
+              >
+                <FileText className="h-3.5 w-3.5 text-slate-500" />
+                <span className="text-xs text-slate-700 flex-1">Strumenti PDF: immagini→PDF, unisci, ruota</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -549,11 +571,6 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
               <span className="text-xs text-slate-700 flex-1">{content.searchPlaceholder}</span>
               <kbd className="text-[9px] px-1.5 py-0.5 rounded border bg-white font-mono">⌘K</kbd>
             </button>
-
-            <div className="grid grid-cols-2 gap-1.5">
-              <InfoTile icon={Route} label="Contesto pagina" value={pageContextLabel} />
-              <InfoTile icon={Clock3} label="Ultime attivita" value="Memoria e azioni pronte" />
-            </div>
 
             <div className="mt-3 border-t pt-2">
               <button
@@ -668,7 +685,6 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
           </form>
         </PopoverContent>
       </Popover>
-      )}
 
       {/* Smart Document Import Modal — gestito dal FAB (lazy: carica al primo open) */}
       {smartImportOpen && (
@@ -677,6 +693,13 @@ export function SilvioFAB({ hidden = false, mode = "azienda" }: Props) {
             open={smartImportOpen}
             onOpenChange={setSmartImportOpen}
           />
+        </Suspense>
+      )}
+
+      {/* Strumenti PDF (immagini→PDF, unisci/ruota/riordina) — lazy al primo open */}
+      {pdfToolsOpen && (
+        <Suspense fallback={null}>
+          <PdfToolkitDialog open={pdfToolsOpen} onOpenChange={setPdfToolsOpen} />
         </Suspense>
       )}
 
@@ -732,25 +755,5 @@ function ActionCard({
       </p>
       <p className="text-[9px] text-slate-500 leading-tight">{subtitle}</p>
     </motion.button>
-  );
-}
-
-function InfoTile({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof FileText;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-2">
-      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-        <Icon className="h-3 w-3 text-orange-500" />
-        {label}
-      </div>
-      <p className="mt-1 line-clamp-2 text-[11px] font-semibold leading-snug text-slate-800">{value}</p>
-    </div>
   );
 }

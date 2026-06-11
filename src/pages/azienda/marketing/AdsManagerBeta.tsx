@@ -769,6 +769,8 @@ DEFAULT_BUILDER.adSets = buildDefaultAdSets(DEFAULT_BUILDER);
 DEFAULT_BUILDER.creatives = buildDefaultCreatives(DEFAULT_BUILDER);
 
 function formatEuro(cents: number) {
+  // Guardia NaN/Infinity: una divisione anomala a monte mostrava "€NaN" nei KPI
+  if (!Number.isFinite(cents)) return "—";
   return new Intl.NumberFormat("it-IT", {
     style: "currency",
     currency: "EUR",
