@@ -429,13 +429,13 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "get_serie_grafico",
-        description: "Ritorna una SERIE di dati REALI dell'azienda già pronta per essere disegnata come grafico. Metriche: 'fatturato_mensile' (€/mese), 'incassi_mensili' (€/mese), 'cantieri_per_stato' (n. commesse per stato), 'documenti_per_tipo', 'preventivi_per_stato' (n. preventivi per stato: vinto/perso/in attesa…), 'lead_per_fonte' (contatti marketing per canale: google_ads, referral, fiera…), 'scadenze_incassi' (€ attesi nei prossimi mesi dalle scadenze fatture non saldate). Ritorna {titolo, unita, x_label, data:[{label,value}]}. IMPORTANTE: dopo aver ricevuto i dati, DISEGNA il grafico emettendo un blocco ```chart``` (es. type 'bar' per i confronti/ripartizioni, 'line' o 'area' per gli andamenti nel tempo) usando esattamente i data ricevuti + titolo/unita. Usa per richieste tipo 'mostrami il fatturato per mese', 'grafico incassi', 'commesse per stato', 'da dove arrivano i lead', 'quanto incasso nei prossimi mesi', 'preventivi vinti/persi'.",
+        description: "Ritorna una SERIE di dati REALI dell'azienda già pronta per essere disegnata come grafico. Metriche: 'fatturato_mensile' (€/mese, SOLO fatture emesse in EiC), 'venduto_mensile' (€/mese di commesse firmate — usa questa per il VENDUTO), 'incassi_mensili' (€/mese MULTI-FONTE: incassi fatture + rate commesse pagate, con breakdown 'fonti'), 'cantieri_per_stato', 'documenti_per_tipo', 'preventivi_per_stato', 'lead_per_fonte', 'scadenze_incassi' (€ attesi: residuo fatture + rate commesse future). Ritorna {titolo, unita, x_label, data:[{label,value}], fonti?, nota?}. Leggi sempre 'fonti' e 'nota': spiegano da dove vengono i numeri. IMPORTANTE: dopo aver ricevuto i dati, DISEGNA il grafico emettendo un blocco ```chart``` usando esattamente i data ricevuti + titolo/unita.",
         parameters: {
           type: "object",
           properties: {
             metric: {
               type: "string",
-              enum: ["fatturato_mensile", "incassi_mensili", "cantieri_per_stato", "documenti_per_tipo", "preventivi_per_stato", "lead_per_fonte", "scadenze_incassi"],
+              enum: ["fatturato_mensile", "venduto_mensile", "incassi_mensili", "cantieri_per_stato", "documenti_per_tipo", "preventivi_per_stato", "lead_per_fonte", "scadenze_incassi"],
               description: "Quale serie restituire.",
             },
             mesi: { type: "integer", minimum: 3, maximum: 36, default: 12, description: "Mesi indietro (solo per le serie mensili)." },
@@ -1627,7 +1627,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       type: "function",
       function: {
         name: "lista_scadenze",
-        description: "Lista delle fatture in scadenza nei prossimi N giorni (default 30) per la tua azienda. Ritorna conteggio + dettaglio + giorni alla scadenza per ognuna.",
+        description: "Scadenze di incasso nei prossimi N giorni (default 30) da TUTTE le fonti: fatture CRM, fatture fiscali EiC e rate delle commesse non pagate (campo 'fonte' su ogni riga + breakdown 'fonti'). Ritorna conteggio, totali, scadute (overdue) e dettaglio ordinato per data.",
         parameters: {
           type: "object",
           properties: {
@@ -1643,6 +1643,32 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
       p_user_id: ctx.userId,
       p_days_ahead: args?.days_ahead ?? 30,
       p_only_unpaid: args?.only_unpaid !== false,
+    }),
+    allowedRoles: ["super_admin", "company_admin", "company_staff"],
+    allowedPersonas: ["silvio", "cfo", "controller", "amministrazione", "*"],
+    allowedChannels: ["internal_chat", "web_persona", "mobile", "whatsapp", "telegram", "voice", "email"],
+    riskLevel: "safe",
+    domain: "fattura",
+  },
+
+  get_quadro_incassi: {
+    schema: {
+      type: "function",
+      function: {
+        name: "get_quadro_incassi",
+        description: "RICONCILIAZIONE INCASSI MULTI-FONTE: la fotografia vera di venduto/incassato/da incassare con il breakdown per fonte (rate commesse, fatture EiC, prima nota manuale, banca se collegata) + 'avvisi' che spiegano le discrepanze. USA SEMPRE QUESTO TOOL per domande su situazione economico-finanziaria, incassato, liquidità, prospetti: molte aziende NON usano la fatturazione EiC e registrano gli incassi sulle rate delle commesse — guardare solo le fatture porta a dire il falso ('nessun incasso'). Riporta i numeri PER FONTE, cita gli 'avvisi' e proponi le verifiche suggerite (es. collegare il conto corrente).",
+        parameters: {
+          type: "object",
+          properties: {
+            mesi: { type: "integer", minimum: 1, maximum: 24, default: 3, description: "Mesi indietro del periodo analizzato." },
+          },
+          required: [],
+        },
+      },
+    },
+    executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_quadro_incassi", {
+      p_company_id: ctx.companyId,
+      p_mesi: args?.mesi ?? 3,
     }),
     allowedRoles: ["super_admin", "company_admin", "company_staff"],
     allowedPersonas: ["silvio", "cfo", "controller", "amministrazione", "*"],
@@ -4862,7 +4888,7 @@ export const SILVIO_TOOLS: Record<string, SilvioTool> = {
   },
 
   get_pipeline_forecast: {
-    schema: { type: "function", function: { name: "get_pipeline_forecast", description: "Forecast pipeline aggregato (totale, weighted, 30/60/90gg).", parameters: { type: "object", properties: { horizon_days: { type: "integer", default: 90 } } } } },
+    schema: { type: "function", function: { name: "get_pipeline_forecast", description: "Forecast pipeline aggregato MULTI-FONTE (totale, weighted, 30/60/90gg): opportunità CRM aperte + preventivi inviati non collegati a un'opportunità (i collegati contano una volta sola — molte aziende fanno preventivi cartacei fuori EiC, quindi le opportunità sono la fonte primaria). Leggi 'fonti' per il breakdown e 'nota_lettura' per i caveat (es. opportunità senza valore stimato).", parameters: { type: "object", properties: { horizon_days: { type: "integer", default: 90 } } } } },
     executor: async (args, ctx) => callRpc(ctx.supabase, "silvio_tool_get_pipeline_forecast", { p_company_id: ctx.companyId, p_horizon_days: args?.horizon_days ?? 90 }),
     allowedPersonas: ["silvio", "sales", "direttore_vendite", "cfo", "*"], riskLevel: "safe", domain: "crm",
   },
