@@ -555,7 +555,9 @@ export function EmailLayout({
           onClick={() => openCompose({ mode: "new" })}
           aria-label="Scrivi nuova email"
           className="md:hidden fixed right-5 z-30 h-14 w-14 rounded-full p-0 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200"
-          style={{ bottom: "max(env(safe-area-inset-bottom), 1.25rem)" }}
+          // Sopra la bottom-nav flottante (64px pillola + 8px margine + gap),
+          // mai sovrapposta al menu (richiesta utente).
+          style={{ bottom: "calc(env(safe-area-inset-bottom) + 88px)" }}
         >
           <PenLine className="h-6 w-6" />
         </Button>

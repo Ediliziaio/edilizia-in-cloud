@@ -301,7 +301,12 @@ export function MobileBottomNav() {
       // Store): la barra diventa una PILLOLA flottante in vetro traslucido,
       // staccata dai bordi, con la bolla dell'elemento attivo che scivola
       // liquida tra le voci (motion layoutId + spring, vedi sotto).
-      className="shrink-0 bg-transparent px-3 md:hidden"
+      // Overlay flottante (richiesta utente, rif. video Instagram): la pillola
+      // NON occupa più una fascia di layout — il contenuto scorre DIETRO il
+      // vetro. absolute (non fixed: inaffidabile su Safari iOS in questo
+      // layout) dentro il container relative di CompanyLayout; il main ha un
+      // padding-bottom equivalente per la raggiungibilità dell'ultimo elemento.
+      className="pointer-events-none absolute inset-x-0 bottom-0 z-40 bg-transparent px-3 md:hidden"
       style={{
         paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)",
       }}
@@ -312,7 +317,7 @@ export function MobileBottomNav() {
         // (~70% di opacità) e si COMPRIME leggermente stile Instagram (scala
         // 90% ancorata in basso, icone incluse), restando visibile e
         // cliccabile; torna piena scrollando su o vicino al top.
-        "flex h-16 origin-bottom items-stretch rounded-[28px] border border-border/40 bg-background/70 shadow-lg shadow-black/10 backdrop-blur-xl backdrop-saturate-150 transition-[opacity,transform] duration-300 ease-out",
+        "pointer-events-auto flex h-16 origin-bottom items-stretch rounded-[28px] border border-border/40 bg-background/70 shadow-lg shadow-black/10 backdrop-blur-xl backdrop-saturate-150 transition-[opacity,transform] duration-300 ease-out",
         navHidden && !appGridOpen && "scale-90 opacity-70",
       )}>
         {navSlots.map((slot) => {

@@ -837,7 +837,11 @@ export function EmailViewer({ threadId, onBack, onClose, onReply, onAiDraftReady
           </div>
         ) : (
           <div className="p-4 space-y-3">
-            {messages.map((m) => (
+            {/* Più RECENTE in alto (richiesta utente): si inverte SOLO la
+                visualizzazione — `messages` resta cronologico perché la
+                logica interna (lastMessage, reply, analisi AI) assume
+                l'ultimo elemento = più recente. */}
+            {[...messages].reverse().map((m) => (
               <MessageBubble key={m.id} message={m} />
             ))}
           </div>

@@ -1668,7 +1668,9 @@ export function CompanyLayout() {
         <CompanySidebar />
         {/* pt-safe: in PWA standalone iOS (status-bar translucent + viewport-fit=cover) l'header
             finiva sotto notch/orologio. In browser e su nativo Capacitor env()=0 → no-op. */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden pt-safe">
+        {/* relative: ancora la bottom-nav pillola (absolute) al fondo del
+            container — overlay sul contenuto, niente fascia di layout. */}
+        <div className="relative flex-1 flex flex-col min-w-0 overflow-hidden pt-safe">
           {/* Skip to main content — keyboard / screen-reader accessibility */}
           <a
             href="#main-content"
@@ -1809,7 +1811,9 @@ export function CompanyLayout() {
           {deferredRealtimeReady && <LifecycleNotificationsBanner />}
           {/* overflow-x-hidden: niente scroll laterale di pagina su mobile (richiesta utente:
               "spazi vuoti ai lati quando scrollo") — le tabelle scrollano nei loro wrapper */}
-          <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6 bg-muted/30 pb-4 md:pb-6" id="main-content" aria-label="Contenuto principale">
+          {/* pb mobile ≈ altezza pillola flottante + safe-area: l'ultimo
+              elemento resta raggiungibile sopra il vetro della bottom-nav. */}
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 md:p-6 bg-muted/30 pb-28 md:pb-6" id="main-content" aria-label="Contenuto principale">
             <ErrorBoundary title="Errore nel caricamento della pagina">
               {/* Skeleton (non spinner) al cambio pagina: percezione di velocità sul primo paint mobile */}
               <Suspense fallback={
