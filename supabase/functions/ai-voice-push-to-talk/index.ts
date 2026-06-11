@@ -39,6 +39,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth } from "../_shared/auth.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
 import { fetchWithRetry } from "../_shared/fetchWithRetry.ts";
+import { claudeMessages, hasClaudeProvider } from "../_shared/claudeProxy.ts";
 
 interface Payload {
   audio_url: string;
@@ -66,12 +67,11 @@ Deno.serve(async (req) => {
     if (!body.audio_url) return errorResponse("audio_url mancante", 400, cors);
 
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!openaiKey || !anthropicKey) {
+    if (!openaiKey || !hasClaudeProvider()) {
       return jsonResponse({
         ok: false,
         reason: "no_provider",
-        hint: "Set OPENAI_API_KEY (STT Whisper) + ANTHROPIC_API_KEY (NLU)",
+        hint: "Set OPENAI_API_KEY (STT Whisper) + OPENROUTER_API_KEY (NLU)",
       }, 503, cors);
     }
 
@@ -120,19 +120,11 @@ Deno.serve(async (req) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let intents: any = null;
     try {
-      const nluRes = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": anthropicKey,
-          "anthropic-version": "2023-06-01",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5",
-          max_tokens: 1024,
-          system: NLU_SYSTEM_PROMPT,
-          messages: [{ role: "user", content: transcription }],
-        }),
+      const nluRes = await claudeMessages({
+        model: "claude-haiku-4-5",
+        max_tokens: 1024,
+        system: NLU_SYSTEM_PROMPT,
+        messages: [{ role: "user", content: transcription }],
       });
       const nluJson = await nluRes.json();
       const text = nluJson?.content?.[0]?.text ?? "{}";

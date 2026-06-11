@@ -14,6 +14,7 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 import { chargeAndLogDirect, estimateTokenCostUsd } from "../_shared/ai-provider/directApi.ts";
 import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
+import { claudeMessages, hasClaudeProvider, type ClaudeMessagesBody } from "../_shared/claudeProxy.ts";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -60,7 +61,6 @@ interface VerificationResult {
 
 const DAILY_LIMIT = 10;
 const MAX_DOC_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
-const AI_TIMEOUT_MS = 60000;
 const AI_MODEL = "claude-sonnet-4-20250514";
 
 function compactDocumentForFingerprint(documentBase64?: string): string | null {
@@ -440,9 +440,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // ── 7. Call Claude API ────────────────────────────────────────────
 
-    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!anthropicKey) {
-      return errorResponse("Chiave API Anthropic non configurata", 500, corsH);
+    if (!hasClaudeProvider()) {
+      return errorResponse("AI provider missing (OPENROUTER_API_KEY)", 500, corsH);
     }
 
     const startTime = Date.now();
@@ -451,29 +450,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     let rawResponse: unknown = null;
 
     const callClaude = async (retry = 0): Promise<Response> => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
-
       try {
-        const resp = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": anthropicKey,
-            "anthropic-version": "2023-06-01",
-          },
-          body: JSON.stringify({
-            model: AI_MODEL,
-            max_tokens: 4096,
-            system: SYSTEM_PROMPT,
-            messages,
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        return resp;
+        return await claudeMessages({
+          model: AI_MODEL,
+          max_tokens: 4096,
+          system: SYSTEM_PROMPT,
+          messages,
+        } as ClaudeMessagesBody);
       } catch (err) {
-        clearTimeout(timeout);
         if (retry < 1) {
           // Exponential backoff retry
           await new Promise((r) => setTimeout(r, 2000 * (retry + 1)));

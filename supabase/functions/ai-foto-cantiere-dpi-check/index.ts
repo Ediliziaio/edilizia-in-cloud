@@ -29,6 +29,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { gateAiPayment } from "../_shared/requirePaymentMethod.ts";
+import { claudeMessages, hasClaudeProvider } from "../_shared/claudeProxy.ts";
 
 interface Payload {
   photo_url: string;
@@ -107,12 +108,11 @@ Deno.serve(async (req) => {
     if (paymentBlock) return paymentBlock;
   }
 
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!apiKey) {
+  if (!hasClaudeProvider()) {
     return new Response(JSON.stringify({
       ok: false,
       reason: "no_provider",
-      hint: "Set ANTHROPIC_API_KEY env to enable vision DPI check",
+      hint: "Set OPENROUTER_API_KEY env to enable vision DPI check",
     }), {
       status: 200,
       headers: { ...cors, "Content-Type": "application/json" },
@@ -122,25 +122,17 @@ Deno.serve(async (req) => {
   // Chiama Claude vision
   let visionResult: VisionResult | null = null;
   try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5",
-        max_tokens: 1024,
-        system: VISION_SYSTEM_PROMPT,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "image", source: { type: "url", url: body.photo_url } },
-            { type: "text", text: "Analizza questa foto di cantiere e restituisci il JSON." },
-          ],
-        }],
-      }),
+    const r = await claudeMessages({
+      model: "claude-haiku-4-5",
+      max_tokens: 1024,
+      system: VISION_SYSTEM_PROMPT,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "url", url: body.photo_url } },
+          { type: "text", text: "Analizza questa foto di cantiere e restituisci il JSON." },
+        ],
+      }],
     });
     if (!r.ok) {
       const errBody = await r.text();
