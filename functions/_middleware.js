@@ -1183,6 +1183,18 @@ const ROUTES = {
     <p>I dati restano sempre tuoi. In caso di disdetta puoi esportarli in formato strutturato (JSON/CSV) e vengono poi cancellati dai sistemi nei tempi previsti, salvo gli obblighi di conservazione fiscale di legge.</p>
     <h3>Il supporto è incluso nel prezzo?</h3>
     <p>Sì. Il supporto italiano via chat, email e telefono è incluso in tutti i piani. Il piano Enterprise aggiunge SLA prioritari e un onboarding dedicato.</p>
+    <h2>Tabella prezzi Edilizia in Cloud (2026)</h2>
+    <table>
+      <thead>
+        <tr><th>Piano</th><th>Prezzo</th><th>Utenti</th><th>Per chi è</th><th>Inclusi sempre</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Starter</td><td>49€/mese</td><td>Fino a 5</td><td>Artigiani e piccole imprese: preventivi e fatturazione SDI ordinati</td><td>Fatturazione SDI, gestione cantieri, app mobile, supporto italiano</td></tr>
+        <tr><td>Professional</td><td>99€/mese</td><td>Fino a 15</td><td>Imprese in crescita: controllo margini per commessa, subappalti con DURC, HR con presenze GPS e Cassa Edile</td><td>Tutto Starter + margini avanzati, portale clienti, automazioni</td></tr>
+        <tr><td>Enterprise</td><td>199€/mese</td><td>Illimitati</td><td>General contractor e gruppi multi-sede che integrano altri sistemi</td><td>Tutto Professional + API, SLA prioritari, onboarding dedicato</td></tr>
+      </tbody>
+    </table>
+    <p>Tutti i piani: prova gratuita di 31 giorni, nessun costo di attivazione, nessun vincolo contrattuale, cantieri e clienti illimitati.</p>
     `,
     links: [
       { href: "/demo", label: "Richiedi Demo Gratuita" },
@@ -1246,6 +1258,21 @@ const ROUTES = {
     <p>Excel sembra gratuito ma costa in tempo perso, errori di calcolo, dati non condivisi e rischio fiscale. Le imprese che passano da Excel a Edilizia in Cloud risparmiano in media 15 ore a settimana di lavoro amministrativo e riducono gli errori di fatturazione del 95%.</p>
     <h3>Edilizia in Cloud va bene per i lavori sulla pubblica amministrazione?</h3>
     <p>Sì. Gestisce la FatturaPA verso la pubblica amministrazione con split payment, il giornale dei lavori digitale, i SAL e la conservazione a norma. Per opere pubbliche complesse con BIM e contabilità lavori avanzata può affiancarsi a software specialistici di computo.</p>
+    <h2>Tabella comparativa: Edilizia in Cloud vs competitor (2026)</h2>
+    <table>
+      <thead>
+        <tr><th>Criterio</th><th>Edilizia in Cloud</th><th>TeamSystem CPM</th><th>Primus (ACCA)</th><th>Cloudness</th><th>Danea</th><th>Excel</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Target principale</td><td>PMI edili 1-50 dipendenti</td><td>Medie-grandi imprese</td><td>Studi tecnici / computi</td><td>Imprese strutturate</td><td>PMI generiche</td><td>Qualsiasi</td></tr>
+        <tr><td>AI nativa</td><td>Sì (assistente, OCR, margini)</td><td>No</td><td>No</td><td>No</td><td>No</td><td>No</td></tr>
+        <tr><td>App cantiere mobile</td><td>Sì (iOS/Android, GPS, foto, DDT)</td><td>Parziale</td><td>No</td><td>Parziale</td><td>No</td><td>No</td></tr>
+        <tr><td>Fatturazione SDI inclusa</td><td>Sì</td><td>Sì (modulo)</td><td>No</td><td>Sì</td><td>Sì</td><td>No</td></tr>
+        <tr><td>Cassa Edile / MUT / DURC</td><td>Sì, nativo</td><td>Parziale</td><td>No</td><td>Parziale</td><td>No</td><td>No</td></tr>
+        <tr><td>Prezzo di partenza</td><td>49€/mese</td><td>200-500€/mese</td><td>Licenza una tantum</td><td>Su preventivo</td><td>~150€/anno + moduli</td><td>Incluso in Office</td></tr>
+        <tr><td>Vincolo contrattuale</td><td>Nessuno</td><td>Annuale</td><td>—</td><td>Annuale</td><td>Annuale</td><td>—</td></tr>
+      </tbody>
+    </table>
     `,
     links: [
       { href: "/confronto/vs-teamsystem", label: "Edilizia in Cloud vs TeamSystem" },
@@ -2721,6 +2748,11 @@ export async function onRequest({ request, next, env }) {
       // /home (legacy) → /
       if (normalizedPath === "/home" || normalizedPath === "/home/") {
         normalizedPath = "/";
+      } else if (normalizedPath === "/gestionale-edilizia" || normalizedPath === "/gestionale-edilizia/") {
+        // Audit GEO 2026-06: URL legacy linkato in giro ma senza route SPA né
+        // prerender → i crawler AI (GPTBot/ClaudeBot/Perplexity) ricevevano
+        // 404 e gli utenti una shell vuota. La pagina equivalente è il city hub.
+        normalizedPath = "/software-gestionale-edilizia/";
       } else if (!isFile && normalizedPath !== "/" && !normalizedPath.endsWith("/")) {
         // Trailing slash normalization (skip root e file con estensione).
         // Le SPA route HTML devono terminare con "/" per matchare la canonical
@@ -2809,6 +2841,40 @@ export async function onRequest({ request, next, env }) {
   // Bots get the lightweight SEO HTML below.
   if (!isBot(ua)) {
     return next();
+  }
+
+  // ── Audit GEO 2026-06: blog post → servi il PRERENDER COMPLETO ──────────
+  // Il fallback sintetico per /blog/<slug> ha solo title+description+intro
+  // (~426 parole col footer) mentre il prerender Playwright in dist/ contiene
+  // l'articolo intero (~1.800+ parole, 11 H2, 6 JSON-LD incluso l'articolo).
+  // I motori AI citano i passaggi: servirgli il 23% dell'articolo significava
+  // perdere le sezioni più citabili. Solo blog post: per le pagine marketing
+  // (home, prezzi, confronto, città) il sintetico resta migliore (answer
+  // block + FAQ/LocalBusiness schema curati a mano).
+  // Guard anti-shell: usiamo la risposta SOLO se è un vero prerender
+  // (canonical presente + contenuto con H2) — mai la shell SPA vuota.
+  if (/^\/blog\/[^/]+$/.test(pathname) && !pathname.startsWith("/blog/categoria")) {
+    try {
+      const assetUrl = new URL(`${pathname}/index.html`, url.origin);
+      const assetResp = await env.ASSETS.fetch(new Request(assetUrl, { headers: { accept: "text/html" } }));
+      if (assetResp && assetResp.ok) {
+        const body = await assetResp.text();
+        const isRealPrerender = body.includes('rel="canonical"') && body.includes("<h2");
+        if (isRealPrerender) {
+          return new Response(body, {
+            status: 200,
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+              "Cache-Control": "public, max-age=3600, s-maxage=86400",
+              "X-Robots-Tag": "index, follow",
+              Vary: "User-Agent",
+            },
+          });
+        }
+      }
+    } catch {
+      // Asset binding non disponibile o errore: fallback al sintetico sotto.
+    }
   }
 
   const route = resolveRoute(pathname);
