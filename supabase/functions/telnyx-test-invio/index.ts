@@ -92,7 +92,14 @@ Deno.serve(async (req: Request) => {
         const res = await fetch("https://api.telnyx.com/v2/messages", {
           method: "POST",
           headers: { "Authorization": `Bearer ${masterApiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ from: mittente, to: telefono_destinatario, text: messaggio_test }),
+          body: JSON.stringify({
+            from: mittente,
+            to: telefono_destinatario,
+            text: messaggio_test,
+            ...(Deno.env.get("TELNYX_MESSAGING_PROFILE_ID")
+              ? { messaging_profile_id: Deno.env.get("TELNYX_MESSAGING_PROFILE_ID") }
+              : {}),
+          }),
         });
         if (res.ok) {
           const body = await res.json() as { data: { id: string } };

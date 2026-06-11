@@ -68,6 +68,10 @@ Deno.serve(async (req) => {
         from: telnyxFrom,
         to: phone,
         text: `Il tuo codice OTP per la firma digitale è: ${otp}. Valido 15 minuti.`,
+        // Obbligatorio quando il mittente è alfanumerico
+        ...(Deno.env.get("TELNYX_MESSAGING_PROFILE_ID")
+          ? { messaging_profile_id: Deno.env.get("TELNYX_MESSAGING_PROFILE_ID") }
+          : {}),
       };
 
       const smsRes = await fetch("https://api.telnyx.com/v2/messages", {

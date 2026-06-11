@@ -146,6 +146,9 @@ Deno.serve(async (req: Request) => {
     };
     if (numero?.messaging_profile_id && !numero.messaging_profile_id.startsWith("mock_")) {
       telnyxBody.messaging_profile_id = numero.messaging_profile_id;
+    } else if (Deno.env.get("TELNYX_MESSAGING_PROFILE_ID")) {
+      // Profilo di piattaforma: obbligatorio per mittente alfanumerico
+      telnyxBody.messaging_profile_id = Deno.env.get("TELNYX_MESSAGING_PROFILE_ID");
     }
 
     const telnyxRes = await fetch("https://api.telnyx.com/v2/messages", {

@@ -40,6 +40,7 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl    = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const masterApiKey   = Deno.env.get("TELNYX_MASTER_API_KEY");
+    const profileId      = Deno.env.get("TELNYX_MESSAGING_PROFILE_ID");
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Autenticazione richiesta" }, 401);
@@ -182,6 +183,8 @@ Deno.serve(async (req: Request) => {
                   from: mittente,
                   to: contatto.telefono,
                   text: campagna.messaggio,
+                  // Obbligatorio per mittente alfanumerico (profilo piattaforma)
+                  ...(profileId ? { messaging_profile_id: profileId } : {}),
                 }),
               });
               if (res.ok) {
