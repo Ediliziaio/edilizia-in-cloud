@@ -40,6 +40,7 @@ export default function CashFlowForecast() {
     companyId,
     scadenzeForForecast,
     primaNotaSaldo,
+    dataTruncated,
   } = useCashFlowData();
 
   // Proiezione 90 giorni con dati reali banking + fatture
@@ -206,6 +207,12 @@ export default function CashFlowForecast() {
       </div>
 
       {/* Saldo bancario reale */}
+      {dataTruncated && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Sono stati caricati i primi 1.000 movimenti per tipologia: con volumi cosi' alti la
+          proiezione potrebbe essere parziale.
+        </div>
+      )}
       {bankingSummaryError && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           Errore nel caricamento di saldo banca e KPI di cassa: i numeri in pagina potrebbero essere

@@ -542,7 +542,17 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
 
   // Scadenze as forecast entries (not already covered by order_installments/company_costs)
   const scadenzeForForecast = useMemo(() => {
-    return openScadenze.map((s: any) => {
+    // DEDUP entrate: per gli ordini che hanno un piano rate su DB l'incasso
+    // e' GIA' in expectedPayments (order_installments non pagate) → senza
+    // questo filtro la stessa entrata veniva contata DUE volte in bande
+    // 30/60/90, transazioni e totali (verificato su prod: ordine con
+    // scadenza incasso_cliente 5.100€ E rata 5.950€ entrambe sommate).
+    const orderIdsWithInstallments = new Set(
+      (installmentsData as Array<{ order_id?: string | null }>).map((i) => i.order_id).filter(Boolean),
+    );
+    return openScadenze.filter((s: any) =>
+      !(s.direction === "entrata" && s.order_id && orderIdsWithInstallments.has(s.order_id)),
+    ).map((s: any) => {
       const remaining = Number(s.amount) - Number(s.paid_amount || 0);
       return {
         id: s.id,
@@ -556,12 +566,19 @@ export function useCashFlowData({ monthsAhead = 6 }: { monthsAhead?: number } = 
         orderId: s.order_id,
       };
     }).filter((s: any) => s.amount > 0);
-  }, [openScadenze]);
+  }, [openScadenze, installmentsData]);
 
   const pn = cashflowSummary?.primaNota;
 
+  // Le query sorgente hanno .limit(1000): se una torna esattamente 1000
+  // righe la proiezione potrebbe essere PARZIALE — la pagina mostra un avviso.
+  const dataTruncated = [installmentsData, externalTeamPayments, openScadenze].some(
+    (arr) => Array.isArray(arr) && arr.length >= 1000,
+  );
+
   return {
     isLoading,
+    dataTruncated,
     orders,
     expectedPayments,
     expectedExpenses,
