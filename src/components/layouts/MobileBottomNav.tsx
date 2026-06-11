@@ -309,10 +309,11 @@ export function MobileBottomNav() {
     >
       <div className={cn(
         // Scrollando GIÙ la barra NON sparisce (richiesta utente): si attenua
-        // soltanto (~70% di opacità), resta visibile e cliccabile; torna piena
-        // scrollando su o vicino al top.
-        "flex h-16 items-stretch rounded-[28px] border border-border/40 bg-background/70 shadow-lg shadow-black/10 backdrop-blur-xl backdrop-saturate-150 transition-opacity duration-300",
-        navHidden && !appGridOpen && "opacity-70",
+        // (~70% di opacità) e si COMPRIME leggermente stile Instagram (scala
+        // 90% ancorata in basso, icone incluse), restando visibile e
+        // cliccabile; torna piena scrollando su o vicino al top.
+        "flex h-16 origin-bottom items-stretch rounded-[28px] border border-border/40 bg-background/70 shadow-lg shadow-black/10 backdrop-blur-xl backdrop-saturate-150 transition-[opacity,transform] duration-300 ease-out",
+        navHidden && !appGridOpen && "scale-90 opacity-70",
       )}>
         {navSlots.map((slot) => {
           if (slot.type === "app") {
