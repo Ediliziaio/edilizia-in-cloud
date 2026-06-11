@@ -368,13 +368,16 @@ Deno.serve(async (req: Request) => {
     }
 
     // v8.6.32 — Gemini eliminato. Solo OpenAI Vision per scene analysis.
+    // 2026-06-11 — instradato su OpenRouter (fatturazione AI centralizzata);
+    // fallback OpenAI diretto se OPENROUTER_API_KEY assente.
+    const openrouterApiKey = Deno.env.get("OPENROUTER_API_KEY")?.trim() ?? "";
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY")?.trim() ?? "";
 
-    if (!openaiApiKey) {
+    if (!openrouterApiKey && !openaiApiKey) {
       return new Response(
         JSON.stringify({
           error: "config_error",
-          message: "OPENAI_API_KEY non configurata. Configurare in Admin > Impostazioni AI > Render.",
+          message: "OPENROUTER_API_KEY non configurata. Configurare in Admin > Impostazioni AI > Render.",
         }),
         { status: 503, headers: { ...corsH, "Content-Type": "application/json" } }
       );
@@ -417,20 +420,28 @@ Deno.serve(async (req: Request) => {
     let modelUsed = openaiModel;
     const providerErrors: string[] = [];
 
-    if (openaiApiKey) {
+    if (openrouterApiKey || openaiApiKey) {
+      // OpenRouter primario (stesso formato OpenAI, model prefissato "openai/")
+      const useOpenRouter = !!openrouterApiKey;
+      const aiUrl = useOpenRouter
+        ? "https://openrouter.ai/api/v1/chat/completions"
+        : "https://api.openai.com/v1/chat/completions";
+      const aiKey = useOpenRouter ? openrouterApiKey : openaiApiKey;
+      const aiModel = useOpenRouter ? `openai/${openaiModel}` : openaiModel;
+
       const openaiController = new AbortController();
       const openaiTimeout = setTimeout(() => openaiController.abort(), 60_000);
       try {
         const openaiResp = await fetch(
-          "https://api.openai.com/v1/chat/completions",
+          aiUrl,
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${openaiApiKey}`,
+              "Authorization": `Bearer ${aiKey}`,
             },
             body: JSON.stringify({
-              model: openaiModel,
+              model: aiModel,
               messages: [{
                 role: "user",
                 content: [

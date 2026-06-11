@@ -76,11 +76,14 @@ interface ProviderConfig {
 function getAvailableProviders(): ProviderConfig[] {
   const providers: ProviderConfig[] = [];
 
+  // 2026-06-11: il branch OpenAI passa per OpenRouter (fatturazione AI
+  // centralizzata); fallback OpenAI diretto se OPENROUTER_API_KEY assente.
+  const openrouterKey = Deno.env.get("OPENROUTER_API_KEY") ?? "";
   const openaiKey = Deno.env.get("OPENAI_API_KEY") ?? "";
-  if (openaiKey) {
+  if (openrouterKey || openaiKey) {
     providers.push({
       id: "openai",
-      apiKey: openaiKey,
+      apiKey: openrouterKey || openaiKey,
       model: Deno.env.get("PARSE_MATRIX_OPENAI_MODEL") ?? "gpt-4o",
       displayName: "OpenAI GPT-4o",
     });
@@ -254,16 +257,26 @@ async function callOpenAI(
     max_tokens: 4096,
   };
 
+  // OpenRouter se la chiave passata è sk-or-* (vedi getAvailableProviders),
+  // altrimenti OpenAI diretto. Stesso formato richiesta/risposta.
+  const isOpenRouter = cfg.apiKey.startsWith("sk-or-");
+  const aiUrl = isOpenRouter
+    ? "https://openrouter.ai/api/v1/chat/completions"
+    : "https://api.openai.com/v1/chat/completions";
+
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 120_000);
   try {
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    const resp = await fetch(aiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${cfg.apiKey}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        ...body,
+        ...(isOpenRouter ? { model: `openai/${cfg.model}` } : {}),
+      }),
       signal: ctrl.signal,
     });
     if (!resp.ok) {
