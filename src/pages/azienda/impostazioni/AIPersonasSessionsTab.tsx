@@ -22,6 +22,7 @@
  *   7. Esporta Markdown
  */
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -251,6 +252,7 @@ const TYPE_LABEL: Record<MemoryType, string> = {
 export default function AIPersonasSessionsTab() {
   const qc = useQueryClient();
   const { effectiveCompany, user } = useAuth();
+  const [, setSearchParams] = useSearchParams();
 
   // ── Filter state ──────────────────────────────────────────────────────────
   const [filterPersona, setFilterPersona] = useState<string>("all");
@@ -716,19 +718,21 @@ export default function AIPersonasSessionsTab() {
 
   const handleResume = useCallback((s: SessionRow) => {
     // Auto-resume completo: la chat tab leggerà ?sessionId per attivare la sessione.
-    const sp = new URLSearchParams(window.location.search);
-    sp.set("tab", "chat");
-    sp.set("persona", s.persona_key);
+    // setSearchParams (router-native) e non pushState+popstate sintetico:
+    // l'hack non aggiornava lo stato interno del router.
+    setSearchParams((prev) => {
+      const sp = new URLSearchParams(prev);
+      sp.set("tab", "chat");
+      sp.set("persona", s.persona_key);
+      if (isDemoSession(s)) sp.delete("sessionId");
+      else sp.set("sessionId", s.id);
+      return sp;
+    });
     if (isDemoSession(s)) {
-      sp.delete("sessionId");
       toast.info("Sessione demo", { description: "Apro la persona in chat reale: la demo non viene salvata." });
-    } else {
-      sp.set("sessionId", s.id);
     }
-    window.history.pushState(null, "", `${window.location.pathname}?${sp.toString()}`);
-    window.dispatchEvent(new PopStateEvent("popstate"));
     setOpenSessionId(null);
-  }, []);
+  }, [setSearchParams]);
 
   const handleExport = useCallback((s: SessionRow) => {
     const messages = isDemoSession(s) ? demoOpenMessages : openMessages;

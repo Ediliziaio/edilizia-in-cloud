@@ -321,6 +321,7 @@ export default function AssistenteAIPage({ embedded = false }: AssistenteAIPageP
   };
 
   const handleSend = () => {
+    if (sendMut.isPending) return;
     const trimmed = draftMessage.trim();
     if (!trimmed) return;
     if (!activePersonaKey) {
