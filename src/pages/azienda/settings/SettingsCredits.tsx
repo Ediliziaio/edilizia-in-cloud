@@ -25,6 +25,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatEur } from "@/modules/ai-agents/lib/creditCalculator";
 import { useWallets, type WalletType } from "@/hooks/credits/useWallets";
 import { WalletCard } from "@/components/credits/WalletCard";
+import { SmsWalletCard } from "@/components/credits/SmsWalletCard";
 import { RechargeDialog } from "@/components/credits/RechargeDialog";
 import { AutoTopupConfig } from "@/components/credits/AutoTopupConfig";
 import { CreditsHistory } from "@/components/credits/CreditsHistory";
@@ -207,7 +208,7 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
           </CardContent>
         </Card>
 
-        {/* 4 wallet card */}
+        {/* Wallet card (4 generici + SMS, sistema a pacchetti separato) */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
           {wallets.map((w) => (
             <WalletCard
@@ -218,6 +219,7 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
               onRecharge={() => setRechargeWallet(w.type)}
             />
           ))}
+          <SmsWalletCard />
         </div>
 
         {/* Quota inclusa nel piano */}

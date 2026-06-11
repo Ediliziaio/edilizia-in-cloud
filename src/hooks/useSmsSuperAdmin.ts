@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { SmsTenantRow, SmsSuperAdminStats, SmsPricingConfig, SmsPLTrendPoint } from "@/types/sms-superadmin";
 import type { SmsPacchettoCrediti } from "@/types/sms-marketing";
-import { subMonths, format, startOfMonth } from "date-fns";
+import { subMonths, format } from "date-fns";
 
 const PRICING_KEY   = "sms-pricing-config";
 const PACCHETTI_KEY = "sms-admin-pacchetti";
@@ -90,105 +90,74 @@ export function useSmsSuperAdmin() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  // ─── Tenant list ──────────────────────────────────────────
-  const { data: tenants = [], isLoading: isLoadingTenants } = useQuery({
-    queryKey: [TENANTS_KEY],
-    queryFn: async (): Promise<SmsTenantRow[]> => {
-      const meseInizio = startOfMonth(new Date()).toISOString();
-
-      const { data: accounts, error } = await supabase
-        .from("sms_telnyx_accounts")
-        .select(`
-          company_id,
-          stato,
-          companies!inner(name),
-          sms_wallet!left(crediti),
-          sms_telnyx_numbers!left(numero_e164, stato)
-        `)
-        .eq("stato", "attivo");
+  // ─── Overview unico (tenants + P&L) ──────────────────────
+  // 2026-06-11: una sola RPC sms_admin_overview() al posto di N+1 query
+  // client-side. Prima fatturato/costo/margine erano hardcoded a 0 — ora
+  // arrivano i numeri VERI da sms_log (costo_cliente/costo_wholesale) +
+  // transazionali. Guard super_admin lato DB (SECURITY DEFINER).
+  const { data: overview, isLoading: isLoadingOverview } = useQuery({
+    queryKey: [TENANTS_KEY, PL_KEY],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("sms_admin_overview" as never);
       if (error) throw error;
-
-      const tenantRows: SmsTenantRow[] = await Promise.all(
-        (accounts ?? []).map(async (acc: Record<string, unknown>) => {
-          const { count: smsMese } = await supabase
-            .from("sms_log")
-            .select("id", { count: "exact", head: true })
-            .eq("company_id", acc.company_id as string)
-            .gte("created_at", meseInizio);
-
-          const wallet = (acc.sms_wallet as Record<string, unknown>[] | null)?.[0];
-          const numObj = (acc["sms_telnyx_numbers"] as Record<string, unknown>[] | null)?.[0];
-          const company = acc.companies as Record<string, unknown>;
-
-          return {
-            company_id: acc.company_id as string,
-            company_name: (company?.name as string) ?? "—",
-            numero_e164: (numObj?.numero_e164 as string) ?? null,
-            numero_stato: (numObj?.stato as string) ?? null,
-            crediti_wallet: Number(wallet?.crediti ?? 0),
-            sms_mese: smsMese ?? 0,
-            fatturato_mese: 0,
-            costo_wholesale_mese: 0,
-            margine_mese: 0,
-            margine_percentuale: 0,
-          };
-        })
-      );
-      return tenantRows;
+      return data as unknown as {
+        tenants: Array<SmsTenantRow & { sms_totali: number; account_attivo: boolean }>;
+        totals: {
+          tenant_attivi: number;
+          sms_mese: number;
+          sms_totali: number;
+          fatturato_mese: number;
+          costo_wholesale_mese: number;
+          margine_mese: number;
+        };
+        trend: SmsPLTrendPoint[];
+      };
     },
     staleTime: 2 * 60 * 1000,
   });
 
-  // ─── P&L Stats ────────────────────────────────────────────
-  const { data: plStats, isLoading: isLoadingPL } = useQuery({
-    queryKey: [PL_KEY],
-    queryFn: async (): Promise<SmsSuperAdminStats> => {
-      const meseInizio = startOfMonth(new Date()).toISOString();
-      const seiMesiFa  = subMonths(new Date(), 5);
+  const tenants: SmsTenantRow[] = (overview?.tenants ?? []).map((t) => ({
+    ...t,
+    crediti_wallet: Number(t.crediti_wallet),
+    fatturato_mese: Number(t.fatturato_mese),
+    costo_wholesale_mese: Number(t.costo_wholesale_mese),
+    margine_mese: Number(t.margine_mese),
+    margine_percentuale: Number(t.margine_percentuale),
+  }));
+  const isLoadingTenants = isLoadingOverview;
 
-      const { count: smsMese } = await supabase
-        .from("sms_log")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", meseInizio);
+  // Trend: riempi i mesi mancanti (la RPC restituisce solo mesi con dati)
+  const trendMap = new Map<string, SmsPLTrendPoint>();
+  for (let i = 5; i >= 0; i--) {
+    const key = format(subMonths(new Date(), i), "yyyy-MM");
+    trendMap.set(key, { mese: key, fatturato: 0, costo_wholesale: 0, margine: 0 });
+  }
+  for (const p of overview?.trend ?? []) {
+    trendMap.set(p.mese, {
+      mese: p.mese,
+      fatturato: Number(p.fatturato),
+      costo_wholesale: Number(p.costo_wholesale),
+      margine: Number(p.margine),
+    });
+  }
 
-      const { data: transazioni } = await supabase
-        .from("sms_wallet_transazioni")
-        .select("importo, tipo, created_at")
-        .in("tipo", ["ricarica"])
-        .gte("created_at", seiMesiFa.toISOString());
-
-      const trendMap = new Map<string, SmsPLTrendPoint>();
-      for (let i = 5; i >= 0; i--) {
-        const d = subMonths(new Date(), i);
-        const key = format(d, "yyyy-MM");
-        trendMap.set(key, { mese: key, fatturato: 0, costo_wholesale: 0, margine: 0 });
-      }
-
-      for (const t of transazioni ?? []) {
-        const key = format(new Date(t.created_at as string), "yyyy-MM");
-        const point = trendMap.get(key);
-        if (point) {
-          point.fatturato += Math.abs(Number(t.importo));
-        }
-      }
-
-      const trend = Array.from(trendMap.values());
-      const fatturato = trend.reduce((s, p) => s + p.fatturato, 0);
-
-      return {
+  const totals = overview?.totals;
+  const plStats: SmsSuperAdminStats | undefined = overview
+    ? {
         periodo: format(new Date(), "MMMM yyyy"),
-        fatturato_totale: fatturato,
-        costo_wholesale_totale: 0,
-        margine_totale: fatturato,
-        margine_percentuale: 100,
-        tenant_attivi: tenants.length,
-        sms_totali: smsMese ?? 0,
-        trend,
-      };
-    },
-    enabled: tenants.length >= 0,
-    staleTime: 5 * 60 * 1000,
-  });
+        fatturato_totale: Number(totals?.fatturato_mese ?? 0),
+        costo_wholesale_totale: Number(totals?.costo_wholesale_mese ?? 0),
+        margine_totale: Number(totals?.margine_mese ?? 0),
+        margine_percentuale:
+          Number(totals?.fatturato_mese ?? 0) > 0
+            ? (Number(totals?.margine_mese ?? 0) / Number(totals?.fatturato_mese ?? 0)) * 100
+            : 0,
+        tenant_attivi: Number(totals?.tenant_attivi ?? 0),
+        sms_totali: Number(totals?.sms_mese ?? 0),
+        trend: Array.from(trendMap.values()),
+      }
+    : undefined;
+  const isLoadingPL = isLoadingOverview;
 
   return {
     pricingConfig,

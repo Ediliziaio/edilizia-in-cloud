@@ -238,22 +238,35 @@ function SmsTenantTable() {
               <TableHead>Numero</TableHead>
               <TableHead className="text-right">Crediti €</TableHead>
               <TableHead className="text-right">SMS mese</TableHead>
+              <TableHead className="text-right">Incassato</TableHead>
+              <TableHead className="text-right">Costo mio</TableHead>
+              <TableHead className="text-right">Margine</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {tenants.length === 0 ? (
-              <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Nessuna azienda con SMS attivo</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nessuna azienda con SMS attivo</TableCell></TableRow>
             ) : (
-              tenants.map((t) => (
-                <TableRow key={t.company_id}>
-                  <TableCell className="font-medium">{t.company_name}</TableCell>
-                  <TableCell className="font-mono text-sm">{t.numero_e164 ?? <span className="text-muted-foreground">—</span>}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(t.crediti_wallet)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{t.sms_mese.toLocaleString("it-IT")}</TableCell>
-                </TableRow>
-              ))
+              tenants.map((t) => {
+                const eur = (v: number) =>
+                  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(v);
+                return (
+                  <TableRow key={t.company_id}>
+                    <TableCell className="font-medium">{t.company_name}</TableCell>
+                    <TableCell className="font-mono text-sm">{t.numero_e164 ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                    <TableCell className="text-right tabular-nums">{eur(t.crediti_wallet)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{t.sms_mese.toLocaleString("it-IT")}</TableCell>
+                    <TableCell className="text-right tabular-nums">{eur(t.fatturato_mese)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">{eur(t.costo_wholesale_mese)}</TableCell>
+                    <TableCell className={`text-right tabular-nums font-medium ${t.margine_mese >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                      {eur(t.margine_mese)}
+                      {t.fatturato_mese > 0 && (
+                        <span className="text-xs text-muted-foreground font-normal ml-1">({t.margine_percentuale.toFixed(0)}%)</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
