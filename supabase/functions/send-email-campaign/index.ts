@@ -437,10 +437,33 @@ Deno.serve(async (req) => {
     //   1. campaign.sender_email (explicit override set on the campaign itself)
     //   2. company_email_preferences + resolveSender (dominio marketing scelto)
     //   3. settings.fromDefault (platform default)
+    //
+    // ANTI-SPOOFING: l'override sender_email è accettato SOLO se il suo
+    // dominio è verificato+attivo per QUESTA azienda (company_email_domains).
+    // Senza questo check un tenant potrebbe inviare come il dominio
+    // verificato di un'altra azienda (l'account Elastic Email è condiviso)
+    // o come un dominio arbitrario.
     let customDomainForCampaign: string | null = null;
     let providerDomainForCampaign: string | null = null;
     let fromAddress: string;
-    if (campaign.sender_email) {
+    let senderOverrideAllowed = false;
+    if (campaign.sender_email?.includes("@")) {
+      const overrideDomain = campaign.sender_email.split("@").pop()!.toLowerCase();
+      const { data: ownedDomain } = await adminClient
+        .from("company_email_domains")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("domain", overrideDomain)
+        .eq("is_active", true)
+        .maybeSingle();
+      senderOverrideAllowed = Boolean(ownedDomain);
+      if (!senderOverrideAllowed) {
+        console.warn(
+          `[send-email-campaign] sender_email override "${campaign.sender_email}" rifiutato: dominio "${overrideDomain}" non verificato per company ${companyId} — fallback a resolveSender`,
+        );
+      }
+    }
+    if (campaign.sender_email && senderOverrideAllowed) {
       const safeSenderName = sanitizeFromName(campaign.sender_name);
       fromAddress = safeSenderName
         ? `${safeSenderName} <${campaign.sender_email}>`
@@ -448,6 +471,7 @@ Deno.serve(async (req) => {
       providerDomainForCampaign = campaign.sender_email.includes("@")
         ? campaign.sender_email.split("@").pop() ?? null
         : null;
+      customDomainForCampaign = providerDomainForCampaign;
     } else {
       try {
         const sender = await resolveSender(companyId, "marketing", adminClient);
