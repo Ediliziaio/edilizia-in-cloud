@@ -183,6 +183,8 @@ export default function SettingsBranding() {
   const [subdomain, setSubdomain] = useState("");
   const [customDomain, setCustomDomain] = useState("");
   const [confirmRemoveSub, setConfirmRemoveSub] = useState(false);
+  const [confirmResetSystem, setConfirmResetSystem] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const saveSubdomainMut = useSaveSubdomain(companyId);
   const requestVerifMut = useRequestDomainVerification(companyId);
@@ -302,6 +304,62 @@ export default function SettingsBranding() {
       toast.error(msg);
     } finally {
       setSaving(false);
+    }
+  };
+
+  /** Riporta l'aspetto della piattaforma alle impostazioni di sistema:
+      colori, nome e powered-by ai default + tema custom disattivato.
+      Logo, favicon, subdomain e dominio NON vengono toccati. */
+  const handleResetToSystem = async () => {
+    if (!canEdit) {
+      toast.error("Non hai i permessi per modificare il branding");
+      return;
+    }
+    setConfirmResetSystem(false);
+    setResetting(true);
+    const DEFAULTS = {
+      brand_primary_color: "#1E40AF",
+      brand_secondary_color: "#3B82F6",
+      brand_accent_color: "#DBEAFE",
+      brand_text_on_primary: "#FFFFFF",
+      brand_platform_name: null as string | null,
+      brand_hide_powered_by: false,
+    };
+    try {
+      await saveBrand.mutateAsync({
+        ...DEFAULTS,
+        white_label_enabled: false,
+      } as Partial<typeof brand>);
+
+      if (companyId) {
+        await supabase
+          .from("company_branding" as never)
+          .upsert(
+            {
+              company_id: companyId,
+              primary_color: DEFAULTS.brand_primary_color,
+              secondary_color: DEFAULTS.brand_secondary_color,
+              accent_color: DEFAULTS.brand_accent_color,
+              platform_name: null,
+              hide_platform_branding: false,
+              updated_at: new Date().toISOString(),
+            } as never,
+            { onConflict: "company_id" } as never,
+          )
+          .then((r) => {
+            if (r.error) console.warn("Sync company_branding skipped:", r.error.message);
+          });
+      }
+
+      setForm({ ...DEFAULTS, brand_platform_name: "" });
+      queryClient.invalidateQueries({ queryKey: ["company-branding"] });
+      queryClient.invalidateQueries({ queryKey: ["branding-by-domain"] });
+      toast.success("Aspetto di sistema ripristinato");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      toast.error(msg);
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -844,6 +902,29 @@ export default function SettingsBranding() {
                   )}
                 </CardContent>
               </Card>
+              {/* Ripristino impostazioni di sistema */}
+              <Card className="border-dashed">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4 text-muted-foreground" /> Ripristina impostazioni di sistema
+                  </CardTitle>
+                  <CardDescription>
+                    Riporta colori, nome piattaforma e "Powered by" all'aspetto originale di
+                    EdiliziaInCloud. Logo, favicon, subdomain e dominio personalizzato non vengono toccati.
+                    Potrai riattivare il tuo brand in qualsiasi momento salvando di nuovo.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    variant="outline"
+                    disabled={!canEdit || resetting || saving}
+                    onClick={() => setConfirmResetSystem(true)}
+                  >
+                    {resetting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                    Ripristina aspetto di sistema
+                  </Button>
+                </CardContent>
+              </Card>
           </div>
 
           {/* Save bar sticky in basso */}
@@ -861,6 +942,25 @@ export default function SettingsBranding() {
           </div>
         </>
       )}
+
+      {/* Dialog conferma ripristino aspetto di sistema */}
+      <AlertDialog open={confirmResetSystem} onOpenChange={setConfirmResetSystem}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ripristinare l'aspetto di sistema?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Colori, nome piattaforma e "Powered by" torneranno ai valori originali di
+              EdiliziaInCloud per tutti gli utenti della tua azienda. Logo, favicon,
+              subdomain e dominio personalizzato restano invariati. Potrai riattivare
+              il tuo brand quando vuoi.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetToSystem}>Ripristina</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialog conferma rimozione subdomain */}
       <AlertDialog open={confirmRemoveSub} onOpenChange={setConfirmRemoveSub}>
