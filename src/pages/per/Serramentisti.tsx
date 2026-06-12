@@ -4,7 +4,7 @@ import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipo
 const config: PerTipoConfig = {
   // SEO
   seoTitle: "Software per Serramentisti | Preventivi, Margini e Cassa Sotto Controllo",
-  seoDescription: "Il gestionale per serramentisti e installatori di infissi: preventivi su misura in 20 minuti, margine reale per commessa, cassa e anticipi fornitori sotto controllo, ordini e pose senza errori.",
+  seoDescription: "Il gestionale per serramentisti e installatori di infissi: preventivi su misura in 60 secondi, margine reale per commessa, cassa e anticipi fornitori sotto controllo, ordini e pose senza errori.",
   seoKeywords: "software serramentisti, gestionale infissi, preventivo finestre, margini serramenti, controllo di gestione serramentista, cassa serramentista, software installatori infissi, gestione ordini serramenti, listino fornitori serramenti, configuratore preventivi infissi, posa in opera, software porte finestre",
   seoCanonical: "/per/serramentisti",
 
@@ -12,12 +12,12 @@ const config: PerTipoConfig = {
   badge: "Per Serramentisti e Installatori di Infissi",
   heroTitle: (
     <>
-      <span className="text-white">Preventivi su misura in 20 minuti.</span>{" "}
-      <span className="text-[#F97415]">Margini, cassa e commesse sotto controllo.</span>
+      <span className="text-white">Preventivi in 60 secondi. +12% di margine medio.</span>{" "}
+      <span className="text-[#F97415]">E sai sempre dove stanno andando i tuoi soldi.</span>
     </>
   ),
   heroSubtitle:
-    "Configuri la finestra e il preventivo esce in 20 minuti, con le misure giuste anche nell'ordine al fornitore. Ma il preventivo è solo l'inizio: per ogni commessa vedi il margine reale (non quello sperato), quanto stai anticipando ai fornitori e a che punto è ogni posa — dal sopralluogo al saldo incassato.",
+    "Oggi perdi lavori perché il preventivo arriva dopo giorni, perdi margine perché sconti e ore di posa extra non li conteggia nessuno, e anticipi tu la liquidità ai fornitori. Con Edilizia in Cloud il preventivo esce in 60 secondi (quello dettagliato in pochi minuti), il margine reale di ogni commessa lo vedi mentre lavori e la cassa la conosci a 90 giorni.",
   heroImage: "https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&w=1400&q=80",
 
   // Social proof
@@ -106,9 +106,9 @@ const config: PerTipoConfig = {
   // Stats
   stats: [
     {
-      value: "20 min",
-      label: "Tempo medio per preventivo infissi",
-      sublabel: "Da 2-3 ore a 20 minuti — verificato dai nostri clienti",
+      value: "60 sec",
+      label: "Per generare un preventivo",
+      sublabel: "Da 2-3 ore a 60 secondi — il dettagliato esce in pochi minuti",
     },
     {
       value: "+12%",
@@ -131,7 +131,7 @@ const config: PerTipoConfig = {
       icon: Ruler,
       name: "Configuratore Preventivi su Misura",
       desc: "Seleziona tipologia (finestra, porta, portone, schermatura solare), profilo (PVC, alluminio, legno), colore RAL, finitura e vetrocamera. Il prezzo aggiornato al listino fornitore esce in automatico.",
-      saving: "Da 2h a 20min a preventivo",
+      saving: "Da 2h a 60 secondi a preventivo",
     },
     {
       icon: TrendingUp,
@@ -176,9 +176,9 @@ const config: PerTipoConfig = {
     initials: "RB",
     gradient: "from-[#111111] to-[#F97415]",
     quote:
-      "Facevo i preventivi la sera, dopo cena, con il listino del fornitore aperto sul tavolo e la calcolatrice in mano. Due ore a preventivo, minimo. Ora lo faccio in 20 minuti, anche dal telefono mentre sono dal cliente. Ma la cosa che mi ha cambiato il lavoro è un'altra: so quanto guadagno su ogni commessa prima che finisca, non un anno dopo dal commercialista. E so chi mi deve ancora il saldo senza cercare tra le carte.",
+      "Facevo i preventivi la sera, dopo cena, con il listino del fornitore aperto sul tavolo e la calcolatrice in mano. Due ore a preventivo, minimo. Ora il preventivo esce in un minuto, anche dal telefono mentre sono dal cliente. Ma la cosa che mi ha cambiato il lavoro è un'altra: so quanto guadagno su ogni commessa prima che finisca, non un anno dopo dal commercialista. E so chi mi deve ancora il saldo senza cercare tra le carte.",
     metrics: [
-      { label: "Tempo per preventivo infissi", before: "2-3 ore", after: "20 minuti" },
+      { label: "Tempo per preventivo infissi", before: "2-3 ore", after: "60 secondi" },
       { label: "Margine reale per commessa", before: "scoperto a fine anno", after: "visibile in tempo reale" },
       { label: "Errori negli ordini di produzione", before: "3-4 al mese", after: "0" },
       { label: "Fatturato annuo", before: "480.000 €", after: "620.000 €" },
@@ -194,7 +194,7 @@ const config: PerTipoConfig = {
     },
     {
       q: "Come funziona il configuratore per preventivi su misura?",
-      a: "Selezioni la tipologia (finestra, porta, portone, schermatura solare), le dimensioni, il profilo (PVC, alluminio, legno), il colore RAL o la finitura, il tipo di vetrocamera e gli accessori. Il sistema calcola il prezzo applicando i tuoi coefficienti di ricarico. Il preventivo è pronto in PDF con tutte le specifiche tecniche in meno di 20 minuti.",
+      a: "Selezioni la tipologia (finestra, porta, portone, schermatura solare), le dimensioni, il profilo (PVC, alluminio, legno), il colore RAL o la finitura, il tipo di vetrocamera e gli accessori. Il sistema calcola il prezzo applicando i tuoi coefficienti di ricarico. Il preventivo standard esce in 60 secondi; quello dettagliato, con tutte le specifiche tecniche in PDF, in pochi minuti.",
     },
     {
       q: "L'app mobile funziona anche offline durante il sopralluogo?",
@@ -226,7 +226,7 @@ const config: PerTipoConfig = {
     {
       icon: Ruler,
       problem: "Preventivi su misura in 2-3 ore: troppo lenti per stare sul mercato",
-      solution: "Il configuratore preventivi di Edilizia in Cloud importa i listini dei tuoi fornitori (PVC, alluminio, legno). Inserisci larghezza, altezza, profilo, colore RAL, tipo di vetro: il prezzo si calcola in automatico. Preventivo pronto in 20 minuti — completo, firmabile via link.",
+      solution: "Il configuratore preventivi di Edilizia in Cloud importa i listini dei tuoi fornitori (PVC, alluminio, legno). Inserisci larghezza, altezza, profilo, colore RAL, tipo di vetro: il prezzo si calcola in automatico. Preventivo pronto in 60 secondi, quello dettagliato in pochi minuti — completo, firmabile via link.",
       economicBenefit: "×3 preventivi",
       benefitLabel: "generati nella stessa giornata rispetto a prima",
     },
@@ -268,17 +268,17 @@ const config: PerTipoConfig = {
   ],
   verticalFeaturesTitle: "Dal preventivo al saldo incassato — senza errori e senza perdere margine",
   verticalFeaturesSubtitle: "Configuratore preventivi, margine in tempo reale, cassa sotto controllo, ordini fornitori integrati, planning installazioni, verbale di consegna firmato. Tutto connesso. Tutto tracciato.",
-  demoLabel: "Vedi come un serramentista genera 8 preventivi in una mattinata — e controlla margine e cassa di ogni commessa",
+  demoLabel: "Vedi un preventivo uscire in 60 secondi — e come si controllano margine e cassa di ogni commessa",
 
   // CTA
   ctaTitle: (
     <>
-      <span className="text-white">Preventivi in 20 minuti.</span>{" "}
+      <span className="text-white">Preventivi in 60 secondi.</span>{" "}
       <span className="text-[#F97415]">Margini e cassa sotto controllo.</span>
     </>
   ),
   ctaSubtitle:
-    "30 minuti di demo sui numeri della tua attività: configuriamo un preventivo con il tuo listino fornitore e ti mostriamo dove finisce il margine di una commessa tipo — e quanto stai anticipando di cassa.",
+    "30 minuti di demo sui numeri della tua attività: generiamo un preventivo con il tuo listino fornitore sotto i tuoi occhi e ti mostriamo dove finisce il margine di una commessa tipo — e quanto stai anticipando di cassa.",
 
   // Schema FAQ
   schemaFaq: [
@@ -288,7 +288,7 @@ const config: PerTipoConfig = {
     },
     {
       q: "Come funziona il configuratore per preventivi su misura?",
-      a: "Selezioni tipologia, dimensioni, profilo, colore RAL, vetrocamera e accessori. Il sistema calcola il prezzo automaticamente. Il preventivo è pronto in PDF in meno di 20 minuti.",
+      a: "Selezioni tipologia, dimensioni, profilo, colore RAL, vetrocamera e accessori. Il sistema calcola il prezzo automaticamente. Il preventivo standard esce in 60 secondi, il dettagliato in PDF in pochi minuti.",
     },
     {
       q: "Posso vedere il margine reale di ogni commessa di serramenti?",
