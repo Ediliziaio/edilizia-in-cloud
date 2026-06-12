@@ -118,6 +118,9 @@ export default function EditorDocumento() {
         },
         onError: (err) => {
           console.error("[EditorDocumento] Create mutation failed:", err);
+          toast.error("Impossibile creare il documento", {
+            description: (err as Error).message,
+          });
           createdRef.current = false;
           navigate(-1);
         },
@@ -326,7 +329,16 @@ export default function EditorDocumento() {
         state={state}
         isSaving={isSaving}
         lastSaved={lastSaved}
-        onEmetti={() => state.id && emittiMutation.mutate(state.id)}
+        onEmetti={() => {
+          if (!state.id || emittiMutation.isPending) return;
+          emittiMutation.mutate(state.id, {
+            // Risincronizza lo state locale col documento emesso: l'editor
+            // si inizializza una sola volta, senza questo restava "Bozza"
+            // (e modificabile) fino a un reload manuale.
+            onSuccess: (doc) => dispatch({ type: "INIT", payload: doc }),
+          });
+        }}
+        isEmitting={emittiMutation.isPending}
         onDelete={() => {
           if (state.id) {
             deleteMutation.mutate(state.id, {

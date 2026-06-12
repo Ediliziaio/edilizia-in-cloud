@@ -106,12 +106,13 @@ interface Props {
   onConvertToFattura?: () => void;
   isInviaSDILoading?: boolean;
   isConvertLoading?: boolean;
+  isEmitting?: boolean;
 }
 
 export function EditorTopBar({
   state, isSaving, lastSaved, onEmetti, onDelete, validationErrorCount, validationErrors,
   onPreview, onBack, onInviaSDI, onDownloadPDF, onSendEmail, onDuplicate, onConvertToFattura,
-  isInviaSDILoading, isConvertLoading,
+  isInviaSDILoading, isConvertLoading, isEmitting,
 }: Props) {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -345,10 +346,10 @@ export function EditorTopBar({
                   <Button
                     size="sm"
                     className="h-8 gap-1.5 shadow-sm"
-                    disabled={(validationErrorCount ?? 0) > 0}
+                    disabled={(validationErrorCount ?? 0) > 0 || isEmitting}
                   >
                     <Check className="h-3.5 w-3.5" />
-                    Emetti
+                    {isEmitting ? "Emissione…" : "Emetti"}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -361,8 +362,8 @@ export function EditorTopBar({
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Annulla</AlertDialogCancel>
-                    <AlertDialogAction onClick={onEmetti}>
-                      Emetti documento
+                    <AlertDialogAction onClick={onEmetti} disabled={isEmitting}>
+                      {isEmitting ? "Emissione in corso…" : "Emetti documento"}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

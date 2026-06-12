@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, addDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { METODI_PAGAMENTO_SDI } from "@/types/fatturazione";
+import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import { useAnagraficaAzienda } from "@/hooks/useAnagraficaAzienda";
 import type { ScadenzaPagamento } from "@/types/fatturazione";
 import type { EditorState } from "./useEditorState";
@@ -178,7 +179,7 @@ export function EditorPagamentoSection({ state, dispatch, disabled }: Props) {
                 type="number"
                 step="0.01"
                 value={sc.importo}
-                onChange={(e) => dispatch({ type: "UPDATE_SCADENZA", index: i, scadenza: { importo: parseFloat(e.target.value) || 0 } })}
+                onChange={(e) => dispatch({ type: "UPDATE_SCADENZA", index: i, scadenza: { importo: parseDecimalIT(e.target.value) } })}
                 className="h-6 w-20 text-[10px] text-right px-1"
                 disabled={disabled}
               />

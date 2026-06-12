@@ -575,14 +575,14 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
     dispatch({ type: "REORDER_RIGHE", righe: newRighe });
   }
 
-  const filteredArticoli = (articoli ?? [])
-    .filter(
-      (a) =>
-        !catalogSearch ||
-        a.descrizione.toLowerCase().includes(catalogSearch.toLowerCase()) ||
-        (a.codice && a.codice.toLowerCase().includes(catalogSearch.toLowerCase()))
-    )
-    .slice(0, 10);
+  const matchingArticoli = (articoli ?? []).filter(
+    (a) =>
+      !catalogSearch ||
+      a.descrizione.toLowerCase().includes(catalogSearch.toLowerCase()) ||
+      (a.codice && a.codice.toLowerCase().includes(catalogSearch.toLowerCase()))
+  );
+  const filteredArticoli = matchingArticoli.slice(0, 10);
+  const articoliNascosti = matchingArticoli.length - filteredArticoli.length;
 
   return (
     <div className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
@@ -618,6 +618,11 @@ export function EditorRigheSection({ state, dispatch, disabled }: Props) {
                 ))}
                 {filteredArticoli.length === 0 && (
                   <p className="text-[10px] text-muted-foreground text-center py-3">Nessun articolo trovato</p>
+                )}
+                {articoliNascosti > 0 && (
+                  <p className="text-[10px] text-muted-foreground text-center py-1.5 border-t">
+                    +{articoliNascosti} altri risultati — affina la ricerca
+                  </p>
                 )}
               </div>
             </PopoverContent>

@@ -66,7 +66,9 @@ export async function convertiProformaInFattura(proformaId: string): Promise<Doc
       numero: numero as string,
       numero_progressivo: progressivo,
       anno: new Date().getFullYear(),
-      data_emissione: new Date().toISOString().split("T")[0],
+      // Data LOCALE, non UTC: con toISOString() tra mezzanotte e l'1/2 di
+      // notte italiane la data di emissione slittava al giorno precedente.
+      data_emissione: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`,
       anagrafica_id: doc.anagrafica_id,
       cliente_snapshot: doc.cliente_snapshot,
       stato: "bozza",

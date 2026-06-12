@@ -73,7 +73,7 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
                   </div>
                   <Input
                     value={snap?.codice_sdi ?? ""}
-                    onChange={(e) => updateSnapshotField("codice_sdi", e.target.value.toUpperCase().slice(0, isPA ? 6 : 7))}
+                    onChange={(e) => updateSnapshotField("codice_sdi", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, isPA ? 6 : 7))}
                     className="h-7 text-xs font-mono uppercase"
                     placeholder={isPA ? "XXXXXX" : "0000000"}
                     maxLength={isPA ? 6 : 7}
@@ -126,19 +126,6 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            {/* ─── Opzioni invio ─── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={state.allega_pdf_sdi ?? true}
-                  onCheckedChange={(v) => setField("allega_pdf_sdi", v)}
-                  disabled={disabled}
-                  className="scale-75"
-                />
-                <Label className="text-xs text-muted-foreground cursor-pointer">Allega PDF alla trasmissione SDI</Label>
-              </div>
             </div>
 
             {/* ─── Dati bancari per XML (visibili sempre, non solo per bonifico) ─── */}
@@ -202,12 +189,12 @@ export function EditorFatturazioneElettronicaSection({ state, dispatch, disabled
               )}
             </div>
 
-            {/* ─── UX-09: Allega PDF al documento elettronico ─── */}
+            {/* ─── Allega PDF al documento elettronico (default true = default DB) ─── */}
             <div className="flex items-center justify-between pt-2 border-t">
               <div className="flex items-center gap-2">
                 <Switch
                   id="allega-pdf-sdi"
-                  checked={state.allega_pdf_sdi ?? false}
+                  checked={state.allega_pdf_sdi ?? true}
                   onCheckedChange={(v) => setField("allega_pdf_sdi", v)}
                   disabled={disabled}
                 />

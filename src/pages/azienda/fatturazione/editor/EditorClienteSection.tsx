@@ -249,7 +249,13 @@ export function EditorClienteSection({ state, dispatch, disabled }: Props) {
                     </div>
                     <div>
                       <Label className="text-[9px] text-muted-foreground">Codice SDI</Label>
-                      <Input value={snapshot!.codice_sdi ?? ""} onChange={(e) => updateSnapshotField("codice_sdi", e.target.value)} className="h-6 text-[11px] font-mono" maxLength={7} />
+                      {/* PA: codice IPA esattamente 6 caratteri; privati: 7. Solo A-Z/0-9 (SDI rifiuta altri caratteri). */}
+                      <Input
+                        value={snapshot!.codice_sdi ?? ""}
+                        onChange={(e) => updateSnapshotField("codice_sdi", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, snapshot!.tipo_cliente === "PA" ? 6 : 7))}
+                        className="h-6 text-[11px] font-mono"
+                        maxLength={snapshot!.tipo_cliente === "PA" ? 6 : 7}
+                      />
                     </div>
                     <div className="col-span-2">
                       <Label className="text-[9px] text-muted-foreground">PEC</Label>

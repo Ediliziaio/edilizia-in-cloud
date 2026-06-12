@@ -30,6 +30,100 @@ export type Action =
   | { type: "REMOVE_SCADENZA"; index: number }
   | { type: "SET_SCADENZE"; scadenze: ScadenzaPagamento[] };
 
+// ─── Campi persistiti ────────────────────────────────────────
+//
+// UNICA fonte di verità per: change-detection dell'autosave, isDirty e
+// payload di salvataggio. Prima esistevano tre copie manuali divergenti:
+// sconto_globale_valore era nel detection ma non nel payload (sconto a
+// valore fisso perso al reload) e cassa_imponibile/cassa_aliquota_iva
+// non erano salvati affatto pur essendo usati nei calcoli.
+
+const TRACKED_FIELDS = [
+  "righe",
+  "cliente_snapshot",
+  "anagrafica_id",
+  "note_documento",
+  "note_interne",
+  "data_emissione",
+  "data_scadenza",
+  "metodo_pagamento_codice",
+  "iban_pagamento",
+  "bic_pagamento",
+  "nome_banca",
+  "intestatario_conto",
+  "sconto_globale_percentuale",
+  "sconto_globale_valore",
+  "bollo_virtuale",
+  "bollo_importo",
+  "ritenuta_acconto",
+  "ritenuta_aliquota",
+  "ritenuta_tipo",
+  "ritenuta_causale",
+  "cassa_previdenziale",
+  "cassa_tipo",
+  "cassa_aliquota",
+  "cassa_imponibile",
+  "cassa_aliquota_iva",
+  "cassa_ritenuta",
+  "rivalsa_inps",
+  "rivalsa_tipo",
+  "rivalsa_aliquota",
+  "altra_ritenuta",
+  "altra_ritenuta_tipo",
+  "altra_ritenuta_aliquota",
+  "altra_ritenuta_causale",
+  "scadenze_pagamento",
+  "serie",
+  "causale",
+  "cig",
+  "cup",
+  "arrotondamento",
+  "data_validita",
+  "probabilita_chiusura",
+  "testo_intro",
+  "testo_conclusivo",
+  "esigibilita_iva",
+  "allega_pdf_sdi",
+  "emesso_in_seguito_a",
+  "codice_commessa_convenzione",
+  "ddt_causale_trasporto",
+  "ddt_numero_colli",
+  "ddt_peso",
+  "ddt_aspetto_beni",
+  "ddt_porto",
+  "ddt_mezzo_trasporto",
+  "ddt_data_ora_consegna",
+  "ddt_indirizzo_consegna",
+  "ddt_vettore",
+] as const;
+
+/** Estrae i soli campi utente persistiti (per serializzazione/confronto). */
+function pickTracked(state: EditorState): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const f of TRACKED_FIELDS) {
+    out[f] = state[f as keyof EditorState];
+  }
+  return out;
+}
+
+/** Payload completo per l'update: campi utente + totali derivati ricalcolati. */
+function buildSavePayload(state: EditorState) {
+  return {
+    id: state.id!,
+    ...pickTracked(state),
+    riepilogo_iva: state.riepilogo_iva,
+    subtotale: state.subtotale,
+    imponibile_totale: state.imponibile_totale,
+    iva_totale: state.iva_totale,
+    totale_documento: state.totale_documento,
+    totale_da_pagare: state.totale_da_pagare,
+    ritenuta_importo: state.ritenuta_importo,
+    cassa_importo: state.cassa_importo,
+    rivalsa_importo: state.rivalsa_importo,
+    altra_ritenuta_importo: state.altra_ritenuta_importo,
+  } as Partial<DocumentoFiscale> & { id: string };
+}
+
 // ─── Recalculate ─────────────────────────────────────────────
 
 function recalculate(state: EditorState): EditorState {
@@ -133,7 +227,9 @@ function editorReducer(state: EditorState, action: Action): EditorState {
       });
 
     case "SET_PAGAMENTO":
-      return { ...state, ...action.fields };
+      // recalculate: alcuni campi di pagamento influenzano i totali
+      // (es. esigibilità/split payment) — prima i totali restavano stantii.
+      return recalculate({ ...state, ...action.fields });
 
     case "ADD_SCADENZA": {
       const scadenze = [...(state.scadenze_pagamento ?? []), action.scadenza];
@@ -166,8 +262,17 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
   const updateMutation = useUpdateDocumento();
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const prevStateRef = useRef<string>("");
+  // Serializzazione dei tracked fields all'ultimo salvataggio realmente
+  // inviato. null = baseline non ancora stabilita (pre-INIT).
+  const lastSavedRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
+
+  // La mutation di react-query cambia identity ad ogni render: letta via ref
+  // per non far ri-eseguire l'effect di autosave (il cui cleanup
+  // cancellerebbe il timer in corsa — era la causa di salvataggi persi
+  // silenziosamente, con isDirty=false e nessun avviso all'uscita).
+  const updateMutationRef = useRef(updateMutation);
+  updateMutationRef.current = updateMutation;
 
   // Initialize once when doc loads
   useEffect(() => {
@@ -177,207 +282,49 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
     }
   }, [initialDoc]);
 
-  // Autosave with 2s debounce (only bozza)
+  // Autosave con debounce 2s (solo bozza).
+  //
+  // Invariante: lastSavedRef riflette ciò che è stato DAVVERO inviato al
+  // server, non ciò che è stato schedulato. Se il timer viene cancellato
+  // da un re-run dell'effect, il confronto fallisce di nuovo e il
+  // salvataggio viene ri-schedulato invece di andare perso.
   useEffect(() => {
     if (!state._initialized || !state.id || state.stato !== "bozza") return;
 
-    const serialized = JSON.stringify({
-      righe: state.righe,
-      cliente_snapshot: state.cliente_snapshot,
-      anagrafica_id: state.anagrafica_id,
-      note_documento: state.note_documento,
-      note_interne: state.note_interne,
-      data_emissione: state.data_emissione,
-      data_scadenza: state.data_scadenza,
-      metodo_pagamento_codice: state.metodo_pagamento_codice,
-      iban_pagamento: state.iban_pagamento,
-      bic_pagamento: state.bic_pagamento,
-      nome_banca: state.nome_banca,
-      intestatario_conto: state.intestatario_conto,
-      sconto_globale_percentuale: state.sconto_globale_percentuale,
-      sconto_globale_valore: state.sconto_globale_valore,
-      bollo_virtuale: state.bollo_virtuale,
-      bollo_importo: state.bollo_importo,
-      ritenuta_acconto: state.ritenuta_acconto,
-      ritenuta_aliquota: state.ritenuta_aliquota,
-      ritenuta_tipo: state.ritenuta_tipo,
-      ritenuta_causale: state.ritenuta_causale,
-      cassa_previdenziale: state.cassa_previdenziale,
-      cassa_tipo: state.cassa_tipo,
-      cassa_aliquota: state.cassa_aliquota,
-      rivalsa_inps: state.rivalsa_inps,
-      rivalsa_tipo: state.rivalsa_tipo,
-      rivalsa_aliquota: state.rivalsa_aliquota,
-      altra_ritenuta: state.altra_ritenuta,
-      altra_ritenuta_tipo: state.altra_ritenuta_tipo,
-      altra_ritenuta_aliquota: state.altra_ritenuta_aliquota,
-      altra_ritenuta_causale: state.altra_ritenuta_causale,
-      scadenze_pagamento: state.scadenze_pagamento,
-      serie: state.serie,
-      causale: state.causale,
-      cig: state.cig,
-      cup: state.cup,
-      arrotondamento: state.arrotondamento,
-      data_validita: state.data_validita,
-      probabilita_chiusura: state.probabilita_chiusura,
-      testo_intro: state.testo_intro,
-      testo_conclusivo: state.testo_conclusivo,
-      esigibilita_iva: state.esigibilita_iva,
-      allega_pdf_sdi: state.allega_pdf_sdi,
-      emesso_in_seguito_a: state.emesso_in_seguito_a,
-      codice_commessa_convenzione: state.codice_commessa_convenzione,
-      cassa_ritenuta: state.cassa_ritenuta,
-      ddt_causale_trasporto: state.ddt_causale_trasporto,
-      ddt_numero_colli: state.ddt_numero_colli,
-      ddt_peso: state.ddt_peso,
-      ddt_aspetto_beni: state.ddt_aspetto_beni,
-      ddt_porto: state.ddt_porto,
-      ddt_mezzo_trasporto: state.ddt_mezzo_trasporto,
-      ddt_data_ora_consegna: state.ddt_data_ora_consegna,
-      ddt_indirizzo_consegna: state.ddt_indirizzo_consegna,
-      ddt_vettore: state.ddt_vettore,
-    });
+    const serialized = JSON.stringify(pickTracked(state));
 
-    if (serialized === prevStateRef.current) return;
-    prevStateRef.current = serialized;
+    // Prima esecuzione dopo INIT: stabilisce la baseline senza salvare
+    // (il documento appena caricato non ha modifiche).
+    if (lastSavedRef.current === null) {
+      lastSavedRef.current = serialized;
+      return;
+    }
+
+    if (serialized === lastSavedRef.current) return;
 
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      updateMutation.mutate(
-        {
-          id: state.id!,
-          righe: state.righe,
-          riepilogo_iva: state.riepilogo_iva,
-          cliente_snapshot: state.cliente_snapshot,
-          anagrafica_id: state.anagrafica_id,
-          subtotale: state.subtotale,
-          imponibile_totale: state.imponibile_totale,
-          iva_totale: state.iva_totale,
-          totale_documento: state.totale_documento,
-          totale_da_pagare: state.totale_da_pagare,
-          ritenuta_importo: state.ritenuta_importo,
-          cassa_importo: state.cassa_importo,
-          rivalsa_importo: state.rivalsa_importo,
-          altra_ritenuta_importo: state.altra_ritenuta_importo,
-          note_documento: state.note_documento,
-          note_interne: state.note_interne,
-          data_emissione: state.data_emissione,
-          data_scadenza: state.data_scadenza,
-          metodo_pagamento_codice: state.metodo_pagamento_codice,
-          iban_pagamento: state.iban_pagamento,
-          bic_pagamento: state.bic_pagamento,
-          nome_banca: state.nome_banca,
-          intestatario_conto: state.intestatario_conto,
-          sconto_globale_percentuale: state.sconto_globale_percentuale,
-          bollo_virtuale: state.bollo_virtuale,
-          bollo_importo: state.bollo_importo,
-          ritenuta_acconto: state.ritenuta_acconto,
-          ritenuta_aliquota: state.ritenuta_aliquota,
-          ritenuta_tipo: state.ritenuta_tipo,
-          ritenuta_causale: state.ritenuta_causale,
-          cassa_previdenziale: state.cassa_previdenziale,
-          cassa_tipo: state.cassa_tipo,
-          cassa_aliquota: state.cassa_aliquota,
-          rivalsa_inps: state.rivalsa_inps,
-          rivalsa_tipo: state.rivalsa_tipo,
-          rivalsa_aliquota: state.rivalsa_aliquota,
-          altra_ritenuta: state.altra_ritenuta,
-          altra_ritenuta_tipo: state.altra_ritenuta_tipo,
-          altra_ritenuta_aliquota: state.altra_ritenuta_aliquota,
-          altra_ritenuta_causale: state.altra_ritenuta_causale,
-          scadenze_pagamento: state.scadenze_pagamento,
-          serie: state.serie,
-          causale: state.causale,
-           cig: state.cig,
-          cup: state.cup,
-           arrotondamento: state.arrotondamento,
-          data_validita: state.data_validita,
-          probabilita_chiusura: state.probabilita_chiusura,
-          testo_intro: state.testo_intro,
-          testo_conclusivo: state.testo_conclusivo,
-          esigibilita_iva: state.esigibilita_iva,
-          allega_pdf_sdi: state.allega_pdf_sdi,
-          emesso_in_seguito_a: state.emesso_in_seguito_a,
-          codice_commessa_convenzione: state.codice_commessa_convenzione,
-          cassa_ritenuta: state.cassa_ritenuta,
-          ddt_causale_trasporto: state.ddt_causale_trasporto,
-          ddt_numero_colli: state.ddt_numero_colli,
-          ddt_peso: state.ddt_peso,
-          ddt_aspetto_beni: state.ddt_aspetto_beni,
-          ddt_porto: state.ddt_porto,
-          ddt_mezzo_trasporto: state.ddt_mezzo_trasporto,
-          ddt_data_ora_consegna: state.ddt_data_ora_consegna,
-          ddt_indirizzo_consegna: state.ddt_indirizzo_consegna,
-          ddt_vettore: state.ddt_vettore,
-        },
-        { onSuccess: () => setLastSaved(new Date()) }
-      );
+      lastSavedRef.current = serialized;
+      updateMutationRef.current.mutate(buildSavePayload(state), {
+        onSuccess: () => setLastSaved(new Date()),
+        // Save fallito → invalida la baseline: il prossimo change (o
+        // saveNow) ritenterà il salvataggio completo.
+        onError: () => { lastSavedRef.current = ""; },
+      });
     }, 2000);
 
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [state, updateMutation]);
+  }, [state]);
 
   const isSaving = updateMutation.isPending;
 
-  // Check if there are unsaved changes
-  const isDirty = prevStateRef.current !== "" && JSON.stringify({
-    righe: state.righe,
-    cliente_snapshot: state.cliente_snapshot,
-    anagrafica_id: state.anagrafica_id,
-    note_documento: state.note_documento,
-    note_interne: state.note_interne,
-    data_emissione: state.data_emissione,
-    data_scadenza: state.data_scadenza,
-    metodo_pagamento_codice: state.metodo_pagamento_codice,
-    iban_pagamento: state.iban_pagamento,
-    bic_pagamento: state.bic_pagamento,
-    nome_banca: state.nome_banca,
-    intestatario_conto: state.intestatario_conto,
-    sconto_globale_percentuale: state.sconto_globale_percentuale,
-    sconto_globale_valore: state.sconto_globale_valore,
-    bollo_virtuale: state.bollo_virtuale,
-    bollo_importo: state.bollo_importo,
-    ritenuta_acconto: state.ritenuta_acconto,
-    ritenuta_aliquota: state.ritenuta_aliquota,
-    ritenuta_tipo: state.ritenuta_tipo,
-    ritenuta_causale: state.ritenuta_causale,
-    cassa_previdenziale: state.cassa_previdenziale,
-    cassa_tipo: state.cassa_tipo,
-    cassa_aliquota: state.cassa_aliquota,
-    rivalsa_inps: state.rivalsa_inps,
-    rivalsa_tipo: state.rivalsa_tipo,
-    rivalsa_aliquota: state.rivalsa_aliquota,
-    altra_ritenuta: state.altra_ritenuta,
-    altra_ritenuta_tipo: state.altra_ritenuta_tipo,
-    altra_ritenuta_aliquota: state.altra_ritenuta_aliquota,
-    altra_ritenuta_causale: state.altra_ritenuta_causale,
-    scadenze_pagamento: state.scadenze_pagamento,
-    serie: state.serie,
-    causale: state.causale,
-    cig: state.cig,
-    cup: state.cup,
-    arrotondamento: state.arrotondamento,
-    data_validita: state.data_validita,
-    probabilita_chiusura: state.probabilita_chiusura,
-    testo_intro: state.testo_intro,
-    testo_conclusivo: state.testo_conclusivo,
-    esigibilita_iva: state.esigibilita_iva,
-    allega_pdf_sdi: state.allega_pdf_sdi,
-    emesso_in_seguito_a: state.emesso_in_seguito_a,
-    codice_commessa_convenzione: state.codice_commessa_convenzione,
-    cassa_ritenuta: state.cassa_ritenuta,
-    ddt_causale_trasporto: state.ddt_causale_trasporto,
-    ddt_numero_colli: state.ddt_numero_colli,
-    ddt_peso: state.ddt_peso,
-    ddt_aspetto_beni: state.ddt_aspetto_beni,
-    ddt_porto: state.ddt_porto,
-    ddt_mezzo_trasporto: state.ddt_mezzo_trasporto,
-    ddt_data_ora_consegna: state.ddt_data_ora_consegna,
-    ddt_indirizzo_consegna: state.ddt_indirizzo_consegna,
-    ddt_vettore: state.ddt_vettore,
-  }) !== prevStateRef.current;
+  // Modifiche non ancora inviate al server
+  const isDirty =
+    lastSavedRef.current !== null &&
+    state._initialized === true &&
+    JSON.stringify(pickTracked(state)) !== lastSavedRef.current;
 
   // Flush autosave and save immediately — returns a Promise so callers can await
   const saveNow = (): Promise<void> => {
@@ -386,79 +333,16 @@ export function useEditorState(initialDoc: DocumentoFiscale | undefined) {
     }
 
     if (state._initialized && state.id && state.stato === "bozza") {
+      const serialized = JSON.stringify(pickTracked(state));
       return new Promise((resolve, reject) => {
-        updateMutation.mutate(
-          {
-            id: state.id!,
-            righe: state.righe,
-            riepilogo_iva: state.riepilogo_iva,
-            cliente_snapshot: state.cliente_snapshot,
-            anagrafica_id: state.anagrafica_id,
-            subtotale: state.subtotale,
-            imponibile_totale: state.imponibile_totale,
-            iva_totale: state.iva_totale,
-            totale_documento: state.totale_documento,
-            totale_da_pagare: state.totale_da_pagare,
-            ritenuta_importo: state.ritenuta_importo,
-            cassa_importo: state.cassa_importo,
-            rivalsa_importo: state.rivalsa_importo,
-            altra_ritenuta_importo: state.altra_ritenuta_importo,
-            note_documento: state.note_documento,
-            note_interne: state.note_interne,
-            data_emissione: state.data_emissione,
-            data_scadenza: state.data_scadenza,
-            metodo_pagamento_codice: state.metodo_pagamento_codice,
-            iban_pagamento: state.iban_pagamento,
-            bic_pagamento: state.bic_pagamento,
-            nome_banca: state.nome_banca,
-            intestatario_conto: state.intestatario_conto,
-            sconto_globale_percentuale: state.sconto_globale_percentuale,
-            bollo_virtuale: state.bollo_virtuale,
-            bollo_importo: state.bollo_importo,
-            ritenuta_acconto: state.ritenuta_acconto,
-            ritenuta_aliquota: state.ritenuta_aliquota,
-            ritenuta_tipo: state.ritenuta_tipo,
-            ritenuta_causale: state.ritenuta_causale,
-            cassa_previdenziale: state.cassa_previdenziale,
-            cassa_tipo: state.cassa_tipo,
-            cassa_aliquota: state.cassa_aliquota,
-            rivalsa_inps: state.rivalsa_inps,
-            rivalsa_tipo: state.rivalsa_tipo,
-            rivalsa_aliquota: state.rivalsa_aliquota,
-            altra_ritenuta: state.altra_ritenuta,
-            altra_ritenuta_tipo: state.altra_ritenuta_tipo,
-            altra_ritenuta_aliquota: state.altra_ritenuta_aliquota,
-            altra_ritenuta_causale: state.altra_ritenuta_causale,
-            scadenze_pagamento: state.scadenze_pagamento,
-            serie: state.serie,
-            causale: state.causale,
-            cig: state.cig,
-            cup: state.cup,
-            arrotondamento: state.arrotondamento,
-            data_validita: state.data_validita,
-            probabilita_chiusura: state.probabilita_chiusura,
-            testo_intro: state.testo_intro,
-            testo_conclusivo: state.testo_conclusivo,
-            esigibilita_iva: state.esigibilita_iva,
-            allega_pdf_sdi: state.allega_pdf_sdi,
-            emesso_in_seguito_a: state.emesso_in_seguito_a,
-            codice_commessa_convenzione: state.codice_commessa_convenzione,
-            cassa_ritenuta: state.cassa_ritenuta,
-            ddt_causale_trasporto: state.ddt_causale_trasporto,
-            ddt_numero_colli: state.ddt_numero_colli,
-            ddt_peso: state.ddt_peso,
-            ddt_aspetto_beni: state.ddt_aspetto_beni,
-            ddt_porto: state.ddt_porto,
-            ddt_mezzo_trasporto: state.ddt_mezzo_trasporto,
-            ddt_data_ora_consegna: state.ddt_data_ora_consegna,
-            ddt_indirizzo_consegna: state.ddt_indirizzo_consegna,
-            ddt_vettore: state.ddt_vettore,
+        updateMutationRef.current.mutate(buildSavePayload(state), {
+          onSuccess: () => {
+            lastSavedRef.current = serialized;
+            setLastSaved(new Date());
+            resolve();
           },
-          {
-            onSuccess: () => { setLastSaved(new Date()); resolve(); },
-            onError: (err) => reject(err),
-          }
-        );
+          onError: (err) => reject(err),
+        });
       });
     }
     return Promise.resolve();

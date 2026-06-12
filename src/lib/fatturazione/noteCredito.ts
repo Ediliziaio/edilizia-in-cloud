@@ -35,8 +35,14 @@ export async function creaNotaCredito(
         }))
       : [];
 
-  // Ricalcola riepilogo_iva dalle righe della nota di credito
-  const riepilogo_iva = righe.length > 0 ? calcolaRiepilogoIVA(righe) : [];
+  // Ricalcola riepilogo_iva dalle righe, conservando l'esigibilità IVA
+  // della fattura originale (es. split payment "S" per PA — senza questo
+  // la NC tornava a esigibilità immediata, incoerente con l'XML originale).
+  const riepilogo_iva = righe.length > 0
+    ? calcolaRiepilogoIVA(righe, {
+        esigibilitaDefault: fattura.esigibilita_iva as "I" | "D" | "S" | undefined,
+      })
+    : [];
 
   return {
     tipo: "nota_credito",

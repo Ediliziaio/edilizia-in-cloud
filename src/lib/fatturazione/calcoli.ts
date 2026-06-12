@@ -385,6 +385,38 @@ export function validateDocumento(
     }
   }
 
+  // Bollo virtuale obbligatorio: operazioni esenti/escluse/non soggette
+  // sopra €77,47 richiedono l'imposta di bollo da €2 (DPR 642/72).
+  if (
+    !doc.bollo_virtuale &&
+    !isNC &&
+    !["preventivo", "proforma", "ddt"].includes(tipo) &&
+    shouldSuggestBollo(righe, doc.totale_documento ?? 0)
+  ) {
+    errors.push({
+      field: "bollo_virtuale",
+      message:
+        "Operazioni esenti/escluse sopra €77,47: l'imposta di bollo da €2 è obbligatoria (attivala in Opzioni avanzate)",
+      severity: "warning",
+    });
+  }
+
+  // Sconto globale: percentuale e valore fisso insieme sono ambigui
+  // (il calcolo usa la percentuale e ignora il valore).
+  if ((doc.sconto_globale_percentuale ?? 0) > 0 && (doc.sconto_globale_valore ?? 0) > 0) {
+    const valoreDaPerc = round2(
+      (doc.subtotale ?? 0) * ((doc.sconto_globale_percentuale ?? 0) / 100)
+    );
+    if (Math.abs(valoreDaPerc - (doc.sconto_globale_valore ?? 0)) > 0.01) {
+      errors.push({
+        field: "sconto_globale",
+        message:
+          "Indica lo sconto globale come percentuale O come valore fisso, non entrambi (viene applicata la percentuale)",
+        severity: "warning",
+      });
+    }
+  }
+
   return errors;
 }
 
