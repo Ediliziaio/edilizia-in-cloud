@@ -391,6 +391,34 @@ export default function CompanyCustomerDetail() {
     },
   });
 
+  // ── Messaggi WhatsApp/SMS/campagne dalla vista conversazioni unificata ──────
+  // RPC conversazione_timeline('cliente', id): stessa fonte dell'inbox
+  // Conversazioni. Le email IN ARRIVO sono escluse (già coperte dalla query
+  // v_my_email_inbox sopra → niente doppioni in timeline).
+  const { data: conversazioniMessaggi = [] } = useQuery({
+    queryKey: ["customer-conversazioni-timeline", id],
+    enabled: !!id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const rpc = supabase.rpc as unknown as (
+        f: string,
+        a: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message: string } | null }>;
+      const { data, error } = await rpc("conversazione_timeline", {
+        p_entita_tipo: "cliente",
+        p_entita_id: id,
+      });
+      if (error) return []; // fail-soft: la timeline mostra il resto
+      type Msg = {
+        canale: string; direzione: string; oggetto: string | null;
+        testo: string | null; ts: string; ref_id: string;
+      };
+      return ((data as Msg[]) ?? []).filter(
+        (m) => !(m.canale === "email" && m.direzione === "in") && m.canale !== "nota",
+      );
+    },
+  });
+
   // ── Diary messages (note interne) per timeline ──────────────────────────────
   const { data: diaryMessagesForTimeline = [] } = useQuery({
     queryKey: ["customer-diary-timeline", id, effectiveCompany?.id],
@@ -956,6 +984,7 @@ export default function CompanyCustomerDetail() {
             fatture={fattureCliente}
             emailConversations={emailConversationsForTimeline as unknown as Parameters<typeof CustomerActivityTimeline>[0]["emailConversations"]}
             diaryMessages={diaryMessagesForTimeline}
+            messaggi={conversazioniMessaggi}
             customerCreatedAt={customer.created_at}
           />
           <CustomerComposeBar

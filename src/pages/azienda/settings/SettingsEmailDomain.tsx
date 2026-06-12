@@ -95,6 +95,30 @@ interface DomainResponse {
   dnsRecords: DnsRecord[];
 }
 
+/**
+ * Adatta le risposte di manage-email-domain alla forma attesa dalla UI.
+ * La funzione ritorna shape diverse per azione:
+ *   get_status    → { domains: [{ ...row, dns_records }] }
+ *   add/verify    → { domain_row, dns_records }
+ * Prima la pagina leggeva `resp.domain`/`resp.dnsRecords` (inesistenti) →
+ * lo stato non si caricava mai e il form "aggiungi" restava sempre visibile.
+ */
+function normalizeDomainResponse(resp: unknown): DomainResponse {
+  const r = resp as {
+    domains?: Array<DomainStatus & { dns_records?: DnsRecord[] }>;
+    domain_row?: DomainStatus;
+    dns_records?: DnsRecord[];
+  } | null;
+  if (Array.isArray(r?.domains)) {
+    const first = r.domains[0] ?? null;
+    return { domain: first, dnsRecords: first?.dns_records ?? [] };
+  }
+  if (r?.domain_row) {
+    return { domain: r.domain_row, dnsRecords: r.dns_records ?? [] };
+  }
+  return { domain: null, dnsRecords: [] };
+}
+
 // ─── DNS record row with copy-to-clipboard ────────────────────────────────
 function DnsRow({ record }: { record: DnsRecord }) {
   const [copied, setCopied] = useState<"host" | "value" | null>(null);
@@ -186,7 +210,7 @@ export default function SettingsEmailDomain() {
         body: { action: "get_status", company_id: companyId },
       });
       if (error) throw error;
-      return resp as DomainResponse;
+      return normalizeDomainResponse(resp);
     },
   });
 
@@ -237,7 +261,7 @@ export default function SettingsEmailDomain() {
         body: { action: "add_domain", company_id: companyId, ...params },
       });
       if (error) throw error;
-      return resp as DomainResponse;
+      return normalizeDomainResponse(resp);
     },
     onSuccess: () => {
       toast.success("Dominio registrato. Ora configura i record DNS.");
@@ -251,15 +275,23 @@ export default function SettingsEmailDomain() {
 
   const verifyMutation = useMutation({
     mutationFn: async () => {
+      // BUGFIX: l'azione verify_domain RICHIEDE il dominio nel body — prima
+      // mancava e la verifica falliva sempre con "domain is required".
+      const currentDomain = data?.domain?.domain;
+      if (!currentDomain) throw new Error("Nessun dominio registrato da verificare");
       const { data: resp, error } = await supabase.functions.invoke("manage-email-domain", {
-        body: { action: "verify_domain", company_id: companyId },
+        body: { action: "verify_domain", company_id: companyId, domain: currentDomain },
       });
       if (error) throw error;
-      return resp as DomainResponse;
+      return normalizeDomainResponse(resp);
     },
     onSuccess: (resp) => {
-      if (resp.domain?.is_verified) {
+      const d = resp.domain;
+      const marketingOk = Boolean(d?.ee_spf_verified && d?.ee_dkim_verified);
+      if (d?.is_verified) {
         toast.success("Dominio verificato e attivato! Le prossime email usciranno dal tuo dominio.");
+      } else if (marketingOk && d?.is_active) {
+        toast.success("Dominio attivo per l'email marketing! (Il canale transazionale si attiverà quando anche i suoi record saranno propagati.)");
       } else {
         toast.message("Verifica parziale — alcuni record DNS non sono ancora propagati");
       }
@@ -273,8 +305,11 @@ export default function SettingsEmailDomain() {
 
   const removeMutation = useMutation({
     mutationFn: async () => {
+      // BUGFIX: anche remove_domain richiede il dominio nel body.
+      const currentDomain = data?.domain?.domain;
+      if (!currentDomain) throw new Error("Nessun dominio da rimuovere");
       const { data: resp, error } = await supabase.functions.invoke("manage-email-domain", {
-        body: { action: "remove_domain", company_id: companyId },
+        body: { action: "remove_domain", company_id: companyId, domain: currentDomain },
       });
       if (error) throw error;
       return resp;
@@ -538,12 +573,17 @@ export default function SettingsEmailDomain() {
                 <Badge className="bg-green-600 hover:bg-green-700">
                   <CheckCircle2 className="h-3 w-3 mr-1" /> Attivo
                 </Badge>
+              ) : domain.is_active && domain.ee_spf_verified && domain.ee_dkim_verified ? (
+                // Marketing già operativo (EE SPF+DKIM ok) — transazionale in attesa
+                <Badge className="bg-emerald-500 hover:bg-emerald-600">
+                  <CheckCircle2 className="h-3 w-3 mr-1" /> Marketing attivo
+                </Badge>
               ) : (
                 <Badge variant="outline">
                   {verifiedCount}/{totalCount} record verificati
                 </Badge>
               )}
-              {domain.is_verified && (
+              {(domain.is_verified || (domain.is_active && domain.ee_spf_verified && domain.ee_dkim_verified)) && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -585,8 +625,10 @@ export default function SettingsEmailDomain() {
             <ProviderStatusCard
               label="Elastic Email"
               sublabel="Marketing"
-              verified={domain.ee_spf_verified && domain.ee_dkim_verified && domain.ee_tracking_verified}
+              // SPF+DKIM bastano per inviare; il tracking CNAME è opzionale
+              verified={domain.ee_spf_verified && domain.ee_dkim_verified}
               added={domain.ee_domain_added}
+              extra={domain.ee_spf_verified && domain.ee_dkim_verified && !domain.ee_tracking_verified ? "Tracking opzionale non attivo" : undefined}
             />
             <ProviderStatusCard
               label="Resend"

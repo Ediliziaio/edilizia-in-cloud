@@ -18,14 +18,14 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Activity, Mail, CalendarDays, StickyNote, ClipboardList,
-  Ticket as TicketIcon, FileText, ExternalLink,
+  Ticket as TicketIcon, FileText, ExternalLink, MessageCircle, MessageSquare,
 } from "lucide-react";
 import type {
   OrderRow, TicketRow, AppuntamentoRow, FatturaRow,
 } from "@/components/clients/CustomerBusinessTabs";
 
 // ── Types ──
-type FilterCategory = "all" | "email" | "appointment" | "note" | "activity";
+type FilterCategory = "all" | "email" | "messaggio" | "appointment" | "note" | "activity";
 
 interface TimelineEvent {
   id: string;
@@ -55,6 +55,16 @@ interface DiaryMessageLite {
   created_at: string;
 }
 
+/** Messaggio dalla RPC conversazione_timeline (WhatsApp/SMS/campagne email). */
+interface ConversazioneMessaggioLite {
+  canale: string;
+  direzione: string;
+  oggetto: string | null;
+  testo: string | null;
+  ts: string;
+  ref_id: string;
+}
+
 interface CustomerActivityTimelineProps {
   customerId: string;
   orders: OrderRow[];
@@ -63,12 +73,15 @@ interface CustomerActivityTimelineProps {
   fatture: FatturaRow[];
   emailConversations?: EmailConversationLite[];
   diaryMessages?: DiaryMessageLite[];
+  /** WhatsApp/SMS/campagne email dalla vista conversazioni unificata. */
+  messaggi?: ConversazioneMessaggioLite[];
   customerCreatedAt?: string;
 }
 
 const FILTER_OPTIONS: { key: FilterCategory; label: string; icon: React.ReactNode }[] = [
   { key: "all",         label: "Tutti",        icon: <Activity className="h-3 w-3" /> },
   { key: "email",       label: "Email",        icon: <Mail className="h-3 w-3" /> },
+  { key: "messaggio",   label: "Messaggi",     icon: <MessageCircle className="h-3 w-3" /> },
   { key: "appointment", label: "Appuntamenti", icon: <CalendarDays className="h-3 w-3" /> },
   { key: "note",        label: "Note",         icon: <StickyNote className="h-3 w-3" /> },
   { key: "activity",    label: "Attività",     icon: <ClipboardList className="h-3 w-3" /> },
@@ -98,6 +111,7 @@ export function CustomerActivityTimeline({
   fatture,
   emailConversations = [],
   diaryMessages = [],
+  messaggi = [],
   customerCreatedAt,
 }: CustomerActivityTimelineProps) {
   const navigate = useNavigate();
@@ -210,10 +224,36 @@ export function CustomerActivityTimeline({
       });
     });
 
+    // Messaggi dalla vista conversazioni unificata: WhatsApp / SMS / campagne
+    // email inviate. Le email IN ARRIVO restano da emailConversations (sopra)
+    // per evitare doppioni con la casella sincronizzata.
+    messaggi.forEach((m) => {
+      const isWa = m.canale === "whatsapp";
+      const isSms = m.canale === "sms";
+      const out = m.direzione === "out";
+      list.push({
+        id: `conv-${m.ref_id}`,
+        category: isWa || isSms ? "messaggio" : "email",
+        icon: isWa
+          ? <MessageCircle className="h-3.5 w-3.5" />
+          : isSms
+            ? <MessageSquare className="h-3.5 w-3.5" />
+            : <Mail className="h-3.5 w-3.5" />,
+        iconBg: isWa
+          ? "bg-green-100 text-green-600"
+          : isSms
+            ? "bg-sky-100 text-sky-600"
+            : "bg-violet-100 text-violet-600",
+        title: m.oggetto || (isWa ? "WhatsApp" : isSms ? "SMS" : "Email"),
+        description: `${out ? "Tu: " : ""}${(m.testo ?? "").substring(0, 120)}`,
+        timestamp: m.ts,
+      });
+    });
+
     // Sort by timestamp desc
     list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     return list;
-  }, [customerId, customerCreatedAt, orders, tickets, appuntamenti, fatture, emailConversations, diaryMessages]);
+  }, [customerId, customerCreatedAt, orders, tickets, appuntamenti, fatture, emailConversations, diaryMessages, messaggi]);
 
   // Filtra in base a tab attivo
   const filteredEvents = useMemo(() => {
