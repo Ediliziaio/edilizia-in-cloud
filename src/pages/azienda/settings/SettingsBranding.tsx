@@ -21,6 +21,7 @@ import {
   useRequestDomainVerification,
   useVerifyCustomDomain,
 } from "@/hooks/useBrandingByDomain";
+import { isValidHexColor } from "@/lib/brandTheme";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useQueryClient } from "@tanstack/react-query";
@@ -98,9 +99,72 @@ function FileUploadButton({
   );
 }
 
-/* Note: HexColorInput e LivePreview rimossi insieme alla palette colori.
-   Quando il binding HEX→HSL al design system sarà pronto, ripristinare dalla
-   storia git (commit d09fe07e) e abilitare la sezione colori. */
+function HexColorInput({
+  label, value, onChange, disabled, hint,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  hint?: string;
+}) {
+  const valid = isValidHexColor(value);
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs">{label}</Label>
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          value={valid ? value : "#1E40AF"}
+          onChange={(e) => onChange(e.target.value.toUpperCase())}
+          disabled={disabled}
+          className="h-9 w-12 rounded border cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 bg-transparent p-0.5"
+          aria-label={`Selettore ${label}`}
+        />
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value.trim())}
+          placeholder="#1E40AF"
+          maxLength={7}
+          disabled={disabled}
+          aria-invalid={!valid}
+          className={`max-w-28 font-mono text-xs uppercase ${!valid ? "border-destructive" : ""}`}
+        />
+      </div>
+      {!valid && <p className="text-[10px] text-destructive">Formato HEX richiesto, es. #1E40AF</p>}
+      {hint && valid && <p className="text-[10px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+/** Anteprima statica dei colori scelti — non tocca il tema globale finché non salvi. */
+function PalettePreview({ primary, accent, textOnPrimary }: { primary: string; accent: string; textOnPrimary: string }) {
+  const safePrimary = isValidHexColor(primary) ? primary : "#1E40AF";
+  const safeAccent = isValidHexColor(accent) ? accent : "#DBEAFE";
+  const safeText = isValidHexColor(textOnPrimary) ? textOnPrimary : "#FFFFFF";
+  return (
+    <div className="rounded-lg border p-4 space-y-3 bg-muted/20">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Anteprima</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span
+          className="inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium shadow-sm"
+          style={{ backgroundColor: safePrimary, color: safeText }}
+        >
+          Bottone primario
+        </span>
+        <span
+          className="inline-flex items-center rounded-md px-3 py-1.5 text-sm border"
+          style={{ backgroundColor: safeAccent, color: safePrimary }}
+        >
+          Voce evidenziata
+        </span>
+        <span className="text-sm font-medium" style={{ color: safePrimary }}>
+          Link e icone
+        </span>
+      </div>
+    </div>
+  );
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    MAIN
@@ -167,11 +231,25 @@ export default function SettingsBranding() {
       toast.error("Non hai i permessi per modificare il branding");
       return;
     }
-    // Validazione hex non più necessaria: la palette colori è disabilitata
-    // (i campi brand_*_color sono salvati ma non editabili dalla UI).
+    const hexFields: Array<[string, string]> = [
+      ["Colore primario", form.brand_primary_color],
+      ["Colore secondario", form.brand_secondary_color],
+      ["Colore evidenziazione", form.brand_accent_color],
+      ["Testo su primario", form.brand_text_on_primary],
+    ];
+    const invalid = hexFields.find(([, v]) => !isValidHexColor(v));
+    if (invalid) {
+      toast.error(`${invalid[0]}: formato HEX non valido (es. #1E40AF)`);
+      return;
+    }
     setSaving(true);
     try {
-      await saveBrand.mutateAsync(form as Partial<typeof brand>);
+      // white_label_enabled è il flag runtime letto dai layout: va acceso
+      // quando l'azienda ha un tier white-label attivo.
+      await saveBrand.mutateAsync({
+        ...form,
+        ...(wlGate.isWhiteLabel ? { white_label_enabled: true } : {}),
+      } as Partial<typeof brand>);
 
       // Sync su company_branding (per login page + custom domain branding)
       if (companyId) {
@@ -318,6 +396,7 @@ export default function SettingsBranding() {
   // Gating capabilities dal tier: se tier presente, applica i flag
   // Capabilities tier (la palette colori è temporaneamente disabilitata sul
   // frontend a prescindere dal tier).
+  const canChangeColors = !wlGate.isWhiteLabel || wlGate.canChangeColors !== false;
   const canLoginPage = !wlGate.isWhiteLabel || wlGate.canChangeLoginPage !== false;
   const canCustomDomain = !wlGate.isWhiteLabel || wlGate.canCustomDomain !== false;
   const canHidePoweredBy = !wlGate.isWhiteLabel || wlGate.canHidePoweredBy !== false;
@@ -440,34 +519,67 @@ export default function SettingsBranding() {
                 </CardContent>
               </Card>
 
-              {/* Palette colori — disabilitata: i colori vengono salvati nel DB
-                  ma il design system dell'app usa --primary (HSL) non
-                  --brand-primary (HEX). Non applichiamo finché non c'è il
-                  binding completo HEX→HSL per evitare di rompere il look. */}
-              <Card className="border-dashed">
+              {/* Palette colori — i valori HEX vengono convertiti in HSL e
+                  applicati alle variabili del design system (--primary, --accent,
+                  sidebar) da applyBrandTheme nei layout. */}
+              <Card>
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Palette className="h-4 w-4 text-muted-foreground" /> Palette colori
-                    <Badge variant="secondary" className="text-[10px]">In arrivo</Badge>
                   </CardTitle>
                   <CardDescription>
-                    La personalizzazione dei colori della piattaforma è in fase di rilascio.
-                    Stiamo lavorando al binding completo con il design system per garantire
-                    un'esperienza visiva coerente. Per ora restano disponibili logo, favicon,
-                    nome piattaforma, sfondo login e dominio personalizzato.
+                    Il colore primario viene applicato a bottoni, link, icone e voci attive
+                    della piattaforma. Le modifiche sono visibili subito dopo il salvataggio.
                   </CardDescription>
+                  {!canChangeColors && (
+                    <CardDescription className="text-amber-600">
+                      Il tuo tier ({wlGate.name}) non include la personalizzazione colori.
+                    </CardDescription>
+                  )}
                 </CardHeader>
-                <CardContent>
-                  <Alert>
-                    <Palette className="h-4 w-4" />
-                    <AlertDescription className="text-xs">
-                      Vuoi i colori del tuo brand sulla piattaforma?{" "}
-                      <a href="/cliente/assistenza" className="text-primary underline">
-                        Contatta l'assistenza
-                      </a>{" "}
-                      — possiamo applicarli manualmente al tuo account.
-                    </AlertDescription>
-                  </Alert>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <HexColorInput
+                      label="Colore primario"
+                      value={form.brand_primary_color}
+                      onChange={(v) => setForm((f) => ({ ...f, brand_primary_color: v }))}
+                      disabled={!canEdit || !canChangeColors}
+                      hint="Bottoni, link, icone"
+                    />
+                    <HexColorInput
+                      label="Colore evidenziazione"
+                      value={form.brand_accent_color}
+                      onChange={(v) => setForm((f) => ({ ...f, brand_accent_color: v }))}
+                      disabled={!canEdit || !canChangeColors}
+                      hint="Sfondo voci attive e hover"
+                    />
+                    <HexColorInput
+                      label="Testo su primario"
+                      value={form.brand_text_on_primary}
+                      onChange={(v) => setForm((f) => ({ ...f, brand_text_on_primary: v }))}
+                      disabled={!canEdit || !canChangeColors}
+                      hint="Di solito bianco"
+                    />
+                  </div>
+                  <PalettePreview
+                    primary={form.brand_primary_color}
+                    accent={form.brand_accent_color}
+                    textOnPrimary={form.brand_text_on_primary}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!canEdit || !canChangeColors}
+                    onClick={() => setForm((f) => ({
+                      ...f,
+                      brand_primary_color: "#1E40AF",
+                      brand_secondary_color: "#3B82F6",
+                      brand_accent_color: "#DBEAFE",
+                      brand_text_on_primary: "#FFFFFF",
+                    }))}
+                  >
+                    Ripristina colori predefiniti
+                  </Button>
                 </CardContent>
               </Card>
 

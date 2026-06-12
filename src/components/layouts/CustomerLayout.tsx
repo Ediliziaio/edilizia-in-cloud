@@ -3,6 +3,7 @@ import { Link, Outlet } from "react-router-dom";
 import { Eye, LogOut, PenTool } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrandSettings } from "@/hooks/useBrandSettings";
+import { applyBrandTheme, clearBrandTheme } from "@/lib/brandTheme";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useCustomCSS } from "@/hooks/useCustomCSS";
 import { usePreviewToken } from "@/hooks/usePreviewToken";
@@ -53,14 +54,14 @@ export function CustomerLayout() {
 
   const initials = (profile?.first_name?.[0] ?? "") + (profile?.last_name?.[0] ?? "");
 
-  // Apply CSS variables for brand colors
+  // Applica i colori brand al design system (--primary, --accent, sidebar)
   useEffect(() => {
-    const root = document.documentElement;
     if (effectiveBrand.isWhiteLabel) {
-      root.style.setProperty("--brand-primary", effectiveBrand.primaryColor);
-      root.style.setProperty("--brand-secondary", effectiveBrand.secondaryColor);
-      root.style.setProperty("--brand-accent", effectiveBrand.accentColor);
-      root.style.setProperty("--brand-text-on-primary", effectiveBrand.textOnPrimary);
+      applyBrandTheme({
+        primaryColor: effectiveBrand.primaryColor,
+        accentColor: effectiveBrand.accentColor,
+        textOnPrimary: effectiveBrand.textOnPrimary,
+      });
       if (effectiveBrand.faviconUrl) {
         let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
         if (!link) { link = document.createElement("link"); link.rel = "icon"; document.head.appendChild(link); }
@@ -68,17 +69,9 @@ export function CustomerLayout() {
       }
       if (effectiveBrand.platformName) document.title = effectiveBrand.platformName;
     } else {
-      root.style.removeProperty("--brand-primary");
-      root.style.removeProperty("--brand-secondary");
-      root.style.removeProperty("--brand-accent");
-      root.style.removeProperty("--brand-text-on-primary");
+      clearBrandTheme();
     }
-    return () => {
-      root.style.removeProperty("--brand-primary");
-      root.style.removeProperty("--brand-secondary");
-      root.style.removeProperty("--brand-accent");
-      root.style.removeProperty("--brand-text-on-primary");
-    };
+    return () => clearBrandTheme();
   }, [effectiveBrand]);
 
   return (

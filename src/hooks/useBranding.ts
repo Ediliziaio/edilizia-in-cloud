@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
-import { useEffect } from "react";
 
 export interface CompanyBranding {
   id: string;
@@ -55,53 +54,10 @@ export function useBranding() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Apply CSS custom properties when branding changes
-  useEffect(() => {
-    const branding = query.data;
-    const root = document.documentElement;
-
-    if (!branding) {
-      // Reset custom branding vars
-      root.style.removeProperty("--brand-primary");
-      root.style.removeProperty("--brand-secondary");
-      root.style.removeProperty("--brand-accent");
-      root.style.removeProperty("--brand-sidebar-bg");
-      root.style.removeProperty("--brand-sidebar-text");
-      return;
-    }
-
-    if (branding.primary_color) {
-      root.style.setProperty("--brand-primary", branding.primary_color);
-    }
-    if (branding.secondary_color) {
-      root.style.setProperty("--brand-secondary", branding.secondary_color);
-    }
-    if (branding.accent_color) {
-      root.style.setProperty("--brand-accent", branding.accent_color);
-    }
-    if (branding.sidebar_bg_color) {
-      root.style.setProperty("--brand-sidebar-bg", branding.sidebar_bg_color);
-    }
-    if (branding.sidebar_text_color) {
-      root.style.setProperty("--brand-sidebar-text", branding.sidebar_text_color);
-    }
-
-    // Update favicon
-    if (branding.favicon_url) {
-      const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
-      if (link) {
-        link.href = branding.favicon_url;
-      }
-    }
-
-    return () => {
-      root.style.removeProperty("--brand-primary");
-      root.style.removeProperty("--brand-secondary");
-      root.style.removeProperty("--brand-accent");
-      root.style.removeProperty("--brand-sidebar-bg");
-      root.style.removeProperty("--brand-sidebar-text");
-    };
-  }, [query.data]);
+  // NOTA: nessun side-effect CSS qui. L'applicazione del tema brand avviene
+  // SOLO nei layout via applyBrandTheme (src/lib/brandTheme.ts) — questo hook
+  // veniva montato da più componenti e i cleanup concorrenti si cancellavano
+  // a vicenda le variabili.
 
   return {
     branding: query.data ?? null,

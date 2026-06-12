@@ -9,7 +9,7 @@ interface PoweredByBadgeProps {
 }
 
 export function PoweredByBadge({ className = "" }: PoweredByBadgeProps) {
-  const { data: branding } = useBranding();
+  const { branding } = useBranding();
 
   // Se il branding dice di nascondere il powered-by, non mostriamo nulla
   if (branding?.hide_platform_branding) return null;
