@@ -3,7 +3,7 @@
  * Inietta:
  *   - BreadcrumbList
  *   - Organization (azienda)
- *   - WebSite (con SearchAction)
+ *   - WebSite
  *   - WebPage (con primaryImageOfPage e descrizione)
  *
  * Uso:
@@ -57,14 +57,10 @@ const WEBSITE_LD = {
     "Software gestionale per imprese edili: cantieri, fatturazione SDI, HR, marketing e cassa in un'unica piattaforma cloud.",
   publisher: { "@id": `${SITE_URL}/#organization` },
   inLanguage: "it-IT",
-  potentialAction: {
-    "@type": "SearchAction",
-    target: {
-      "@type": "EntryPoint",
-      urlTemplate: `${SITE_URL}/blog?q={search_term_string}`,
-    },
-    "query-input": "required name=search_term_string",
-  },
+  // SearchAction RIMOSSO (fix GSC 2026-06): Google scansionava l'URL template
+  // letterale /blog?q={search_term_string} e lo segnalava per sempre come
+  // "Pagina alternativa con tag canonical", facendo fallire la convalida.
+  // Il rich result Sitelinks Searchbox è dismesso da Google da ottobre 2024.
 };
 
 interface HubSeoSchemaProps {
