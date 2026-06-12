@@ -99,6 +99,36 @@ interface ImapCustomDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/**
+ * Traduce gli errori grezzi IMAP/SMTP in messaggi azionabili in italiano.
+ * Es. "imap_A1 NO [AUTHENTICATIONFAILED] Authentication failed." è corretto
+ * ma incomprensibile per un utente non tecnico.
+ */
+function umanizzaErroreImap(raw: string): { titolo: string; dettaglio: string } {
+  const r = raw.toLowerCase();
+  if (r.includes("authenticationfailed") || r.includes("authentication failed") ||
+      r.includes("invalid credentials") || r.includes("login failed") || r.includes("auth")) {
+    return {
+      titolo: "Email o password errati",
+      dettaglio: "Controlla le credenziali. Attenzione: Libero, Yahoo, iCloud e Gmail richiedono una \"password per app\" dedicata (generata dalle impostazioni di sicurezza del provider), NON la password normale dell'account.",
+    };
+  }
+  if (r.includes("timed out") || r.includes("timeout") || r.includes("etimedout") ||
+      r.includes("refused") || r.includes("econnrefused") || r.includes("not found") || r.includes("enotfound")) {
+    return {
+      titolo: "Server non raggiungibile",
+      dettaglio: "Controlla l'host e la porta del server. Se hai scelto un provider dal menu, verifica che l'account sia davvero di quel provider.",
+    };
+  }
+  if (r.includes("certificate") || r.includes("tls") || r.includes("ssl") || r.includes("handshake")) {
+    return {
+      titolo: "Errore di connessione sicura (SSL/TLS)",
+      dettaglio: "Prova a cambiare l'interruttore SSL: porta 993 → SSL attivo, porta 143 → SSL spento (IMAP); porta 465 → SSL attivo, porta 587 → SSL spento (SMTP).",
+    };
+  }
+  return { titolo: "Test fallito", dettaglio: raw };
+}
+
 export function ImapCustomDialog({ open, onOpenChange }: ImapCustomDialogProps) {
   const qc = useQueryClient();
   const [preset, setPreset] = useState<string>("custom");
@@ -161,7 +191,21 @@ export function ImapCustomDialog({ open, onOpenChange }: ImapCustomDialogProps) 
           smtp_secure: smtpSecure,
         },
       });
-      if (error) throw new Error(error.message);
+      if (error) {
+        // BUGFIX: su credenziali errate la funzione risponde 400 con l'errore
+        // VERO nel body ({ok:false, error:"...AUTHENTICATIONFAILED..."}), ma
+        // functions.invoke lo maschera con il generico "Edge Function returned
+        // a non-2xx status code". Leggiamo il body dalla Response in context.
+        let detail = error.message;
+        try {
+          const ctx = (error as { context?: Response }).context;
+          if (ctx && typeof ctx.json === "function") {
+            const j = await ctx.json();
+            if (j?.error) detail = String(j.error);
+          }
+        } catch { /* body non leggibile → tieni il messaggio generico */ }
+        throw new Error(detail);
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r = data as any;
       if (r?.ok === false) throw new Error(r.error ?? "Test fallito");
@@ -335,15 +379,21 @@ export function ImapCustomDialog({ open, onOpenChange }: ImapCustomDialogProps) 
               Connessione IMAP verificata. Puoi salvare.
             </div>
           )}
-          {testStatus === "error" && testError && (
-            <div className="flex items-start gap-2 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium">Test fallito</p>
-                <p className="text-[10px] mt-0.5 break-words">{testError}</p>
+          {testStatus === "error" && testError && (() => {
+            const err = umanizzaErroreImap(testError);
+            return (
+              <div className="flex items-start gap-2 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium">{err.titolo}</p>
+                  <p className="text-[11px] mt-0.5 break-words">{err.dettaglio}</p>
+                  {err.dettaglio !== testError && (
+                    <p className="text-[9px] mt-1 text-rose-400 break-words font-mono">{testError}</p>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         <DialogFooter className="gap-2">
