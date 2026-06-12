@@ -15,7 +15,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getPlatformSetting } from "../_shared/getPlatformSetting.ts";
 
-const MARKETING_DOMAIN = "mail.ediliziaincloud.com";
+const MARKETING_DOMAIN = "mkt.ediliziaincloud.com";
 const CF_ZONE_NAME = "ediliziaincloud.com";
 const ELASTIC_DKIM_PUBLIC_KEY =
   "k=rsa;t=s;p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCbmGbQMzYeMvxwtNQoXN0waGYaciuKx8mtMh5czguT4EZlJXuCt6V+l56mmt3t68FEX5JJ0q4ijG71BGoFRkl87uJi7LrQt1ZZmZCvrEII0YO4mp8sDLXC8g1aUAoi8TJgxq2MJqCaMyj5kAm3Fdy2tzftPCV/lbdiJqmBnWKjtwIDAQAB";
@@ -145,6 +145,35 @@ Deno.serve(async (req) => {
           }))
           : zones,
       });
+    }
+
+    if (action === "ee_add_domain") {
+      // Registra il dominio piattaforma su EE senza toccare Cloudflare
+      // (record DNS gestiti a mano finché il token CF non viene rigenerato).
+      const addRes = await fetch("https://api.elasticemail.com/v4/domains", {
+        method: "POST",
+        headers: eeHeaders,
+        body: JSON.stringify({ domain: MARKETING_DOMAIN }),
+      });
+      const ok = addRes.ok || addRes.status === 409 || addRes.status === 400;
+      return json({
+        success: ok,
+        domain: MARKETING_DOMAIN,
+        status: addRes.status,
+        error: ok ? null : (await addRes.text()).slice(0, 300),
+      });
+    }
+
+    if (action === "ee_remove_domain") {
+      const domain = String(body.domain ?? "");
+      if (!domain.endsWith(".ediliziaincloud.com") && !domain.endsWith(".ediliziaincloud.it")) {
+        return json({ error: "rimozione consentita solo per sottodomini piattaforma" }, 400);
+      }
+      const delRes = await fetch(
+        `https://api.elasticemail.com/v4/domains/${encodeURIComponent(domain)}`,
+        { method: "DELETE", headers: { "X-ElasticEmail-ApiKey": eeKey } },
+      );
+      return json({ success: delRes.ok, domain, status: delRes.status });
     }
 
     if (action === "setup_domain") {
