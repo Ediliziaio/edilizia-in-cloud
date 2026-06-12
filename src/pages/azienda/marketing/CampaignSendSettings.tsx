@@ -123,7 +123,9 @@ export default function CampaignSendSettings() {
         .from("marketing_contacts")
         .select("id", { count: "exact", head: true }) as any)
         .eq("company_id", company!.id)
-        .eq("email_unsubscribed", false)
+        // colonne reali: unsubscribed (globale) + optout_email (canale email)
+        .eq("unsubscribed", false)
+        .not("optout_email", "is", true)
         .not("email", "is", null);
 
       if (recipientMode === "segment") {
