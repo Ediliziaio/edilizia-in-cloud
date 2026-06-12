@@ -263,9 +263,9 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
                 </AlertDescription>
               </Alert>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <AutoTopupConfig walletType="email" />
-                <AutoTopupConfig walletType="ai" />
-                <AutoTopupConfig walletType="whatsapp" />
+                <AutoTopupConfig walletType="email" onRecharge={() => setRechargeWallet("email")} />
+                <AutoTopupConfig walletType="ai" onRecharge={() => setRechargeWallet("ai")} />
+                <AutoTopupConfig walletType="whatsapp" onRecharge={() => setRechargeWallet("whatsapp")} />
                 <AutoTopupConfig walletType="render" />
               </div>
             </AccordionContent>
@@ -325,9 +325,9 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
               </AlertDescription>
             </Alert>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <AutoTopupConfig walletType="email" />
-              <AutoTopupConfig walletType="ai" />
-              <AutoTopupConfig walletType="whatsapp" />
+              <AutoTopupConfig walletType="email" onRecharge={() => setRechargeWallet("email")} />
+              <AutoTopupConfig walletType="ai" onRecharge={() => setRechargeWallet("ai")} />
+              <AutoTopupConfig walletType="whatsapp" onRecharge={() => setRechargeWallet("whatsapp")} />
               <AutoTopupConfig walletType="render" />
             </div>
           </TabsContent>
