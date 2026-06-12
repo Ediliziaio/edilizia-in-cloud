@@ -523,10 +523,10 @@ export default function HeroSection() {
         <div className="gsap-hero-item">
           <h1 className="mx-auto mb-4 max-w-6xl font-extrabold leading-[1.03] tracking-tight md:mb-5">
             <span className="block text-white text-[clamp(2.15rem,5.1vw,5.25rem)]">
-              Scopri quali cantieri ti fanno perdere soldi.
+              Aumenta margini, utili e guadagni.
             </span>
             <span className="mt-2 block text-[#F97415] text-[clamp(1.95rem,4.45vw,4.6rem)] md:mt-3">
-              Prima che sia troppo tardi.
+              Controlla la tua azienda con l'AI per l'edilizia.
             </span>
           </h1>
 

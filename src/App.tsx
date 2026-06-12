@@ -151,9 +151,10 @@ const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const PublicBooking = lazy(() => import("@/pages/public/PublicBooking"));
 const PublicChatWidgetPage = lazy(() => import("@/pages/widget/PublicChatWidgetPage"));
 const PublicReview = lazy(() => import("@/pages/public/PublicReview"));
-const SiteChatWidget = lazy(() =>
-  import("@/components/public-chat/SiteChatWidget").then((m) => ({ default: m.SiteChatWidget })),
-);
+// Sito pubblico: FAB WhatsApp al posto del widget chat AI (SiteChatWidget) —
+// per il target edile WhatsApp converte meglio di una chat bot. Il widget
+// chat resta disponibile per i clienti via PublicChatWidgetPage (embed).
+const WhatsAppFab = lazy(() => import("@/components/landing/WhatsAppFab"));
 const DynamicQrRedirect = lazy(() => import("@/pages/public/DynamicQrRedirect"));
 const QuoteSignPage = lazy(() => import("@/pages/public/QuoteSignPage"));
 const SignaturePage = lazy(() => import("@/pages/public/SignaturePage"));
@@ -463,7 +464,7 @@ function PublicSiteChatWidgetGate() {
   const { pathname } = useLocation();
   if (isNative) return null;
   if (PRIVATE_APP_PREFIXES.test(pathname || "/")) return null;
-  return <SiteChatWidget />;
+  return <WhatsAppFab />;
 }
 
 function BootGuardDismiss() {
@@ -752,9 +753,8 @@ const App = () => (
               {/* Catch-all — also handles city landing pages (React Router v7 does not match mid-segment params) */}
               <Route path="*" element={<CityOrNotFound />} />
             </Routes>
-            {/* Public chat widget — appare in basso a destra su pagine pubbliche
-                (login, landing); auto-nascosto per utenti autenticati che hanno
-                già la chat Silvio interna. Usa VITE_PUBLIC_CHAT_TOKEN env var. */}
+            {/* FAB WhatsApp — in basso a destra su tutte le pagine pubbliche
+                (login, landing): canale diretto a minor attrito per i lead. */}
             <PublicSiteChatWidgetGate />
             {/* v8.6.91 — Install PWA prompt (Android/iOS) — disabilitato su
                 richiesta utente: era invasivo e copriva i CTA sul mobile.

@@ -52,3 +52,7 @@ Masterprompt_*.docx
 backups/
 
 # MP-CLN-001: archivio storico non attivo
+
+# Artefatti temporanei e build mobile (72MB+, non vanno nel repo)
+.tmp/
+docs/mobile-store-assets/android/*.aab
