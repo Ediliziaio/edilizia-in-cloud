@@ -648,9 +648,15 @@ async function actionVerifyDomain(
       .eq("company_id", companyId)
       .maybeSingle();
     if (!prefs) {
+      // reply_to_email è NOT NULL: default best-guess sul dominio appena
+      // verificato, modificabile in Impostazioni → Preferenze Email.
       await admin
         .from("company_email_preferences")
-        .insert({ company_id: companyId, marketing_domain_id: row.id });
+        .insert({
+          company_id: companyId,
+          marketing_domain_id: row.id,
+          reply_to_email: `info@${row.domain}`,
+        });
     } else if (!prefs.marketing_domain_id) {
       await admin
         .from("company_email_preferences")

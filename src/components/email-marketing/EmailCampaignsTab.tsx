@@ -15,8 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Search, FolderPlus, Mail, Zap, Users, MoreHorizontal, Trash2, ChevronRight, ChevronLeft, Send, Copy, Pencil, FolderInput } from "lucide-react";
+import { Search, FolderPlus, Mail, Zap, Users, MoreHorizontal, Trash2, ChevronRight, ChevronLeft, Send, Copy, Pencil, FolderInput, BarChart3 } from "lucide-react";
 import { CampaignCreateDropdown } from "./CampaignCreateDropdown";
+import { CampaignDetailDialog } from "./CampaignDetailDialog";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 import { toast } from "sonner";
 import { queryKeys } from "@/lib/queryKeys";
@@ -62,6 +63,9 @@ export function EmailCampaignsTab() {
   // Move to folder dialog
   const [moveTarget, setMoveTarget] = useState<string | null>(null);
   const [moveFolderId, setMoveFolderId] = useState<string | null>(null);
+
+  // Campaign results drill-down dialog
+  const [detailTarget, setDetailTarget] = useState<{ id: string; name: string } | null>(null);
 
   // Reset page when filters change
   useEffect(() => { setPage(0); }, [search, category, currentFolderId]);
@@ -368,6 +372,14 @@ export function EmailCampaignsTab() {
                             <Button size="icon" variant="ghost"><MoreHorizontal className="h-4 w-4" /></Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            {["sent", "sending", "completed"].includes(c.status) && (
+                              <>
+                                <DropdownMenuItem onClick={() => setDetailTarget({ id: c.id, name: c.name })}>
+                                  <BarChart3 className="h-4 w-4 mr-2" /> Risultati
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
                             <DropdownMenuItem onClick={() => { setRenameTarget({ id: c.id, name: c.name }); setRenameValue(c.name); }}>
                               <Pencil className="h-4 w-4 mr-2" /> Rinomina
                             </DropdownMenuItem>
@@ -423,6 +435,12 @@ export function EmailCampaignsTab() {
         onOpenChange={setFolderDialogOpen}
         onConfirm={(name) => createFolderMut.mutate(name)}
         isPending={createFolderMut.isPending}
+      />
+
+      <CampaignDetailDialog
+        campaignId={detailTarget?.id ?? null}
+        campaignName={detailTarget?.name}
+        onClose={() => setDetailTarget(null)}
       />
 
       {/* Delete dialog */}

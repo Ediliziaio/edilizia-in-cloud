@@ -322,16 +322,14 @@ export async function sendViaProvider(
           ContentType: a.type,
         }));
       }
+      // NB: niente Options.TrackOpens/TrackClicks — Elastic Email rifiuta
+      // l'override per-email ("You cannot change the tracking options") sugli
+      // account dove il tracking è gestito a livello account. Il tracking
+      // EiC (pixel + link firmati) funziona comunque.
       const payload: Record<string, unknown> = stream === "marketing"
         ? {
             Recipients: req.to.map((email) => ({ Email: email })),
             Content: content,
-            Options: disableNativeTracking
-              ? {
-                  TrackOpens: false,
-                  TrackClicks: false,
-                }
-              : undefined,
           }
         : {
             Recipients: {

@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     // Update the contact: confirmed = true
     await adminClient
       .from("marketing_contacts")
-      .update({ email_unsubscribed: false, email_unsubscribed_at: null })
+      .update({ optout_email: false, unsubscribed: false, unsubscribed_at: null })
       .eq("id", record.contact_id);
 
     return confirmationPage(true, "Iscrizione confermata! Potrai ora ricevere le nostre comunicazioni.");

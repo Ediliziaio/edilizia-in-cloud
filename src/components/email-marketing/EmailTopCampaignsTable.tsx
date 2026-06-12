@@ -19,6 +19,8 @@ interface CampaignRow {
 
 interface EmailTopCampaignsTableProps {
   campaigns: CampaignRow[];
+  /** Apre il drill-down per-destinatario della campagna. */
+  onCampaignClick?: (id: string, name: string) => void;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -27,7 +29,7 @@ const TYPE_LABELS: Record<string, string> = {
   bulk: "Azione in blocco",
 };
 
-export function EmailTopCampaignsTable({ campaigns }: EmailTopCampaignsTableProps) {
+export function EmailTopCampaignsTable({ campaigns, onCampaignClick }: EmailTopCampaignsTableProps) {
   const [showNumbers, setShowNumbers] = useState(false);
   const [sortBy, setSortBy] = useState("open_rate");
 
@@ -86,7 +88,11 @@ export function EmailTopCampaignsTable({ campaigns }: EmailTopCampaignsTableProp
             </TableHeader>
             <TableBody>
               {sorted.slice(0, 10).map((c) => (
-                <TableRow key={c.id}>
+                <TableRow
+                  key={c.id}
+                  className={onCampaignClick ? "cursor-pointer" : undefined}
+                  onClick={onCampaignClick ? () => onCampaignClick(c.id, c.name) : undefined}
+                >
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell className="text-muted-foreground">
                     {c.sent_at ? format(new Date(c.sent_at), "dd MMM yyyy", { locale: it }) : "—"}

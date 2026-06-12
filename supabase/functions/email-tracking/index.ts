@@ -52,7 +52,7 @@ async function unsubscribeContact(
 
   await adminClient
     .from("marketing_contacts")
-    .update({ email_unsubscribed: true, email_unsubscribed_at: now })
+    .update({ optout_email: true })
     .eq("id", contactId)
     .eq("company_id", companyId);
 

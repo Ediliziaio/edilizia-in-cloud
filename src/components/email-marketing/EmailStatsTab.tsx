@@ -7,6 +7,7 @@ import { EmailFunnelChart } from "./EmailFunnelChart";
 import { EmailPerformanceChart } from "./EmailPerformanceChart";
 import { EmailTopCampaignsTable } from "./EmailTopCampaignsTable";
 import { CampaignCreateDropdown } from "./CampaignCreateDropdown";
+import { CampaignDetailDialog } from "./CampaignDetailDialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -15,6 +16,7 @@ export function EmailStatsTab() {
   const [campaignFilter, setCampaignFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [detailTarget, setDetailTarget] = useState<{ id: string; name: string } | null>(null);
 
   const rpcParams = useMemo(() => ({
     p_company_id: company?.id ?? "",
@@ -198,8 +200,17 @@ export function EmailStatsTab() {
       {/* Performance chart */}
       <EmailPerformanceChart datasets={chartDatasets} />
 
-      {/* Top campaigns table */}
-      <EmailTopCampaignsTable campaigns={campaignPerf} />
+      {/* Top campaigns table — click su riga apre il dettaglio destinatari */}
+      <EmailTopCampaignsTable
+        campaigns={campaignPerf}
+        onCampaignClick={(id, name) => setDetailTarget({ id, name })}
+      />
+
+      <CampaignDetailDialog
+        campaignId={detailTarget?.id ?? null}
+        campaignName={detailTarget?.name}
+        onClose={() => setDetailTarget(null)}
+      />
     </div>
   );
 }

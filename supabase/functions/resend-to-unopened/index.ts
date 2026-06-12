@@ -112,7 +112,8 @@ Deno.serve(async (req) => {
         .from("marketing_contacts")
         .select("id, email, first_name, last_name")
         .in("id", contactIds)
-        .eq("email_unsubscribed", false)
+        .eq("unsubscribed", false)
+        .not("optout_email", "is", true)
         .not("email", "is", null);
 
       if (contactsError || !contacts || contacts.length === 0) continue;

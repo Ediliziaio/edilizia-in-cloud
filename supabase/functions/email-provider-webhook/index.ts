@@ -275,9 +275,11 @@ Deno.serve(async (req) => {
           }
 
           if (supReason === "unsubscribe" && supCompanyId) {
+            // optout_email = colonna reale per l'opt-out del canale email
+            // (la vecchia email_unsubscribed non esiste e falliva in silenzio)
             await adminClient
               .from("marketing_contacts")
-              .update({ email_unsubscribed: true, email_unsubscribed_at: now })
+              .update({ optout_email: true })
               .eq("company_id", supCompanyId)
               .eq("email", event.email);
           }
@@ -287,7 +289,7 @@ Deno.serve(async (req) => {
           if (supReason === "hard_bounce" || supReason === "spam_complaint") {
             await adminClient
               .from("marketing_contacts")
-              .update({ email_unsubscribed: true, email_unsubscribed_at: now })
+              .update({ optout_email: true })
               .eq("email", event.email);
           }
         } else if (event.type === "unsubscribed" && !deliveryCompanyId) {

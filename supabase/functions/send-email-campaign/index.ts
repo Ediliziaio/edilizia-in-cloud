@@ -57,7 +57,9 @@ async function fetchCampaignContacts(
       .from("marketing_contacts")
       .select("id, email, first_name, last_name, phone, city, province, company_name")
       .eq("company_id", companyId)
-      .eq("email_unsubscribed", false)
+      // colonne reali: unsubscribed (globale) + optout_email (canale email)
+      .eq("unsubscribed", false)
+      .not("optout_email", "is", true)
       .not("email", "is", null)
       .range(from, from + PAGE_SIZE - 1);
 
