@@ -171,22 +171,6 @@ function useGsapSection() {
           },
         });
 
-        gsap.to("[data-ai-orbit]", {
-          rotate: 360,
-          duration: 38,
-          repeat: -1,
-          ease: "none",
-          transformOrigin: "center center",
-        });
-
-        gsap.to("[data-ai-line]", {
-          strokeDashoffset: -48,
-          duration: 2.8,
-          repeat: -1,
-          ease: "none",
-          stagger: 0.12,
-        });
-
         // Skip se nessun target nel DOM (altrimenti GSAP logga warning a
         // ogni mount). data-ai-float è opzionale nel template — se non
         // c'è, salta semplicemente l'animazione.
@@ -225,9 +209,33 @@ function useGsapSection() {
   return ref;
 }
 
+/**
+ * AiBrainMap — costellazione orbitante del "Cervello AI", come dentro l'app
+ * (AIBrainGraph): i reparti AI ruotano a 360° attorno a Silvio (mascotte
+ * ufficiale al centro), i puntini interni sono le memorie aziendali.
+ * Il dettaglio del reparto attivo vive in UN solo pannello in basso —
+ * niente card sovrapposte. La rotazione si ferma quando il mouse entra.
+ */
+const MEMORY_DOTS = [
+  { angle: 8, scale: 1, color: "#F97415" },
+  { angle: 44, scale: 0.7, color: "#3b82f6" },
+  { angle: 86, scale: 0.85, color: "#22c55e" },
+  { angle: 120, scale: 0.6, color: "#f59e0b" },
+  { angle: 158, scale: 1, color: "#8b5cf6" },
+  { angle: 196, scale: 0.75, color: "#F97415" },
+  { angle: 232, scale: 0.9, color: "#22c55e" },
+  { angle: 268, scale: 0.65, color: "#3b82f6" },
+  { angle: 304, scale: 0.8, color: "#F97415" },
+  { angle: 340, scale: 0.7, color: "#f59e0b" },
+];
+
+// Pausa sincronizzata di ruota e contro-rotazioni: se si fermasse solo la
+// ruota, i nodi continuerebbero a contro-ruotare e si inclinerebbero.
+const ORBIT_PAUSE_ON_HOVER =
+  "group-hover/brain:[animation-play-state:paused] group-focus-within/brain:[animation-play-state:paused]";
+
 function AiBrainMap() {
   const [activeArea, setActiveArea] = useState(agentGroups[0]);
-  const mapRef = useRef<HTMLDivElement>(null);
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -237,17 +245,23 @@ function AiBrainMap() {
 
   return (
     <div
-      ref={mapRef}
       onPointerMove={handlePointerMove}
-      className="group/brain relative min-h-[560px] overflow-hidden rounded-[32px] border border-white/10 bg-[#0a1222] p-5 shadow-2xl max-[520px]:min-h-0 max-[520px]:rounded-[24px] max-[520px]:p-4 lg:min-h-[640px]"
+      className="group/brain relative h-[560px] overflow-hidden rounded-[28px] border border-white/10 bg-[#0a1222] shadow-2xl sm:h-[600px] lg:h-[640px] [--orbit-r:118px] sm:[--orbit-r:168px] lg:[--orbit-r:200px] [--silvio-size:88px] sm:[--silvio-size:104px] lg:[--silvio-size:116px]"
       style={{
         ["--spot-x" as string]: "50%",
         ["--spot-y" as string]: "50%",
       }}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(249,116,21,0.22),transparent_32%),radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.18),transparent_28%),radial-gradient(circle_at_78%_72%,rgba(34,197,94,0.14),transparent_28%)]" />
+      <style>{`
+        @keyframes eic-orbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes eic-orbit-rev { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+        @keyframes eic-halo { 0%, 100% { opacity: .3; transform: scale(1); } 50% { opacity: .62; transform: scale(1.1); } }
+        @media (prefers-reduced-motion: reduce) { [data-eic-orbit] { animation: none !important; } }
+      `}</style>
+
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(249,116,21,0.22),transparent_34%),radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.16),transparent_28%),radial-gradient(circle_at_78%_72%,rgba(34,197,94,0.12),transparent_28%)]" />
       <div className="pointer-events-none absolute inset-0 opacity-0 transition duration-500 group-hover/brain:opacity-100" style={{
-        background: "radial-gradient(220px circle at var(--spot-x) var(--spot-y), rgba(249,116,21,.22), transparent 65%)",
+        background: "radial-gradient(220px circle at var(--spot-x) var(--spot-y), rgba(249,116,21,.2), transparent 65%)",
       }} />
       <div className="pointer-events-none absolute inset-0 opacity-[0.12]" style={{
         backgroundImage:
@@ -255,181 +269,169 @@ function AiBrainMap() {
         backgroundSize: "42px 42px",
       }} />
 
-      <div data-ai-orbit className="pointer-events-none absolute left-1/2 top-1/2 h-[360px] w-[360px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-white/12 max-[520px]:hidden md:h-[460px] md:w-[460px]" />
-      <div data-ai-orbit className="pointer-events-none absolute left-1/2 top-1/2 h-[250px] w-[250px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-orange-300/16 max-[520px]:hidden md:h-[330px] md:w-[330px]" />
-
-      <div className="absolute left-1/2 top-1/2 z-10 flex h-32 w-32 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-orange-300/40 bg-[#F97415] text-white shadow-[0_0_60px_rgba(249,116,21,0.45)] max-[520px]:hidden md:h-40 md:w-40">
-        <Brain className="h-8 w-8 md:h-10 md:w-10" />
-        <p className="mt-2 text-xl font-black md:text-2xl">Silvio</p>
-        <p className="text-[10px] font-bold uppercase tracking-wider text-orange-100">Regia AI</p>
+      {/* Badge superiori */}
+      <div className="absolute inset-x-4 top-4 z-20 flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-300/30 bg-orange-500/15 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-orange-200 backdrop-blur sm:px-3 sm:text-[10px]">
+          <Brain className="h-3 w-3" />
+          Memoria aziendale
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-emerald-200 backdrop-blur sm:px-3 sm:text-[10px]">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.95)]" />
+          Live azienda
+        </span>
       </div>
 
-      <div className="relative z-10 mb-4 hidden max-[520px]:block">
-        <div className="relative h-[330px] overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.04] p-3">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(249,116,21,.26),transparent_34%),radial-gradient(circle_at_18%_18%,rgba(59,130,246,.18),transparent_28%),radial-gradient(circle_at_82%_80%,rgba(34,197,94,.16),transparent_30%)]" />
-          <div className="pointer-events-none absolute inset-0 opacity-[0.16]" style={{
-            backgroundImage:
-              "linear-gradient(rgba(255,255,255,.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.18) 1px, transparent 1px)",
-            backgroundSize: "28px 28px",
-          }} />
-          <div data-ai-orbit className="pointer-events-none absolute left-1/2 top-[46%] h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-white/15" />
-          <div data-ai-orbit className="pointer-events-none absolute left-1/2 top-[46%] h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-orange-300/20" />
+      {/* Costellazione: origine al centro dell'orbita */}
+      <div className="absolute left-1/2 top-[42%]">
+        {/* Anelli guida statici */}
+        <div className="pointer-events-none absolute rounded-full border border-dashed border-white/12" style={{
+          width: "calc(var(--orbit-r) * 2)",
+          height: "calc(var(--orbit-r) * 2)",
+          left: "calc(var(--orbit-r) * -1)",
+          top: "calc(var(--orbit-r) * -1)",
+        }} />
+        <div className="pointer-events-none absolute rounded-full border border-dashed border-orange-300/20" style={{
+          width: "calc(var(--orbit-r) * 1.1)",
+          height: "calc(var(--orbit-r) * 1.1)",
+          left: "calc(var(--orbit-r) * -0.55)",
+          top: "calc(var(--orbit-r) * -0.55)",
+        }} />
 
-          <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-55" aria-hidden="true">
-            {[
-              [22, 23],
-              [76, 24],
-              [80, 62],
-              [50, 80],
-              [20, 63],
-            ].map(([x, y], index) => (
-              <line
-                key={`${x}-${y}`}
-                x1="50%"
-                y1="46%"
-                x2={`${x}%`}
-                y2={`${y}%`}
-                stroke={agentGroups[index].color}
-                strokeWidth="1.3"
-                data-ai-line
-                strokeDasharray="7 7"
-              />
-            ))}
-          </svg>
-
-          <div className="absolute left-1/2 top-[46%] z-20 flex h-24 w-24 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full border border-orange-200/45 bg-[#F97415] text-white shadow-[0_0_48px_rgba(249,116,21,.55)]">
-            <Brain className="h-7 w-7" />
-            <p className="mt-1 text-lg font-black">Silvio</p>
-            <p className="text-[9px] font-black uppercase tracking-wider text-orange-100">regia</p>
-          </div>
-
-          {agentGroups.map((group, index) => {
-            const positions = [
-              "left-[5%] top-[12%]",
-              "right-[4%] top-[14%]",
-              "right-[3%] bottom-[24%]",
-              "left-1/2 bottom-[8%] -translate-x-1/2",
-              "left-[4%] bottom-[25%]",
-            ][index];
-            return (
-              <button
-                key={group.area}
-                type="button"
-                onClick={() => setActiveArea(group)}
-                className={`absolute ${positions} z-10 flex max-w-[116px] items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.09] px-2.5 py-2 text-left text-white shadow-lg backdrop-blur transition active:scale-95`}
-              >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: `${group.color}24`, color: group.color }}>
-                  <group.icon className="h-4 w-4" />
-                </span>
-                <span>
-                  <span className="block text-[11px] font-black leading-none">{group.area}</span>
-                  <span className="mt-0.5 block text-[8px] font-bold uppercase tracking-wide text-white/45">{group.agents.length} AI</span>
-                </span>
-              </button>
-            );
-          })}
-
-          <div className="absolute inset-x-3 bottom-3 z-20 rounded-2xl border border-white/10 bg-[#08111f]/80 p-3 text-white shadow-xl backdrop-blur">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,.95)]" />
-              <p className="text-xs font-black">{activeArea.area}: {activeArea.agents.join(", ")}</p>
-            </div>
-            <p className="mt-1 text-[11px] leading-4 text-white/58">Tocca i reparti: Silvio collega dati, documenti e prossime azioni.</p>
-          </div>
-        </div>
-
-        <div className="mt-3 rounded-2xl border border-orange-300/20 bg-orange-500/15 p-4 text-white shadow-[0_0_40px_rgba(249,116,21,.18)]">
-          <div className="flex items-center gap-3">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#F97415] text-white shadow-[0_0_32px_rgba(249,116,21,.45)]">
-              <Brain className="h-6 w-6" />
-            </span>
-            <div>
-              <p className="text-lg font-black">Silvio coordina tutto</p>
-              <p className="text-xs font-semibold leading-5 text-white/65">19 persone AI che leggono, decidono e fanno partire azioni.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-45 max-[520px]:hidden" aria-hidden="true">
-        {agentGroups.map((group, index) => {
-          const positions = [
-            [22, 23],
-            [75, 22],
-            [82, 62],
-            [50, 84],
-            [18, 66],
-          ][index];
-          return (
-            <line
-              key={group.area}
-              x1="50%"
-              y1="50%"
-              x2={`${positions[0]}%`}
-              y2={`${positions[1]}%`}
-              stroke={group.color}
-              strokeWidth="1.5"
-              data-ai-line
-              strokeDasharray="8 8"
+        {/* Memorie: puntini sull'anello interno, rotazione inversa */}
+        <div data-eic-orbit className={ORBIT_PAUSE_ON_HOVER} style={{ animation: "eic-orbit-rev 44s linear infinite" }}>
+          {MEMORY_DOTS.map((dot) => (
+            <span
+              key={dot.angle}
+              className="pointer-events-none absolute left-0 top-0 block rounded-full"
+              style={{
+                width: 7 * dot.scale,
+                height: 7 * dot.scale,
+                backgroundColor: dot.color,
+                boxShadow: `0 0 ${Math.round(10 * dot.scale)}px ${dot.color}`,
+                transform: `rotate(${dot.angle}deg) translateX(calc(var(--orbit-r) * 0.55))`,
+                opacity: 0.85,
+              }}
             />
-          );
-        })}
-      </svg>
-
-      {agentGroups.map((group, index) => {
-        const positions = [
-          "left-[5%] top-[9%]",
-          "right-[4%] top-[10%]",
-          "right-[4%] bottom-[18%]",
-          "left-1/2 bottom-[5%] -translate-x-1/2",
-          "left-[4%] bottom-[20%]",
-        ][index];
-        return (
-          <div
-            key={group.area}
-            onMouseEnter={() => setActiveArea(group)}
-            onFocus={() => setActiveArea(group)}
-            tabIndex={0}
-            className={`absolute ${positions} w-[210px] rounded-2xl border border-white/10 bg-white/[0.07] p-4 text-white shadow-xl backdrop-blur transition duration-300 hover:-translate-y-1 hover:border-white/25 hover:bg-white/[0.12] focus:outline-none focus:ring-2 focus:ring-orange-400/70 max-[520px]:static max-[520px]:mb-2.5 max-[520px]:w-full max-[520px]:translate-x-0 max-[520px]:rounded-xl max-[520px]:p-3`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `${group.color}26`, color: group.color }}>
-                <group.icon className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="text-sm font-black">{group.area}</p>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">{group.agents.length} persone AI</p>
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-1.5 max-[520px]:mt-2">
-              {group.agents.map((agent) => (
-                <span key={agent} className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-semibold text-white/75 max-[520px]:text-[9px]">
-                  {agent}
-                </span>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-
-      <div className="absolute bottom-5 right-5 z-20 hidden max-w-[260px] rounded-2xl border border-white/10 bg-white/[0.08] p-4 text-white shadow-2xl backdrop-blur md:block">
-        <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: `${activeArea.color}2b`, color: activeArea.color }}>
-            <activeArea.icon className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="text-sm font-black">{activeArea.area}</p>
-            <p className="text-[11px] text-white/55">Silvio legge i dati e attiva il reparto giusto</p>
-          </div>
-        </div>
-        <div className="mt-3 grid gap-2">
-          {activeArea.agents.slice(0, 3).map((agent) => (
-            <div key={agent} className="flex items-center justify-between rounded-xl bg-white/8 px-3 py-2 text-xs font-semibold text-white/75">
-              <span>{agent}</span>
-              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.9)]" />
-            </div>
           ))}
         </div>
+
+        {/* Ruota reparti: raggi + nodi che orbitano a 360° */}
+        <div data-eic-orbit className={ORBIT_PAUSE_ON_HOVER} style={{ animation: "eic-orbit 60s linear infinite" }}>
+          {agentGroups.map((group, index) => {
+            const angle = -90 + index * 72;
+            const isActive = activeArea.area === group.area;
+            return (
+              <div key={group.area}>
+                {/* Raggio centro→nodo (ruota insieme alla costellazione) */}
+                <span
+                  className="pointer-events-none absolute left-0 top-0 block origin-left"
+                  style={{
+                    width: "var(--orbit-r)",
+                    height: 1.5,
+                    transform: `rotate(${angle}deg)`,
+                    background: `repeating-linear-gradient(90deg, transparent 0 5px, ${group.color}66 5px 11px)`,
+                    opacity: isActive ? 0.95 : 0.5,
+                  }}
+                />
+                {/* Nodo: contro-rotazione sincronizzata → resta sempre dritto */}
+                <div className="absolute left-0 top-0" style={{ transform: `rotate(${angle}deg) translateX(var(--orbit-r))` }}>
+                  <div style={{ transform: `rotate(${-angle}deg)` }}>
+                    <div data-eic-orbit className={ORBIT_PAUSE_ON_HOVER} style={{ animation: "eic-orbit-rev 60s linear infinite" }}>
+                      <button
+                        type="button"
+                        aria-pressed={isActive}
+                        onMouseEnter={() => setActiveArea(group)}
+                        onFocus={() => setActiveArea(group)}
+                        onClick={() => setActiveArea(group)}
+                        className="absolute flex w-[86px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center focus:outline-none sm:w-[96px]"
+                      >
+                        <span
+                          className="flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur transition-all duration-300 sm:h-12 sm:w-12 lg:h-14 lg:w-14"
+                          style={{
+                            backgroundColor: `${group.color}26`,
+                            borderColor: isActive ? group.color : `${group.color}44`,
+                            color: group.color,
+                            boxShadow: isActive ? `0 0 26px ${group.color}66` : `0 0 14px ${group.color}30`,
+                          }}
+                        >
+                          <group.icon className="h-5 w-5 sm:h-6 sm:w-6" />
+                        </span>
+                        <span className={`text-[10px] font-black leading-none sm:text-[11px] ${isActive ? "text-white" : "text-white/75"}`}>
+                          {group.area}
+                        </span>
+                        <span className={`text-[8px] font-bold uppercase tracking-widest sm:text-[9px] ${isActive ? "text-orange-300" : "text-white/40"}`}>
+                          {group.agents.length} AI
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Centro: Silvio (mascotte ufficiale) con alone pulsante */}
+        <div className="pointer-events-none absolute left-0 top-0 z-10">
+          <span className="absolute left-0 top-0 -translate-x-1/2 -translate-y-1/2">
+            <span
+              data-eic-orbit
+              className="block rounded-full bg-orange-400/35"
+              style={{
+                width: "calc(var(--silvio-size) + 30px)",
+                height: "calc(var(--silvio-size) + 30px)",
+                animation: "eic-halo 3.8s ease-in-out infinite",
+                filter: "blur(2px)",
+              }}
+            />
+          </span>
+          <img
+            src="/silvio-avatar-orange.png"
+            alt="Silvio, la regia AI di Edilizia in Cloud"
+            width={116}
+            height={116}
+            loading="lazy"
+            decoding="async"
+            // max-w-none: il preflight Tailwind (max-width:100%) clamperebbe la
+            // larghezza a 0 perché il parent è un punto 0×0 di ancoraggio.
+            className="absolute left-0 top-0 max-w-none -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-orange-200/70 shadow-[0_0_60px_rgba(249,116,21,0.55)]"
+            style={{ width: "var(--silvio-size)", height: "var(--silvio-size)" }}
+          />
+          <div
+            className="absolute left-0 top-0 -translate-x-1/2 whitespace-nowrap rounded-full border border-orange-300/40 bg-[#0a1222]/90 px-3 py-1 backdrop-blur"
+            style={{ marginTop: "calc(var(--silvio-size) / 2 + 10px)" }}
+          >
+            <span className="text-[9px] font-black uppercase tracking-[0.18em] text-orange-200 sm:text-[10px]">Silvio · Regia AI</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Pannello unico: dettaglio del reparto attivo */}
+      <div className="absolute inset-x-3 bottom-3 z-20 rounded-2xl border border-white/10 bg-[#08111f]/85 p-3 shadow-xl backdrop-blur sm:inset-x-4 sm:bottom-4 sm:p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ backgroundColor: `${activeArea.color}26`, color: activeArea.color }}>
+              <activeArea.icon className="h-4 w-4" />
+            </span>
+            <p className="text-sm font-black text-white">{activeArea.area}</p>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">{activeArea.agents.length} persone AI</span>
+          </div>
+          <span className="hidden items-center gap-1.5 rounded-full bg-emerald-400/10 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-300 sm:inline-flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.9)]" />
+            Attivo
+          </span>
+        </div>
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {activeArea.agents.map((agent) => (
+            <span key={agent} className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-semibold text-white/80 sm:text-[11px]">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/90" />
+              {agent}
+            </span>
+          ))}
+        </div>
+        <p className="mt-2 text-[10px] leading-4 text-white/40 sm:text-[11px]">
+          Silvio legge i dati e attiva il reparto giusto — tocca un reparto per vedere le sue persone AI.
+        </p>
       </div>
     </div>
   );
@@ -573,7 +575,7 @@ export default function AISystemShowcaseSection() {
             Non solo moduli. Una regia centrale che legge l'azienda e fa partire il lavoro.
           </h2>
           <p className="mt-5 hidden text-lg leading-8 text-gray-600 lg:block">
-            Silvio coordina 18 persone AI specialistiche: crea bozze di fatture, manda solleciti,
+            Silvio coordina 19 persone AI specialistiche: crea bozze di fatture, manda solleciti,
             genera rapportini, ricorda ai collaboratori cosa fare e segnala dove intervenire.
           </p>
         </div>
@@ -583,7 +585,7 @@ export default function AISystemShowcaseSection() {
         </div>
 
         <p className="mx-auto mt-5 max-w-3xl text-center text-sm leading-7 text-gray-600 sm:text-base lg:hidden">
-          Silvio coordina 18 persone AI specialistiche: crea bozze di fatture, manda solleciti,
+          Silvio coordina 19 persone AI specialistiche: crea bozze di fatture, manda solleciti,
           genera rapportini, ricorda ai collaboratori cosa fare e segnala dove intervenire.
         </p>
 
