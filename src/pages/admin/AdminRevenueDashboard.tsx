@@ -33,6 +33,7 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { RenderEconomicsTab } from "@/components/admin/RenderEconomicsTab";
 import { AdminAiMarginsPanel } from "@/components/admin/ai-provider/AdminAiMarginsPanel";
+import ExtraServicesTab from "@/components/admin/ExtraServicesTab";
 import {
   getAdminRevenueBreakdown,
   getCompanyMonthlyRevenue,
@@ -738,7 +739,9 @@ function LTVCACTab() {
 
 // ─── Main Page ────────────────────────────────────────────
 
-const REVENUE_TABS = new Set(["revenue", "reconciliation", "ltv-cac", "render-economics"]);
+// 2026-06-11: aggiunti "ai-margins" (mancava — il deep-link ?tab=ai-margins
+// ricadeva su revenue) e il nuovo "servizi-extra".
+const REVENUE_TABS = new Set(["revenue", "reconciliation", "ltv-cac", "render-economics", "ai-margins", "servizi-extra"]);
 
 export default function AdminRevenueDashboard() {
   const { permissions } = useSuperAdminPermissions();
@@ -783,6 +786,10 @@ export default function AdminRevenueDashboard() {
             <Zap className="h-4 w-4" />
             AI Provider
           </TabsTrigger>
+          <TabsTrigger value="servizi-extra" className="gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Servizi Extra
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="revenue" className="mt-4">
@@ -803,6 +810,10 @@ export default function AdminRevenueDashboard() {
 
         <TabsContent value="ai-margins" className="mt-4">
           <AdminAiMarginsPanel />
+        </TabsContent>
+
+        <TabsContent value="servizi-extra" className="mt-4">
+          <ExtraServicesTab />
         </TabsContent>
       </Tabs>
     </div>

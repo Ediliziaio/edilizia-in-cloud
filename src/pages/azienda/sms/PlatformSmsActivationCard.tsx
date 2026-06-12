@@ -6,7 +6,7 @@
  * (quello è il prezzo che la piattaforma rivende alle aziende) — i suoi
  * costi sono quelli wholesale Telnyx diretti.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,10 +23,13 @@ export function PlatformSmsActivationCard() {
   const queryClient = useQueryClient();
   const { attivaAzienda, isAttivando } = useTelnyxSetup();
   const [completing, setCompleting] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const autoStarted = useRef(false);
 
   const handleActivate = async () => {
     if (!companyId) return;
     setCompleting(true);
+    setFailed(false);
     try {
       await attivaAzienda(companyId);
       // La piattaforma non passa dal wizard cliente: onboarding completato
@@ -42,11 +45,23 @@ export function PlatformSmsActivationCard() {
       queryClient.invalidateQueries();
       toast.success("Modulo SMS piattaforma attivato");
     } catch (e) {
+      setFailed(true);
       toast.error(e instanceof Error ? e.message : "Attivazione non riuscita");
     } finally {
       setCompleting(false);
     }
   };
+
+  // 2026-06-11: attivazione AUTOMATICA al mount — la piattaforma ha già
+  // tutto configurato a livello super admin (chiavi, messaging profile),
+  // non c'è niente da decidere. Il bottone resta solo come retry su errore.
+  useEffect(() => {
+    if (companyId && !autoStarted.current) {
+      autoStarted.current = true;
+      void handleActivate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
 
   const busy = isAttivando || completing;
 
@@ -80,10 +95,17 @@ export function PlatformSmsActivationCard() {
             Report consegna in tempo reale
           </li>
         </ul>
-        <Button onClick={handleActivate} disabled={busy} className="w-full max-w-xs">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          {busy ? "Attivazione…" : "Attiva modulo SMS piattaforma"}
-        </Button>
+        {failed ? (
+          <Button onClick={handleActivate} disabled={busy} className="w-full max-w-xs">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Riprova attivazione
+          </Button>
+        ) : (
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Attivazione automatica in corso…
+          </div>
+        )}
       </CardContent>
     </Card>
   );
