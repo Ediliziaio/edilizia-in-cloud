@@ -1,5 +1,4 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 
 interface FunnelData {
   sent: number;
@@ -13,46 +12,62 @@ interface EmailFunnelChartProps {
   data: FunnelData;
 }
 
-const COLORS = [
-  "hsl(217, 91%, 60%)",
-  "hsl(142, 76%, 36%)",
-  "hsl(38, 92%, 50%)",
-  "hsl(270, 70%, 55%)",
-  "hsl(0, 84%, 60%)",
-];
-
+/**
+ * EmailFunnelChart — funnel email come barre proporzionali con percentuale di
+ * conversione step-by-step. Ogni stadio mostra: conteggio assoluto + % rispetto
+ * allo stadio precedente (es. "Aperte 45% delle consegnate"). Molto più
+ * leggibile del bar chart recharts precedente, che mostrava solo i numeri.
+ */
 export function EmailFunnelChart({ data }: EmailFunnelChartProps) {
-  const chartData = [
-    { name: "Inviate", value: data.sent },
-    { name: "Consegnate", value: data.delivered },
-    { name: "Aperte", value: data.opened },
-    { name: "Cliccate", value: data.clicked },
-    { name: "Convertite", value: data.converted },
+  const steps = [
+    { name: "Inviate", value: data.sent, color: "bg-blue-500", prevLabel: null as string | null },
+    { name: "Consegnate", value: data.delivered, color: "bg-emerald-500", prevLabel: "inviate" },
+    { name: "Aperte", value: data.opened, color: "bg-amber-500", prevLabel: "consegnate" },
+    { name: "Cliccate", value: data.clicked, color: "bg-violet-500", prevLabel: "aperte" },
   ];
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Funnel Email</CardTitle>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Funnel di conversione</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Quanti destinatari avanzano a ogni passo
+        </p>
       </CardHeader>
       <CardContent>
         {data.sent === 0 ? (
-          <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+          <div className="flex h-44 items-center justify-center text-sm text-muted-foreground">
             Nessun dato disponibile. Invia la tua prima campagna per vedere il funnel.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={chartData} layout="vertical" margin={{ left: 20 }}>
-              <XAxis type="number" hide />
-              <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 13 }} />
-              <Tooltip formatter={(v: number) => v.toLocaleString("it-IT")} />
-              <Bar dataKey="value" radius={[0, 6, 6, 0]}>
-                {chartData.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="space-y-3">
+            {steps.map((step, i) => {
+              const widthPct = data.sent > 0 ? (step.value / data.sent) * 100 : 0;
+              const prevVal = i === 0 ? step.value : steps[i - 1].value;
+              const convPct = prevVal > 0 ? (step.value / prevVal) * 100 : 0;
+              return (
+                <div key={step.name}>
+                  <div className="mb-1 flex items-center justify-between text-sm">
+                    <span className="font-medium text-foreground">{step.name}</span>
+                    <span className="tabular-nums text-muted-foreground">
+                      <strong className="text-foreground">{step.value.toLocaleString("it-IT")}</strong>
+                      {step.prevLabel && (
+                        <span className="ml-1.5 text-xs">
+                          ({convPct.toFixed(0)}% delle {step.prevLabel})
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="h-6 w-full overflow-hidden rounded-md bg-muted">
+                    <div
+                      className={`h-full rounded-md ${step.color} transition-all`}
+                      style={{ width: `${Math.max(widthPct, 1.5)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </CardContent>
     </Card>

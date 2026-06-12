@@ -16,10 +16,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 const EmailMarketing = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
+  // Default = "campagne" (primo tab): all'apertura si atterra sulla lista
+  // campagne, non sulle statistiche (ora ultimo tab, dopo Modelli).
   const [activeTab, setActiveTab] = useState(
     requestedTab === "campagne" || requestedTab === "modelli" || requestedTab === "statistiche"
       ? requestedTab
-      : "statistiche"
+      : "campagne"
   );
   const { isScopriPlan } = useSubscriptionLimits();
   const domainGate = useMarketingDomainGate();
@@ -32,7 +34,7 @@ const EmailMarketing = () => {
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
-    setSearchParams(value === "statistiche" ? {} : { tab: value }, { replace: true });
+    setSearchParams(value === "campagne" ? {} : { tab: value }, { replace: true });
   };
 
   if (isScopriPlan) return <UpgradeScopriWall type="marketing" inline />;
@@ -72,10 +74,6 @@ const EmailMarketing = () => {
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="h-auto gap-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
-          <TabsTrigger value="statistiche" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
-            <BarChart3 className="h-4 w-4" />
-            Statistiche
-          </TabsTrigger>
           <TabsTrigger value="campagne" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <Send className="h-4 w-4" />
             Campagne
@@ -83,6 +81,10 @@ const EmailMarketing = () => {
           <TabsTrigger value="modelli" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
             <FileText className="h-4 w-4" />
             Modelli
+          </TabsTrigger>
+          <TabsTrigger value="statistiche" className="gap-1.5 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+            <BarChart3 className="h-4 w-4" />
+            Statistiche
           </TabsTrigger>
         </TabsList>
 

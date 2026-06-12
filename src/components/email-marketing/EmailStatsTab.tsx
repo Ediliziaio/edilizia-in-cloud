@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { CampaignStatsCards } from "./CampaignStatsCards";
+import { EmailKpiHero } from "./EmailKpiHero";
 import { EmailFunnelChart } from "./EmailFunnelChart";
 import { EmailPerformanceChart } from "./EmailPerformanceChart";
 import { EmailTopCampaignsTable } from "./EmailTopCampaignsTable";
@@ -182,22 +183,21 @@ export function EmailStatsTab() {
         </div>
       </div>
 
-      {/* Engagement summary + funnel */}
-      <div>
-        <h3 className="text-lg font-semibold text-foreground">Riepilogo del coinvolgimento</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          Panoramica delle performance di tutte le email inviate nel periodo selezionato
-        </p>
+      {/* KPI headline: inviate + tassi consegna/apertura/clic con benchmark */}
+      <EmailKpiHero stats={stats} />
+
+      {/* Funnel di conversione + salute deliverability affiancati */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <EmailFunnelChart data={funnel} />
+        <div>
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Salute della deliverability
+          </h3>
+          <CampaignStatsCards stats={stats} />
+        </div>
       </div>
 
-      {/* Performance analysis - 4 cards */}
-      <div>
-        <h3 className="text-lg font-semibold text-foreground mb-3">Analisi delle prestazioni</h3>
-        <CampaignStatsCards stats={stats} />
-      </div>
-
-      {/* Performance chart */}
+      {/* Andamento nel tempo */}
       <EmailPerformanceChart datasets={chartDatasets} />
 
       {/* Top campaigns table — click su riga apre il dettaglio destinatari */}
