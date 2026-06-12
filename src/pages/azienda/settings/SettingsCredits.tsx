@@ -27,13 +27,18 @@ import { useWallets, type WalletType } from "@/hooks/credits/useWallets";
 import { WalletCard } from "@/components/credits/WalletCard";
 import { SmsWalletCard } from "@/components/credits/SmsWalletCard";
 import { RechargeDialog } from "@/components/credits/RechargeDialog";
-import { AutoTopupConfig } from "@/components/credits/AutoTopupConfig";
+import { UnifiedAutoTopupCard } from "@/components/credits/UnifiedAutoTopupCard";
+import { ConsumptionByService } from "@/components/credits/ConsumptionByService";
 import { CreditsHistory } from "@/components/credits/CreditsHistory";
 import { ConsumoForecastChart } from "@/components/credits/ConsumoForecastChart";
 import { EmailQuotaWidget } from "@/components/email-marketing/EmailQuotaWidget";
 import TeamAIUsage from "@/components/credits/TeamAIUsage";
 import {
-  Wallet, AlertTriangle, TrendingDown, Zap, Clock, Mail, Bot,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import {
+  Wallet, AlertTriangle, TrendingDown, Clock, Mail, Bot, Plus, MessageSquare, Sparkles,
 } from "lucide-react";
 import { computeCreditForecast } from "@/lib/creditForecasting";
 import { useQuery } from "@tanstack/react-query";
@@ -56,9 +61,9 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const [searchParams] = useSearchParams();
-  // v8.6.61 — "riepilogo" rimosso dai Tabs (è sempre visibile in alto).
-  // Tabs ora gestisce solo i 3 contenuti opzionali: team_ai / topup / storico.
-  const [activeTab, setActiveTab] = useState<"team_ai" | "topup" | "storico">("topup");
+  // v8.8 — auto-ricarica spostata in alto come card unica (UnifiedAutoTopupCard):
+  // i Tabs gestiscono solo storico e consumo AI team.
+  const [activeTab, setActiveTab] = useState<"team_ai" | "storico">("storico");
   const { wallets, totalBalanceEur, hasBlocked, isLoading } = useWallets();
 
   // Dialog state per ricarica
@@ -179,9 +184,9 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
         </Alert>
       )}
 
-      {/* ─── Riepilogo (sempre visibile, sia standalone che embedded) ────── */}
+      {/* ─── 1. RICARICA (in alto): saldo totale + ricarica manuale + auto ── */}
       <div className="space-y-5">
-        {/* Hero saldo totale */}
+        {/* Hero saldo totale + bottone Ricarica unico */}
         <Card className="overflow-hidden border-l-4 border-l-primary">
           <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
             <div className="flex items-center gap-3">
@@ -190,36 +195,61 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Saldo Totale (Email + AI + WhatsApp)
+                  Saldo Totale
                 </p>
                 <p className="text-3xl font-bold tabular-nums text-primary">
                   {formatEur(totalBalanceEur)}
                 </p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Wallet con saldo
-              </p>
-              <p className="text-sm font-medium tabular-nums">
-                {wallets.filter((w) => w.balance > 0).length} su {wallets.length}
-              </p>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="lg" className="gap-2">
+                  <Plus className="h-4 w-4" /> Ricarica
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setRechargeWallet("email")}>
+                  <Mail className="mr-2 h-4 w-4 text-violet-600" /> Email Marketing
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setRechargeWallet("ai")}>
+                  <Bot className="mr-2 h-4 w-4 text-amber-600" /> Agenti AI
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setRechargeWallet("whatsapp")}>
+                  <MessageSquare className="mr-2 h-4 w-4 text-emerald-600" /> WhatsApp
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setRechargeWallet("render")}>
+                  <Sparkles className="mr-2 h-4 w-4 text-pink-600" /> Render AI
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </CardContent>
         </Card>
 
-        {/* Wallet card (4 generici + SMS, sistema a pacchetti separato) */}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-          {wallets.map((w) => (
-            <WalletCard
-              key={w.type}
-              wallet={w}
-              lowBalanceThreshold={LOW_BALANCE_THRESHOLD}
-              daysRemaining={w.type === "email" ? emailForecast?.daysRemaining ?? null : null}
-              onRecharge={() => setRechargeWallet(w.type)}
-            />
-          ))}
-          <SmsWalletCard />
+        {/* Auto-ricarica UNICA per tutti i servizi */}
+        <UnifiedAutoTopupCard onRecharge={() => setRechargeWallet("email")} />
+
+        {/* ─── 2. COME STAI USANDO I CREDITI (consumi per servizio/periodo) ── */}
+        <ConsumptionByService />
+
+        {/* Saldi per servizio (dettaglio + ricarica puntuale) */}
+        <div>
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <Wallet className="h-3.5 w-3.5" />
+            Saldo per servizio
+          </h2>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+            {wallets.map((w) => (
+              <WalletCard
+                key={w.type}
+                wallet={w}
+                lowBalanceThreshold={LOW_BALANCE_THRESHOLD}
+                daysRemaining={w.type === "email" ? emailForecast?.daysRemaining ?? null : null}
+                onRecharge={() => setRechargeWallet(w.type)}
+              />
+            ))}
+            <SmsWalletCard />
+          </div>
         </div>
 
         {/* Quota inclusa nel piano */}
@@ -243,34 +273,6 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
           Tabs storici per chi naviga direttamente a /crediti. */}
       {embedded ? (
         <Accordion type="multiple" className="space-y-2">
-          <AccordionItem value="topup" className="border rounded-lg px-4">
-            <AccordionTrigger className="text-sm font-semibold hover:no-underline">
-              <span className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-muted-foreground" />
-                Auto-ricarica
-                <span className="text-xs font-normal text-muted-foreground">
-                  Configura le ricariche automatiche per evitare blocchi
-                </span>
-              </span>
-            </AccordionTrigger>
-            <AccordionContent className="pt-2 pb-4 space-y-3">
-              <Alert className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/50 dark:bg-emerald-950/20">
-                <Zap className="h-4 w-4 text-emerald-600" />
-                <AlertDescription className="text-emerald-900 dark:text-emerald-200 text-xs">
-                  <strong>Auto-ricarica attiva di default</strong> con soglia €5 e ricarica €25.
-                  La ricarica scatta solo se hai una carta salvata su Stripe — effettua una
-                  ricarica manuale almeno una volta per associarla.
-                </AlertDescription>
-              </Alert>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <AutoTopupConfig walletType="email" onRecharge={() => setRechargeWallet("email")} />
-                <AutoTopupConfig walletType="ai" onRecharge={() => setRechargeWallet("ai")} />
-                <AutoTopupConfig walletType="whatsapp" onRecharge={() => setRechargeWallet("whatsapp")} />
-                <AutoTopupConfig walletType="render" />
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-
           <AccordionItem value="storico" className="border rounded-lg px-4">
             <AccordionTrigger className="text-sm font-semibold hover:no-underline">
               <span className="flex items-center gap-2">
@@ -304,33 +306,13 @@ export default function SettingsCredits({ embedded = false }: SettingsCreditsPro
       ) : (
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
           <TabsList className="h-auto flex-wrap gap-1">
-            <TabsTrigger value="team_ai" className="gap-1.5">
-              <Bot className="h-4 w-4" /> Consumo AI Team
-            </TabsTrigger>
-            <TabsTrigger value="topup" className="gap-1.5">
-              <Zap className="h-4 w-4" /> Auto Top-up
-            </TabsTrigger>
             <TabsTrigger value="storico" className="gap-1.5">
               <Clock className="h-4 w-4" /> Storico
             </TabsTrigger>
+            <TabsTrigger value="team_ai" className="gap-1.5">
+              <Bot className="h-4 w-4" /> Consumo AI Team
+            </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="topup" className="space-y-4 mt-4">
-            <Alert className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/50 dark:bg-emerald-950/20">
-              <Zap className="h-4 w-4 text-emerald-600" />
-              <AlertDescription className="text-emerald-900 dark:text-emerald-200 text-xs">
-                <strong>Auto-ricarica attiva di default</strong> con soglia €5 e ricarica €25.
-                La ricarica scatta solo se hai una carta salvata su Stripe — effettua una
-                ricarica manuale almeno una volta per associarla.
-              </AlertDescription>
-            </Alert>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <AutoTopupConfig walletType="email" onRecharge={() => setRechargeWallet("email")} />
-              <AutoTopupConfig walletType="ai" onRecharge={() => setRechargeWallet("ai")} />
-              <AutoTopupConfig walletType="whatsapp" onRecharge={() => setRechargeWallet("whatsapp")} />
-              <AutoTopupConfig walletType="render" />
-            </div>
-          </TabsContent>
 
           <TabsContent value="team_ai" className="space-y-4 mt-4">
             <TeamAIUsage />
