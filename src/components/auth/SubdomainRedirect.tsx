@@ -75,6 +75,91 @@ function FullScreenSpinner({ label }: { label?: string }) {
 }
 
 /**
+ * Skeleton visivo dell'above-fold della home page (nav + hero).
+ * Mostrato come fallback Suspense mentre il chunk Home scarica (~300-800ms),
+ * e replicato nell'HTML inline (index.html #eic-initial-spinner) per copertura
+ * pre-React. Il design segue i colori reali della HeroSection: sfondo dark
+ * navy con glow arancione, così la transizione skeleton→reale è fluida.
+ */
+function HomeSkeleton() {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg,#0a0f1a 0%,#0d1828 55%,#080d16 100%)",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+      aria-hidden="true"
+    >
+      {/* Nav placeholder */}
+      <div style={{ height: 68, flexShrink: 0 }} />
+      {/* Hero content skeleton */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          paddingTop: 24,
+          paddingLeft: 24,
+          paddingRight: 24,
+        }}
+      >
+        {/* Orange badge ghost */}
+        <div
+          style={{
+            width: 200,
+            height: 30,
+            borderRadius: 999,
+            background: "rgba(249,116,21,0.13)",
+            border: "1px solid rgba(249,116,21,0.28)",
+            marginBottom: 28,
+          }}
+        />
+        {/* Heading skeleton — 3 lines */}
+        <div style={{ width: "min(82%,600px)", height: 20, background: "rgba(255,255,255,0.09)", borderRadius: 8, marginBottom: 14 }} />
+        <div style={{ width: "min(65%,470px)", height: 20, background: "rgba(255,255,255,0.07)", borderRadius: 8, marginBottom: 14 }} />
+        <div style={{ width: "min(52%,370px)", height: 20, background: "rgba(255,255,255,0.05)", borderRadius: 8, marginBottom: 36 }} />
+        {/* CTA buttons ghost */}
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+          <div style={{ width: 180, height: 48, borderRadius: 999, background: "rgba(249,116,21,0.28)" }} />
+          <div style={{ width: 140, height: 48, borderRadius: 999, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }} />
+        </div>
+      </div>
+      {/* Ambient orange glow — matches real hero */}
+      <div
+        style={{
+          position: "fixed",
+          top: "20%",
+          left: "15%",
+          width: 320,
+          height: 320,
+          borderRadius: "50%",
+          background: "rgba(249,116,21,0.07)",
+          filter: "blur(80px)",
+          pointerEvents: "none",
+        }}
+      />
+      <div
+        style={{
+          position: "fixed",
+          bottom: "25%",
+          right: "10%",
+          width: 260,
+          height: 260,
+          borderRadius: "50%",
+          background: "rgba(249,116,21,0.05)",
+          filter: "blur(70px)",
+          pointerEvents: "none",
+        }}
+      />
+    </div>
+  );
+}
+
+/**
  * Sync check: c'è un Supabase session token persisted in localStorage?
  *
  * Usato per decidere se vale la pena attendere il check auth (mostrando spinner)
@@ -136,25 +221,31 @@ export function SubdomainRedirect() {
   const [hadAuthBootstrapHint] = useState(() => hasStoredAuthBootstrapHint());
   const [sessionTokenGraceActive, setSessionTokenGraceActive] = useState(() => hadAuthBootstrapHint);
 
+  // L'effect gestisce SOLO il timeout della grace window: il caso "utente
+  // risolto" è già coperto dal guard sotto (`sessionTokenGraceActive && !user`),
+  // quindi non serve azzerare lo stato in modo sincrono dentro l'effect
+  // (react-hooks/set-state-in-effect). Se il timer scatta dopo il login,
+  // setta false su uno stato ormai irrilevante: nessun cambio visivo.
   useEffect(() => {
-    if (!sessionTokenGraceActive || user) {
-      setSessionTokenGraceActive(false);
-      return;
-    }
+    if (!sessionTokenGraceActive) return;
 
     const id = window.setTimeout(() => {
       setSessionTokenGraceActive(false);
     }, PERSISTED_SESSION_BOOT_GRACE_MS);
 
     return () => window.clearTimeout(id);
-  }, [sessionTokenGraceActive, user]);
+  }, [sessionTokenGraceActive]);
 
   // Guard tight — copre 2 casi:
-  //   (1) AuthContext sta ancora caricando (isLoading=true)
+  //   (1) AuthContext sta ancora caricando (isLoading=true) E esiste un token
+  //       persisted al boot → c'è probabilità reale di trovare un utente loggato.
+  //       Se non c'è nessun hint di sessione (visitor anonimo su www), skippare
+  //       lo spinner elimina 300-800ms di attesa getSession() visibile come
+  //       "Caricamento in corso" bianco — il cambio più impattante per la perf.
   //   (2) esisteva un token persisted al boot, ma solo per una grace window
   //       breve. Se AuthContext risolve "utente non autenticato", lasciamo
   //       proseguire RoleBasedRedirect verso /login invece di bloccare.
-  const authBootstrapPending = isLoading || (sessionTokenGraceActive && !user);
+  const authBootstrapPending = (isLoading && hadAuthBootstrapHint) || (sessionTokenGraceActive && !user);
   if (authBootstrapPending) {
     return <FullScreenSpinner />;
   }
@@ -195,7 +286,7 @@ export function SubdomainRedirect() {
   // www.ediliziaincloud.com (o equivalente) senza auth → landing pubblica
   return (
     <ErrorBoundary>
-      <Suspense fallback={<FullScreenSpinner />}>
+      <Suspense fallback={<HomeSkeleton />}>
         <Home />
       </Suspense>
     </ErrorBoundary>
