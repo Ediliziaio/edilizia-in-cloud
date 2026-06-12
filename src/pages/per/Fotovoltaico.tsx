@@ -1,4 +1,7 @@
-import { Zap, FileText, BarChart3, Users, TrendingUp, Smartphone } from "lucide-react";
+import {
+  Zap, FileText, BarChart3, Users, TrendingUp, Smartphone,
+  TrendingDown, Send, Camera, Sparkles, Receipt, Wallet, Warehouse, FolderOpen,
+} from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
@@ -134,6 +137,79 @@ const config: PerTipoConfig = {
       saving: "Collaudo e chiusura SAL in cantiere",
     },
   ],
+
+  // Sezione AI: cosa fa Silvio, da solo, per un installatore fotovoltaico.
+  aiShowcase: {
+    title: "L'AI che lavora per te, anche quando sei sul tetto",
+    subtitle:
+      "Silvio coordina 19 persone AI specializzate che leggono i dati della tua azienda e agiscono. Per un installatore fotovoltaico significa questo:",
+    actions: [
+      {
+        icon: TrendingDown,
+        tag: "Margini",
+        title: "Ti avvisa se l'impianto scende sotto margine",
+        desc: "Il prezzo dei moduli è cambiato tra preventivo e ordine? L'inverter quotato non è più disponibile? Se il margine per kWp scende sotto la tua soglia, Silvio ti avvisa prima della posa — non a commessa chiusa.",
+      },
+      {
+        icon: Send,
+        tag: "Cassa",
+        title: "Prepara i solleciti per acconti e saldi",
+        desc: "Acconto alla firma, saldo all'allaccio: se un pagamento è in ritardo, Silvio prepara il sollecito con il tono giusto — email o WhatsApp — e te lo mette in firma. Tu approvi, lui invia.",
+      },
+      {
+        icon: Camera,
+        tag: "Campo",
+        title: "Trasforma foto e vocali in rapportini",
+        desc: "Il tecnico carica foto georeferenziate e una nota vocale dal tetto: Silvio genera il rapportino, aggiorna l'avanzamento dell'impianto e prepara la documentazione per il SAL.",
+      },
+      {
+        icon: Sparkles,
+        tag: "Vendita",
+        title: "Rinforza preventivi e follow-up",
+        desc: "Riscrive la proposta puntando su produzione stimata, risparmio in bolletta e incentivi, e prepara il follow-up per i preventivi rimasti fermi — prima che il cliente firmi con un altro.",
+      },
+    ],
+    note: "Non una chat generica: ogni risposta nasce dai dati reali della tua azienda — impianti, listini, pratiche, incassi, squadre.",
+  },
+
+  // Ampiezza piattaforma: tutto ciò che non è GSE/installazioni.
+  platformExtra: {
+    title: "E tutto il resto dell'azienda? Già incluso.",
+    subtitle:
+      "Non devi incollare cinque software diversi: dentro Edilizia in Cloud c'è tutto quello che serve a un'impresa che installa fotovoltaico, collegato nello stesso posto.",
+    items: [
+      {
+        icon: Receipt,
+        name: "Fatturazione elettronica",
+        desc: "Fatture SDI attive e passive, acconti e saldi collegati agli impianti, bozze pronte da approvare.",
+      },
+      {
+        icon: Wallet,
+        name: "Cassa e scadenzario",
+        desc: "Incassi attesi, pagamenti fornitori di moduli e inverter: la cassa prevista a 30, 60 e 90 giorni.",
+      },
+      {
+        icon: Users,
+        name: "CRM e pipeline vendite",
+        desc: "Richieste, sopralluoghi e trattative in un'unica pipeline: sai sempre chi richiamare e quando.",
+      },
+      {
+        icon: Warehouse,
+        name: "Magazzino e DDT",
+        desc: "Moduli, inverter e BOS con seriali tracciati, DDT di entrata e uscita collegati a ordini e impianti.",
+      },
+      {
+        icon: FolderOpen,
+        name: "Documenti e scadenze",
+        desc: "Schede tecniche, conformità, pratiche e garanzie archiviate per impianto: trovi tutto in 5 secondi.",
+      },
+      {
+        icon: BarChart3,
+        name: "Report per decidere",
+        desc: "Fatturato, margini per kWp e per tipo di impianto, previsioni: i numeri dell'azienda in una schermata.",
+      },
+    ],
+  },
 
   caseStudy: {
     company: "SolarTech Meridionale SRL",

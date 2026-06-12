@@ -1,4 +1,7 @@
-import { FileText, Calculator, FolderOpen, Users, Clock, TrendingUp, ClipboardList, MapPin, Shield } from "lucide-react";
+import {
+  FileText, Calculator, FolderOpen, Users, Clock, TrendingUp, ClipboardList, MapPin, Shield,
+  TrendingDown, Send, Camera, Sparkles, Receipt, Wallet, Warehouse, BarChart3,
+} from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
@@ -134,6 +137,79 @@ const config: PerTipoConfig = {
       saving: "+18% margine medio per commessa",
     },
   ],
+
+  // Sezione AI: cosa fa Silvio, da solo, per un'impresa di ristrutturazioni.
+  aiShowcase: {
+    title: "L'AI che lavora per te, anche quando sei in cantiere",
+    subtitle:
+      "Silvio coordina 19 persone AI specializzate che leggono i dati della tua azienda e agiscono. Per un'impresa di ristrutturazioni significa questo:",
+    actions: [
+      {
+        icon: TrendingDown,
+        tag: "Margini",
+        title: "Ti avvisa quando un cantiere va in rosso",
+        desc: "Ore oltre il previsto, materiali rincarati, costi extra non fatturati: se il margine del cantiere scende sotto la tua soglia, Silvio ti avvisa subito — non alla chiusura, quando è troppo tardi.",
+      },
+      {
+        icon: Sparkles,
+        tag: "Varianti",
+        title: "Dalla richiesta a voce alla variante firmata",
+        desc: "Il cliente chiede di spostare la cucina? Silvio prepara la variante con descrizione e importo, pronta da inviare per la firma digitale. Niente più modifiche regalate perché 'tanto era una cosa veloce'.",
+      },
+      {
+        icon: Send,
+        tag: "Cassa",
+        title: "Prepara i solleciti per SAL e saldi",
+        desc: "SAL emesso e non incassato, acconto in ritardo? Silvio prepara il sollecito con il tono giusto — email o WhatsApp — e te lo mette in firma. Tu approvi, lui invia e tiene traccia.",
+      },
+      {
+        icon: Camera,
+        tag: "Campo",
+        title: "Trasforma foto e vocali in rapportini",
+        desc: "La squadra carica le foto e una nota vocale dal cantiere: Silvio genera il rapportino, aggiorna il diario lavori e collega tutto al cantiere giusto — con timestamp che valgono in caso di contestazione.",
+      },
+    ],
+    note: "Non una chat generica: ogni risposta nasce dai dati reali della tua azienda — cantieri, varianti, costi, incassi, squadre.",
+  },
+
+  // Ampiezza piattaforma: tutto ciò che non è varianti/bonus.
+  platformExtra: {
+    title: "E tutto il resto dell'azienda? Già incluso.",
+    subtitle:
+      "Non devi incollare cinque software diversi: dentro Edilizia in Cloud c'è tutto quello che serve a un'impresa di ristrutturazioni, collegato nello stesso posto.",
+    items: [
+      {
+        icon: Receipt,
+        name: "Fatturazione elettronica",
+        desc: "Fatture SDI attive e passive, acconti, SAL e sconto in fattura collegati al cantiere, bozze pronte da approvare.",
+      },
+      {
+        icon: Wallet,
+        name: "Cassa e scadenzario",
+        desc: "Incassi attesi, pagamenti fornitori e subappaltatori: la cassa prevista a 30, 60 e 90 giorni, cantiere per cantiere.",
+      },
+      {
+        icon: Users,
+        name: "CRM e pipeline vendite",
+        desc: "Richieste, sopralluoghi e trattative in un'unica pipeline: sai sempre chi richiamare e quando.",
+      },
+      {
+        icon: Warehouse,
+        name: "Magazzino e DDT",
+        desc: "Arrivi merce, lotti, DDT di entrata e uscita collegati a ordini fornitori e cantieri.",
+      },
+      {
+        icon: FolderOpen,
+        name: "Documenti e scadenze",
+        desc: "CILA, SCIA, DURC, contratti e garanzie archiviati per cantiere: trovi tutto in 5 secondi.",
+      },
+      {
+        icon: BarChart3,
+        name: "Report per decidere",
+        desc: "Fatturato, margini per cantiere, previsioni: i numeri dell'azienda in una schermata.",
+      },
+    ],
+  },
 
   caseStudy: {
     company: "RestauroCase Martini SRL",
