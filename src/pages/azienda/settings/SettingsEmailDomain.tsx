@@ -76,9 +76,10 @@ interface DomainStatus {
 }
 
 const PROVIDER_LABEL: Record<DnsRecord["provider"], string> = {
-  elastic_email: "Elastic Email",
-  sendgrid: "SendGrid",
-  resend: "Resend",
+  // White-label: i clienti non devono vedere i provider sottostanti
+  elastic_email: "Marketing",
+  sendgrid: "Transazionale",
+  resend: "Transazionale",
 };
 
 const PROVIDER_BADGE_VARIANT: Record<
@@ -228,7 +229,7 @@ export default function SettingsEmailDomain() {
               <p style="color:#334155;line-height:1.6;">
                 Questa è una email di test inviata ${data?.domain ? `dal tuo dominio personalizzato <strong>${data.domain.domain}</strong>` : `dal dominio piattaforma <strong>notifiche.ediliziaincloud.it</strong>`}
                 sulla pipeline
-                <strong>${input.stream === "transactional" ? "transazionale (Resend)" : "marketing (Elastic Email)"}</strong>.
+                <strong>${input.stream === "transactional" ? "transazionale" : "marketing"}</strong>.
               </p>
               <p style="color:#334155;line-height:1.6;">
                 Se ricevi questa email significa che il sistema di invio è configurato
@@ -505,7 +506,7 @@ export default function SettingsEmailDomain() {
                     className={`border rounded-md p-2 text-left text-xs transition ${testStream === "transactional" ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
                   >
                     <div className="font-medium">Transazionale</div>
-                    <div className="text-muted-foreground text-[10px]">Resend · OTP, firme, password reset</div>
+                    <div className="text-muted-foreground text-[10px]">OTP, firme, password reset</div>
                   </button>
                   <button
                     type="button"
@@ -513,7 +514,7 @@ export default function SettingsEmailDomain() {
                     className={`border rounded-md p-2 text-left text-xs transition ${testStream === "marketing" ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
                   >
                     <div className="font-medium">Marketing</div>
-                    <div className="text-muted-foreground text-[10px]">Elastic Email · campagne</div>
+                    <div className="text-muted-foreground text-[10px]">Campagne e newsletter</div>
                   </button>
                 </div>
               </div>
@@ -621,27 +622,22 @@ export default function SettingsEmailDomain() {
           </div>
 
           {/* Status per-provider compatto */}
-          <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            {/* White-label: canali, non provider. SendGrid (legacy) nascosto. */}
             <ProviderStatusCard
-              label="Elastic Email"
-              sublabel="Marketing"
+              label="Email Marketing"
+              sublabel="Campagne e newsletter"
               // SPF+DKIM bastano per inviare; il tracking CNAME è opzionale
               verified={domain.ee_spf_verified && domain.ee_dkim_verified}
               added={domain.ee_domain_added}
               extra={domain.ee_spf_verified && domain.ee_dkim_verified && !domain.ee_tracking_verified ? "Tracking opzionale non attivo" : undefined}
             />
             <ProviderStatusCard
-              label="Resend"
-              sublabel="Transazionale (primary)"
+              label="Email Transazionali"
+              sublabel="Notifiche, documenti, OTP"
               verified={domain.resend_status === "verified"}
               added={!!domain.resend_domain_id}
-              extra={domain.resend_status && domain.resend_status !== "verified" ? `Stato: ${domain.resend_status}` : undefined}
-            />
-            <ProviderStatusCard
-              label="SendGrid"
-              sublabel="Transazionale (legacy)"
-              verified={domain.sg_cname_1_valid && domain.sg_cname_2_valid && domain.sg_cname_3_valid}
-              added={!!domain.sg_domain_id}
+              extra={domain.resend_status && domain.resend_status !== "verified" ? "In attesa di verifica" : undefined}
             />
           </div>
         </CardHeader>
@@ -661,9 +657,10 @@ export default function SettingsEmailDomain() {
         <CardHeader>
           <CardTitle className="text-base">Record DNS da inserire</CardTitle>
           <CardDescription>
-            Il dominio si considera verificato quando <strong>Elastic Email</strong> (marketing) è OK{" "}
-            e <strong>almeno uno</strong> fra <strong>Resend</strong> o <strong>SendGrid</strong>{" "}
-            (transazionale) è OK. Così puoi migrare in modo graduale da SendGrid a Resend senza perdere lo stato verificato.
+            Aggiungi questi record nel pannello DNS del tuo registrar. L'<strong>email
+            marketing</strong> si attiva con SPF e DKIM verificati; il canale{" "}
+            <strong>transazionale</strong> (notifiche, documenti) si attiva quando anche i
+            suoi record risultano propagati.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -776,7 +773,7 @@ export default function SettingsEmailDomain() {
                   className={`border rounded-md p-2 text-left text-xs transition ${testStream === "transactional" ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
                 >
                   <div className="font-medium">Transazionale</div>
-                  <div className="text-muted-foreground text-[10px]">Resend · OTP, firme, password reset</div>
+                  <div className="text-muted-foreground text-[10px]">OTP, firme, password reset</div>
                 </button>
                 <button
                   type="button"
@@ -784,7 +781,7 @@ export default function SettingsEmailDomain() {
                   className={`border rounded-md p-2 text-left text-xs transition ${testStream === "marketing" ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
                 >
                   <div className="font-medium">Marketing</div>
-                  <div className="text-muted-foreground text-[10px]">Elastic Email · campagne newsletter</div>
+                  <div className="text-muted-foreground text-[10px]">Campagne e newsletter</div>
                 </button>
               </div>
             </div>

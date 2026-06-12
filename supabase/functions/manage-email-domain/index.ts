@@ -143,12 +143,12 @@ function buildDnsRecords(row: Record<string, unknown>): Array<{
 }> {
   const domain = String(row.domain ?? "");
   const recs: ReturnType<typeof buildDnsRecords> = [
-    // ─── Elastic Email (marketing) ───
+    // ─── Canale marketing (white-label: niente nomi provider nei purpose) ───
     {
       type: "TXT",
       host: domain,
       value: ELASTIC_SPF_VALUE,
-      purpose: "SPF (marketing Elastic Email)",
+      purpose: "SPF — autorizza l'invio email marketing",
       provider: "elastic_email",
       verified: Boolean(row.ee_spf_verified),
     },
@@ -156,7 +156,7 @@ function buildDnsRecords(row: Record<string, unknown>): Array<{
       type: "TXT",
       host: `api._domainkey.${domain}`,
       value: ELASTIC_DKIM_PUBLIC_KEY,
-      purpose: "DKIM (marketing Elastic Email)",
+      purpose: "DKIM — firma digitale delle email",
       provider: "elastic_email",
       verified: Boolean(row.ee_dkim_verified),
     },
@@ -164,7 +164,7 @@ function buildDnsRecords(row: Record<string, unknown>): Array<{
       type: "CNAME",
       host: `tracking.${domain}`,
       value: "api.elasticemail.com",
-      purpose: "Tracking link (marketing, opzionale)",
+      purpose: "Tracking aperture e click (opzionale)",
       provider: "elastic_email",
       verified: Boolean(row.ee_tracking_verified),
     },
@@ -180,7 +180,7 @@ function buildDnsRecords(row: Record<string, unknown>): Array<{
         type: "CNAME",
         host: String(host),
         value: String(value),
-        purpose: `SendGrid CNAME ${i} (transactional legacy, opzionale)`,
+        purpose: `Verifica transazionale ${i} (legacy, opzionale)`,
         provider: "sendgrid",
         verified,
       });
@@ -197,7 +197,7 @@ function buildDnsRecords(row: Record<string, unknown>): Array<{
       host: r.name,
       value: r.value,
       priority: r.priority,
-      purpose: `Resend ${r.type?.toUpperCase() || "TXT"} (transactional)`,
+      purpose: "Email transazionali (notifiche e documenti)",
       provider: "resend",
       verified: Boolean(r.verified),
     });
@@ -455,6 +455,15 @@ async function actionAddDomain(
   const normalized = domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
   if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(normalized)) {
     throw new Error(`Dominio non valido: "${domain}"`);
+  }
+
+  // ANTI-SPAM: ogni azienda DEVE usare il proprio dominio. I domini della
+  // piattaforma non sono registrabili — la reputazione condivisa non va
+  // esposta ai tenant.
+  if (/(^|\.)ediliziaincloud\.(com|it)$/.test(normalized)) {
+    throw new Error(
+      "Inserisci il dominio della TUA azienda (es. tuaazienda.it) — i domini della piattaforma non sono utilizzabili.",
+    );
   }
 
   await enforceRateLimit(admin, companyId, "add");
