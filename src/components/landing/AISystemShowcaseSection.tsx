@@ -229,6 +229,20 @@ const MEMORY_DOTS = [
   { angle: 340, scale: 0.7, color: "#f59e0b" },
 ];
 
+// Posizioni dei 5 nodi reparto in unità viewBox (raggio 100), angoli -90°+i·72°.
+// Stesse coordinate dei nodi CSS: la mesh SVG scala col var(--orbit-r).
+const NODE_POS = [0, 1, 2, 3, 4].map((i) => {
+  const rad = ((-90 + i * 72) * Math.PI) / 180;
+  return { x: Math.cos(rad) * 100, y: Math.sin(rad) * 100 };
+});
+
+// Pentagono (vicini) + pentagramma (trasversali): ogni reparto è collegato
+// a tutti gli altri, come i cross-persona edges del Brain Graph nell'app.
+const AREA_LINKS: Array<[number, number]> = [
+  [0, 1], [1, 2], [2, 3], [3, 4], [4, 0],
+  [0, 2], [1, 3], [2, 4], [3, 0], [4, 1],
+];
+
 // Pausa sincronizzata di ruota e contro-rotazioni: se si fermasse solo la
 // ruota, i nodi continuerebbero a contro-ruotare e si inclinerebbero.
 const ORBIT_PAUSE_ON_HOVER =
@@ -236,6 +250,27 @@ const ORBIT_PAUSE_ON_HOVER =
 
 function AiBrainMap() {
   const [activeArea, setActiveArea] = useState(agentGroups[0]);
+  // Tour automatico delle aree: cicla i reparti finché l'utente non ne
+  // sceglie uno — così anche chi non interagisce vede tutte le squadre AI.
+  const [userPicked, setUserPicked] = useState(false);
+
+  useEffect(() => {
+    if (userPicked) return;
+    const id = window.setInterval(() => {
+      setActiveArea((prev) => {
+        const idx = agentGroups.findIndex((g) => g.area === prev.area);
+        return agentGroups[(idx + 1) % agentGroups.length];
+      });
+    }, 4000);
+    return () => window.clearInterval(id);
+  }, [userPicked]);
+
+  const activeIdx = agentGroups.findIndex((g) => g.area === activeArea.area);
+
+  function selectArea(group: (typeof agentGroups)[number]) {
+    setUserPicked(true);
+    setActiveArea(group);
+  }
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -256,6 +291,7 @@ function AiBrainMap() {
         @keyframes eic-orbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes eic-orbit-rev { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
         @keyframes eic-halo { 0%, 100% { opacity: .3; transform: scale(1); } 50% { opacity: .62; transform: scale(1.1); } }
+        @keyframes eic-dash { to { stroke-dashoffset: -22; } }
         @media (prefers-reduced-motion: reduce) { [data-eic-orbit] { animation: none !important; } }
       `}</style>
 
@@ -315,8 +351,45 @@ function AiBrainMap() {
           ))}
         </div>
 
-        {/* Ruota reparti: raggi + nodi che orbitano a 360° */}
+        {/* Ruota reparti: mesh di collegamenti + raggi + nodi che orbitano a 360° */}
         <div data-eic-orbit className={ORBIT_PAUSE_ON_HOVER} style={{ animation: "eic-orbit 60s linear infinite" }}>
+          {/* Collegamenti reparto↔reparto: le aree si parlano tra loro.
+              Quelli del reparto attivo si accendono col suo colore. */}
+          <svg
+            className="pointer-events-none absolute"
+            viewBox="-100 -100 200 200"
+            aria-hidden="true"
+            style={{
+              width: "calc(var(--orbit-r) * 2)",
+              height: "calc(var(--orbit-r) * 2)",
+              left: "calc(var(--orbit-r) * -1)",
+              top: "calc(var(--orbit-r) * -1)",
+            }}
+          >
+            {AREA_LINKS.map(([a, b]) => {
+              const isActiveLink = activeIdx === a || activeIdx === b;
+              const p1 = NODE_POS[a];
+              const p2 = NODE_POS[b];
+              // Curva tirata verso il centro: le trasversali passano "sotto"
+              // Silvio — ogni collegamento è mediato dalla regia.
+              const cx = ((p1.x + p2.x) / 2) * 0.55;
+              const cy = ((p1.y + p2.y) / 2) * 0.55;
+              return (
+                <path
+                  key={`${a}-${b}`}
+                  data-eic-orbit
+                  d={`M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`}
+                  fill="none"
+                  stroke={isActiveLink ? activeArea.color : "#ffffff"}
+                  strokeWidth={isActiveLink ? 1.6 : 1}
+                  strokeOpacity={isActiveLink ? 0.75 : 0.13}
+                  strokeDasharray="4 7"
+                  strokeLinecap="round"
+                  style={isActiveLink ? { animation: "eic-dash 1.4s linear infinite" } : undefined}
+                />
+              );
+            })}
+          </svg>
           {agentGroups.map((group, index) => {
             const angle = -90 + index * 72;
             const isActive = activeArea.area === group.area;
@@ -340,9 +413,9 @@ function AiBrainMap() {
                       <button
                         type="button"
                         aria-pressed={isActive}
-                        onMouseEnter={() => setActiveArea(group)}
-                        onFocus={() => setActiveArea(group)}
-                        onClick={() => setActiveArea(group)}
+                        onMouseEnter={() => selectArea(group)}
+                        onFocus={() => selectArea(group)}
+                        onClick={() => selectArea(group)}
                         className="absolute flex w-[86px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 rounded-2xl px-1 py-1.5 text-center focus:outline-none sm:w-[96px]"
                       >
                         <span
