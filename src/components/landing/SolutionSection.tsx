@@ -15,7 +15,7 @@ export default function SolutionSection() {
   const { ref, isVisible } = useScrollAnimation();
 
   return (
-    <section className="py-16 md:py-32 bg-[#111111] relative overflow-hidden">
+    <section id="come-funziona" className="py-16 md:py-32 bg-[#111111] relative overflow-hidden">
       {/* Luminous top border */}
       <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
         style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.7) 30%, rgba(249,116,21,1) 50%, rgba(249,116,21,0.7) 70%, transparent 100%)" }} />

@@ -1,7 +1,5 @@
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { getTimeLeft } from "@/lib/urgencyUtils";
-import { Building2, Shield, Clock, Star, ArrowRight } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Building2, Shield, Clock, Star, ArrowRight, Phone, TrendingDown } from "lucide-react";
 
 // Icone edilizia floating
 // Schema esplicito per evitare cast `as any` sul positioning (left | right).
@@ -31,19 +29,6 @@ const ctaIcons: CtaIcon[] = [
 
 export default function FinalCtaSection() {
   const { ref, isVisible } = useScrollAnimation();
-  const [timeLeft, setTimeLeft] = useState(getTimeLeft);
-
-  useEffect(() => {
-    const id = setInterval(() => setTimeLeft(getTimeLeft()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  const countdownUnits = [
-    String(timeLeft.days).padStart(2, "0"),
-    String(timeLeft.hours).padStart(2, "0"),
-    String(timeLeft.minutes).padStart(2, "0"),
-    String(timeLeft.seconds).padStart(2, "0"),
-  ];
 
   return (
     <section
@@ -104,25 +89,18 @@ export default function FinalCtaSection() {
           Prenota la tua <strong className="text-white">demo personalizzata di 30 minuti</strong>: ti mostriamo il software sui dati della tua impresa, identifichiamo insieme i primi sprechi e ti diciamo se fa per te. Senza impegno.
         </p>
 
-        {/* Countdown */}
+        {/* Urgenza onesta: costo dell'attesa, non countdown artificiale.
+            Un timer "scadenza trial" uguale per tutti è trasparentemente finto
+            e mina la fiducia proprio nel punto di massima intenzione. */}
         <div
-          className={`inline-flex items-center gap-3 mb-10 transition-all duration-700 delay-200 ${
+          className={`inline-flex items-center gap-3 mb-10 px-5 py-3 rounded-xl bg-[#F97415]/10 border border-[#F97415]/25 transition-all duration-700 delay-200 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
           }`}
         >
-          <span className="text-white/70 text-sm font-medium">
-            Prova gratuita di 31 giorni disponibile se richiedi entro:
+          <TrendingDown className="w-5 h-5 shrink-0 text-[#F97415]" />
+          <span className="text-white/80 text-sm font-medium text-left">
+            Su 500.000€ di fatturato, il 5% di margine perso sono <strong className="text-[#F97415]">oltre 2.000€ al mese</strong>. Ogni mese senza numeri è margine che non recuperi più.
           </span>
-          <div className="flex items-center gap-1.5">
-            {countdownUnits.map((unit, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <span className="inline-flex items-center justify-center w-12 h-10 rounded-lg bg-[#F97415]/10 border border-[#F97415]/20 text-[#F97415] font-mono font-bold text-lg">
-                  {unit}
-                </span>
-                {i < countdownUnits.length - 1 && <span className="text-[#F97415]/60 font-bold text-lg">:</span>}
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* Central box */}
@@ -139,10 +117,11 @@ export default function FinalCtaSection() {
           </div>
 
           <p className="text-white/60 text-base mb-8 font-medium">
-            Demo gratuita. Prova 31 giorni riservata alle richieste entro la scadenza. Nessun impegno.
+            Demo gratuita di 30 minuti + prova di 31 giorni senza carta. Setup incluso in 48h. Nessun impegno.
           </p>
 
-          {/* Buttons */}
+          {/* Buttons: primario = modal, secondario = telefono (per il titolare
+              edile la chiamata è il canale a minor attrito — niente form). */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
             <button
               type="button"
@@ -153,14 +132,11 @@ export default function FinalCtaSection() {
               <ArrowRight className="w-5 h-5" />
             </button>
             <a
-              href="#prezzi"
-              onClick={(e) => {
-                e.preventDefault();
-                document.querySelector("#prezzi")?.scrollIntoView({ behavior: "smooth" });
-              }}
+              href="tel:+390287198520"
               className="inline-flex items-center justify-center gap-2 px-6 md:px-8 py-3 md:py-4 rounded-xl border border-white/20 text-white font-bold text-base md:text-lg hover:border-white/40 hover:bg-white/5 hover:scale-105 transition-all duration-300"
             >
-              Vedi i Prezzi
+              <Phone className="w-5 h-5 text-[#F97415]" />
+              Oppure chiama: 02 87198520
             </a>
           </div>
 
@@ -196,7 +172,7 @@ export default function FinalCtaSection() {
             <strong className="text-white/55">P.P.S.</strong> Su un fatturato di 500.000€, anche solo il 5% di margine perso sono 2.083€/mese che stai regalando. Ogni mese senza controllo è un mese in perdita.
           </p>
           <p className="text-white/35 text-sm leading-relaxed">
-            <strong className="text-white/55">P.P.P.S.</strong> 15 minuti di demo gratuita per vedere se fa per te. Zero rischi. Zero impegni. Solo chiarezza.
+            <strong className="text-white/55">P.P.P.S.</strong> 30 minuti di demo gratuita per vedere se fa per te. Zero rischi. Zero impegni. Solo chiarezza.
           </p>
         </div>
       </div>

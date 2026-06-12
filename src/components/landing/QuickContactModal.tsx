@@ -9,7 +9,7 @@
  */
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { X, Send, CheckCircle2, Loader2 } from "lucide-react";
+import { X, Send, CheckCircle2, Loader2, Star, Phone } from "lucide-react";
 import { submitPublicLeadToCrm } from "@/lib/publicLeadSubmit";
 
 // Helper exportato in coabitazione col componente: pattern intenzionale per
@@ -27,6 +27,8 @@ interface FormState {
   email: string;
   telefono: string;
   azienda: string;
+  /** Qualificazione lead facoltativa: aiuta il commerciale a prioritizzare. */
+  cantieri: string;
   privacy: boolean;
   marketing: boolean;
 }
@@ -36,6 +38,7 @@ const INITIAL: FormState = {
   email: "",
   telefono: "",
   azienda: "",
+  cantieri: "",
   privacy: false,
   marketing: false,
 };
@@ -97,10 +100,13 @@ export default function QuickContactModal() {
   };
 
   const handleChange = (
-    ev: React.ChangeEvent<HTMLInputElement>
+    ev: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    const { name, type, value, checked } = ev.target;
-    setForm((p) => ({ ...p, [name]: type === "checkbox" ? checked : value }));
+    const { name, value } = ev.target;
+    const checked = ev.target instanceof HTMLInputElement && ev.target.type === "checkbox"
+      ? ev.target.checked
+      : undefined;
+    setForm((p) => ({ ...p, [name]: checked !== undefined ? checked : value }));
     if (errors[name as keyof FormState]) {
       setErrors((p) => ({ ...p, [name]: undefined }));
     }
@@ -116,6 +122,9 @@ export default function QuickContactModal() {
         email: form.email,
         telefono: form.telefono,
         azienda: form.azienda,
+        // Qualificazione: arriva al commerciale come nota + tag filtrabile.
+        messaggio: form.cantieri ? `Cantieri attivi: ${form.cantieri}` : null,
+        tags: form.cantieri ? [`cantieri:${form.cantieri}`] : [],
         source: "home_quick_modal",
         marketing_consent: form.marketing,
       });
@@ -162,10 +171,27 @@ export default function QuickContactModal() {
             <h3 className="text-xl font-bold text-[#111111] mb-2">
               Richiesta ricevuta!
             </h3>
-            <p className="text-[#111111]/60 text-sm leading-relaxed mb-6">
-              Ti contattiamo entro <strong>24 ore lavorative</strong> per fissare la demo gratuita di 30 minuti.
+            <p className="text-[#111111]/60 text-sm leading-relaxed mb-5">
+              Ti contattiamo entro <strong>24 ore lavorative</strong> per attivarti la prova gratuita e fissare la demo di 30 minuti.
               Controlla anche la casella spam.
             </p>
+            {/* Speed-to-lead: chi vuole fare subito non deve aspettare la
+                nostra chiamata — gli diamo il canale immediato. */}
+            <div className="mb-5 rounded-xl bg-[#F97415]/5 border border-[#F97415]/15 p-4">
+              <p className="text-[#111111]/70 text-xs font-semibold mb-2.5">
+                Vuoi fare prima? Parliamo subito:
+              </p>
+              <a
+                href="tel:+390287198520"
+                className="inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-[#111111] text-white font-semibold text-sm hover:bg-[#F97415] transition-colors"
+              >
+                <Phone className="w-4 h-4" />
+                Chiama ora: 02 87198520
+              </a>
+              <p className="text-[#111111]/40 text-[10px] mt-2">
+                Lun–Ven 9:00–18:00 · rispondiamo in italiano
+              </p>
+            </div>
             <button
               onClick={close}
               className="px-6 py-2.5 rounded-full bg-[#F97415] text-white font-semibold text-sm hover:bg-[#C94F06] transition-colors"
@@ -184,7 +210,7 @@ export default function QuickContactModal() {
                 Inizia Gratis Adesso
               </h3>
               <p className="text-[#111111]/55 text-sm mt-1.5">
-                Lascia i tuoi dati: ti contattiamo entro 24h per la demo personalizzata.
+                Lascia i tuoi dati: ti attiviamo la prova gratuita con setup guidato incluso e demo sui numeri della tua impresa.
               </p>
             </div>
 
@@ -245,6 +271,24 @@ export default function QuickContactModal() {
                 {errors.azienda && <p className="text-red-500 text-xs mt-1">{errors.azienda}</p>}
               </div>
 
+              {/* Qualificazione facoltativa: aumenta la personalizzazione
+                  percepita e dà al commerciale la priorità del lead. */}
+              <div>
+                <select
+                  name="cantieri"
+                  value={form.cantieri}
+                  onChange={handleChange}
+                  className={`w-full px-3.5 py-2.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#F97415]/30 focus:border-[#F97415] transition-all bg-white ${
+                    form.cantieri ? "text-[#111111]" : "text-gray-400"
+                  }`}
+                >
+                  <option value="">Quanti cantieri attivi avete? (facoltativo)</option>
+                  <option value="1-3">1–3 cantieri</option>
+                  <option value="4-10">4–10 cantieri</option>
+                  <option value="10+">Più di 10 cantieri</option>
+                </select>
+              </div>
+
               {/* Consensi GDPR */}
               <div className="pt-2 space-y-2.5">
                 <label className="flex items-start gap-2.5 cursor-pointer">
@@ -296,6 +340,18 @@ export default function QuickContactModal() {
                   </>
                 )}
               </button>
+
+              {/* Social proof nel punto più fragile del funnel: il form */}
+              <div className="flex items-center justify-center gap-1.5 pt-2">
+                <span className="flex items-center gap-0.5">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <Star key={i} size={12} className="fill-amber-400 text-amber-400" />
+                  ))}
+                </span>
+                <span className="text-[11px] font-semibold text-[#111111]/70">4.9/5</span>
+                <span className="text-[11px] text-[#111111]/40">·</span>
+                <span className="text-[11px] text-[#111111]/55">150+ imprese edili attive</span>
+              </div>
 
               <p className="text-center text-[10px] text-[#111111]/40 leading-relaxed pt-1">
                 Titolare: Domus Group S.r.l. — Risposta entro 24h lavorative.

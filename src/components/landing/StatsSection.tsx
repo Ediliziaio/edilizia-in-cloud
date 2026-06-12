@@ -26,12 +26,16 @@ const stats: Stat[] = [
     sublabel: "che usano Edilizia in Cloud ogni giorno",
   },
   {
+    // Ancorata alla Garanzia ROI 90 giorni (claim verificabile, non stimato):
+    // value 5 + suffix ".000+" → render "€5.000+" col separatore migliaia.
+    // startFrom 1 evita il flash iniziale "€0.000+" durante il count-up.
     icon: TrendingUp,
-    prefix: "",
-    value: 10,
-    suffix: "x",
-    label: "ROI Medio",
-    sublabel: "ritorno stimato nel primo anno di utilizzo",
+    prefix: "€",
+    value: 5,
+    suffix: ".000+",
+    startFrom: 1,
+    label: "Sprechi Trovati in 90 Giorni",
+    sublabel: "garantito per iscritto: o li trovi, o ti rimborsiamo",
   },
   {
     icon: Star,

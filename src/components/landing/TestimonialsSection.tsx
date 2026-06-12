@@ -3,10 +3,13 @@ import { Star, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import FloatingEdiliziaIcons from "./FloatingEdiliziaIcons";
 import { useRef, useState } from "react";
 
+// Le aziende della strip DEVONO coincidere con quelle delle testimonianze
+// sotto: nomi diversi tra strip e card minano la credibilità dell'intera
+// sezione (il lettore li confronta in pochi secondi).
 const clientBadges = [
-  { initials: "RC", name: "Rossi Costruzioni Srl", city: "Roma", months: 14, gradient: "from-[#F97415] to-[#0d8f79]" },
-  { initials: "EL", name: "Edil Lombardi", city: "Milano", months: 9, gradient: "from-[#111111] to-[#243566]" },
-  { initials: "CF", name: "Costruzioni Ferretti", city: "Napoli", months: 22, gradient: "from-[#F97415] to-[#0a7a65]" },
+  { initials: "CR", name: "Costruzioni Rossi S.r.l.", city: "Roma", months: 14, gradient: "from-[#F97415] to-[#0d8f79]" },
+  { initials: "EP", name: "Edil Progetti S.r.l.", city: "Milano", months: 9, gradient: "from-[#111111] to-[#243566]" },
+  { initials: "FC", name: "Fratelli Conti Costruzioni", city: "Napoli", months: 22, gradient: "from-[#F97415] to-[#0a7a65]" },
   { initials: "GB", name: "GreenBuild Italia", city: "Torino", months: 7, gradient: "from-[#111111] to-[#F97415]" },
 ];
 
@@ -116,7 +119,7 @@ export default function TestimonialsSection() {
             <span className="text-[#F97415]">Reali.</span>
           </h2>
           <p className="text-white/60 text-lg max-w-2xl mx-auto">
-            Ecco cosa hanno ottenuto le imprese che hanno scelto Edilizia in Cloud. Numeri veri, nomi veri.
+            Ecco cosa ottengono le imprese edili che passano a Edilizia in Cloud.
           </p>
         </div>
 

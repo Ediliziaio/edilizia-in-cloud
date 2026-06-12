@@ -317,22 +317,25 @@ export default function Home() {
       </Suspense>
 
       {/* content-visibility:auto via .cv-auto-tall: il browser skip rendering
-          delle sezioni fuori dal viewport iniziale → main thread libero. */}
+          delle sezioni fuori dal viewport iniziale → main thread libero.
+          Ordine di vendita (2026-06): problema → soluzione → prova sociale →
+          meccanismo (AI) → catalogo moduli. Prima l'AI showcase veniva
+          mostrata a freddo, prima di aver agitato il problema. */}
       <Suspense fallback={<SectionFallback />}>
-        <div className="cv-auto-tall">
-          <AISystemShowcaseSection />
-        </div>
         <div className="cv-auto-tall">
           <PainPointsSection />
         </div>
         <div className="cv-auto-tall">
           <SolutionSection />
         </div>
-        <div className="cv-auto-tall">
-          <ModulesSection />
-        </div>
         <div className="cv-auto">
           <TestimonialsSection />
+        </div>
+        <div className="cv-auto-tall">
+          <AISystemShowcaseSection />
+        </div>
+        <div className="cv-auto-tall">
+          <ModulesSection />
         </div>
         <div className="cv-auto">
           <GuaranteeSection />

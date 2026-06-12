@@ -523,10 +523,10 @@ export default function HeroSection() {
         <div className="gsap-hero-item">
           <h1 className="mx-auto mb-4 max-w-6xl font-extrabold leading-[1.03] tracking-tight md:mb-5">
             <span className="block text-white text-[clamp(2.15rem,5.1vw,5.25rem)]">
-              Aumenta margini, utili e guadagni.
+              Scopri quali cantieri ti fanno perdere soldi.
             </span>
             <span className="mt-2 block text-[#F97415] text-[clamp(1.95rem,4.45vw,4.6rem)] md:mt-3">
-              Controlla la tua azienda con l'AI per l'edilizia.
+              Prima che sia troppo tardi.
             </span>
           </h1>
 
@@ -547,7 +547,7 @@ export default function HeroSection() {
           </div>
 
           <p className="text-sm md:text-base text-white/70 mb-0 max-w-xl mx-auto">
-            L'unico gestionale costruito da zero per l'edilizia italiana.
+            Il gestionale con AI costruito da zero per l'edilizia italiana: margini reali per commessa, cassa a 90 giorni, cantieri sotto controllo.
           </p>
         </div>
 
@@ -561,11 +561,11 @@ export default function HeroSection() {
             Inizia Gratis — 31 Giorni
           </button>
           <a
-            href="#moduli"
-            onClick={(e) => { e.preventDefault(); document.querySelector("#moduli")?.scrollIntoView({ behavior: "smooth" }); }}
+            href="#come-funziona"
+            onClick={(e) => { e.preventDefault(); document.querySelector("#come-funziona")?.scrollIntoView({ behavior: "smooth" }); }}
             className="w-full sm:w-auto px-6 md:px-8 py-3 md:py-4 rounded-full border border-white/20 text-white font-semibold hover:bg-white/5 hover:border-white/40 transition-all duration-200"
           >
-            Vedi tutti i moduli
+            Guarda come funziona
           </a>
         </div>
 

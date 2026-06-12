@@ -1,16 +1,9 @@
 import { useState, useEffect } from "react";
-import { ShieldCheck, ArrowRight } from "lucide-react";
-import { getTimeLeft } from "@/lib/urgencyUtils";
+import { ShieldCheck, ArrowRight, Star } from "lucide-react";
 import { openContactModal } from "@/components/landing/QuickContactModal";
 
 export default function StickyBottomBar() {
-  const [timeLeft, setTimeLeft] = useState(getTimeLeft);
   const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const id = setInterval(() => setTimeLeft(getTimeLeft()), 1000);
-    return () => clearInterval(id);
-  }, []);
 
   useEffect(() => {
     const onScroll = () => setVisible(window.scrollY > 1800);
@@ -33,13 +26,6 @@ export default function StickyBottomBar() {
     openContactModal();
   };
 
-  const units = [
-    { value: timeLeft.days, label: "giorni", short: "g" },
-    { value: timeLeft.hours, label: "ore", short: "h" },
-    { value: timeLeft.minutes, label: "min", short: "m" },
-    { value: timeLeft.seconds, label: "sec", short: "s" },
-  ];
-
   return (
     <div
       className={`fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-r from-[#111111] via-[#1e2f52] to-[#111111] text-white transition-transform duration-500 ${
@@ -59,21 +45,17 @@ export default function StickyBottomBar() {
       </div>
 
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 py-2.5 md:px-4 md:py-4">
-        {/* Countdown */}
-        <div className="hidden items-center gap-1.5 sm:flex">
-          <span className="relative mr-1.5 flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+        {/* Social proof al posto del countdown finto: stessa pressione,
+            zero puzza di televendita. */}
+        <div className="hidden items-center gap-2 sm:flex">
+          <span className="flex items-center gap-1">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <Star key={i} size={13} className="fill-amber-400 text-amber-400" />
+            ))}
           </span>
-          {units.map((u) => (
-            <div key={u.short} className="flex items-baseline gap-0.5">
-              <span className="inline-block min-w-[30px] rounded border border-white/10 bg-white/15 px-1.5 py-0.5 text-center font-mono text-base font-bold leading-tight">
-                {String(u.value).padStart(2, "0")}
-              </span>
-              <span className="hidden text-[11px] text-white/50 md:inline">{u.label}</span>
-              <span className="text-[11px] text-white/50 md:hidden">{u.short}</span>
-            </div>
-          ))}
+          <span className="text-[12px] font-semibold text-white/85">4.9/5</span>
+          <span className="text-[12px] text-white/50">·</span>
+          <span className="text-[12px] text-white/70">150+ imprese edili attive</span>
         </div>
 
         {/* Text — short, sticky */}
