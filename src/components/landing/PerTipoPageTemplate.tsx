@@ -139,6 +139,21 @@ export interface PerTipoConfig {
   verticalFeaturesSubtitle?: string;
   // CTA customization
   demoLabel?: string;
+  // Sezione AI (opzionale): Silvio declinato sul verticale — cosa fa
+  // l'AI da sola per questo tipo di azienda. Render solo se presente.
+  aiShowcase?: {
+    title: string;
+    subtitle: string;
+    actions: Array<{ icon: LucideIcon; title: string; desc: string; tag: string }>;
+    note?: string;
+  };
+  // Sezione ampiezza piattaforma (opzionale): "non è solo X" — tutti gli
+  // altri moduli inclusi che il verticale dà per scontati.
+  platformExtra?: {
+    title: string;
+    subtitle: string;
+    items: Array<{ icon: LucideIcon; name: string; desc: string }>;
+  };
   // Schema
   schemaFaq: Array<{ q: string; a: string }>;
 }
@@ -209,6 +224,8 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
   const transAnim = useScrollAnimation();
   const statsAnim = useScrollAnimation({ threshold: 0.2 });
   const modulesAnim = useScrollAnimation();
+  const aiAnim = useScrollAnimation();
+  const extraAnim = useScrollAnimation({ threshold: 0.1 });
   const caseAnim = useScrollAnimation();
   const garantieAnim = useScrollAnimation();
   const faqAnim = useScrollAnimation();
@@ -629,6 +646,87 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           </div>
         </div>
       </section>
+
+      {/* ── SILVIO AI (optional) ── */}
+      {config.aiShowcase && (
+        <section className="py-16 md:py-24 bg-[#111111] relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent 0%, rgba(249,116,21,0.8) 40%, rgba(249,116,21,1) 50%, transparent 100%)" }} />
+          <div className="absolute top-0 left-1/4 w-[500px] h-[400px] rounded-full blur-[130px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.2) 0%, transparent 65%)" }} />
+          <div className="absolute bottom-0 right-1/4 w-[450px] h-[350px] rounded-full blur-[120px] pointer-events-none" style={{ background: "radial-gradient(circle, rgba(249,116,21,0.14) 0%, transparent 65%)" }} />
+          <div ref={aiAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-5xl mx-auto px-6 relative z-10">
+            <div className={`text-center mb-12 transition-all duration-700 ${aiAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+              <img
+                src="/silvio-avatar-orange.png"
+                alt="Silvio, la regia AI di Edilizia in Cloud"
+                width={72}
+                height={72}
+                loading="lazy"
+                decoding="async"
+                className="mx-auto mb-4 h-[72px] w-[72px] rounded-full ring-2 ring-orange-300/60 shadow-[0_0_40px_rgba(249,116,21,0.45)]"
+              />
+              <span className="inline-block mb-4 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-orange-200 bg-[#F97415]/10 border border-[#F97415]/25">
+                Silvio · La regia AI
+              </span>
+              <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-3">{config.aiShowcase.title}</h2>
+              <p className="text-white/55 text-lg max-w-2xl mx-auto">{config.aiShowcase.subtitle}</p>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {config.aiShowcase.actions.map((a, i) => (
+                <div
+                  key={a.title}
+                  className={`rounded-2xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur transition-all duration-500 hover:-translate-y-1 hover:border-orange-300/35 hover:bg-white/[0.09] ${aiAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+                  style={{ transitionDelay: `${150 + i * 90}ms` }}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#F97415]/15 text-[#F97415]">
+                      <a.icon className="h-5 w-5" />
+                    </div>
+                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-white/55">
+                      {a.tag}
+                    </span>
+                  </div>
+                  <h3 className="font-bold text-white mb-1.5">{a.title}</h3>
+                  <p className="text-white/55 text-sm leading-relaxed">{a.desc}</p>
+                </div>
+              ))}
+            </div>
+            {config.aiShowcase.note && (
+              <p className={`text-center text-white/45 mt-10 text-sm md:text-base transition-all duration-700 delay-500 ${aiAnim.isVisible ? "opacity-100" : "opacity-0"}`}>
+                {config.aiShowcase.note}
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ── PIATTAFORMA COMPLETA (optional) ── */}
+      {config.platformExtra && (
+        <section className="py-16 md:py-24 bg-[#f8f9fa]">
+          <div ref={extraAnim.ref as React.RefObject<HTMLDivElement>} className="max-w-5xl mx-auto px-6">
+            <div className={`text-center mb-12 transition-all duration-700 ${extraAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+              <h2 className="text-2xl md:text-4xl font-extrabold text-[#111111] mb-3">{config.platformExtra.title}</h2>
+              <p className="text-gray-500 text-lg max-w-2xl mx-auto">{config.platformExtra.subtitle}</p>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {config.platformExtra.items.map((item, i) => (
+                <div
+                  key={item.name}
+                  className={`flex gap-3.5 rounded-2xl border border-gray-200 bg-white p-5 transition-all duration-500 hover:-translate-y-0.5 hover:border-[#F97415]/40 hover:shadow-lg ${extraAnim.isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}
+                  style={{ transitionDelay: `${100 + i * 60}ms` }}
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F97415]/10 text-[#F97415]">
+                    <item.icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[#111111] text-sm mb-1">{item.name}</h3>
+                    <p className="text-gray-500 text-xs leading-relaxed">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── CASE STUDY ── */}
       <section className="py-16 md:py-28 bg-[#111111] relative overflow-hidden">

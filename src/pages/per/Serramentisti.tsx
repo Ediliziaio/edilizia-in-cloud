@@ -1,4 +1,7 @@
-import { Ruler, Package, Calendar, FileText, TrendingUp, Smartphone, Wallet } from "lucide-react";
+import {
+  Ruler, Package, Calendar, FileText, TrendingUp, Smartphone, Wallet,
+  TrendingDown, Send, Camera, Sparkles, Receipt, Users, Warehouse, FolderOpen, BarChart3,
+} from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
@@ -164,6 +167,79 @@ const config: PerTipoConfig = {
       saving: "Misurazioni senza errori di trascrizione",
     },
   ],
+
+  // Sezione AI: cosa fa Silvio, da solo, per un serramentista.
+  aiShowcase: {
+    title: "L'AI che lavora per te, anche quando sei in cantiere",
+    subtitle:
+      "Silvio coordina 19 persone AI specializzate che leggono i dati della tua azienda e agiscono. Per un serramentista significa questo:",
+    actions: [
+      {
+        icon: TrendingDown,
+        tag: "Margini",
+        title: "Ti avvisa quando una commessa perde",
+        desc: "Ore di posa oltre il previsto, extra non fatturati, sconto troppo aggressivo: se il margine scende sotto la tua soglia, Silvio ti avvisa subito — non a lavoro finito.",
+      },
+      {
+        icon: Send,
+        tag: "Cassa",
+        title: "Prepara i solleciti d'incasso",
+        desc: "Saldo non arrivato dopo la posa? Silvio prepara il sollecito con il tono giusto — email o WhatsApp — e te lo mette in firma. Tu approvi, lui invia e tiene traccia.",
+      },
+      {
+        icon: Camera,
+        tag: "Campo",
+        title: "Trasforma foto e vocali in rapportini",
+        desc: "La squadra carica le foto e una nota vocale dal cantiere: Silvio genera il rapportino, aggiorna il diario lavori e collega tutto alla commessa giusta.",
+      },
+      {
+        icon: Sparkles,
+        tag: "Vendita",
+        title: "Rinforza preventivi e follow-up",
+        desc: "Riscrive la proposta con valore e garanzie, genera render prima/dopo per far vedere il risultato finito e prepara il follow-up per i preventivi rimasti fermi.",
+      },
+    ],
+    note: "Non una chat generica: ogni risposta nasce dai dati reali della tua azienda — commesse, listini, incassi, squadre.",
+  },
+
+  // Ampiezza piattaforma: tutto ciò che non è il preventivatore.
+  platformExtra: {
+    title: "E tutto il resto dell'azienda? Già incluso.",
+    subtitle:
+      "Non devi incollare cinque software diversi: dentro Edilizia in Cloud c'è tutto quello che serve a un'azienda di serramenti, collegato nello stesso posto.",
+    items: [
+      {
+        icon: Receipt,
+        name: "Fatturazione elettronica",
+        desc: "Fatture SDI attive e passive, acconti e saldi collegati alle commesse, bozze pronte da approvare.",
+      },
+      {
+        icon: Users,
+        name: "CRM e pipeline vendite",
+        desc: "Richieste, sopralluoghi e trattative in un'unica pipeline: sai sempre chi richiamare e quando.",
+      },
+      {
+        icon: Smartphone,
+        name: "App per le squadre di posa",
+        desc: "Rapportini, foto, presenze e materiali dal telefono — funziona anche offline in cantiere.",
+      },
+      {
+        icon: Warehouse,
+        name: "Magazzino e DDT",
+        desc: "Arrivi merce, lotti, DDT di entrata e uscita collegati a ordini fornitori e commesse.",
+      },
+      {
+        icon: FolderOpen,
+        name: "Documenti e scadenze",
+        desc: "Garanzie, schede tecniche e contratti archiviati per commessa: trovi tutto in 5 secondi.",
+      },
+      {
+        icon: BarChart3,
+        name: "Report per decidere",
+        desc: "Fatturato, margini per linea di prodotto, previsioni: i numeri dell'azienda in una schermata.",
+      },
+    ],
+  },
 
   // Case Study
   caseStudy: {
