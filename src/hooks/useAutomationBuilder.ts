@@ -36,7 +36,7 @@ export function useAutomationBuilder(flowId: string | undefined) {
   const queryClient = useQueryClient();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saveAllRef = useRef<() => Promise<void>>(async () => {});
+  const saveAllRef = useRef<() => Promise<boolean>>(async () => false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   useBeforeUnload(hasUnsavedChanges);
@@ -207,19 +207,45 @@ export function useAutomationBuilder(flowId: string | undefined) {
     });
     if (incompleteAction) errors.push("Completa tutte le azioni prima di pubblicare.");
 
+    // Validazione per canale: un'email senza oggetto/corpo o un SMS senza testo
+    // fallirebbero in esecuzione — meglio bloccare qui con un messaggio chiaro.
+    // Campi: il builder salva gli id italiani del catalogo (oggetto/corpo, testo);
+    // i nodi legacy possono usare gli alias inglesi normalizzati dall'engine.
+    const hasText = (v: unknown): boolean => typeof v === "string" && v.trim().length > 0;
+    let emailIncompleta = false;
+    let smsIncompleto = false;
+    for (const n of persistableNodes) {
+      if (n.node_type !== "action") continue;
+      const config = getNodeConfig(n);
+      const actionId = String(config.action_type ?? config.itemId ?? config.item_id ?? "");
+      if (actionId.includes("email")) {
+        const hasSubject = hasText(config.oggetto) || hasText(config.email_subject) || hasText(config.subject);
+        const hasBody = hasText(config.corpo) || hasText(config.email_body) || hasText(config.body) || hasText(config.html);
+        if (!hasSubject || !hasBody) emailIncompleta = true;
+      }
+      if (actionId.includes("sms")) {
+        const hasMessage = hasText(config.testo) || hasText(config.sms_body) || hasText(config.message);
+        if (!hasMessage) smsIncompleto = true;
+      }
+    }
+    if (emailIncompleta) errors.push("Un'azione email non ha oggetto o testo.");
+    if (smsIncompleto) errors.push("Un'azione SMS non ha il testo del messaggio.");
+
     const incompleteDelay = persistableNodes.find(n => n.node_type === "delay" && !hasDelayDuration(getNodeConfig(n)));
     if (incompleteDelay) errors.push("Imposta una durata valida per tutte le attese.");
 
     return errors;
   }, [nodes]);
 
-  // Save all nodes + connections — Bug 4 fix: invalidate flows list after save
-  const saveAll = useCallback(async () => {
-    if (!flowId || flowId === "nuova") return;
+  // Save all nodes + connections — Bug 4 fix: invalidate flows list after save.
+  // Ritorna true se il salvataggio è andato a buon fine (usato da togglePublish
+  // per NON pubblicare un canvas non salvato).
+  const saveAll = useCallback(async (): Promise<boolean> => {
+    if (!flowId || flowId === "nuova") return false;
     const persistCompanyId = effectiveCompany?.id ?? flow?.company_id;
     if (!persistCompanyId) {
       toast.error("Impossibile salvare", { description: "Nessuna azienda attiva." });
-      return;
+      return false;
     }
     if (nodes.length === 0) {
       toast("Bozza vuota", { description: "Aggiungi almeno un trigger per un flusso completo." });
@@ -299,8 +325,10 @@ export function useAutomationBuilder(flowId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ["automation-node-summaries", persistCompanyId] });
       // Bug 4 fix: invalidate flows list so updated_at refreshes
       queryClient.invalidateQueries({ queryKey: queryKeys.automations.all });
+      return true;
     } catch (err: any) {
       toast.error("Errore salvataggio", { description: err.message });
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -437,9 +465,20 @@ export function useAutomationBuilder(flowId: string | undefined) {
           toast.error("Impossibile pubblicare", { description: errors[0] });
           return;
         }
-        // Bug 1 fix: save all unsaved changes before publishing
+        // Bug 1 fix: save all unsaved changes before publishing.
+        // Se il salvataggio fallisce NON pubblicare: si pubblicherebbe la
+        // versione vecchia del canvas (diversa da quella a schermo).
         if (hasUnsavedChanges) {
-          await saveAll();
+          let saved = false;
+          try {
+            saved = await saveAll();
+          } catch {
+            saved = false;
+          }
+          if (!saved) {
+            toast.error("Salvataggio fallito — risolvi prima di pubblicare");
+            return;
+          }
         }
       }
       const newVersion = newStatus === "published" ? flow.version + 1 : flow.version;

@@ -112,6 +112,13 @@ Deno.serve(async (req: Request) => {
 
       if (quoteUpdateErr) {
         console.error("Quote FEA signed sync error:", quoteUpdateErr);
+        // Rollback: la firma non può risultare completata se il preventivo
+        // collegato non è stato aggiornato. Ripristina lo stato precedente.
+        await supabaseAdmin
+          .from("signature_requests")
+          .update({ status: sigReq.status, signed_at: null })
+          .eq("id", sigReq.id);
+        return errore(500, "Errore nell'aggiornamento del preventivo collegato. La firma non è stata registrata: riprova tra qualche istante.");
       }
     }
 

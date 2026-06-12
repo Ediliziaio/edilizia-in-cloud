@@ -90,7 +90,32 @@ export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
         throw new Error(result?.error || "Generazione non riuscita");
       }
 
+      // Validazione difensiva dei nodi generati dall'AI (non bloccante: la
+      // bozza si rifinisce nel builder e validateForPublish blocca comunque la
+      // pubblicazione). Segnala: azioni senza action_type/item_id, email senza
+      // oggetto/corpo, SMS senza testo. Campi = id italiani del catalogo
+      // (oggetto/corpo/testo) con alias inglesi legacy normalizzati dall'engine.
+      const hasText = (v: unknown): boolean => typeof v === "string" && v.trim().length > 0;
+      const azioniDaCompletare = result.nodes.some((n) => {
+        if (n.nodeType !== "action") return false;
+        const cfg = n.configJson ?? {};
+        const actionId = String(cfg.action_type ?? cfg.item_id ?? cfg.itemId ?? "");
+        if (!actionId) return true; // azione senza tipo: da configurare nel builder
+        if (actionId.includes("email")) {
+          const hasSubject = hasText(cfg.oggetto) || hasText(cfg.email_subject) || hasText(cfg.subject);
+          const hasBody = hasText(cfg.corpo) || hasText(cfg.email_body) || hasText(cfg.body);
+          if (!hasSubject || !hasBody) return true;
+        }
+        if (actionId.includes("sms")) {
+          const hasMessage = hasText(cfg.testo) || hasText(cfg.sms_body) || hasText(cfg.message);
+          if (!hasMessage) return true;
+        }
+        return false;
+      });
+
       // Crea bozza flow (stesso pattern dei template, con rollback su errore).
+      // NB: lo status è SEMPRE "draft" — un'automazione generata dall'AI non
+      // deve mai nascere già pubblicata.
       const { data: flow, error: flowErr } = await supabase
         .from("automation_flows")
         .insert({
@@ -146,6 +171,9 @@ export function CreaAutomazioneAIDialog({ open, onOpenChange }: Props) {
       void queryClient.invalidateQueries({ queryKey: ["automation-node-summaries"] });
 
       toast.success("Bozza generata! Apro il builder per rifinirla…");
+      if (azioniDaCompletare) {
+        toast.warning("Alcune azioni vanno completate nel builder prima di pubblicare");
+      }
       onOpenChange(false);
       setDescrizione("");
       navigate(`${routePrefix}/automazioni/${flowId}`);

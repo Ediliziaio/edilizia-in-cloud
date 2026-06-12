@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
-type Step = 'loading' | 'errore' | 'riepilogo' | 'otp' | 'b2c_recesso' | 'b2c_clausole' | 'firma' | 'successo';
+type Step = 'loading' | 'errore' | 'riepilogo' | 'otp' | 'b2c_recesso' | 'b2c_clausole' | 'firma' | 'successo' | 'gia_firmato';
 
 export default function FirmaDocumento() {
   const { token } = useParams<{ token: string }>();
@@ -60,7 +60,7 @@ export default function FirmaDocumento() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       pos => setGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {}, // fallback silenzioso
+      err => console.warn('Geolocalizzazione non disponibile:', err?.message ?? err), // niente toast: la firma procede comunque
       { timeout: 5000 }
     );
   }, []);
@@ -72,8 +72,13 @@ export default function FirmaDocumento() {
       });
       if (error || !data) throw new Error(error?.message ?? 'Link non valido');
       if (data.error) throw new Error(data.error);
+      // Documento già firmato: solo schermata di conferma, niente flusso di firma
+      if (data.already_signed || data.status === 'signed') {
+        setFirmaTimestamp(data.signed_at ?? '');
+        setStep('gia_firmato');
+        return;
+      }
       setSessione(data as FEASessionePubblica);
-      if (data.status === 'signed') { setStep('successo'); setFirmaTimestamp(data.signed_at ?? ''); return; }
       if (['expired', 'cancelled'].includes(data.status)) { setStep('errore'); setErroreMsg('Questo link è scaduto o è stato annullato.'); return; }
       setStep('riepilogo');
     } catch (err) {
@@ -247,8 +252,10 @@ export default function FirmaDocumento() {
               </p>
             </div>
           </div>
-          {sessione.tipo_firmatario === 'b2c' && (
+          {sessione.tipo_firmatario === 'b2c' ? (
             <Badge className="bg-blue-100 text-blue-700 border-blue-200">Contratto B2C — tutele consumatore</Badge>
+          ) : (
+            <Badge className="bg-slate-100 text-slate-700 border-slate-200">Contratto B2B</Badge>
           )}
           {!sessione.pdf_url && (
             <div className="flex items-start gap-2 p-2 rounded bg-yellow-50 border border-yellow-200 text-xs text-yellow-800">
@@ -301,6 +308,22 @@ export default function FirmaDocumento() {
           <div className="flex items-center gap-2 text-red-600 bg-red-50 rounded-lg p-3 text-sm">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>{otpError}</span>
+          </div>
+        )}
+        {otpTimer === 0 && (
+          <div className="flex flex-col items-center gap-3 text-red-600 bg-red-50 rounded-lg p-4 text-sm">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span className="font-medium">Il codice è scaduto. Richiedine uno nuovo per continuare.</span>
+            </div>
+            <Button
+              variant="outline"
+              className="gap-2 border-red-200 text-red-600 hover:bg-red-100 hover:text-red-700"
+              onClick={inviaOtp}
+              disabled={invioOtpInCorso}
+            >
+              {invioOtpInCorso ? <><Loader2 className="h-4 w-4 animate-spin" />Invio...</> : 'Reinvia codice'}
+            </Button>
           </div>
         )}
         <div className="flex items-center justify-between text-sm">
@@ -445,6 +468,25 @@ export default function FirmaDocumento() {
         </Button>
         <p className="text-slate-400 text-xs text-center">
           La tua firma elettronica ha valore legale ai sensi del CAD e del Regolamento eIDAS
+        </p>
+      </div>
+    </Wrapper>
+  );
+
+  if (step === 'gia_firmato') return (
+    <Wrapper>
+      <div className="flex flex-col items-center gap-4 py-6 text-center">
+        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
+          <CheckCircle2 className="h-10 w-10 text-green-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-800">Documento già firmato</h2>
+        <p className="text-slate-600 text-sm">
+          {firmaTimestamp
+            ? `Documento già firmato il ${format(new Date(firmaTimestamp), "dd/MM/yyyy 'alle' HH:mm", { locale: it })}.`
+            : 'Questo documento risulta già firmato.'}
+        </p>
+        <p className="text-slate-500 text-sm max-w-xs">
+          Non è richiesta nessuna ulteriore azione. Per assistenza contatta l&apos;azienda che ti ha inviato il link.
         </p>
       </div>
     </Wrapper>

@@ -141,9 +141,13 @@ async function handleTrigger(supabase: any, body: any) {
     nodesByFlow.get(node.flow_id)!.push(node);
   }
 
-  const enrollmentByFlow = new Map<string, { id: string; status: string }>();
+  // Tutte le iscrizioni esistenti per flow (non solo l'ultima riga: con la
+  // mappa "last-one-wins" un enrollment "active" poteva essere mascherato da
+  // una riga successiva con status diverso, causando doppi arruolamenti).
+  const enrollmentsByFlow = new Map<string, Array<{ id: string; status: string }>>();
   for (const e of (enrollmentsResult.data ?? [])) {
-    enrollmentByFlow.set(e.flow_id, e);
+    if (!enrollmentsByFlow.has(e.flow_id)) enrollmentsByFlow.set(e.flow_id, []);
+    enrollmentsByFlow.get(e.flow_id)!.push(e);
   }
 
   const connectionsByFlow = new Map<string, AutomationConnection[]>();
@@ -267,11 +271,12 @@ async function handleTrigger(supabase: any, body: any) {
     const flowSettings = flow.config_json?.settings || {};
     const allowReEnrollment = flowSettings.enable_reenrollment === true || matchingTrigger.config_json?.allow_re_enrollment === true;
 
-    // Use in-memory lookup instead of per-flow query
-    const existingEnrollment = enrollmentByFlow.get(flow.id);
-    if (existingEnrollment) {
+    // Use in-memory lookup instead of per-flow query.
+    // Blocca se QUALSIASI iscrizione esistente è in uno stato bloccante.
+    const existingEnrollments = enrollmentsByFlow.get(flow.id) ?? [];
+    if (existingEnrollments.length > 0) {
       const blockedStatuses = allowReEnrollment ? ["active"] : ["active", "completed"];
-      if (blockedStatuses.includes(existingEnrollment.status)) continue; // Already enrolled or completed (no re-enrollment)
+      if (existingEnrollments.some((e) => blockedStatuses.includes(e.status))) continue; // Already enrolled or completed (no re-enrollment)
     }
 
     // Create enrollment
@@ -336,6 +341,18 @@ async function handleTrigger(supabase: any, body: any) {
       status: "running",
     });
 
+    // Nodo trigger "foglia" (nessuna connessione in uscita): non c'è nulla da
+    // accodare, quindi chiudi subito l'enrollment e la run — altrimenti
+    // resterebbero per sempre "active"/"running" (stesso comportamento dei
+    // nodi goal/end_automation e dei nodi foglia in queueNextNodes).
+    if (connections.length === 0) {
+      await supabase
+        .from("automation_enrollments")
+        .update({ status: "completed", updated_at: new Date().toISOString() })
+        .eq("id", enrollment.id);
+      await completeExecutionRun(supabase, enrollment.id, "completed");
+    }
+
     enrolled++;
   }
 
@@ -372,12 +389,18 @@ async function processQueue(supabase: any) {
         .update({ status: "processing", updated_at: now })
         .eq("id", item.id);
 
-      // Get the node
-      const { data: node } = await supabase
+      // Get the node — distingue errore DB (transiente) da nodo davvero inesistente
+      const { data: node, error: nodeErr } = await supabase
         .from("automation_nodes")
         .select("*")
         .eq("id", item.current_node_id)
-        .single();
+        .maybeSingle();
+
+      if (nodeErr) {
+        console.error(`Queue item ${item.id}: errore DB nel fetch del nodo ${item.current_node_id}:`, nodeErr.message);
+        await markQueueItem(supabase, item.id, "failed", `Errore DB: ${nodeErr.message}`);
+        continue;
+      }
 
       if (!node) {
         await markQueueItem(supabase, item.id, "failed", "Node not found");

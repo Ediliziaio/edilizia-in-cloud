@@ -145,6 +145,8 @@ const SIGNATURE_REQUESTS_TIMEOUT_MS = 12_000;
 const SIGNATURE_OPTIONAL_LOOKUP_TIMEOUT_MS = 4_000;
 const SIGNATURE_ARCHIVE_PAGE_SIZE = 100;
 
+// Solo per query SECONDARIE (dettagli ordini/preventivi/sessioni, legacy quotes):
+// su errore fa fallback a [] ma logga un warning per non perdere il segnale.
 async function readOptionalRows<T>(
   task: PromiseLike<{ data: T[] | null; error?: unknown }> | null,
   label: string,
@@ -153,9 +155,13 @@ async function readOptionalRows<T>(
   if (!task) return [];
   try {
     const { data, error } = await withClientTimeout(task, label, timeoutMs);
-    if (error) return [];
+    if (error) {
+      console.warn(`[FirmaElettronica] ${label}:`, (error as { message?: string })?.message ?? error);
+      return [];
+    }
     return data ?? [];
-  } catch {
+  } catch (err) {
+    console.warn(`[FirmaElettronica] ${label}:`, err instanceof Error ? err.message : err);
     return [];
   }
 }
@@ -191,6 +197,8 @@ export default function FirmaElettronicaHub() {
   } = useQuery<SignatureRequestRow[], Error>({
     queryKey: ["signature-requests", companyId, statusFilter, tipoDocFilter],
     enabled: !!companyId,
+    // L'admin vede le firme completate senza refresh manuale
+    refetchInterval: 15000,
     queryFn: async ({ signal }) => {
       let q = supabase
         .from("signature_requests" as never)
@@ -204,10 +212,19 @@ export default function FirmaElettronicaHub() {
       const requestTimeout = createTimeoutSignal(SIGNATURE_OPTIONAL_LOOKUP_TIMEOUT_MS, signal);
       let feaRows: SignatureRequestBaseRow[] = [];
       try {
-        feaRows = await readOptionalRows<SignatureRequestBaseRow>(
+        // Query PRINCIPALE: l'errore deve propagarsi, così la UI mostra
+        // lo stato di errore con il bottone "Riprova caricamento".
+        const { data, error } = await withClientTimeout(
           q.abortSignal(requestTimeout.signal) as unknown as PromiseLike<{ data: SignatureRequestBaseRow[] | null; error?: unknown }>,
           "Archivio FEA",
+          SIGNATURE_OPTIONAL_LOOKUP_TIMEOUT_MS,
         );
+        if (error) {
+          throw error instanceof Error
+            ? error
+            : new Error((error as { message?: string })?.message ?? "Archivio FEA: errore di caricamento");
+        }
+        feaRows = data ?? [];
       } finally {
         requestTimeout.dispose();
       }

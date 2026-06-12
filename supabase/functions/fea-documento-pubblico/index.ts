@@ -41,6 +41,19 @@ Deno.serve(async (req: Request) => {
       return errore(404, "Link di firma non trovato o scaduto");
     }
 
+    // Già firmato: non esporre l'intero flusso, solo i dati per la conferma
+    if (sigReq.status === "signed") {
+      return new Response(
+        JSON.stringify({
+          already_signed: true,
+          signed_at: sigReq.signed_at ?? null,
+          tipo_documento: sigReq.tipo_documento ?? "order",
+          signer_name: sigReq.signer_name,
+        }),
+        { status: 200, headers: { ...corsH, "Content-Type": "application/json" } }
+      );
+    }
+
     // Nome azienda
     const { data: company } = await supabaseAdmin
       .from("companies")

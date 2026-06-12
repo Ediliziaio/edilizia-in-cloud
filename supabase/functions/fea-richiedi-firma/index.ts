@@ -118,6 +118,40 @@ Deno.serve(async (req: Request) => {
     }
     // odv: nessun ID specifico (fallback)
 
+    // Best-effort: scarica il PDF del documento (se esiste) e calcola
+    // l'hash SHA-256 per l'integrità (documento_hash). Se fallisce si
+    // procede comunque senza hash.
+    try {
+      let pdfUrl: string | null = null;
+      if (tipo_documento === "sessione") {
+        const { data: sessione } = await supabaseAdmin
+          .from("documento_sessioni")
+          .select("pdf_url")
+          .eq("id", documento_id)
+          .single();
+        pdfUrl = sessione?.pdf_url ?? null;
+      } else if (tipo_documento === "quote") {
+        const { data: quote } = await supabaseAdmin
+          .from("quotes")
+          .select("pdf_url")
+          .eq("id", documento_id)
+          .single();
+        pdfUrl = quote?.pdf_url ?? null;
+      }
+
+      if (pdfUrl) {
+        const pdfRes = await fetchWithTimeout(pdfUrl, { timeoutMs: 15_000 });
+        if (!pdfRes.ok) throw new Error(`Download PDF fallito: HTTP ${pdfRes.status}`);
+        const pdfBytes = await pdfRes.arrayBuffer();
+        const digest = await crypto.subtle.digest("SHA-256", pdfBytes);
+        insertPayload.documento_hash = Array.from(new Uint8Array(digest))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+      }
+    } catch (hashErr) {
+      console.warn("documento_hash non calcolato:", hashErr instanceof Error ? hashErr.message : hashErr);
+    }
+
     // Inserisce in signature_requests
     const { data: inserted, error: insertErr } = await supabaseAdmin
       .from("signature_requests")
@@ -179,6 +213,13 @@ Deno.serve(async (req: Request) => {
         // Non blocchiamo: la richiesta è creata, l'OTP può essere rigenerato
       } else {
         otpInviato = true;
+        // Audit: link + OTP inviati via email al firmatario
+        await supabaseAdmin.from("fea_audit_log").insert({
+          request_id,
+          company_id,
+          evento: "link_inviato",
+          metadati: { signer_email },
+        });
       }
     } catch (otpErr) {
       console.error("OTP call error:", otpErr);

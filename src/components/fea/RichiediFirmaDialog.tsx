@@ -39,6 +39,8 @@ export function RichiediFirmaDialog({
   const [scadenzaGiorni, setScadenzaGiorni] = useState<number>(14);
   const [copied, setCopied] = useState(false);
   const [result, setResult] = useState<{ link: string; token: string; otpSent: boolean } | null>(null);
+  // Guard locale contro il doppio click su "Invia richiesta firma"
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { mutate: richiedi, isPending } = useRichiediFirma();
 
@@ -50,10 +52,14 @@ export function RichiediFirmaDialog({
       setScadenzaGiorni(14);
       setResult(null);
       setCopied(false);
+      setIsSubmitting(false);
     }
   }, [open, default_email, default_nome]);
 
   const submit = () => {
+    if (isSubmitting) return; // già in corso: ignora il doppio click
+    setIsSubmitting(true);
+
     const validation = validateRichiediFirmaForm({
       email,
       nome,
@@ -64,6 +70,7 @@ export function RichiediFirmaDialog({
 
     if (!validation.ok) {
       toast.error(validation.error);
+      setIsSubmitting(false);
       return;
     }
 
@@ -88,6 +95,7 @@ export function RichiediFirmaDialog({
             : "Richiesta creata. Copia il link e invia al firmatario.",
         );
       },
+      onSettled: () => setIsSubmitting(false),
     });
   };
 
@@ -211,8 +219,8 @@ export function RichiediFirmaDialog({
           {!result ? (
             <>
               <Button variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
-              <Button onClick={submit} disabled={isPending || pdf_missing}>
-                {isPending ? (
+              <Button onClick={submit} disabled={isPending || isSubmitting || pdf_missing}>
+                {isPending || isSubmitting ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Invio...</>
                 ) : pdf_missing ? (
                   "Genera PDF prima"
