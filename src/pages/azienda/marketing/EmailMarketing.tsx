@@ -9,6 +9,9 @@ import { EmailCampaignsTab } from "@/components/email-marketing/EmailCampaignsTa
 import { EmailTemplatesTab } from "@/components/email-marketing/EmailTemplatesTab";
 import { EmailCreditsBanner } from "@/components/email-marketing/EmailCreditsBanner";
 import { ApiHealthBanner } from "@/components/marketing/ApiHealthBanner";
+import { MarketingDomainGateWall } from "@/components/email-marketing/MarketingDomainGateWall";
+import { useMarketingDomainGate } from "@/hooks/useMarketingDomainGate";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const EmailMarketing = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -19,6 +22,7 @@ const EmailMarketing = () => {
       : "statistiche"
   );
   const { isScopriPlan } = useSubscriptionLimits();
+  const domainGate = useMarketingDomainGate();
 
   useEffect(() => {
     if (requestedTab === "campagne" || requestedTab === "modelli" || requestedTab === "statistiche") {
@@ -32,6 +36,18 @@ const EmailMarketing = () => {
   };
 
   if (isScopriPlan) return <UpgradeScopriWall type="marketing" inline />;
+
+  // Gate dominio proprio: senza un dominio email verificato l'azienda non
+  // può fare email marketing (stessa policy del server, che resta autorità).
+  if (domainGate.isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-72 w-full" />
+      </div>
+    );
+  }
+  if (!domainGate.allowed) return <MarketingDomainGateWall />;
 
   return (
     <div className="space-y-6">

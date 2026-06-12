@@ -623,14 +623,41 @@ async function actionVerifyDomain(
     .single();
   if (updErr) throw new Error(`DB update failed: ${updErr.message}`);
 
-  // Auto-activate when verified (GENERATED column is_verified already recomputed)
-  if (updated.is_verified && !updated.is_active) {
+  // Auto-activate: il dominio diventa attivo appena lo stream MARKETING
+  // (Elastic Email SPF+DKIM) è verificato — NON aspettiamo il transactional
+  // (Resend/SendGrid): resolveSender fa già check per-stream e il gate
+  // anti-spam delle campagne richiede proprio EE ok. is_verified (GENERATED,
+  // richiede anche un transactional verde) resta il badge "tutto verde".
+  const marketingVerified = Boolean(
+    updated.ee_spf_verified && updated.ee_dkim_verified,
+  );
+  if ((updated.is_verified || marketingVerified) && !updated.is_active) {
     const { data: activated } = await admin
       .from("company_email_domains")
       .update({ is_active: true, verified_at: new Date().toISOString(), last_verified_at: new Date().toISOString() })
       .eq("id", row.id)
       .select()
       .single();
+
+    // Auto-collega il dominio appena attivato alle preferenze mittente
+    // marketing se l'azienda non ne ha già scelto uno: senza questo pointer
+    // resolveSender continuerebbe a usare il fallback condiviso EiC.
+    const { data: prefs } = await admin
+      .from("company_email_preferences")
+      .select("company_id, marketing_domain_id")
+      .eq("company_id", companyId)
+      .maybeSingle();
+    if (!prefs) {
+      await admin
+        .from("company_email_preferences")
+        .insert({ company_id: companyId, marketing_domain_id: row.id });
+    } else if (!prefs.marketing_domain_id) {
+      await admin
+        .from("company_email_preferences")
+        .update({ marketing_domain_id: row.id })
+        .eq("company_id", companyId);
+    }
+
     return {
       domain_row: activated ?? updated,
       dns_records: buildDnsRecords(activated ?? updated),

@@ -3,6 +3,7 @@ import { sendViaProviderWithFailover, loadProviderSettings, sanitizeFromName } f
 import { addEmailCredits, deductEmailCredits } from "../_shared/emailCredits.ts";
 import { getCompanyBillingConfig } from "../_shared/billingConfig.ts";
 import { checkPaymentMethod, PAYMENT_METHOD_REQUIRED_MESSAGE } from "../_shared/requirePaymentMethod.ts";
+import { checkMarketingDomainGate } from "../_shared/marketingDomainGate.ts";
 import { logEmailDelivery } from "../_shared/email-log.ts";
 import { resolveSender } from "../_shared/resolveSender.ts";
 import {
@@ -303,6 +304,17 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: pmCheck.message ?? PAYMENT_METHOD_REQUIRED_MESSAGE, code: "payment_method_required" }),
         { status: 402, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } },
+      );
+    }
+
+    // Gate anti-spam "dominio proprio obbligatorio": senza un dominio email
+    // verificato dell'azienda le campagne marketing non partono — ogni tenant
+    // invia con la SUA reputazione, mai con quella condivisa della piattaforma.
+    const domainGate = await checkMarketingDomainGate(adminClient, companyId);
+    if (!domainGate.allowed) {
+      return new Response(
+        JSON.stringify({ error: domainGate.reason, code: "marketing_domain_required" }),
+        { status: 403, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } },
       );
     }
 
