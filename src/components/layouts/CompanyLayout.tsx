@@ -1226,12 +1226,13 @@ const CompanySidebar = memo(function CompanySidebar() {
 
   return (
     <Sidebar className="border-r" collapsible="icon">
+      {/* Header logo: sfondo sempre neutro — il colore brand resta su bottoni,
+          link e voci attive, non su questa zona. */}
       <div
         className={cn(
           "border-b border-sidebar-border overflow-hidden bg-sidebar-accent/40",
           isCollapsed ? "flex flex-col items-center gap-2.5 px-2 py-3" : "space-y-2.5 px-3 py-4",
         )}
-        style={effectiveBrand.isWhiteLabel ? { backgroundColor: effectiveBrand.primaryColor, color: effectiveBrand.textOnPrimary } : undefined}
       >
         <CompanyBrandHeader
           isCollapsed={isCollapsed}
