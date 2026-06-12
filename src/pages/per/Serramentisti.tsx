@@ -3,8 +3,8 @@ import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipo
 
 const config: PerTipoConfig = {
   // SEO
-  seoTitle: "Software per Serramentisti | Preventivi, Margini e Cassa Sotto Controllo",
-  seoDescription: "Il gestionale per serramentisti e installatori di infissi: preventivi su misura in 60 secondi, margine reale per commessa, cassa e anticipi fornitori sotto controllo, ordini e pose senza errori.",
+  seoTitle: "Software per Serramentisti | Più Margini, Più Controllo, Zero Caos",
+  seoDescription: "Il gestionale completo per serramentisti e installatori di infissi: margine reale per commessa, cassa a 90 giorni, ordini e pose senza errori, squadre organizzate — e preventivi su misura in 60 secondi.",
   seoKeywords: "software serramentisti, gestionale infissi, preventivo finestre, margini serramenti, controllo di gestione serramentista, cassa serramentista, software installatori infissi, gestione ordini serramenti, listino fornitori serramenti, configuratore preventivi infissi, posa in opera, software porte finestre",
   seoCanonical: "/per/serramentisti",
 
@@ -12,12 +12,12 @@ const config: PerTipoConfig = {
   badge: "Per Serramentisti e Installatori di Infissi",
   heroTitle: (
     <>
-      <span className="text-white">Preventivi in 60 secondi. +12% di margine medio.</span>{" "}
-      <span className="text-[#F97415]">E sai sempre dove stanno andando i tuoi soldi.</span>
+      <span className="text-white">Aumenta i margini. Blinda la cassa. Controlla ogni commessa.</span>{" "}
+      <span className="text-[#F97415]">Il gestionale con AI per chi produce e posa serramenti.</span>
     </>
   ),
   heroSubtitle:
-    "Oggi perdi lavori perché il preventivo arriva dopo giorni, perdi margine perché sconti e ore di posa extra non li conteggia nessuno, e anticipi tu la liquidità ai fornitori. Con Edilizia in Cloud il preventivo esce in 60 secondi (quello dettagliato in pochi minuti), il margine reale di ogni commessa lo vedi mentre lavori e la cassa la conosci a 90 giorni.",
+    "Non è solo un preventivatore: è il sistema che governa tutta l'azienda. Il margine reale di ogni commessa lo vedi mentre lavori (+12% medio sulle commesse monitorate), la cassa la conosci a 90 giorni, ordini e pose filano senza errori — e sì, il preventivo esce in 60 secondi. Con l'AI che ti avvisa prima che un problema diventi un costo.",
   heroImage: "https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&w=1400&q=80",
 
   // Social proof
@@ -29,9 +29,9 @@ const config: PerTipoConfig = {
   ],
 
   // Problems
-  problemsTitle: "Il preventivo lento è solo il problema che vedi",
+  problemsTitle: "Quanto ti costa gestire l'azienda a memoria, su Excel e WhatsApp?",
   problemsSubtitle:
-    "Sotto ci sono margini che si assottigliano senza che nessuno se ne accorga, cassa anticipata ai fornitori e commesse di cui solo tu conosci lo stato. Ecco cosa costa davvero gestire i serramenti senza un sistema.",
+    "Margini che si assottigliano senza che nessuno se ne accorga, cassa anticipata ai fornitori, commesse di cui solo tu conosci lo stato, preventivi che escono troppo tardi. Ecco cosa costa davvero gestire i serramenti senza un sistema.",
   problems: [
     {
       emoji: "📐",
@@ -106,19 +106,19 @@ const config: PerTipoConfig = {
   // Stats
   stats: [
     {
-      value: "60 sec",
-      label: "Per generare un preventivo",
-      sublabel: "Da 2-3 ore a 60 secondi — il dettagliato esce in pochi minuti",
-    },
-    {
       value: "+12%",
       label: "Margine medio per commessa",
       sublabel: "Quando vedi i numeri in tempo reale, smetti di vendere sotto costo",
     },
     {
-      value: "0",
-      label: "Errori di misura in produzione",
-      sublabel: "I dati del sopralluogo entrano direttamente nell'ordine",
+      value: "90 gg",
+      label: "Di visibilità sulla cassa",
+      sublabel: "Acconti, saldi e pagamenti fornitori: sai cosa entra e cosa esce",
+    },
+    {
+      value: "60 sec",
+      label: "Per generare un preventivo",
+      sublabel: "Da 2-3 ore a 60 secondi — il dettagliato esce in pochi minuti",
     },
   ],
 
@@ -127,12 +127,6 @@ const config: PerTipoConfig = {
   modulesSubtitle:
     "Niente funzionalità inutili. Solo i moduli che fanno uscire più preventivi, proteggono il margine di ogni commessa e tengono la cassa sotto controllo.",
   modules: [
-    {
-      icon: Ruler,
-      name: "Configuratore Preventivi su Misura",
-      desc: "Seleziona tipologia (finestra, porta, portone, schermatura solare), profilo (PVC, alluminio, legno), colore RAL, finitura e vetrocamera. Il prezzo aggiornato al listino fornitore esce in automatico.",
-      saving: "Da 2h a 60 secondi a preventivo",
-    },
     {
       icon: TrendingUp,
       name: "Margini e Controllo di Gestione",
@@ -144,6 +138,12 @@ const config: PerTipoConfig = {
       name: "Cassa e Scadenzario",
       desc: "Acconti da incassare, saldi post-posa da sollecitare, bonifici fornitori in uscita: tutto collegato alle commesse. Vedi quanto stai anticipando e la cassa prevista a 30, 60 e 90 giorni.",
       saving: "Zero sorprese a fine mese",
+    },
+    {
+      icon: Ruler,
+      name: "Configuratore Preventivi su Misura",
+      desc: "Seleziona tipologia (finestra, porta, portone, schermatura solare), profilo (PVC, alluminio, legno), colore RAL, finitura e vetrocamera. Il prezzo aggiornato al listino fornitore esce in automatico.",
+      saving: "Da 2h a 60 secondi a preventivo",
     },
     {
       icon: Package,
@@ -176,12 +176,12 @@ const config: PerTipoConfig = {
     initials: "RB",
     gradient: "from-[#111111] to-[#F97415]",
     quote:
-      "Facevo i preventivi la sera, dopo cena, con il listino del fornitore aperto sul tavolo e la calcolatrice in mano. Due ore a preventivo, minimo. Ora il preventivo esce in un minuto, anche dal telefono mentre sono dal cliente. Ma la cosa che mi ha cambiato il lavoro è un'altra: so quanto guadagno su ogni commessa prima che finisca, non un anno dopo dal commercialista. E so chi mi deve ancora il saldo senza cercare tra le carte.",
+      "Per anni ho scoperto quanto guadagnavo solo a fine anno, dal commercialista. Adesso il margine di ogni commessa lo vedo mentre è ancora aperta: se scende, intervengo subito. So chi mi deve il saldo senza cercare tra le carte, e quanto sto anticipando ai fornitori. E i preventivi, che facevo la sera con la calcolatrice in due ore, escono in un minuto — anche dal telefono, davanti al cliente.",
     metrics: [
-      { label: "Tempo per preventivo infissi", before: "2-3 ore", after: "60 secondi" },
       { label: "Margine reale per commessa", before: "scoperto a fine anno", after: "visibile in tempo reale" },
-      { label: "Errori negli ordini di produzione", before: "3-4 al mese", after: "0" },
       { label: "Fatturato annuo", before: "480.000 €", after: "620.000 €" },
+      { label: "Tempo per preventivo infissi", before: "2-3 ore", after: "60 secondi" },
+      { label: "Errori negli ordini di produzione", before: "3-4 al mese", after: "0" },
     ],
     image: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80",
   },
@@ -224,13 +224,6 @@ const config: PerTipoConfig = {
 
   verticalFeatures: [
     {
-      icon: Ruler,
-      problem: "Preventivi su misura in 2-3 ore: troppo lenti per stare sul mercato",
-      solution: "Il configuratore preventivi di Edilizia in Cloud importa i listini dei tuoi fornitori (PVC, alluminio, legno). Inserisci larghezza, altezza, profilo, colore RAL, tipo di vetro: il prezzo si calcola in automatico. Preventivo pronto in 60 secondi, quello dettagliato in pochi minuti — completo, firmabile via link.",
-      economicBenefit: "×3 preventivi",
-      benefitLabel: "generati nella stessa giornata rispetto a prima",
-    },
-    {
       icon: TrendingUp,
       problem: "Il preventivo diceva 30% di margine. A fine commessa è il 12% — e nessuno se n'è accorto",
       solution: "Ogni commessa ha il suo conto economico: materiali dal listino, ore di posa reali, trasferte, extra. Il margine si aggiorna mentre lavori, non a fine anno. Se una commessa scende sotto la soglia che hai fissato, ricevi l'avviso prima che il danno sia fatto.",
@@ -243,6 +236,13 @@ const config: PerTipoConfig = {
       solution: "Lo scadenzario incassi e pagamenti è collegato alle commesse: acconti da chiedere alla firma, saldi da sollecitare dopo la posa, bonifici fornitori in uscita. Vedi la cassa a 30/60/90 giorni e quanto stai anticipando su ogni cantiere — prima di accettare il prossimo.",
       economicBenefit: "90 gg",
       benefitLabel: "di visibilità sulla cassa, commessa per commessa",
+    },
+    {
+      icon: Ruler,
+      problem: "Preventivi su misura in 2-3 ore: troppo lenti per stare sul mercato",
+      solution: "Il configuratore preventivi di Edilizia in Cloud importa i listini dei tuoi fornitori (PVC, alluminio, legno). Inserisci larghezza, altezza, profilo, colore RAL, tipo di vetro: il prezzo si calcola in automatico. Preventivo pronto in 60 secondi, quello dettagliato in pochi minuti — completo, firmabile via link.",
+      economicBenefit: "×3 preventivi",
+      benefitLabel: "generati nella stessa giornata rispetto a prima",
     },
     {
       icon: Package,
@@ -266,19 +266,19 @@ const config: PerTipoConfig = {
       benefitLabel: "contestazioni post-consegna non documentate",
     },
   ],
-  verticalFeaturesTitle: "Dal preventivo al saldo incassato — senza errori e senza perdere margine",
-  verticalFeaturesSubtitle: "Configuratore preventivi, margine in tempo reale, cassa sotto controllo, ordini fornitori integrati, planning installazioni, verbale di consegna firmato. Tutto connesso. Tutto tracciato.",
-  demoLabel: "Vedi un preventivo uscire in 60 secondi — e come si controllano margine e cassa di ogni commessa",
+  verticalFeaturesTitle: "Più margine, più controllo, meno errori — su ogni commessa",
+  verticalFeaturesSubtitle: "Margine in tempo reale, cassa sotto controllo, configuratore preventivi, ordini fornitori integrati, planning installazioni, verbale di consegna firmato. Tutto connesso. Tutto tracciato.",
+  demoLabel: "Vedi margini, cassa e stato di ogni commessa in un'unica schermata — e un preventivo uscire in 60 secondi",
 
   // CTA
   ctaTitle: (
     <>
-      <span className="text-white">Preventivi in 60 secondi.</span>{" "}
-      <span className="text-[#F97415]">Margini e cassa sotto controllo.</span>
+      <span className="text-white">Più margine, più controllo, zero sorprese.</span>{" "}
+      <span className="text-[#F97415]">E i preventivi escono in 60 secondi.</span>
     </>
   ),
   ctaSubtitle:
-    "30 minuti di demo sui numeri della tua attività: generiamo un preventivo con il tuo listino fornitore sotto i tuoi occhi e ti mostriamo dove finisce il margine di una commessa tipo — e quanto stai anticipando di cassa.",
+    "30 minuti di demo sui numeri della tua attività: ti mostriamo dove finisce il margine di una commessa tipo, quanto stai anticipando di cassa — e generiamo un preventivo con il tuo listino fornitore sotto i tuoi occhi.",
 
   // Schema FAQ
   schemaFaq: [

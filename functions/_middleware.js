@@ -2053,12 +2053,12 @@ const ROUTES = {
   },
 
   "/per/serramentisti": {
-    title: "Software per Serramentisti | Preventivi, Margini e Cassa Sotto Controllo",
+    title: "Software per Serramentisti | Più Margini, Più Controllo, Zero Caos",
     description:
-      "Gestionale per serramentisti e installatori di infissi: preventivi su misura in 60 secondi, margine reale per commessa, cassa e anticipi fornitori sotto controllo, ordini e pose senza errori.",
-    h1: "Gestionale per serramentisti: preventivi, margini e cassa",
+      "Il gestionale completo per serramentisti e installatori di infissi: margine reale per commessa, cassa a 90 giorni, ordini e pose senza errori, squadre organizzate — e preventivi su misura in 60 secondi.",
+    h1: "Aumenta i margini e controlla la tua azienda di serramenti",
     intro:
-      "Edilizia in Cloud è il gestionale per serramentisti: configuratore preventivi con listini fornitore (PVC, alluminio, legno), margine reale per commessa e per linea di prodotto, scadenzario incassi e pagamenti, ordini fornitori generati dal preventivo, planning installazioni e verbale di consegna firmato.",
+      "Edilizia in Cloud è il gestionale completo per serramentisti — non solo un preventivatore: margine reale per commessa e per linea di prodotto (PVC, alluminio, portoni), scadenzario incassi e pagamenti con cassa a 90 giorni, ordini fornitori generati dal preventivo, planning installazioni, verbale di consegna firmato e configuratore preventivi con listini fornitore che genera un preventivo in 60 secondi.",
     links: [
       { href: "/per/impiantisti", label: "Per Impiantisti" },
       { href: "/per/piccole-imprese", label: "Per Piccole Imprese" },
