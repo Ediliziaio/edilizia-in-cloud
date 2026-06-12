@@ -20,6 +20,7 @@ import {
   useSaveSubdomain,
   useRequestDomainVerification,
   useVerifyCustomDomain,
+  useRemoveCustomDomain,
 } from "@/hooks/useBrandingByDomain";
 import { isValidHexColor } from "@/lib/brandTheme";
 import { useAuth } from "@/contexts/AuthContext";
@@ -189,6 +190,20 @@ export default function SettingsBranding() {
   const saveSubdomainMut = useSaveSubdomain(companyId);
   const requestVerifMut = useRequestDomainVerification(companyId);
   const verifyMut = useVerifyCustomDomain(companyId);
+  const removeDomainMut = useRemoveCustomDomain(companyId);
+  const [confirmRemoveDomain, setConfirmRemoveDomain] = useState(false);
+
+  const handleRemoveDomain = async () => {
+    setConfirmRemoveDomain(false);
+    try {
+      await removeDomainMut.mutateAsync();
+      setCustomDomain("");
+      toast.success("Dominio rimosso");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Errore";
+      toast.error("Impossibile rimuovere il dominio", { description: msg });
+    }
+  };
 
   // Sync subdomain/domain from DB
   useEffect(() => {
@@ -784,11 +799,21 @@ export default function SettingsBranding() {
                   {(companyBranding as { custom_domain_verified?: boolean } | null)?.custom_domain_verified ? (
                     <Alert>
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      <AlertDescription className="flex items-center justify-between gap-2">
+                      <AlertDescription className="flex items-center justify-between gap-2 flex-wrap">
                         <span><strong>{customDomain}</strong> è verificato e attivo.</span>
-                        <Button variant="ghost" size="sm" onClick={() => window.open(`https://${customDomain}`, "_blank")}>
-                          Apri ↗
-                        </Button>
+                        <span className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => window.open(`https://${customDomain}`, "_blank")}>
+                            Apri ↗
+                          </Button>
+                          <Button
+                            variant="ghost" size="sm"
+                            className="text-destructive hover:text-destructive"
+                            disabled={!canEdit || removeDomainMut.isPending}
+                            onClick={() => setConfirmRemoveDomain(true)}
+                          >
+                            {removeDomainMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Rimuovi"}
+                          </Button>
+                        </span>
                       </AlertDescription>
                     </Alert>
                   ) : (
@@ -872,29 +897,39 @@ export default function SettingsBranding() {
                             <p className="text-xs text-muted-foreground">
                               La propagazione DNS può richiedere da 5 minuti a 48 ore.
                             </p>
-                            <Button
-                              size="sm" variant="outline"
-                              disabled={!canEdit || verifyMut.isPending}
-                              onClick={async () => {
-                                try {
-                                  const result = await verifyMut.mutateAsync();
-                                  if (result.verified) {
-                                    toast.success("Dominio verificato! ✓");
-                                  } else {
-                                    toast.error(result.error || "CNAME non ancora propagato. Riprova più tardi.");
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Button
+                                size="sm" variant="outline"
+                                disabled={!canEdit || verifyMut.isPending}
+                                onClick={async () => {
+                                  try {
+                                    const result = await verifyMut.mutateAsync();
+                                    if (result.verified) {
+                                      toast.success("Dominio verificato! ✓");
+                                    } else {
+                                      toast.error(result.error || "CNAME non ancora propagato. Riprova più tardi.");
+                                    }
+                                  } catch {
+                                    toast.error("Errore durante la verifica");
                                   }
-                                } catch {
-                                  toast.error("Errore durante la verifica");
-                                }
-                              }}
-                            >
-                              {verifyMut.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              ) : (
-                                <RefreshCw className="h-4 w-4 mr-2" />
-                              )}
-                              Verifica ora
-                            </Button>
+                                }}
+                              >
+                                {verifyMut.isPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <RefreshCw className="h-4 w-4 mr-2" />
+                                )}
+                                Verifica ora
+                              </Button>
+                              <Button
+                                size="sm" variant="ghost"
+                                className="text-destructive hover:text-destructive"
+                                disabled={!canEdit || removeDomainMut.isPending}
+                                onClick={() => setConfirmRemoveDomain(true)}
+                              >
+                                {removeDomainMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Rimuovi dominio"}
+                              </Button>
+                            </div>
                           </AlertDescription>
                         </Alert>
                       )}
@@ -942,6 +977,26 @@ export default function SettingsBranding() {
           </div>
         </>
       )}
+
+      {/* Dialog conferma rimozione dominio personalizzato */}
+      <AlertDialog open={confirmRemoveDomain} onOpenChange={setConfirmRemoveDomain}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rimuovere il dominio personalizzato?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{customDomain || companyBranding?.custom_domain}</strong> non sarà più
+              collegato alla piattaforma. Gli utenti che lo usavano dovranno accedere
+              dall'indirizzo standard. Potrai configurare un nuovo dominio in qualsiasi momento.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemoveDomain} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Rimuovi
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Dialog conferma ripristino aspetto di sistema */}
       <AlertDialog open={confirmResetSystem} onOpenChange={setConfirmResetSystem}>

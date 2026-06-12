@@ -166,6 +166,22 @@ export function useRequestDomainVerification(companyId: string | undefined) {
   });
 }
 
+/** Remove custom domain (Cloudflare + company_branding) via edge function */
+export function useRemoveCustomDomain(companyId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error("companyId richiesto");
+      const { data, error } = await supabase.functions.invoke("remove-custom-domain", {
+        body: { company_id: companyId },
+      });
+      if (error) throw error;
+      return data as { success: boolean; message?: string };
+    },
+    onSuccess: () => invalidateBrandingQueries(qc, companyId),
+  });
+}
+
 /** Verify custom domain CNAME via edge function */
 export function useVerifyCustomDomain(companyId: string | undefined) {
   const qc = useQueryClient();

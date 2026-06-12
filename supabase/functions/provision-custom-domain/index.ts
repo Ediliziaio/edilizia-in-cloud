@@ -22,9 +22,10 @@ Deno.serve(async (req) => {
     const cfAccountId = Deno.env.get("CLOUDFLARE_ACCOUNT_ID");
     const cfProjectName = Deno.env.get("CLOUDFLARE_PROJECT_NAME") ?? "edilizia-in-cloud";
 
-    if (!cfToken || !cfAccountId) {
-      return errorResponse("Cloudflare API non configurata. Contatta il supporto.", 503);
-    }
+    // Cloudflare token assente → modalità manuale: il dominio viene comunque
+    // salvato con le istruzioni CNAME (la verifica DNS via DoH non richiede
+    // token); l'aggiunta su Cloudflare Pages andrà fatta dalla dashboard CF.
+    const cfConfigured = Boolean(cfToken && cfAccountId);
 
     // Auth
     const authHeader = req.headers.get("Authorization") ?? "";
@@ -97,24 +98,28 @@ Deno.serve(async (req) => {
     }
 
     // P2-5: Cloudflare API con timeout 30s — evita hangare edge function.
-    const cfUrl = `https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/pages/projects/${cfProjectName}/domains`;
-    const cfRes = await fetchWithTimeout(cfUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${cfToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ name: domain }),
-      timeoutMs: 30_000,
-    });
+    if (cfConfigured) {
+      const cfUrl = `https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/pages/projects/${cfProjectName}/domains`;
+      const cfRes = await fetchWithTimeout(cfUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${cfToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: domain }),
+        timeoutMs: 30_000,
+      });
 
-    const cfData = await cfRes.json();
-    if (!cfRes.ok && !cfData?.result?.name) {
-      // Se il dominio è già aggiunto (409), prosegui comunque
-      if (cfRes.status !== 409) {
-        console.error("Cloudflare error:", cfData);
-        return errorResponse("Errore durante l'aggiunta del dominio su Cloudflare. Riprova.", 502);
+      const cfData = await cfRes.json();
+      if (!cfRes.ok && !cfData?.result?.name) {
+        // Se il dominio è già aggiunto (409), prosegui comunque
+        if (cfRes.status !== 409) {
+          console.error("Cloudflare error:", cfData);
+          return errorResponse("Errore durante l'aggiunta del dominio su Cloudflare. Riprova.", 502);
+        }
       }
+    } else {
+      console.warn(`[provision-custom-domain] CLOUDFLARE_API_TOKEN assente — dominio ${domain} salvato in modalità manuale (aggiungerlo su Cloudflare Pages dalla dashboard).`);
     }
 
     // CNAME target: per Cloudflare Pages è tipicamente <project>.pages.dev
@@ -143,7 +148,7 @@ Deno.serve(async (req) => {
       company_id,
       action: "domain_added",
       actor_id: user.id,
-      new_value: { domain, cname_target: cnameTarget },
+      new_value: { domain, cname_target: cnameTarget, cloudflare_automated: cfConfigured },
     });
 
     return new Response(
