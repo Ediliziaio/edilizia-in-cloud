@@ -1997,12 +1997,12 @@ const ROUTES = {
   },
 
   "/per/imprese-costruzione": {
-    title: "Software Gestionale per Imprese di Costruzione",
+    title: "Gestionale per Imprese di Costruzione | Più Margini, Più Controllo, Zero Caos",
     description:
-      "Il gestionale cloud pensato per le imprese di costruzione: gestisci cantieri, contratti, SAL, fatturazione e squadre da un'unica piattaforma.",
-    h1: "Gestionale per imprese di costruzione",
+      "Il gestionale con AI per imprese di costruzione: margine reale per commessa in tempo reale, SAL automatici, subappaltatori, forecast di cassa a 90 giorni e computi metrici.",
+    h1: "Aumenta i margini e controlla ogni cantiere della tua impresa di costruzione",
     intro:
-      "Edilizia in Cloud è progettato per le imprese di costruzione italiane: monitoraggio avanzamento lavori, SAL automatici, gestione subappalti, fatturazione elettronica e controllo dei margini.",
+      "Edilizia in Cloud governa tutta l'impresa di costruzione: margine reale di ogni commessa aggiornato in tempo reale, SAL automatici, gestione subappaltatori con ritenute, forecast di cassa a 90 giorni e fatturazione elettronica.",
     links: [
       { href: "/per/impiantisti", label: "Per Impiantisti" },
       { href: "/per/ristrutturatori", label: "Per Ristrutturatori" },
@@ -2011,12 +2011,12 @@ const ROUTES = {
   },
 
   "/per/impiantisti": {
-    title: "Software Gestionale per Impiantisti",
+    title: "Gestionale per Impiantisti | Più Margini, Più Controllo, Zero Caos",
     description:
-      "Gestionale cloud per impiantisti: preventivi tecnici, SAL, fatturazione, magazzino e gestione squadre. Pensato per impianti elettrici, idraulici e termici.",
-    h1: "Gestionale per impiantisti",
+      "Il gestionale con AI per impiantisti: margine reale per intervento, fatturazione lo stesso giorno, magazzino furgone sempre giusto e tecnici in campo coordinati senza telefonate.",
+    h1: "Aumenta i margini e controlla interventi, tecnici e magazzino",
     intro:
-      "Edilizia in Cloud si adatta alle esigenze degli impiantisti: preventivi tecnici dettagliati, gestione magazzino ricambi, pianificazione interventi e fatturazione automatizzata.",
+      "Edilizia in Cloud governa tutta l'impresa impiantistica: margine reale per intervento con ore di trasferta e collaudo sempre fatturate, fatturazione automatica post-intervento, magazzino ricambi per furgone e contratti di manutenzione ricorrente.",
     links: [
       { href: "/per/imprese-costruzione", label: "Per Imprese di Costruzione" },
       { href: "/per/serramentisti", label: "Per Serramentisti" },

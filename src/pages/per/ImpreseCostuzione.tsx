@@ -1,9 +1,12 @@
-import { Building2, BarChart3, Users, FileText, TrendingUp, Smartphone, Shield } from "lucide-react";
+import {
+  Building2, BarChart3, Users, FileText, TrendingUp, Smartphone, Shield,
+  TrendingDown, Send, Camera, Sparkles, Receipt, Wallet, Warehouse, FolderOpen,
+} from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
-  seoTitle: "Gestionale per Imprese di Costruzione",
-  seoDescription: "Il gestionale per imprese di costruzione con AI: controlla margini reali su ogni commessa, gestisci SAL, subappaltatori e computi metrici.",
+  seoTitle: "Gestionale per Imprese di Costruzione | Più Margini, Più Controllo, Zero Caos",
+  seoDescription: "Il gestionale per imprese di costruzione con AI: controlla margini reali su ogni commessa, gestisci SAL, subappaltatori, forecast di cassa a 90 giorni e computi metrici.",
   seoKeywords: "gestionale impresa costruzione, software impresa edile, software general contractor, gestione appalti edili, software commesse costruzione, gestionale cantieri multipli, software margini costruzione, SAL software, ERP impresa costruzione italiana",
   // SEO fix 2026-05-26: canonical aggiornato a /per/imprese-edili/ (keyword più
   // cercata + footer linka questa URL). Il vecchio /per/imprese-costruzione viene
@@ -14,12 +17,12 @@ const config: PerTipoConfig = {
 
   heroTitle: (
     <>
-      <span className="text-white">Sai davvero quanto hai guadagnato</span>{" "}
-      <span className="text-[#F97415]">su ogni cantiere che stai chiudendo?</span>
+      <span className="text-white">Aumenta i margini. Blinda la cassa.</span>{" "}
+      <span className="text-[#F97415]">Controlla ogni cantiere in tempo reale.</span>
     </>
   ),
   heroSubtitle:
-    "Il 78% delle imprese edili scopre le perdite solo a cantiere chiuso. Con Edilizia in Cloud vedi margini reali, SAL aggiornati, costi per commessa e ore di ogni squadra in tempo reale — ogni settimana, non solo a fine lavori.",
+    "Il 78% delle imprese edili scopre le perdite solo a cantiere chiuso. Con Edilizia in Cloud è il sistema a governare tutta l'azienda: margine reale di ogni commessa mentre lavori (+8,4% recuperato nei primi 90 giorni), SAL aggiornati, forecast di cassa a 90 giorni e ore di ogni squadra in tempo reale — ogni settimana, non solo a fine lavori.",
   heroImage:
     "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1400&q=80",
 
@@ -140,6 +143,77 @@ const config: PerTipoConfig = {
       saving: "−80% burocrazia in cantiere",
     },
   ],
+
+  aiShowcase: {
+    title: "L'AI che lavora per te, anche quando hai sei cantieri aperti",
+    subtitle:
+      "Silvio coordina 19 persone AI specializzate che leggono i dati della tua azienda e agiscono. Per un'impresa di costruzione significa questo:",
+    actions: [
+      {
+        icon: TrendingDown,
+        tag: "Margini",
+        title: "Ti avvisa quando una commessa va in perdita",
+        desc: "Costi materiali oltre il budget, ore extra non imputate, un subappaltatore che sfora il contratto: se il margine della commessa scende sotto la tua soglia, Silvio ti avvisa subito — non a cantiere chiuso, quando non puoi più rimediare.",
+      },
+      {
+        icon: Send,
+        tag: "Cassa",
+        title: "Prepara SAL e solleciti d'incasso",
+        desc: "In base all'avanzamento lavori registrato in cantiere, Silvio ti prepara il SAL da emettere. Cliente in ritardo su un pagamento? Mette in firma il sollecito con il tono giusto — email o PEC. Tu approvi, lui invia e tiene traccia.",
+      },
+      {
+        icon: Camera,
+        tag: "Campo",
+        title: "Trasforma foto e vocali del capocantiere in rapportini",
+        desc: "Il capocantiere carica le foto e una nota vocale dal cantiere: Silvio genera il rapportino, aggiorna l'avanzamento della commessa e collega tutto al cantiere giusto — con timestamp che valgono in caso di contestazione.",
+      },
+      {
+        icon: Sparkles,
+        tag: "Vendita",
+        title: "Rinforza preventivi, gare e varianti",
+        desc: "Prepara preventivi da prezziario con margine protetto, riscrive le proposte di gara puntando sui tuoi punti di forza e formalizza le varianti in corso d'opera — prima che diventino lavoro extra non fatturato.",
+      },
+    ],
+    note: "Non una chat generica: ogni risposta nasce dai dati reali della tua azienda — commesse, costi, SAL, subappaltatori, incassi, squadre.",
+  },
+
+  platformExtra: {
+    title: "E tutto il resto dell'azienda? Già incluso.",
+    subtitle:
+      "Non devi incollare cinque software diversi: dentro Edilizia in Cloud c'è tutto quello che serve a un'impresa di costruzione, collegato nello stesso posto.",
+    items: [
+      {
+        icon: Receipt,
+        name: "Fatturazione elettronica",
+        desc: "Fatture SDI attive e passive, SAL, acconti e ritenute collegati alla commessa, bozze pronte da approvare.",
+      },
+      {
+        icon: Wallet,
+        name: "Cassa e scadenzario",
+        desc: "Incassi attesi, pagamenti fornitori e subappaltatori: la cassa prevista a 30, 60 e 90 giorni, commessa per commessa.",
+      },
+      {
+        icon: Users,
+        name: "CRM e gare d'appalto",
+        desc: "Richieste, sopralluoghi, preventivi e gare in un'unica pipeline: sai sempre cosa rilanciare e quando.",
+      },
+      {
+        icon: Warehouse,
+        name: "Magazzino e DDT",
+        desc: "Materiali e noli con scorte tracciate, DDT di entrata e uscita collegati a ordini fornitori e cantieri.",
+      },
+      {
+        icon: FolderOpen,
+        name: "Documenti e qualifiche",
+        desc: "DURC, SOA, certificazioni, PSC e contratti archiviati per commessa: trovi tutto in 5 secondi, anche in caso di ispezione.",
+      },
+      {
+        icon: BarChart3,
+        name: "Report direzionali",
+        desc: "Fatturato, margini per commessa e per tipo di lavoro, forecast: i numeri dell'azienda in una schermata.",
+      },
+    ],
+  },
 
   caseStudy: {
     company: "Costruzioni Ferretti S.r.l.",
