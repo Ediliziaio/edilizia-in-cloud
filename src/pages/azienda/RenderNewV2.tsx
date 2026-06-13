@@ -184,6 +184,9 @@ export default function RenderNewV2() {
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedRef = useRef(0);
   const crmPersistedRef = useRef(false);
+  // Guard SINCRONO anti doppio-submit (vedi startRender): `generating` è stato
+  // React asincrono, startingRef chiude la finestra di race tra due click.
+  const startingRef = useRef(false);
   // v8.6.23 — Realtime channel: notifica istantanea su UPDATE render_sessions
   // invece di polling 3-15s. Il channel è opaco al type checker quindi
   // usiamo Awaited<ReturnType<...>> non disponibile facilmente → ref unknown.
@@ -642,8 +645,15 @@ export default function RenderNewV2() {
   }, [stopPoll, stopPolling, handleSessionRow]);
 
   const startRender = useCallback(async () => {
-    if (!sessionId || !companyId || generating) return;
+    // v8.6.34 — Guard SINCRONO anti doppio-submit. `generating` è stato React
+    // (async): due click ravvicinati nello stesso frame lo leggono entrambi
+    // false → partono due generazioni → DOPPIO addebito credito (la edge claim-a
+    // il lock in-flight solo DOPO la deduzione). startingRef è sincrono e chiude
+    // la finestra a monte; si resetta nel finally.
+    if (!sessionId || !companyId || generating || startingRef.current) return;
+    startingRef.current = true;
 
+    try {
     let config: WindowRenderConfig;
     try {
       config = mapWizardToConfig(state, notes, {
@@ -773,6 +783,9 @@ export default function RenderNewV2() {
       setGenerating(false);
       setGenerateError(message);
       toast.error(message);
+    }
+    } finally {
+      startingRef.current = false;
     }
   }, [companyId, generating, notes, photoMeta, queryClient, sceneAnalysis, selectedOpeningIds, sessionId, startPolling, stopPolling, state]);
 
