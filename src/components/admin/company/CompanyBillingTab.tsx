@@ -47,7 +47,7 @@ const SERVICES = [
   { key: "phone_numbers", label: "Numeri di Telefono", icon: Phone },
 ] as const;
 
-const CREDIT_SERVICES = ["email", "ai_agents", "whatsapp"] as const;
+const CREDIT_SERVICES = ["email", "ai_agents", "whatsapp", "sms"] as const;
 type CreditService = (typeof CREDIT_SERVICES)[number];
 
 interface BillingOverride {
@@ -548,6 +548,16 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
     },
   });
 
+  // SMS usa un wallet separato (sms_wallet.crediti = saldo EUR). Il saldo
+  // disponibile è crediti − crediti_riservati (riservati = invii in corso).
+  const { data: smsWallet } = useQuery({
+    queryKey: queryKeys.admin.smsWallet(companyId),
+    queryFn: async () => {
+      const { data } = await supabase.from("sms_wallet" as never).select("crediti, crediti_riservati").eq("company_id", companyId).maybeSingle();
+      return data as { crediti: number; crediti_riservati: number } | null;
+    },
+  });
+
   // Fetch adjustments history with pagination
   const { data: adjustments, isLoading: adjustmentsLoading } = useQuery({
     queryKey: [...queryKeys.admin.creditAdjustments(companyId), adjustmentsPage, adjustmentsServiceFilter],
@@ -641,6 +651,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.emailCredits(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.aiCreditsAdmin(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.waCredits(companyId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.smsWallet(companyId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.creditAdjustments(companyId) });
       // Anche storico transazioni unificato (se montato)
       queryClient.invalidateQueries({ queryKey: ["admin-credit-transactions-unified", companyId] });
@@ -656,18 +667,23 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
     return map;
   }, [overrides]);
 
+  // Saldo SMS disponibile = crediti − riservati
+  const smsBalance = (smsWallet?.crediti ?? 0) - (smsWallet?.crediti_riservati ?? 0);
+
   const getBalance = (service: string) => {
     if (service === "email") return emailCredits?.balance_eur ?? 0;
     if (service === "ai_agents") return aiCredits?.balance_eur ?? 0;
     if (service === "whatsapp") return waCredits?.balance_eur ?? 0;
+    if (service === "sms") return smsBalance;
     return 0;
   };
 
-  // Saldo totale crediti (email + ai + whatsapp)
+  // Saldo totale crediti (email + ai + whatsapp + sms)
   const totalCreditsBalance =
     (emailCredits?.balance_eur ?? 0) +
     (aiCredits?.balance_eur ?? 0) +
-    (waCredits?.balance_eur ?? 0);
+    (waCredits?.balance_eur ?? 0) +
+    smsBalance;
 
   // Allarme: saldo negativo su qualsiasi servizio
   const hasNegativeBalance = CREDIT_SERVICES.some((s) => getBalance(s) < 0);
@@ -731,6 +747,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
                   email: "Email",
                   ai_agents: "AI",
                   whatsapp: "WA",
+                  sms: "SMS",
                 };
                 return (
                   <Badge
@@ -971,7 +988,7 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {CREDIT_SERVICES.map((svc) => {
-              const labels: Record<string, string> = { email: "Email", ai_agents: "AI", whatsapp: "WhatsApp" };
+              const labels: Record<string, string> = { email: "Email", ai_agents: "AI", whatsapp: "WhatsApp", sms: "SMS" };
               const balance = getBalance(svc);
               const isNegative = balance < 0;
               return (

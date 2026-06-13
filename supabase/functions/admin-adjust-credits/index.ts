@@ -4,7 +4,10 @@ import { getCorsHeaders, jsonResponse, errorResponse } from "../_shared/headers.
 // FIX P2.2 + P3.3: esteso a service='render' tramite RPC dedicata
 // adjust_render_credits_atomic (scrive anche render_credit_ledger).
 // I wallet EUR continuano a usare adjust_credits_atomic esistente.
-const EUR_SERVICES = ["email", "ai_agents", "whatsapp"] as const;
+// 'sms' usa il wallet sms_wallet (colonna `crediti`, EUR) ma passa per la
+// stessa adjust_credits_atomic (ramo dedicato che traccia anche in
+// sms_wallet_transazioni). È quindi un EUR service a tutti gli effetti qui.
+const EUR_SERVICES = ["email", "ai_agents", "whatsapp", "sms"] as const;
 const INT_SERVICES = ["render"] as const;
 const ALL_SERVICES = [...EUR_SERVICES, ...INT_SERVICES] as const;
 type Service = typeof ALL_SERVICES[number];

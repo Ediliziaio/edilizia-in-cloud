@@ -463,6 +463,7 @@ export const queryKeys = {
     emailCredits: (companyId: string) => ["admin-email-credits", companyId] as const,
     aiCreditsAdmin: (companyId: string) => ["admin-ai-credits", companyId] as const,
     waCredits: (companyId: string) => ["admin-wa-credits", companyId] as const,
+    smsWallet: (companyId: string) => ["admin-sms-wallet", companyId] as const,
     creditAdjustments: (companyId: string) => ["admin-credit-adjustments", companyId] as const,
     supportMessages: ["admin-support-messages"] as const,
     supportConversations: ["admin-support-conversations"] as const,
