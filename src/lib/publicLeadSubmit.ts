@@ -52,3 +52,25 @@ export async function submitPublicLeadToCrm(payload: PublicLeadPayload) {
 
   return data as { ok: boolean; contact_id?: string; request_id?: string | null };
 }
+
+/**
+ * Aggancia un lead appena inviato al partner referral (best-effort).
+ *
+ * Va chiamata DOPO submitPublicLeadToCrm (il contatto-lead deve già esistere).
+ * È fire-and-forget: non deve mai rompere la UX del form, quindi assorbe ogni
+ * errore. L'attribuzione vera la fa l'edge function referral-attach-lead, che
+ * risolve il partner dal codice e annota il contatto.
+ */
+export async function attachReferralToLead(email: string, referralCode: string): Promise<void> {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanCode = referralCode.trim();
+  if (!cleanEmail || !cleanCode) return;
+  try {
+    await supabase.functions.invoke("referral-attach-lead", {
+      body: { email: cleanEmail, referral_code: cleanCode },
+    });
+  } catch (err) {
+    // Non blocchiamo: l'attribuzione è un nice-to-have, il lead è già salvo.
+    console.warn("[referral] attach failed:", err);
+  }
+}

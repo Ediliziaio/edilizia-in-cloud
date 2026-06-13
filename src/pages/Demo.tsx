@@ -5,7 +5,7 @@ import { HubSeoSchema } from "@/components/seo/HubSeoSchema";
 import { Link, useSearchParams } from "react-router-dom";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingFooter from "@/components/landing/LandingFooter";
-import { submitPublicLeadToCrm } from "@/lib/publicLeadSubmit";
+import { submitPublicLeadToCrm, attachReferralToLead } from "@/lib/publicLeadSubmit";
 import { getRenderLeadContext } from "@/lib/renderLeadContext";
 
 const DEMO_FAQS = [
@@ -187,6 +187,11 @@ export default function Demo() {
         tags: renderContext ? ["richiesta-render"] : [],
       });
       setSubmitted(true);
+      // Aggancio referral (best-effort, non blocca la UX): l'edge function
+      // referral-attach-lead annota il contatto-lead appena creato col partner.
+      if (referralCode) {
+        void attachReferralToLead(formData.email, referralCode);
+      }
     } catch (err) {
       console.error("[demo] submit error", err);
       setSubmitError(
