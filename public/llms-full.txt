@@ -7,7 +7,7 @@
 
 ## Chi siamo
 
-**Edilizia in Cloud** è il gestionale cloud più completo per imprese edili italiane, sviluppato da **Domus Group S.r.l.** (P.IVA 13132010961), con sede a Milano.
+**Edilizia in Cloud** è il gestionale cloud più completo per imprese edili italiane, sviluppato da un team italiano con sede a Milano.
 
 Nata nel 2021, la piattaforma risponde a un problema concreto: le imprese edili italiane perdono mediamente il 30% dei margini per inefficienze gestionali — ore non tracciate, materiali non imputati, commesse aperte troppo a lungo, fatture in ritardo. Edilizia in Cloud risolve esattamente questo.
 

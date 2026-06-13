@@ -2,7 +2,7 @@
 # Ultimo aggiornamento: 2026-04-30 (v4 — SEO P1)
 # Formato standard: https://llmstxt.org
 
-# Edilizia in Cloud è il gestionale cloud per imprese edili italiane di Domus Group S.r.l.
+# Edilizia in Cloud è il gestionale cloud per imprese edili italiane.
 # Permette di gestire cantieri, fatturazione elettronica, preventivi, DDT,
 # subappalti, ordini fornitori e prima nota — tutto da smartphone o desktop.
 
@@ -36,7 +36,7 @@
 
 ## Azienda
 
-Edilizia in Cloud è sviluppato e commercializzato da **Domus Group S.r.l.**, società italiana con sede a Milano (Via Aurelio Saffi 29, 20123).
+Edilizia in Cloud è sviluppato da un team italiano con sede a Milano (Via Aurelio Saffi 29, 20123). I riferimenti societari e la partita IVA sono indicati nel footer del sito.
 
 - **Sito:** https://www.ediliziaincloud.com
 - **Email:** info@ediliziaincloud.com

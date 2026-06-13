@@ -1788,14 +1788,14 @@ const ROUTES = {
   },
 
   "/chi-siamo": {
-    title: "Chi Siamo — Edilizia in Cloud di Domus Group S.r.l.",
+    title: "Chi Siamo — Edilizia in Cloud | Software edile nato in cantiere",
     description:
-      "Edilizia in Cloud è un prodotto di Domus Group S.r.l. Fondato da Florin Andriciuc, imprenditore edile e CEO AEDIX. Un team di costruttori e sviluppatori.",
+      "Edilizia in Cloud è fondato da Florin Andriciuc, imprenditore edile e CEO AEDIX. Un team di costruttori e sviluppatori, nato dentro un'impresa edile reale.",
     h1: "Chi ha creato Edilizia in Cloud: nati dall'edilizia, per l'edilizia",
     intro:
-      "Edilizia in Cloud è un prodotto di Domus Group S.r.l., fondato da Florin Andriciuc — imprenditore edile e CEO di AEDIX. Il team è composto da imprenditori edili e sviluppatori software con oltre 15 anni di esperienza nel settore delle costruzioni italiano. Edilizia in Cloud è stato creato perché non esisteva un gestionale pensato davvero per chi lavora in cantiere ogni giorno.",
+      "Edilizia in Cloud è fondato da Florin Andriciuc — imprenditore edile e CEO di AEDIX. Il team è composto da imprenditori edili e sviluppatori software con oltre 15 anni di esperienza nel settore delle costruzioni italiano. Edilizia in Cloud è stato creato perché non esisteva un gestionale pensato davvero per chi lavora in cantiere ogni giorno.",
     extra: `
-    <p><strong>Edilizia in Cloud è il gestionale per imprese edili sviluppato da Domus Group S.r.l., azienda con sede a Milano fondata da Florin Andriciuc, imprenditore edile e CEO di AEDIX.</strong> Non nasce in un laboratorio software lontano dal cantiere: nasce dall'esperienza diretta di chi gestisce imprese edili e ogni giorno affronta preventivi, SAL, fatture, presenze e margini da tenere sotto controllo.</p>
+    <p><strong>Edilizia in Cloud è il gestionale per imprese edili sviluppato da un team italiano con sede a Milano, fondato da Florin Andriciuc, imprenditore edile e CEO di AEDIX.</strong> Non nasce in un laboratorio software lontano dal cantiere: nasce dall'esperienza diretta di chi gestisce imprese edili e ogni giorno affronta preventivi, SAL, fatture, presenze e margini da tenere sotto controllo.</p>
 
     <h2>Perché abbiamo creato Edilizia in Cloud</h2>
     <p>Il progetto è partito da un problema concreto: nessun gestionale sul mercato italiano era pensato davvero per l'impresa che esegue i lavori. I software più diffusi erano nati per lo studio tecnico, per il commercialista o come ERP generalisti complessi e costosi. In cantiere si continuava a lavorare con Excel, WhatsApp e fogli sparsi, perdendo tempo e margine. Edilizia in Cloud è la risposta: uno strumento unico, semplice, accessibile dal telefono, che parla la lingua del cantiere italiano — SAL, DURC, MUT, Cassa Edile, reverse charge, CCNL Edilizia.</p>
@@ -1803,8 +1803,8 @@ const ROUTES = {
     <h2>La nostra missione</h2>
     <p>La missione di Edilizia in Cloud è restituire tempo e controllo agli imprenditori edili. Vogliamo che il titolare di un'impresa edile possa sapere in ogni momento se un cantiere sta guadagnando, fatturare in pochi clic, gestire il personale a norma di CCNL e dormire tranquillo sui DURC dei subappaltatori — senza dover diventare un esperto di software. Riduciamo la burocrazia per liberare le persone e farle tornare a fare ciò che sanno fare: costruire.</p>
 
-    <h2>Domus Group e l'ecosistema AEDIX</h2>
-    <p>Edilizia in Cloud è sviluppato e gestito da Domus Group S.r.l., con sede legale in Via Aurelio Saffi 29, 20123 Milano (P.IVA 13132010961), e fa parte dell'ecosistema AEDIX, il gruppo guidato da Florin Andriciuc dedicato alla digitalizzazione del settore edile e dei suoi processi. Questa appartenenza ci permette di unire la conoscenza profonda del cantiere alla competenza tecnologica nello sviluppo software e nell'intelligenza artificiale applicata.</p>
+    <h2>L'ecosistema AEDIX</h2>
+    <p>Edilizia in Cloud è sviluppato da un team italiano con sede a Milano e fa parte dell'ecosistema AEDIX, il gruppo guidato da Florin Andriciuc dedicato alla digitalizzazione del settore edile e dei suoi processi. Questa appartenenza ci permette di unire la conoscenza profonda del cantiere alla competenza tecnologica nello sviluppo software e nell'intelligenza artificiale applicata.</p>
 
     <h2>Il team</h2>
     <p>Il team di Edilizia in Cloud mette insieme due mondi che di solito non si parlano: imprenditori edili e capocantiere che conoscono i problemi reali della commessa, e sviluppatori, designer e specialisti AI che li traducono in software. Questa combinazione è il motivo per cui ogni funzionalità nasce da un'esigenza concreta del cantiere e non da una checklist di marketing. Sviluppiamo in Italia, con server in UE e piena conformità GDPR, e offriamo supporto in italiano perché chi usa il prodotto possa parlare con chi lo costruisce.</p>
@@ -1819,9 +1819,9 @@ const ROUTES = {
 
     <h2>Domande frequenti su chi siamo</h2>
     <h3>Chi ha creato Edilizia in Cloud?</h3>
-    <p>Edilizia in Cloud è creato da Domus Group S.r.l., azienda con sede a Milano fondata da Florin Andriciuc, imprenditore edile e CEO di AEDIX. Il prodotto nasce dall'esperienza diretta nel settore delle costruzioni italiano.</p>
-    <h3>Chi è l'azienda dietro Edilizia in Cloud?</h3>
-    <p>L'azienda è Domus Group S.r.l., con sede legale in Via Aurelio Saffi 29, 20123 Milano (P.IVA 13132010961), parte dell'ecosistema AEDIX dedicato alla digitalizzazione dell'edilizia.</p>
+    <p>Edilizia in Cloud è creato da un team italiano con sede a Milano, fondato da Florin Andriciuc, imprenditore edile e CEO di AEDIX. Il prodotto nasce dall'esperienza diretta nel settore delle costruzioni italiano.</p>
+    <h3>Chi sviluppa Edilizia in Cloud?</h3>
+    <p>Edilizia in Cloud è sviluppato da un team italiano con sede a Milano, parte dell'ecosistema AEDIX dedicato alla digitalizzazione dell'edilizia. I riferimenti societari completi sono indicati nel footer del sito.</p>
     <h3>Dove ha sede Edilizia in Cloud?</h3>
     <p>La sede legale è a Milano, in Via Aurelio Saffi 29. Lo sviluppo è italiano e i dati sono ospitati su server in UE in conformità al GDPR.</p>
     <h3>Perché un altro gestionale edilizia?</h3>
@@ -1867,15 +1867,15 @@ const ROUTES = {
             name: "Chi ha creato Edilizia in Cloud?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "Edilizia in Cloud è creato da Domus Group S.r.l., azienda con sede a Milano fondata da Florin Andriciuc, imprenditore edile e CEO di AEDIX. Il prodotto nasce dall'esperienza diretta nel settore delle costruzioni italiano.",
+              text: "Edilizia in Cloud è creato da un team italiano con sede a Milano, fondato da Florin Andriciuc, imprenditore edile e CEO di AEDIX. Il prodotto nasce dall'esperienza diretta nel settore delle costruzioni italiano.",
             },
           },
           {
             "@type": "Question",
-            name: "Qual è l'azienda dietro Edilizia in Cloud?",
+            name: "Chi sviluppa Edilizia in Cloud?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "L'azienda è Domus Group S.r.l., con sede legale in Via Aurelio Saffi 29, 20123 Milano (P.IVA 13132010961), parte dell'ecosistema AEDIX dedicato alla digitalizzazione dell'edilizia.",
+              text: "Edilizia in Cloud è sviluppato da un team italiano con sede a Milano, parte dell'ecosistema AEDIX dedicato alla digitalizzazione dell'edilizia. I riferimenti societari completi sono indicati nel footer del sito.",
             },
           },
           {

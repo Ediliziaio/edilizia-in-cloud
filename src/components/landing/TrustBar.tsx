@@ -5,7 +5,7 @@ const badges = [
   { icon: Shield, label: "GDPR compliant" },
   { icon: Server, label: "Server EU" },
   { icon: CreditCard, label: "Pagamenti Stripe sicuri" },
-  { icon: FileCheck, label: "P.IVA Domus Group 13132010961" },
+  { icon: FileCheck, label: "P.IVA IT13132010961" },
   { icon: Lock, label: "SDI accreditato" },
 ];
 

@@ -2987,7 +2987,7 @@ export default function CityLanding() {
         "@context": "https://schema.org",
         "@type": "LocalBusiness",
         "@id": `${pageUrl}/#localbusiness`,
-        "name": "Edilizia in Cloud — Domus Group S.r.l.",
+        "name": "Edilizia in Cloud",
         "url": baseUrl,
         "telephone": "+39-02-87198520",
         "areaServed": [

@@ -78,7 +78,7 @@ const cosaNonFacciamo = [
 ];
 
 const numeri = [
-  { value: "2021", label: "Anno di fondazione", sub: "Domus Group S.r.l., Milano" },
+  { value: "2021", label: "Anno di fondazione", sub: "con sede a Milano" },
   { value: "150+", label: "Imprese edili a bordo", sub: "in crescita ogni mese" },
   { value: "4.9/5", label: "Valutazione media", sub: "dai clienti che ci usano" },
   { value: "100%", label: "Sviluppato in Italia", sub: "per il cantiere italiano" },
@@ -120,8 +120,8 @@ const timeline = [
   },
   {
     year: "2021",
-    title: "Domus Group S.r.l.",
-    desc: "Costituita la società che svilupperà la piattaforma. Sede Milano. Prima missione: risolvere il problema dentro casa, prima ancora di pensare al mercato.",
+    title: "Nasce la società a Milano",
+    desc: "Viene costituita la società che svilupperà la piattaforma. Sede a Milano. Prima missione: risolvere il problema dentro casa, prima ancora di pensare al mercato.",
   },
   {
     year: "Sviluppo iniziale",
@@ -148,7 +148,7 @@ const timeline = [
 const faqs = [
   {
     q: "Chi c'è dietro Edilizia in Cloud?",
-    a: "Edilizia in Cloud è sviluppato e operato da Domus Group S.r.l., con sede a Milano (P.IVA IT13132010961). Il software è nato dentro un'impresa edile italiana come strumento operativo interno, ed è stato aperto al mercato dopo essere stato validato in produzione sul campo. Il team combina chi il cantiere lo conosce davvero (operatività, fiscale, contabilità di commessa) con sviluppatori italiani specializzati in cloud e AI.",
+    a: "Edilizia in Cloud è sviluppato e operato da una società italiana con sede a Milano (i riferimenti societari completi e la partita IVA sono indicati nel footer del sito). Il software è nato dentro un'impresa edile italiana come strumento operativo interno, ed è stato aperto al mercato dopo essere stato validato in produzione sul campo. Il team combina chi il cantiere lo conosce davvero (operatività, fiscale, contabilità di commessa) con sviluppatori italiani specializzati in cloud e AI.",
   },
   {
     q: "Cosa significa 'costruito da chi vive il cantiere'?",
@@ -179,7 +179,7 @@ const faqs = [
 export default function ChiSiamo() {
   useSEO({
     title: "Chi Siamo — Edilizia in Cloud | Software edile nato in cantiere",
-    description: "Edilizia in Cloud è il gestionale cloud con AI per imprese edili italiane, sviluppato da Domus Group S.r.l. (Milano). Nato dentro un'impresa edile reale e validato sul campo prima di arrivare sul mercato.",
+    description: "Edilizia in Cloud è il gestionale cloud con AI per imprese edili italiane, sviluppato da un team italiano con sede a Milano. Nato dentro un'impresa edile reale e validato sul campo prima di arrivare sul mercato.",
     canonical: "/chi-siamo",
     keywords: "chi siamo edilizia in cloud, domus group srl, gestionale edilizia italiano, software edilizia made in italy, software edilizia cantiere, gestionale costruito da imprenditori edili",
   });
@@ -211,7 +211,7 @@ export default function ChiSiamo() {
           url: "https://www.ediliziaincloud.com/chi-siamo",
           name: "Chi Siamo — Edilizia in Cloud",
           description:
-            "La storia di Edilizia in Cloud: gestionale cantieri costruito da chi il cantiere lo vive ogni giorno. Sede Milano, sviluppato da Domus Group S.r.l.",
+            "La storia di Edilizia in Cloud: gestionale cantieri costruito da chi il cantiere lo vive ogni giorno. Sviluppato da un team italiano con sede a Milano.",
           inLanguage: "it-IT",
           isPartOf: { "@id": "https://www.ediliziaincloud.com/#website" },
           about: { "@id": "https://www.ediliziaincloud.com/#organization" },
@@ -234,7 +234,7 @@ export default function ChiSiamo() {
             height: 512,
           },
           description:
-            "Gestionale cloud con AI per imprese edili italiane: cantieri, fatturazione SDI, preventivi, HR e Cassa Edile. Sviluppato da Domus Group S.r.l., costruito da chi vive il cantiere ogni giorno.",
+            "Gestionale cloud con AI per imprese edili italiane: cantieri, fatturazione SDI, preventivi, HR e Cassa Edile. Costruito da chi vive il cantiere ogni giorno.",
           foundingDate: "2021",
           vatID: "IT13132010961",
           taxID: "13132010961",
@@ -321,7 +321,7 @@ export default function ChiSiamo() {
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-white/70">
-            <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#F97415]" /> Domus Group S.r.l.</span>
+            <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#F97415]" /> Dal 2021</span>
             <span className="flex items-center gap-2"><MapPin className="w-4 h-4 text-[#F97415]" /> Sede Milano</span>
             <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-[#F97415]" /> GDPR · Server UE</span>
             <span className="flex items-center gap-2"><Code2 className="w-4 h-4 text-[#F97415]" /> Made in Italy</span>
@@ -395,9 +395,8 @@ export default function ChiSiamo() {
             </p>
             <p>
               Quando colleghi imprenditori hanno visto come funzionava, hanno chiesto di poterlo usare.
-              È a quel punto che è nata <strong>Domus Group S.r.l.</strong> e Edilizia in Cloud è
-              diventato il prodotto che è oggi: <em>uno strumento di chi sta in cantiere, per chi sta
-              in cantiere</em>.
+              È a quel punto che <strong>Edilizia in Cloud</strong> è diventato il prodotto che è oggi:
+              <em> uno strumento di chi sta in cantiere, per chi sta in cantiere</em>.
             </p>
           </div>
 
