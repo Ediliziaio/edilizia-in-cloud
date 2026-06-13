@@ -13,8 +13,10 @@
  *
  * Fix Wave 3:
  *  - Bug: dopo "Crea e continua" l'utente passa subito a Step 2 (era bloccato su Step 1)
- *  - Dirty check: avviso AlertDialog se cambio step con modifiche non salvate
  *  - beforeunload guard
+ *
+ * Fluidità: il cambio step salva al volo (autosave) e naviga senza modale di
+ * conferma "Modifiche non salvate" — coerente col bottone "Salva e continua".
  */
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
@@ -37,10 +39,6 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import {
   ArrowLeft, ArrowRight, Save, Loader2, RectangleVertical,
   User, Home, MessageCircle, Image as ImageIcon, Euro, Calendar, FileText,
@@ -94,7 +92,6 @@ export default function SerramentiWizard() {
 
   const [currentStep, setCurrentStep] = useState<SrWizardStep>("cliente");
   const [creating, setCreating] = useState(false);
-  const [pendingStep, setPendingStep] = useState<SrWizardStep | null>(null);
   const mobileStepRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const { data: detail, isLoading, isError, refetch } = useProgetto(id);
@@ -482,13 +479,17 @@ export default function SerramentiWizard() {
     }
   };
 
-  // Click su step sidebar — controlla dirty
-  const handleStepClick = (target: SrWizardStep) => {
+  // Click su step — navigazione FLUIDA: con l'autosave attivo salviamo al volo
+  // e passiamo allo step richiesto, senza interrompere con un modale "Modifiche
+  // non salvate" (attrito inutile: i dati vengono comunque salvati). Coerente
+  // col bottone "Salva e continua" del footer. Se il salvataggio fallisce
+  // resta sullo step corrente e mostra il toast d'errore.
+  const handleStepClick = async (target: SrWizardStep) => {
     if (target === currentStep) return;
     if (isNew) return; // in new mode lo step laterale è disabled
-    if (dirty || pendingWrites > 0) {
-      setPendingStep(target);
-      return;
+    if (dirty) {
+      const ok = await saveProgetto();
+      if (!ok) return;
     }
     setCurrentStep(target);
   };
@@ -496,25 +497,6 @@ export default function SerramentiWizard() {
   const handleBack = () => {
     const idx = currentStepIndex;
     if (idx > 0) handleStepClick(SR_WIZARD_STEPS[idx - 1].key);
-  };
-
-  const confirmStepChange = async (saveFirst: boolean) => {
-    if (!pendingStep) return;
-    if (saveFirst) {
-      const ok = await saveProgetto();
-      if (!ok) {
-        setPendingStep(null);
-        return;
-      }
-    } else {
-      // Discard local changes — re-sync from server
-      if (detail?.progetto) {
-        setForm(detail.progetto);
-        setDirty(false);
-      }
-    }
-    setCurrentStep(pendingStep);
-    setPendingStep(null);
   };
 
   const currentStepIndex = useMemo(
@@ -908,29 +890,6 @@ export default function SerramentiWizard() {
         </div>
       </div>
 
-      {/* Dialog conferma cambio step con modifiche non salvate */}
-      <AlertDialog open={!!pendingStep} onOpenChange={(o) => !o && setPendingStep(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Modifiche non salvate</AlertDialogTitle>
-            <AlertDialogDescription>
-              Hai modifiche non ancora salvate. Cosa vuoi fare prima di passare allo step "{SR_WIZARD_STEPS.find((s) => s.key === pendingStep)?.label}"?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <Button variant="outline" onClick={() => confirmStepChange(false)}>
-              Scarta modifiche
-            </Button>
-            <AlertDialogAction
-              className="bg-orange-500 hover:bg-orange-600"
-              onClick={() => confirmStepChange(true)}
-            >
-              Salva e continua
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
