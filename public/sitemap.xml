@@ -158,6 +158,14 @@
     <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/categoria/digitalizzazione-edilizia/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/blog/categoria/digitalizzazione-edilizia/"/>
   </url>
+  <url>
+    <loc>https://www.ediliziaincloud.com/blog/categoria/normativa-edilizia/</loc>
+    <lastmod>2026-06-13</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="it-IT" href="https://www.ediliziaincloud.com/blog/categoria/normativa-edilizia/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.ediliziaincloud.com/blog/categoria/normativa-edilizia/"/>
+  </url>
 
   <!-- ── Blog posts ────────────────────────────────────────────── -->
   <url>

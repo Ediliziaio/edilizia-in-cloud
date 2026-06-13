@@ -15,6 +15,7 @@ const categoryColors: Record<string, string> = {
   "Marketing": "bg-orange-100 text-orange-700",
   "Commerciale": "bg-rose-100 text-rose-700",
   "Digitalizzazione": "bg-slate-100 text-slate-700",
+  "Normativa": "bg-amber-100 text-amber-800",
 };
 
 // Map categoria → slug per le pagine dedicate (SEO category pages)
@@ -25,6 +26,7 @@ const categoryToSlug: Record<string, string> = {
   "Marketing": "marketing-edilizia",
   "Commerciale": "commerciale-edilizia",
   "Digitalizzazione": "digitalizzazione-edilizia",
+  "Normativa": "normativa-edilizia",
 };
 
 function formatDate(iso: string): string {

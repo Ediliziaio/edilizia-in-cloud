@@ -148,7 +148,7 @@ const BLOG_POST_CATEGORY = {
   "software-gestionale-vs-excel": "digitalizzazione-edilizia",
   "digitalizzare-impresa-edile": "digitalizzazione-edilizia",
   "come-organizzare-cantiere-edile": "gestione-cantieri",
-  "documentazione-obbligatoria-cantiere-2025": "gestione-cantieri",
+  "documentazione-obbligatoria-cantiere-2025": "normativa-edilizia",
   "come-fare-preventivo-edilizia": "commerciale-edilizia",
   "alternativa-excel-cantieri": "gestione-cantieri",
   "sal-cantiere-come-funziona": "gestione-cantieri",
@@ -163,19 +163,19 @@ const BLOG_POST_CATEGORY = {
   "bim-edilizia-guida-pratica": "digitalizzazione-edilizia",
   "cassa-edile-come-funziona": "hr-personale",
   "appalti-pubblici-edilizia-guida": "commerciale-edilizia",
-  "sicurezza-cantieri-dlgs-81": "gestione-cantieri",
+  "sicurezza-cantieri-dlgs-81": "normativa-edilizia",
   "ccnl-edilizia-guida": "hr-personale",
-  "attestazione-soa-imprese-edili": "gestione-cantieri",
-  "superbonus-imprese-edili-2026": "gestione-cantieri",
+  "attestazione-soa-imprese-edili": "normativa-edilizia",
+  "superbonus-imprese-edili-2026": "normativa-edilizia",
   "gestione-liquidita-impresa-edile": "finanza-edilizia",
-  "pnrr-edilizia-imprese-2026": "gestione-cantieri",
+  "pnrr-edilizia-imprese-2026": "normativa-edilizia",
   "come-scegliere-software-gestionale-edilizia": "digitalizzazione-edilizia",
   "gestione-subappaltatori-impresa-edile": "gestione-cantieri",
   "cassa-impresa-edile-non-torna": "finanza-edilizia",
   "trovare-operai-edili-qualificati": "hr-personale",
   "passaparola-impresa-edile-non-basta": "marketing-edilizia",
   "gestire-piu-cantieri-contemporaneamente": "gestione-cantieri",
-  "burocrazia-impresa-edile-scadenze-documenti": "gestione-cantieri",
+  "burocrazia-impresa-edile-scadenze-documenti": "normativa-edilizia",
   "delegare-impresa-edile-senza-perdere-controllo": "digitalizzazione-edilizia",
   "preventivi-edili-non-si-chiudono": "commerciale-edilizia",
   "segnali-crisi-impresa-edile": "finanza-edilizia",
@@ -198,8 +198,8 @@ const BLOG_POST_CATEGORY = {
   "come-scegliere-gestionale-ai-impresa-edile": "digitalizzazione-edilizia",
   "miglior-gestionale-edilizia-guida-scelta": "digitalizzazione-edilizia",
   "quanto-costa-gestionale-impresa-edile": "finanza-edilizia",
-  "patente-a-crediti-edilizia-guida": "gestione-cantieri",
-  "durc-congruita-manodopera-soglie": "gestione-cantieri",
+  "patente-a-crediti-edilizia-guida": "normativa-edilizia",
+  "durc-congruita-manodopera-soglie": "normativa-edilizia",
 };
 
 // Tutti i post ordinati per data di pubblicazione (desc), come link interni.
@@ -1577,6 +1577,7 @@ const ROUTES = {
       { href: "/blog/categoria/marketing-edilizia", label: "Marketing Edilizia" },
       { href: "/blog/categoria/commerciale-edilizia", label: "Commerciale Edilizia" },
       { href: "/blog/categoria/digitalizzazione-edilizia", label: "Digitalizzazione Edilizia" },
+      { href: "/blog/categoria/normativa-edilizia", label: "Normativa Edilizia" },
       ...BLOG_ALL_POST_LINKS,
     ],
   },
@@ -2424,6 +2425,10 @@ const BLOG_CATEGORIES = {
   "digitalizzazione-edilizia": {
     label: "Digitalizzazione Edilizia",
     description: "Come digitalizzare l'impresa edile: software, processi e strumenti per il 2026.",
+  },
+  "normativa-edilizia": {
+    label: "Normativa Edilizia",
+    description: "Guide sulla normativa per imprese edili: DURC, CCNL, sicurezza D.Lgs 81, SOA, Codice Appalti, patente a crediti e bonus.",
   },
 };
 

@@ -59,6 +59,13 @@ const CATEGORY_MAP: Record<string, CategoryMeta> = {
     h1: "Digitalizzazione dell'Impresa Edile",
     tagline: "Software, AI e processi digitali per il settore costruzioni",
   },
+  "normativa-edilizia": {
+    category: "Normativa",
+    title: "Normativa Edilizia — DURC, Sicurezza, Appalti e Bonus",
+    description: "Guide pratiche sulla normativa per imprese edili: DURC, CCNL, sicurezza D.Lgs 81, attestazione SOA, Codice Appalti, patente a crediti, Superbonus e PNRR.",
+    h1: "Normativa per Imprese Edili",
+    tagline: "DURC, sicurezza, appalti e bonus: la burocrazia spiegata semplice",
+  },
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -69,6 +76,7 @@ const categoryColors: Record<string, string> = {
   "Marketing": "bg-orange-100 text-orange-700",
   "Commerciale": "bg-rose-100 text-rose-700",
   "Digitalizzazione": "bg-slate-100 text-slate-700",
+  "Normativa": "bg-amber-100 text-amber-800",
 };
 
 function formatDate(iso: string): string {
