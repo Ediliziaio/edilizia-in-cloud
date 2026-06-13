@@ -41,7 +41,7 @@ import {
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { calcolaTotale } from "@/lib/serramenti/calcoli";
+import { calcolaTotale, IVA_MISTA_SENTINEL } from "@/lib/serramenti/calcoli";
 import {
   calcolaEcobonus, calcolaCashflow, calcolaPianoFinanziamento,
 } from "@/lib/serramenti/ecobonus";
@@ -65,8 +65,9 @@ import {
 /** Aliquote IVA standard supportate dal Select. */
 const IVA_STANDARD_VALUES = new Set([0, 4, 10, 22]);
 
-/** Sentinel: IVA mista (riga per riga). Salvato come -1 sul DB. */
-const IVA_MISTA_SENTINEL = -1;
+// IVA_MISTA_SENTINEL importato da @/lib/serramenti/calcoli (unica fonte di
+// verità): prima era ridefinito qui localmente → se il sentinel cambiava nel
+// modulo calcoli, l'IVA mista si rompeva in silenzio.
 
 /**
  * Resolve il valore stringa del Select dato il numero (o null) dal form.

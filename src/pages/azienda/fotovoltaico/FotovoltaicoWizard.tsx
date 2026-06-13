@@ -2148,7 +2148,11 @@ function Step5Configurazione({
         <FvKpi label="Potenza" value={data.potenza_kwp.toFixed(2)} unit="kWp" variant="orange" />
         <FvKpi
           label="Pannelli"
-          value={`${data.numero_pannelli_scelti} × 540`}
+          value={
+            data.numero_pannelli_scelti > 0
+              ? `${data.numero_pannelli_scelti} × ${Math.round((data.potenza_kwp * 1000) / data.numero_pannelli_scelti)}`
+              : `${data.numero_pannelli_scelti} × —`
+          }
           unit="Wp"
         />
         <FvKpi
