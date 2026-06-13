@@ -86,13 +86,17 @@ export default function MarketingCalendar() {
   // setta automaticamente "primary" come default, ma se la query partiva prima
   // del sync iniziale, restava disabilitata fino a hard refresh.
   const { data: googleBusySlots = [], error: googleBusyError, refetch: refetchGoogleBusySlots } = useQuery({
-    queryKey: ["gcal-busy-slots", companyId],
+    queryKey: ["gcal-busy-slots", companyId, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data, error } = await supabase
+      let q = supabase
         .from("google_calendar_busy_slots")
         .select("id, start_at, end_at, summary, is_all_day, user_id, google_calendar_id")
         .eq("company_id", companyId);
+      // Ruolo ristretto (es. commerciale, only_assigned): vede SOLO il proprio
+      // calendario Google. I ruoli con accesso pieno (admin / call center) vedono tutto.
+      if (permissions.onlyAssigned && user?.id) q = q.eq("user_id", user.id);
+      const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
@@ -102,13 +106,16 @@ export default function MarketingCalendar() {
 
   // Fetch Apple Calendar busy slots for marketing calendar overlay
   const { data: appleBusySlots = [], error: appleBusyError, refetch: refetchAppleBusySlots } = useQuery({
-    queryKey: ["apple-busy-slots", companyId],
+    queryKey: ["apple-busy-slots", companyId, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data, error } = await supabase
+      let q = supabase
         .from("apple_calendar_busy_slots")
         .select("id, start_at, end_at, summary, is_all_day, user_id, caldav_calendar_url")
         .eq("company_id", companyId);
+      // Ruolo ristretto: solo il proprio calendario Apple (vedi nota busy Google).
+      if (permissions.onlyAssigned && user?.id) q = q.eq("user_id", user.id);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []).map((s: any) => ({
         ...s,
@@ -171,12 +178,17 @@ export default function MarketingCalendar() {
   const { data: rawStaffUsers = [] } = useCompanyStaffUsers(companyId, "sales");
   const users = useMemo(
     () =>
-      rawStaffUsers.map((u) => ({
-        id: u.id,
-        first_name: u.first_name ?? "",
-        last_name: u.last_name ?? "",
-      })),
-    [rawStaffUsers]
+      // Ruolo ristretto (only_assigned): nel filtro vede SOLO sé stesso, coerente
+      // col fatto che vede solo i propri appuntamenti e il proprio calendario.
+      // I ruoli con accesso pieno (admin / call center) vedono tutti.
+      rawStaffUsers
+        .filter((u) => !permissions.onlyAssigned || u.id === user?.id)
+        .map((u) => ({
+          id: u.id,
+          first_name: u.first_name ?? "",
+          last_name: u.last_name ?? "",
+        })),
+    [rawStaffUsers, permissions.onlyAssigned, user?.id]
   );
 
   // Initialize each filter group once when its own data arrives.
