@@ -148,7 +148,7 @@ const timeline = [
 const faqs = [
   {
     q: "Chi c'è dietro Edilizia in Cloud?",
-    a: "Edilizia in Cloud è sviluppato e operato da una società italiana con sede a Milano (i riferimenti societari completi e la partita IVA sono indicati nel footer del sito). Il software è nato dentro un'impresa edile italiana come strumento operativo interno, ed è stato aperto al mercato dopo essere stato validato in produzione sul campo. Il team combina chi il cantiere lo conosce davvero (operatività, fiscale, contabilità di commessa) con sviluppatori italiani specializzati in cloud e AI.",
+    a: "Edilizia in Cloud è nato dentro un'impresa edile italiana, creato da chi il cantiere lo vive ogni giorno. È stato costruito come strumento operativo interno e usato sul campo per mesi — su cantieri veri, con problemi veri — prima di essere aperto al mercato. Il team mette insieme chi conosce davvero il cantiere (operatività, preventivi, SAL, margini, contabilità di commessa) e sviluppatori italiani specializzati in cloud e AI. Non un software pensato a tavolino: uno strumento di chi sta in cantiere, per chi sta in cantiere.",
   },
   {
     q: "Cosa significa 'costruito da chi vive il cantiere'?",

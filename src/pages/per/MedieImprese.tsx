@@ -1,9 +1,12 @@
-import { Building2, TrendingUp, Wallet, Users, FileSignature, LineChart } from "lucide-react";
+import {
+  Building2, TrendingUp, Wallet, Users, FileSignature, LineChart,
+  TrendingDown, Send, Camera, Sparkles, Receipt, Warehouse, FolderOpen, BarChart3,
+} from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
   // SEO
-  seoTitle: "Software Gestionale Medie Imprese Edili (10-50…",
+  seoTitle: "Software Gestionale per Medie Imprese Edili (10-50 dipendenti) | Multi-Cantiere e Margini Real-Time",
   seoDescription:
     "Gestionale per medie imprese edili 10-50 dipendenti: consolidamento multi-cantiere, margini real-time, dashboard CFO, ruoli e deleghe.",
   seoKeywords:
@@ -161,6 +164,79 @@ const config: PerTipoConfig = {
       saving: "Da Excel mensile a cruscotto live",
     },
   ],
+
+  // Sezione AI: cosa fa Silvio per una media impresa strutturata.
+  aiShowcase: {
+    title: "L'AI che vede gli scostamenti prima del tuo controller",
+    subtitle:
+      "Silvio coordina 19 persone AI specializzate che leggono i dati consolidati di tutti i cantieri e agiscono. Per una media impresa edile significa questo:",
+    actions: [
+      {
+        icon: TrendingDown,
+        tag: "Margini",
+        title: "Ti avvisa quando un cantiere sfora il budget",
+        desc: "Appena il consuntivo supera il budget oltre la soglia, Silvio notifica il responsabile cantiere e il CFO con la voce critica in evidenza — il giorno stesso, non al consolidamento di fine mese.",
+      },
+      {
+        icon: Send,
+        tag: "Cassa",
+        title: "Prepara solleciti e tiene la cassa sotto controllo",
+        desc: "Incassi attesi, scaduti clienti, pagamenti fornitori: Silvio prepara i solleciti per i SAL non incassati e segnala in anticipo quando il previsionale di cassa a 90 giorni si stringe.",
+      },
+      {
+        icon: Camera,
+        tag: "Campo",
+        title: "Foto e vocali dei capicantiere → rapportini e SAL",
+        desc: "I responsabili caricano foto e note vocali dal cantiere: Silvio genera rapportini e avanzamenti, li collega al centro di costo giusto e prepara il SAL — senza Excel personali da consolidare.",
+      },
+      {
+        icon: Sparkles,
+        tag: "Direzione",
+        title: "Riepiloghi direzionali pronti per la riunione",
+        desc: "Chiedi 'come stanno andando i cantieri di Napoli?' e Silvio ti dà la sintesi: margine, scostamenti, scadenze DURC, incassi attesi. La riunione di controllo gestione parte dai numeri, non dal cercarli.",
+      },
+    ],
+    note: "Non una chat generica: ogni risposta nasce dai dati reali e consolidati della tua azienda — cantieri, margini, cassa, presenze, subappalti.",
+  },
+
+  // Ampiezza piattaforma: tutto l'operativo oltre il controllo di gruppo.
+  platformExtra: {
+    title: "E tutto il resto dell'azienda? Già incluso.",
+    subtitle:
+      "Multi-cantiere, margini, cassa, HR e dashboard CFO sono i moduli che usi ogni giorno. Ma dentro Edilizia in Cloud c'è tutto il resto dell'operatività, già collegato.",
+    items: [
+      {
+        icon: Receipt,
+        name: "Fatturazione elettronica",
+        desc: "Ciclo attivo e passivo SDI, SAL, acconti e ritenute collegati alla commessa, export pronto per il commercialista esterno.",
+      },
+      {
+        icon: Users,
+        name: "CRM, gare e pipeline",
+        desc: "Richieste, offerte e gare in un'unica pipeline commerciale: sai sempre cosa rilanciare e quanto vale il portafoglio in trattativa.",
+      },
+      {
+        icon: Warehouse,
+        name: "Magazzino e DDT",
+        desc: "Depositi, scorte, DDT di entrata e uscita collegati a ordini fornitori e cantieri, con ribaltamento costi sul centro giusto.",
+      },
+      {
+        icon: FolderOpen,
+        name: "Documenti e qualifiche",
+        desc: "DURC, SOA, contratti di subappalto, certificazioni e polizze archiviati per cantiere: tutto pronto in caso di controllo o audit.",
+      },
+      {
+        icon: Building2,
+        name: "Preventivi e computi",
+        desc: "Computi metrici da prezziario DEI/regionale o listino interno, convertiti in commessa attiva con budget e WBS in un click.",
+      },
+      {
+        icon: BarChart3,
+        name: "Report e business intelligence",
+        desc: "Fatturato, margini per cantiere e per commessa, EBITDA, DSO/DPO: i numeri direzionali in una schermata, esportabili per banche e revisori.",
+      },
+    ],
+  },
 
   // Case Study
   caseStudy: {

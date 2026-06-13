@@ -1,9 +1,12 @@
-import { FileText, Calculator, Clock, Smartphone, BarChart3, Users } from "lucide-react";
+import {
+  FileText, Calculator, Clock, Smartphone, BarChart3, Users,
+  TrendingDown, Send, Camera, Sparkles, Receipt, Wallet, Warehouse, FolderOpen,
+} from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
   // SEO
-  seoTitle: "Software per Piccole Imprese Edili e Artigiani",
+  seoTitle: "Software per Piccole Imprese Edili e Artigiani | Margini Chiari, Zero Burocrazia",
   seoDescription: "Il gestionale per piccole imprese edili, muratori, imbianchini e artigiani edili con 1-10 dipendenti. Fattura elettronica, preventivi in 10 minuti, SAL…",
   seoKeywords: "software piccole imprese edili, gestionale artigiani edili, software muratori, fattura elettronica edilizia, preventivo a forfait, SAL semplificato, F24 edilizia, INAIL INPS edile, software imbianchino",
   seoCanonical: "/per/piccole-imprese",
@@ -154,6 +157,79 @@ const config: PerTipoConfig = {
       saving: "Buste paga senza impazzire",
     },
   ],
+
+  // Sezione AI: cosa fa Silvio per un piccolo artigiano edile.
+  aiShowcase: {
+    title: "L'AI che ti fa l'ufficio mentre tu sei in cantiere",
+    subtitle:
+      "Silvio coordina 19 persone AI specializzate che leggono i dati della tua azienda e agiscono. Per un piccolo artigiano edile significa questo:",
+    actions: [
+      {
+        icon: TrendingDown,
+        tag: "Margini",
+        title: "Ti dice subito se un lavoro sta rendendo",
+        desc: "Registri i costi man mano (materiali, ore, subappalto) e Silvio ti avvisa se un cantiere sta scendendo sotto il margine che ti eri messo in tasca col preventivo — mentre puoi ancora rimediare, non a saldo.",
+      },
+      {
+        icon: Send,
+        tag: "Cassa",
+        title: "Prepara i solleciti per chi non paga",
+        desc: "SAL emesso e saldo che non arriva? Silvio prepara il sollecito con il tono giusto — WhatsApp o email — e te lo mette in firma. Tu approvi, lui invia. La cassa la rincorri molto meno.",
+      },
+      {
+        icon: Camera,
+        tag: "Campo",
+        title: "Foto e nota vocale → preventivo o rapportino",
+        desc: "Fai una foto al lavoro da fare e detti due parole: Silvio ti prepara la bozza di preventivo o il rapportino di giornata, pronti da rivedere. Niente più Word la domenica sera.",
+      },
+      {
+        icon: Sparkles,
+        tag: "Scadenze",
+        title: "Ti ricorda F24, DURC e contributi",
+        desc: "Silvio tiene d'occhio il calendario fiscale e ti avvisa prima che scada F24, DURC, INAIL o INPS edile — così non prendi più sanzioni per dimenticanza e il commercialista non ti chiama arrabbiato.",
+      },
+    ],
+    note: "Non una chat generica: ogni risposta nasce dai dati reali della tua azienda — lavori, costi, incassi, scadenze.",
+  },
+
+  // Ampiezza piattaforma: tutto il resto, già incluso.
+  platformExtra: {
+    title: "E tutto il resto? Già incluso.",
+    subtitle:
+      "Non devi comprare cinque programmi diversi: dentro Edilizia in Cloud c'è tutto quello che serve a un piccolo artigiano edile, nello stesso posto e dallo stesso telefono.",
+    items: [
+      {
+        icon: Receipt,
+        name: "Fatturazione elettronica",
+        desc: "Fatture SDI attive e passive, note di credito, split payment e ritenuta: emetti dal telefono, l'export per il commercialista è pronto.",
+      },
+      {
+        icon: Wallet,
+        name: "Cassa e scadenzario",
+        desc: "Incassi attesi e spese fisse in un colpo d'occhio: sai in anticipo se questo mese la cassa tiene o serve sollecitare.",
+      },
+      {
+        icon: Users,
+        name: "Clienti e preventivi",
+        desc: "Rubrica clienti, storico lavori e preventivi a forfait con prezziario DEI: sai sempre chi richiamare e cosa hai già quotato.",
+      },
+      {
+        icon: Warehouse,
+        name: "Materiali e DDT",
+        desc: "Tieni traccia di materiali e DDT collegati al lavoro: niente più scontrini sparsi nel cruscotto del furgone.",
+      },
+      {
+        icon: FolderOpen,
+        name: "Documenti e scadenze",
+        desc: "DURC, certificazioni, contratti e garanzie archiviati per lavoro: li trovi in 5 secondi quando il cliente li chiede.",
+      },
+      {
+        icon: BarChart3,
+        name: "Report semplici",
+        desc: "Quanto hai fatturato, quanto hai guadagnato, cosa devi incassare: i numeri che contano, senza Excel.",
+      },
+    ],
+  },
 
   // Case Study
   caseStudy: {

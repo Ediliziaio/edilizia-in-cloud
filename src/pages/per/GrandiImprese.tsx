@@ -1,9 +1,12 @@
-import { Building2, Network, LayoutDashboard, ShieldCheck, ScrollText, FileSearch } from "lucide-react";
+import {
+  Building2, Network, LayoutDashboard, ShieldCheck, ScrollText, FileSearch,
+  TrendingDown, Send, Camera, Sparkles, Receipt, Wallet, Users, BarChart3, Warehouse,
+} from "lucide-react";
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
   // SEO
-  seoTitle: "Software Grandi Imprese Edili (50+ Dipendenti)",
+  seoTitle: "Software per Grandi Imprese Edili e General Contractor (50+ Dipendenti) | Governance e Margini di Gruppo",
   seoDescription:
     "Gestionale enterprise per grandi imprese edili e general contractor 50+ dipendenti, 10-50 cantieri attivi. Multi-società, dashboard direzionale CFO…",
   seoKeywords:
@@ -157,6 +160,79 @@ const config: PerTipoConfig = {
       saving: "Audit interni risolti in ore, non settimane",
     },
   ],
+
+  // Sezione AI: cosa fa Silvio a livello di gruppo.
+  aiShowcase: {
+    title: "L'AI che presidia il gruppo, cantiere per cantiere",
+    subtitle:
+      "Silvio coordina 19 persone AI specializzate che leggono i dati consolidati di tutte le società e di tutti i cantieri, e agiscono. Per un general contractor significa questo:",
+    actions: [
+      {
+        icon: TrendingDown,
+        tag: "Margini",
+        title: "Segnala gli scostamenti su tutti i cantieri del gruppo",
+        desc: "Silvio sorveglia il margine atteso vs realizzato di ogni cantiere e di ogni società: quando un cantiere scende sotto soglia, l'alert arriva al PM, al controller e al CFO con la voce critica — non al consolidamento di fine mese.",
+      },
+      {
+        icon: Send,
+        tag: "Cassa",
+        title: "Previsione di cassa consolidata e solleciti",
+        desc: "Cash flow di gruppo a 90 giorni, scaduti per società, intercompany: Silvio segnala in anticipo le tensioni di liquidità e prepara i solleciti sui SAL non incassati, pronti per l'approvazione.",
+      },
+      {
+        icon: Camera,
+        tag: "Compliance",
+        title: "Ti avvisa su DURC, scadenze e non-conformità",
+        desc: "DURC subappaltatori in scadenza, white list, limiti di subappalto, documenti mancanti per la PA: Silvio te lo dice prima dell'audit o della verifica della stazione appaltante, su tutti i cantieri.",
+      },
+      {
+        icon: Sparkles,
+        tag: "Direzione",
+        title: "Sintesi direzionali per CdA e CFO",
+        desc: "Chiedi 'qual è il margine consolidato di gruppo e dove stiamo perdendo?' e Silvio prepara la sintesi dai dati real-time — per società, per business unit, per cantiere — pronta per il board del lunedì.",
+      },
+    ],
+    note: "Non una chat generica: ogni risposta nasce dai dati consolidati e real-time del gruppo — società, cantieri, margini, cassa, subappalti, compliance.",
+  },
+
+  // Ampiezza piattaforma: l'operativo sotto il layer di governance.
+  platformExtra: {
+    title: "E tutto l'operativo, sotto la governance? Già incluso.",
+    subtitle:
+      "Multi-società, dashboard direzionale, governance e compliance sono il layer di controllo. Sotto, Edilizia in Cloud copre tutta l'operatività dei cantieri — collegata e auditabile.",
+    items: [
+      {
+        icon: Receipt,
+        name: "Fatturazione e ciclo passivo",
+        desc: "Ciclo attivo e passivo SDI per società, SAL, ritenute e split payment, riconciliazione con l'ERP di gruppo via API.",
+      },
+      {
+        icon: Wallet,
+        name: "Tesoreria multi-conto",
+        desc: "Visione consolidata su tutti i conti del gruppo, scadenzario clienti e fornitori, riconciliazione bancaria PSD2, forecast di cassa a 90 giorni.",
+      },
+      {
+        icon: Users,
+        name: "Gare, CRM e portafoglio ordini",
+        desc: "Pipeline gare pubbliche e private, offerte, backlog e produzione attesa per business unit: il commerciale di gruppo in un'unica vista.",
+      },
+      {
+        icon: Warehouse,
+        name: "Magazzini e logistica di cantiere",
+        desc: "Depositi e magazzini di cantiere multi-società, DDT, noli e movimentazioni collegati a commessa e centro di costo.",
+      },
+      {
+        icon: Network,
+        name: "HR di gruppo e cassa edile",
+        desc: "Presenze multi-cantiere, cassa edile, INPS edile e libro unico per società, con export verso i consulenti del lavoro.",
+      },
+      {
+        icon: BarChart3,
+        name: "Business intelligence direzionale",
+        desc: "KPI consolidati, drill-down dal gruppo al singolo movimento, report per banche, revisori e Collegio Sindacale.",
+      },
+    ],
+  },
 
   // Case Study
   caseStudy: {
