@@ -81,10 +81,11 @@ export default function PartnerMaterials() {
     },
   });
 
-  const { data: allTiers = [] } = useQuery<ReferralTierSummary[]>({
+  const { data: allTiers = [], isError: tiersError } = useQuery<ReferralTierSummary[]>({
     queryKey: ["referral-tiers"],
     queryFn: async () => {
-      const { data } = await supabase.from("referral_tiers").select("*").order("position");
+      const { data, error } = await supabase.from("referral_tiers").select("*").order("position");
+      if (error) throw error;
       return (data || []) as ReferralTierSummary[];
     },
   });
@@ -93,8 +94,13 @@ export default function PartnerMaterials() {
 
   const canAccess = (minTier: string | null) => {
     if (!minTier) return true;
+    // SICUREZZA: se i tier non sono caricati (errore o non ancora pronti),
+    // NON sbloccare i materiali riservati. Prima un errore di query lasciava
+    // allTiers vuoto → tierObj undefined → accesso concesso a tutti.
+    if (tiersError || allTiers.length === 0) return false;
     const tierObj = allTiers.find((t) => t.slug === minTier);
-    return tierObj?.position ? myTierPosition >= tierObj.position : true;
+    if (!tierObj?.position) return false; // tier sconosciuto → nega per sicurezza
+    return myTierPosition >= tierObj.position;
   };
 
   if (isReferrerLoading || isLoading) {

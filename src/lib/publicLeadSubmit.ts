@@ -13,6 +13,8 @@ export type PublicLeadPayload = {
   render_slug?: string | null;
   page_path?: string | null;
   context_label?: string | null;
+  /** Codice referral del partner (catturato da ReferralLanding in localStorage). */
+  referral_code?: string | null;
 };
 
 export async function submitPublicLeadToCrm(payload: PublicLeadPayload) {
@@ -28,6 +30,7 @@ export async function submitPublicLeadToCrm(payload: PublicLeadPayload) {
     render_slug: payload.render_slug?.trim() || null,
     page_path: payload.page_path?.trim() || null,
     context_label: payload.context_label?.trim() || null,
+    referral_code: payload.referral_code?.trim() || null,
   };
 
   const { data, error } = await supabase.functions.invoke("public-lead-submit", {

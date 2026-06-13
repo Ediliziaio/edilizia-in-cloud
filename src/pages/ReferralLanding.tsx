@@ -46,8 +46,16 @@ export default function ReferralLanding() {
   }, [code]);
 
   const handleCta = () => {
-    // Salva il codice referral in localStorage per la registrazione
-    if (code) { try { localStorage.setItem('ref_code', code); } catch { /* Safari Private Browsing */ } }
+    // Salva il codice referral in localStorage per la registrazione.
+    // Salviamo anche il timestamp: l'attribuzione vale solo entro la finestra
+    // di 90 giorni (DEFAULT_REFERRAL_COMMISSION_POLICY.attributionWindowDays),
+    // così un click vecchio non attribuisce per errore una conversione organica.
+    if (code) {
+      try {
+        localStorage.setItem('ref_code', code);
+        localStorage.setItem('ref_code_ts', new Date().toISOString());
+      } catch { /* Safari Private Browsing */ }
+    }
     navigate('/register');
   };
 

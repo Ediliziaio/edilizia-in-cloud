@@ -145,6 +145,32 @@ export default function Demo() {
         }[formData.fatturato] ?? formData.fatturato;
       const noteUtente = formData.messaggio.trim();
       const messaggio = `[DEMO] Fatturato annuo: ${fatturatoLabel}${renderContext ? ` | Modulo: ${renderContext.label}` : ""}${noteUtente ? ` | Note: ${noteUtente}` : ""}`;
+      // ATTRIBUZIONE REFERRAL: ReferralLanding salva il codice partner in
+      // localStorage['ref_code'] quando l'utente arriva da un link referral.
+      // Lo recuperiamo qui e lo agganciamo al lead così l'admin può attribuire
+      // la conversione al partner giusto (prima questo valore veniva scritto ma
+      // mai letto → ogni referral self-serve era perso).
+      // Rispettiamo la finestra di attribuzione di 90 giorni: un click più
+      // vecchio non deve attribuire una conversione organica al partner.
+      let referralCode: string | null = null;
+      try {
+        const storedCode = localStorage.getItem("ref_code");
+        if (storedCode) {
+          const storedTs = localStorage.getItem("ref_code_ts");
+          const ageDays = storedTs
+            ? (Date.now() - new Date(storedTs).getTime()) / 86_400_000
+            : 0;
+          if (!storedTs || (Number.isFinite(ageDays) && ageDays <= 90)) {
+            referralCode = storedCode;
+          } else {
+            // Scaduto: pulisci così non resta a sporcare i lead futuri.
+            localStorage.removeItem("ref_code");
+            localStorage.removeItem("ref_code_ts");
+          }
+        }
+      } catch {
+        referralCode = null;
+      }
       await submitPublicLeadToCrm({
         nome: `${formData.nome.trim()} ${formData.cognome.trim()}`.trim(),
         email: formData.email,
@@ -156,6 +182,7 @@ export default function Demo() {
         render_slug: renderContext?.slug ?? null,
         page_path: renderContext?.pagePath ?? null,
         context_label: renderContext?.label ?? null,
+        referral_code: referralCode,
         // Solo tag tipologici stabili. Slug specifico già in metadata (render_slug).
         tags: renderContext ? ["richiesta-render"] : [],
       });

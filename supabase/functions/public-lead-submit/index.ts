@@ -30,6 +30,7 @@ type LeadPayload = {
   render_slug?: string | null;
   page_path?: string | null;
   context_label?: string | null;
+  referral_code?: string | null;
 };
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -67,6 +68,9 @@ Deno.serve(async (req) => {
     const renderSlug = cleanText(body.render_slug, 80).toLowerCase().replace(/[^a-z0-9-]/g, "");
     const pagePath = cleanText(body.page_path, 180);
     const contextLabel = cleanText(body.context_label, 180);
+    // Codice referral del partner (catturato da ReferralLanding → localStorage).
+    // Normalizzato come gli altri codici referral: maiuscolo, solo alfanumerico/-/_.
+    const referralCode = cleanText(body.referral_code, 40).toUpperCase().replace(/[^A-Z0-9_-]/g, "");
     // Tag CRM puliti: prima ogni richiesta accumulava 4-6 tag con varianti
     // slug-specifiche (richiesta-render-infissi, landing-render, modulo-render-
     // in-page, ecc.) → su contatto con 5 richieste 25+ tag identici. Ora teniamo
@@ -126,6 +130,33 @@ Deno.serve(async (req) => {
       console.warn("[public-lead-submit] demo_requests insert skipped:", demoRequest.error.message);
     }
 
+    // ── Risoluzione partner referral ─────────────────────────────────────────
+    // Se il lead arriva da un link referral, risolviamo il partner dal codice
+    // così l'admin sa subito a chi attribuire la conversione (il valore prima
+    // era perso). Fail-soft: codice sconosciuto → nessun blocco, solo niente
+    // attribuzione.
+    let referrerInfo: { id: string; name: string; code: string } | null = null;
+    if (referralCode) {
+      try {
+        const { data: ref } = await supabase
+          .from("referrers")
+          .select("id, name, referral_code, is_active")
+          .eq("referral_code", referralCode)
+          .maybeSingle();
+        // Solo partner attivi: un partner disattivato non deve generare
+        // attribuzioni (la commissione sarebbe contestabile).
+        if (ref?.id && ref.is_active !== false) {
+          referrerInfo = {
+            id: ref.id as string,
+            name: (ref.name as string) || referralCode,
+            code: (ref.referral_code as string) || referralCode,
+          };
+        }
+      } catch (refErr) {
+        console.warn("[public-lead-submit] referrer lookup failed:", refErr);
+      }
+    }
+
     const { first_name, last_name } = splitName(nome);
     const now = new Date().toISOString();
     const notes = [
@@ -134,6 +165,11 @@ Deno.serve(async (req) => {
       `Richiesta da sito: ${source}`,
       renderSlug ? `Render page: ${renderSlug}` : null,
       pagePath ? `Pagina: ${pagePath}` : null,
+      referrerInfo
+        ? `🤝 Referral partner: ${referrerInfo.name} (codice ${referrerInfo.code})`
+        : referralCode
+          ? `🤝 Referral codice: ${referralCode} (partner non trovato)`
+          : null,
       `Consenso marketing: ${marketingConsent ? "si" : "no"}`,
     ].filter(Boolean).join("\n");
 
@@ -157,6 +193,7 @@ Deno.serve(async (req) => {
         "richiesta-demo",
         ...requestedTags,
         ...renderTags,
+        ...(referrerInfo ? ["referral-partner"] : []),
       ]),
     );
 
@@ -222,6 +259,9 @@ Deno.serve(async (req) => {
         render_slug: renderSlug || null,
         page_path: pagePath || null,
         context_label: contextLabel || null,
+        referral_code: referralCode || null,
+        referrer_id: referrerInfo?.id ?? null,
+        referrer_name: referrerInfo?.name ?? null,
         tags,
       },
     });
@@ -344,6 +384,7 @@ Deno.serve(async (req) => {
             ${pagePath ? `<tr><td style="padding:6px 0;color:#64748b">Pagina</td><td style="padding:6px 0">${escapeHtml(pagePath)}</td></tr>` : ""}
             ${renderSlug ? `<tr><td style="padding:6px 0;color:#64748b">Render</td><td style="padding:6px 0">${escapeHtml(renderSlug)}</td></tr>` : ""}
             <tr><td style="padding:6px 0;color:#64748b">Richieste totali</td><td style="padding:6px 0"><strong>${totalRequests}</strong></td></tr>
+            ${referrerInfo ? `<tr><td style="padding:6px 0;color:#64748b">🤝 Referral partner</td><td style="padding:6px 0"><strong>${escapeHtml(referrerInfo.name)}</strong> (${escapeHtml(referrerInfo.code)})</td></tr>` : referralCode ? `<tr><td style="padding:6px 0;color:#64748b">🤝 Referral codice</td><td style="padding:6px 0">${escapeHtml(referralCode)} (partner non trovato)</td></tr>` : ""}
             <tr><td style="padding:6px 0;color:#64748b">Source</td><td style="padding:6px 0">${escapeHtml(source)}</td></tr>
             <tr><td style="padding:6px 0;color:#64748b">Marketing consent</td><td style="padding:6px 0">${marketingConsent ? "sì" : "no"}</td></tr>
           </table>
