@@ -7,7 +7,7 @@ import {
   Hammer, HardHat, Ruler, Warehouse, Wrench, Building2, Blocks, ConeIcon,
   LayoutDashboard, ShoppingBag, Package, Calendar, Users, Settings,
   TrendingUp, Euro, AlertCircle, CheckCircle2, Star,
-  Shield, Zap, Lock,
+  Shield, Zap,
 } from "lucide-react";
 
 const floatingIcons = [
@@ -50,7 +50,6 @@ const microBadges = [
   { Icon: Shield, label: "GDPR Compliant" },
   { Icon: Zap, label: "Setup in 48h" },
   { Icon: Star, label: "4.9/5 stelle" },
-  { Icon: Lock, label: "Dati in Europa" },
 ];
 
 const dashboardAreas = [

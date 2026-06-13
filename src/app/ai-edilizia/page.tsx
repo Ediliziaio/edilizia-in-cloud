@@ -249,8 +249,8 @@ function HeroAI() {
             <CTAButton>Voglio vedere i numeri veri</CTAButton>
             <span className="text-sm font-semibold text-white/66">30 minuti con un consulente, gratis. Zero pressione.</span>
           </div>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {["31 giorni gratis", "Senza carta", "Setup in 48 ore", "Dati in Europa"].map((item) => (
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {["31 giorni gratis", "Senza carta", "Setup in 48 ore"].map((item) => (
               <div key={item} className="rounded-md border border-white/10 bg-white/[0.055] px-4 py-3 text-sm font-bold text-white/78">
                 <Check className="mr-2 inline h-4 w-4 text-eic-orange" strokeWidth={2} />
                 {item}

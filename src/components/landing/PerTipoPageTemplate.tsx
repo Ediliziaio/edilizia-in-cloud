@@ -354,7 +354,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
             {[
               { Icon: Star, label: "4.9/5 stelle · 500+ imprese" },
               { Icon: Clock, label: "Setup completo in 48h" },
-              { Icon: Shield, label: "Dati in Europa · GDPR" },
+              { Icon: Shield, label: "GDPR" },
             ].map(({ Icon, label }, i) => (
               <span key={i} className="flex items-center gap-2 text-white/45 text-sm">
                 <Icon size={14} className="text-[#F97415] flex-shrink-0" />
