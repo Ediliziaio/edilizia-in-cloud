@@ -5,8 +5,8 @@ import {
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
-  seoTitle: "Gestionale per Imprese di Ristrutturazione",
-  seoDescription: "Il gestionale per ristrutturatori: tieni sotto controllo varianti in corso d'opera, SAL, costi reali e margini per cantiere. Rapportini digitali, firma…",
+  seoTitle: "Software per Ristrutturatori | Più Margini, Più Controllo, Zero Caos",
+  seoDescription: "Il gestionale per imprese di ristrutturazione che controlla i margini per cantiere in real-time, gestisce cassa e SAL a 90 giorni, tiene traccia di varianti e bonus edilizi.",
   seoKeywords: "software gestionale ristrutturazione, gestionale impresa ristrutturazioni, software preventivi ristrutturazione, gestionale bonus edilizi, software superbonus 110, gestionale ecobonus, software sismabonus, gestionale varianti cantiere, cessione credito software, documentazione SAL ristrutturazione",
   seoCanonical: "/per/ristrutturatori",
 
@@ -14,11 +14,11 @@ const config: PerTipoConfig = {
 
   heroTitle: (
     <>
-      <span className="text-white">Le varianti ti mangiano il margine.</span>{" "}
-      <span className="text-[#F97415]">In silenzio. Ogni giorno.</span>
+      <span className="text-white">Aumenta i margini. Blinda la cassa.</span>{" "}
+      <span className="text-[#F97415]">Controlla ogni cantiere di ristrutturazione.</span>
     </>
   ),
-  heroSubtitle: "Il preventivo iniziale è già un ricordo dopo la prima settimana. Il cliente cambia il parquet, aggiunge la controparete, sposta la cucina. Ogni variante non tracciata è margine che sparisce. Con Edilizia in Cloud ogni modifica è firmata dal cliente e aggiornata sul conto economico del cantiere — in tempo reale.",
+  heroSubtitle: "Non è solo un software per varianti e bonus: è il sistema che governa tutta l'azienda. Il margine reale di ogni cantiere lo vedi mentre lavori (+18% medio sulle commesse monitorate), la cassa la conosci a 90 giorni, varianti e SAL filano senza contestazioni — e sì, la documentazione bonus esce con checklist sempre aggiornate. Con l'AI che ti avvisa prima che una variante non tracciata diventi una perdita.",
 
   heroImage: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?auto=format&fit=crop&w=1400&q=80",
 
@@ -29,24 +29,24 @@ const config: PerTipoConfig = {
     { initials: "TR", name: "Tecnoristruttura Snc", city: "Torino", months: 11, gradient: "from-[#7c3aed] to-[#5b21b6]" },
   ],
 
-  problemsTitle: "Il vero problema dei ristrutturatori non è trovare lavoro. È guadagnarlo.",
+  problemsTitle: "Il vero problema non è trovare lavoro — è guadagnarlo davvero.",
   problemsSubtitle: "I lavori arrivano. I clienti ci sono. Ma a fine cantiere i conti non tornano mai come avrebbero dovuto. Ecco perché.",
 
   problems: [
-    {
-      emoji: "📝",
-      title: "Varianti non tracciate: ogni modifica è margine che sparisce",
-      desc: "Il cliente vuole cambiare il pavimento. Poi aggiunge la controparete. Poi sposta le prese. Ogni variante viaggia su WhatsApp. A fine lavori non sai più cosa era nel preventivo originale — e il cliente nemmeno. Il risultato? Paghi tu la differenza.",
-    },
     {
       emoji: "💸",
       title: "I costi reali superano il preventivo",
       desc: "Il parquet costa il 20% in più rispetto a tre mesi fa. Il muratore ha fatto 6 ore di straordinario. Il fabbro è tornato due volte perché le misure erano cambiate. Questi costi non tracciati diventano perdita netta. E tu lo scopri solo quando emetti l'ultima fattura.",
     },
     {
-      emoji: "📋",
-      title: "Rapportini giornalieri",
-      desc: "La legge li richiede. Il cliente li vuole per capire l'avanzamento. Tu li vorresti per sapere quante ore ci sono volute davvero. Ma i tuoi operai finiscono il turno e tornano a casa. Il rapportino si fa il venerdì pomeriggio a memoria — e non vale niente.",
+      emoji: "📝",
+      title: "Varianti non tracciate: ogni modifica è margine che sparisce",
+      desc: "Il cliente vuole cambiare il pavimento. Poi aggiunge la controparete. Poi sposta le prese. Ogni variante viaggia su WhatsApp. A fine lavori non sai più cosa era nel preventivo originale — e il cliente nemmeno. Il risultato? Paghi tu la differenza.",
+    },
+    {
+      emoji: "🏦",
+      title: "SAL e acconti che non arrivano",
+      desc: "SAL emesso e il cliente non paga. Acconto in ritardo di tre settimane. Su cinque cantieri aperti, almeno uno ha sempre un pagamento bloccato — e la cassa va in negativo mentre tu hai già comprato i materiali per il cantiere successivo.",
     },
     {
       emoji: "😤",
@@ -56,12 +56,12 @@ const config: PerTipoConfig = {
   ],
 
   roi: {
-    lossValue: "€ 22.000",
-    lossLabel: "in detrazioni fiscali perse per documentazione errata",
-    wasteValue: "€ 13.000",
-    wasteLabel: "ore perse su pratiche bonus, ENEA, APE e varianti",
+    lossValue: "€ 24.000",
+    lossLabel: "in margini erosi da varianti non tracciate e costi reali sopra preventivo",
+    wasteValue: "€ 11.000",
+    wasteLabel: "ore perse su pratiche bonus, SAL, rapportini e coordinamento cantieri",
     errorValue: "€ 9.500",
-    errorLabel: "in varianti non tracciate e clienti scontenti",
+    errorLabel: "in SAL e acconti incassati in ritardo: cassa negativa per settimane",
     totalLoss: "€ 44.500",
     softwareCost: "€ 2.388",
     roiX: "19x",
@@ -72,34 +72,46 @@ const config: PerTipoConfig = {
     subtitle: "La stessa impresa, due realtà completamente diverse. Quella a destra è già possibile da domani.",
     fromTitle: "Senza gestionale — ogni giorno",
     fromItems: [
+      "Margini calcolati a spanne: costi reali oltre il preventivo scoperti solo alla fattura finale",
       "Varianti comunicate su WhatsApp, mai formalizzate né firmate dal cliente",
-      "Pratiche Superbonus ed Ecobonus gestite su cartella condivisa senza controllo versioni",
-      "SAL calcolati a mano, documentazione raccolta all'ultimo minuto prima della scadenza",
-      "Clienti che chiamano per sapere a che punto sono le pratiche CILA/SCIA",
-      "Cessione credito o sconto in fattura gestiti con email sparse e nessuna traccia",
+      "SAL emessi e non incassati: chi segue e chi sollecita? Nessuno, di solito",
+      "Pratiche bonus gestite su cartella condivisa senza controllo versioni e senza checklist",
+      "Squadre coordinate via telefono: non sai quante ore hanno fatto davvero",
       "Scopri di aver dimenticato un documento ENEA solo quando il bonus è già perso",
     ],
     toTitle: "Con Edilizia in Cloud — da subito",
     toItems: [
-      "Varianti tracciate, quotate e approvate digitalmente dal cliente in 5 minuti",
+      "Margini per cantiere in real-time: varianti approvate, costi reali e preventivo a confronto sempre",
+      "Varianti tracciate, quotate e approvate digitalmente dal cliente in 5 minuti — zero discussioni a saldo",
+      "Scadenzario SAL e acconti: ogni pagamento atteso ha la sua data, il suo importo e il suo sollecito automatico",
       "Documentazione bonus organizzata per tipo di detrazione con checklist ENEA sempre aggiornate",
-      "SAL generati automaticamente con i documenti corretti per Superbonus, Ecobonus e Sismabonus",
-      "Portale clienti: ogni proprietario vede lo stato del suo cantiere e delle sue pratiche in tempo reale",
-      "Cessione credito e sconto in fattura tracciati con cessionario, importi e scadenze",
+      "App cantiere: ore registrate dal telefono, posizioni verificate, rapportini generati in 3 minuti",
       "Alert automatici per documenti in scadenza: zero bonus persi, zero brutte sorprese",
     ],
   },
 
   stats: [
-    { value: "−4h", label: "al giorno su pratiche bonus", sublabel: "documentazione automatizzata" },
-    { value: "+35%", label: "preventivi vinti", sublabel: "grazie a preventivi con varianti professionali" },
+    { value: "+18%", label: "margine medio per cantiere", sublabel: "sulle commesse monitorate in real-time" },
+    { value: "90gg", label: "cassa prevista", sublabel: "SAL e acconti sempre tracciati" },
     { value: "0", label: "varianti non tracciate", sublabel: "ogni modifica firmata dal cliente" },
   ],
 
-  modulesTitle: "Gli strumenti che mancavano al tuo ufficio tecnico",
-  modulesSubtitle: "Sei moduli costruiti su misura per la complessità delle ristrutturazioni con bonus edilizi.",
+  modulesTitle: "Strumenti che governano tutta l'azienda di ristrutturazioni",
+  modulesSubtitle: "Sei moduli per tenere il controllo su margini, cassa, varianti e bonus: dal sopralluogo alla firma finale del cliente.",
 
   modules: [
+    {
+      icon: TrendingUp,
+      name: "Analisi Margini per Cantiere",
+      desc: "Confronta preventivo iniziale, varianti approvate e costi reali in ogni momento. Vedi il margine aggiornato in tempo reale — voce per voce — e blocca le perdite prima che il cantiere si chiuda in rosso.",
+      saving: "+18% margine medio per commessa",
+    },
+    {
+      icon: Wallet,
+      name: "Cassa, SAL e Scadenzario",
+      desc: "SAL emesso e non incassato, acconto in ritardo, pagamento subappaltatore in scadenza: tutto in un unico scadenzario. La cassa prevista a 30, 60 e 90 giorni — con visibilità per ogni cantiere aperto. Il sollecito parte automaticamente se l'incasso tarda.",
+      saving: "Cassa previsionale a 90 giorni",
+    },
     {
       icon: FileText,
       name: "Gestione Varianti in Corso d'Opera",
@@ -115,7 +127,7 @@ const config: PerTipoConfig = {
     {
       icon: FolderOpen,
       name: "SAL e Pratiche CILA/SCIA",
-      desc: "Genera SAL con la documentazione corretta per ogni tipo di incentivo. Traccia lo stato delle pratiche CILA e SCIA con scadenze, protocolli e riferimenti al Comune. Nessuna scadenza sfugge.",
+      desc: "Genera SAL con la documentazione corretta per ogni tipo di incentivo. Traccia lo stato delle pratiche CILA e SCIA con scadenze, protocolli e riferimenti al Comune. Gestisce anche cessione credito e sconto in fattura con cessionari e scadenze tracciati.",
       saving: "−3h per SAL",
     },
     {
@@ -124,21 +136,8 @@ const config: PerTipoConfig = {
       desc: "Il tuo cliente accede a un'area riservata e vede: stato avanzamento lavori, documenti firmati, stato delle pratiche bonus, importi detrazione e prossimi passi. Niente più telefonate inutili.",
       saving: "−80% chiamate di aggiornamento",
     },
-    {
-      icon: Clock,
-      name: "Cessione Credito e Sconto in Fattura",
-      desc: "Gestisci i meccanismi di trasferimento del beneficio fiscale con cessionari, importi, fatture e scadenze tracciati. Il sistema ti avvisa quando serve emettere la fattura con sconto o cedere il credito.",
-      saving: "Zero errori sul trasferimento",
-    },
-    {
-      icon: TrendingUp,
-      name: "Analisi Margini con Varianti",
-      desc: "Confronta preventivo iniziale, varianti approvate e costi reali in ogni momento. Vedi il margine aggiornato in tempo reale e blocca le perdite prima che il cantiere si chiuda in rosso.",
-      saving: "+18% margine medio per commessa",
-    },
   ],
 
-  // Sezione AI: cosa fa Silvio, da solo, per un'impresa di ristrutturazioni.
   aiShowcase: {
     title: "L'AI che lavora per te, anche quando sei in cantiere",
     subtitle:
@@ -172,7 +171,6 @@ const config: PerTipoConfig = {
     note: "Non una chat generica: ogni risposta nasce dai dati reali della tua azienda — cantieri, varianti, costi, incassi, squadre.",
   },
 
-  // Ampiezza piattaforma: tutto ciò che non è varianti/bonus.
   platformExtra: {
     title: "E tutto il resto dell'azienda? Già incluso.",
     subtitle:
@@ -285,22 +283,22 @@ const config: PerTipoConfig = {
       benefitLabel: "sanzioni per documentazione sicurezza mancante",
     },
   ],
-  verticalFeaturesTitle: "Gestionale ristrutturazione: dal preventivo alla firma finale",
-  verticalFeaturesSubtitle: "Rapportini, varianti, GPS squadre, sicurezza cantiere, SAL, firma digitale. Tutto in un unico sistema — usato dagli operai in cantiere e da te dall'ufficio o da casa.",
-  demoLabel: "Vedi come un'impresa di ristrutturazione protegge i margini su 5 cantieri attivi con varianti e rapportini digitali",
+  verticalFeaturesTitle: "Gestionale ristrutturazioni: margini protetti, cassa prevista, varianti firmate",
+  verticalFeaturesSubtitle: "Non un generico gestionale cantieri. Un sistema costruito attorno ai margini che scappano, alla cassa che non quadra e alle varianti che il cliente non vuole pagare.",
+  demoLabel: "Vedi come un'impresa di ristrutturazione protegge i margini e blinda la cassa su 5 cantieri attivi",
 
   ctaTitle: (
     <>
-      <span className="text-white">Ogni variante documentata.</span>{" "}
-      <span className="text-[#F97415]">Ogni margine protetto.</span>
+      <span className="text-white">Margini protetti. Cassa blindata.</span>{" "}
+      <span className="text-[#F97415]">Ogni variante firmata, ogni cantiere sotto controllo.</span>
     </>
   ),
-  ctaSubtitle: "30 minuti di demo: ti mostriamo come tracciare varianti, rapportini e costi reali sul tuo tipo di cantiere — con i tuoi numeri. Nessun impegno.",
+  ctaSubtitle: "30 minuti di demo: ti mostriamo come tracciare margini, cassa e varianti su un cantiere tipo — con i tuoi numeri. Nessun impegno.",
 
   schemaFaq: [
     {
       q: "Qual è il miglior software per imprese di ristrutturazione con Superbonus?",
-      a: "Edilizia in Cloud è il gestionale per ristrutturatori più completo: gestisce documentazione Superbonus 110%, Ecobonus, Sismabonus, varianti in corso d'opera con firma digitale, SAL, cessione credito e portale clienti. Aggiornato ad ogni modifica normativa.",
+      a: "Edilizia in Cloud è il gestionale per ristrutturatori più completo: controlla i margini per cantiere in real-time, gestisce la cassa a 90 giorni, traccia varianti con firma digitale, documenta Superbonus 110%, Ecobonus, Sismabonus, SAL e cessione credito. Aggiornato ad ogni modifica normativa.",
     },
     {
       q: "Come si gestisce la documentazione Superbonus con un software gestionale?",

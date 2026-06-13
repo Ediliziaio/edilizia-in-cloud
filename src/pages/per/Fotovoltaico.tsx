@@ -5,8 +5,8 @@ import {
 import PerTipoPageTemplate, { PerTipoConfig } from "@/components/landing/PerTipoPageTemplate";
 
 const config: PerTipoConfig = {
-  seoTitle: "Software Gestionale per Installatori Fotovoltaico",
-  seoDescription: "Il gestionale per installatori fotovoltaico che automatizza le pratiche GSE, gestisce SAL impianti FV, coordina i tecnici su più cantieri e calcola i…",
+  seoTitle: "Software per Installatori Fotovoltaico | Più Margini, Più Impianti, Zero Caos",
+  seoDescription: "Il gestionale per installatori fotovoltaico che controlla i margini per kWp in real-time, gestisce la cassa a 90 giorni, coordina le squadre su più cantieri e automatizza le pratiche GSE.",
   seoKeywords: "software gestionale fotovoltaico, gestionale installatori pannelli solari, software pratiche GSE, gestionale energie rinnovabili, software impianti fotovoltaici, gestionale SAL fotovoltaico, software incentivi fotovoltaico, CACER software, pratiche ARERA fotovoltaico, allaccio rete gestore",
   seoCanonical: "/per/fotovoltaico",
 
@@ -14,11 +14,11 @@ const config: PerTipoConfig = {
 
   heroTitle: (
     <>
-      <span className="text-white">Le pratiche GSE non devono</span>{" "}
-      <span className="text-[#F97415]">costarti più del cantiere.</span>
+      <span className="text-white">Aumenta i margini. Blinda la cassa.</span>{" "}
+      <span className="text-[#F97415]">Il gestionale con AI per chi installa fotovoltaico.</span>
     </>
   ),
-  heroSubtitle: "Pratiche GSE, SAL impianti FV, allaccio gestore, CACER, pratiche ARERA: ogni passaggio burocratico tracciato, ogni scadenza rispettata. I tuoi tecnici sul tetto a installare — non in ufficio a compilare moduli che poi vengono respinti.",
+  heroSubtitle: "Non è solo un software per le pratiche GSE: è il sistema che governa tutta l'azienda. Il margine reale per kWp lo vedi mentre lavori (+12% medio per impianto), la cassa la conosci a 90 giorni, le squadre sono coordinate senza WhatsApp — e sì, le pratiche GSE escono con template automatici. Con l'AI che ti avvisa prima che un problema diventi una perdita.",
 
   heroImage: "https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&w=1400&q=80",
 
@@ -29,14 +29,19 @@ const config: PerTipoConfig = {
     { initials: "SI", name: "SunInstall Snc", city: "Salerno", months: 13, gradient: "from-[#7c3aed] to-[#5b21b6]" },
   ],
 
-  problemsTitle: "La burocrazia fotovoltaica ti sta bloccando la crescita",
-  problemsSubtitle: "Ogni installatore con più di 5 impianti attivi al mese riconosce queste situazioni. Se ne riconosci tre o quattro, stai lasciando soldi sul tavolo ogni giorno.",
+  problemsTitle: "Il vero problema non è il GSE — è perdere margine senza accorgersene.",
+  problemsSubtitle: "Le pratiche GSE sono il lavoro visibile. I margini che scivolano, la cassa che manca, i cantieri che si sovrappongono: questo è quello che logora davvero un'impresa che installa fotovoltaico.",
 
   problems: [
     {
-      emoji: "📋",
-      title: "Pratiche GSE interminabili",
-      desc: "Accesso agli incentivi, Scambio sul Posto, Ritiro Dedicato, CACER: ogni pratica GSE ha documenti diversi, portali diversi, tempistiche diverse. Un errore di compilazione significa ricominciare da capo — e il cliente aspetta, innervosito, mentre tu perdi giorni.",
+      emoji: "💸",
+      title: "Margini erosi dalle variazioni prezzo dei pannelli",
+      desc: "Il preventivo lo hai fatto 6 settimane fa. Nel frattempo il prezzo dei moduli da 400Wp è cambiato due volte e l'inverter che avevi quotato non è più disponibile. Scopri di aver lavorato sotto costo solo quando chiudi la commessa.",
+    },
+    {
+      emoji: "🏦",
+      title: "Acconti e saldi d'allaccio che tardano",
+      desc: "Acconto alla firma del contratto. Saldo quando arriva il contatore. Ma chi segue? Chi sollecita? Su tre impianti aperti in contemporanea, uno ha sempre un pagamento fermo — e la cassa va in negativo mentre stai già installando il quarto.",
     },
     {
       emoji: "🌤️",
@@ -44,27 +49,22 @@ const config: PerTipoConfig = {
       desc: "Hai 3 squadre in campo, 2 impianti in fase di collaudo, un allaccio rete in attesa del gestore e un progetto esecutivo da consegnare entro venerdì. Il coordinamento avviene su WhatsApp — e ogni mattina la prima ora se ne va a capire chi è dove.",
     },
     {
-      emoji: "💸",
-      title: "Margini erosi dalle variazioni prezzo dei pannelli,…",
-      desc: "Il preventivo lo hai fatto 6 settimane fa. Nel frattempo il prezzo dei moduli da 400Wp è cambiato due volte e l'inverter che avevi quotato non è più disponibile. Scopri di aver lavorato sotto costo solo quando chiudi la commessa.",
-    },
-    {
-      emoji: "🔌",
-      title: "SAL documentati male: rischi di perdere gli incentivi…",
-      desc: "Il GSE è rigido: un SAL non conforme, una scheda tecnica mancante, una foto di installazione non georeferenziata possono bloccare l'erogazione dell'incentivo. Il tuo cliente resta senza pagamento — e la responsabilità tecnica è tua.",
+      emoji: "📋",
+      title: "Pratiche GSE interminabili",
+      desc: "Accesso agli incentivi, Scambio sul Posto, Ritiro Dedicato, CACER: ogni pratica GSE ha documenti diversi, portali diversi, tempistiche diverse. Un errore di compilazione significa ricominciare da capo — e il cliente aspetta, innervosito, mentre tu perdi giorni.",
     },
   ],
 
   roi: {
-    lossValue: "€ 31.000",
-    lossLabel: "in incentivi GSE persi per errori burocratici",
-    wasteValue: "€ 16.000",
-    wasteLabel: "ore su pratiche GSE, ARERA e coordinamento squadre",
-    errorValue: "€ 8.000",
-    errorLabel: "in margini erosi da variazioni prezzi pannelli non monitorate",
-    totalLoss: "€ 55.000",
+    lossValue: "€ 28.000",
+    lossLabel: "in margini erosi da variazioni prezzo moduli e inverter non monitorate",
+    wasteValue: "€ 14.000",
+    wasteLabel: "ore su pratiche GSE, ARERA, coordinamento squadre e SAL fuori spec",
+    errorValue: "€ 9.000",
+    errorLabel: "in acconti e saldi d'allaccio pagati in ritardo o mai sollecitati",
+    totalLoss: "€ 51.000",
     softwareCost: "€ 2.388",
-    roiX: "23x",
+    roiX: "21x",
   },
 
   transformation: {
@@ -72,34 +72,52 @@ const config: PerTipoConfig = {
     subtitle: "Stessa impresa, stesse squadre, stesso mercato. La differenza è solo nell'organizzazione.",
     fromTitle: "Senza gestionale — ogni settimana",
     fromItems: [
-      "Pratiche GSE compilate a mano su PDF, documenti inviati via email senza traccia",
       "Margini calcolati a spanne su Excel: scopri il rosso solo a fine commessa",
+      "Acconti e saldi d'allaccio seguiti a memoria: chi sollecita è fortunato",
+      "Pratiche GSE compilate a mano su PDF, documenti inviati via email senza traccia",
       "Tecnici coordinati via WhatsApp: chi porta i pannelli da 415Wp? Nessuno lo sa di certo",
-      "SAL documentati con foto prese dallo smartphone senza georeferenziazione né numerazione",
-      "Allaccio rete e pratiche ARERA gestiti in parallelo senza connessione al cantiere",
+      "SAL documentati con foto dallo smartphone senza georeferenziazione né numerazione",
       "Progetto esecutivo su PC del geometra: se è fuori ufficio, tutto si ferma",
     ],
     toTitle: "Con Edilizia in Cloud — da subito",
     toItems: [
+      "Margini per kWp in real-time: costo installato vs. preventivato aggiornato ad ogni acquisto",
+      "Scadenzario acconti e saldi: ogni pagamento atteso ha la sua data, il suo importo e il suo sollecito automatico",
       "Templates pratiche GSE pre-compilati per tipo di incentivo: Scambio sul Posto, Ritiro Dedicato, CACER",
-      "Margini per kWp in real-time: costo installato vs. preventivato aggiornato ad ogni acquisto materiali",
       "Dashboard multi-cantiere: ogni tecnico vede i suoi cantieri, i materiali assegnati e le priorità del giorno",
-      "SAL fotovoltaico con foto georeferenziate, misure registrate in app e verbale di collaudo generato automaticamente",
-      "Pratiche allaccio e ARERA collegate alla scheda impianto: stato aggiornato, scadenze e riferimenti gestore",
-      "Progetto esecutivo e documentazione tecnica archiviati nel cloud, accessibili da qualsiasi dispositivo",
+      "SAL fotovoltaico con foto georeferenziate, misure registrate in app e verbale di collaudo automatico",
+      "Documentazione tecnica e pratiche GSE archiviate nel cloud, accessibili da qualsiasi dispositivo",
     ],
   },
 
   stats: [
+    { value: "+12%", label: "margine medio per impianto", sublabel: "monitorato kWp per kWp" },
+    { value: "90gg", label: "cassa prevista", sublabel: "acconti e saldi sempre sotto controllo" },
     { value: "+4", label: "impianti/mese gestiti", sublabel: "con le stesse squadre di prima" },
-    { value: "−70%", label: "tempo su pratiche GSE", sublabel: "grazie ai template automatici" },
-    { value: "0", label: "incentivi persi per errori burocratici", sublabel: "SAL e collaudi sempre conformi" },
   ],
 
-  modulesTitle: "Strumenti costruiti per chi installa fotovoltaico",
-  modulesSubtitle: "Sei moduli che coprono l'intero ciclo di vita dell'impianto: dal progetto esecutivo al collaudo GSE.",
+  modulesTitle: "Strumenti che governano tutta l'azienda fotovoltaica",
+  modulesSubtitle: "Sei moduli che coprono l'intero ciclo di vita dell'impianto: dai margini reali alla cassa, dal coordinamento squadre alle pratiche GSE.",
 
   modules: [
+    {
+      icon: BarChart3,
+      name: "Margini per kWp in Tempo Reale",
+      desc: "Ogni acquisto di moduli, inverter e BOS aggiorna il costo per kWp installato della commessa. Vedi il margine reale vs. preventivato in ogni momento — non a fine lavori quando è troppo tardi per intervenire.",
+      saving: "+12% margine medio per impianto",
+    },
+    {
+      icon: Wallet,
+      name: "Cassa, Acconti e Scadenzario",
+      desc: "Acconti alla firma del contratto, saldi all'allaccio GSE, pagamenti a fornitori di moduli e inverter: tutto in un unico scadenzario. Vedi la cassa prevista a 30, 60 e 90 giorni — e saprai in anticipo quando serve sollecitare un cliente o dilazionare un ordine.",
+      saving: "Cassa previsionale a 90 giorni",
+    },
+    {
+      icon: Users,
+      name: "Dashboard Multi-Cantiere e Coordinamento Squadre",
+      desc: "Visualizza tutti i cantieri attivi su un'unica dashboard: stato avanzamento, squadra assegnata, materiali previsti e prossima attività. Ogni tecnico riceve la propria lista lavori dal cantiere, con materiali e checklist di installazione.",
+      saving: "+4 impianti/mese con le stesse risorse",
+    },
     {
       icon: FileText,
       name: "Pratiche GSE e Incentivi Automatizzati",
@@ -113,24 +131,6 @@ const config: PerTipoConfig = {
       saving: "SAL conforme in 20 minuti",
     },
     {
-      icon: BarChart3,
-      name: "Margini per kWp in Tempo Reale",
-      desc: "Ogni acquisto di moduli, inverter e BOS aggiorna il costo per kWp installato della commessa. Vedi il margine reale vs. preventivato in ogni momento — non a fine lavori quando è troppo tardi per intervenire.",
-      saving: "+22% margine medio impianto",
-    },
-    {
-      icon: Users,
-      name: "Dashboard Multi-Cantiere e Coordinamento Squadre",
-      desc: "Visualizza tutti i cantieri attivi su un'unica dashboard: stato avanzamento, squadra assegnata, materiali previsti e prossima attività. Ogni tecnico riceve la propria lista lavori dal cantiere, con materiali e checklist di installazione.",
-      saving: "+4 impianti/mese con le stesse risorse",
-    },
-    {
-      icon: TrendingUp,
-      name: "Gestione Allaccio Rete e Pratiche ARERA",
-      desc: "Traccia la pratica di allaccio con il gestore di rete (ENEL, A2A, Areti) dalla richiesta al contatore installato. Le pratiche ARERA sono collegate alla scheda impianto con scadenze, riferimenti e corrispondenza archiviata.",
-      saving: "Zero ritardi per pratiche incomplete",
-    },
-    {
       icon: Smartphone,
       name: "App Cantiere per Tecnici in Campo",
       desc: "Il tecnico apre l'app, vede il cantiere assegnato, registra le ore, foto-documenta l'installazione e chiude il SAL senza tornare in ufficio. Tutto sincronizzato in tempo reale con il gestionale dell'ufficio.",
@@ -138,7 +138,6 @@ const config: PerTipoConfig = {
     },
   ],
 
-  // Sezione AI: cosa fa Silvio, da solo, per un installatore fotovoltaico.
   aiShowcase: {
     title: "L'AI che lavora per te, anche quando sei sul tetto",
     subtitle:
@@ -172,7 +171,6 @@ const config: PerTipoConfig = {
     note: "Non una chat generica: ogni risposta nasce dai dati reali della tua azienda — impianti, listini, pratiche, incassi, squadre.",
   },
 
-  // Ampiezza piattaforma: tutto ciò che non è GSE/installazioni.
   platformExtra: {
     title: "E tutto il resto dell'azienda? Già incluso.",
     subtitle:
@@ -257,11 +255,11 @@ const config: PerTipoConfig = {
 
   verticalFeatures: [
     {
-      icon: Zap,
-      problem: "Pratiche GSE rigettate per errori: ogni errore costa settimane e incentivi persi",
-      solution: "Il modulo pratiche GSE di Edilizia in Cloud guida il compilatore campo per campo, con checklist documenti obbligatori per ogni tipo di impianto (SSP, RID, CACER). La pratica viene validata prima dell'invio. Zero rigetti per dimenticanze.",
-      economicBenefit: "−85%",
-      benefitLabel: "pratiche GSE rigettate nel primo anno di utilizzo",
+      icon: BarChart3,
+      problem: "Non sai il margine reale per kWp: prezzi che cambiano, costi variabili, preventivi sbagliati",
+      solution: "Il cruscotto margini mostra il costo per kWp installato per ogni commessa: pannelli, inverter, manodopera, pratiche, allaccio. Confronta preventivo vs consuntivo in tempo reale. Capisci su quale tipo di impianto guadagni davvero — e regoli i prezzi di conseguenza.",
+      economicBenefit: "+ 12%",
+      benefitLabel: "margine medio per commessa nel primo anno",
     },
     {
       icon: Users,
@@ -271,36 +269,36 @@ const config: PerTipoConfig = {
       benefitLabel: "installati con lo stesso numero di tecnici",
     },
     {
-      icon: BarChart3,
+      icon: Zap,
+      problem: "Pratiche GSE rigettate per errori: ogni errore costa settimane e incentivi persi",
+      solution: "Il modulo pratiche GSE di Edilizia in Cloud guida il compilatore campo per campo, con checklist documenti obbligatori per ogni tipo di impianto (SSP, RID, CACER). La pratica viene validata prima dell'invio. Zero rigetti per dimenticanze.",
+      economicBenefit: "−85%",
+      benefitLabel: "pratiche GSE rigettate nel primo anno di utilizzo",
+    },
+    {
+      icon: TrendingUp,
       problem: "SAL e stati avanzamento: li produci all'ultimo minuto — a volte in ritardo",
       solution: "Ogni impianto ha il suo SAL automatico: percentuale avanzamento, fase attuale (progettazione, permessi, posa, allaccio, collaudo), documenti allegati per fase. Il cliente riceve aggiornamenti automatici. Il SAL per gli incentivi è già pronto quando serve.",
       economicBenefit: "€ 0",
       benefitLabel: "incentivi persi per SAL fuori tempo",
     },
-    {
-      icon: TrendingUp,
-      problem: "Non sai il margine reale per kWp: prezzi che cambiano, costi variabili, preventivi sbagliati",
-      solution: "Il cruscotto margini mostra il costo per kWp installato per ogni commessa: pannelli, inverter, manodopera, pratiche, allaccio. Confronta preventivo vs consuntivo in tempo reale. Capisci su quale tipo di impianto guadagni davvero — e regoli i prezzi di conseguenza.",
-      economicBenefit: "+ 12%",
-      benefitLabel: "margine medio per commessa nel primo anno",
-    },
   ],
-  verticalFeaturesTitle: "Gestionale fotovoltaico: pratiche GSE, tecnici in campo e margini per kWp",
-  verticalFeaturesSubtitle: "Non un generico gestionale cantieri. Un sistema costruito attorno alle pratiche GSE, agli incentivi rinnovabili e a come funziona davvero un'impresa che installa fotovoltaico.",
-  demoLabel: "Vedi come un'impresa fotovoltaico installa 14 impianti al mese senza perdere un incentivo GSE",
+  verticalFeaturesTitle: "Gestionale fotovoltaico: margini reali, cassa previsionale, cantieri coordinati",
+  verticalFeaturesSubtitle: "Non un generico gestionale cantieri. Un sistema costruito attorno ai margini per kWp, alla cassa di un'impresa che installa — e sì, anche alle pratiche GSE che devono uscire al primo tentativo.",
+  demoLabel: "Vedi come un'impresa fotovoltaico controlla margini, cassa e cantieri — senza perdere un incentivo GSE",
 
   ctaTitle: (
     <>
-      <span className="text-white">Più kWp installati al mese.</span>{" "}
-      <span className="text-[#F97415]">Zero incentivi persi per burocrazia.</span>
+      <span className="text-white">Più impianti. Margini monitorati.</span>{" "}
+      <span className="text-[#F97415]">Cassa sempre sotto controllo.</span>
     </>
   ),
-  ctaSubtitle: "30 minuti di demo: ti mostriamo come gestire pratiche GSE, tecnici in campo e SAL su un impianto tipo — con i tuoi numeri.",
+  ctaSubtitle: "30 minuti di demo: ti mostriamo come controllare margini per kWp, cassa e pratiche GSE su un impianto tipo — con i tuoi numeri.",
 
   schemaFaq: [
     {
       q: "Qual è il miglior software gestionale per imprese fotovoltaico?",
-      a: "Edilizia in Cloud è il gestionale per installatori fotovoltaico con template pratiche GSE automatizzati, SAL impianti FV generati dall'app, calcolo margini per kWp in tempo reale, coordinamento multi-squadra e gestione pratiche CACER e allaccio rete.",
+      a: "Edilizia in Cloud è il gestionale per installatori fotovoltaico con controllo margini per kWp in real-time, cassa previsionale a 90 giorni, dashboard multi-cantiere, template pratiche GSE automatizzati e SAL impianti FV generati dall'app.",
     },
     {
       q: "Come si gestiscono le pratiche GSE con un software gestionale per fotovoltaico?",
