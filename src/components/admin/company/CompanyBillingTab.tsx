@@ -552,9 +552,13 @@ export function CompanyBillingTab({ companyId }: { companyId: string }) {
   const { data: adjustments, isLoading: adjustmentsLoading } = useQuery({
     queryKey: [...queryKeys.admin.creditAdjustments(companyId), adjustmentsPage, adjustmentsServiceFilter],
     queryFn: async () => {
+      // count SEMPRE "exact": con "planned" sulle pagine >0 Supabase ritorna
+      // count=null → total=0 → adjustmentsTotalPages=1 → l'intero controllo di
+      // paginazione spariva (impossibile tornare indietro o avanzare). La
+      // tabella per-azienda è piccola, il costo del count esatto è trascurabile.
       let q = supabase
         .from("admin_credit_adjustments" as never)
-        .select("*", { count: adjustmentsPage === 0 ? "exact" : "planned" })
+        .select("*", { count: "exact" })
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
         .range(adjustmentsPage * PAGE_SIZE, (adjustmentsPage + 1) * PAGE_SIZE - 1);

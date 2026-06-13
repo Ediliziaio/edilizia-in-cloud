@@ -115,7 +115,16 @@ export function CompanyAddonsSection({ company }: CompanyAddonsSectionProps) {
 
   const handlePriceBlur = async () => {
     setPriceEditing(false);
-    const newPrice = parseFloat(price) || 0;
+    const newPrice = parseFloat(price);
+    // Campo svuotato o input non numerico: NON azzerare silenziosamente il
+    // prezzo (prima `parseFloat("") || 0` lo portava a 0€). Ripristina il
+    // valore corrente e avvisa.
+    if (!Number.isFinite(newPrice) || newPrice < 0) {
+      const current = company.white_label_monthly_price ?? 0;
+      setPrice(String(current));
+      if (price.trim() !== "") toast.error("Prezzo non valido — modifica annullata");
+      return;
+    }
     if (newPrice === (company.white_label_monthly_price ?? 0)) return;
     try {
       const { error } = await supabase

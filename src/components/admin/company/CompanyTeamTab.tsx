@@ -1140,33 +1140,57 @@ function MemberActions({
   onDelete?: () => void;
   onResetPassword?: (userId: string, name: string) => void;
 }) {
+  // Conferma prima del reset password: l'azione è irreversibile (genera una
+  // nuova password, invalida quella esistente e la invia via email). Prima
+  // partiva subito al click del menu → rischio lockout accidentale di un utente.
+  const [confirmReset, setConfirmReset] = useState(false);
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        {hasAccount && onResetPassword && (
-          <DropdownMenuItem onClick={() => onResetPassword(userId, name)}>
-            <Key className="h-4 w-4 mr-2" />
-            Reset Password
-          </DropdownMenuItem>
-        )}
-        {onDelete && (
-          <>
-            {onResetPassword && <DropdownMenuSeparator />}
-            <DropdownMenuItem
-              onClick={onDelete}
-              className="text-destructive focus:text-destructive"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Elimina Utente
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          {hasAccount && onResetPassword && (
+            <DropdownMenuItem onClick={() => setConfirmReset(true)}>
+              <Key className="h-4 w-4 mr-2" />
+              Reset Password
             </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          )}
+          {onDelete && (
+            <>
+              {onResetPassword && <DropdownMenuSeparator />}
+              <DropdownMenuItem
+                onClick={onDelete}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Elimina Utente
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={confirmReset} onOpenChange={setConfirmReset}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Resettare la password di {name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Verrà generata una nuova password sicura e inviata via email all'utente.
+              La password attuale smetterà di funzionare subito. L'azione non è reversibile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={() => onResetPassword?.(userId, name)}>
+              Reset Password
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

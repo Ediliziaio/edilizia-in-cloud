@@ -235,6 +235,9 @@ export function CompanyDetailsTab({
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (res.error) throw new Error(await edgeErrorMessage(res.error, "Errore export GDPR"));
+      // Senza questo guard, res.data undefined produceva un file con la stringa
+      // letterale "undefined" (JSON corrotto) scaricato senza alcun avviso.
+      if (res.data == null) throw new Error("Il server non ha restituito dati da esportare.");
       const blob = new Blob([JSON.stringify(res.data, null, 2)], {
         type: "application/json",
       });

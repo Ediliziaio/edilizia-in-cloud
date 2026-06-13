@@ -44,13 +44,24 @@ export function CompanyActivityTab({ companyId }: CompanyActivityTabProps) {
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["company-activity-feed", companyId],
     queryFn: async () => {
-      const [auditRes, subLogsRes, ordersRes, ticketsRes, notifRes] = await Promise.all([
+      // allSettled: una singola fonte che fallisce (es. errore di rete) non
+      // deve azzerare l'intera timeline — mostriamo le fonti riuscite.
+      const settled = await Promise.allSettled([
         supabase.from("admin_audit_log").select("id, action, details, created_at, target_type").eq("target_id", companyId).order("created_at", { ascending: false }).limit(50),
         supabase.from("subscription_logs").select("id, event_type, notes, created_at, old_status, new_status").eq("company_id", companyId).order("created_at", { ascending: false }).limit(50),
         supabase.from("orders").select("id, description, order_code, created_at, total_amount").eq("company_id", companyId).order("created_at", { ascending: false }).limit(50),
         supabase.from("tickets").select("id, subject, status, created_at").eq("company_id", companyId).order("created_at", { ascending: false }).limit(50),
         supabase.from("lifecycle_notifications").select("id, notification_type, message, created_at").eq("company_id", companyId).order("created_at", { ascending: false }).limit(50),
       ]);
+      const pick = <T,>(i: number): { data: T[] | null } =>
+        settled[i].status === "fulfilled"
+          ? (settled[i] as PromiseFulfilledResult<{ data: T[] | null }>).value
+          : { data: null };
+      const auditRes = pick<{ id: string; action: string; details: unknown; created_at: string }>(0);
+      const subLogsRes = pick<{ id: string; event_type: string; notes: string | null; created_at: string; old_status: string; new_status: string }>(1);
+      const ordersRes = pick<{ id: string; description: string | null; order_code: string | null; created_at: string }>(2);
+      const ticketsRes = pick<{ id: string; subject: string; created_at: string }>(3);
+      const notifRes = pick<{ id: string; notification_type: string; message: string | null; created_at: string }>(4);
 
       const timeline: TimelineEvent[] = [];
 
