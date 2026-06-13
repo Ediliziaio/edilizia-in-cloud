@@ -77,6 +77,13 @@ const cosaNonFacciamo = [
   "Non chiamiamo a casa tua tutti i giorni se non rispondi al primo contatto.",
 ];
 
+const numeri = [
+  { value: "2021", label: "Anno di fondazione", sub: "Domus Group S.r.l., Milano" },
+  { value: "150+", label: "Imprese edili a bordo", sub: "in crescita ogni mese" },
+  { value: "4.9/5", label: "Valutazione media", sub: "dai clienti che ci usano" },
+  { value: "100%", label: "Sviluppato in Italia", sub: "per il cantiere italiano" },
+];
+
 const cantiereLife = [
   {
     icon: Sun,
@@ -171,8 +178,8 @@ const faqs = [
 
 export default function ChiSiamo() {
   useSEO({
-    title: "Chi Siamo — Edilizia in Cloud, costruito da chi vive…",
-    description: "Edilizia in Cloud è il gestionale cloud per imprese edili italiane sviluppato da Domus Group S.r.l. (Milano). Nato dentro un'impresa edile reale, da chi…",
+    title: "Chi Siamo — Edilizia in Cloud | Software edile nato in cantiere",
+    description: "Edilizia in Cloud è il gestionale cloud con AI per imprese edili italiane, sviluppato da Domus Group S.r.l. (Milano). Nato dentro un'impresa edile reale e validato sul campo prima di arrivare sul mercato.",
     canonical: "/chi-siamo",
     keywords: "chi siamo edilizia in cloud, domus group srl, gestionale edilizia italiano, software edilizia made in italy, software edilizia cantiere, gestionale costruito da imprenditori edili",
   });
@@ -227,7 +234,7 @@ export default function ChiSiamo() {
             height: 512,
           },
           description:
-            "Gestionale cloud con AI per imprese edili italiane. Cantieri, fatturazione SDI, preventivi, HR. Sviluppato da Domus Group S.r.l. Costruito da chi vive il…",
+            "Gestionale cloud con AI per imprese edili italiane: cantieri, fatturazione SDI, preventivi, HR e Cassa Edile. Sviluppato da Domus Group S.r.l., costruito da chi vive il cantiere ogni giorno.",
           foundingDate: "2021",
           vatID: "IT13132010961",
           taxID: "13132010961",
@@ -269,13 +276,10 @@ export default function ChiSiamo() {
         className="relative pt-28 sm:pt-36 pb-16 sm:pb-24 px-5 sm:px-6 overflow-hidden"
         style={{ background: "linear-gradient(180deg, #0a0a0a 0%, #111111 100%)" }}
       >
-        {/* Background image cantiere */}
+        {/* Background image cantiere — self-hosted WebP (no Unsplash, brand-consistent con homepage) */}
         <div
           className="absolute inset-0 bg-cover bg-center opacity-25"
-          style={{
-            backgroundImage:
-              "url('https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1920&q=80')",
-          }}
+          style={{ backgroundImage: "url('/hero/cantiere-1920.webp')" }}
         />
         <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,10,10,0.7) 0%, rgba(17,17,17,0.95) 100%)" }} />
 
@@ -321,6 +325,26 @@ export default function ChiSiamo() {
             <span className="flex items-center gap-2"><MapPin className="w-4 h-4 text-[#F97415]" /> Sede Milano</span>
             <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-[#F97415]" /> GDPR · Server UE</span>
             <span className="flex items-center gap-2"><Code2 className="w-4 h-4 text-[#F97415]" /> Made in Italy</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ── STAT BAND — credibilità ── */}
+      <section className="px-5 sm:px-6 bg-white">
+        <div className="max-w-6xl mx-auto -mt-10 sm:-mt-14 relative z-20">
+          <div
+            className="grid grid-cols-2 md:grid-cols-4 gap-px rounded-2xl overflow-hidden shadow-xl"
+            style={{ background: "#e8ecf0", border: "1px solid #e8ecf0" }}
+          >
+            {numeri.map((n) => (
+              <div key={n.label} className="bg-white px-4 py-6 sm:px-6 sm:py-8 text-center">
+                <div className="text-3xl sm:text-4xl font-extrabold mb-1" style={{ color: "#F97415" }}>
+                  {n.value}
+                </div>
+                <div className="font-bold text-[#111111] text-sm sm:text-base leading-tight">{n.label}</div>
+                <div className="text-[#111111]/50 text-xs mt-1 leading-snug">{n.sub}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -739,6 +763,20 @@ export default function ChiSiamo() {
               style={{ border: "2px solid rgba(255,255,255,0.35)" }}
             >
               Pianifica la migrazione
+            </Link>
+          </div>
+
+          {/* Link di approfondimento */}
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
+            <span className="text-white/40">Oppure esplora:</span>
+            <Link to="/funzionalita/" className="text-white/75 hover:text-[#F97415] transition-colors underline-offset-4 hover:underline">
+              Funzionalità
+            </Link>
+            <Link to="/prezzi/" className="text-white/75 hover:text-[#F97415] transition-colors underline-offset-4 hover:underline">
+              Prezzi
+            </Link>
+            <Link to="/diventa-partner/" className="text-white/75 hover:text-[#F97415] transition-colors underline-offset-4 hover:underline">
+              Diventa Partner
             </Link>
           </div>
         </div>
