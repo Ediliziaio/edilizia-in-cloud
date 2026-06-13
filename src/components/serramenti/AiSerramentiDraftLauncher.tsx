@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles, Camera, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AiSerramentiDraftDialog } from "./AiSerramentiDraftDialog";
 import { useAddSerramento } from "@/lib/serramenti/queries";
@@ -15,6 +15,9 @@ interface Props {
   context?: AiLauncherContext;
   onInserted?: (id: string) => void;
   onGoToComposition?: () => void;
+  /** Apre automaticamente la dialog AI quando diventa true (one-shot).
+   *  Usato dal flusso "Avvia con Silvio AI" del primo step. */
+  autoOpen?: boolean;
 }
 
 const COPY: Record<AiLauncherContext, {
@@ -23,14 +26,14 @@ const COPY: Record<AiLauncherContext, {
   cta: string;
 }> = {
   contact: {
-    title: "AI offerta",
-    description: "Usa la scheda già compilata (cliente, indirizzo, cantiere) insieme a testo, audio o foto. Nulla viene salvato senza approvazione.",
-    cta: "Apri AI",
+    title: "Silvio AI — crea il preventivo",
+    description: "Scatta una foto del rilievo, detta a voce o scrivi cosa serve: Silvio prepara la bozza usando anche cliente, indirizzo e cantiere già inseriti. Nulla viene salvato senza la tua approvazione.",
+    cta: "Apri Silvio AI",
   },
   bom: {
-    title: "Assistente AI offerta",
-    description: "Scrivi, detta o carica foto del rilievo: l'AI prepara una bozza, tu approvi solo le righe corrette.",
-    cta: "Crea con AI",
+    title: "Silvio AI — assistente offerta",
+    description: "Foto del rilievo, dettatura o testo: Silvio prepara le righe, tu approvi solo quelle corrette.",
+    cta: "Crea con Silvio AI",
   },
 };
 
@@ -40,6 +43,7 @@ export function AiSerramentiDraftLauncher({
   context = "bom",
   onInserted,
   onGoToComposition,
+  autoOpen,
 }: Props) {
   const [open, setOpen] = useState(false);
   const addMut = useAddSerramento(progettoId);
@@ -50,6 +54,15 @@ export function AiSerramentiDraftLauncher({
   useEffect(() => {
     if (open) insertedCountRef.current = 0;
   }, [open]);
+
+  // Apertura automatica one-shot (flusso "Avvia con Silvio AI" dal primo step).
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpen && !autoOpenedRef.current) {
+      autoOpenedRef.current = true;
+      setOpen(true);
+    }
+  }, [autoOpen]);
 
   const handleApproveAiDraftItem = async (item: SrAiDraftItem) => {
     const qty = item.quantita || 1;
@@ -97,8 +110,16 @@ export function AiSerramentiDraftLauncher({
       }>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold text-slate-950">{copy.title}</p>
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-950">
+              <Sparkles className="h-4 w-4 text-orange-500" />
+              {copy.title}
+            </p>
             <p className="text-xs leading-relaxed text-slate-600">{copy.description}</p>
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
+              <span className="inline-flex items-center gap-1"><Camera className="h-3.5 w-3.5" /> Foto rilievo</span>
+              <span className="inline-flex items-center gap-1"><Mic className="h-3.5 w-3.5" /> Detta a voce</span>
+              <span className="inline-flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" /> Testo</span>
+            </div>
           </div>
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
             {context === "contact" && onGoToComposition && detail.serramenti.length > 0 && (

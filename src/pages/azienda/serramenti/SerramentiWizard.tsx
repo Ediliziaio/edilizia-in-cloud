@@ -42,7 +42,7 @@ import {
 import {
   ArrowLeft, ArrowRight, Save, Loader2, RectangleVertical,
   User, Home, MessageCircle, Image as ImageIcon, Euro, Calendar, FileText,
-  Users, CheckCircle2, Phone, Mail, MapPin,
+  Users, CheckCircle2, Phone, Mail, MapPin, Sparkles, Camera, Mic,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -89,6 +89,9 @@ export default function SerramentiWizard() {
   // Permette il flow "Crea preventivo Serramenti" dal dialog opportunità.
   const urlContactId = searchParams.get("contact_id");
   const urlOpportunityId = searchParams.get("opportunity_id");
+  // ?ai=1 → flusso "Avvia con Silvio AI" dal primo step: il progetto è appena
+  // stato creato, restiamo sul Contatto e apriamo automaticamente l'assistente.
+  const urlStartAi = searchParams.get("ai") === "1";
 
   const [currentStep, setCurrentStep] = useState<SrWizardStep>("cliente");
   const [creating, setCreating] = useState(false);
@@ -346,6 +349,8 @@ export default function SerramentiWizard() {
     if (didAutoAdvanceRef.current) return;
     if (!id || !detail?.progetto) return;
     didAutoAdvanceRef.current = true;
+    // Flusso "Avvia con Silvio AI": resta sul Contatto, l'assistente si apre da solo.
+    if (urlStartAi) return;
     const hasStep1Data = detail.progetto.cliente_nome || detail.progetto.cliente_cognome;
     if (currentStep === "cliente" && hasStep1Data) {
       setCurrentStep("immobile");
@@ -476,6 +481,27 @@ export default function SerramentiWizard() {
       setCurrentStep(SR_WIZARD_STEPS[idx + 1].key);
     } else {
       toast.success("Preventivo salvato");
+    }
+  };
+
+  /** Flusso "Avvia con Silvio AI" dal primo step (preventivo nuovo): crea il
+   *  progetto anche con dati minimi e ci ritorna con ?ai=1, così l'assistente
+   *  si apre da solo sul Contatto (foto / voce / testo → bozza preventivo). */
+  const handleCreateAndStartAi = async () => {
+    if (!isNew) return;
+    setCreating(true);
+    try {
+      const created = await createMut.mutateAsync({
+        ...form,
+        tipo_intervento: (form.tipo_intervento as SrTipoIntervento) ?? "sostituzione",
+      });
+      navigate(`/azienda/serramenti/${created.id}/modifica?ai=1`, { replace: true });
+    } catch (e) {
+      toast.error("Non riesco ad avviare Silvio AI", {
+        description: e instanceof Error ? e.message : "Riprova tra qualche secondo.",
+      });
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -825,6 +851,10 @@ export default function SerramentiWizard() {
                 onChange={onChange}
                 progettoId={id}
                 detail={detail}
+                isNew={isNew}
+                creating={creating}
+                onStartAi={handleCreateAndStartAi}
+                autoOpenAi={urlStartAi}
                 onGoToComposition={() => setCurrentStep("bom")}
               />
             )}
@@ -900,12 +930,17 @@ export default function SerramentiWizard() {
 
 function StepCliente({
   form, onChange, progettoId, detail, onGoToComposition,
+  isNew, creating, onStartAi, autoOpenAi,
 }: {
   form: Partial<SrProgettoRow>;
   onChange: <K extends keyof SrProgettoRow>(key: K, value: SrProgettoRow[K]) => void;
   progettoId?: string;
   detail?: SrProgettoDetail;
   onGoToComposition?: () => void;
+  isNew?: boolean;
+  creating?: boolean;
+  onStartAi?: () => void;
+  autoOpenAi?: boolean;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const detailForAi = detail
@@ -931,6 +966,38 @@ function StepCliente({
       description="Collega un contatto CRM o compila i dati cliente. Verranno usati nel PDF, nel microsito e nella bozza AI."
       icon={<User className="h-4 w-4" />}
     >
+      {/* Silvio AI come prima azione su preventivo NUOVO: crea il progetto e
+          apre subito l'assistente (foto/voce/testo → bozza). Su preventivo già
+          creato, l'assistente compare nel riquadro più sotto. */}
+      {isNew && onStartAi && (
+        <div className="mb-3 rounded-md border border-orange-200 bg-gradient-to-r from-orange-50 to-white p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-950">
+                <Sparkles className="h-4 w-4 text-orange-500" /> Silvio AI — crea il preventivo
+              </p>
+              <p className="text-xs leading-relaxed text-slate-600">
+                Scatta una foto del rilievo, detta a voce o scrivi cosa serve: Silvio prepara la bozza. Premendo qui creiamo il preventivo e l'assistente parte subito.
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
+                <span className="inline-flex items-center gap-1"><Camera className="h-3.5 w-3.5" /> Foto rilievo</span>
+                <span className="inline-flex items-center gap-1"><Mic className="h-3.5 w-3.5" /> Detta a voce</span>
+                <span className="inline-flex items-center gap-1"><Sparkles className="h-3.5 w-3.5" /> Testo</span>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={onStartAi}
+              disabled={creating}
+              className="shrink-0 gap-1.5 bg-orange-500 hover:bg-orange-600"
+            >
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Avvia con Silvio AI
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="mb-3 rounded-md border border-slate-200 bg-white px-3 py-2">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
@@ -979,6 +1046,7 @@ function StepCliente({
             progettoId={progettoId}
             detail={detailForAi}
             context="contact"
+            autoOpen={autoOpenAi}
             onGoToComposition={onGoToComposition}
           />
         </div>
