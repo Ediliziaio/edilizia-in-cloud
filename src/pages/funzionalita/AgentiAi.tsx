@@ -218,7 +218,7 @@ const config: FunzionalitaPageConfig = {
     {
       icon: ShieldCheck,
       title: "Privacy AI: i dati restano tuoi",
-      text: "I dialoghi e i dati della tua impresa NON vengono usati per addestrare modelli di terzi (OpenAI, Google, Anthropic). Architettura privacy-first GDPR conforme, server EU certificati ISO 27001.",
+      text: "I dialoghi e i dati della tua impresa NON vengono usati per addestrare modelli di terzi (OpenAI, Google, Anthropic). Architettura privacy-first GDPR conforme, infrastruttura certificata ISO 27001.",
     },
     {
       icon: TrendingUp,
@@ -342,7 +342,7 @@ const config: FunzionalitaPageConfig = {
     {
       label: "Privacy AI GDPR-first",
       value:
-        "I dati della tua impresa NON vengono usati per addestrare modelli di terzi. Server EU certificati ISO 27001 e SOC2. Conformità GDPR, AI Act EU 2024.",
+        "I dati della tua impresa NON vengono usati per addestrare modelli di terzi. Infrastruttura certificata ISO 27001 e SOC2. Conformità GDPR, AI Act EU 2024.",
     },
     {
       label: "Audit log dialoghi AI",
@@ -390,7 +390,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "I miei dati vengono usati per addestrare ChatGPT o altre AI?",
-      a: "No. Edilizia in Cloud usa modelli AI con architettura privacy-first: i dati della tua impresa, i dialoghi con i clienti, i preventivi e i cantieri NON vengono mai usati per addestrare modelli di terzi (OpenAI, Google, Anthropic). Server EU certificati, conformità GDPR e AI Act EU 2024 garantita.",
+      a: "No. Edilizia in Cloud usa modelli AI con architettura privacy-first: i dati della tua impresa, i dialoghi con i clienti, i preventivi e i cantieri NON vengono mai usati per addestrare modelli di terzi (OpenAI, Google, Anthropic). Conformità GDPR e AI Act EU 2024 garantita.",
     },
     {
       q: "Quanto è accurato l'agente AI?",

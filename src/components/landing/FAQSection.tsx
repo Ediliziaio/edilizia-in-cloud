@@ -36,7 +36,7 @@ const faqs: FAQItem[] = [
   {
     question: "I miei dati sono al sicuro? Chi li vede?",
     answer:
-      "I dati sono conservati su server europei, conformi al GDPR, con backup automatici giornalieri e cifratura end-to-end. Solo tu e il tuo team potete accedere ai tuoi dati. Noi non li vendiamo, non li analizziamo e non li cediamo a terzi — mai.",
+      "I dati sono protetti e cifrati, conformi al GDPR, con backup automatici giornalieri e cifratura end-to-end. Solo tu e il tuo team potete accedere ai tuoi dati. Noi non li vendiamo, non li analizziamo e non li cediamo a terzi — mai.",
   },
   {
     question: "Posso disdire quando voglio? Ci sono penali?",

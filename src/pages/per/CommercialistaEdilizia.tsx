@@ -198,7 +198,7 @@ const config: PerTipoConfig = {
     },
     {
       q: "È conforme GDPR e alla normativa sulla privacy dei clienti?",
-      a: "Sì, completamente. Server in UE (Francoforte e Milano), crittografia AES-256 a riposo e TLS 1.3 in transito, log di accesso conformi GDPR, DPA firmato con ogni studio commercialista. Backup giornalieri ridondati. Conforme alla normativa CNDCEC sulla gestione dati clienti dello studio professionale.",
+      a: "Sì, completamente. Crittografia AES-256 a riposo e TLS 1.3 in transito, log di accesso conformi GDPR, DPA firmato con ogni studio commercialista. Backup giornalieri ridondati. Conforme alla normativa CNDCEC sulla gestione dati clienti dello studio professionale.",
     },
     {
       q: "Gestisce davvero tutte le casse edili provinciali italiane?",

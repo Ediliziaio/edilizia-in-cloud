@@ -586,7 +586,7 @@ export default function Prezzi() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
               { icon: <Lock className="w-5 h-5" />, label: "GDPR Compliant" },
-              { icon: <Server className="w-5 h-5" />, label: "Server EU" },
+              { icon: <Server className="w-5 h-5" />, label: "Dati cifrati" },
               { icon: <FileText className="w-5 h-5" />, label: "SDI Accreditato" },
               { icon: <Archive className="w-5 h-5" />, label: "Conservazione 10 anni AdE" },
               { icon: <Award className="w-5 h-5" />, label: "ISO 27001 (in corso)" },
@@ -883,7 +883,7 @@ export default function Prezzi() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {[
-              { icon: <Shield className="w-6 h-6 text-[#F97415]" />, title: "Dati al sicuro", desc: "Server europei, GDPR, backup giornalieri automatici" },
+              { icon: <Shield className="w-6 h-6 text-[#F97415]" />, title: "Dati al sicuro", desc: "Cifratura, backup giornalieri automatici, conforme GDPR" },
               { icon: <Zap className="w-6 h-6 text-[#F97415]" />, title: "Setup incluso", desc: "Il nostro team configura tutto in 48 ore lavorative" },
               { icon: <RefreshCw className="w-6 h-6 text-[#F97415]" />, title: "Aggiornamenti gratuiti", desc: "Nuove feature ogni mese, senza costi aggiuntivi" },
               { icon: <FileText className="w-6 h-6 text-[#F97415]" />, title: "Migrazione dati gratis", desc: "Importiamo i tuoi dati da Excel o altri software" },

@@ -107,8 +107,7 @@ export default function AvvisoLegale() {
 
       <h3>Provider di backend e database</h3>
       <p>
-        <strong>Supabase, Inc.</strong> — 970 Toa Payoh North #07-04, Singapore 318992. Con server
-        localizzati in Unione Europea (Francoforte, Germania).
+        <strong>Supabase, Inc.</strong> — 970 Toa Payoh North #07-04, Singapore 318992. I trattamenti possono avvenire anche al di fuori dell'Unione Europea, con garanzie adeguate ai sensi degli artt. 44 e ss. del GDPR (Clausole Contrattuali Standard).
       </p>
 
       <p>

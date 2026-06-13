@@ -278,7 +278,7 @@ const config: PerTipoConfig = {
     },
     {
       q: "I dati di un'impresa con 5M€ di fatturato sono sensibili: dove sono ospitati?",
-      a: "Server in Italia (Aruba e OVH Milano), datacenter Tier IV certificati ISO 27001, ISO 9001 e ISO 22301. Backup giornaliero crittografato in tre regioni geografiche. Conformità GDPR completa con DPO indicato. Crittografia AES-256 a riposo e TLS 1.3 in transito. Segregazione dati per tenant. Audit log completo di chi ha visto e modificato cosa. SLA 99,9% contrattualizzato con penali.",
+      a: "Datacenter Tier IV certificati ISO 27001, ISO 9001 e ISO 22301. Backup giornaliero crittografato e ridondato. Conformità GDPR completa con DPO indicato. Crittografia AES-256 a riposo e TLS 1.3 in transito. Segregazione dati per tenant. Audit log completo di chi ha visto e modificato cosa. SLA 99,9% contrattualizzato con penali.",
     },
     {
       q: "Siamo conformi al Codice Appalti per gli appalti pubblici?",

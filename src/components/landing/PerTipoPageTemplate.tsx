@@ -1002,7 +1002,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
           {/* Trust icons row */}
           <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto mb-6">
             {[
-              { Icon: Shield, label: "Dati al sicuro", sub: "Server europei · GDPR" },
+              { Icon: Shield, label: "Dati al sicuro", sub: "GDPR · Cifratura" },
               { Icon: Clock, label: "Setup in 48h", sub: "Il team ti configura tutto" },
               { Icon: TrendingUp, label: "ROI medio 10x", sub: "Nel primo anno" },
             ].map(({ Icon, label, sub }, i) => (

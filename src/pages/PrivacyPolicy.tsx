@@ -618,7 +618,7 @@ export default function PrivacyPolicy() {
           <tr>
             <td>Supabase Inc.</td>
             <td>Database, autenticazione, storage applicativo</td>
-            <td>UE (Francoforte) / con possibili trasferimenti USA</td>
+            <td>Extra-UE, con Clausole Contrattuali Standard (SCC)</td>
           </tr>
           <tr>
             <td>Cloudflare Inc.</td>

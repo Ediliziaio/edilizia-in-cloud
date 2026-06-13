@@ -124,7 +124,7 @@ const garanzie = [
   {
     icon: Lock,
     title: "I tuoi dati restano tuoi",
-    desc: "Server europei, GDPR, ISO 27001. Cifratura AES-256 a riposo, TLS 1.3 in transito. Backup giornalieri.",
+    desc: "Conforme GDPR, ISO 27001. Cifratura AES-256 a riposo, TLS 1.3 in transito. Backup giornalieri.",
   },
   {
     icon: CheckCheck,

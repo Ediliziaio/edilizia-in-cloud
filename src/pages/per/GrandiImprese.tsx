@@ -262,7 +262,7 @@ const config: PerTipoConfig = {
     },
     {
       q: "Quali sono le certificazioni di sicurezza enterprise che possedete?",
-      a: "Edilizia in Cloud è hostato su infrastruttura ISO/IEC 27001:2022 e ISO/IEC 27017/27018 certificata, in datacenter europei Tier IV con compliance SOC 2 Type II. Disponiamo di ISO 9001 sui processi di sviluppo, di un programma di penetration test annuale condotto da terze parti, MFA obbligatoria, SSO SAML 2.0/OIDC con Azure AD, Okta e Google Workspace, cifratura at-rest AES-256 e in-transit TLS 1.3. Per clienti regolati possiamo predisporre un data residency italiana dedicata.",
+      a: "Edilizia in Cloud è hostato su infrastruttura ISO/IEC 27001:2022 e ISO/IEC 27017/27018 certificata, in datacenter Tier IV con compliance SOC 2 Type II. Disponiamo di ISO 9001 sui processi di sviluppo, di un programma di penetration test annuale condotto da terze parti, MFA obbligatoria, SSO SAML 2.0/OIDC con Azure AD, Okta e Google Workspace, cifratura at-rest AES-256 e in-transit TLS 1.3.",
     },
     {
       q: "Quali SLA garantite a livello enterprise?",

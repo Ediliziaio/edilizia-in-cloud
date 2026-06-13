@@ -223,7 +223,7 @@ const config: FunzionalitaPageConfig = {
     {
       icon: ShieldCheck,
       title: "GDPR compliant per legge",
-      text: "DPA firmata, server in EU, ruoli aziendali tracciati, archiviazione decennale, diritto all'oblio gestito. Niente più sanzioni Garante per uso aziendale di WhatsApp privato.",
+      text: "DPA firmata, dati cifrati, ruoli aziendali tracciati, archiviazione decennale, diritto all'oblio gestito. Niente più sanzioni Garante per uso aziendale di WhatsApp privato.",
     },
     {
       icon: Sparkles,
@@ -260,7 +260,7 @@ const config: FunzionalitaPageConfig = {
     {
       icon: Lock,
       title: "GDPR e archivio decennale",
-      text: "Server in EU, DPA firmata, archiviazione 10 anni a norma CAD D.Lgs 82/2005, ricerca full-text, esportazione legale per ispezioni o cause civili.",
+      text: "Dati cifrati, DPA firmata, archiviazione 10 anni a norma CAD D.Lgs 82/2005, ricerca full-text, esportazione legale per ispezioni o cause civili.",
     },
   ],
   resultStats: [
@@ -308,7 +308,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       title: "Conformità GDPR senza pensieri",
-      text: "DPA firmata, server EU, archiviazione decennale, diritto all'oblio. La compliance è automatica, niente più sanzioni potenziali Garante per uso aziendale di WhatsApp privato.",
+      text: "DPA firmata, dati cifrati, archiviazione decennale, diritto all'oblio. La compliance è automatica, niente più sanzioni potenziali Garante per uso aziendale di WhatsApp privato.",
     },
     {
       title: "Knowledge transfer naturale",
@@ -345,7 +345,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       label: "Conformità GDPR e archivio decennale",
-      value: "Server in EU, DPA firmata, archiviazione 10 anni CAD D.Lgs 82/2005, esportazione legale, diritto all'oblio gestito secondo Regolamento 2016/679.",
+      value: "Dati cifrati, DPA firmata, archiviazione 10 anni CAD D.Lgs 82/2005, esportazione legale, diritto all'oblio gestito secondo Regolamento 2016/679.",
     },
     {
       label: "Integrazione con cantieri e ticket",
@@ -388,7 +388,7 @@ const config: FunzionalitaPageConfig = {
     },
     {
       q: "Come gestite il GDPR per i dipendenti?",
-      a: "DPA firmata tra azienda e Edilizia in Cloud, server in EU (Francoforte e Milano), informativa privacy fornita ai dipendenti in fase onboarding, diritto all'oblio gestito su richiesta, log accessi per audit. Tutto secondo Regolamento UE 2016/679.",
+      a: "DPA firmata tra azienda e Edilizia in Cloud, dati cifrati a riposo e in transito, informativa privacy fornita ai dipendenti in fase onboarding, diritto all'oblio gestito su richiesta, log accessi per audit. Tutto secondo Regolamento UE 2016/679.",
     },
     {
       q: "Cosa succede ai messaggi quando un dipendente esce dall'azienda?",

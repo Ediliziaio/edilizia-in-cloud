@@ -47,7 +47,7 @@ const principi = [
   {
     icon: ShieldCheck,
     title: "I tuoi dati restano tuoi",
-    desc: "Server europei, GDPR, cifratura AES-256 a riposo, TLS 1.3 in transito. Backup giornalieri. DPA pubblico firmabile. Se decidi di andartene, ti consegniamo tutti i tuoi dati in formato standard entro 7 giorni. Senza domande, senza penali.",
+    desc: "Cifratura AES-256 a riposo, TLS 1.3 in transito, conforme GDPR. Backup giornalieri. DPA pubblico firmabile. Se decidi di andartene, ti consegniamo tutti i tuoi dati in formato standard entro 7 giorni. Senza domande, senza penali.",
   },
 ];
 
@@ -164,7 +164,7 @@ const faqs = [
   },
   {
     q: "Come gestite la sicurezza e la privacy dei dati?",
-    a: "Server in UE, conformi GDPR. Cifratura AES-256 a riposo e TLS 1.3 in transito. Backup giornalieri con retention 90 giorni. DPA (Data Processing Agreement) firmato all'attivazione. Non condividiamo dati con terze parti per scopi commerciali e non li usiamo per addestrare modelli AI.",
+    a: "Conformi al GDPR. Cifratura AES-256 a riposo e TLS 1.3 in transito. Backup giornalieri con retention 90 giorni. DPA (Data Processing Agreement) firmato all'attivazione. Non condividiamo dati con terze parti per scopi commerciali e non li usiamo per addestrare modelli AI.",
   },
   {
     q: "Avete un programma per partner e consulenti?",
@@ -323,7 +323,7 @@ export default function ChiSiamo() {
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-white/70">
             <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#F97415]" /> Dal 2021</span>
             <span className="flex items-center gap-2"><MapPin className="w-4 h-4 text-[#F97415]" /> Sede Milano</span>
-            <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-[#F97415]" /> GDPR · Server UE</span>
+            <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-[#F97415]" /> GDPR</span>
             <span className="flex items-center gap-2"><Code2 className="w-4 h-4 text-[#F97415]" /> Made in Italy</span>
           </div>
         </div>

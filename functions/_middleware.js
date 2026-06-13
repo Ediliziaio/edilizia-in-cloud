@@ -269,7 +269,7 @@ const ROUTES = {
     </ul>
 
     <h2>Conformità normativa italiana inclusa</h2>
-    <p>Edilizia in Cloud è progettato sulla normativa italiana del settore costruzioni: fatturazione elettronica SDI secondo le regole dell'Agenzia delle Entrate, reverse charge edilizia e split payment, denuncia mensile MUT alla Cassa Edile, CCNL Edilizia Industria e Artigianato per il calcolo di paghe e contributi, gestione DURC e responsabilità solidale del committente sui subappalti, conservazione digitale a norma CAD (D.Lgs 82/2005) e trattamento dati conforme al GDPR con server in UE. Tutta la documentazione fiscale e di cantiere resta esibibile su richiesta degli organi di controllo.</p>
+    <p>Edilizia in Cloud è progettato sulla normativa italiana del settore costruzioni: fatturazione elettronica SDI secondo le regole dell'Agenzia delle Entrate, reverse charge edilizia e split payment, denuncia mensile MUT alla Cassa Edile, CCNL Edilizia Industria e Artigianato per il calcolo di paghe e contributi, gestione DURC e responsabilità solidale del committente sui subappalti, conservazione digitale a norma CAD (D.Lgs 82/2005) e trattamento dati conforme al GDPR. Tutta la documentazione fiscale e di cantiere resta esibibile su richiesta degli organi di controllo.</p>
 
     <h2>Domande frequenti su Edilizia in Cloud</h2>
     <h3>Che cos'è Edilizia in Cloud?</h3>
@@ -760,7 +760,7 @@ const ROUTES = {
       "Agenti AI verticali per impresa edile: rispondono ai clienti, qualificano lead, redigono preventivi base e gestiscono back-office. Privacy GDPR-first, dati italiani.",
     h1: "Agenti AI per Imprese Edili: privacy GDPR-first",
     intro:
-      "Edilizia in Cloud integra agenti AI custom per impresa edile: rispondono a clienti via WhatsApp/email, qualificano lead, redigono preventivi base, gestiscono back-office. Architettura privacy GDPR-first con dati ospitati in Italia, niente training su contenuti del cliente. Risparmio medio 70% sulle ore segreteria.",
+      "Edilizia in Cloud integra agenti AI custom per impresa edile: rispondono a clienti via WhatsApp/email, qualificano lead, redigono preventivi base, gestiscono back-office. Architettura privacy GDPR-first, niente training su contenuti del cliente. Risparmio medio 70% sulle ore segreteria.",
     links: [
       { href: "/funzionalita", label: "Tutte le Funzionalità" },
       { href: "/funzionalita/automazioni", label: "Automazioni" },
@@ -1300,7 +1300,7 @@ const ROUTES = {
       <li><strong>App mobile iOS e Android</strong> con funzionamento offline</li>
       <li><strong>Aggiornamenti continui</strong> inclusi, senza costi extra</li>
       <li><strong>Supporto italiano dedicato</strong> via chat, email e telefono</li>
-      <li><strong>Server in UE e conformità GDPR</strong>, backup giornalieri</li>
+      <li><strong>Conformità GDPR e cifratura</strong>, backup giornalieri</li>
     </ul>
 
     <h2>Quanto costa davvero un gestionale edilizia?</h2>
@@ -1773,7 +1773,7 @@ const ROUTES = {
       <li><strong>Documenti fiscali</strong> (fatture elettroniche, DDT, prima nota)</li>
     </ul>
     <h2>Misure tecniche e organizzative di sicurezza</h2>
-    <p>Edilizia in Cloud applica le seguenti misure: cifratura in transito (TLS 1.3) e a riposo (AES-256), autenticazione multi-fattore opzionale per gli amministratori, segregazione dei dati per tenant (row-level security PostgreSQL), backup giornalieri con retention 30 giorni, log degli accessi conservati 12 mesi, datacenter europei conformi a ISO 27001. Nessun dato esce dall'UE.</p>
+    <p>Edilizia in Cloud applica le seguenti misure: cifratura in transito (TLS 1.3) e a riposo (AES-256), autenticazione multi-fattore opzionale per gli amministratori, segregazione dei dati per tenant (row-level security PostgreSQL), backup giornalieri con retention 30 giorni, log degli accessi conservati 12 mesi, datacenter conformi a ISO 27001.</p>
     <h2>Sub-responsabili autorizzati</h2>
     <p>Domus Group S.r.l. utilizza sub-responsabili selezionati per servizi infrastrutturali: cloud provider (datacenter UE), provider di posta transazionale, provider di firma elettronica, provider di fatturazione elettronica SDI. L'elenco completo è disponibile su richiesta scritta al DPO. Il titolare ha diritto di opporsi a nuovi sub-responsabili entro 14 giorni dalla notifica.</p>
     <h2>Notifica violazioni e supporto al titolare</h2>
@@ -1808,7 +1808,7 @@ const ROUTES = {
     <p>Edilizia in Cloud è sviluppato da un team italiano con sede a Milano e fa parte dell'ecosistema AEDIX, il gruppo guidato da Florin Andriciuc dedicato alla digitalizzazione del settore edile e dei suoi processi. Questa appartenenza ci permette di unire la conoscenza profonda del cantiere alla competenza tecnologica nello sviluppo software e nell'intelligenza artificiale applicata.</p>
 
     <h2>Il team</h2>
-    <p>Il team di Edilizia in Cloud mette insieme due mondi che di solito non si parlano: imprenditori edili e capocantiere che conoscono i problemi reali della commessa, e sviluppatori, designer e specialisti AI che li traducono in software. Questa combinazione è il motivo per cui ogni funzionalità nasce da un'esigenza concreta del cantiere e non da una checklist di marketing. Sviluppiamo in Italia, con server in UE e piena conformità GDPR, e offriamo supporto in italiano perché chi usa il prodotto possa parlare con chi lo costruisce.</p>
+    <p>Il team di Edilizia in Cloud mette insieme due mondi che di solito non si parlano: imprenditori edili e capocantiere che conoscono i problemi reali della commessa, e sviluppatori, designer e specialisti AI che li traducono in software. Questa combinazione è il motivo per cui ogni funzionalità nasce da un'esigenza concreta del cantiere e non da una checklist di marketing. Sviluppiamo in Italia, con piena conformità GDPR, e offriamo supporto in italiano perché chi usa il prodotto possa parlare con chi lo costruisce.</p>
 
     <h2>I nostri valori</h2>
     <ul>
@@ -1824,7 +1824,7 @@ const ROUTES = {
     <h3>Chi sviluppa Edilizia in Cloud?</h3>
     <p>Edilizia in Cloud è sviluppato da un team italiano con sede a Milano, parte dell'ecosistema AEDIX dedicato alla digitalizzazione dell'edilizia. I riferimenti societari completi sono indicati nel footer del sito.</p>
     <h3>Dove ha sede Edilizia in Cloud?</h3>
-    <p>La sede legale è a Milano, in Via Aurelio Saffi 29. Lo sviluppo è italiano e i dati sono ospitati su server in UE in conformità al GDPR.</p>
+    <p>La sede legale è a Milano, in Via Aurelio Saffi 29. Lo sviluppo è italiano e i dati sono trattati in conformità al GDPR.</p>
     <h3>Perché un altro gestionale edilizia?</h3>
     <p>Perché nessuno strumento era pensato davvero per l'impresa che esegue i lavori. Edilizia in Cloud è nato per il cantiere, con app mobile, AI nativa e gestione di SDI, Cassa Edile, MUT e DURC, dove gli altri sono nati per lo studio o la contabilità.</p>
     `,
@@ -1884,7 +1884,7 @@ const ROUTES = {
             name: "Dove ha sede Edilizia in Cloud?",
             acceptedAnswer: {
               "@type": "Answer",
-              text: "La sede legale è a Milano, in Via Aurelio Saffi 29. Lo sviluppo è italiano e i dati sono ospitati su server in UE in conformità al GDPR.",
+              text: "La sede legale è a Milano, in Via Aurelio Saffi 29. Lo sviluppo è italiano e i dati sono trattati in conformità al GDPR.",
             },
           },
         ],

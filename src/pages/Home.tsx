@@ -276,7 +276,7 @@ export default function Home() {
             "name": "I miei dati sono al sicuro? Chi li vede?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "I dati sono conservati su server europei, conformi al GDPR, con backup automatici giornalieri e cifratura end-to-end. Solo tu e il tuo team potete accedere ai tuoi dati. Noi non li vendiamo, non li analizziamo e non li cediamo a terzi — mai."
+              "text": "I dati sono protetti e cifrati, conformi al GDPR, con backup automatici giornalieri e cifratura end-to-end. Solo tu e il tuo team potete accedere ai tuoi dati. Noi non li vendiamo, non li analizziamo e non li cediamo a terzi — mai."
             }
           },
           {

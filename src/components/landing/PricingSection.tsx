@@ -74,7 +74,7 @@ export default function PricingSection() {
         </div>
 
         <p className={`mt-6 text-white/30 text-xs transition-all duration-700 delay-500 ${isVisible ? "opacity-100" : "opacity-0"}`}>
-          Setup in 48h incluso · Supporto italiano dedicato · Dati al sicuro in Europa
+          Setup in 48h incluso · Supporto italiano dedicato · Dati cifrati e al sicuro
         </p>
       </div>
     </section>

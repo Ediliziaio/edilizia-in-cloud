@@ -823,7 +823,7 @@ export default function DPA() {
           <tr>
             <td>Supabase Inc.</td>
             <td>Database, autenticazione, storage applicativo</td>
-            <td>UE (Francoforte)</td>
+            <td>Extra-UE (SCC)</td>
             <td>SCC + DPA</td>
           </tr>
           <tr>
