@@ -143,7 +143,13 @@ REGOLE NON NEGOZIABILI:
 4. Se non sei sicuro di materiale, serie, vetro o colore, lascia il campo vuoto e aggiungi missing_fields/warnings.
 5. Usa quantita=1 se una voce singolare e' evidente; se non chiaro, segnala.
 6. tipologia deve essere una chiave breve se possibile: finestra_1anta, finestra_2ante, porta_finestra, scorrevole, persiana, portoncino, zanzariera, accessorio.
-7. Le righe devono essere operative per un commerciale: poche, concrete, controllabili.`;
+7. Le righe devono essere operative per un commerciale: concrete e controllabili.
+8. COMPLETEZZA: non perdere voci. Se il commerciale elenca piu' ambienti o piu' pezzi, crea UNA riga per ciascun pezzo/ambiente. Meglio una riga in piu' (con missing_fields da confermare) che dimenticarne una.
+9. ACCESSORI come righe separate: avvolgibili/tapparelle, cassonetti, zanzariere, davanzali/soglie, controtelai/falsi telai, inferriate, motorizzazioni — se citati o chiaramente visibili — vanno SEMPRE in righe proprie (tipologia "zanzariera" o "accessorio"), non fusi dentro la finestra. Riporta in 'note' a quale serramento/ambiente si riferiscono.
+10. "A CORPO": se la richiesta e' "fornitura a corpo" o un importo unico senza dettaglio pezzi, crea UNA riga descrittiva (tipologia "accessorio"), quantita 1, e segnala in warnings che e' una voce a corpo da dettagliare.
+11. POSA: se e' citata posa/installazione/smontaggio (inclusa o esclusa), riportalo in 'note' della riga. Il prezzo della posa lo gestisce il sistema, non metterlo tu.
+12. CONFIDENCE realistica: 0.85+ se misure E tipologia sono chiare; 0.5-0.85 se inferito ragionevolmente; <0.5 se molto incerto (e aggiungi un warning).
+13. Sfrutta il CONTESTO PROGETTO (tipo intervento, materiale principale, vincoli, serramenti gia' presenti): usa quei default quando il commerciale non specifica, e NON ripetere serramenti gia' presenti nel preventivo.`;
 
 const MAX_IMAGES = 6;
 const MAX_TOTAL_IMAGE_BASE64_CHARS = 18_000_000;
@@ -207,6 +213,28 @@ Deno.serve(async (req) => {
       grid = ((gridRes.data ?? []) as GridCell[]);
     }
 
+    // Serramenti GIÀ presenti nel preventivo → contesto anti-duplicato (regola 13).
+    // Fail-soft: se la lettura fallisce non blocchiamo la bozza.
+    let esistentiContext = "";
+    try {
+      const esistentiRes = await supabaseAdmin
+        .from("sr_serramenti_progetto")
+        .select("tipologia_label, ambiente, larghezza_mm, altezza_mm, quantita")
+        .eq("progetto_id", progettoId)
+        .limit(60);
+      const righe = (esistentiRes.data ?? []) as Array<Record<string, unknown>>;
+      if (righe.length > 0) {
+        esistentiContext = righe.map((r) => {
+          const dim = r.larghezza_mm && r.altezza_mm ? ` ${r.larghezza_mm}x${r.altezza_mm}mm` : "";
+          const qty = r.quantita ? ` x${r.quantita}` : "";
+          const amb = r.ambiente ? ` (${r.ambiente})` : "";
+          return `- ${r.tipologia_label ?? "voce"}${amb}${dim}${qty}`;
+        }).join("\n");
+      }
+    } catch (_e) {
+      esistentiContext = "";
+    }
+
     const familyContext = families.slice(0, 120).map((family) => {
       const values = family.custom_field_values ?? {};
       const material = stringValue(values.materiale_profilo) ?? stringValue(values.materiale) ?? "";
@@ -250,6 +278,9 @@ Deno.serve(async (req) => {
       `Sintesi intervento: ${progetto.intervento_sintesi ?? "non indicata"}`,
       `Materiale principale progetto: ${progetto.materiale_principale ?? "non indicato"}`,
       `Fonte input: ${body.source ?? (images.length > 0 ? "foto" : "testo")}`,
+      esistentiContext
+        ? `Serramenti GIÀ presenti nel preventivo (NON ripeterli, aggiungi solo i nuovi):\n${esistentiContext}`
+        : "Serramenti già presenti nel preventivo: nessuno",
       "",
       "RICHIESTA COMMERCIALE:",
       prompt || "(nessun testo, analizza le immagini)",
@@ -276,7 +307,7 @@ Deno.serve(async (req) => {
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userContent },
       ],
-      params: { temperature: 0.1, max_tokens: 3500 },
+      params: { temperature: 0.1, max_tokens: 6000 },
       responseFormat: { type: "json_object" },
       companyId,
       userId,
