@@ -127,11 +127,16 @@ function CalendarInner() {
     setEventColors(prev => ({ ...prev, [key]: color }));
   }, []);
   const { showPosa, showLavoro, showAppuntamento, showAppuntamentoCommerciale, showMerce, showGoogleBusy, showLeaves, showWeather, showInterventi, showManutenzioni } = layerVisibility;
+  // Robusto contro localStorage corrotto o di vecchie versioni: SOLO un array
+  // diventa un Set; qualsiasi altro valore (stringa, numero, oggetto, ecc.)
+  // viene trattato come null (= "mostra tutti"). Prima `new Set(valore)` su un
+  // valore non iterabile lanciava "X is not iterable" durante l'init, mandando
+  // l'intera pagina nell'ErrorBoundary ("il calendario non si apre").
   const [visibleEmployeeIds, setVisibleEmployeeIds] = useState<Set<string> | null>(
-    savedPrefs.visibleEmployeeIds ? new Set<string>(savedPrefs.visibleEmployeeIds) : null
+    () => (Array.isArray(savedPrefs.visibleEmployeeIds) ? new Set<string>(savedPrefs.visibleEmployeeIds.map(String)) : null)
   );
   const [visibleTeamIds, setVisibleTeamIds] = useState<Set<string> | null>(
-    savedPrefs.visibleTeamIds ? new Set<string>(savedPrefs.visibleTeamIds) : null
+    () => (Array.isArray(savedPrefs.visibleTeamIds) ? new Set<string>(savedPrefs.visibleTeamIds.map(String)) : null)
   );
 
   useEffect(() => {

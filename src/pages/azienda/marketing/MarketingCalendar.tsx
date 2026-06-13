@@ -120,7 +120,7 @@ export default function MarketingCalendar() {
     staleTime: 2 * 60 * 1000,
   });
 
-  const busySlots = [...googleBusySlots, ...appleBusySlots];
+  const busySlots = useMemo(() => [...googleBusySlots, ...appleBusySlots], [googleBusySlots, appleBusySlots]);
 
   const [activeTab, setActiveTab] = useState<TabKey>("calendar");
   // 2026-05-27: ripristinato lo switcher Day/Week/Month dopo bug in cui mancava
@@ -396,6 +396,18 @@ export default function MarketingCalendar() {
       return true;
     });
   }, [appointments, calendars.length, selectedCalendarIds, selectedUserIds, users.length, showOperativi]);
+
+  // Gli slot Google/Apple (overlay calendario) devono rispettare il filtro
+  // UTENTI come gli appuntamenti: ogni slot ha un user_id (il proprietario del
+  // calendario Google). Prima venivano passati grezzi → deselezionando un utente
+  // i suoi appuntamenti Google restavano visibili. (Il filtro "Calendari" è per i
+  // calendari marketing interni, non per quelli Google, quindi non si applica qui.)
+  const filteredBusySlots = useMemo(() => {
+    const allUsersSelected = users.length === 0 || selectedUserIds.length >= users.length;
+    if (users.length > 0 && selectedUserIds.length === 0) return [];
+    if (allUsersSelected) return busySlots;
+    return busySlots.filter((s: any) => s.user_id && selectedUserIds.includes(s.user_id));
+  }, [busySlots, selectedUserIds, users.length]);
 
   const calendarLoadError = calendarsError || appointmentsError || contactsError || googleBusyError || appleBusyError;
   const calendarLoadErrorMessage =
@@ -1406,7 +1418,7 @@ export default function MarketingCalendar() {
                 onDropAppointment={(id, date, time) => handleDropAppointment(id, date, time)}
                 slotDurationMinutes={slotDurationMinutes}
                 onResizeAppointment={handleResizeAppointment}
-                busySlots={busySlots}
+                busySlots={filteredBusySlots}
               />
             ) : calendarView === "day" ? (
               <MarketingCalendarDayView
@@ -1419,7 +1431,7 @@ export default function MarketingCalendar() {
                 onDropAppointment={(id, date, time) => handleDropAppointment(id, date, time)}
                 slotDurationMinutes={slotDurationMinutes}
                 onResizeAppointment={handleResizeAppointment}
-                busySlots={busySlots}
+                busySlots={filteredBusySlots}
               />
             ) : (
               <MarketingCalendarMonthView
@@ -1429,7 +1441,7 @@ export default function MarketingCalendar() {
                 onClickAppointment={openEditDialog}
                 onClickDay={(date) => openNewDialog(date)}
                 onDropAppointment={(id, date) => handleDropAppointment(id, date)}
-                busySlots={busySlots}
+                busySlots={filteredBusySlots}
               />
             )}
           </div>
