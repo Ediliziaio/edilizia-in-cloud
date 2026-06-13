@@ -1383,7 +1383,7 @@ const CITY_CONFIGS: Record<string, CityConfig> = {
       },
       {
         emoji: "🏗️",
-        title: "PNRR e fondi europei: grande opportunità, burocrazia…",
+        title: "PNRR e fondi europei: grande opportunità, tanta burocrazia",
         desc: "Salerno è tra le province con più investimenti PNRR in Campania. Le imprese edili accedono a cantieri importanti ma devono gestire rendicontazione digitale rigorosa e SAL certificati.",
       },
       {

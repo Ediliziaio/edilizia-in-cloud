@@ -264,7 +264,7 @@ export default function Demo() {
           areaServed: { "@type": "Country", name: "Italia" },
           serviceType: "Consulenza pre-vendita software",
           description:
-            "Demo live 1-on-1 di 30 minuti con consulente specializzato in edilizia. Vediamo insieme cantieri, fatturazione SDI, app mobile e cruscotto AI sulla tua…",
+            "Demo live 1-on-1 di 30 minuti con consulente specializzato in edilizia. Vediamo insieme cantieri, fatturazione SDI, app mobile e cruscotto AI sulla tua impresa.",
           offers: {
             "@type": "Offer",
             price: "0",

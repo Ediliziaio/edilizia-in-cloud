@@ -182,7 +182,7 @@ export default function Formazione() {
 
   useSEO({
     title: "EiC Academy — Formazione e Guide per Imprese Edili",
-    description: "Guide pratiche, video tutorial, masterclass dal vivo e supporto 1:1 per imparare a usare il gestionale edilizia. Chi padroneggia EiC guadagna il 23% in…",
+    description: "Guide pratiche, video tutorial, masterclass dal vivo e supporto 1:1 per imparare a usare il gestionale edilizia e padroneggiarlo in pochi giorni.",
     canonical: "/formazione",
     keywords: "formazione software edilizia, guide gestionale edilizia, tutorial edilizia in cloud, come usare software edilizia, onboarding gestionale cantieri, video tutorial software impresa edile, masterclass edilizia, academy gestionale cantieri",
   });

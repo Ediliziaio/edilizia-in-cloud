@@ -30,7 +30,7 @@ const config: RenderPageConfig = {
   seo: {
     title: "Render Bagni AI per Idraulici e Showroom",
     description:
-      "Render Bagni AI: trasforma la foto del bagno del cliente in un prima/dopo realistico con nuovi sanitari, doccia, mobile, rivestimenti, pavimento e…",
+      "Render Bagni AI: trasforma la foto del bagno del cliente in un prima/dopo realistico con nuovi sanitari, doccia, mobile, rivestimenti, pavimento e luci. Pronto in 60 secondi.",
     keywords:
       "render bagno, render bagni AI, software bagnisti, configuratore bagno online, render rivestimenti bagno, render sanitari, render doccia, render arredo bagno, prima dopo bagno, software showroom bagno, gestionale idraulici, AI bagno",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",

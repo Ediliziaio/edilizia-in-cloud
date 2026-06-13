@@ -34,7 +34,7 @@ const config: FunzionalitaPageConfig = {
     title:
       "Conservazione Digitale a Norma per Edilizia",
     description:
-      "Conservazione decennale a norma CAD per fatture, contratti, DDT, libri contabili e SAL. Marca temporale qualificata AgID, responsabile della conservazione…",
+      "Conservazione decennale a norma CAD per fatture, contratti, DDT, libri contabili e SAL, con marca temporale qualificata AgID e responsabile della conservazione incluso.",
     keywords:
       "conservazione digitale edilizia, conservazione a norma CAD, marca temporale AgID, conservazione fatture elettroniche edilizia, archivio digitale impresa edile, D.Lgs 82/2005 edilizia, responsabile conservazione delegato, conservazione decennale fatture",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",

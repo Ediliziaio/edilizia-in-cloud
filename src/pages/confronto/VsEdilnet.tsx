@@ -94,7 +94,7 @@ export default function VsEdilnet() {
   useSEO({
     title: "Edilizia in Cloud vs Edilnet",
     description:
-      "Confronto tra Edilizia in Cloud e Edilnet: funzionalità, prezzi, supporto e facilità di migrazione. Scopri le differenze e scegli il gestionale edilizia…",
+      "Confronto tra Edilizia in Cloud e Edilnet: funzionalità, prezzi, supporto e facilità di migrazione. Scopri le differenze e scegli il gestionale edilizia giusto.",
     canonical: "/confronto/vs-edilnet",
     keywords:
       "edilizia in cloud vs edilnet, alternativa edilnet, edilnet confronto, gestionale edilizia alternativa edilnet, software cantieri edilnet",

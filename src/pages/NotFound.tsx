@@ -71,7 +71,7 @@ const NotFound = () => {
     return [
       { label: "Home", to: "/", icon: Home },
       { label: "Funzionalità", to: "/funzionalita", icon: Search },
-      { label: "Contatti", to: "/contatti", icon: Mail },
+      { label: "Contatti", to: "/demo", icon: Mail },
     ];
   }, [area]);
 
@@ -141,7 +141,7 @@ const NotFound = () => {
         {/* Help footer */}
         <p className="mt-6 text-center text-xs text-slate-500">
           Se pensi che sia un errore,{" "}
-          <Link to="/contatti" className="inline-flex items-center gap-1 text-orange-600 hover:underline">
+          <Link to="/demo" className="inline-flex items-center gap-1 text-orange-600 hover:underline">
             <LifeBuoy className="h-3 w-3" />
             segnala il problema
           </Link>

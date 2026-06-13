@@ -109,7 +109,7 @@ export default function VsBuildertrend() {
           "@type": "Article",
           headline: "Edilizia in Cloud vs Buildertrend: confronto per imprese edili italiane 2026",
           description:
-            "Buildertrend è il software americano per il settore costruzioni. Non ha fatturazione SDI, non gestisce la Cassa Edile italiana e non è disponibile in…",
+            "Buildertrend è il software americano per il settore costruzioni. Non ha fatturazione SDI, non gestisce la Cassa Edile italiana e non è disponibile in italiano.",
           url: "https://www.ediliziaincloud.com/confronto/vs-buildertrend",
           datePublished: "2026-04-08",
           dateModified: "2026-04-08",

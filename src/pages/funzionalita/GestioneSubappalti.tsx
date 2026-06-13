@@ -31,7 +31,7 @@ const config: FunzionalitaPageConfig = {
     title:
       "Gestione Subappalti Edilizia",
     description:
-      "Gestisci subappaltatori, contratti, SAL, ritenute (4% INPS), DURC e fatture passive in un unico modulo. Alert automatico su DURC scaduti, blocco pagamenti…",
+      "Gestisci subappaltatori, contratti, SAL, ritenute 4% INPS, DURC e fatture passive in un unico modulo, con alert automatico sui DURC scaduti e blocco pagamenti a rischio.",
     keywords:
       "gestione subappalti software, software subappalti edilizia, ritenuta 4% INPS subappalto, DURC subappaltatore, SAL subappalto edilizia, responsabilità solidale subappalto, fatture passive cantiere, contratto subappalto edile, controllo subappaltatori",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
@@ -125,7 +125,7 @@ const config: FunzionalitaPageConfig = {
   painPoints: [
     {
       icon: ShieldAlert,
-      title: "Responsabilità solidale per debiti retributivi e…",
+      title: "Responsabilità solidale per debiti retributivi e contributivi",
       text: "Se paghi un subappaltatore che non versa contributi INPS o stipendi agli operai, ne rispondi tu come committente (art. 29 D.Lgs 276/2003). Significa potenzialmente decine di migliaia di euro di passività su un subappalto da 30.000€.",
     },
     {

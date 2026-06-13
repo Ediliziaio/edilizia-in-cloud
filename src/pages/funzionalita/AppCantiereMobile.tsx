@@ -31,9 +31,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "App Cantiere Mobile — iOS/Android per Operai e…",
+      "App Cantiere Mobile: iOS e Android per Operai",
     description:
-      "App mobile dedicata ai cantieri: timbratura GPS, foto cantiere, ordini materiali, SAL, giornale lavori, comunicazione team. Funziona offline in cantieri…",
+      "App mobile dedicata ai cantieri: timbratura GPS, foto cantiere, ordini materiali, SAL, giornale lavori e chat team. Funziona offline anche con scarso segnale.",
     keywords:
       "app cantiere mobile, app capocantiere, app operai edilizia, app timbratura GPS cantiere, app foto cantiere, app giornale lavori, software cantiere offline, app iOS Android edilizia, gestione cantiere mobile, app cantiere senza segnale",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",

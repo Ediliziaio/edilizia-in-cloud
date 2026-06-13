@@ -50,7 +50,7 @@ const config: PerTipoConfig = {
     },
     {
       emoji: "📞",
-      title: "CFO e HR sono inondati di richieste a cui non possono…",
+      title: "CFO e HR ridotti a centralinisti dei dati",
       desc: "Il CFO passa metà giornata a rispondere a 'quanto abbiamo speso sul cantiere Y?'. L'HR passa l'altra metà a gestire ferie, presenze e cassa edile via WhatsApp. Sono ruoli pagati per fare strategia e gestione persone, ma li stiamo usando come centralinisti dei dati.",
     },
     {

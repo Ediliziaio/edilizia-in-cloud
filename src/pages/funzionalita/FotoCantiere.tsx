@@ -29,9 +29,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Foto Cantiere — App Mobile Capocantiere, Foto…",
+      "Foto Cantiere: App Mobile Geolocalizzata Capocantiere",
     description:
-      "App mobile per capocantiere: foto geolocalizzate con timestamp, organizzazione automatica per cantiere/giorno, condivisione cliente via portale, archivio…",
+      "App mobile per capocantiere: foto geolocalizzate con timestamp, organizzazione automatica per cantiere e giorno, condivisione cliente via portale e archivio cloud.",
     keywords:
       "foto cantiere app, foto geolocalizzate cantiere, app capocantiere foto, archivio foto cantiere cloud, condivisione foto cliente edilizia, prova legale stato cantiere, foto datate cantiere edile",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",
@@ -133,12 +133,12 @@ const config: FunzionalitaPageConfig = {
   painPoints: [
     {
       icon: AlertTriangle,
-      title: "Foto su WhatsApp del titolare = telefono pieno e foto…",
+      title: "Foto su WhatsApp del titolare = telefono pieno e foto compresse",
       text: "Capocantiere manda 50 foto al giorno al titolare via WhatsApp. Telefono titolare si riempie, WhatsApp comprime le foto perdendo qualità, foto si perdono nei thread, contesto temporale sparisce. Inutilizzabili come prova.",
     },
     {
       icon: Search,
-      title: "Cliente chiede 'mi mandi la foto del 12 marzo?' e…",
+      title: "Cliente chiede 'mi mandi la foto del 12 marzo?' e parte la caccia",
       text: "Cliente vuole vedere lavori del giorno X. Segreteria deve cercare nei thread WhatsApp, nelle cartelle Drive, nei telefoni dei capocantieri. 30-60 minuti per trovare le foto giuste, se ci si arriva.",
     },
     {

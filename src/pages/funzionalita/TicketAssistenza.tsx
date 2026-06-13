@@ -34,7 +34,7 @@ const config: FunzionalitaPageConfig = {
     title:
       "Ticket Assistenza Edilizia",
     description:
-      "Sistema ticket post-cantiere per imprese edili: garanzia decennale art. 1669 c.c. tracciata, SLA per priorità, escalation automatica, app tecnico mobile,…",
+      "Sistema ticket post-cantiere per imprese edili: garanzia decennale art. 1669 c.c. tracciata, SLA per priorità, escalation automatica e app tecnico mobile per gli interventi.",
     keywords:
       "ticket assistenza edilizia, garanzia decennale 1669 cc, software ticket impresa edile, post vendita cantiere, SLA edilizia, knowledge base impresa edile, app tecnico mobile, helpdesk costruzioni",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",

@@ -34,7 +34,7 @@ const config: FunzionalitaPageConfig = {
     title:
       "Cassetto Fiscale SDI per Edilizia",
     description:
-      "Il cassetto fiscale dell'Agenzia delle Entrate dentro il tuo gestionale: tutte le fatture B2B/B2C ricevute via SDI sincronizzate in automatico, ricerca…",
+      "Il cassetto fiscale dell'Agenzia delle Entrate dentro il tuo gestionale: tutte le fatture B2B e B2C ricevute via SDI sincronizzate in automatico e ricercabili a parole chiave.",
     keywords:
       "cassetto fiscale edilizia, cassetto SDI, fatture passive SDI edilizia, sincronizzazione agenzia entrate, fatture ricevute B2B edilizia, archivio fiscale impresa edile, cassetto fiscale impresa costruzioni, software cassetto fiscale",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",

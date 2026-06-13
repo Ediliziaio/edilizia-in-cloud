@@ -30,9 +30,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "DDT Digitali — Documenti di Trasporto Elettronici,…",
+      "DDT Digitali: Documenti di Trasporto Elettronici",
     description:
-      "Documenti di trasporto digitali con firma autista in mobilità, integrazione fatturazione elettronica SDI, archivio cloud a norma e riconciliazione…",
+      "Documenti di trasporto digitali con firma autista in mobilità, integrazione fatturazione elettronica SDI, archivio cloud a norma e riconciliazione DDT, ordini e fatture.",
     keywords:
       "DDT digitali edilizia, documenti di trasporto elettronici, software DDT cantiere, firma autista DDT mobile, integrazione DDT SDI, archivio DDT cloud, gestione DDT calcestruzzo, DDT prefabbricati, riconciliazione DDT fatture, DDT digitali a norma",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",

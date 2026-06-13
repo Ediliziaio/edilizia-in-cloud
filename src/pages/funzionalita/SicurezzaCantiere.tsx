@@ -32,7 +32,7 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Sicurezza Cantiere — D.Lgs 81/2008, POS Digitali, DPI…",
+      "Sicurezza Cantiere: D.Lgs 81/2008 e POS Digitali",
     description:
       "Software sicurezza cantiere conforme D.Lgs 81/2008: POS digitali, DUVRI, formazione tracciata, DPI, sopralluoghi, near-miss, scadenze visite mediche.",
     keywords:

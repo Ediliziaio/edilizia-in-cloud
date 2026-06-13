@@ -33,9 +33,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Software HR Edilizia — Presenze, Ferie, Malattie,…",
+      "Software HR Edilizia: Presenze, Ferie e Malattie",
     description:
-      "Gestisci operai e impiegati con timbrature GPS, ferie, malattie, presenze e costo orario CCNL applicato in automatico. Esporta tracciati per il consulente…",
+      "Gestisci operai e impiegati con timbrature GPS, ferie, malattie, presenze e costo orario CCNL automatico. Esporta i tracciati pronti per il consulente del lavoro.",
     keywords:
       "software HR edilizia, gestione personale impresa edile, timbrature GPS cantiere, costo orario CCNL edilizia, ferie malattie presenze edilizia, busta paga edilizia, software paghe imprese edili, gestione operai cantiere, presenze cantiere edile",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",

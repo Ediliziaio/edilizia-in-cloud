@@ -105,7 +105,7 @@ const benefits = [
     icon: GraduationCap,
     title: "Formazione 60 minuti all'attivazione",
     description:
-      "Cosa è EiC, come pitcharlo in 3 minuti, obiezioni standard, gestione del follow-up. Più kit marketing completo (brochure, video 3min, presentazione 10…",
+      "Cosa è EiC, come pitcharlo in 3 minuti, obiezioni standard, gestione del follow-up. Più kit marketing completo (brochure, video 3min, presentazione 10 slide).",
   },
   {
     icon: Headphones,
@@ -391,7 +391,7 @@ export default function DiventaPartner() {
     title:
       "Diventa Partner — Fino al 30% di retrocessione ricorrente",
     description:
-      "Programma partner Edilizia in Cloud: 4 tier dal 15% al 30% di commissione ricorrente per commercialisti, agenzie marketing, commerciali e aziende del…",
+      "Programma partner Edilizia in Cloud: 4 tier dal 15% al 30% di commissione ricorrente per commercialisti, agenzie marketing, commerciali e aziende del settore.",
     canonical: "/diventa-partner",
     keywords:
       "programma partner edilizia, partner software gestionale, affiliazione edilizia in cloud, commissioni ricorrenti software edile, partner commercialista, partner agenzia marketing, rivenditore software edile",

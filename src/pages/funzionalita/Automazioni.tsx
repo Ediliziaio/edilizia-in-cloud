@@ -32,7 +32,7 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "Automazioni Edilizia — Workflow No-Code per Imprese…",
+      "Automazioni Edilizia: Workflow No-Code per Imprese",
     description:
       "Automazioni no-code per imprese edili: trigger su eventi cantiere/SAL/fatture/scadenze, azioni email/WhatsApp/task/notifiche, libreria template settoriali.",
     keywords:

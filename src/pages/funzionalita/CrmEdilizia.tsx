@@ -32,9 +32,9 @@ const config: FunzionalitaPageConfig = {
 
   seo: {
     title:
-      "CRM Edilizia — Pipeline Preventivi, Gestione Lead e…",
+      "CRM Edilizia: Pipeline Preventivi e Gestione Lead",
     description:
-      "CRM verticale per imprese edili: pipeline preventivi visuale, lead da Google/Facebook/passaparola, tagging cantieri…",
+      "CRM verticale per imprese edili: pipeline preventivi visuale, lead da Google, Facebook e passaparola, tagging cantieri e follow-up automatici. Pronto in 48 ore.",
     keywords:
       "crm edilizia, software gestione clienti edile, pipeline preventivi edilizia, lead management impresa edile, crm verticale edile, gestione lead google ads edilizia, follow-up preventivi automatico",
     ogImage: "https://www.ediliziaincloud.com/og/og-default.png",

@@ -5,7 +5,7 @@ const config: PerTipoConfig = {
   // SEO
   seoTitle: "Software Edilizia per Commercialisti",
   seoDescription:
-    "Gestionale per commercialisti che seguono clienti edili: cassetto fiscale SDI multi-cliente, F24 cassa edile pre-compilato, DURC tracciati, dashboard…",
+    "Gestionale per commercialisti che seguono clienti edili: cassetto fiscale SDI multi-cliente, F24 cassa edile pre-compilato, DURC tracciati e dashboard white-label.",
   seoKeywords:
     "software commercialista edilizia, gestionale studio commercialista cantieri, contabilità edili, cassa edile commercialista, software fiscale edilizia, white label commercialista, multi-cliente edilizia, F24 cassa edile, DURC commercialista",
   seoCanonical: "/per/commercialista-edilizia",
@@ -42,12 +42,12 @@ const config: PerTipoConfig = {
     },
     {
       emoji: "📋",
-      title: "DURC scaduti che scopri quando il cliente perde la…",
+      title: "DURC scaduti che scopri quando il cliente perde il SAL",
       desc: "Il cliente ti chiama nel panico: 'Ho perso il SAL, il DURC è scaduto'. Ma tu non hai un sistema centrale per tracciare le scadenze DURC dei 30+ clienti edili. Ogni volta è una rincorsa con INPS, INAIL e cassa edile per regolarizzare in fretta.",
     },
     {
       emoji: "💸",
-      title: "F24 sbagliati perché i codici tributo dell'edilizia…",
+      title: "F24 sbagliati perché i codici tributo dell'edilizia cambiano",
       desc: "Codici 6781, 6782, contributi cassa edile, ritenute condominio 4%, reverse charge edilizia: sbagli un codice tributo e il cliente paga sanzioni. Il cliente si arrabbia con te. E il rischio responsabilità professionale è sempre dietro l'angolo.",
     },
     {
