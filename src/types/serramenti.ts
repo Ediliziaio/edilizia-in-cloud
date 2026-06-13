@@ -885,15 +885,17 @@ export type SrWizardStep =
   | "consulenza"
   | "pdf";
 
+// Step accorpati (6 fasi): "esigenze" (Contenuti PDF) è confluito in "immobile"
+// e "consulenza" in "pdf". Le chiavi esigenze/consulenza restano valide nel tipo
+// (i componenti StepContenuti/StepConsulenza vengono renderizzati dentro gli step
+// accorpati) ma non compaiono più come fasi separate → flusso più snello.
 export const SR_WIZARD_STEPS: { key: SrWizardStep; label: string; icon: string }[] = [
-  { key: "cliente",        label: "Contatto",            icon: "User" },
-  { key: "immobile",       label: "Immobile",            icon: "Home" },
-  { key: "esigenze",       label: "Contenuti PDF",       icon: "MessageCircle" },
-  { key: "bom",            label: "Composizione offerta",icon: "RectangleVertical" },
-  { key: "accessori_foto", label: "Foto e render",       icon: "Image" },
-  { key: "economia",       label: "Economia",            icon: "Euro" },
-  { key: "consulenza",     label: "Consulenza",          icon: "Calendar" },
-  { key: "pdf",            label: "Genera PDF",          icon: "FileText" },
+  { key: "cliente",        label: "Contatto",             icon: "User" },
+  { key: "immobile",       label: "Immobile e contenuti", icon: "Home" },
+  { key: "bom",            label: "Composizione offerta", icon: "RectangleVertical" },
+  { key: "accessori_foto", label: "Foto e render",        icon: "Image" },
+  { key: "economia",       label: "Economia",             icon: "Euro" },
+  { key: "pdf",            label: "Consulenza e PDF",      icon: "FileText" },
 ];
 
 // ─── Tipologie serramento (catalogo statico, override dal listino) ──────────

@@ -829,10 +829,11 @@ export default function SerramentiWizard() {
               />
             )}
             {currentStep === "immobile" && (
-              <StepImmobile form={form} onChange={onChange} />
-            )}
-            {currentStep === "esigenze" && (
-              <StepContenuti form={form} onChange={onChange} />
+              <div className="space-y-4">
+                <StepImmobile form={form} onChange={onChange} />
+                {/* "Contenuti PDF" (esigenze) accorpato qui */}
+                <StepContenuti form={form} onChange={onChange} />
+              </div>
             )}
             {currentStep === "bom" && id && detail && (
               <StepBom progettoId={id} detail={detail} />
@@ -843,11 +844,12 @@ export default function SerramentiWizard() {
             {currentStep === "economia" && id && detail && (
               <StepEconomia progettoId={id} detail={detail} form={form} onChange={onChange} />
             )}
-            {currentStep === "consulenza" && id && detail && (
-              <StepConsulenza form={form} onChange={onChange} />
-            )}
             {currentStep === "pdf" && id && detail && (
-              <StepPdf progettoId={id} detail={detail} />
+              <div className="space-y-4">
+                {/* "Consulenza" accorpata qui, prima della generazione PDF */}
+                <StepConsulenza form={form} onChange={onChange} />
+                <StepPdf progettoId={id} detail={detail} />
+              </div>
             )}
             </ErrorBoundary>
 
