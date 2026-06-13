@@ -299,12 +299,23 @@ export function StepBom({ progettoId, detail }: Props) {
 
         {/* Lista serramenti (se presenti). Box hint se vuota. */}
         {serramenti.length === 0 ? (
-          <div className="border-2 border-dashed border-slate-200 rounded-md p-6 text-center mb-3">
-            <RectangleVertical className="h-8 w-8 mx-auto text-slate-300 mb-2" />
-            <p className="text-sm text-muted-foreground">
-              Nessun serramento ancora. Usa i bottoni sotto per aggiungere
-              dal listino (consigliato) o a mano per casi speciali.
-            </p>
+          <div className="space-y-3 mb-3">
+            {/* BOM vuoto → l'Assistente AI è la via più veloce: lo mettiamo in
+                cima come azione primaria (descrivi a voce / scrivi / fotografa
+                il rilievo → bozza pronta da approvare). */}
+            <AiSerramentiDraftLauncher
+              progettoId={progettoId}
+              detail={detail}
+              context="bom"
+              onInserted={setExpanded}
+            />
+            <div className="border-2 border-dashed border-slate-200 rounded-md p-6 text-center">
+              <RectangleVertical className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+              <p className="text-sm text-muted-foreground">
+                Il modo più veloce: usa l'<strong>Assistente AI</strong> qui sopra.
+                Oppure aggiungi dal listino (consigliato) o a mano coi bottoni sotto.
+              </p>
+            </div>
           </div>
         ) : (
           <>
@@ -356,14 +367,19 @@ export function StepBom({ progettoId, detail }: Props) {
           </>
         )}
 
-        <div className="mb-3">
-          <AiSerramentiDraftLauncher
-            progettoId={progettoId}
-            detail={detail}
-            context="bom"
-            onInserted={setExpanded}
-          />
-        </div>
+        {/* AI launcher: quando il BOM è vuoto è già in cima come azione
+            primaria; qui lo mostriamo solo se ci sono già righe (per aggiungerne
+            altre con l'AI senza perdere la lista come elemento primario). */}
+        {serramenti.length > 0 && (
+          <div className="mb-3">
+            <AiSerramentiDraftLauncher
+              progettoId={progettoId}
+              detail={detail}
+              context="bom"
+              onInserted={setExpanded}
+            />
+          </div>
+        )}
 
         {/* Bottoni di aggiunta — sempre visibili SOTTO la lista (o sotto
             il box vuoto). Stile dashed/outline meno invasivo dei CTA pieni:
