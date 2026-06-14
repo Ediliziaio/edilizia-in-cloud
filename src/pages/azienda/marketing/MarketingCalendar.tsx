@@ -58,6 +58,7 @@ import { timeToMin, addMinutesToTimeStr } from "@/lib/marketingCalendarConstants
 import { getRoute, formatDurationText, formatDistanceText } from "@/lib/routing";
 import { useCompanyBase } from "@/hooks/useCompanyBase";
 import MarketingCalendarMonthView from "@/components/marketing/MarketingCalendarMonthView";
+import BusySlotDetailsDialog, { type BusySlotDetail } from "@/components/marketing/BusySlotDetailsDialog";
 import MarketingCalendarFilters from "@/components/marketing/MarketingCalendarFilters";
 import MarketingAppointmentsList from "@/components/marketing/MarketingAppointmentsList";
 import MarketingAppointmentDialog, { type MarketingAppointmentData } from "@/components/marketing/MarketingAppointmentDialog";
@@ -140,6 +141,8 @@ export default function MarketingCalendar() {
   const [defaultDate, setDefaultDate] = useState<string | undefined>();
   const [defaultTime, setDefaultTime] = useState<string | undefined>();
   const [syncingExternal, setSyncingExternal] = useState(false);
+  // Dettaglio evento esterno (busy slot Google/Apple) aperto al click.
+  const [busySlotDetail, setBusySlotDetail] = useState<BusySlotDetail | null>(null);
 
   // Filter state
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
@@ -193,6 +196,25 @@ export default function MarketingCalendar() {
           last_name: u.last_name ?? "",
         })),
     [rawStaffUsers, permissions.onlyAssigned, user?.id]
+  );
+
+  // Click su un evento esterno (busy slot Google/Apple): apre il dettaglio,
+  // risolvendo il nome del proprietario del calendario per mostrarlo nella dialog.
+  const handleClickBusySlot = useCallback(
+    (slot: { id: string; start_at: string; end_at: string; summary: string | null; is_all_day: boolean; provider?: "google" | "apple"; user_id?: string }) => {
+      const owner = rawStaffUsers.find((u) => u.id === slot.user_id);
+      const ownerName = owner ? `${owner.first_name ?? ""} ${owner.last_name ?? ""}`.trim() : null;
+      setBusySlotDetail({
+        id: slot.id,
+        start_at: slot.start_at,
+        end_at: slot.end_at,
+        summary: slot.summary,
+        is_all_day: slot.is_all_day,
+        provider: slot.provider,
+        ownerName: ownerName || null,
+      });
+    },
+    [rawStaffUsers]
   );
 
   // Initialize each filter group once when its own data arrives.
@@ -1437,6 +1459,7 @@ export default function MarketingCalendar() {
                 slotDurationMinutes={slotDurationMinutes}
                 onResizeAppointment={handleResizeAppointment}
                 busySlots={filteredBusySlots}
+                onClickBusySlot={handleClickBusySlot}
               />
             ) : calendarView === "day" ? (
               <MarketingCalendarDayView
@@ -1450,6 +1473,7 @@ export default function MarketingCalendar() {
                 slotDurationMinutes={slotDurationMinutes}
                 onResizeAppointment={handleResizeAppointment}
                 busySlots={filteredBusySlots}
+                onClickBusySlot={handleClickBusySlot}
               />
             ) : (
               <MarketingCalendarMonthView
@@ -1460,6 +1484,7 @@ export default function MarketingCalendar() {
                 onClickDay={(date) => openNewDialog(date)}
                 onDropAppointment={(id, date) => handleDropAppointment(id, date)}
                 busySlots={filteredBusySlots}
+                onClickBusySlot={handleClickBusySlot}
               />
             )}
           </div>
@@ -1502,6 +1527,12 @@ export default function MarketingCalendar() {
         users={users}
         defaultDate={defaultDate}
         defaultTime={defaultTime}
+      />
+
+      <BusySlotDetailsDialog
+        slot={busySlotDetail}
+        open={!!busySlotDetail}
+        onOpenChange={(o) => { if (!o) setBusySlotDetail(null); }}
       />
     </div>
   );

@@ -3,13 +3,12 @@ import { format, isSameDay, parseISO, isToday } from "date-fns";
 import { it } from "date-fns/locale";
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensors, useSensor, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
-import { Car, AlertTriangle, MapPinOff, User } from "lucide-react";
+import { Car, AlertTriangle, MapPinOff, User, Calendar as CalendarIcon } from "lucide-react";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
 import type { GoogleBusySlot } from "@/types/calendar";
 import { buildTimeSlots, buildColorMap, timeToMin } from "@/lib/marketingCalendarConstants";
 import DraggableAppointment from "./DraggableAppointment";
 import DroppableSlot from "./DroppableSlot";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Props {
   date: Date;
@@ -22,6 +21,7 @@ interface Props {
   slotDurationMinutes?: number;
   onResizeAppointment?: (id: string, newEndTime: string) => void;
   busySlots?: GoogleBusySlot[];
+  onClickBusySlot?: (slot: GoogleBusySlot) => void;
 }
 
 const SLOT_HEIGHT: Record<number, { className: string; px: number }> = {
@@ -46,6 +46,7 @@ export default function MarketingCalendarDayView({
   slotDurationMinutes = 30,
   onResizeAppointment,
   busySlots = [],
+  onClickBusySlot,
 }: Props) {
   const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
   const justDragged = useRef(false);
@@ -240,22 +241,46 @@ export default function MarketingCalendarDayView({
                   )}
                   onClick={() => { if (!justDragged.current) onClickSlot(date, h, m); }}
                 >
-                  {/* 2026-05-27: busy slots Google ora in blu (brand) + Apple in zinc.
-                      Prima Google era rosso → si confondeva con un alert/conflitto. */}
-                  {slotBusy.map((busy, bi) => (
-                    <Tooltip key={`busy-${bi}`}>
-                      <TooltipTrigger asChild>
-                        <div className={`absolute inset-0 pointer-events-none z-0 border-l-2 ${
-                          busy.provider === "apple"
-                            ? "bg-zinc-100/60 dark:bg-zinc-800/20 border-zinc-400/60"
-                            : "bg-blue-100/60 dark:bg-blue-900/20 border-blue-500/60"
-                        }`} />
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        <span className="text-xs">{busy.summary || (busy.provider === "apple" ? "Occupato (Apple Calendar)" : "Occupato (Google Calendar)")}</span>
-                      </TooltipContent>
-                    </Tooltip>
-                  ))}
+                  {/* 2026-05-27: busy slots Google in blu (brand) + Apple in zinc.
+                      2026-06-14: ora cliccabili e con etichetta visibile (icona +
+                      fascia oraria + titolo) — prima erano solo una velatura senza
+                      testo, illeggibili in vista giorno/settimana. Il click apre il
+                      dettaglio dell'evento esterno. */}
+                  {slotBusy.map((busy, bi) => {
+                    const isApple = busy.provider === "apple";
+                    const startHM = busy.start_at.slice(11, 16);
+                    const endHM = busy.end_at.slice(11, 16);
+                    // L'etichetta va mostrata solo nella cella in cui l'evento INIZIA,
+                    // così un evento multi-slot non ripete il titolo in ogni sotto-cella.
+                    const sMin = timeToMin(startHM);
+                    const cellMin = timeToMin(slotTime);
+                    const isStartCell = sMin >= cellMin && sMin < cellMin + slotDurationMinutes;
+                    const label = busy.summary || (isApple ? "Occupato (Apple)" : "Occupato (Google)");
+                    return (
+                      <button
+                        type="button"
+                        key={`busy-${busy.id}-${bi}`}
+                        onClick={(e) => { e.stopPropagation(); onClickBusySlot?.(busy); }}
+                        title={`${busy.summary || "Occupato"} · ${startHM}–${endHM} (${isApple ? "Apple" : "Google"} Calendar)`}
+                        className={cn(
+                          "absolute inset-0 z-0 flex flex-col items-start overflow-hidden border-l-2 px-1 py-0.5 text-left transition-colors",
+                          isApple
+                            ? "border-zinc-400/70 bg-zinc-100/70 hover:bg-zinc-200/80 dark:bg-zinc-800/30"
+                            : "border-blue-500/70 bg-blue-100/70 hover:bg-blue-200/80 dark:bg-blue-900/30"
+                        )}
+                      >
+                        {isStartCell && (
+                          <span className={cn(
+                            "flex max-w-full items-center gap-1 text-[10px] font-medium leading-tight",
+                            isApple ? "text-zinc-700 dark:text-zinc-300" : "text-blue-800 dark:text-blue-200"
+                          )}>
+                            <CalendarIcon className="h-2.5 w-2.5 shrink-0" />
+                            <span className="truncate">{startHM}–{endHM} · {label}</span>
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                   {slotApts.map((apt) => {
                     const leg = travelLegMap[apt.id];
                     const hasNoCoords = apt.lat == null || apt.lng == null;

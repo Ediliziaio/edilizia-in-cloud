@@ -49,6 +49,7 @@ interface Props {
    * eventi Google importati in DB ma invisibili nella view default.
    */
   busySlots?: BusySlot[];
+  onClickBusySlot?: (slot: BusySlot) => void;
 }
 
 export default function MarketingCalendarMonthView({
@@ -59,6 +60,7 @@ export default function MarketingCalendarMonthView({
   onClickDay,
   onDropAppointment,
   busySlots = [],
+  onClickBusySlot,
 }: Props) {
   const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
@@ -236,21 +238,27 @@ export default function MarketingCalendarMonthView({
                           slate per Apple). Più professionale e leggibile
                           a colpo d'occhio rispetto all'emoji. */}
                       {dayBusySlots.slice(0, Math.max(0, maxShow - dayApts.length)).map((slot) => {
-                        const time = !slot.is_all_day && slot.start_at
-                          ? new Date(slot.start_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
+                        // 2026-06-14: mostra la fascia oraria completa (inizio–fine),
+                        // non solo l'inizio, e rende il blocco cliccabile per aprire il
+                        // dettaglio dell'evento esterno.
+                        const fmt = (iso: string) =>
+                          new Date(iso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+                        const range = !slot.is_all_day && slot.start_at
+                          ? slot.end_at ? `${fmt(slot.start_at)}–${fmt(slot.end_at)}` : fmt(slot.start_at)
                           : null;
                         const isApple = slot.provider === "apple";
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={`busy-${slot.id}`}
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); onClickBusySlot?.(slot); }}
                             className={cn(
-                              "flex cursor-default items-center gap-1 truncate rounded border-l-2 border-dashed px-1.5 py-1 text-[11px] leading-tight",
+                              "flex w-full cursor-pointer items-center gap-1 truncate rounded border-l-2 border-dashed px-1.5 py-1 text-left text-[11px] leading-tight transition-colors",
                               isApple
-                                ? "border-zinc-500/60 bg-zinc-100/80 text-zinc-700 italic"
-                                : "border-blue-500/60 bg-blue-50 text-blue-800 italic"
+                                ? "border-zinc-500/60 bg-zinc-100/80 text-zinc-700 italic hover:bg-zinc-200/80"
+                                : "border-blue-500/60 bg-blue-50 text-blue-800 italic hover:bg-blue-100"
                             )}
-                            title={`${slot.summary || "Occupato"} (da ${isApple ? "Apple Calendar" : "Google Calendar"})`}
+                            title={`${slot.summary || "Occupato"}${range ? ` · ${range}` : ""} (da ${isApple ? "Apple Calendar" : "Google Calendar"})`}
                           >
                             <CalendarIcon
                               className={cn(
@@ -259,9 +267,9 @@ export default function MarketingCalendarMonthView({
                               )}
                               aria-label={isApple ? "Apple Calendar" : "Google Calendar"}
                             />
-                            {time && <span className="font-medium">{time}</span>}
+                            {range && <span className="font-medium shrink-0">{range}</span>}
                             <span className="truncate">{slot.summary || "Occupato"}</span>
-                          </div>
+                          </button>
                         );
                       })}
                       {totalItems > maxShow && (
