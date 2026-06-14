@@ -1,6 +1,6 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
-import { aiRouterPrompt } from "../_shared/aiRouter.ts";
+import { aiRouterComplete } from "../_shared/aiRouter.ts";
 
 /**
  * outreach-ai-email — il SUPER_ADMIN genera oggetto + corpo di una cold email
@@ -92,15 +92,22 @@ Deno.serve(async (req) => {
     }
     lead = lead ?? {};
 
-    const result = await aiRouterPrompt({
+    const result = await aiRouterComplete({
       supabase: admin,
       taskKey: "outreach_ai_email",
-      systemPrompt: SYSTEM_PROMPT,
-      userPrompt: buildUserPrompt(lead, { angle, tone }),
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: buildUserPrompt(lead, { angle, tone }) },
+      ],
       params: { temperature: 0.8, max_tokens: 700 },
       responseFormat: { type: "json_object" },
       companyId: PLATFORM_COMPANY,
       userId,
+      // Strumento interno di piattaforma: nessun gate carta / precheck credito
+      // per-tenant (la "Platform Admin CRM" non ha metodo di pagamento). Il
+      // costo OpenRouter è assorbito dalla piattaforma; resta il log d'uso e
+      // una riga ledger status='skipped' per audit, attribuiti alla company.
+      skipCharge: true,
     });
 
     if (result.chargeSkipped && result.prechargeReason) {
