@@ -9,6 +9,7 @@ import { SuppressionAddCard } from "@/components/admin/outreach/SuppressionAddCa
 import { OutreachSenderPool } from "@/components/admin/outreach/OutreachSenderPool";
 import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences";
 import { OutreachReplyInbox } from "@/components/admin/outreach/OutreachReplyInbox";
+import { OutreachComposeDialog } from "@/components/admin/outreach/OutreachComposeDialog";
 import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -131,6 +132,7 @@ function OutreachCockpit() {
             La tua console quotidiana di cold outreach multi-canale. Email-first, poi WhatsApp e SMS.
           </p>
         </div>
+        <OutreachComposeDialog companyId={companyId} />
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
