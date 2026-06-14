@@ -40,6 +40,7 @@ import { LinkedRendersList } from "@/components/render/LinkedRendersList";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import { OpportunityAppointmentTab } from "@/components/opportunities/OpportunityAppointmentTab";
 import { OpportunityQuotesTab } from "@/components/opportunities/OpportunityQuotesTab";
+import { ContactCallHistory } from "@/components/telephony/ContactCallHistory";
 import { STATUS_OPTIONS, inferOpportunityStatusFromStage } from "@/types/opportunities";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cleanPhone } from "@/lib/contactUtils";
@@ -935,6 +936,15 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
               {tab === "activities" && (
                 <LinkedRendersList contactId={opportunity.contact_id} opportunityId={opportunity.id} />
+              )}
+
+              {tab === "activities" && (opportunity.contact_id || contactPhone) && (
+                <ContactCallHistory
+                  contactId={opportunity.contact_id}
+                  phone={contactPhone}
+                  name={fullName}
+                  className="mt-3"
+                />
               )}
 
               {tab === "quotes" && opportunity.contact_id && companyId && (

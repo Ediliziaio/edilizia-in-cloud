@@ -10,6 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { ConvertToCustomerDialog } from "./ConvertToCustomerDialog";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
+import { ContactCallHistory } from "@/components/telephony/ContactCallHistory";
 
 interface ContactActionsTabProps {
   contact: any;
@@ -203,6 +204,15 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
           </Button>
         ))}
       </div>
+
+      {/* ══════════ STORICO CHIAMATE (sync centralino + AI) ══════════ */}
+      <ContactCallHistory
+        contactId={contact.id}
+        phone={contact.phone}
+        name={`${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() || contact.company_name || undefined}
+        showActions={false}
+        className="mt-3"
+      />
 
       {/* Dialog conversione */}
       <ConvertToCustomerDialog

@@ -25,6 +25,7 @@ import { logger } from "@/utils/logger";
 import { Button } from "@/components/ui/button";
 import { AiCallButton } from "@/components/telephony/AiCallButton";
 import { WebCallButton } from "@/components/telephony/WebCallButton";
+import { ContactCallHistory } from "@/components/telephony/ContactCallHistory";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { looksLikePhone, looksLikeFiscalCode, looksLikeEmail } from "@/lib/customerDataSanitizer";
@@ -738,6 +739,7 @@ export default function CompanyCustomerDetail() {
               <WebCallButton
                 phone={customer.phone}
                 name={fullName}
+                contactId={customer.marketing_contact_id ?? undefined}
                 label="Chiama"
                 variant="outline"
                 size="sm"
@@ -747,6 +749,7 @@ export default function CompanyCustomerDetail() {
             {customer.phone && (
               <AiCallButton
                 phone={customer.phone}
+                contactId={customer.marketing_contact_id ?? undefined}
                 contactName={fullName}
                 variant="outline"
                 size="sm"
@@ -983,11 +986,18 @@ export default function CompanyCustomerDetail() {
       */}
       <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:min-h-[70vh]">
         {/* ─── LEFT 280px (su mobile va dopo center → order-2) ─── */}
-        <div className="order-2 lg:order-none lg:w-72 shrink-0">
+        <div className="order-2 lg:order-none lg:w-72 shrink-0 space-y-3">
           <CustomerProfileCard
             customer={customer}
             linkedContact={linkedContact}
             onSaved={() => refetchCustomer()}
+          />
+          {/* Storico chiamate sincronizzato (centralino + AI) */}
+          <ContactCallHistory
+            contactId={customer.marketing_contact_id ?? undefined}
+            phone={customer.phone}
+            name={fullName}
+            showActions={false}
           />
         </div>
 
