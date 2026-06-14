@@ -21,6 +21,7 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { assignSenders, type SenderState } from "../_shared/outreach-dispatch-logic.ts";
 import { renderTemplate, contactToVars, hashSeed } from "../_shared/outreach-template.ts";
+import { isWithinSendWindow } from "../_shared/outreach-schedule.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -41,6 +42,11 @@ Deno.serve(async (req) => {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const result = { processed: 0, sent: 0, failed: 0, skipped: 0, deferred: 0 };
+
+  // finestra di invio: niente cold di notte o nel weekend (default Lun-Ven 8-19 Europe/Rome)
+  if (!isWithinSendWindow(now)) {
+    return json({ ...result, note: "fuori finestra di invio" }, 200, cors);
+  }
 
   try {
     // 1. coda dovuta
