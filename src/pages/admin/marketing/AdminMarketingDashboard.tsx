@@ -13,6 +13,7 @@ import { OutreachComposeDialog } from "@/components/admin/outreach/OutreachCompo
 import { OutreachMessagePlayground } from "@/components/admin/outreach/OutreachMessagePlayground";
 import { OutreachAnalytics } from "@/components/admin/outreach/OutreachAnalytics";
 import { OutreachPipelineAnalytics } from "@/components/admin/outreach/OutreachPipelineAnalytics";
+import { OutreachConvertContactDialog } from "@/components/admin/outreach/OutreachConvertContactDialog";
 import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -191,6 +192,7 @@ function OutreachCockpit() {
         {/* ── PIPELINE ── */}
         <TabsContent value="pipeline" className="mt-4 space-y-4">
           <OutreachPipelineAnalytics companyId={companyId} />
+          <div className="flex justify-end"><OutreachConvertContactDialog companyId={companyId} /></div>
           <Shortcut to="/admin/marketing/opportunita" icon={Briefcase} label="Apri la pipeline (kanban)" desc="Trascina le opportunità tra gli stage" />
         </TabsContent>
 
