@@ -28,6 +28,11 @@ verify_jwt = false
 [functions.outreach-inbound]
 verify_jwt = false
 
+# Warm-up caselle (cron): le caselle del pool si scambiano email di riscaldamento.
+# Auth x-cron-secret == PROACTIVE_CRON_SECRET o service role.
+[functions.outreach-warmup]
+verify_jwt = false
+
 # Anteprima/test email nodi automazione — auth JWT manuale (qualsiasi utente loggato).
 [functions.automation-email-render]
 verify_jwt = false
