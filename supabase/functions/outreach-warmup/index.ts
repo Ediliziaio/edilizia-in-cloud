@@ -16,6 +16,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { warmupTargetForDay, buildWarmupPairs, type WarmupBox } from "../_shared/outreach-warmup.ts";
+import { selectReplyIndexes } from "../_shared/outreach-warmup-engage.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -42,7 +43,8 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
-  const result = { boxes: 0, pairs: 0, sent: 0, failed: 0 };
+  const result = { boxes: 0, pairs: 0, sent: 0, failed: 0, replied: 0 };
+  const REPLY_RATE = 0.4; // frazione di email di warm-up che riceve una risposta
 
   try {
     const { data: raw, error } = await supabase
@@ -93,6 +95,27 @@ Deno.serve(async (req) => {
       } catch {
         result.failed++;
       }
+    }
+
+    // engagement a due vie: chi ha ricevuto risponde a una frazione delle email
+    // (segnale di reputazione forte, in uscita dal pool, senza IMAP)
+    for (const idx of selectReplyIndexes(pairs.length, REPLY_RATE)) {
+      const p = pairs[idx];
+      const replier = byId.get(p.toId);
+      const replierAddr = replier?.display_name ? `${replier.display_name} <${p.toEmail}>` : p.toEmail;
+      const origSubject = SUBJECTS[idx % SUBJECTS.length];
+      try {
+        const res = await sendEmailUnified({
+          companyId: PLATFORM_COMPANY,
+          stream: "marketing",
+          to: p.fromEmail,
+          subject: `Re: ${origSubject}`,
+          html: "<p>Ricevuto, grazie! Ci sentiamo presto.</p>",
+          senderOverride: { from: replierAddr, replyTo: p.toEmail, source: "outreach_warmup_reply" },
+          metadata: { warmup: true, reply: true, from_box: p.toId, to_box: p.fromId },
+        });
+        if (!(res && res.ok === false)) result.replied++;
+      } catch { /* best effort */ }
     }
 
     return json(result, 200, cors);
