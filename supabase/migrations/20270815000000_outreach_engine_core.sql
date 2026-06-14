@@ -157,6 +157,7 @@ CREATE TABLE IF NOT EXISTS public.outreach_send_queue (
   to_phone           text,
   subject            text,
   body               text NOT NULL DEFAULT '',
+  variant_index      integer, -- A/Z testing: quale variante è stata spedita
   status             text NOT NULL DEFAULT 'queued'
                        CHECK (status IN ('queued','sending','sent','failed','skipped','cancelled')),
   scheduled_for      timestamptz NOT NULL DEFAULT now(),

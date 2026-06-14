@@ -22,6 +22,7 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { assignSenders, type SenderState } from "../_shared/outreach-dispatch-logic.ts";
 import { renderTemplate, contactToVars, hashSeed } from "../_shared/outreach-template.ts";
 import { isWithinSendWindow } from "../_shared/outreach-schedule.ts";
+import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -102,14 +103,17 @@ Deno.serve(async (req) => {
         const contact = item.contact_id ? contactById.get(item.contact_id) : null;
         const vars = contact ? contactToVars(contact) : {};
         const seed = hashSeed(item.to_email || item.id);
+        // A/Z testing: l'oggetto può contenere più varianti separate da "==="
+        const chosen = pickVariant(parseVariants(item.subject || ""), seed);
+        const variantIndex = chosen ? chosen.index : null;
         const res = await sendEmailUnified({
           companyId: PLATFORM_COMPANY,
           stream: "marketing",
           to: item.to_email,
-          subject: renderTemplate(item.subject || "", vars, { seed }),
+          subject: renderTemplate(chosen ? chosen.text : (item.subject || ""), vars, { seed }),
           html: renderTemplate(item.body || "", vars, { seed }),
           senderOverride: { from, replyTo: sender.email, source: "outreach_pool" },
-          metadata: { outreach_queue_id: item.id, sender_account_id: sender.id },
+          metadata: { outreach_queue_id: item.id, sender_account_id: sender.id, variant_index: variantIndex },
         });
         if (res && res.ok === false) {
           // recapito non riuscito a livello provider (es. soppresso): non ritentare
@@ -120,7 +124,7 @@ Deno.serve(async (req) => {
           continue;
         }
         await supabase.from("outreach_send_queue")
-          .update({ status: "sent", sent_at: now.toISOString(), sender_account_id: sender.id })
+          .update({ status: "sent", sent_at: now.toISOString(), sender_account_id: sender.id, variant_index: variantIndex })
           .eq("id", item.id);
         incr.set(sender.id, (incr.get(sender.id) || 0) + 1);
         result.sent++;
