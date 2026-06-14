@@ -96,13 +96,37 @@ async function handleOutboundCall(
   if (!agentId) return json(req, { error: "agent_id obbligatorio" }, 400);
   if (!contactId && !phoneNumber) return json(req, { error: "contact_id o phone_number obbligatorio" }, 400);
 
-  // Get agent
-  const { data: agent } = await adminClient
-    .from("ai_agents")
-    .select("id, elevenlabs_agent_id, name, business_hours_enabled, orario_apertura, orario_chiusura, giorni_attivi")
+  // Get agent — prima il nuovo modello ai_agents_v2 (quello creato dalla UI Agenti AI),
+  // fallback al legacy ai_agents. Additivo: nessun cambio di comportamento per gli
+  // agenti legacy esistenti.
+  type CallAgent = {
+    id: string;
+    elevenlabs_agent_id: string | null;
+    name: string;
+    business_hours_enabled?: boolean | null;
+    orario_apertura?: string | null;
+    orario_chiusura?: string | null;
+    giorni_attivi?: number[] | null;
+  };
+  let agent: CallAgent | null = null;
+
+  const { data: agentV2 } = await adminClient
+    .from("ai_agents_v2")
+    .select("id, elevenlabs_agent_id, nome")
     .eq("id", agentId)
     .eq("company_id", companyId)
-    .single();
+    .maybeSingle();
+  if (agentV2) {
+    agent = { id: agentV2.id, elevenlabs_agent_id: agentV2.elevenlabs_agent_id, name: agentV2.nome };
+  } else {
+    const { data: agentLegacy } = await adminClient
+      .from("ai_agents")
+      .select("id, elevenlabs_agent_id, name, business_hours_enabled, orario_apertura, orario_chiusura, giorni_attivi")
+      .eq("id", agentId)
+      .eq("company_id", companyId)
+      .maybeSingle();
+    agent = agentLegacy;
+  }
 
   if (!agent) return json(req, { error: "Agente non trovato" }, 404);
   if (!agent.elevenlabs_agent_id) return json(req, { error: "Agente non configurato su ElevenLabs" }, 400);
@@ -184,16 +208,30 @@ async function handleOutboundCall(
   const elevenLabsApiKey = await getPlatformSetting("elevenlabs_api_key", "ELEVENLABS_API_KEY");
   if (!elevenLabsApiKey) return json(req, { error: "ElevenLabs API key non configurata" }, 500);
 
-  // Get phone number config — prefer elevenlabs_phone_number_id (Telnyx-linked)
-  const { data: phoneConfig } = await adminClient
-    .from("ai_agent_phone_numbers")
-    .select("phone_number, elevenlabs_phone_id, elevenlabs_phone_number_id, provider")
+  // Get phone number config — prima ai_phone_numbers_v2 (nuovo modello), fallback al
+  // legacy ai_agent_phone_numbers. Si usa l'ID numero ElevenLabs (Telnyx-linked).
+  let elPhoneId: string | null = null;
+
+  const { data: phoneV2 } = await adminClient
+    .from("ai_phone_numbers_v2")
+    .select("elevenlabs_phone_id")
     .eq("agent_id", agentId)
     .eq("company_id", companyId)
     .limit(1)
     .maybeSingle();
+  if (phoneV2?.elevenlabs_phone_id) {
+    elPhoneId = phoneV2.elevenlabs_phone_id;
+  } else {
+    const { data: phoneConfig } = await adminClient
+      .from("ai_agent_phone_numbers")
+      .select("elevenlabs_phone_id, elevenlabs_phone_number_id")
+      .eq("agent_id", agentId)
+      .eq("company_id", companyId)
+      .limit(1)
+      .maybeSingle();
+    elPhoneId = phoneConfig?.elevenlabs_phone_number_id || phoneConfig?.elevenlabs_phone_id || null;
+  }
 
-  const elPhoneId = phoneConfig?.elevenlabs_phone_number_id || phoneConfig?.elevenlabs_phone_id;
   if (!elPhoneId) {
     return json(req, { error: "Nessun numero di telefono configurato per questo agente." }, 400);
   }

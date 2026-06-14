@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { logger } from "@/utils/logger";
 import { Button } from "@/components/ui/button";
+import { AiCallButton } from "@/components/telephony/AiCallButton";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { looksLikePhone, looksLikeFiscalCode, looksLikeEmail } from "@/lib/customerDataSanitizer";
@@ -736,6 +737,16 @@ export default function CompanyCustomerDetail() {
               <Button asChild variant="outline" size="sm" className="gap-1.5 h-9 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
                 <a href={`tel:${customer.phone}`}><Phone className="h-3.5 w-3.5" /> Chiama</a>
               </Button>
+            )}
+            {customer.phone && (
+              <AiCallButton
+                phone={customer.phone}
+                contactName={fullName}
+                variant="outline"
+                size="sm"
+                label="AI"
+                className="gap-1.5 h-9 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
+              />
             )}
             {customerEmailClean && (
               <Button

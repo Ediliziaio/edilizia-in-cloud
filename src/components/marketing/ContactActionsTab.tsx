@@ -24,16 +24,19 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
   const [callingAI, setCallingAI] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
 
+  // Agenti vocali dal nuovo modello ai_agents_v2 (prima leggeva il legacy ai_agents,
+  // ormai vuoto → nessun agente selezionabile).
   const { data: aiAgents = [] } = useQuery({
     queryKey: ["ai-agents-for-call", companyId],
     queryFn: async () => {
       const { data } = await supabase
-        .from("ai_agents" as never)
-        .select("id, name, status")
+        .from("ai_agents_v2" as never)
+        .select("id, nome, tipo, stato")
         .eq("company_id", companyId)
-        .eq("status", "active")
-        .order("name");
-      return (data || []) as { id: string; name: string; status: string }[];
+        .in("tipo", ["vocale", "campagna"])
+        .eq("stato", "attivo")
+        .order("nome");
+      return ((data || []) as { id: string; nome: string }[]).map((a) => ({ id: a.id, name: a.nome }));
     },
     enabled: !!companyId,
   });
