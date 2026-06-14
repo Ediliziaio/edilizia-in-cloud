@@ -404,7 +404,7 @@ function OperationalCalendarCard({
   const [selectedEvent, setSelectedEvent] = useState<(typeof allAgendaItems)[number] | null>(null);
   const selectedOrderId = selectedEvent?.type === "work" ? selectedEvent.orderId : null;
   const { data: selectedOrder, isFetching: isSelectedOrderLoading } = useQuery({
-    queryKey: ["dashboard-calendar-order-detail", selectedOrderId],
+    queryKey: ["dashboard-calendar-order-detail", selectedOrderId, companyId],
     queryFn: async ({ signal }) => {
       if (!selectedOrderId || !companyId) return null;
       const { data, error } = await supabase
@@ -1108,13 +1108,15 @@ function OperationalBoard({
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold text-slate-900">{order.description || "Commessa senza descrizione"}</span>
                 <span className="block truncate text-xs text-slate-500">
-                  {order.customer?.first_name} {order.customer?.last_name}
+                  {order.customer
+                    ? `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() || "Cliente non assegnato"
+                    : "Cliente non assegnato"}
                 </span>
               </span>
               {order.status && (
                 <Badge
                   variant="secondary"
-                  style={{ backgroundColor: order.status.color + "20", color: order.status.color }}
+                  style={{ backgroundColor: (order.status.color || "#64748b") + "20", color: order.status.color || "#64748b" }}
                   className="shrink-0"
                 >
                   {order.status.name}
