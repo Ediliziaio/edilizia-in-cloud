@@ -11,6 +11,7 @@ import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences
 import { OutreachReplyInbox } from "@/components/admin/outreach/OutreachReplyInbox";
 import { OutreachComposeDialog } from "@/components/admin/outreach/OutreachComposeDialog";
 import { OutreachMessagePlayground } from "@/components/admin/outreach/OutreachMessagePlayground";
+import { OutreachAnalytics } from "@/components/admin/outreach/OutreachAnalytics";
 import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -153,6 +154,8 @@ function OutreachCockpit() {
             <Kpi icon={ShieldCheck} label="Soppressi / opt-out" value={fmt(suppressed.data)} hint="bounce, lamentele, disiscritti" tone="warn" />
             <Kpi icon={Send} label="Campagne create" value={fmt(campaigns.data)} hint="totali nel sistema" />
           </div>
+
+          <OutreachAnalytics companyId={companyId} />
 
           <Card>
             <CardHeader className="pb-2"><CardTitle className="text-base">Scorciatoie</CardTitle></CardHeader>
