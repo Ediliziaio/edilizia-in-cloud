@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { ConvertToCustomerDialog } from "./ConvertToCustomerDialog";
+import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 
 interface ContactActionsTabProps {
   contact: any;
@@ -53,11 +54,17 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
     }
   };
 
+  const softphone = useSoftphoneOptional();
   const handleCall = () => {
-    if (contact.phone) {
-      window.open(`tel:${contact.phone}`, "_self");
-    } else {
+    if (!contact.phone) {
       toast.error("Numero di telefono mancante");
+      return;
+    }
+    // Centralina in-app: parli tu dal browser. Fallback a tel: se non disponibile.
+    if (softphone) {
+      softphone.startCall(contact.phone, { name: `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() });
+    } else {
+      window.open(`tel:${contact.phone}`, "_self");
     }
   };
 

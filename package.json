@@ -85,6 +85,7 @@
     "@tanstack/react-query": "^5.100.14",
     "@tanstack/react-query-persist-client": "^5.100.14",
     "@tanstack/react-virtual": "^3.13.25",
+    "@telnyx/webrtc": "^2.27.1",
     "@tiptap/extension-link": "^3.23.6",
     "@tiptap/extension-text-align": "^3.23.6",
     "@tiptap/extension-text-style": "^3.23.6",

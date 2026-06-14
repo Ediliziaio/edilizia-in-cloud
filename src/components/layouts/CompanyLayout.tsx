@@ -1,4 +1,5 @@
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
+import { SoftphoneProvider } from "@/components/telephony/SoftphoneProvider";
 import { navigateToSubdomain } from "@/utils/subdomainNav";
 // Apple Guideline 3.1.1 — su iOS nativo nascondiamo voci che linkano a checkout Stripe
 import { isIOS as isIOSNativePlatform } from "@/lib/mobile/platform";
@@ -1822,7 +1823,9 @@ export function CompanyLayout() {
                   <Skeleton className="h-64 rounded-xl" />
                 </div>
               }>
-                <Outlet />
+                <SoftphoneProvider>
+                  <Outlet />
+                </SoftphoneProvider>
               </Suspense>
             </ErrorBoundary>
           </main>
