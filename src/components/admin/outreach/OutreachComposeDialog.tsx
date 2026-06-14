@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PenLine, Send, Loader2 } from "lucide-react";
+import { PenLine, Send, Loader2, Sparkles } from "lucide-react";
 import { isMissingTableError } from "./_shared";
 
 /**
@@ -27,6 +27,19 @@ export function OutreachComposeDialog({ companyId }: { companyId: string }) {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [contactId, setContactId] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+
+  const contacts = useQuery({
+    queryKey: ["compose-contacts", companyId],
+    enabled: open,
+    queryFn: async () => {
+      const { data } = await supabase.from("marketing_contacts")
+        .select("id,first_name,last_name,company_name,email").eq("company_id", companyId)
+        .order("last_activity_at", { ascending: false, nullsFirst: false }).limit(100);
+      return (data ?? []) as { id: string; first_name: string; last_name: string | null; company_name: string | null; email: string | null }[];
+    },
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
@@ -57,11 +70,29 @@ export function OutreachComposeDialog({ companyId }: { companyId: string }) {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success("Email inviata");
-      setOpen(false); setTo(""); setSubject(""); setBody("");
+      setOpen(false); setTo(""); setSubject(""); setBody(""); setContactId("");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Errore invio");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function generateAI() {
+    setAiBusy(true);
+    try {
+      const payload: Record<string, unknown> = {};
+      if (contactId) payload.contact_id = contactId;
+      else if (to.trim()) payload.contact = { email: to.trim() };
+      const { data, error } = await supabase.functions.invoke("outreach-ai-email", { body: payload });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (data?.body) { if (data.subject) setSubject(data.subject); setBody(data.body); toast.success("Email generata con AI"); }
+      else throw new Error("Nessuna email generata");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore AI");
+    } finally {
+      setAiBusy(false);
     }
   }
 
@@ -91,9 +122,27 @@ export function OutreachComposeDialog({ companyId }: { companyId: string }) {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Contatto (per personalizzare + AI)</Label>
+              <Select value={contactId || "__none__"} onValueChange={(v) => { const id = v === "__none__" ? "" : v; setContactId(id); const c = contacts.data?.find((x) => x.id === id); if (c?.email) setTo(c.email); }}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="— nessuno, scrivi l'indirizzo sotto —" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— nessuno —</SelectItem>
+                  {(contacts.data ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.first_name} {c.last_name ?? ""}{c.company_name ? ` · ${c.company_name}` : ""}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1"><Label className="text-xs">A</Label><Input value={to} onChange={(e) => setTo(e.target.value)} placeholder="destinatario@azienda.it" className="h-9" /></div>
             <div className="space-y-1"><Label className="text-xs">Oggetto</Label><Input value={subject} onChange={(e) => setSubject(e.target.value)} className="h-9" /></div>
-            <div className="space-y-1"><Label className="text-xs">Messaggio</Label><Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={7} placeholder="Ciao, …" /></div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Messaggio</Label>
+                <Button type="button" size="sm" variant="ghost" className="h-7 gap-1 text-xs" disabled={aiBusy} onClick={generateAI}>
+                  {aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Genera con AI
+                </Button>
+              </div>
+              <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={7} placeholder="Ciao, …" />
+            </div>
           </div>
         )}
 
