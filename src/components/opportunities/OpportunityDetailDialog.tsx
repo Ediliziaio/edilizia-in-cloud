@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUpdateOpportunity, useDeleteOpportunity, useCompanyStaff, useCompanySalespeople, useCompanyCallCenterUsers, useOpportunityNotes, useAddOpportunityNote, usePipelines } from "@/hooks/useOpportunitiesData";
 import {
-  useContactCustomFields, useOpportunityCustomFields,
+  useOpportunityCustomFields,
   useContactFieldValues, useOpportunityFieldValues,
   useUpdateContact, useUpsertContactFieldValues, useUpsertOpportunityFieldValues,
 } from "@/hooks/useOpportunityDetailData";
@@ -88,7 +88,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const addNote = useAddOpportunityNote();
   const { data: pipelines = [] } = usePipelines();
 
-  const { data: contactCustomFields = [] } = useContactCustomFields();
   const { data: oppCustomFields = [] } = useOpportunityCustomFields();
   const { data: contactFieldValues = [] } = useContactFieldValues(opportunity?.contact_id || null);
   const { data: oppFieldValues = [] } = useOpportunityFieldValues(opportunity?.id || null);
@@ -236,6 +235,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
     oppFieldValues.forEach((v: any) => { map[v.field_id] = v.value || ""; });
     setOppCustomValues(map);
   }, [oppFieldValues]);
+
+  // "now" catturato una volta al mount (lazy init) → niente Date.now() impuro in
+  // render per il badge "ferma da Xgg". Va prima dell'early return (regole Hook).
+  const [nowMs] = useState(() => Date.now());
 
   if (!opportunity) return null;
 
@@ -459,7 +462,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 {(() => {
                   const stageTouchedAt = opportunity.stage_changed_at || opportunity.updated_at;
                   const daysSince = stageTouchedAt
-                    ? Math.floor((Date.now() - new Date(stageTouchedAt).getTime()) / 86400000)
+                    ? Math.floor((nowMs - new Date(stageTouchedAt).getTime()) / 86400000)
                     : 0;
                   return daysSince >= 14 && opportunity.status === "open" ? (
                     <Badge variant="destructive" className="text-[10px] sm:text-xs h-5 px-1.5 shrink-0">

@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/contexts/AuthContext";
 import { ConvertToCustomerDialog } from "./ConvertToCustomerDialog";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 import { ContactCallHistory } from "@/components/telephony/ContactCallHistory";
@@ -19,7 +18,6 @@ interface ContactActionsTabProps {
 
 export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabProps>(function ContactActionsTab({ contact, companyId }, ref) {
   const navigate = useNavigate();
-  const { effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const [showAICallDialog, setShowAICallDialog] = useState(false);
   const [selectedAgentId, setSelectedAgentId] = useState("");
