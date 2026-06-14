@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminMarketing } from "@/hooks/useAdminMarketing";
 import { PlatformCompanyProvider } from "@/components/admin/PlatformCompanyProvider";
+import { LeadImportCard } from "@/components/admin/outreach/LeadImportCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -169,10 +170,10 @@ function OutreachCockpit() {
             <Shortcut to="/admin/marketing/lead-scraper" icon={Radar} label="Lead Scraper" desc="Genera lead da Maps, LinkedIn, Apollo, Registro Imprese…" />
             <Shortcut to="/admin/marketing/contatti" icon={Users} label="Contatti CRM" desc="Rubrica, tag, segmenti" />
           </div>
-          <Soon phase="Fase 0" title="Import liste (CSV/Excel) + suppression" points={[
-            "Importatore con deduplica automatica e mapping campi.",
-            "Suppression list: chi non contattare mai (bounce, lamentele, già clienti).",
-            "Opt-out separato per canale (email / SMS / WhatsApp).",
+          <LeadImportCard companyId={companyId} onImported={() => contacts.refetch()} />
+          <Soon phase="Fase 0 — prossimo" title="Opt-out per canale" points={[
+            "La suppression email è già attiva (scheda Deliverability).",
+            "Opt-out separato per SMS e WhatsApp arriva con la migrazione dedicata.",
           ]} />
         </TabsContent>
 
