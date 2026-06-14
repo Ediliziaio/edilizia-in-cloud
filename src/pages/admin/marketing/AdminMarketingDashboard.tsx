@@ -10,6 +10,7 @@ import { OutreachSenderPool } from "@/components/admin/outreach/OutreachSenderPo
 import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences";
 import { OutreachReplyInbox } from "@/components/admin/outreach/OutreachReplyInbox";
 import { OutreachComposeDialog } from "@/components/admin/outreach/OutreachComposeDialog";
+import { OutreachMessagePlayground } from "@/components/admin/outreach/OutreachMessagePlayground";
 import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -175,6 +176,7 @@ function OutreachCockpit() {
             <Shortcut to="/admin/marketing/contatti" icon={Users} label="Contatti CRM" desc="Rubrica, tag, segmenti" />
           </div>
           <LeadImportCard companyId={companyId} onImported={() => contacts.refetch()} />
+          <OutreachMessagePlayground companyId={companyId} />
           <Soon phase="Fase 0 — prossimo" title="Opt-out per canale" points={[
             "La suppression email è già attiva (scheda Deliverability).",
             "Opt-out separato per SMS e WhatsApp arriva con la migrazione dedicata.",
