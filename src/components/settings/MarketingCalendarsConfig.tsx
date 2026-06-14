@@ -40,6 +40,7 @@ type MarketingCalendar = {
   is_active: boolean;
   owner_id: string | null;
   description: string | null;
+  color: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -308,6 +309,7 @@ export default function MarketingCalendarsConfig() {
         created_by: user.id,
         name,
         description: data.description || null,
+        color: data.color || null,
         owner_id: data.owner_id || null,
         booking_slug: safeBookingSlug,
         duration_minutes: duration,
@@ -348,6 +350,7 @@ export default function MarketingCalendarsConfig() {
       const { error } = await supabase.from("marketing_calendars").update({
         name,
         description: data.description || null,
+        color: data.color || null,
         owner_id: data.owner_id || null,
         booking_slug: bookingSlug,
         calendar_type: calendarType,

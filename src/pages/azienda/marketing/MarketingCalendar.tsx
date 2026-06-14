@@ -54,7 +54,7 @@ import { Calendar } from "@/components/ui/calendar";
 import MarketingCalendarWeekView from "@/components/marketing/MarketingCalendarWeekView";
 import MarketingCalendarDayView from "@/components/marketing/MarketingCalendarDayView";
 import type { TravelLeg } from "@/types/marketingCalendar";
-import { timeToMin, addMinutesToTimeStr } from "@/lib/marketingCalendarConstants";
+import { timeToMin, addMinutesToTimeStr, buildColorMapForCalendars } from "@/lib/marketingCalendarConstants";
 import { getRoute, formatDurationText, formatDistanceText } from "@/lib/routing";
 import { useCompanyBase } from "@/hooks/useCompanyBase";
 import MarketingCalendarMonthView from "@/components/marketing/MarketingCalendarMonthView";
@@ -162,7 +162,7 @@ export default function MarketingCalendar() {
       if (!companyId) return [];
       let q = supabase
         .from("marketing_calendars")
-        .select("id, name, owner_id, is_active, base_lat, base_lng, base_formatted_address, duration_minutes, default_meeting_provider, default_meeting_enabled")
+        .select("id, name, owner_id, is_active, base_lat, base_lng, base_formatted_address, duration_minutes, default_meeting_provider, default_meeting_enabled, color")
         .eq("company_id", companyId)
         .eq("is_active", true);
       // Ruolo ristretto (only_assigned): nel filtro vede solo i calendari di cui
@@ -196,6 +196,13 @@ export default function MarketingCalendar() {
           last_name: u.last_name ?? "",
         })),
     [rawStaffUsers, permissions.onlyAssigned, user?.id]
+  );
+
+  // Mappa colore per calendario: rispetta il colore scelto dall'utente
+  // (marketing_calendars.color), con fallback automatico per indice.
+  const calendarColorMap = useMemo(
+    () => buildColorMapForCalendars(calendars.map((c) => ({ id: c.id, color: (c as { color?: string | null }).color }))),
+    [calendars],
   );
 
   // Click su un evento esterno (busy slot Google/Apple): apre il dettaglio,
@@ -1460,6 +1467,7 @@ export default function MarketingCalendar() {
                 onResizeAppointment={handleResizeAppointment}
                 busySlots={filteredBusySlots}
                 onClickBusySlot={handleClickBusySlot}
+                colorMap={calendarColorMap}
               />
             ) : calendarView === "day" ? (
               <MarketingCalendarDayView
@@ -1474,6 +1482,7 @@ export default function MarketingCalendar() {
                 onResizeAppointment={handleResizeAppointment}
                 busySlots={filteredBusySlots}
                 onClickBusySlot={handleClickBusySlot}
+                colorMap={calendarColorMap}
               />
             ) : (
               <MarketingCalendarMonthView
@@ -1485,6 +1494,7 @@ export default function MarketingCalendar() {
                 onDropAppointment={(id, date) => handleDropAppointment(id, date)}
                 busySlots={filteredBusySlots}
                 onClickBusySlot={handleClickBusySlot}
+                colorMap={calendarColorMap}
               />
             )}
           </div>

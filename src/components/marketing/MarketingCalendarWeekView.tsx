@@ -23,6 +23,8 @@ interface Props {
   onResizeAppointment?: (id: string, newEndTime: string) => void;
   busySlots?: GoogleBusySlot[];
   onClickBusySlot?: (slot: GoogleBusySlot) => void;
+  /** Colori per calendario calcolati a monte (rispettano marketing_calendars.color) */
+  colorMap?: Record<string, string>;
 }
 
 const SLOT_HEIGHT: Record<number, { className: string; px: number }> = {
@@ -48,6 +50,7 @@ export default function MarketingCalendarWeekView({
   onResizeAppointment,
   busySlots = [],
   onClickBusySlot,
+  colorMap: colorMapProp,
 }: Props) {
   const justDragged = useRef(false);
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
@@ -66,7 +69,8 @@ export default function MarketingCalendarWeekView({
     [weekStart]
   );
 
-  const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
+  const internalColorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
+  const colorMap = colorMapProp ?? internalColorMap;
   const timeSlots = useMemo(() => buildTimeSlots(slotDurationMinutes), [slotDurationMinutes]);
 
   // Layout sovrapposizioni stile Google Calendar, calcolato PER GIORNO (i cluster

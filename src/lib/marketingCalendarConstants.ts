@@ -7,6 +7,30 @@ export const CALENDAR_COLORS = [
   "bg-cyan-500/20 border-cyan-500 text-cyan-900 dark:text-cyan-200",
 ];
 
+/**
+ * Palette colori selezionabile per calendario (marketing_calendars.color).
+ * Ogni preset ha: token salvato su DB, etichetta IT, swatch (hex per il
+ * pallino del picker) e cls (classi Tailwind applicate alla card evento).
+ * Le classi sono stringhe LETTERALI così Tailwind le include nel bundle.
+ */
+export const CALENDAR_COLOR_PRESETS: { token: string; label: string; swatch: string; cls: string }[] = [
+  { token: "blue", label: "Blu", swatch: "#3b82f6", cls: "bg-blue-500/20 border-blue-500 text-blue-900 dark:text-blue-200" },
+  { token: "green", label: "Verde", swatch: "#22c55e", cls: "bg-green-500/20 border-green-500 text-green-900 dark:text-green-200" },
+  { token: "purple", label: "Viola", swatch: "#a855f7", cls: "bg-purple-500/20 border-purple-500 text-purple-900 dark:text-purple-200" },
+  { token: "orange", label: "Arancio", swatch: "#f97316", cls: "bg-orange-500/20 border-orange-500 text-orange-900 dark:text-orange-200" },
+  { token: "pink", label: "Rosa", swatch: "#ec4899", cls: "bg-pink-500/20 border-pink-500 text-pink-900 dark:text-pink-200" },
+  { token: "cyan", label: "Ciano", swatch: "#06b6d4", cls: "bg-cyan-500/20 border-cyan-500 text-cyan-900 dark:text-cyan-200" },
+  { token: "red", label: "Rosso", swatch: "#ef4444", cls: "bg-red-500/20 border-red-500 text-red-900 dark:text-red-200" },
+  { token: "amber", label: "Ambra", swatch: "#f59e0b", cls: "bg-amber-500/20 border-amber-500 text-amber-900 dark:text-amber-200" },
+  { token: "teal", label: "Verde acqua", swatch: "#14b8a6", cls: "bg-teal-500/20 border-teal-500 text-teal-900 dark:text-teal-200" },
+  { token: "indigo", label: "Indaco", swatch: "#6366f1", cls: "bg-indigo-500/20 border-indigo-500 text-indigo-900 dark:text-indigo-200" },
+];
+
+export function colorClassForToken(token: string | null | undefined): string | null {
+  if (!token) return null;
+  return CALENDAR_COLOR_PRESETS.find((p) => p.token === token)?.cls ?? null;
+}
+
 
 
 /**
@@ -36,6 +60,21 @@ export function buildColorMap(calendarIds: string[]): Record<string, string> {
   const map: Record<string, string> = {};
   calendarIds.forEach((id, i) => {
     map[id] = CALENDAR_COLORS[i % CALENDAR_COLORS.length];
+  });
+  return map;
+}
+
+/**
+ * Come buildColorMap ma rispetta il colore personalizzato scelto per il
+ * calendario (marketing_calendars.color): se presente usa la classe del preset,
+ * altrimenti ricade sul colore automatico per indice.
+ */
+export function buildColorMapForCalendars(
+  calendars: { id: string; color?: string | null }[],
+): Record<string, string> {
+  const map: Record<string, string> = {};
+  calendars.forEach((c, i) => {
+    map[c.id] = colorClassForToken(c.color) ?? CALENDAR_COLORS[i % CALENDAR_COLORS.length];
   });
   return map;
 }

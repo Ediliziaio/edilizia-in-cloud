@@ -50,6 +50,8 @@ interface Props {
    */
   busySlots?: BusySlot[];
   onClickBusySlot?: (slot: BusySlot) => void;
+  /** Colori per calendario calcolati a monte (rispettano marketing_calendars.color) */
+  colorMap?: Record<string, string>;
 }
 
 export default function MarketingCalendarMonthView({
@@ -61,8 +63,10 @@ export default function MarketingCalendarMonthView({
   onDropAppointment,
   busySlots = [],
   onClickBusySlot,
+  colorMap: colorMapProp,
 }: Props) {
-  const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
+  const internalColorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
+  const colorMap = colorMapProp ?? internalColorMap;
   const [activeApt, setActiveApt] = useState<MarketingAppointment | null>(null);
   const justDragged = useRef(false);
   // Mouse: drag dopo 5px (evita click accidentali). Touch: long-press 180ms

@@ -26,10 +26,13 @@ import {
 import AddressAutocomplete, { type AddressData } from "@/components/shared/AddressAutocomplete";
 import AddressMapPreview from "@/components/shared/AddressMapPreview";
 import { buildBookingUrl, normalizeBookingSlug } from "@/lib/bookingLinks";
+import { CALENDAR_COLOR_PRESETS } from "@/lib/marketingCalendarConstants";
+import { cn } from "@/lib/utils";
 
 export interface CalendarFormData {
   name: string;
   description: string;
+  color: string;
   owner_id: string;
   calendar_type: string;
   booking_slug: string;
@@ -105,6 +108,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
   const [form, setForm] = useState<CalendarFormData>({
     name: "",
     description: "",
+    color: "",
     owner_id: "",
     calendar_type: "personal",
     booking_slug: "",
@@ -171,6 +175,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
       setForm({
         name: initialData.name || "",
         description: initialData.description || "",
+        color: initialData.color || "",
         owner_id: initialData.owner_id || "",
         calendar_type: initialData.calendar_type || "personal",
         booking_slug: normalizeBookingSlug(initialData.booking_slug || initialData.name || ""),
@@ -193,7 +198,7 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
       setDurationValue(isHours ? mins / 60 : mins);
       setSlugTouched(!!initialData.booking_slug);
     } else {
-      setForm({ name: "", description: "", owner_id: "", calendar_type: "personal", booking_slug: "", duration_minutes: 30, max_daily_km: null, base_address_line: "", base_address_city: "", base_address_postal_code: "", base_address_province: "", base_address_country: "IT", base_formatted_address: "", base_lat: null, base_lng: null, base_place_id: "", default_meeting_provider: "none", default_meeting_enabled: false });
+      setForm({ name: "", description: "", color: "", owner_id: "", calendar_type: "personal", booking_slug: "", duration_minutes: 30, max_daily_km: null, base_address_line: "", base_address_city: "", base_address_postal_code: "", base_address_province: "", base_address_country: "IT", base_formatted_address: "", base_lat: null, base_lng: null, base_place_id: "", default_meeting_provider: "none", default_meeting_enabled: false });
       setShowDescription(false);
       setDurationUnit("minutes");
       setDurationValue(30);
@@ -253,6 +258,46 @@ export default function CalendarDialog({ open, onOpenChange, onSubmit, onAdvance
                       placeholder="(es.) Sopralluogo infissi Milano"
                       required
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center">
+                      Colore calendario
+                      <InfoTooltip text="Colore con cui gli appuntamenti di questo calendario vengono mostrati nel calendario marketing. Lascia su 'Automatico' per assegnarlo in base alla posizione." />
+                    </Label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, color: "" }))}
+                        className={cn(
+                          "flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs transition-colors",
+                          !form.color ? "border-primary bg-primary/10 font-medium text-primary" : "border-border text-muted-foreground hover:bg-muted/50"
+                        )}
+                        aria-pressed={!form.color}
+                      >
+                        Automatico
+                      </button>
+                      {CALENDAR_COLOR_PRESETS.map((preset) => {
+                        const selected = form.color === preset.token;
+                        return (
+                          <button
+                            key={preset.token}
+                            type="button"
+                            onClick={() => setForm((f) => ({ ...f, color: preset.token }))}
+                            title={preset.label}
+                            aria-label={preset.label}
+                            aria-pressed={selected}
+                            className={cn(
+                              "h-7 w-7 rounded-full border-2 transition-transform hover:scale-110",
+                              selected ? "ring-2 ring-offset-2 ring-offset-background" : "border-transparent"
+                            )}
+                            style={{ backgroundColor: preset.swatch, ...(selected ? { borderColor: preset.swatch } : {}) }}
+                          >
+                            {selected && <CheckCircle2 className="mx-auto h-3.5 w-3.5 text-white" />}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div className="space-y-2">
