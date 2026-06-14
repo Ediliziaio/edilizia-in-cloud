@@ -1284,6 +1284,16 @@ export const ACTION_CATALOG: ActionDefinition[] = [
       { id: 'testo', label: 'Testo SMS (max 160 caratteri)', type: 'textarea', required: true, supportsVariables: true },
     ],
   },
+  {
+    id: 'chiama_ai',
+    label: 'Chiamata AI',
+    description: 'Avvia una telefonata con un agente vocale AI al contatto del flusso',
+    icon: 'Phone',
+    categoria: 'comunicazione',
+    configSchema: [
+      { id: 'ai_agent_id', label: 'Agente vocale', type: 'entity_select', required: true, helpText: "Seleziona l'agente vocale che effettuerà la chiamata. Richiede un numero Telnyx collegato all'agente nella tab Telefonia." },
+    ],
+  },
 
   // ═══ CRM ═══
   {

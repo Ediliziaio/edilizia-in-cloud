@@ -669,6 +669,7 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     aggiorna_campo: "update_field",
     chiama_webhook: "webhook_out",
     esegui_agente_ai: "send_ai_message",
+    chiama_ai: "call_with_ai_agent",
   };
 
   // ── Normalize Italian config field names to internal names ──
@@ -1344,7 +1345,9 @@ Istruzione: ${aiPrompt}`;
             "Content-Type": "application/json",
             Authorization: `Bearer ${serviceKey}`,
           },
-          body: JSON.stringify({ agent_id: aiAgentId, contact_id: entityId }),
+          // company_id + user_id sono obbligatori sul ramo service di
+          // initiate-outbound-call: senza company_id la ricerca agente falliva.
+          body: JSON.stringify({ agent_id: aiAgentId, contact_id: entityId, company_id: companyId, user_id: SYSTEM_USER_ID }),
         });
         const result = await resp.json();
         if (!resp.ok) return { success: false, error: result?.error || `HTTP ${resp.status}` };
