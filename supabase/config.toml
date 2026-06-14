@@ -18,6 +18,11 @@ verify_jwt = false
 [functions.system-emails-tick]
 verify_jwt = false
 
+# Dispatcher cold outreach (cron): drena outreach_send_queue con warm-up + cap
+# per-casella, rotazione pool. Auth x-cron-secret == PROACTIVE_CRON_SECRET o service role.
+[functions.outreach-dispatch]
+verify_jwt = false
+
 # Anteprima/test email nodi automazione — auth JWT manuale (qualsiasi utente loggato).
 [functions.automation-email-render]
 verify_jwt = false
