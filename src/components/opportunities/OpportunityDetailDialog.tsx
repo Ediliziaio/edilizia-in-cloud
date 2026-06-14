@@ -61,6 +61,15 @@ function sanitizeSearchTerm(value: string) {
   return value.replace(/[%,]/g, " ").trim();
 }
 
+// Stile condiviso dei select del form: stesso look degli input (bordo visibile +
+// sfondo bianco + hover), così il campo si legge chiaramente come selezionabile
+// anche quando è vuoto (es. Titolare/Follower/Call Center non assegnati).
+// I `!` forzano il bordo: un reset globale `button { border: 0 }` (non in layer)
+// azzerava il bordo dei trigger Radix, che sono <button>, mentre gli <input>
+// restavano bordati — da qui l'incoerenza visiva.
+const SELECT_TRIGGER_CLS =
+  "h-10 sm:h-8 text-sm !border !border-solid !border-input bg-background hover:!border-primary/60 hover:bg-accent/40 transition-colors";
+
 export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab, canEdit = true }: Props) {
   const navigate = useNavigate();
   const { effectiveCompany } = useAuth();
@@ -686,7 +695,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                             const targetStage = pipeline?.marketing_pipeline_stages?.find((s: any) => s.id === newStageId);
                             setStatus(inferOpportunityStatusFromStage(targetStage, "open"));
                           }}>
-                            <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                             </SelectContent>
@@ -698,7 +707,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Stato</Label>
                           <Select value={status} onValueChange={handleStatusChange}>
-                            <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {STATUS_OPTIONS.map((s) => (
                                 <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
@@ -715,8 +724,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Titolare</Label>
-                          <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>
-                            <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
+                          <Select value={salespeople.some((s: any) => s.id === assignedTo) ? assignedTo : "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>
+                            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Non assegnato</SelectItem>
                               {salespeople.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -725,8 +734,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Follower</Label>
-                          <Select value={followerId || "none"} onValueChange={(v) => setFollowerId(v === "none" ? "" : v)}>
-                            <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                          <Select value={staff.some((s: any) => s.id === followerId) ? followerId : "none"} onValueChange={(v) => setFollowerId(v === "none" ? "" : v)}>
+                            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder="Nessuno" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Nessuno</SelectItem>
                               {staff.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
@@ -735,8 +744,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                         </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground">Call Center</Label>
-                          <Select value={callCenterId || "none"} onValueChange={(v) => setCallCenterId(v === "none" ? "" : v)}>
-                            <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Nessuno" /></SelectTrigger>
+                          <Select value={callCenterUsers.some((s: any) => s.id === callCenterId) ? callCenterId : "none"} onValueChange={(v) => setCallCenterId(v === "none" ? "" : v)}>
+                            <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder="Nessuno" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Nessuno</SelectItem>
                               {callCenterUsers.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
