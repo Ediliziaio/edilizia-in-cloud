@@ -12,6 +12,7 @@ import { OutreachReplyInbox } from "@/components/admin/outreach/OutreachReplyInb
 import { OutreachComposeDialog } from "@/components/admin/outreach/OutreachComposeDialog";
 import { OutreachMessagePlayground } from "@/components/admin/outreach/OutreachMessagePlayground";
 import { OutreachAnalytics } from "@/components/admin/outreach/OutreachAnalytics";
+import { OutreachPipelineAnalytics } from "@/components/admin/outreach/OutreachPipelineAnalytics";
 import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -112,11 +113,6 @@ function OutreachCockpit() {
     queryFn: () => safeCount(supabase.from("crm_campaigns").select("*", { count: "exact", head: true })),
     staleTime: 60_000,
   });
-  const opportunities = useQuery({
-    queryKey: ["outreach-count", "opps", companyId],
-    queryFn: () => safeCount(supabase.from("marketing_opportunities").select("*", { count: "exact", head: true }).eq("company_id", companyId)),
-    staleTime: 60_000,
-  });
 
   const fmt = (n: number | null | undefined) => (n === null || n === undefined ? "—" : n.toLocaleString("it-IT"));
   const contactable = contacts.data != null && suppressed.data != null
@@ -194,9 +190,7 @@ function OutreachCockpit() {
 
         {/* ── PIPELINE ── */}
         <TabsContent value="pipeline" className="mt-4 space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Kpi icon={Briefcase} label="Opportunità aperte" value={fmt(opportunities.data)} hint="nella pipeline admin" />
-          </div>
+          <OutreachPipelineAnalytics companyId={companyId} />
           <Shortcut to="/admin/marketing/opportunita" icon={Briefcase} label="Apri la pipeline (kanban)" desc="Trascina le opportunità tra gli stage" />
         </TabsContent>
 
