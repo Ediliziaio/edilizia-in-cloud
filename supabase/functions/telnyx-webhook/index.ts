@@ -434,6 +434,23 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "call.recording.saved": {
+        // Registrazione disponibile: la aggancia allo storico centralino (human_call_logs)
+        // tramite session id / call_control_id memorizzato sulla chiamata.
+        const sessionId = record?.call_session_id;
+        const ccid = record?.call_control_id;
+        const urls = record?.recording_urls || record?.public_recording_urls || {};
+        const recordingUrl = urls?.mp3 || urls?.wav || null;
+        const ids = [sessionId, ccid].filter(Boolean) as string[];
+        if (recordingUrl && ids.length > 0) {
+          await supabase.from("human_call_logs")
+            .update({ recording_url: recordingUrl })
+            .in("telnyx_session_id", ids);
+          console.log(`[telnyx-webhook] call.recording.saved agganciata (ids=${ids.join(",")})`);
+        }
+        break;
+      }
+
       default:
         console.log(`[telnyx-webhook] Unhandled event: ${eventType}`);
     }

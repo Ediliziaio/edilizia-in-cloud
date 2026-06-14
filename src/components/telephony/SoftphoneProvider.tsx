@@ -50,8 +50,27 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   const timerRef = useRef<number | null>(null);
   const logIdRef = useRef<string | null>(null);
   const startMsRef = useRef<number | null>(null);
+  const userIdRef = useRef<string | null>(null);
+  const userNameRef = useRef<string | null>(null);
 
   const companyId = useEffectiveCompanyId();
+
+  // Operatore corrente (per "chi ha chiamato" nello storico): risolto una volta.
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getUser().then(async ({ data }) => {
+      const uid = data.user?.id ?? null;
+      if (!active) return;
+      userIdRef.current = uid;
+      if (uid) {
+        const { data: p } = await supabase
+          .from("profiles").select("first_name, last_name").eq("id", uid).maybeSingle();
+        const nm = p ? `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() : "";
+        userNameRef.current = nm || data.user?.email || null;
+      }
+    });
+    return () => { active = false; };
+  }, []);
 
   const cleanup = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
@@ -139,13 +158,18 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
             // Apri il log chiamata (storico) una volta sola, alla risposta.
             if (!logIdRef.current && companyId) {
               startMsRef.current = Date.now();
+              const sessionId = n.call.telnyxSessionId || n.call.telnyxCallControlId || n.call.id || null;
               supabase.from("human_call_logs")
                 .insert({
                   company_id: companyId,
+                  user_id: userIdRef.current,
+                  user_name: userNameRef.current,
                   contact_id: opts?.contactId ?? null,
+                  contact_name: opts?.name ?? null,
                   direction: "outbound",
                   to_number: number,
                   from_number: callerNumber ?? null,
+                  telnyx_session_id: sessionId,
                   status: "active",
                 })
                 .select("id")

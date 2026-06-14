@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { PhoneCall, Phone, Delete, Loader2, ArrowUpRight, ArrowDownLeft, Settings2, History } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PhoneCall, Phone, Delete, Loader2, ArrowUpRight, ArrowDownLeft, Settings2, History, User, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CallLog {
@@ -19,6 +20,10 @@ interface CallLog {
   status: string;
   duration_seconds: number;
   started_at: string;
+  user_name: string | null;
+  contact_name: string | null;
+  contact_id: string | null;
+  recording_url: string | null;
 }
 
 const PAD = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#"];
@@ -46,14 +51,39 @@ export default function Centralino() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("human_call_logs" as never)
-        .select("id, direction, to_number, from_number, status, duration_seconds, started_at")
+        .select("id, direction, to_number, from_number, status, duration_seconds, started_at, user_name, contact_name, contact_id, recording_url")
         .eq("company_id", companyId!)
         .order("started_at", { ascending: false })
-        .limit(50);
+        .limit(100);
       if (error) throw error;
       return (data ?? []) as unknown as CallLog[];
     },
   });
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const stats = useMemo(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    let totalSec = 0, todayCount = 0, completed = 0;
+    for (const l of logs) {
+      totalSec += l.duration_seconds || 0;
+      if (l.status === "completed") completed++;
+      if (new Date(l.started_at) >= today) todayCount++;
+    }
+    return { total: logs.length, todayCount, completed, totalSec };
+  }, [logs]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return logs.filter((l) => {
+      if (statusFilter !== "all" && l.status !== statusFilter) return false;
+      if (!q) return true;
+      return (l.to_number || "").toLowerCase().includes(q)
+        || (l.contact_name || "").toLowerCase().includes(q)
+        || (l.user_name || "").toLowerCase().includes(q);
+    });
+  }, [logs, search, statusFilter]);
 
   const callBusy = softphone?.status && softphone.status !== "idle";
   const canCall = !!number.trim() && !callBusy;
@@ -93,6 +123,23 @@ export default function Centralino() {
           </CardContent>
         </Card>
       )}
+
+      {/* Statistiche */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: "Chiamate", value: String(stats.total) },
+          { label: "Oggi", value: String(stats.todayCount) },
+          { label: "Completate", value: String(stats.completed) },
+          { label: "Tempo totale", value: fmtDur(stats.totalSec) },
+        ].map((s) => (
+          <Card key={s.label}>
+            <CardContent className="py-3">
+              <p className="text-2xl font-bold tabular-nums">{s.value}</p>
+              <p className="text-xs text-muted-foreground">{s.label}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
       <div className="grid gap-6 md:grid-cols-[320px_1fr]">
         {/* Dialer */}
@@ -138,24 +185,49 @@ export default function Centralino() {
         {/* Storico */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <History className="h-4 w-4 text-muted-foreground" /> Storico chiamate
-            </CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <History className="h-4 w-4 text-muted-foreground" /> Storico chiamate
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Cerca numero, contatto, operatore…"
+                    className="h-8 w-48 pl-8 text-xs"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutti gli esiti</SelectItem>
+                    <SelectItem value="completed">Completate</SelectItem>
+                    <SelectItem value="active">In corso</SelectItem>
+                    <SelectItem value="failed">Fallite</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
               <div className="flex items-center justify-center py-12 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" />
               </div>
-            ) : logs.length === 0 ? (
+            ) : filtered.length === 0 ? (
               <div className="px-6 py-12 text-center text-sm text-muted-foreground">
-                Nessuna chiamata ancora. Le chiamate effettuate dal Centralino compaiono qui.
+                {logs.length === 0
+                  ? "Nessuna chiamata ancora. Le chiamate effettuate dal Centralino compaiono qui."
+                  : "Nessun risultato per i filtri selezionati."}
               </div>
             ) : (
               <ul className="divide-y">
-                {logs.map((l) => {
+                {filtered.map((l) => {
                   const outbound = l.direction !== "inbound";
                   const num = outbound ? l.to_number : l.from_number;
+                  const title = l.contact_name || num || "—";
                   return (
                     <li key={l.id} className="flex items-center gap-3 px-4 py-2.5">
                       <div className={cn(
@@ -165,10 +237,19 @@ export default function Centralino() {
                         {outbound ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownLeft className="h-4 w-4" />}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-mono text-sm font-medium">{num || "—"}</p>
-                        <p className="text-xs text-muted-foreground">{fmtDate(l.started_at)}</p>
+                        <p className="truncate text-sm font-medium">{title}</p>
+                        <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                          {l.contact_name && num && <span className="font-mono">{num}</span>}
+                          {l.user_name && (
+                            <span className="inline-flex items-center gap-0.5"><User className="h-3 w-3" />{l.user_name}</span>
+                          )}
+                          <span>{fmtDate(l.started_at)}</span>
+                        </p>
                       </div>
-                      <div className="text-right">
+                      {l.recording_url && (
+                        <audio controls preload="none" src={l.recording_url} className="h-8 w-36 shrink-0" />
+                      )}
+                      <div className="shrink-0 text-right">
                         <Badge
                           variant="outline"
                           className={cn(
