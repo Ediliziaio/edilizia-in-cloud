@@ -62,7 +62,7 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
     }
     // Centralina in-app: parli tu dal browser. Fallback a tel: se non disponibile.
     if (softphone) {
-      softphone.startCall(contact.phone, { name: `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() });
+      softphone.startCall(contact.phone, { name: `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim(), contactId: contact.id });
     } else {
       window.open(`tel:${contact.phone}`, "_self");
     }

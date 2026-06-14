@@ -1,5 +1,6 @@
 import { createContext, useContext, useRef, useState, useCallback, useEffect, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { toast } from "sonner";
 import { Phone, PhoneOff, Mic, MicOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ type Status = "idle" | "connecting" | "ringing" | "active" | "ending";
 
 interface SoftphoneApi {
   status: Status;
-  startCall: (number: string, opts?: { name?: string }) => void;
+  startCall: (number: string, opts?: { name?: string; contactId?: string }) => void;
 }
 
 const SoftphoneContext = createContext<SoftphoneApi | null>(null);
@@ -47,9 +48,24 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const callRef = useRef<any>(null);
   const timerRef = useRef<number | null>(null);
+  const logIdRef = useRef<string | null>(null);
+  const startMsRef = useRef<number | null>(null);
+
+  const companyId = useEffectiveCompanyId();
 
   const cleanup = useCallback(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    // Finalizza il log chiamata (storico call center) se aperto.
+    if (logIdRef.current && startMsRef.current) {
+      const dur = Math.max(0, Math.round((Date.now() - startMsRef.current) / 1000));
+      const lid = logIdRef.current;
+      supabase.from("human_call_logs")
+        .update({ status: "completed", duration_seconds: dur, ended_at: new Date().toISOString() })
+        .eq("id", lid)
+        .then(() => { /* best-effort */ });
+    }
+    logIdRef.current = null;
+    startMsRef.current = null;
     try { callRef.current?.hangup?.(); } catch { /* noop */ }
     try { clientRef.current?.disconnect?.(); } catch { /* noop */ }
     callRef.current = null;
@@ -70,6 +86,14 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
+        // Preflight microfono: prompt anticipato + errore chiaro se negato.
+        try {
+          const ms = await navigator.mediaDevices.getUserMedia({ audio: true });
+          ms.getTracks().forEach((t) => t.stop());
+        } catch {
+          throw new Error("Permesso microfono negato: consenti il microfono per chiamare.");
+        }
+
         const { data, error } = await supabase.functions.invoke("telnyx-webrtc-token", { body: {} });
         if (error) throw error;
         if ((data as { error?: string })?.error) throw new Error((data as { error?: string }).error);
@@ -112,6 +136,22 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
             if (!timerRef.current) {
               timerRef.current = window.setInterval(() => setSeconds((s) => s + 1), 1000);
             }
+            // Apri il log chiamata (storico) una volta sola, alla risposta.
+            if (!logIdRef.current && companyId) {
+              startMsRef.current = Date.now();
+              supabase.from("human_call_logs")
+                .insert({
+                  company_id: companyId,
+                  contact_id: opts?.contactId ?? null,
+                  direction: "outbound",
+                  to_number: number,
+                  from_number: callerNumber ?? null,
+                  status: "active",
+                })
+                .select("id")
+                .single()
+                .then(({ data: row }) => { if (row?.id) logIdRef.current = row.id; });
+            }
           } else if (st === "hangup" || st === "destroy" || st === "purge") {
             cleanup();
           }
@@ -124,7 +164,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         cleanup();
       }
     })();
-  }, [status, cleanup]);
+  }, [status, cleanup, companyId]);
 
   const toggleMute = useCallback(() => {
     const call = callRef.current;

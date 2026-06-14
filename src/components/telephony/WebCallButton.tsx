@@ -5,6 +5,7 @@ import { useSoftphoneOptional } from "./SoftphoneProvider";
 interface WebCallButtonProps {
   phone?: string | null;
   name?: string | null;
+  contactId?: string | null;
   label?: string;
   variant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
@@ -19,6 +20,7 @@ interface WebCallButtonProps {
 export function WebCallButton({
   phone,
   name,
+  contactId,
   label = "Chiama",
   variant = "outline",
   size = "sm",
@@ -31,7 +33,7 @@ export function WebCallButton({
 
   const onClick = () => {
     if (!phone) return;
-    if (softphone) softphone.startCall(phone, { name: name ?? undefined });
+    if (softphone) softphone.startCall(phone, { name: name ?? undefined, contactId: contactId ?? undefined });
     else window.open(`tel:${phone}`, "_self");
   };
 
