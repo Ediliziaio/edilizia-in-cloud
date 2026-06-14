@@ -193,3 +193,29 @@ Consolidare le ~20 pagine stub `/admin/marketing/*` in un'unica console mappata 
 - **Gestione caselle**: 1000+/giorno richiede ~20-40 caselle scaldate su più domini → serve un processo (anche manuale all'inizio) per creare/verificare domini e caselle.
 - **Reputazione iniziale**: i primi 30-45 giorni il volume è limitato dal warm-up; il target 1000+/giorno è un punto d'arrivo, non di partenza.
 - **Rischio legale** del freddo: mitigato ma presente; valutazione finale dell'utente.
+
+---
+
+## 13. Correzioni post-verifica codice (2026-06-14)
+
+Verifica sul codice reale (non sull'esplorazione iniziale, che aveva alcune imprecisioni). **L'architettura è più costruita del previsto** → meno da costruire, gap più stretti e chirurgici.
+
+### Cosa esiste DAVVERO (e che NON va riscritto)
+- **`email_outbox` NON è la coda campagne**: è l'outbox del client email personale (`user_id NOT NULL`, `oauth_connection_id`, `thread_id`, status `draft/queued/sending/sent/failed/cancelled`). → **La "corsia cold" NON va su `email_outbox`.**
+- **Invio campagne admin** = `send-crm-campaign` → filtra `marketing_contacts` → loop a batch su **`sendEmailUnified`** (`_shared/`), **sincrono, senza coda con throttle nel tempo**.
+- **`sendEmailUnified` ha già**: `stream: 'marketing' | 'transactional'` con **provider diversi per stream** (la separazione cold↔transazionale esiste già a livello di stream); **multi-provider con failover**; **`senderOverride`** (from + dominio espliciti) = punto d'aggancio naturale del sender pool; log per destinatario in `email_delivery_log`.
+- **Suppression ESISTE**: tabella `email_suppressions` (email, email_normalized, reason: hard_bounce/spam_complaint/unsubscribe…, company_id, RLS, unique). `emailSuppression.ts` la consulta già nel percorso d'invio. → **Non si ricostruisce; si estende ai canali SMS/WhatsApp.**
+- **`resolveSender`** risolve il mittente per stream: `company_email_preferences.{stream}_domain_id` → `company_email_domains` (verified+active) → fallback subdomain da `platform_settings`. → **Un dominio per stream, NON un pool rotante.**
+
+### I gap REALI (ridefiniti)
+1. **Sender POOL + rotazione** — `resolveSender` fa un solo dominio per stream; serve un pool di caselle su più domini con rotazione (via `senderOverride`). **GAP PRINCIPALE.**
+2. **Warm-up per casella** (ramp cap + auto-pausa) — assente.
+3. **Coda + dispatcher con throttle nel tempo** — `send-crm-campaign` è un blast sincrono a batch; per rispettare cap-per-casella e ritmo di warm-up serve coda + cron dispatcher. **GAP ARCHITETTURALE PRINCIPALE.**
+4. **Opt-out per canale** — `email_suppressions` è solo email; servono flag `optout_sms/whatsapp` su `marketing_contacts` + suppression cross-canale.
+5. **Inbox risposte unificata** per le caselle cold — assente.
+6. **Console operativa a tab** dentro `/admin/marketing` (no nuove rotte sidebar). 
+
+### Conseguenze sul design (sostituiscono le sezioni 3.1 / 4 / 5 dove in conflitto)
+- La "corsia cold" = **stream `'marketing'`** con **provider cold-friendly** (SES) configurato per quello stream + **sender pool** iniettato via `senderOverride`. Niente colonna `lane` su `email_outbox`.
+- Nuove tabelle effettive: `outreach_sender_accounts`, `outreach_sending_domains`, `outreach_sequences`, `outreach_enrollments`, `outreach_replies` + nuova **coda cold** `outreach_send_queue` (la parte che davvero manca per il throttle) + estensione `email_suppressions` (canale) e `marketing_contacts` (optout per canale).
+- Vincolo UI confermato: **tab dentro le pagine esistenti**, nessuna nuova voce sidebar.
