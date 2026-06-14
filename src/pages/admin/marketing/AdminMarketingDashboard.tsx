@@ -10,6 +10,7 @@ import { OutreachSenderPool } from "@/components/admin/outreach/OutreachSenderPo
 import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences";
 import { OutreachReplyInbox } from "@/components/admin/outreach/OutreachReplyInbox";
 import { OutreachActivityFeed } from "@/components/admin/outreach/OutreachActivityFeed";
+import { OutreachLists } from "@/components/admin/outreach/OutreachLists";
 import { OutreachComposeDialog } from "@/components/admin/outreach/OutreachComposeDialog";
 import { OutreachMessagePlayground } from "@/components/admin/outreach/OutreachMessagePlayground";
 import { OutreachAnalytics } from "@/components/admin/outreach/OutreachAnalytics";
@@ -179,6 +180,7 @@ function OutreachCockpit() {
             <Shortcut to="/admin/marketing/contatti" icon={Users} label="Contatti CRM" desc="Rubrica, tag, segmenti" />
           </div>
           <LeadImportCard companyId={companyId} onImported={() => contacts.refetch()} />
+          <OutreachLists companyId={companyId} />
           <OutreachMessagePlayground companyId={companyId} />
           <Soon phase="Fase 0 — prossimo" title="Opt-out per canale" points={[
             "La suppression email è già attiva (scheda Deliverability).",
