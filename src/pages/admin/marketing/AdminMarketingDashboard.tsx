@@ -9,6 +9,7 @@ import { SuppressionAddCard } from "@/components/admin/outreach/SuppressionAddCa
 import { OutreachSenderPool } from "@/components/admin/outreach/OutreachSenderPool";
 import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences";
 import { OutreachReplyInbox } from "@/components/admin/outreach/OutreachReplyInbox";
+import { OutreachActivityFeed } from "@/components/admin/outreach/OutreachActivityFeed";
 import { OutreachComposeDialog } from "@/components/admin/outreach/OutreachComposeDialog";
 import { OutreachMessagePlayground } from "@/components/admin/outreach/OutreachMessagePlayground";
 import { OutreachAnalytics } from "@/components/admin/outreach/OutreachAnalytics";
@@ -167,6 +168,7 @@ function OutreachCockpit() {
             </CardContent>
           </Card>
 
+          <OutreachActivityFeed companyId={companyId} />
           <OutreachReplyInbox companyId={companyId} />
         </TabsContent>
 
