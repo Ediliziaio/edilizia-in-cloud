@@ -10,9 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Loader2, Plus, Trash2, Mail, MessageSquare, Phone, ChevronRight, ChevronDown, AlertTriangle, Send,
+  Loader2, Plus, Trash2, Mail, MessageSquare, Phone, ChevronRight, ChevronDown, AlertTriangle, Send, Sparkles, Eye,
 } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
+import { renderTemplate, contactToVars, hashSeed } from "../../../../supabase/functions/_shared/outreach-template";
+
+const PREVIEW_SAMPLE = { first_name: "Mario", last_name: "Rossi", company_name: "Rossi Costruzioni", email: "mario@rossi.it" };
 
 /**
  * Builder cadenze (Fase 1). Tabelle outreach_sequences / outreach_sequence_steps
@@ -159,6 +162,19 @@ function SequenceSteps({ sequenceId, steps, onChange, db }: {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+
+  async function generateAI() {
+    setAiBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("outreach-ai-email", { body: { angle: subject || "" } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (data?.body) { if (channel === "email" && data.subject) setSubject(data.subject); setBody(data.body); toast.success("Step generato con AI"); }
+      else throw new Error("Nessun testo generato");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Errore AI"); } finally { setAiBusy(false); }
+  }
 
   async function addStep() {
     if (!body.trim()) { toast.error("Il corpo del messaggio è obbligatorio"); return; }
@@ -216,7 +232,20 @@ function SequenceSteps({ sequenceId, steps, onChange, db }: {
           {channel === "email" && <div className="min-w-[180px] flex-1 space-y-1"><Label className="text-xs">Oggetto</Label><Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="{{first_name}}, una domanda" className="h-8" /></div>}
         </div>
         <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} placeholder={"Ciao {{first_name}},\n…\nVariabili: {{first_name}} {{company_name}}"} className="text-xs" />
-        <Button size="sm" className="h-8 gap-1" disabled={busy} onClick={addStep}><Send className="h-3.5 w-3.5" /> {busy ? "…" : "Aggiungi step"}</Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" className="h-8 gap-1" disabled={busy} onClick={addStep}><Send className="h-3.5 w-3.5" /> {busy ? "…" : "Aggiungi step"}</Button>
+          <Button type="button" size="sm" variant="outline" className="h-8 gap-1" disabled={aiBusy} onClick={generateAI}>
+            {aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Genera con AI
+          </Button>
+          {body.trim() && (
+            <Button type="button" size="sm" variant="ghost" className="h-8 gap-1" onClick={() => setShowPreview((v) => !v)}>
+              <Eye className="h-3.5 w-3.5" /> {showPreview ? "Nascondi" : "Anteprima"}
+            </Button>
+          )}
+        </div>
+        {showPreview && body.trim() && (
+          <div className="whitespace-pre-wrap rounded-lg border bg-card p-2.5 text-xs">{renderTemplate(body, contactToVars(PREVIEW_SAMPLE), { seed: hashSeed(PREVIEW_SAMPLE.email) })}</div>
+        )}
       </div>
     </div>
   );
