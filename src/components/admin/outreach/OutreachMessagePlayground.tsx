@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Wand2, ArrowRight } from "lucide-react";
+import { Wand2, ArrowRight, Sparkles, Loader2 } from "lucide-react";
 import { renderTemplate, contactToVars, hashSeed } from "../../../../supabase/functions/_shared/outreach-template";
 
 /**
@@ -29,6 +32,9 @@ const CHIPS = ["{{first_name}}", "{{first_name|amico}}", "{{company_name}}", "{{
 export function OutreachMessagePlayground({ companyId }: { companyId: string }) {
   const [tpl, setTpl] = useState(DEFAULT_TPL);
   const [contactId, setContactId] = useState("");
+  const [angle, setAngle] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiSubject, setAiSubject] = useState("");
 
   const contacts = useQuery({
     queryKey: ["playground-contacts", companyId],
@@ -48,6 +54,24 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
   const seed = hashSeed(selected.email || selected.id || "seed");
   const rendered = renderTemplate(tpl, contactToVars(selected), { seed });
 
+  async function generateAI() {
+    setAiBusy(true);
+    try {
+      const payload: Record<string, unknown> = { angle };
+      if (selected.id) payload.contact_id = selected.id;
+      else payload.contact = { first_name: selected.first_name, last_name: selected.last_name, company_name: selected.company_name };
+      const { data, error } = await supabase.functions.invoke("outreach-ai-email", { body: payload });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (data?.body) { setTpl(data.body); setAiSubject(data.subject || ""); toast.success("Email generata con AI"); }
+      else throw new Error("Nessuna email generata");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore AI");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -59,6 +83,15 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
         <p className="text-xs text-muted-foreground">
           Prova variabili e <strong>spintax</strong> su un contatto vero. Lo spintax <code className="rounded bg-muted px-1">{"{Ciao|Salve}"}</code> varia il messaggio tra destinatari (meno spam).
         </p>
+
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-orange-200 bg-orange-50/40 p-2">
+          <Sparkles className="h-4 w-4 shrink-0 text-orange-500" />
+          <Input value={angle} onChange={(e) => setAngle(e.target.value)} placeholder="Angle (opzionale): es. risparmio su fatturazione e cantieri" className="h-8 flex-1 text-xs" />
+          <Button size="sm" className="h-8 gap-1" disabled={aiBusy} onClick={generateAI}>
+            {aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Genera con AI
+          </Button>
+        </div>
+        {aiSubject && <p className="text-xs"><span className="text-muted-foreground">Oggetto generato:</span> <strong>{aiSubject}</strong></p>}
 
         <div className="grid gap-3 md:grid-cols-2">
           {/* template */}
