@@ -154,15 +154,19 @@ export default function MarketingCalendar() {
 
   // Fetch calendars
   const { data: calendars = [], error: calendarsError, refetch: refetchCalendars } = useQuery({
-    queryKey: ["marketing-calendars", companyId],
+    queryKey: ["marketing-calendars", companyId, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!companyId) return [];
-      const { data, error } = await supabase
+      let q = supabase
         .from("marketing_calendars")
-        .select("id, name, is_active, base_lat, base_lng, base_formatted_address, duration_minutes, default_meeting_provider, default_meeting_enabled")
+        .select("id, name, owner_id, is_active, base_lat, base_lng, base_formatted_address, duration_minutes, default_meeting_provider, default_meeting_enabled")
         .eq("company_id", companyId)
-        .eq("is_active", true)
-        .order("name");
+        .eq("is_active", true);
+      // Ruolo ristretto (only_assigned): nel filtro vede solo i calendari di cui
+      // è owner. (I suoi appuntamenti restano comunque visibili: per i ristretti
+      // il sotto-filtro calendario è bypassato — vedi filteredAppointments.)
+      if (permissions.onlyAssigned && user?.id) q = q.eq("owner_id", user.id);
+      const { data, error } = await q.order("name");
       if (error) throw error;
       return data || [];
     },
@@ -394,8 +398,10 @@ export default function MarketingCalendar() {
       if (!a.calendar_id) {
         // Senza calendar_id = operativo. Mostralo solo se toggle ON.
         if (!showOperativi) return false;
-      } else {
-        // Con calendar_id = commerciale: rispetta selectedCalendarIds
+      } else if (!permissions.onlyAssigned) {
+        // Il sotto-filtro per calendario si applica solo ai ruoli pieni. Un ruolo
+        // ristretto vede comunque tutti i SUOI appuntamenti (già filtrati a
+        // assigned_to=self), anche se sono in un calendario condiviso non suo.
         if (calendars.length > 0 && selectedCalendarIds.length === 0) return false;
         if (selectedCalendarIds.length > 0 && !selectedCalendarIds.includes(a.calendar_id))
           return false;
@@ -407,7 +413,7 @@ export default function MarketingCalendar() {
       }
       return true;
     });
-  }, [appointments, calendars.length, selectedCalendarIds, selectedUserIds, users.length, showOperativi]);
+  }, [appointments, calendars.length, selectedCalendarIds, selectedUserIds, users.length, showOperativi, permissions.onlyAssigned]);
 
   // Gli slot Google/Apple (overlay calendario) devono rispettare il filtro
   // UTENTI come gli appuntamenti: ogni slot ha un user_id (il proprietario del

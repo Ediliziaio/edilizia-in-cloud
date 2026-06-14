@@ -80,7 +80,7 @@ const isWorkCalendarEmployee = (employee: CalendarEmployee) => {
 };
 
 function CalendarInner() {
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const permissions = usePermissions();
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
@@ -256,12 +256,12 @@ function CalendarInner() {
 
   // Fetch appointments
   const { data: appointments = [], isLoading: isAppointmentsLoading } = useQuery({
-    queryKey: ["appointments", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd],
+    queryKey: ["appointments", effectiveCompany?.id, calendarRangeStart, calendarRangeEnd, permissions.onlyAssigned, user?.id],
     queryFn: async ({ signal }) => {
       if (!effectiveCompany?.id) return [];
       const timeout = createTimeoutSignal(10_000, signal);
       try {
-        const query = supabase
+        let query = supabase
           .from("appointments")
           .select(`
             *,
@@ -271,7 +271,10 @@ function CalendarInner() {
           .eq("company_id", effectiveCompany.id)
           // B10 — rimosso .is("calendar_id", null) che escludeva appuntamenti con calendario specifico
           .gte("appointment_date", calendarRangeStart)
-          .lte("appointment_date", calendarRangeEnd)
+          .lte("appointment_date", calendarRangeEnd);
+        // Ruolo ristretto (only_assigned): vede SOLO i propri appuntamenti.
+        if (permissions.onlyAssigned && user?.id) query = query.eq("assigned_to", user.id);
+        query = query
           .order("appointment_date", { ascending: true })
           .limit(1000)
           .abortSignal(timeout.signal);
@@ -497,13 +500,16 @@ function CalendarInner() {
 
   // Fetch Google Calendar busy slots
   const { data: googleBusySlots = [] } = useQuery({
-    queryKey: ["gcal-busy-slots", effectiveCompany?.id],
+    queryKey: ["gcal-busy-slots", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
-      const { data, error } = await supabase
+      let q = supabase
         .from("google_calendar_busy_slots")
         .select("id, start_at, end_at, summary, is_all_day, user_id, google_calendar_id")
         .eq("company_id", effectiveCompany.id);
+      // Ruolo ristretto (only_assigned): vede solo il proprio calendario Google.
+      if (permissions.onlyAssigned && user?.id) q = q.eq("user_id", user.id);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []) as GoogleBusySlot[];
     },
@@ -513,13 +519,15 @@ function CalendarInner() {
 
   // Fetch Apple Calendar busy slots
   const { data: appleBusySlots = [] } = useQuery({
-    queryKey: ["apple-busy-slots", effectiveCompany?.id],
+    queryKey: ["apple-busy-slots", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
-      const { data, error } = await supabase
+      let q = supabase
         .from("apple_calendar_busy_slots")
         .select("id, start_at, end_at, summary, is_all_day, user_id, caldav_calendar_url")
         .eq("company_id", effectiveCompany.id);
+      if (permissions.onlyAssigned && user?.id) q = q.eq("user_id", user.id);
+      const { data, error } = await q;
       if (error) throw error;
       return (data || []).map((s: { id: string; start_at: string; end_at: string; summary: string | null; is_all_day: boolean; user_id: string; caldav_calendar_url: string }) => ({
         ...s,
