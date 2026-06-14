@@ -212,6 +212,7 @@ function AttivitaRouter() {
 const AutomazioniUnified = lazy(() => import("@/pages/azienda/AutomazioniUnified"));
 const AgentiAIPage = lazy(() => import("@/pages/azienda/AgentiAIPage"));
 const AgentDetailPage = lazy(() => import("@/pages/azienda/AgentDetailPage"));
+const Centralino = lazy(() => import("@/pages/azienda/Centralino"));
 const RenderCategoryHub = lazy(() => import("@/pages/azienda/RenderCategoryHub"));
 const RenderPlanimetrieHub = lazy(() => import("@/pages/azienda/RenderPlanimetrieHub"));
 const RenderPlanimetrieNew = lazy(() => import("@/pages/azienda/RenderPlanimetrieNew"));
@@ -633,6 +634,7 @@ export default function CompanyRoutesContainer() {
 
         {/* Unified Agenti AI page (2 tabs: custom, platform) — gated: ai_agents */}
         <Route path="agenti-ai" element={withCompanyPermission("canViewMarketingAiAgent", <FeatureRoute featureKey="ai_agents"><AgentiAIPage /></FeatureRoute>)} />
+        <Route path="centralino" element={withCompanyPermission("canViewMarketingAiAgent", <FeatureRoute featureKey="ai_agents"><Centralino /></FeatureRoute>)} />
         <Route path="agenti-ai/:agentId" element={withCompanyPermission("canViewMarketingAiAgent", <FeatureRoute featureKey="ai_agents"><AgentDetailPage /></FeatureRoute>)} />
 
         {/* Render AI Routes — gated: render_ai */}
