@@ -6,6 +6,7 @@ import { useAdminMarketing } from "@/hooks/useAdminMarketing";
 import { PlatformCompanyProvider } from "@/components/admin/PlatformCompanyProvider";
 import { LeadImportCard } from "@/components/admin/outreach/LeadImportCard";
 import { SuppressionAddCard } from "@/components/admin/outreach/SuppressionAddCard";
+import { OutreachSenderPool } from "@/components/admin/outreach/OutreachSenderPool";
 import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -199,14 +200,9 @@ function OutreachCockpit() {
 
         {/* ── DELIVERABILITY ── */}
         <TabsContent value="deliverability" className="mt-4 space-y-4">
+          <OutreachSenderPool companyId={companyId} />
           <SuppressionAddCard companyId={companyId} />
           <EmailSuppressionsTable />
-          <Soon phase="Fase 2" title="Pool mittenti, warm-up e reputazione" points={[
-            "Sender pool: più caselle su più domini cold dedicati, con rotazione.",
-            "Warm-up automatico per casella + auto-pausa se bounce/lamentele salgono.",
-            "Coda con throttle nel tempo (rispetta cap-per-casella e ritmo di warm-up).",
-            "Dashboard reputazione: hard/soft bounce, tassi, volume vs capacità.",
-          ]} />
         </TabsContent>
       </Tabs>
     </div>
