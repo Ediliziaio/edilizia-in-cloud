@@ -27,7 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
   Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder,
-  Target, AlertTriangle, Trophy,
+  Target, AlertTriangle, Trophy, MessageCircle, ExternalLink,
 } from "lucide-react";
 import { useUpdateOpportunityMutation } from "@/hooks/useSalesOS";
 import { format } from "date-fns";
@@ -45,6 +45,7 @@ import { STATUS_OPTIONS, inferOpportunityStatusFromStage } from "@/types/opportu
 import { usePermissions } from "@/hooks/usePermissions";
 import { cleanPhone } from "@/lib/contactUtils";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
+import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 
 interface Props {
   opportunity: any;
@@ -77,6 +78,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const permissions = usePermissions();
   const canEditOpportunity = canEdit && (permissions.canEditMarketingOpportunities || permissions.canEditMarketing);
   const queryClient = useQueryClient();
+  const softphone = useSoftphoneOptional();
   const updateOpp = useUpdateOpportunity();
   const deleteOpp = useDeleteOpportunity();
   const { data: staff = [] } = useCompanyStaff();
@@ -470,6 +472,48 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 Aggiungi e Modifica opportunità Dettagli, attività, note e Appuntamento.
               </DialogDescription>
             </div>
+            {/* Trigger rapidi contatto: chiama (centralino) · email · whatsapp */}
+            {opportunity.contact_id && (
+              <div className="flex items-center gap-0.5 shrink-0 mt-0.5 sm:mt-0">
+                {contactPhone && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (softphone) softphone.startCall(contactPhone, { name: fullName, contactId: opportunity.contact_id });
+                      else window.open(`tel:${contactPhone}`, "_self");
+                    }}
+                    className="h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                    aria-label="Chiama contatto"
+                    title={`Chiama ${contactPhone}`}
+                  >
+                    <Phone className="h-4 w-4" />
+                  </button>
+                )}
+                {contactEmail && (
+                  <button
+                    type="button"
+                    onClick={() => { navigate(`/azienda/marketing/messaggi?contact=${opportunity.contact_id}&channel=email`); onOpenChange(false); }}
+                    className="h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-violet-50 hover:text-violet-600 transition-colors"
+                    aria-label="Invia email"
+                    title={`Email a ${contactEmail}`}
+                  >
+                    <Mail className="h-4 w-4" />
+                  </button>
+                )}
+                {contactPhone && (
+                  <button
+                    type="button"
+                    onClick={() => { navigate(`/azienda/marketing/messaggi?contact=${opportunity.contact_id}&channel=whatsapp`); onOpenChange(false); }}
+                    className="h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                    aria-label="Invia WhatsApp"
+                    title="Invia WhatsApp"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </button>
+                )}
+                <span className="mx-0.5 hidden sm:block h-5 w-px bg-border" aria-hidden />
+              </div>
+            )}
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -533,8 +577,20 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                           <Label className="text-[11px] sm:text-xs text-muted-foreground">Nome contatto</Label>
                           <div className="flex items-center gap-2">
                             <div className="flex items-center gap-2 h-10 sm:h-8 px-3 border rounded-md bg-muted/30 text-sm flex-1 min-w-0">
-                              <User className="h-3.5 w-3.5 text-muted-foreground" />
-                              {pendingContactId ? contactSearch : (fullName || "—")}
+                              <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                              {!pendingContactId && opportunity.contact_id ? (
+                                <button
+                                  type="button"
+                                  onClick={() => { navigate(`/azienda/marketing/contatti/${opportunity.contact_id}`); onOpenChange(false); }}
+                                  className="group/clink inline-flex items-center gap-1 min-w-0 text-left hover:text-primary transition-colors"
+                                  title="Apri scheda contatto"
+                                >
+                                  <span className="truncate group-hover/clink:underline">{fullName || "—"}</span>
+                                  <ExternalLink className="h-3 w-3 shrink-0 opacity-50 group-hover/clink:opacity-100" />
+                                </button>
+                              ) : (
+                                <span className="truncate">{pendingContactId ? contactSearch : (fullName || "—")}</span>
+                              )}
                             </div>
                             <Button
                               variant="outline"
