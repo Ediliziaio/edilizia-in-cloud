@@ -991,14 +991,25 @@ export function UsersConfig() {
 
     setBulkActionLoading(true);
     let deleted = 0;
+    let failed = 0;
+    let firstError = "";
     try {
       for (const uid of deletable) {
         try {
           const { data, error } = await supabase.functions.invoke("delete-company-user", {
             body: { userId: uid, company_id: effectiveCompanyId },
           });
-          if (!error && !data?.error) deleted++;
-        } catch { /* skip row; backend still enforces authorization */ }
+          const errMsg = error?.message || (data?.error as string | undefined);
+          if (errMsg) {
+            failed++;
+            if (!firstError) firstError = errMsg;
+          } else {
+            deleted++;
+          }
+        } catch (e) {
+          failed++;
+          if (!firstError) firstError = e instanceof Error ? e.message : "Errore sconosciuto";
+        }
       }
       queryClient.invalidateQueries({ queryKey: ["company-users"] });
       queryClient.invalidateQueries({ queryKey: ["salespeople"] });
@@ -1006,10 +1017,18 @@ export function UsersConfig() {
       await writeAuditLog("bulk_users_deleted", null, {
         requested: selected.length,
         deleted,
+        failed,
         blocked: blocked.length,
         user_ids: deletable,
       });
       if (deleted > 0) toast.success(`${deleted} utente/i eliminato/i`);
+      // Surface partial failures invece di nasconderle: l'admin deve sapere
+      // quanti utenti NON sono stati eliminati e perché.
+      if (failed > 0) {
+        toast.error(
+          `${failed} utente/i non eliminato/i${firstError ? `: ${firstError}` : ""}`,
+        );
+      }
       if (blocked.length > 0) toast.warning(`${blocked.length} admin/utente corrente non eliminato per sicurezza`);
       setSelectedUsers(new Set());
     } finally {
