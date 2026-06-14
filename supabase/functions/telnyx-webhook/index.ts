@@ -380,9 +380,57 @@ Deno.serve(async (req) => {
       }
 
       // ── Other Call events (logging) ──
-      case "call.answered":
+      case "call.answered": {
+        // Chiamata in entrata risposta: marca come 'active' le conversazioni in 'ringing'
+        // aperte da call.initiated per questo call_control_id.
+        const ccid = record?.call_control_id;
+        if (ccid) {
+          await supabase.from("ai_agent_conversations")
+            .update({ status: "active" })
+            .eq("metadata->>telnyx_call_control_id", ccid)
+            .eq("status", "ringing");
+          await supabase.from("internal_call_logs")
+            .update({ status: "active" })
+            .eq("metadata->>telnyx_call_control_id", ccid)
+            .eq("status", "ringing");
+        }
+        console.log(`[telnyx-webhook] call.answered ccid=${ccid || ""}`);
+        break;
+      }
+
       case "call.hangup": {
-        console.log(`[telnyx-webhook] Call event ${eventType}:`, JSON.stringify(record?.call_control_id || ""));
+        // Fine chiamata: chiude la conversazione aperta (ringing/active) per quel
+        // call_control_id, registrando esito e durata. Prima questo evento era solo
+        // loggato → le conversazioni in entrata restavano "aperte" all'infinito.
+        const ccid = record?.call_control_id;
+        if (ccid) {
+          const cause = String(record?.hangup_cause || "");
+          let durationSeconds = 0;
+          const st = record?.start_time ? Date.parse(record.start_time) : NaN;
+          const et = record?.end_time ? Date.parse(record.end_time) : NaN;
+          if (!Number.isNaN(st) && !Number.isNaN(et) && et > st) {
+            durationSeconds = Math.round((et - st) / 1000);
+          }
+          const noAnswerCauses = [
+            "call_rejected", "user_busy", "no_answer", "originator_cancel",
+            "no_user_response", "no_answer_timeout", "unallocated_number",
+          ];
+          const finalStatus = cause === "normal_clearing"
+            ? "completed"
+            : noAnswerCauses.includes(cause) ? "no_answer" : "failed";
+
+          const patch = { status: finalStatus, duration_seconds: durationSeconds };
+          await supabase.from("ai_agent_conversations")
+            .update(patch)
+            .eq("metadata->>telnyx_call_control_id", ccid)
+            .in("status", ["ringing", "active"]);
+          await supabase.from("internal_call_logs")
+            .update(patch)
+            .eq("metadata->>telnyx_call_control_id", ccid)
+            .in("status", ["ringing", "active"]);
+
+          console.log(`[telnyx-webhook] call.hangup ccid=${ccid} cause=${cause} status=${finalStatus} dur=${durationSeconds}s`);
+        }
         break;
       }
 
