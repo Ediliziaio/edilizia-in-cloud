@@ -8,6 +8,7 @@ import { LeadImportCard } from "@/components/admin/outreach/LeadImportCard";
 import { SuppressionAddCard } from "@/components/admin/outreach/SuppressionAddCard";
 import { OutreachSenderPool } from "@/components/admin/outreach/OutreachSenderPool";
 import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences";
+import { OutreachReplyInbox } from "@/components/admin/outreach/OutreachReplyInbox";
 import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -162,10 +163,7 @@ function OutreachCockpit() {
             </CardContent>
           </Card>
 
-          <Soon phase="Prossimo: Fase 1" title="Risposte da lavorare (inbox unificata)" points={[
-            "Le risposte alle caselle cold atterreranno qui, legate a contatto e sequenza.",
-            "È il punto dove si chiudono le trattative: la priorità #1 della giornata.",
-          ]} />
+          <OutreachReplyInbox companyId={companyId} />
         </TabsContent>
 
         {/* ── LEAD & LISTE ── */}
