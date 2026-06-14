@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { classifyEmail, isLowQuality } from "../../../../supabase/functions/_shared/email-quality";
 import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, RotateCcw, ArrowRight } from "lucide-react";
 
 /**
@@ -54,7 +55,7 @@ function autoMap(headers: string[]): Mapping {
 
 type Result = {
   total: number; imported: number; errors: number;
-  skippedNoContact: number; skippedDupFile: number; skippedDupDb: number;
+  skippedNoContact: number; skippedDupFile: number; skippedDupDb: number; skippedLowQuality: number;
 };
 
 export function LeadImportCard({ companyId, onImported }: { companyId: string; onImported?: () => void }) {
@@ -67,6 +68,7 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
   const [listTag, setListTag] = useState(() => `import-${new Date().toISOString().slice(0, 10)}`);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<Result | null>(null);
+  const [excludeLowQuality, setExcludeLowQuality] = useState(true);
 
   function reset() {
     setPhase("idle"); setFileName(""); setHeaders([]); setRows([]); setMapping({});
@@ -106,7 +108,7 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
   function buildContacts() {
     const seen = new Set<string>();
     const contacts: Record<string, unknown>[] = [];
-    let skippedNoContact = 0, skippedDupFile = 0;
+    let skippedNoContact = 0, skippedDupFile = 0, skippedLowQuality = 0;
     const nowIso = new Date().toISOString();
     const tag = listTag.trim() || "import";
 
@@ -115,6 +117,7 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
       const email = get("email").toLowerCase();
       const phone = get("phone");
       if (!email && !phone) { skippedNoContact++; continue; }
+      if (excludeLowQuality && email && isLowQuality(classifyEmail(email))) { skippedLowQuality++; continue; }
       const key = email || phone;
       if (seen.has(key)) { skippedDupFile++; continue; }
       seen.add(key);
@@ -132,7 +135,7 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
         last_activity_at: nowIso,
       });
     }
-    return { contacts, skippedNoContact, skippedDupFile };
+    return { contacts, skippedNoContact, skippedDupFile, skippedLowQuality };
   }
 
   /** Quali email esistono già nel DB per questa company (chunk di .in() per non scaricare l'intera tabella). */
@@ -151,7 +154,7 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
   async function runImport() {
     setPhase("importing"); setProgress(0);
     try {
-      const { contacts, skippedNoContact, skippedDupFile } = buildContacts();
+      const { contacts, skippedNoContact, skippedDupFile, skippedLowQuality } = buildContacts();
       if (!contacts.length) {
         toast.error("Nessun contatto valido: serve almeno email o telefono mappati.");
         setPhase("mapping"); return;
@@ -169,7 +172,7 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
         setProgress(Math.round(((i + batch.length) / toInsert.length) * 100));
       }
 
-      setResult({ total: rows.length, imported, errors, skippedNoContact, skippedDupFile, skippedDupDb });
+      setResult({ total: rows.length, imported, errors, skippedNoContact, skippedDupFile, skippedDupDb, skippedLowQuality });
       setPhase("done");
       if (imported > 0) { toast.success(`${imported} contatti importati nella lista "${listTag.trim() || "import"}"`); onImported?.(); }
       else toast.info("Nessun nuovo contatto importato (tutti duplicati o senza recapito).");
@@ -232,6 +235,11 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
               <Input id="list-tag" value={listTag} onChange={(e) => setListTag(e.target.value)} className="h-9" placeholder="es. import-fiere-2026" />
             </div>
 
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+              <input type="checkbox" checked={excludeLowQuality} onChange={(e) => setExcludeLowQuality(e.target.checked)} className="accent-orange-500" />
+              Escludi email <strong className="font-medium text-foreground">role</strong> (info@, noreply@) e <strong className="font-medium text-foreground">usa-e-getta</strong> — meno bounce
+            </label>
+
             {!hasContactCol && (
               <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -269,6 +277,7 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
               <Stat label="Importati" value={result.imported} tone="good" />
               <Stat label="Errori" value={result.errors} tone={result.errors ? "bad" : "default"} />
               <Stat label="Senza recapito" value={result.skippedNoContact} />
+              <Stat label="Bassa qualità" value={result.skippedLowQuality} />
               <Stat label="Duplicati nel file" value={result.skippedDupFile} />
               <Stat label="Già in rubrica" value={result.skippedDupDb} />
             </div>
