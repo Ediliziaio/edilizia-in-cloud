@@ -20,6 +20,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { assignSenders, type SenderState } from "../_shared/outreach-dispatch-logic.ts";
+import { renderTemplate, contactToVars, hashSeed } from "../_shared/outreach-template.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -45,7 +46,7 @@ Deno.serve(async (req) => {
     // 1. coda dovuta
     const { data: queue, error: qErr } = await supabase
       .from("outreach_send_queue")
-      .select("id, to_email, subject, body, attempts, max_attempts")
+      .select("id, to_email, subject, body, attempts, max_attempts, contact_id")
       .eq("status", "queued").eq("channel", "email")
       .lte("scheduled_for", now.toISOString())
       .order("scheduled_for", { ascending: true })
@@ -65,6 +66,16 @@ Deno.serve(async (req) => {
     const senderById = new Map(senders.map((s) => [s.id, s]));
     const queueById = new Map(queue.map((q) => [q.id, q]));
 
+    // vars dei contatti per la personalizzazione (variabili + spintax al send)
+    const contactIds = [...new Set(queue.map((q) => q.contact_id).filter(Boolean))];
+    const contactById = new Map<string, any>();
+    if (contactIds.length) {
+      const { data: cs } = await supabase
+        .from("marketing_contacts")
+        .select("id,first_name,last_name,company_name,email,phone").in("id", contactIds);
+      for (const c of cs || []) contactById.set(c.id, c);
+    }
+
     // 3. assegnazione round-robin entro i cap (logica pura testata)
     const { assignments } = assignSenders(queue.map((q) => q.id), senders as SenderState[], today);
     result.deferred = queue.length - assignments.length;
@@ -81,12 +92,16 @@ Deno.serve(async (req) => {
       await supabase.from("outreach_send_queue").update({ status: "sending" }).eq("id", item.id);
       try {
         const from = sender.display_name ? `${sender.display_name} <${sender.email}>` : sender.email;
+        // personalizzazione al send: variabili + spintax, seed stabile per destinatario
+        const contact = item.contact_id ? contactById.get(item.contact_id) : null;
+        const vars = contact ? contactToVars(contact) : {};
+        const seed = hashSeed(item.to_email || item.id);
         const res = await sendEmailUnified({
           companyId: PLATFORM_COMPANY,
           stream: "marketing",
           to: item.to_email,
-          subject: item.subject || "",
-          html: item.body || "",
+          subject: renderTemplate(item.subject || "", vars, { seed }),
+          html: renderTemplate(item.body || "", vars, { seed }),
           senderOverride: { from, replyTo: sender.email, source: "outreach_pool" },
           metadata: { outreach_queue_id: item.id, sender_account_id: sender.id },
         });
