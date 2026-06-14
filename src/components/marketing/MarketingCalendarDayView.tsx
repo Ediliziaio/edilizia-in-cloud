@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { Car, AlertTriangle, MapPinOff, User, Calendar as CalendarIcon } from "lucide-react";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
 import type { GoogleBusySlot } from "@/types/calendar";
-import { buildTimeSlots, buildColorMap, timeToMin } from "@/lib/marketingCalendarConstants";
+import { buildTimeSlots, buildColorMap, timeToMin, computeOverlapLayout } from "@/lib/marketingCalendarConstants";
 import DraggableAppointment from "./DraggableAppointment";
 import DroppableSlot from "./DroppableSlot";
 
@@ -67,6 +67,20 @@ export default function MarketingCalendarDayView({
     () => appointments.filter((a) => isSameDay(parseISO(a.appointment_date), date)),
     [appointments, date]
   );
+
+  // Layout sovrapposizioni stile Google Calendar: appuntamenti che condividono la
+  // stessa fascia vengono affiancati (mezza/un terzo larghezza). Solo quelli con
+  // un orario di inizio; gli altri (senza orario) restano a piena larghezza.
+  const overlapLayout = useMemo(() => {
+    const timed = dayAppointments
+      .filter((a) => a.appointment_time)
+      .map((a) => {
+        const start = timeToMin(a.appointment_time!);
+        const end = a.appointment_end_time ? timeToMin(a.appointment_end_time) : start + slotDurationMinutes;
+        return { id: a.id, start, end: Math.max(end, start + 1) };
+      });
+    return computeOverlapLayout(timed);
+  }, [dayAppointments, slotDurationMinutes]);
 
   const travelLegMap = useMemo(() => {
     const map: Record<string, TravelLeg> = {};
@@ -286,6 +300,7 @@ export default function MarketingCalendarDayView({
                     const hasNoCoords = apt.lat == null || apt.lng == null;
                     const heightPx = getHeightPx(apt);
                     const topOffset = getTopOffsetPx(apt, slotTime);
+                    const placement = overlapLayout.get(apt.id);
 
                     return (
                       <DraggableAppointment
@@ -298,6 +313,8 @@ export default function MarketingCalendarDayView({
                         startTime={apt.appointment_time?.slice(0, 5)}
                         spanHeight={heightPx}
                         topOffsetPx={topOffset}
+                        column={placement?.column}
+                        columnsCount={placement?.columnsCount}
                       >
                         <div className="h-full relative">
                           {leg && (

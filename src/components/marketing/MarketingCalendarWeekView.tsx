@@ -7,7 +7,7 @@ import { Car, AlertTriangle, MapPinOff, User, Calendar as CalendarIcon } from "l
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { MarketingAppointment, TravelLeg } from "@/types/marketingCalendar";
 import type { GoogleBusySlot } from "@/types/calendar";
-import { buildTimeSlots, buildColorMap, timeToMin } from "@/lib/marketingCalendarConstants";
+import { buildTimeSlots, buildColorMap, timeToMin, computeOverlapLayout } from "@/lib/marketingCalendarConstants";
 import DraggableAppointment from "./DraggableAppointment";
 import DroppableSlot from "./DroppableSlot";
 
@@ -68,6 +68,23 @@ export default function MarketingCalendarWeekView({
 
   const colorMap = useMemo(() => buildColorMap(calendarIds), [calendarIds]);
   const timeSlots = useMemo(() => buildTimeSlots(slotDurationMinutes), [slotDurationMinutes]);
+
+  // Layout sovrapposizioni stile Google Calendar, calcolato PER GIORNO (i cluster
+  // di un giorno non interferiscono con quelli di un altro). Mappa unica per id.
+  const overlapLayout = useMemo(() => {
+    const merged = new Map<string, { column: number; columnsCount: number }>();
+    for (const day of days) {
+      const timed = appointments
+        .filter((a) => a.appointment_time && isSameDay(parseISO(a.appointment_date), day))
+        .map((a) => {
+          const start = timeToMin(a.appointment_time!);
+          const end = a.appointment_end_time ? timeToMin(a.appointment_end_time) : start + slotDurationMinutes;
+          return { id: a.id, start, end: Math.max(end, start + 1) };
+        });
+      computeOverlapLayout(timed).forEach((v, k) => merged.set(k, v));
+    }
+    return merged;
+  }, [appointments, days, slotDurationMinutes]);
 
   const travelLegMaps = useMemo(() => {
     const maps: Record<string, Record<string, TravelLeg>> = {};
@@ -324,6 +341,7 @@ export default function MarketingCalendarWeekView({
                           const sellerName = (apt as any).assigned_name as string | null;
                           // Mostra dettagli solo se l'altezza della card è sufficiente
                           const showDetails = (heightPx ?? 0) >= 40;
+                          const placement = overlapLayout.get(apt.id);
 
                           return (
                             <DraggableAppointment
@@ -336,6 +354,8 @@ export default function MarketingCalendarWeekView({
                               startTime={apt.appointment_time?.slice(0, 5)}
                               spanHeight={heightPx}
                               topOffsetPx={topOffset}
+                              column={placement?.column}
+                              columnsCount={placement?.columnsCount}
                             >
                               <Tooltip>
                                 <TooltipTrigger asChild>

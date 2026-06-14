@@ -14,6 +14,9 @@ interface Props {
   startTime?: string;
   spanHeight?: number;
   topOffsetPx?: number;
+  /** Layout sovrapposizioni stile Google Calendar (vedi computeOverlapLayout) */
+  column?: number;
+  columnsCount?: number;
 }
 
 
@@ -27,6 +30,8 @@ export default function DraggableAppointment({
   startTime,
   spanHeight,
   topOffsetPx,
+  column,
+  columnsCount,
 }: Props) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `apt-${appointment.id}`,
@@ -39,6 +44,17 @@ export default function DraggableAppointment({
   const [resizeLabel, setResizeLabel] = useState<string | null>(null);
 
   const pxPerMinute = slotHeightPx / slotDurationMinutes;
+
+  // Layout sovrapposizioni (stile Google Calendar): con più di una colonna
+  // l'appuntamento viene posizionato in assoluto e affiancato agli altri dello
+  // stesso cluster (mezza/un terzo di larghezza). Con una sola colonna resta il
+  // comportamento a flusso (marginTop) per non rischiare regressioni.
+  const cols = columnsCount && columnsCount > 0 ? columnsCount : 1;
+  const col = column && column > 0 ? column : 0;
+  const useColumns = cols > 1;
+  // piccolo gap a destra tra colonne affiancate
+  const widthPct = useColumns ? `calc(${100 / cols}% - 2px)` : undefined;
+  const leftPct = useColumns ? `calc(${(col * 100) / cols}% + 1px)` : undefined;
 
   const handleResizeStart = useCallback(
     (e: React.PointerEvent) => {
@@ -120,7 +136,11 @@ export default function DraggableAppointment({
         // partendo da un appuntamento; "none" lo bloccava → ogni swipe era un drag.
         touchAction: "manipulation",
         ...(spanHeight != null ? { height: spanHeight, zIndex: 5 } : {}),
-        ...(topOffsetPx ? { marginTop: topOffsetPx } : {}),
+        ...(useColumns
+          // Sovrapposizioni: posizionamento assoluto affiancato. top dall'offset
+          // dello slot, left/width dalla colonna assegnata.
+          ? { position: "absolute" as const, top: topOffsetPx ?? 0, left: leftPct, width: widthPct }
+          : (topOffsetPx ? { marginTop: topOffsetPx } : {})),
       }}
       data-resize-id={appointment.id}
     >

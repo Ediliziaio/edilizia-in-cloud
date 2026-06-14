@@ -58,3 +58,59 @@ export function minutesToTimeStr(totalMin: number): string {
 export function addMinutesToTimeStr(t: string, mins: number): string {
   return minutesToTimeStr(timeToMin(t) + mins);
 }
+
+/**
+ * Layout di sovrapposizione stile Google Calendar: per ogni appuntamento di una
+ * giornata calcola in quale "colonna" affiancarlo e quante colonne servono nel
+ * suo cluster di sovrapposizioni. Così due appuntamenti che condividono la stessa
+ * fascia oraria vengono mostrati fianco a fianco (mezza larghezza ciascuno) invece
+ * che uno sopra l'altro.
+ *
+ * Algoritmo standard a colonne: ordina per inizio, raggruppa gli eventi che si
+ * sovrappongono a catena, e assegna ad ognuno la prima colonna libera.
+ */
+export interface OverlapPlacement {
+  column: number;
+  columnsCount: number;
+}
+
+export function computeOverlapLayout(
+  items: { id: string; start: number; end: number }[],
+): Map<string, OverlapPlacement> {
+  const result = new Map<string, OverlapPlacement>();
+  const sorted = [...items].sort((a, b) => a.start - b.start || a.end - b.end);
+
+  let cluster: typeof sorted = [];
+  let clusterEnd = -Infinity;
+
+  const flush = () => {
+    if (cluster.length === 0) return;
+    // columns[c] = orario di fine dell'ultimo evento nella colonna c
+    const columns: number[] = [];
+    const colOf = new Map<string, number>();
+    for (const ev of cluster) {
+      let placed = -1;
+      for (let c = 0; c < columns.length; c++) {
+        if (columns[c] <= ev.start) { placed = c; break; }
+      }
+      if (placed === -1) { placed = columns.length; columns.push(ev.end); }
+      else { columns[placed] = ev.end; }
+      colOf.set(ev.id, placed);
+    }
+    const columnsCount = columns.length;
+    for (const ev of cluster) {
+      result.set(ev.id, { column: colOf.get(ev.id) ?? 0, columnsCount });
+    }
+    cluster = [];
+    clusterEnd = -Infinity;
+  };
+
+  for (const ev of sorted) {
+    if (cluster.length > 0 && ev.start >= clusterEnd) flush();
+    cluster.push(ev);
+    clusterEnd = Math.max(clusterEnd, ev.end);
+  }
+  flush();
+
+  return result;
+}
