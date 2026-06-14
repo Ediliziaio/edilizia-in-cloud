@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAdminMarketing } from "@/hooks/useAdminMarketing";
 import { PlatformCompanyProvider } from "@/components/admin/PlatformCompanyProvider";
 import { LeadImportCard } from "@/components/admin/outreach/LeadImportCard";
+import { SuppressionAddCard } from "@/components/admin/outreach/SuppressionAddCard";
+import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -197,9 +199,8 @@ function OutreachCockpit() {
 
         {/* ── DELIVERABILITY ── */}
         <TabsContent value="deliverability" className="mt-4 space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Kpi icon={ShieldCheck} label="In suppression" value={fmt(suppressed.data)} hint="indirizzi da non contattare" tone="warn" />
-          </div>
+          <SuppressionAddCard companyId={companyId} />
+          <EmailSuppressionsTable />
           <Soon phase="Fase 2" title="Pool mittenti, warm-up e reputazione" points={[
             "Sender pool: più caselle su più domini cold dedicati, con rotazione.",
             "Warm-up automatico per casella + auto-pausa se bounce/lamentele salgono.",
