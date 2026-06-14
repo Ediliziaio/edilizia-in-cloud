@@ -7,6 +7,7 @@ import { PlatformCompanyProvider } from "@/components/admin/PlatformCompanyProvi
 import { LeadImportCard } from "@/components/admin/outreach/LeadImportCard";
 import { SuppressionAddCard } from "@/components/admin/outreach/SuppressionAddCard";
 import { OutreachSenderPool } from "@/components/admin/outreach/OutreachSenderPool";
+import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences";
 import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -182,12 +183,8 @@ function OutreachCockpit() {
 
         {/* ── SEQUENZE ── */}
         <TabsContent value="sequenze" className="mt-4 space-y-4">
-          <Soon phase="Fase 1 — il cuore del motore" title="Cadenze multi-step" points={[
-            "Si lavora a sequenze, non a 'blast': es. G0 email → G3 follow-up → G7 WhatsApp → G12 chiusura.",
-            "Il contatto entra in sequenza; il motore manda lo step giusto ogni giorno dentro i limiti del pool.",
-            "Si ferma da sola su risposta / opt-out / bounce.",
-          ]} />
-          <Shortcut to="/admin/marketing/automazioni" icon={Workflow} label="Builder automazioni (esistente)" desc="Base su cui costruiremo le sequenze cold" />
+          <OutreachSequences companyId={companyId} />
+          <Shortcut to="/admin/marketing/automazioni" icon={Workflow} label="Builder automazioni (esistente)" desc="Flussi event-based, complementari alle sequenze cold" />
         </TabsContent>
 
         {/* ── PIPELINE ── */}
