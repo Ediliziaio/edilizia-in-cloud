@@ -40,7 +40,8 @@ export function MigrationGate({ title, unlocks }: { title: string; unlocks: stri
             ))}
           </ul>
         </div>
-        <p className="text-[11px] text-muted-foreground">File: <code>{OUTREACH_MIGRATION_FILE}</code></p>
+        <p className="text-[11px] text-muted-foreground">Migrazione: <code>{OUTREACH_MIGRATION_FILE}</code></p>
+        <p className="text-[11px] text-muted-foreground">📖 Guida passo-passo (domini, SES, caselle, risposte, cron): <code>docs/outreach-setup-ses.md</code></p>
       </CardContent>
     </Card>
   );
