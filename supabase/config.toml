@@ -54,6 +54,16 @@ verify_jwt = true
 [functions.outreach-reply-send]
 verify_jwt = true
 
+# Bozza AI di risposta nell'inbox Outreach: ricostruisce il thread col prospect e
+# genera una risposta breve da editare/inviare. Solo super_admin (JWT richiesto).
+[functions.outreach-ai-reply]
+verify_jwt = true
+
+# Generatore AI di cadenze cold intere (N step email) da un "angle". Ritorna
+# l'anteprima { name, steps } (la UI poi crea sequenza+step). Solo super_admin (JWT richiesto).
+[functions.outreach-ai-sequence]
+verify_jwt = true
+
 # Anteprima/test email nodi automazione — auth JWT manuale (qualsiasi utente loggato).
 [functions.automation-email-render]
 verify_jwt = false

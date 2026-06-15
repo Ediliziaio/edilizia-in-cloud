@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import {
-  Inbox, Mail, Search, ChevronLeft, MessageSquare, AlertTriangle, Building2, Send, Loader2,
+  Inbox, Mail, Search, ChevronLeft, MessageSquare, AlertTriangle, Building2, Send, Loader2, Wand2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -143,6 +143,7 @@ export function OutreachInbox({ companyId }: { companyId: string }) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
+  const [aiDrafting, setAiDrafting] = useState(false);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
@@ -337,6 +338,28 @@ export function OutreachInbox({ companyId }: { companyId: string }) {
       toast.error(e instanceof Error ? e.message : "Invio non riuscito");
     } finally {
       setSending(false);
+    }
+  };
+
+  // Genera una bozza di risposta con l'AI (edge outreach-ai-reply): ricostruisce
+  // il thread col prospect lato server e mette il testo nella textarea, pronto da
+  // editare e inviare. Richiede il contact_id (box mostrato solo se presente).
+  const draftWithAi = async (contactId: string) => {
+    setAiDrafting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("outreach-ai-reply", {
+        body: { contact_id: contactId },
+      });
+      if (error) throw error;
+      if (data && (data as { error?: string }).error) throw new Error((data as { error?: string }).error);
+      const draft = (data as { draft?: string })?.draft?.trim();
+      if (!draft) throw new Error("Nessuna bozza generata");
+      setReplyText(draft);
+      toast.success("Bozza generata — rivedila e invia");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Generazione bozza non riuscita");
+    } finally {
+      setAiDrafting(false);
     }
   };
 
@@ -577,7 +600,7 @@ export function OutreachInbox({ companyId }: { companyId: string }) {
                   aria-label="Testo della risposta"
                   rows={3}
                   className="resize-none text-sm"
-                  disabled={sending}
+                  disabled={sending || aiDrafting}
                   onKeyDown={(e) => {
                     if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !sending && replyText.trim()) {
                       e.preventDefault();
@@ -587,15 +610,28 @@ export function OutreachInbox({ companyId }: { companyId: string }) {
                 />
                 <div className="mt-2 flex items-center justify-between gap-2">
                   <span className="text-[11px] text-muted-foreground">⌘/Ctrl + Invio per inviare</span>
-                  <Button
-                    size="sm"
-                    onClick={() => void sendReply(selected.contact!.id)}
-                    disabled={sending || !replyText.trim()}
-                    className="gap-1.5"
-                  >
-                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    {sending ? "Invio…" : "Invia risposta"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void draftWithAi(selected.contact!.id)}
+                      disabled={sending || aiDrafting}
+                      className="gap-1.5"
+                      title="L'AI legge la conversazione e propone una risposta da rivedere"
+                    >
+                      {aiDrafting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                      {aiDrafting ? "Scrivo…" : "Bozza AI"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => void sendReply(selected.contact!.id)}
+                      disabled={sending || aiDrafting || !replyText.trim()}
+                      className="gap-1.5"
+                    >
+                      {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      {sending ? "Invio…" : "Invia risposta"}
+                    </Button>
+                  </div>
                 </div>
               </div>
             ) : (
