@@ -64,6 +64,11 @@ verify_jwt = true
 [functions.outreach-ai-sequence]
 verify_jwt = true
 
+# Riepilogo AI di una conversazione cold nell'inbox Outreach: dal thread (passato dal
+# client) genera { summary, intent_hint, suggested_reply }. Solo super_admin (JWT richiesto).
+[functions.outreach-ai-summary]
+verify_jwt = true
+
 # Anteprima/test email nodi automazione — auth JWT manuale (qualsiasi utente loggato).
 [functions.automation-email-render]
 verify_jwt = false

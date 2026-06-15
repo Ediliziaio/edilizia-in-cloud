@@ -13,7 +13,7 @@ import {
   Inbox, Mailbox, Mail, Search, ChevronLeft, MessageSquare, AlertTriangle, Building2,
   Send, Loader2, Wand2, CheckCheck, Archive, Layers, PanelRightOpen, PanelRightClose,
   User, Phone, Tag, ShieldBan, Pause, Play, ThumbsUp, ThumbsDown, Clock, Briefcase,
-  Activity, ShieldCheck, Check, XCircle, Ban, MessageSquareReply, X, CalendarClock, GitBranch,
+  Activity, ShieldCheck, Check, XCircle, Ban, MessageSquareReply, X, CalendarClock, GitBranch, Sparkles,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -21,7 +21,7 @@ import { MigrationGate } from "./_shared";
 import { OutreachConvertContactDialog } from "./OutreachConvertContactDialog";
 import {
   INTENT_META, ENROLLMENT_STATUS_META, type Conversation, type StatusFilter, type DateFilter,
-  type SequenceOption, type LeadContext, type LeadSequence, type MsgDelivery,
+  type SequenceOption, type LeadContext, type LeadSequence, type MsgDelivery, type AiSummary,
   contactName, iniziali, relativeTime, fullTime, providerLabel, senderStatusColor, stripHtml,
   useOutreachConversations, useReplyComposer, useLeadContext, useLeadActions, isEnrollmentLive,
 } from "./useOutreachConversations";
@@ -58,7 +58,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
     isLoading, errored, tableMissing,
     markRead, markAllRead, archiveRead, setIntent, filterConversations, signatureForSender,
   } = useOutreachConversations(companyId);
-  const { replyText, setReplyText, sending, aiDrafting, sendReply, draftWithAi } = useReplyComposer(companyId);
+  const { replyText, setReplyText, sending, aiDrafting, sendReply, draftWithAi, summarizing, summarizeWithAi } = useReplyComposer(companyId);
   const snippets = useReplySnippets();
 
   const [filter, setFilter] = useState<StatusFilter>("all");
@@ -596,6 +596,9 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
                 onSetIntent={(intent) => selected.contact?.id && setIntent.mutate({ contactId: selected.contact.id, intent })}
                 intentPending={setIntent.isPending}
                 onClose={() => setContextOverride(false)}
+                summarizing={summarizing}
+                onSummarize={() => summarizeWithAi(selected.messages)}
+                onUseDraft={(text) => setReplyText(text)}
               />
             )}
           </div>
@@ -970,6 +973,7 @@ type LeadActionsApi = ReturnType<typeof useLeadActions>;
 
 function LeadContextPanel({
   companyId, conversation, context, loading, liveSequence, actions, onSetIntent, intentPending, onClose,
+  summarizing, onSummarize, onUseDraft,
 }: {
   companyId: string;
   conversation: Conversation;
@@ -980,6 +984,10 @@ function LeadContextPanel({
   onSetIntent: (intent: string) => void;
   intentPending: boolean;
   onClose: () => void;
+  /** Riepilogo AI: loading + generatore (legge il thread) + inserimento bozza. */
+  summarizing: boolean;
+  onSummarize: () => Promise<AiSummary | null>;
+  onUseDraft: (text: string) => void;
 }) {
   const contact = context?.contact ?? conversation.contact ?? null;
   const contactId = contact?.id ?? null;
@@ -1016,6 +1024,18 @@ function LeadContextPanel({
               )}
             </div>
           </div>
+
+          {/* ── Riepilogo AI ── (solo quando c'è un thread da riassumere).
+              key=conversation.key: il blocco si rimonta al cambio conversazione,
+              azzerando il riepilogo precedente senza setState-in-effect. */}
+          {conversation.messages.length > 0 && (
+            <AiSummaryBlock
+              key={conversation.key}
+              summarizing={summarizing}
+              onSummarize={onSummarize}
+              onUseDraft={onUseDraft}
+            />
+          )}
 
           {!contact ? (
             // Caso test attuale: conversazione esistente ma email non in rubrica.
@@ -1154,6 +1174,86 @@ function LeadContextPanel({
         </Button>
       </div>
     </aside>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Riepilogo AI della conversazione (edge outreach-ai-summary).
+   Bottone "Genera riepilogo" → frase di sintesi + hint intento + "Usa come bozza"
+   che inserisce la risposta proposta nel box. Stato locale (summary/empty);
+   loading e degrado con grazia (toast) li gestisce il composer condiviso.
+   ────────────────────────────────────────────────────────────────────────── */
+function AiSummaryBlock({
+  summarizing, onSummarize, onUseDraft,
+}: {
+  summarizing: boolean;
+  onSummarize: () => Promise<AiSummary | null>;
+  onUseDraft: (text: string) => void;
+}) {
+  const [summary, setSummary] = useState<AiSummary | null>(null);
+  // true dopo un tentativo andato a vuoto (200 con campi vuoti / errore): mostra
+  // un micro-hint invece di lasciare il blocco identico a "mai generato".
+  const [emptyTried, setEmptyTried] = useState(false);
+
+  const generate = async () => {
+    setEmptyTried(false);
+    const res = await onSummarize();
+    if (res) setSummary(res);
+    else { setSummary(null); setEmptyTried(true); }
+  };
+
+  return (
+    <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
+          <Sparkles className="h-3.5 w-3.5" /> Riepilogo AI
+        </span>
+        <Button
+          size="sm" variant="ghost"
+          className="h-6 gap-1 px-1.5 text-[11px] text-primary hover:text-primary"
+          disabled={summarizing}
+          onClick={() => void generate()}
+          title="L'AI legge la conversazione e ne sintetizza stato, intento e una bozza di risposta"
+        >
+          {summarizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          {summarizing ? "Genero…" : summary ? "Rigenera" : "Genera riepilogo"}
+        </Button>
+      </div>
+
+      {!summary && !summarizing && (
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          {emptyTried
+            ? "Riepilogo non disponibile al momento — riprova."
+            : "Sintesi della conversazione, intento e bozza di risposta in un colpo solo."}
+        </p>
+      )}
+
+      {summary && (
+        <div className="mt-2 space-y-2">
+          <p className="text-xs leading-relaxed text-foreground">{summary.summary}</p>
+          {summary.intentHint && (
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <Activity className="h-3 w-3 shrink-0" />
+              <span className="truncate">{summary.intentHint}</span>
+            </div>
+          )}
+          {summary.suggestedReply && (
+            <div className="rounded-md border bg-background/70 p-2">
+              <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Bozza proposta</div>
+              <p className="whitespace-pre-wrap break-words text-[11px] text-foreground">{summary.suggestedReply}</p>
+              <Button
+                size="sm" variant="outline"
+                className="mt-2 h-7 w-full gap-1.5 text-[11px]"
+                onClick={() => onUseDraft(summary.suggestedReply)}
+                title="Inserisci questa bozza nel box risposta"
+              >
+                <MessageSquareReply className="h-3.5 w-3.5" /> Usa come bozza
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

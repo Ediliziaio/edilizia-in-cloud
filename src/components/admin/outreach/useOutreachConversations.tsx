@@ -161,6 +161,16 @@ export interface ThreadMsg {
   delivery?: MsgDelivery;
 }
 
+/** Riepilogo AI di una conversazione (edge outreach-ai-summary). */
+export interface AiSummary {
+  /** Frase di sintesi (1 riga, IT) su a che punto siamo e cosa vuole il prospect. */
+  summary: string;
+  /** Hint sull'intento dell'ultima risposta (2-4 parole). */
+  intentHint: string;
+  /** Bozza di risposta proposta (da inserire nel box con "Usa come bozza"). */
+  suggestedReply: string;
+}
+
 export interface Conversation {
   key: string;
   contact: ContactRow | null;
@@ -1014,6 +1024,7 @@ export function useReplyComposer(companyId: string) {
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
   const [aiDrafting, setAiDrafting] = useState(false);
+  const [summarizing, setSummarizing] = useState(false);
 
   // Invia la risposta DALLA stessa casella che ha contattato il prospect
   // (edge outreach-reply-send). Richiede il contact_id.
@@ -1062,5 +1073,48 @@ export function useReplyComposer(companyId: string) {
     }
   };
 
-  return { replyText, setReplyText, sending, aiDrafting, sendReply, draftWithAi };
+  /**
+   * Riepilogo AI della conversazione (edge outreach-ai-summary): manda il thread
+   * già pronto dal client e ritorna { summary, intentHint, suggestedReply }, o
+   * null in caso di errore. Best-effort lato edge (torna 200 con campi vuoti se
+   * l'AI è giù); qui distinguiamo "non disponibile" (edge assente/non deployata)
+   * con un toast soft, senza rompere la UI. Non tocca la textarea: è l'UI a
+   * decidere quando inserire suggestedReply ("Usa come bozza").
+   */
+  const summarizeWithAi = async (messages: ThreadMsg[]): Promise<AiSummary | null> => {
+    setSummarizing(true);
+    try {
+      const payload = messages.map((m) => ({
+        direction: m.direction,
+        subject: m.subject,
+        body: m.body,
+        intent: m.intent,
+        at: m.at,
+      }));
+      const { data, error } = await supabase.functions.invoke("outreach-ai-summary", {
+        body: { messages: payload },
+      });
+      if (error) throw error;
+      const d = (data ?? {}) as { summary?: string; intent_hint?: string; suggested_reply?: string };
+      const summary: AiSummary = {
+        summary: (d.summary ?? "").trim(),
+        intentHint: (d.intent_hint ?? "").trim(),
+        suggestedReply: (d.suggested_reply ?? "").trim(),
+      };
+      if (!summary.summary && !summary.suggestedReply) {
+        // 200 con campi vuoti: l'AI non ha prodotto nulla di utile (best-effort edge).
+        toast.message("Riepilogo non disponibile al momento");
+        return null;
+      }
+      return summary;
+    } catch {
+      // Edge non deployata o errore di rete: degrada con grazia, niente crash UI.
+      toast.error("Riepilogo non disponibile");
+      return null;
+    } finally {
+      setSummarizing(false);
+    }
+  };
+
+  return { replyText, setReplyText, sending, aiDrafting, sendReply, draftWithAi, summarizing, summarizeWithAi };
 }
