@@ -6,21 +6,24 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  Loader2, Plus, Trash2, Mail, MessageSquare, Phone, ChevronRight, ChevronDown, AlertTriangle,
-  Sparkles, Eye, Copy, LayoutTemplate, Info, Network, Pencil, ArrowUp, ArrowDown, Check, X, Clock, ListPlus, Inbox,
+  Loader2, Plus, Mail, ChevronRight, ChevronDown, AlertTriangle,
+  Sparkles, Eye, Copy, LayoutTemplate, Info, Network, Pencil, Check, X, Trash2, ListPlus,
 } from "lucide-react";
-import { isMissingTableError, MigrationGate, htmlToPreviewText } from "./_shared";
+import { isMissingTableError, MigrationGate } from "./_shared";
 import { OutreachEnrollDialog } from "./OutreachEnrollDialog";
 import { OutreachSequenceFlowBuilder } from "./OutreachSequenceFlowBuilder";
 import { OutreachSequenceStats } from "./OutreachSequenceStats";
 import { OutreachAbzPanel } from "./OutreachAbzPanel";
 import { OutreachVarChips } from "./OutreachVarChips";
+import {
+  SequenceStepCard, WaitConnector, TimelineStartCap, TimelineEndCap, TimelineAddRow,
+} from "./SequenceTimeline";
+import { CH_ICON, CH_ACCENT, delayLabel, type TimelineStep } from "./sequenceShared";
 import { renderTemplate, contactToVars, hashSeed } from "../../../../supabase/functions/_shared/outreach-template";
 import { parseVariants } from "../../../../supabase/functions/_shared/outreach-abz";
 
@@ -37,27 +40,14 @@ const T_STEP = "outreach_sequence_steps";
 interface Seq { id: string; name: string; status: string; description: string | null; created_at: string; brand_id: string | null; track_opens?: boolean | null; }
 interface Step { id: string; sequence_id: string; step_order: number; channel: string; delay_days: number; delay_hours: number; subject: string | null; body: string; }
 
-const CH_ICON: Record<string, typeof Mail> = { email: Mail, whatsapp: MessageSquare, sms: Phone };
-const CH_LABEL: Record<string, string> = { email: "Email", whatsapp: "WhatsApp", sms: "SMS" };
-// Stile accent per canale (coerente con i nodi del builder visuale).
-const CH_ACCENT: Record<string, { wrap: string; text: string }> = {
-  email: { wrap: "bg-orange-100 dark:bg-orange-900/50", text: "text-orange-600 dark:text-orange-400" },
-  whatsapp: { wrap: "bg-emerald-100 dark:bg-emerald-900/50", text: "text-emerald-600 dark:text-emerald-400" },
-  sms: { wrap: "bg-sky-100 dark:bg-sky-900/50", text: "text-sky-600 dark:text-sky-400" },
+// Pallino di stato sequenza (Instantly-style health dot): bozza grigio / attiva verde.
+const STATUS_DOT: Record<string, string> = {
+  active: "bg-emerald-500",
+  draft: "bg-muted-foreground/40",
+  paused: "bg-amber-500",
+  archived: "bg-muted-foreground/30",
 };
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = { active: "default", draft: "outline", paused: "secondary", archived: "secondary" };
 const STATUS_LABEL: Record<string, string> = { draft: "Bozza", active: "Attiva", paused: "In pausa", archived: "Archiviata" };
-
-/** Etichetta ritardo leggibile: "Giorno 0", "+3 giorni", "+2 giorni 4h". */
-function delayLabel(days: number, hours = 0): string {
-  const d = Math.max(0, Math.trunc(days));
-  const h = Math.max(0, Math.trunc(hours));
-  if (d === 0 && h === 0) return "Giorno 0";
-  const parts: string[] = [];
-  if (d > 0) parts.push(`+${d} ${d === 1 ? "giorno" : "giorni"}`);
-  if (h > 0) parts.push(`${h}h`);
-  return parts.join(" ");
-}
 
 // Template cadenze pronte (cold B2B edilizia). delay_days = giorni dall'iscrizione.
 interface TplStep { channel: string; delay_days: number; subject?: string; body: string }
@@ -284,20 +274,20 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
       </div>
 
       {aiOpen && (
-        <Card className="border-orange-200 bg-orange-50/40 dark:border-orange-900/60 dark:bg-orange-950/20"><CardContent className="space-y-2 p-3">
+        <Card className="border-primary/25 bg-primary/[0.04]"><CardContent className="space-y-2 p-4">
           <div className="flex items-end gap-2">
             <div className="flex-1 space-y-1">
-              <Label className="text-xs">Angolo della cadenza</Label>
+              <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Angolo della cadenza</Label>
               <Input
                 value={aiAngle}
                 onChange={(e) => setAiAngle(e.target.value)}
                 placeholder="es. risparmio su fatturazione e gestione cantieri"
-                className="h-8"
+                className="h-9"
                 disabled={generateWithAi.isPending}
                 onKeyDown={(e) => { if (e.key === "Enter" && !generateWithAi.isPending) generateWithAi.mutate(aiAngle.trim()); }}
               />
             </div>
-            <Button size="sm" className="h-8 gap-1" disabled={generateWithAi.isPending} onClick={() => generateWithAi.mutate(aiAngle.trim())}>
+            <Button size="sm" className="h-9 gap-1" disabled={generateWithAi.isPending} onClick={() => generateWithAi.mutate(aiAngle.trim())}>
               {generateWithAi.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
               {generateWithAi.isPending ? "Genero…" : "Genera"}
             </Button>
@@ -307,14 +297,17 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
       )}
 
       {templateOpen && (
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2.5 sm:grid-cols-2">
           {TEMPLATES.map((tpl) => (
-            <Card key={tpl.name} className="flex flex-col transition-shadow hover:shadow-md">
-              <CardContent className="flex flex-1 flex-col gap-2 p-3">
-                <div className="flex items-center gap-2"><LayoutTemplate className="h-4 w-4 text-orange-500" /><span className="text-sm font-medium">{tpl.name}</span></div>
-                <p className="text-xs text-muted-foreground">{tpl.desc}</p>
-                <CadenceTimeline steps={tpl.steps} />
-                <Button size="sm" className="mt-auto h-8 w-full" disabled={createFromTemplate.isPending} onClick={() => createFromTemplate.mutate(tpl)}>
+            <Card key={tpl.name} className="flex flex-col rounded-xl transition-shadow hover:shadow-md">
+              <CardContent className="flex flex-1 flex-col gap-2.5 p-5">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary"><LayoutTemplate className="h-4 w-4" /></div>
+                  <span className="text-base font-semibold">{tpl.name}</span>
+                </div>
+                <p className="text-sm text-muted-foreground">{tpl.desc}</p>
+                <CadenceStrip steps={tpl.steps} />
+                <Button size="sm" className="mt-auto h-9 w-full" disabled={createFromTemplate.isPending} onClick={() => createFromTemplate.mutate(tpl)}>
                   {createFromTemplate.isPending ? "…" : `Usa questo (${tpl.steps.length} step)`}
                 </Button>
               </CardContent>
@@ -324,23 +317,23 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
       )}
 
       {creating && (
-        <Card className="border-primary/30"><CardContent className="flex items-end gap-2 p-3">
-          <div className="flex-1 space-y-1"><Label className="text-xs">Nome sequenza</Label><Input autoFocus value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !createSeq.isPending) createSeq.mutate(); }} placeholder="es. Cold edili Lombardia" className="h-8" /></div>
-          <Button size="sm" className="h-8" disabled={createSeq.isPending} onClick={() => createSeq.mutate()}>{createSeq.isPending ? "…" : "Crea"}</Button>
+        <Card className="rounded-xl border-primary/30"><CardContent className="flex items-end gap-2 p-4">
+          <div className="flex-1 space-y-1"><Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Nome sequenza</Label><Input autoFocus value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !createSeq.isPending) createSeq.mutate(); }} placeholder="es. Cold edili Lombardia" className="h-9" /></div>
+          <Button size="sm" className="h-9" disabled={createSeq.isPending} onClick={() => createSeq.mutate()}>{createSeq.isPending ? "…" : "Crea"}</Button>
         </CardContent></Card>
       )}
 
       {sequences.length === 0 && !creating && (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <div className="rounded-full bg-orange-100 p-3 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400"><ListPlus className="h-6 w-6" /></div>
+        <Card className="rounded-xl border-dashed">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <div className="rounded-2xl bg-primary/10 p-3.5 text-primary"><ListPlus className="h-6 w-6" /></div>
             <div className="space-y-1">
-              <p className="text-sm font-medium">Nessuna sequenza</p>
-              <p className="mx-auto max-w-md text-xs text-muted-foreground">Crea la prima cadenza per lavorare a step invece che a blast: apertura, follow-up e chiusura, in automatico.</p>
+              <p className="text-base font-semibold">Nessuna sequenza</p>
+              <p className="mx-auto max-w-md text-sm text-muted-foreground">Crea la prima cadenza per lavorare a step invece che a blast: apertura, follow-up e chiusura, in automatico.</p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-              <Button size="sm" className="h-8 gap-1" onClick={() => { setCreating(true); setTemplateOpen(false); setAiOpen(false); }}><Plus className="h-3.5 w-3.5" /> Nuova sequenza</Button>
-              <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => { setTemplateOpen(true); setAiOpen(false); setCreating(false); }}><LayoutTemplate className="h-3.5 w-3.5" /> Parti da un template</Button>
+              <Button size="sm" className="h-9 gap-1" onClick={() => { setCreating(true); setTemplateOpen(false); setAiOpen(false); }}><Plus className="h-3.5 w-3.5" /> Nuova sequenza</Button>
+              <Button size="sm" variant="outline" className="h-9 gap-1" onClick={() => { setTemplateOpen(true); setAiOpen(false); setCreating(false); }}><LayoutTemplate className="h-3.5 w-3.5" /> Parti da un template</Button>
             </div>
           </CardContent>
         </Card>
@@ -350,7 +343,7 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
         const steps = stepsBySeq.get(seq.id) ?? [];
         const isOpen = expanded === seq.id;
         return (
-          <Card key={seq.id} className={`overflow-hidden transition-shadow ${isOpen ? "shadow-md ring-1 ring-border" : "hover:shadow-sm"}`}>
+          <Card key={seq.id} className={`overflow-hidden rounded-xl transition-shadow ${isOpen ? "shadow-md ring-1 ring-border" : "hover:shadow-sm"}`}>
             <SequenceHeader
               seq={seq}
               steps={steps}
@@ -368,8 +361,7 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
               onEnrolled={invalidate}
             />
             {isOpen && (
-              <CardContent className="space-y-2.5 border-t bg-muted/10 pt-3">
-                {steps.length > 0 && <CadenceTimeline steps={steps} detailed />}
+              <CardContent className="space-y-3 border-t bg-muted/30 pt-4">
                 <TrackOpensToggle
                   checked={seq.track_opens === true}
                   pending={setTrackOpens.isPending}
@@ -424,10 +416,12 @@ function SequenceHeader({
     setEditing(false);
   }
 
+  const ordered = [...steps].sort((a, b) => a.step_order - b.step_order);
+
   return (
-    <div className="flex flex-col gap-2.5 p-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <button className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={onToggle} aria-label={isOpen ? "Comprimi" : "Espandi"}>
+    <div className="flex flex-col gap-2.5 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        <button className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={onToggle} aria-label={isOpen ? "Comprimi" : "Espandi"}>
           {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </button>
         <div className="min-w-0 flex-1">
@@ -437,25 +431,30 @@ function SequenceHeader({
                 autoFocus value={name} onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") cancelEdit(); }}
                 onBlur={commit}
-                className="h-7 max-w-[280px] text-sm font-semibold"
+                className="h-8 max-w-[280px] text-sm font-semibold"
               />
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-emerald-600" onMouseDown={(e) => e.preventDefault()} onClick={commit}><Check className="h-3.5 w-3.5" /></Button>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-600" onMouseDown={(e) => e.preventDefault()} onClick={commit}><Check className="h-3.5 w-3.5" /></Button>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
               <button className="group flex items-center gap-1.5 text-left" onClick={openEdit} title="Rinomina sequenza">
                 <span className="truncate text-base font-semibold">{seq.name}</span>
                 <Pencil className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
               </button>
-              <Badge variant={STATUS_VARIANT[seq.status] ?? "outline"} className="text-[10px]">{STATUS_LABEL[seq.status] ?? seq.status}</Badge>
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground" title={`Stato: ${STATUS_LABEL[seq.status] ?? seq.status}`}>
+                <span className={`h-2 w-2 rounded-full ${STATUS_DOT[seq.status] ?? STATUS_DOT.draft}`} />
+                {STATUS_LABEL[seq.status] ?? seq.status}
+              </span>
+              <span className="text-muted-foreground/40">·</span>
               <span className="text-xs text-muted-foreground">{steps.length} {steps.length === 1 ? "step" : "step"}</span>
+              {ordered.length > 0 && <ChannelMix steps={ordered} />}
             </div>
           )}
         </div>
       </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-1">
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
         <Select value={seq.brand_id || "none"} onValueChange={(v) => onSetBrand(v === "none" ? null : v)}>
-          <SelectTrigger className="h-7 w-[120px] text-xs" title="Brand: il pool di domini da cui spedisce questa sequenza"><SelectValue placeholder="Brand" /></SelectTrigger>
+          <SelectTrigger className="h-8 w-[120px] text-xs" title="Brand: il pool di domini da cui spedisce questa sequenza"><SelectValue placeholder="Brand" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">— brand —</SelectItem>
             {brands.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
@@ -469,17 +468,41 @@ function SequenceHeader({
           onEnrolled={onEnrolled}
         />
         <Select value={seq.status} onValueChange={onSetStatus}>
-          <SelectTrigger className="h-7 w-[104px] text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 w-[104px] text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="draft">Bozza</SelectItem><SelectItem value="active">Attiva</SelectItem>
             <SelectItem value="paused">In pausa</SelectItem><SelectItem value="archived">Archiviata</SelectItem>
           </SelectContent>
         </Select>
-        <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" title="Apri il builder visuale a nodi (flussi if/then)" onClick={onOpenFlow}><Network className="h-3.5 w-3.5" /> Builder visuale</Button>
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Duplica sequenza" disabled={dupPending} onClick={onDuplicate}><Copy className="h-3.5 w-3.5" /></Button>
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" title="Elimina sequenza" onClick={onDelete}><Trash2 className="h-3.5 w-3.5" /></Button>
+        <Button size="sm" variant="outline" className="h-8 gap-1 text-xs" title="Apri il builder visuale a nodi (flussi if/then)" onClick={onOpenFlow}><Network className="h-3.5 w-3.5" /> Builder visuale</Button>
+        <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="Duplica sequenza" disabled={dupPending} onClick={onDuplicate}><Copy className="h-3.5 w-3.5" /></Button>
+        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" title="Elimina sequenza" onClick={onDelete}><Trash2 className="h-3.5 w-3.5" /></Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Mini-strip canali della cadenza nell'header (anteprima "forma" della sequenza,
+ * stile Instantly): piccoli pallini-icona del canale di ogni step, compattati.
+ * Mostra fino a 6 step; oltre, un "+N". Pure-presentational.
+ */
+function ChannelMix({ steps }: { steps: { channel: string }[] }) {
+  const shown = steps.slice(0, 6);
+  const extra = steps.length - shown.length;
+  return (
+    <span className="hidden items-center gap-1 sm:inline-flex" title="Canali della cadenza, in ordine">
+      {shown.map((s, i) => {
+        const Icon = CH_ICON[s.channel] ?? Mail;
+        const accent = CH_ACCENT[s.channel] ?? CH_ACCENT.email;
+        return (
+          <span key={i} className={`flex h-5 w-5 items-center justify-center rounded-md ${accent.wrap} ${accent.text}`}>
+            <Icon className="h-3 w-3" />
+          </span>
+        );
+      })}
+      {extra > 0 && <span className="text-[10px] font-medium text-muted-foreground">+{extra}</span>}
+    </span>
   );
 }
 
@@ -494,10 +517,10 @@ function TrackOpensToggle({ checked, pending, onChange }: {
   onChange: (value: boolean) => void;
 }) {
   return (
-    <div className={`flex items-start justify-between gap-3 rounded-lg border p-2.5 transition-colors ${checked ? "border-orange-200 bg-orange-50/50 dark:border-orange-900/60 dark:bg-orange-950/20" : "bg-card"}`}>
+    <div className={`flex items-start justify-between gap-3 rounded-xl border p-3 transition-colors ${checked ? "border-primary/30 bg-primary/[0.04]" : "bg-card"}`}>
       <div className="min-w-0 space-y-0.5">
         <div className="flex items-center gap-1.5">
-          <Eye className={`h-3.5 w-3.5 ${checked ? "text-orange-600" : "text-muted-foreground"}`} />
+          <Eye className={`h-3.5 w-3.5 ${checked ? "text-primary" : "text-muted-foreground"}`} />
           <span className="text-xs font-medium">Traccia aperture</span>
           <TooltipProvider delayDuration={150}>
             <Tooltip>
@@ -527,33 +550,26 @@ function TrackOpensToggle({ checked, pending, onChange }: {
 }
 
 /**
- * Timeline visiva della cadenza: step ordinati per giorno con icona canale.
- * `detailed` mostra anche etichetta canale + ritardo leggibile sotto ogni nodo
- * (versione grande per la sequenza espansa); senza, versione compatta per le card.
+ * Strip compatta della cadenza per l'ANTEPRIMA dei template (riga orizzontale di
+ * pallini-canale con il giorno sotto). Usata solo nelle card template; il dettaglio
+ * della sequenza usa invece la timeline verticale (vedi SequenceSteps).
  */
-function CadenceTimeline({ steps, detailed = false }: { steps: { channel: string; delay_days: number; delay_hours?: number }[]; detailed?: boolean }) {
+function CadenceStrip({ steps }: { steps: { channel: string; delay_days: number; delay_hours?: number }[] }) {
   const ordered = [...steps].sort((a, b) => a.delay_days - b.delay_days);
   if (ordered.length === 0) return null;
   return (
-    <div className={`flex items-stretch gap-1 overflow-x-auto rounded-lg border bg-muted/20 ${detailed ? "p-3" : "p-2"}`}>
+    <div className="flex items-stretch gap-1 overflow-x-auto rounded-lg border bg-muted/30 p-2.5">
       {ordered.map((s, i) => {
         const Icon = CH_ICON[s.channel] ?? Mail;
         const accent = CH_ACCENT[s.channel] ?? CH_ACCENT.email;
         return (
           <div key={i} className="flex items-center gap-1">
-            {i > 0 && <div className={`shrink-0 bg-border ${detailed ? "h-px w-6" : "h-px w-4"}`} />}
+            {i > 0 && <div className="h-px w-5 shrink-0 bg-border" />}
             <div className="flex shrink-0 flex-col items-center gap-1">
-              <div className={`flex items-center justify-center rounded-full ${accent.wrap} ${accent.text} ${detailed ? "h-9 w-9" : "h-7 w-7"}`}>
-                <Icon className={detailed ? "h-4 w-4" : "h-3.5 w-3.5"} />
+              <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${accent.wrap} ${accent.text}`}>
+                <Icon className="h-4 w-4" />
               </div>
-              {detailed ? (
-                <div className="flex flex-col items-center leading-tight">
-                  <span className="text-[10px] font-medium">{CH_LABEL[s.channel] ?? s.channel}</span>
-                  <span className="text-[10px] text-muted-foreground">{delayLabel(s.delay_days, s.delay_hours)}</span>
-                </div>
-              ) : (
-                <span className="text-[10px] text-muted-foreground">{delayLabel(s.delay_days, s.delay_hours)}</span>
-              )}
+              <span className="text-[10px] text-muted-foreground">{delayLabel(s.delay_days, s.delay_hours)}</span>
             </div>
           </div>
         );
@@ -669,133 +685,109 @@ function SequenceSteps({ sequenceId, steps, onChange, db }: {
     } catch (e) { toast.error(e instanceof Error ? e.message : "Errore"); } finally { setBusyId(null); }
   }
 
+  // Quick-edit del ritardo di uno step direttamente dal pill-connettore della
+  // timeline. Il ritardo nel modello è ASSOLUTO (giorni dall'iscrizione): per il
+  // pill TRA lo step i e i+1 si imposta delay assoluto di i+1 = delay di i + delta.
+  async function saveDelay(id: string, delayDays: number, delayHours: number) {
+    setBusyId(id);
+    try {
+      const { error } = await db.from(T_STEP).update({
+        delay_days: Math.max(0, Math.trunc(delayDays)),
+        delay_hours: Math.max(0, Math.trunc(delayHours)),
+      }).eq("id", id);
+      if (error) throw error;
+      onChange();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Errore"); } finally { setBusyId(null); }
+  }
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Step della cadenza</span>
-        {ordered.length > 0 && <span className="text-[10px] text-muted-foreground">{ordered.length} step · clicca per modificare</span>}
+        {ordered.length > 0 && <span className="text-[10px] text-muted-foreground">{ordered.length} step · clicca una card per modificare</span>}
       </div>
 
-      {ordered.length === 0 && !adding && (
-        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed bg-muted/20 p-5 text-center">
-          <Inbox className="h-5 w-5 text-muted-foreground" />
-          <p className="text-xs text-muted-foreground">Ancora nessuno step. Aggiungi il primo messaggio della cadenza.</p>
+      {ordered.length === 0 && !adding ? (
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed bg-card p-8 text-center">
+          <div className="rounded-2xl bg-primary/10 p-3 text-primary"><Mail className="h-5 w-5" /></div>
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium">Ancora nessuno step</p>
+            <p className="text-xs text-muted-foreground">Aggiungi il primo messaggio della cadenza per partire.</p>
+          </div>
+          <Button size="sm" className="h-8 gap-1.5" onClick={() => { setEditingId(null); setAdding(true); }}>
+            <Plus className="h-4 w-4" /> Aggiungi primo step
+          </Button>
         </div>
-      )}
-
-      {ordered.map((s, i) => (
-        editingId === s.id ? (
-          <StepEditor
-            key={s.id}
-            initial={draftFromStep(s)}
-            busy={busyId === s.id}
-            onSave={(d) => saveExisting(s.id, d)}
-            onCancel={() => setEditingId(null)}
-            title={`Modifica step ${i + 1}`}
-          />
-        ) : (
-          <StepCard
-            key={s.id}
-            step={s}
-            index={i}
-            total={ordered.length}
-            busy={busyId === s.id}
-            onEdit={() => { setAdding(false); setEditingId(s.id); }}
-            onDuplicate={() => duplicateStep(s)}
-            onDelete={() => delStep(s.id)}
-            onMoveUp={() => move(i, -1)}
-            onMoveDown={() => move(i, 1)}
-          />
-        )
-      ))}
-
-      {adding ? (
-        <StepEditor
-          initial={emptyDraft()}
-          busy={busyId === "new"}
-          onSave={addNew}
-          onCancel={() => setAdding(false)}
-          title={`Nuovo step ${ordered.length + 1}`}
-        />
       ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-9 w-full gap-1.5 border-dashed text-muted-foreground hover:text-foreground"
-          onClick={() => { setEditingId(null); setAdding(true); }}
-        >
-          <Plus className="h-4 w-4" /> Aggiungi step
-        </Button>
+        <div className="rounded-xl border border-border bg-card p-4">
+          {ordered.length > 0 && <TimelineStartCap label={delayLabel(ordered[0].delay_days, ordered[0].delay_hours)} />}
+          {ordered.length > 0 && (
+            <WaitConnector
+              deltaDays={ordered[0].delay_days}
+              deltaHours={ordered[0].delay_hours}
+              onEditDelay={(d, h) => saveDelay(ordered[0].id, d, h)}
+            />
+          )}
+
+          {ordered.map((s, i) => {
+            const prev = ordered[i - 1];
+            const isLast = i === ordered.length - 1;
+            return (
+              <div key={s.id}>
+                {i > 0 && (
+                  <WaitConnector
+                    deltaDays={Math.max(0, s.delay_days - (prev?.delay_days ?? 0))}
+                    deltaHours={Math.max(0, (s.delay_hours ?? 0) - (prev?.delay_hours ?? 0))}
+                    onEditDelay={(d, h) => saveDelay(s.id, (prev?.delay_days ?? 0) + d, (prev?.delay_hours ?? 0) + h)}
+                  />
+                )}
+                {editingId === s.id ? (
+                  <div className="py-1">
+                    <StepEditor
+                      initial={draftFromStep(s)}
+                      busy={busyId === s.id}
+                      onSave={(d) => saveExisting(s.id, d)}
+                      onCancel={() => setEditingId(null)}
+                      title={`Modifica step ${i + 1}`}
+                    />
+                  </div>
+                ) : (
+                  <SequenceStepCard
+                    step={s as TimelineStep}
+                    index={i}
+                    total={ordered.length}
+                    busy={busyId === s.id}
+                    isLast={isLast && !adding}
+                    onEdit={() => { setAdding(false); setEditingId(s.id); }}
+                    onDuplicate={() => duplicateStep(s)}
+                    onDelete={() => delStep(s.id)}
+                    onMoveUp={() => move(i, -1)}
+                    onMoveDown={() => move(i, 1)}
+                  />
+                )}
+              </div>
+            );
+          })}
+
+          {adding ? (
+            <div className="pt-3">
+              <StepEditor
+                initial={emptyDraft()}
+                busy={busyId === "new"}
+                onSave={addNew}
+                onCancel={() => setAdding(false)}
+                title={`Nuovo step ${ordered.length + 1}`}
+              />
+            </div>
+          ) : ordered.length > 0 ? (
+            <>
+              <WaitConnector deltaDays={0} />
+              <TimelineAddRow onAdd={() => { setEditingId(null); setAdding(true); }} />
+              <div className="pt-2"><TimelineEndCap /></div>
+            </>
+          ) : null}
+        </div>
       )}
-    </div>
-  );
-}
-
-/**
- * Card di uno step in modalità lettura: icona canale, badge ritardo leggibile,
- * oggetto in evidenza, anteprima corpo PULITA (HTML strippato → niente `<br>`
- * grezzi), badge A/Z; azioni per-step (riordina su/giù, modifica, duplica, elimina).
- */
-function StepCard({
-  step, index, total, busy, onEdit, onDuplicate, onDelete, onMoveUp, onMoveDown,
-}: {
-  step: Step; index: number; total: number; busy: boolean;
-  onEdit: () => void; onDuplicate: () => void; onDelete: () => void; onMoveUp: () => void; onMoveDown: () => void;
-}) {
-  const Icon = CH_ICON[step.channel] ?? Mail;
-  const accent = CH_ACCENT[step.channel] ?? CH_ACCENT.email;
-  const subjectVariants = parseVariants(step.subject || "");
-  const bodyVariants = parseVariants(step.body || "");
-  const variantCount = Math.max(subjectVariants.length, bodyVariants.length);
-  const subjectText = subjectVariants[0] ?? step.subject ?? "";
-  // ANTEPRIMA LEGGIBILE: strip dei tag HTML (il body può contenere <br>, <p>…),
-  // sulla 1ª variante, così non compare HTML grezzo nella card.
-  const bodyPreview = htmlToPreviewText(bodyVariants[0] ?? step.body ?? "");
-
-  return (
-    <div className={`group relative flex gap-3 rounded-lg border bg-card p-3 transition-all hover:border-primary/40 hover:shadow-sm ${busy ? "opacity-60" : ""}`}>
-      {/* Colonna riordino + indice */}
-      <div className="flex flex-col items-center gap-1 pt-0.5">
-        <button
-          type="button" disabled={index === 0 || busy} onClick={onMoveUp}
-          className="text-muted-foreground transition-colors enabled:hover:text-foreground disabled:opacity-25"
-          title="Sposta su" aria-label="Sposta su"
-        ><ArrowUp className="h-3.5 w-3.5" /></button>
-        <div className={`flex h-9 w-9 items-center justify-center rounded-full ${accent.wrap} ${accent.text}`}>
-          <Icon className="h-4 w-4" />
-        </div>
-        <button
-          type="button" disabled={index === total - 1 || busy} onClick={onMoveDown}
-          className="text-muted-foreground transition-colors enabled:hover:text-foreground disabled:opacity-25"
-          title="Sposta giù" aria-label="Sposta giù"
-        ><ArrowDown className="h-3.5 w-3.5" /></button>
-      </div>
-
-      {/* Contenuto */}
-      <button type="button" onClick={onEdit} className="min-w-0 flex-1 text-left" title="Modifica step">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Badge variant="secondary" className="gap-1 text-[10px]"><Clock className="h-3 w-3" />{delayLabel(step.delay_days, step.delay_hours)}</Badge>
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{CH_LABEL[step.channel] ?? step.channel}</span>
-          {variantCount > 1 && <Badge variant="outline" className="text-[10px]">A/Z ×{variantCount}</Badge>}
-        </div>
-        {step.channel === "email" && (
-          <p className="mt-1 truncate text-sm font-medium text-foreground">
-            {subjectText.trim() || <span className="font-normal text-muted-foreground">Senza oggetto</span>}
-          </p>
-        )}
-        <p className={`text-xs text-muted-foreground ${step.channel === "email" ? "mt-0.5" : "mt-1"} line-clamp-2`}>
-          {bodyPreview || <span className="italic">Nessun testo</span>}
-        </p>
-      </button>
-
-      {/* Azioni */}
-      <div className="flex shrink-0 items-start gap-0.5">
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Modifica" disabled={busy} onClick={onEdit}><Pencil className="h-3.5 w-3.5" /></Button>
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Duplica step" disabled={busy} onClick={onDuplicate}><Copy className="h-3.5 w-3.5" /></Button>
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" title="Elimina step" disabled={busy} onClick={onDelete}>
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-        </Button>
-      </div>
     </div>
   );
 }
