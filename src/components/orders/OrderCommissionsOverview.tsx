@@ -1,17 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   Award,
+  BadgeCheck,
   CheckCircle2,
   Clock3,
+  Download,
   Euro,
   FileText,
+  Loader2,
+  MoreHorizontal,
   Percent,
   Plus,
   Search,
   Sparkles,
+  Undo2,
   UsersRound,
   WalletCards,
   type LucideIcon,
@@ -54,6 +59,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { exportToCSV, type CsvColumn } from "@/lib/csvExport";
 
 type CommissionType = "fixed" | "percentage_sold" | "percentage_collected";
 type GenericCompensationType = CommissionType | "percentage_margin" | "bonus" | "malus" | "manual";
@@ -496,6 +509,9 @@ function KpiCard({
 export function OrderCommissionsOverview() {
   const queryClient = useQueryClient();
   const { effectiveCompany } = useAuth();
+  const [searchParams] = useSearchParams();
+  const readOnly = searchParams.get("commercialistaMode") === "1";
+  const [liquidateTarget, setLiquidateTarget] = useState<{ name: string; rows: CompensationViewRow[]; amount: number } | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
   const [beneficiaryFilter, setBeneficiaryFilter] = useState("all");
@@ -1093,6 +1109,122 @@ export function OrderCommissionsOverview() {
     },
   });
 
+  // ── Liquidazione: segna pagato/annulla per riga, gestendo le 3 sorgenti ──
+  const setPaidMutation = useMutation({
+    mutationFn: async ({ rows, paid }: { rows: CompensationViewRow[]; paid: boolean }) => {
+      if (!effectiveCompany?.id) throw new Error("company_missing");
+      const today = paid ? format(new Date(), "yyyy-MM-dd") : null;
+
+      const dbTargets = rows.filter((row) => row.source !== "local");
+      await Promise.all(
+        dbTargets.map(async (row) => {
+          if (row.source === "legacy") {
+            const id = row.id.replace("legacy:", "");
+            const { error } = await supabase
+              .from("order_salespeople")
+              .update({ is_paid: paid, paid_date: today })
+              .eq("id", id);
+            if (error) throw error;
+          } else {
+            const id = row.id.replace("generic:", "");
+            const { error } = await (supabase.from("order_variable_compensations" as never) as any)
+              .update({ status: paid ? "paid" : "payable", paid_date: today })
+              .eq("id", id);
+            if (error) throw error;
+          }
+        }),
+      );
+
+      // Sorgente locale (demo / DB generico non disponibile)
+      const localTargets = rows.filter((row) => row.source === "local").map((row) => row.id.replace("local:", ""));
+      if (localTargets.length > 0) {
+        const next = readLocalRows(effectiveCompany.id).map((localRow) =>
+          localTargets.includes(localRow.id)
+            ? { ...localRow, status: (paid ? "paid" : "payable") as VariableCompensationStatus, paid_date: today }
+            : localRow,
+        );
+        writeLocalRows(effectiveCompany.id, next);
+        setLocalRows(next);
+      }
+
+      return { count: rows.length, paid };
+    },
+    onSuccess: ({ count, paid }) => {
+      queryClient.invalidateQueries({ queryKey: ["orders-commissions-overview", effectiveCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ["orders-variable-compensations", effectiveCompany?.id] });
+      setLiquidateTarget(null);
+      toast.success(
+        paid
+          ? `${count} compenso${count === 1 ? "" : "i"} segnat${count === 1 ? "o" : "i"} come pagat${count === 1 ? "o" : "i"}`
+          : "Pagamento annullato",
+      );
+    },
+    onError: () => toast.error("Operazione non riuscita"),
+  });
+
+  const openLiquidateBeneficiary = (summaryId: string, name: string) => {
+    const rows = filteredRows.filter((row) => row.beneficiaryId === summaryId && row.statusInfo.status === "payable");
+    if (rows.length === 0) {
+      toast.info("Nessun compenso pagabile per questo beneficiario");
+      return;
+    }
+    const amount = rows.reduce((sum, row) => sum + row.net, 0);
+    setLiquidateTarget({ name, rows, amount });
+  };
+
+  // ── Export CSV ──
+  const exportCompensationsCsv = () => {
+    const columns: CsvColumn[] = [
+      { key: "beneficiario", label: "Beneficiario" },
+      { key: "ruolo", label: "Ruolo" },
+      { key: "commessa", label: "Commessa" },
+      { key: "cliente", label: "Cliente" },
+      { key: "regola", label: "Regola" },
+      { key: "lordo", label: "Lordo" },
+      { key: "premi", label: "Premi" },
+      { key: "decurtazioni", label: "Decurtazioni" },
+      { key: "netto", label: "Netto" },
+      { key: "stato", label: "Stato" },
+      { key: "data", label: "Data" },
+    ];
+    const data = filteredRows.map((row) => ({
+      beneficiario: row.beneficiaryName,
+      ruolo: row.role,
+      commessa: orderName(row.order),
+      cliente: row.customerName,
+      regola: row.ruleDetail,
+      lordo: String(row.gross),
+      premi: String(row.bonus),
+      decurtazioni: String(row.deductions),
+      netto: String(row.net),
+      stato: row.statusInfo.label,
+      data: formatDate(rowPeriodDate(row)) ?? "",
+    }));
+    exportToCSV(data, columns, `provvigioni_${format(new Date(), "yyyy-MM-dd")}.csv`);
+  };
+
+  const exportBeneficiariesCsv = () => {
+    const columns: CsvColumn[] = [
+      { key: "beneficiario", label: "Beneficiario" },
+      { key: "ruolo", label: "Ruolo" },
+      { key: "righe", label: "Compensi" },
+      { key: "netto", label: "Netto" },
+      { key: "pagabile", label: "Da liquidare" },
+      { key: "pagato", label: "Pagato" },
+      { key: "trattenuto", label: "Trattenuto" },
+    ];
+    const data = beneficiarySummaries.map((summary) => ({
+      beneficiario: summary.name,
+      ruolo: summary.role,
+      righe: String(summary.rowsCount),
+      netto: String(summary.net),
+      pagabile: String(summary.payable),
+      pagato: String(summary.paid),
+      trattenuto: String(summary.held),
+    }));
+    exportToCSV(data, columns, `provvigioni_riepilogo_beneficiari_${format(new Date(), "yyyy-MM-dd")}.csv`);
+  };
+
   function resetAddDialog() {
     setSelectedOrderId(orderOptions[0]?.id || "");
     setSelectedBeneficiaryId(beneficiaryOptions[0]?.id || "__new__");
@@ -1165,11 +1297,31 @@ export function OrderCommissionsOverview() {
           </div>
           {/* Actions: primary full-width mobile, secondary outline */}
           <div className="mt-3 flex flex-col sm:flex-row gap-2">
-            <Button className="gap-2 h-10 flex-1 sm:flex-none" onClick={openAddDialog}>
-              <Plus className="h-4 w-4" />
-              <span className="sm:hidden">Compenso</span>
-              <span className="hidden sm:inline">Aggiungi compenso</span>
-            </Button>
+            {!readOnly && (
+              <Button className="gap-2 h-10 flex-1 sm:flex-none" onClick={openAddDialog}>
+                <Plus className="h-4 w-4" />
+                <span className="sm:hidden">Compenso</span>
+                <span className="hidden sm:inline">Aggiungi compenso</span>
+              </Button>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2 h-10 flex-1 sm:flex-none" disabled={filteredRows.length === 0}>
+                  <Download className="h-4 w-4" />
+                  Esporta
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuItem onClick={exportCompensationsCsv}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Compensi (righe filtrate) CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportBeneficiariesCsv}>
+                  <UsersRound className="h-4 w-4 mr-2" />
+                  Riepilogo per beneficiario CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button asChild variant="outline" className="gap-2 h-10 flex-1 sm:flex-none">
               <Link to="/azienda/impostazioni/persone?tab=venditori">
                 <Sparkles className="h-4 w-4" />
@@ -1230,6 +1382,18 @@ export function OrderCommissionsOverview() {
                       <p className="font-semibold tabular-nums text-orange-700">{formatCurrency(summary.held)}</p>
                     </div>
                   </div>
+                  {!readOnly && summary.payable > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-3 w-full gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                      onClick={() => openLiquidateBeneficiary(summary.id, summary.name)}
+                      disabled={setPaidMutation.isPending}
+                    >
+                      <BadgeCheck className="h-3.5 w-3.5" />
+                      Liquida {formatCurrency(summary.payable)}
+                    </Button>
+                  )}
                 </div>
               ))
             )}
@@ -1315,15 +1479,41 @@ export function OrderCommissionsOverview() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 gap-1"
-                            onClick={() => setSelectedRowId(row.id)}
-                          >
-                            <FileText className="h-4 w-4" />
-                            Dettaglio
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Azioni compenso">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52">
+                              <DropdownMenuItem onClick={() => setSelectedRowId(row.id)}>
+                                <FileText className="h-4 w-4 mr-2" />
+                                Dettaglio
+                              </DropdownMenuItem>
+                              {!readOnly && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  {row.statusInfo.status === "paid" ? (
+                                    <DropdownMenuItem
+                                      onClick={() => setPaidMutation.mutate({ rows: [row], paid: false })}
+                                      disabled={setPaidMutation.isPending}
+                                    >
+                                      <Undo2 className="h-4 w-4 mr-2" />
+                                      Annulla pagamento
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem
+                                      onClick={() => setPaidMutation.mutate({ rows: [row], paid: true })}
+                                      disabled={setPaidMutation.isPending}
+                                    >
+                                      <BadgeCheck className="h-4 w-4 mr-2 text-emerald-600" />
+                                      Segna come pagato
+                                    </DropdownMenuItem>
+                                  )}
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))
@@ -1499,6 +1689,39 @@ export function OrderCommissionsOverview() {
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>Annulla</Button>
             <Button onClick={() => saveCompensationMutation.mutate()} disabled={saveCompensationMutation.isPending || !canSaveCompensation}>
               Salva compenso
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!liquidateTarget} onOpenChange={(open) => !open && setLiquidateTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Conferma liquidazione</DialogTitle>
+            <DialogDescription>
+              Stai per segnare come pagati i compensi pagabili di <strong>{liquidateTarget?.name}</strong>. L'operazione è
+              reversibile dalla riga del compenso.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md border p-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Compensi pagabili</span>
+              <span className="font-medium tabular-nums">{liquidateTarget?.rows.length ?? 0}</span>
+            </div>
+            <div className="mt-1.5 flex items-center justify-between">
+              <span className="text-muted-foreground">Totale netto</span>
+              <span className="font-semibold tabular-nums text-emerald-700">{formatCurrency(liquidateTarget?.amount ?? 0)}</span>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setLiquidateTarget(null)}>Annulla</Button>
+            <Button
+              className="gap-1.5"
+              onClick={() => liquidateTarget && setPaidMutation.mutate({ rows: liquidateTarget.rows, paid: true })}
+              disabled={setPaidMutation.isPending}
+            >
+              {setPaidMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
+              Liquida {formatCurrency(liquidateTarget?.amount ?? 0)}
             </Button>
           </div>
         </DialogContent>
