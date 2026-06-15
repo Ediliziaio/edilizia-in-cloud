@@ -5,6 +5,8 @@ import {
   isOptedOut,
   normalizePhone,
   planChannelSend,
+  hasTemplate,
+  orderTemplateParams,
 } from "../../../supabase/functions/_shared/outreach-channel";
 
 // ── channelForNodeType ───────────────────────────────────────────────────────
@@ -108,5 +110,44 @@ describe("planChannelSend", () => {
     const plan = planChannelSend("sms", null);
     expect(plan.ok).toBe(false);
     expect(plan.skipReason).toBe("contatto assente");
+  });
+});
+
+// ── hasTemplate: nodo WhatsApp con template approvato vs testo libero ─────────
+describe("hasTemplate", () => {
+  it("template_name valorizzato → true", () => {
+    expect(hasTemplate({ name: "promo_estate" })).toBe(true);
+  });
+  it("name assente/vuoto/solo-spazi → false (testo libero)", () => {
+    expect(hasTemplate({ name: null })).toBe(false);
+    expect(hasTemplate({ name: "" })).toBe(false);
+    expect(hasTemplate({ name: "   " })).toBe(false);
+    expect(hasTemplate(null)).toBe(false);
+    expect(hasTemplate(undefined)).toBe(false);
+    expect(hasTemplate({})).toBe(false);
+  });
+});
+
+// ── orderTemplateParams: mappa posizionale → array ordinato per {{n}} ─────────
+describe("orderTemplateParams", () => {
+  it("mappa { '1','2','3' } → array nell'ordine 1,2,3", () => {
+    expect(orderTemplateParams({ "1": "a", "2": "b", "3": "c" })).toEqual(["a", "b", "c"]);
+  });
+  it("ordina per chiave NUMERICA (non lessicografica): 10 dopo 2", () => {
+    expect(orderTemplateParams({ "2": "b", "10": "j", "1": "a" })).toEqual(["a", "b", "", "", "", "", "", "", "", "j"]);
+  });
+  it("posizioni mancanti → '' (Meta richiede un parametro per ogni {{n}})", () => {
+    expect(orderTemplateParams({ "1": "a", "3": "c" })).toEqual(["a", "", "c"]);
+  });
+  it("array già ordinato → mappato a stringhe", () => {
+    expect(orderTemplateParams(["x", "y"])).toEqual(["x", "y"]);
+  });
+  it("null/undefined/oggetto vuoto → array vuoto", () => {
+    expect(orderTemplateParams(null)).toEqual([]);
+    expect(orderTemplateParams(undefined)).toEqual([]);
+    expect(orderTemplateParams({})).toEqual([]);
+  });
+  it("chiavi non numeriche o <1 ignorate", () => {
+    expect(orderTemplateParams({ "0": "z", foo: "bar", "1": "a" })).toEqual(["a"]);
   });
 });

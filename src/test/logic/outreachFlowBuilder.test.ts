@@ -257,6 +257,61 @@ describe("flowToSteps — canale/node_type/body dei nodi messaggio", () => {
   });
 });
 
+describe("flowToSteps — template WhatsApp (compliance Meta)", () => {
+  it("nodo whatsapp con template → persiste template_name/language/params", () => {
+    const nodes = [
+      n("w", "whatsapp", {
+        body: "",
+        template_name: "promo_estate",
+        template_language: "it",
+        template_params: { "1": "{{first_name}}", "2": "Edilizia in Cloud" },
+      }, 0),
+      n("end", "end", {}, 150),
+    ];
+    const steps = flowToSteps(nodes, [e("e1", "w", "end")], "seq-1");
+    const wa = steps.find((s) => s.id === "w")!;
+    expect(wa.template_name).toBe("promo_estate");
+    expect(wa.template_language).toBe("it");
+    expect(wa.template_params).toEqual({ "1": "{{first_name}}", "2": "Edilizia in Cloud" });
+  });
+
+  it("nodo whatsapp SENZA template → tripletta NULL (testo libero/legacy)", () => {
+    const nodes = [n("w", "whatsapp", { body: "Ciao {{first_name}}" }, 0), n("end", "end", {}, 150)];
+    const steps = flowToSteps(nodes, [e("e1", "w", "end")], "seq-1");
+    const wa = steps.find((s) => s.id === "w")!;
+    expect(wa.template_name).toBeNull();
+    expect(wa.template_language).toBeNull();
+    expect(wa.template_params).toBeNull();
+  });
+
+  it("template_language default 'it' se non specificata", () => {
+    const nodes = [n("w", "whatsapp", { template_name: "ciao" }, 0), n("end", "end", {}, 150)];
+    const steps = flowToSteps(nodes, [e("e1", "w", "end")], "seq-1");
+    expect(steps.find((s) => s.id === "w")!.template_language).toBe("it");
+  });
+
+  it("params vuoti → null (il CHECK DB rifiuta params senza valore)", () => {
+    const nodes = [n("w", "whatsapp", { template_name: "ciao", template_params: {} }, 0), n("end", "end", {}, 150)];
+    const steps = flowToSteps(nodes, [e("e1", "w", "end")], "seq-1");
+    expect(steps.find((s) => s.id === "w")!.template_params).toBeNull();
+  });
+
+  it("template impostato su un nodo NON-whatsapp (email) → ignorato (NULL)", () => {
+    // i campi template non hanno senso fuori da whatsapp: vengono scartati.
+    const nodes = [n("e", "email", { subject: "x", body: "y", template_name: "promo" }, 0), n("end", "end", {}, 150)];
+    const steps = flowToSteps(nodes, [e("e1", "e", "end")], "seq-1");
+    expect(steps.find((s) => s.id === "e")!.template_name).toBeNull();
+  });
+
+  it("whatsapp con template e body vuoto resta valido (body opzionale col template)", () => {
+    const nodes = [n("w", "whatsapp", { body: "", template_name: "promo" }, 0), n("end", "end", {}, 150)];
+    const steps = flowToSteps(nodes, [e("e1", "w", "end")], "seq-1");
+    const wa = steps.find((s) => s.id === "w")!;
+    expect(wa.template_name).toBe("promo");
+    expect(wa.body).toBe("");
+  });
+});
+
 describe("validateFlow — nodi messaggio", () => {
   it("un flusso di soli whatsapp/sms (nessuna email) NON segnala 'nessun messaggio'", () => {
     const nodes = [n("w", "whatsapp", { body: "ciao" }, 0), n("end", "end", {}, 150)];
@@ -270,6 +325,31 @@ describe("validateFlow — nodi messaggio", () => {
     const edges = [e("e1", "e", "w"), e("e2", "w", "end")];
     const issues = validateFlow(nodes, edges);
     expect(issues.some((i) => i.nodeId === "w" && /senza testo/i.test(i.message))).toBe(true);
+  });
+
+  it("nodo whatsapp SENZA template → warning compliance cold (serve template)", () => {
+    const nodes = [n("e", "email", { body: "x" }, 0), n("w", "whatsapp", { body: "Ciao" }, 150), n("end", "end", {}, 300)];
+    const edges = [e("e1", "e", "w"), e("e2", "w", "end")];
+    const issues = validateFlow(nodes, edges);
+    expect(issues.some((i) => i.nodeId === "w" && /senza template approvato/i.test(i.message))).toBe(true);
+  });
+
+  it("nodo whatsapp CON template → niente warning compliance e niente 'senza testo' anche col body vuoto", () => {
+    const nodes = [
+      n("e", "email", { body: "x" }, 0),
+      n("w", "whatsapp", { body: "", template_name: "promo_estate" }, 150),
+      n("end", "end", {}, 300),
+    ];
+    const edges = [e("e1", "e", "w"), e("e2", "w", "end")];
+    const issues = validateFlow(nodes, edges);
+    expect(issues.some((i) => i.nodeId === "w")).toBe(false);
+  });
+
+  it("nodo sms NON eredita il warning compliance whatsapp (solo whatsapp è cold-gated)", () => {
+    const nodes = [n("e", "email", { body: "x" }, 0), n("s", "sms", { body: "Promemoria" }, 150), n("end", "end", {}, 300)];
+    const edges = [e("e1", "e", "s"), e("e2", "s", "end")];
+    const issues = validateFlow(nodes, edges);
+    expect(issues.some((i) => i.nodeId === "s" && /template/i.test(i.message))).toBe(false);
   });
 });
 
