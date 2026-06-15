@@ -49,6 +49,12 @@ export interface FlowNode {
   delay_hours?: number | null;
   subject?: string | null;
   body?: string | null;
+  // Template WhatsApp approvato (compliance Meta cold): solo per node_type='whatsapp'.
+  // NULL = testo libero (comportamento legacy). template_params = mappa posizionale
+  // { "1": "{{first_name}}", … } dei placeholder body del template.
+  template_name?: string | null;
+  template_language?: string | null;
+  template_params?: Record<string, string> | string[] | null;
 }
 
 /**

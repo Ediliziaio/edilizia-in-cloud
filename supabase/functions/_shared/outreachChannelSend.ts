@@ -19,16 +19,21 @@
  * outreach-ai-flow / outreach-send-single). Il chiamante (dispatcher) gestisce
  * idempotenza, opt-out, telefono mancante e avanzamento cadenza.
  *
- * NB WhatsApp cold: il body è inviato come messaggio di tipo "text". Per i contatti
- * fuori dalla finestra 24h Meta può rifiutare (131047). Il risultato { ok:false }
- * propaga l'errore al dispatcher che marca la riga 'skipped' (non ritenta) e avanza
- * la cadenza. L'uso di template approvati per il cold WhatsApp è un'evoluzione
- * futura (vedi report); per ora l'invio testo è best-effort.
+ * NB WhatsApp cold (compliance Meta): per i contatti fuori dalla Customer Service
+ * Window 24h Meta RIFIUTA il testo libero (errore 131047) e degrada la quality
+ * rating del numero. Due strade:
+ *   • il nodo ha un TEMPLATE approvato → si invia type:"template" (passa anche a
+ *     finestra chiusa, cioè COLD) riusando il pattern di whatsapp-broadcast;
+ *   • il nodo NON ha template → si invia type:"text" SOLO se la finestra 24h è
+ *     APERTA (getWhatsAppWindowStatus); a finestra chiusa si ritorna ok=false con
+ *     un errore chiaro ("finestra WA chiusa, serve template") così il dispatcher
+ *     salta la riga e AVANZA la cadenza, senza mandare testo destinato al rifiuto.
  */
 
 // deno-lint-ignore-file no-explicit-any
 
 import { resolveWhatsAppSender } from "./resolveWhatsAppSender.ts";
+import { buildTemplatePayload, getWhatsAppWindowStatus } from "./whatsappWindow.ts";
 
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 
@@ -95,23 +100,71 @@ export async function sendOutreachSms(
   }
 }
 
+/** Template approvato passato al send WhatsApp (preso dal nodo step, params già renderizzati). */
+export interface OutreachWhatsAppTemplate {
+  /** nome del template Meta approvato. */
+  name: string;
+  /** lingua del template (default 'it'). */
+  language?: string | null;
+  /** valori dei parametri body {{1}},{{2}},… GIÀ renderizzati (variabili contatto risolte). */
+  params?: string[];
+}
+
 /**
- * Invia un messaggio WhatsApp (testo) via Meta Graph come piattaforma. `to` =
- * telefono normalizzato (sole cifre, lo normalizza comunque). `text` = corpo già
- * renderizzato. Senza numero WhatsApp della piattaforma → ok=false: il dispatcher
- * salta e avanza. NB: Meta può rifiutare testo libero fuori finestra 24h (cold).
+ * Invia un messaggio WhatsApp via Meta Graph come piattaforma. `to` = telefono
+ * normalizzato (sole cifre, lo normalizza comunque). Due modalità:
+ *
+ *   • con `template` (template_name valorizzato) → type:"template": passa anche
+ *     COLD (finestra 24h chiusa). `template.params` sono i valori già renderizzati
+ *     dei placeholder body. Riusa buildTemplatePayload (stesso pattern broadcast).
+ *   • senza `template` → type:"text" SOLO se la finestra 24h è APERTA per il numero
+ *     nell'azienda di piattaforma; a finestra chiusa → ok=false con errore chiaro
+ *     ("finestra WA chiusa, serve template approvato"): il dispatcher salta e avanza,
+ *     non si manda testo che Meta rifiuterebbe (131047) degradando la quality rating.
+ *
+ * Senza numero WhatsApp della piattaforma → ok=false: il dispatcher salta e avanza.
  */
 export async function sendOutreachWhatsApp(
   admin: any,
   to: string,
   text: string,
+  template?: OutreachWhatsAppTemplate | null,
 ): Promise<ChannelSendResult> {
-  if (!text?.trim()) return { ok: false, error: "corpo WhatsApp vuoto" };
   const cleanTo = (to ?? "").replace(/[^0-9]/g, "");
   if (!cleanTo) return { ok: false, error: "telefono WhatsApp non valido" };
+  const useTemplate = !!template?.name && template.name.trim().length > 0;
+  // Testo libero: serve un corpo. Template: il corpo è opzionale (i parametri bastano).
+  if (!useTemplate && !text?.trim()) return { ok: false, error: "corpo WhatsApp vuoto" };
 
   const sender = await resolveWhatsAppSender(admin, PLATFORM_COMPANY);
   if (!sender) return { ok: false, error: "WhatsApp non configurato per la piattaforma" };
+
+  // Senza template, il testo libero è ammesso da Meta SOLO entro la finestra 24h.
+  // A finestra chiusa (cold) si salta: meglio non spedire che bruciare la reputazione.
+  if (!useTemplate) {
+    const win = await getWhatsAppWindowStatus(admin, PLATFORM_COMPANY, cleanTo);
+    if (!win.open) {
+      return {
+        ok: false,
+        from: sender.numero ?? sender.phoneNumberId,
+        error: "finestra WA chiusa (contatto a freddo): serve un template approvato",
+      };
+    }
+  }
+
+  // Payload: template (compliance cold) oppure testo libero (in finestra).
+  const payload = useTemplate
+    ? buildTemplatePayload(cleanTo, {
+        name: template!.name,
+        language: template!.language || "it",
+        variables: (template!.params ?? []).map((v) => (v == null ? "" : String(v))),
+      })
+    : {
+        messaging_product: "whatsapp",
+        to: cleanTo,
+        type: "text",
+        text: { body: text },
+      };
 
   try {
     const res = await fetch(
@@ -119,12 +172,7 @@ export async function sendOutreachWhatsApp(
       {
         method: "POST",
         headers: { Authorization: `Bearer ${sender.accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: cleanTo,
-          type: "text",
-          text: { body: text },
-        }),
+        body: JSON.stringify(payload),
       },
     );
     const result = await res.json().catch(() => ({})) as any;
@@ -142,14 +190,19 @@ export async function sendOutreachWhatsApp(
   }
 }
 
-/** Dispatch per canale: invia il messaggio sul canale richiesto. email NON gestito qui. */
+/**
+ * Dispatch per canale: invia il messaggio sul canale richiesto. email NON gestito
+ * qui. `template` è usato SOLO da WhatsApp (SMS lo ignora): permette al dispatcher
+ * di passare il template del nodo senza ramificare la firma per-canale.
+ */
 export async function sendOnChannel(
   admin: any,
   channel: "whatsapp" | "sms",
   to: string,
   text: string,
+  template?: OutreachWhatsAppTemplate | null,
 ): Promise<ChannelSendResult> {
   return channel === "sms"
     ? await sendOutreachSms(admin, to, text)
-    : await sendOutreachWhatsApp(admin, to, text);
+    : await sendOutreachWhatsApp(admin, to, text, template);
 }

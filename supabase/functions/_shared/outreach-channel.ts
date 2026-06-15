@@ -105,3 +105,49 @@ export function planChannelSend(
   }
   return { ok: true, phone };
 }
+
+// ── Template WhatsApp approvato (compliance Meta) ─────────────────────────────
+//
+// Un nodo WhatsApp può portare un TEMPLATE Meta approvato (template_name +
+// language + params): è la via conforme per i contatti COLD, dove la finestra 24h
+// è chiusa e il testo libero verrebbe rifiutato (errore 131047). I `params` sono
+// una mappa POSIZIONALE { "1": valore, "2": valore, … } come
+// wa_meta_templates.variable_mapping: ogni valore è una variabile ({{first_name}}…)
+// o testo fisso, renderizzato al send coi dati del contatto.
+
+/** Template del nodo, così com'è persistito sullo step (campi nullable). */
+export interface StepTemplate {
+  name?: string | null;
+  language?: string | null;
+  /** mappa posizionale { "1": "{{first_name}}", "2": "testo" } oppure array ordinato. */
+  params?: Record<string, string> | string[] | null;
+}
+
+/** True se il nodo ha un template valorizzato (template_name presente, non vuoto). */
+export function hasTemplate(tpl: StepTemplate | null | undefined): boolean {
+  return !!tpl?.name && String(tpl.name).trim().length > 0;
+}
+
+/**
+ * Ordina i parametri posizionali di un template in array di stringhe RAW (non
+ * ancora renderizzate). Accetta sia la mappa { "1": …, "2": … } (ordina per chiave
+ * numerica crescente, robusto a buchi/non-numeriche) sia un array già ordinato.
+ * Le posizioni mancanti diventano "" (Meta richiede un parametro per ogni {{n}}).
+ */
+export function orderTemplateParams(params: StepTemplate["params"]): string[] {
+  if (!params) return [];
+  if (Array.isArray(params)) return params.map((v) => (v == null ? "" : String(v)));
+  const keys = Object.keys(params)
+    .map((k) => ({ k, n: Number(k) }))
+    .filter((x) => Number.isFinite(x.n) && x.n >= 1)
+    .sort((a, b) => a.n - b.n);
+  if (keys.length === 0) return [];
+  const max = keys[keys.length - 1].n;
+  const out: string[] = [];
+  for (let i = 1; i <= max; i++) {
+    const hit = keys.find((x) => x.n === i);
+    const v = hit ? params[hit.k] : "";
+    out.push(v == null ? "" : String(v));
+  }
+  return out;
+}

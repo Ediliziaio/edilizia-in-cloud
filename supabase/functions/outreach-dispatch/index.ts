@@ -33,8 +33,8 @@ import {
   type FlowNode,
   type FlowActivity,
 } from "../_shared/outreach-flow.ts";
-import { channelForNodeType, planChannelSend, type OutreachChannel } from "../_shared/outreach-channel.ts";
-import { sendOnChannel } from "../_shared/outreachChannelSend.ts";
+import { channelForNodeType, planChannelSend, hasTemplate, orderTemplateParams, type OutreachChannel } from "../_shared/outreach-channel.ts";
+import { sendOnChannel, type OutreachWhatsAppTemplate } from "../_shared/outreachChannelSend.ts";
 import { appendTrackingSig, outreachOpenPixelUrl } from "../_shared/emailTrackingSignature.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -48,8 +48,8 @@ const TERMINAL_ENROLLMENT = new Set(["stopped", "completed", "replied", "bounced
 /** Tipo iscrizione arricchito col nodo grafo corrente (null = legacy lineare). */
 type EnrRow = { id: string; sequence_id: string; current_step: number; current_node_id?: string | null };
 
-/** Colonne step caricate dal dispatcher (cadenza + flusso grafo). */
-const STEP_COLS = "id,step_order,channel,delay_days,delay_hours,subject,body,node_type,condition_type,next_default,next_alt";
+/** Colonne step caricate dal dispatcher (cadenza + flusso grafo + template WA). */
+const STEP_COLS = "id,step_order,channel,delay_days,delay_hours,subject,body,node_type,condition_type,next_default,next_alt,template_name,template_language,template_params";
 
 /**
  * Ferma l'iscrizione se il contatto non è (più) contattabile. Ritorna true se ha
@@ -342,7 +342,7 @@ async function processMessageChannelQueue(
 ): Promise<void> {
   const { data: rows, error } = await supabase
     .from("outreach_send_queue")
-    .select("id, channel, to_phone, body, attempts, max_attempts, contact_id, enrollment_id, brand_id")
+    .select("id, channel, to_phone, body, attempts, max_attempts, contact_id, enrollment_id, brand_id, node_id")
     .eq("status", "queued").eq("kind", "send")
     .in("channel", ["whatsapp", "sms"])
     .lte("scheduled_for", now.toISOString())
@@ -369,6 +369,22 @@ async function processMessageChannelQueue(
     const { data: cs } = await supabase.from("marketing_contacts")
       .select("id,first_name,last_name,company_name,email,phone,optout_email,optout_sms,optout_whatsapp").in("id", contactIds);
     for (const c of cs || []) contactById.set(c.id, c);
+  }
+
+  // Template WhatsApp del nodo (compliance Meta cold): caricato dallo step via node_id.
+  // Single source of truth = lo step (nessuna duplicazione sulla coda). Best-effort:
+  // se le colonne template_* non esistono (pre-migrazione) il select fallisce → mappa
+  // vuota → nessun template → testo libero solo in finestra (comportamento legacy).
+  const nodeIds = [...new Set(rows.map((r: any) => r.node_id).filter(Boolean))];
+  const templateByNode = new Map<string, { name: string | null; language: string | null; params: any }>();
+  if (nodeIds.length) {
+    const r = await supabase.from("outreach_sequence_steps")
+      .select("id,template_name,template_language,template_params").in("id", nodeIds);
+    if (!r.error) {
+      for (const s of r.data || []) {
+        templateByNode.set(s.id, { name: s.template_name ?? null, language: s.template_language ?? null, params: s.template_params ?? null });
+      }
+    }
   }
 
   for (const item of rows) {
@@ -408,7 +424,19 @@ async function processMessageChannelQueue(
       const vars = contact ? contactToVars(contact) : {};
       const seed = hashSeed(plan.phone || item.id);
       const text = renderTemplate(item.body || "", vars, { seed });
-      const res = await sendOnChannel(supabase, channel === "sms" ? "sms" : "whatsapp", plan.phone, text);
+      // Template WhatsApp (compliance Meta cold): se il nodo ne ha uno, costruiamo il
+      // payload type:"template" coi parametri renderizzati (variabili del contatto →
+      // valore). SMS lo ignora. Senza template, sendOutreachWhatsApp invia testo libero
+      // SOLO in finestra 24h (a freddo salta con errore chiaro → si avanza la cadenza).
+      let waTemplate: OutreachWhatsAppTemplate | null = null;
+      if (channel === "whatsapp" && item.node_id) {
+        const tpl = templateByNode.get(item.node_id);
+        if (tpl && hasTemplate({ name: tpl.name })) {
+          const params = orderTemplateParams(tpl.params).map((p) => renderTemplate(p, vars, { seed }));
+          waTemplate = { name: tpl.name as string, language: tpl.language, params };
+        }
+      }
+      const res = await sendOnChannel(supabase, channel === "sms" ? "sms" : "whatsapp", plan.phone, text, waTemplate);
       if (!res.ok) {
         // recapito non riuscito a livello provider: non ritentare (come l'email su ok=false).
         await supabase.from("outreach_send_queue")
