@@ -54,7 +54,9 @@ export const GiornaleCard = memo(function GiornaleCard({ entry, onClick, compact
             <MeteoIcon className={`h-4 w-4 shrink-0 ${meteo.color}`} />
             <div>
               <p className="font-semibold text-sm">
-                {format(parseISO(entry.data_lavori), "EEEE d MMMM", { locale: it })}
+                {entry.data_lavori && !Number.isNaN(parseISO(entry.data_lavori).getTime())
+                  ? format(parseISO(entry.data_lavori), "EEEE d MMMM", { locale: it })
+                  : "—"}
               </p>
               <p className="text-xs text-muted-foreground">{meteo.label} · {entry.personale_presente} operai</p>
             </div>

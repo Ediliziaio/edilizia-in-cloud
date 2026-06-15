@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet, Paperclip, Upload, FileText, X, ChevronsUpDown, Check, PackageCheck } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -473,26 +474,26 @@ export function OrderItemsList({
     setDialogOpen(true);
   };
 
-  const handleSaveItem = () => {
+  const handleSaveItem = (): boolean => {
     setDialogError(null);
     if (!itemName.trim()) {
       setDialogError("Inserisci il nome dell'articolo.");
-      return;
+      return false;
     }
 
     const quantity = Math.round(Number(itemQuantity));
     const purchasePrice = itemPurchasePrice.trim() ? Number(itemPurchasePrice) : 0;
     if (!Number.isFinite(quantity) || quantity <= 0) {
       setDialogError("La quantità deve essere maggiore di zero.");
-      return;
+      return false;
     }
     if (!Number.isFinite(purchasePrice) || purchasePrice < 0) {
       setDialogError("Il costo di acquisto non può essere negativo.");
-      return;
+      return false;
     }
     if (!Number.isFinite(itemVatRate) || itemVatRate < 0 || itemVatRate > 100) {
       setDialogError("L'IVA acquisto deve essere compresa tra 0 e 100.");
-      return;
+      return false;
     }
     const totalCost = purchasePrice * quantity;
     
@@ -581,6 +582,7 @@ export function OrderItemsList({
 
     setDialogOpen(false);
     resetForm();
+    return true;
   };
 
   // v8.6.35 — Helper link ODA esistente: crea record in purchase_order_items
@@ -631,15 +633,18 @@ export function OrderItemsList({
       setDialogError("Il costo di acquisto non può essere negativo."); return;
     }
 
-    // Salva l'item (riusa la stessa logica di handleSaveItem)
-    handleSaveItem();
+    // Salva l'item (riusa la stessa logica di handleSaveItem).
+    // Riapriamo il dialog SOLO se il salvataggio è andato a buon fine:
+    // se la validazione di handleSaveItem fallisce non dobbiamo riaprire.
+    const keepSupplier = itemSupplierId;
+    const keepVat = itemVatRate;
+    const keepStatus = itemStatus;
+    const saved = handleSaveItem();
+    if (!saved) return;
 
     // handleSaveItem chiude il dialog e resetta tutto. Lo riapriamo con i
     // campi "contestuali" pre-compilati (fornitore + IVA + stato) per
     // velocizzare l'inserimento di righe simili.
-    const keepSupplier = itemSupplierId;
-    const keepVat = itemVatRate;
-    const keepStatus = itemStatus;
     setTimeout(() => {
       setDialogOpen(true);
       setItemSupplierId(keepSupplier);
@@ -1239,6 +1244,29 @@ export function OrderItemsList({
                         variant="outline"
                         className="text-xs gap-1 cursor-pointer hover:bg-muted/50"
                         title="Allegato ODA disponibile — click per scaricare"
+                        onClick={async () => {
+                          const odaAtt = item.attachments?.find(
+                            (a) => a.file_name.startsWith("ODA") || a.file_name.toLowerCase().includes("oda")
+                          );
+                          if (!odaAtt) return;
+                          try {
+                            // file_url può essere un path relativo o un URL completo:
+                            // estrai il path dello storage dopo il nome del bucket.
+                            let filePath = odaAtt.file_url;
+                            if (filePath.startsWith("http")) {
+                              const parts = filePath.split("/order-attachments/");
+                              if (parts.length > 1) filePath = decodeURIComponent(parts[1]);
+                            }
+                            const { data, error } = await supabase.storage
+                              .from("order-attachments")
+                              .createSignedUrl(filePath, 3600);
+                            if (error || !data?.signedUrl) throw error ?? new Error("URL non disponibile");
+                            window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+                          } catch (err) {
+                            const msg = err instanceof Error ? err.message : String(err);
+                            toast({ variant: "destructive", title: "Apertura ODA fallita", description: msg });
+                          }
+                        }}
                       >
                         <Paperclip className="h-3 w-3" />
                         ODA allegato

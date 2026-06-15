@@ -3,6 +3,7 @@ import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -116,6 +117,7 @@ export function ArticleCombobox({
         await createTemplateMutation.mutateAsync(trimmed);
       } catch {
         // Template non creato, ma il nome è già stato impostato
+        toast.error("Articolo aggiunto all'ordine ma non salvato a catalogo");
       }
     }
   };

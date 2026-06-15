@@ -152,7 +152,7 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
 
       const importoTotale = validVoci.reduce((sum, v) => {
         const contrattuale = parseFloat(v.importo_contrattuale) || 0;
-        const perc = parseFloat(v.percentuale_avanzamento) || 0;
+        const perc = Math.min(100, Math.max(0, parseFloat(v.percentuale_avanzamento) || 0));
         return sum + (contrattuale * perc) / 100;
       }, 0);
 
@@ -178,12 +178,17 @@ export function SalTab({ orderId, companyId, orderTotalAmount, installments, vat
         sal_id: sal.id,
         descrizione: v.descrizione.trim(),
         importo_contrattuale: parseFloat(v.importo_contrattuale) || 0,
-        percentuale_avanzamento: parseFloat(v.percentuale_avanzamento) || 0,
+        percentuale_avanzamento: Math.min(100, Math.max(0, parseFloat(v.percentuale_avanzamento) || 0)),
         note: v.note.trim() || null,
       }));
 
       const { error: vociError } = await supabase.from("sal_voci").insert(vociInsert);
-      if (vociError) throw new Error(vociError.message);
+      if (vociError) {
+        // Le voci non sono state inserite: rimuovi il record SAL orfano
+        // (best-effort) così non resta un verbale senza righe.
+        await supabase.from("sal_records").delete().eq("id", sal.id);
+        throw new Error(vociError.message);
+      }
 
       return sal;
     },

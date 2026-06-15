@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { Receipt, Sparkles, Check, User, Package, Loader2, Info } from "lucide-react";
 import {
   Dialog,
@@ -119,7 +120,8 @@ function buildRigaAcconto(
     : orderDescription;
 
   const importoLordo = installment.amount || 0;
-  const aliquotaNum = defaultVat;
+  // Clamp a >= 0: un'aliquota negativa renderebbe il divisore 0/NaN.
+  const aliquotaNum = Math.max(0, defaultVat);
   const aliquota = String(aliquotaNum);
   const imponibile = round2(importoLordo / (1 + aliquotaNum / 100));
   const imposta = round2(importoLordo - imponibile);
@@ -244,6 +246,14 @@ export function CreaFatturaDialog({
   const linkMutation = useLinkFatturaOrdine();
 
   const handleCreaFattura = () => {
+    // Blocca la creazione di una fattura senza righe (non emettibile).
+    if (previewRighe.length === 0) {
+      toast.error("Nessuna riga da fatturare", {
+        description: "Aggiungi almeno un articolo alla commessa o seleziona una rata.",
+      });
+      return;
+    }
+
     const clienteSnapshot: ClienteSnapshot | undefined = matchedAnagrafica
       ? {
           ragione_sociale: matchedAnagrafica.ragione_sociale || customerName,
@@ -286,15 +296,27 @@ export function CreaFatturaDialog({
         }),
       },
       {
-        onSuccess: (doc) => {
-          // Create junction table link
+        onSuccess: async (doc) => {
+          // Crea il collegamento documento↔commessa in modo atomico prima di
+          // navigare. Se il link fallisce non lasciamo la fattura "orfana"
+          // senza avvisare l'utente (stesso pattern di CreaDDTDialog).
           if (companyId) {
-            linkMutation.mutate({
-              fatturaId: doc.id,
-              ordineId: orderId,
-              importoAssociato: totaleLordo,
-              companyId,
-            });
+            try {
+              await linkMutation.mutateAsync({
+                fatturaId: doc.id,
+                ordineId: orderId,
+                importoAssociato: totaleLordo,
+                companyId,
+              });
+            } catch (err) {
+              toast.error("Fattura creata ma collegamento commessa fallito", {
+                description:
+                  err instanceof Error ? err.message : "Apri il documento e riprova dal dettaglio.",
+              });
+              onOpenChange(false);
+              navigate(`/azienda/documenti/${doc.id}?ordine_link=${orderId}`);
+              return;
+            }
           }
           onOpenChange(false);
           navigate(`/azienda/documenti/${doc.id}?ordine_link=${orderId}`);

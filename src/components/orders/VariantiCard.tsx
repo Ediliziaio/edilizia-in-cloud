@@ -94,7 +94,7 @@ export function VariantiCard({ orderId, companyId, readOnly = false }: VariantiC
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!form.titolo.trim()) throw new Error("Titolo obbligatorio");
-      if (!form.importo) throw new Error("Importo obbligatorio");
+      if (!(parseFloat(form.importo) > 0)) throw new Error("Inserisci un importo maggiore di zero");
       const { error } = await supabase.from("varianti_cliente").insert({
         company_id: companyId,
         order_id: orderId,

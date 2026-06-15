@@ -14,7 +14,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { FileText, Receipt, Paperclip, Package, Download, ExternalLink, Loader2, FolderOpen } from "lucide-react";
 
 interface FileDoc { id: string; file_name: string; file_url: string; file_type?: string | null; file_size?: number | null }

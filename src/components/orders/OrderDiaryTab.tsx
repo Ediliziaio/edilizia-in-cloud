@@ -123,7 +123,11 @@ function formatEventDescription(event: OrderEvent): string {
 }
 
 function AuditEntry({ audit }: { audit: OrderDiaryAudit }) {
-  const cfg = AUDIT_CONFIG[audit.audit_type];
+  const cfg = AUDIT_CONFIG[audit.audit_type] ?? {
+    label: audit.audit_type,
+    color: "bg-slate-100 text-slate-600",
+    icon: FileText,
+  };
   const Icon = cfg.icon;
   const metadata = audit.metadata
     ? Object.entries(audit.metadata).filter(([, value]) => value !== null && value !== "" && value !== false)
@@ -316,7 +320,7 @@ export function OrderDiaryTab({
         const cfg = AUDIT_CONFIG[entry.data.audit_type];
         return {
           data: format(parseISO(entry.data.created_at), "dd/MM/yyyy HH:mm"),
-          tipo: cfg.label,
+          tipo: cfg?.label ?? entry.data.audit_type,
           origine: entry.data.title,
           descrizione: entry.data.description,
           responsabile: entry.data.actor_name || "",
