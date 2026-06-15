@@ -43,6 +43,10 @@ interface QuickContactSendDialogProps {
   context?: string | null;
   defaultChannel?: QuickSendChannel;
   onSent?: () => void;
+  /** Testo precompilato per i canali (es. sollecito pagamento, invio stato). */
+  prefill?: { smsText?: string; emailSubject?: string; emailBody?: string; waText?: string };
+  /** Allegati già caricati nel bucket email-attachments (es. PDF della commessa). */
+  initialAttachments?: Array<{ name: string; size: number; mime: string; storage_path: string }>;
 }
 
 interface EmailAccount {
@@ -71,6 +75,7 @@ function parseEmails(raw: string): string[] {
 
 export function QuickContactSendDialog({
   open, onOpenChange, contactId, name, phone, email, context, defaultChannel = "sms", onSent,
+  prefill, initialAttachments,
 }: QuickContactSendDialogProps) {
   const { user, effectiveCompany } = useAuth();
   const qc = useQueryClient();
@@ -109,9 +114,14 @@ export function QuickContactSendDialog({
   useEffect(() => {
     if (open) {
       setChannel(initialChannel);
-      setSmsText(""); setEmailSubject(""); setEmailBody("");
+      setSmsText(prefill?.smsText ?? "");
+      setEmailSubject(prefill?.emailSubject ?? "");
+      setEmailBody(prefill?.emailBody ?? "");
       setAiInstruction(""); setAiTone(TONES[0]); setSigEdit(false);
-      setEmailCc(""); setEmailBcc(""); setCcBccVisible(false); setAttachments([]);
+      setEmailCc(""); setEmailBcc(""); setCcBccVisible(false);
+      setAttachments((initialAttachments ?? []).map((a) => ({ ...a, uploading: false })));
+      // Precompila il composer WhatsApp (usa il meccanismo seed esistente).
+      if (prefill?.waText) { setWaSeedText(prefill.waText); setWaSeedAt((n) => n + 1); }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);

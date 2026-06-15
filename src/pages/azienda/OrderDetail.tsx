@@ -58,7 +58,9 @@ import { LinkedPurchaseOrdersCard } from "@/components/orders/LinkedPurchaseOrde
 import { OrdineVariazione } from "@/components/orders/OrdineVariazione";
 import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
 
-import { useOrdinePDF } from "@/hooks/useOrdinePDF";
+import { useOrdinePDF, type OrdinePDFProps } from "@/hooks/useOrdinePDF";
+import { OrderQuickActions } from "@/components/orders/OrderQuickActions";
+import { OrderOperationalPanel } from "@/components/orders/OrderOperationalPanel";
 
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
@@ -271,7 +273,7 @@ function OrderDetailInner() {
   const isNativeBilling = (effectiveCompany as { billing_mode?: string } | null | undefined)?.billing_mode === "native";
   const queryClient = useQueryClient();
 
-  const { downloadPDF, isGenerating: isGeneratingPDF } = useOrdinePDF();
+  const { downloadPDF, getPDFBlob, isGenerating: isGeneratingPDF } = useOrdinePDF();
   // true mentre carichiamo on-demand i dati ricchi del PDF (vedi handleDownloadPDF)
   const [pdfPreparing, setPdfPreparing] = useState(false);
 
@@ -825,55 +827,75 @@ function OrderDetailInner() {
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   };
 
+  // Raccoglie tutti i dati "ricchi" (in parallelo) e costruisce gli opts del PDF.
+  // Condiviso tra "Scarica PDF" (download) e "Invia PDF al cliente" (blob → email).
+  const gatherPdfOpts = useCallback(async (): Promise<OrdinePDFProps | null> => {
+    if (!order) return null;
+    const [
+      laborEmployees, laborTeams, salList, salespeople, purchaseOrders,
+      campoAssignmentsRaw, giornaleLavori, odv, vc, diaryEvents, diaryMessages,
+    ] = await Promise.all([
+      supabase.from("order_employees").select("*, employee:employees(first_name, last_name)").eq("order_id", id!),
+      supabase.from("order_external_teams").select("*, external_team:external_teams(name)").eq("order_id", id!),
+      supabase.from("sal_records").select("*, sal_voci(*)").eq("order_id", id!).order("numero_sal"),
+      supabase.from("order_salespeople").select("*, salesperson:salespeople(first_name, last_name)").eq("order_id", id!),
+      supabase.from("purchase_orders").select("id, oda_number, status, total, suppliers(name)").eq("order_id", id!).order("created_at", { ascending: false }),
+      supabase.from("order_campo_assignments").select("*, user:profiles(first_name, last_name), subappaltatore:external_teams(name)").eq("order_id", id!),
+      supabase.from("giornale_lavori").select("*, giornale_foto(id, url, caption)").eq("order_id", id!).order("data_lavori", { ascending: false }),
+      supabase.from("ordini_variazione").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
+      supabase.from("varianti_cliente").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
+      supabase.from("order_events").select("id, event_type, payload, actor_name, created_at").eq("order_id", id!).order("created_at", { ascending: false }).limit(100),
+      supabase.from("order_messages").select("id, channel, direction, subject, body, to_name, status, sent_by_name, created_at").eq("order_id", id!).order("created_at", { ascending: false }).limit(100),
+    ]);
+    const campoAssignments = ((campoAssignmentsRaw.data ?? []) as Array<{ subappaltatore?: { name?: string } | null }>).map((d) => ({
+      ...d,
+      subappaltatore: d.subappaltatore ? { nome: d.subappaltatore.name } : null,
+    }));
+    return {
+      order,
+      items: orderItems,
+      laborEmployees: laborEmployees.data ?? [],
+      laborTeams: laborTeams.data ?? [],
+      salList: salList.data ?? [],
+      salespeople: salespeople.data ?? [],
+      purchaseOrders: purchaseOrders.data ?? [],
+      campoAssignments,
+      installments: displayInstallments,
+      giornaleLavori: giornaleLavori.data ?? [],
+      varianti: [...(odv.data ?? []), ...(vc.data ?? [])],
+      diaryEvents: diaryEvents.data ?? [],
+      diaryMessages: diaryMessages.data ?? [],
+      statuses,
+      companyName: effectiveCompany?.name,
+    };
+  }, [order, id, orderItems, displayInstallments, statuses, effectiveCompany]);
+
   const handleDownloadPDF = useCallback(async () => {
     if (!order || pdfPreparing) return;
     setPdfPreparing(true);
     try {
-      // Tutti i dati "ricchi" in parallelo, solo ora che servono davvero.
-      const [
-        laborEmployees, laborTeams, salList, salespeople, purchaseOrders,
-        campoAssignmentsRaw, giornaleLavori, odv, vc, diaryEvents, diaryMessages,
-      ] = await Promise.all([
-        supabase.from("order_employees").select("*, employee:employees(first_name, last_name)").eq("order_id", id!),
-        supabase.from("order_external_teams").select("*, external_team:external_teams(name)").eq("order_id", id!),
-        supabase.from("sal_records").select("*, sal_voci(*)").eq("order_id", id!).order("numero_sal"),
-        supabase.from("order_salespeople").select("*, salesperson:salespeople(first_name, last_name)").eq("order_id", id!),
-        supabase.from("purchase_orders").select("id, oda_number, status, total, suppliers(name)").eq("order_id", id!).order("created_at", { ascending: false }),
-        supabase.from("order_campo_assignments").select("*, user:profiles(first_name, last_name), subappaltatore:external_teams(name)").eq("order_id", id!),
-        supabase.from("giornale_lavori").select("*, giornale_foto(id, url, caption)").eq("order_id", id!).order("data_lavori", { ascending: false }),
-        supabase.from("ordini_variazione").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
-        supabase.from("varianti_cliente").select("*").eq("order_id", id!).order("created_at", { ascending: false }),
-        supabase.from("order_events").select("id, event_type, payload, actor_name, created_at").eq("order_id", id!).order("created_at", { ascending: false }).limit(100),
-        supabase.from("order_messages").select("id, channel, direction, subject, body, to_name, status, sent_by_name, created_at").eq("order_id", id!).order("created_at", { ascending: false }).limit(100),
-      ]);
-      const campoAssignments = ((campoAssignmentsRaw.data ?? []) as Array<{ subappaltatore?: { name?: string } | null }>).map((d) => ({
-        ...d,
-        subappaltatore: d.subappaltatore ? { nome: d.subappaltatore.name } : null,
-      }));
-      downloadPDF({
-        order,
-        items: orderItems,
-        laborEmployees: laborEmployees.data ?? [],
-        laborTeams: laborTeams.data ?? [],
-        salList: salList.data ?? [],
-        salespeople: salespeople.data ?? [],
-        purchaseOrders: purchaseOrders.data ?? [],
-        campoAssignments,
-        installments: displayInstallments,
-        giornaleLavori: giornaleLavori.data ?? [],
-        varianti: [...(odv.data ?? []), ...(vc.data ?? [])],
-        diaryEvents: diaryEvents.data ?? [],
-        diaryMessages: diaryMessages.data ?? [],
-        statuses,
-        companyName: effectiveCompany?.name,
-      });
+      const opts = await gatherPdfOpts();
+      if (opts) await downloadPDF(opts);
     } catch (e) {
       console.error("[OrderDetail] preparazione dati PDF fallita:", e);
       toast.error("Impossibile preparare i dati per il PDF. Riprova.");
     } finally {
       setPdfPreparing(false);
     }
-  }, [order, pdfPreparing, id, orderItems, displayInstallments, statuses, effectiveCompany, downloadPDF]);
+  }, [order, pdfPreparing, gatherPdfOpts, downloadPDF]);
+
+  // Genera il PDF come blob (per allegarlo all'email del cliente).
+  const getPdfBlobForOrder = useCallback(async () => {
+    try {
+      const opts = await gatherPdfOpts();
+      if (!opts) return null;
+      return await getPDFBlob(opts);
+    } catch (e) {
+      console.error("[OrderDetail] generazione blob PDF fallita:", e);
+      toast.error("Impossibile generare il PDF. Riprova.");
+      return null;
+    }
+  }, [gatherPdfOpts, getPDFBlob]);
 
   if (orderLoading) {
     return (
@@ -948,6 +970,38 @@ function OrderDetailInner() {
         canDelete={permissions.canEditOrders}
       />
 
+      {/* ── Azioni rapide: contatta cliente · invia PDF · appuntamento ── */}
+      {effectiveCompany?.id && (
+        <OrderQuickActions
+          orderId={id!}
+          orderCode={order.order_code}
+          companyId={effectiveCompany.id}
+          customer={
+            order.customer
+              ? {
+                  id: order.customer.id,
+                  name: `${order.customer.first_name ?? ""} ${order.customer.last_name ?? ""}`.trim() || "Cliente",
+                  phone: order.customer.phone,
+                  email: order.customer.email,
+                }
+              : null
+          }
+          workAddress={order.work_address}
+          getPdfBlob={getPdfBlobForOrder}
+          paymentDue={(() => {
+            const unpaid = displayInstallments.filter((i) => !i.is_paid && i.amount > 0);
+            if (unpaid.length === 0) return null;
+            const next = [...unpaid].sort((a, b) => {
+              const da = a.expected_date ? new Date(a.expected_date).getTime() : Infinity;
+              const db = b.expected_date ? new Date(b.expected_date).getTime() : Infinity;
+              return da - db;
+            })[0];
+            const residuo = unpaid.reduce((s, i) => s + i.amount, 0);
+            return { amount: next?.amount ?? residuo, dueDate: next?.expected_date ?? null, label: next?.label ?? null };
+          })()}
+        />
+      )}
+
       {/* ── Chiedi a Silvio (contestuale alla commessa) ───────── */}
       <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-2 flex justify-end">
         <ChiediASilvio
@@ -1003,6 +1057,24 @@ function OrderDetailInner() {
             itemsLoading={orderItemsPending}
           />
         </ErrorBoundary>
+
+        {/* Pannello operativo: prossima azione + responsabile + checklist fasi */}
+        {effectiveCompany?.id && (
+          <ErrorBoundary fallback={<></>}>
+            <OrderOperationalPanel
+              orderId={id!}
+              companyId={effectiveCompany.id}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              initialNextAction={(order as any).next_action}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              initialNextActionDate={(order as any).next_action_date}
+              initialAssignedTo={order.assigned_to}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              initialChecklist={(order as any).operational_checklist}
+              canEdit={permissions.canEditOrders}
+            />
+          </ErrorBoundary>
+        )}
 
         {/* Sopralluoghi collegati (rilievo misure) */}
         <ErrorBoundary fallback={<></>}>
