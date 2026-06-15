@@ -31,7 +31,7 @@ export function TopCustomersWidget({ companyId, dateFrom, dateTo }: Props) {
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("orders")
-        .select("customer_id, total_amount, customer:customers(id, first_name, last_name)")
+        .select("customer_id, total_amount, customer:profiles!orders_customer_id_fkey(id, first_name, last_name)")
         .eq("company_id", companyId)
         .gte("created_at", dateFrom.toISOString())
         .lte("created_at", dateTo.toISOString())
