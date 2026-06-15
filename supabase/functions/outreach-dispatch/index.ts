@@ -24,6 +24,14 @@ import { renderTemplate, contactToVars, hashSeed } from "../_shared/outreach-tem
 import { isWithinSendWindow, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
 import { nextEmailStep, computeStepSchedule, applyJitter, type SeqStep } from "../_shared/outreach-sequence.ts";
+import {
+  isGraphSequence,
+  entryNode,
+  nodeById,
+  planNextAction,
+  type FlowNode,
+  type FlowActivity,
+} from "../_shared/outreach-flow.ts";
 import { appendTrackingSig, outreachOpenPixelUrl } from "../_shared/emailTrackingSignature.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -34,36 +42,161 @@ const BATCH = 200;
 // Iscrizioni "chiuse": i loro messaggi in coda non vanno spediti.
 const TERMINAL_ENROLLMENT = new Set(["stopped", "completed", "replied", "bounced", "opted_out"]);
 
+/** Tipo iscrizione arricchito col nodo grafo corrente (null = legacy lineare). */
+type EnrRow = { id: string; sequence_id: string; current_step: number; current_node_id?: string | null };
+
+/** Colonne step caricate dal dispatcher (cadenza + flusso grafo). */
+const STEP_COLS = "id,step_order,channel,delay_days,delay_hours,subject,body,node_type,condition_type,next_default,next_alt";
+
 /**
- * Avanza la cadenza dopo un invio riuscito: accoda il prossimo step email
- * (a sent_at + delay) oppure marca l'iscrizione 'completed'. Se nel frattempo
- * manca l'email o è arrivato un opt-out, ferma l'iscrizione.
+ * Ferma l'iscrizione se il contatto non è (più) contattabile. Ritorna true se ha
+ * fermato (il chiamante non deve accodare nulla). Condivisa legacy/grafo.
+ */
+async function stopIfUncontactable(supabase: any, enrId: string, contact: any): Promise<boolean> {
+  if (contact?.email && !contact?.optout_email) return false;
+  await supabase.from("outreach_enrollments").update({
+    status: contact?.optout_email ? "opted_out" : "stopped",
+    next_action_at: null,
+    stop_reason: contact?.optout_email ? "optout_email" : "no_email",
+  }).eq("id", enrId);
+  return true;
+}
+
+/**
+ * Segnali del destinatario per le condizioni del grafo:
+ *   • lastEmailOpened: l'ULTIMA riga 'sent' di questo enrollment ha open_count>0
+ *     (richiede track_opens; senza dato = non aperto).
+ *   • hasReply: esiste una risposta legata all'enrollment (outreach_replies).
+ * Best-effort: su errore (colonne assenti pre-migrazione) ricade su segnali falsi.
+ */
+async function computeActivity(supabase: any, enrId: string): Promise<FlowActivity> {
+  let lastEmailOpened = false;
+  let hasReply = false;
+  try {
+    const { data: lastSent } = await supabase
+      .from("outreach_send_queue")
+      .select("open_count")
+      .eq("enrollment_id", enrId).eq("status", "sent")
+      .order("sent_at", { ascending: false }).limit(1).maybeSingle();
+    lastEmailOpened = (lastSent?.open_count ?? 0) > 0;
+  } catch { /* tracking assente → non aperto */ }
+  try {
+    const { data: rep } = await supabase
+      .from("outreach_replies").select("id").eq("enrollment_id", enrId).limit(1).maybeSingle();
+    hasReply = !!rep?.id;
+  } catch { /* tabella/colonna assente → nessuna risposta */ }
+  return { lastEmailOpened, hasReply };
+}
+
+/**
+ * Accoda l'azione pianificata dal grafo (send o advance) e aggiorna il nodo
+ * corrente dell'iscrizione. 'send' → riga email spedibile (come legacy); 'advance'
+ * → riga di SOLO instradamento differito (per i nodi 'wait'): non viene spedita,
+ * il dispatcher la riprende a scadenza e continua la traversata.
+ */
+async function enqueuePlanned(
+  supabase: any,
+  enr: EnrRow,
+  contact: any,
+  node: FlowNode,
+  kind: "send" | "advance",
+  delayDays: number,
+  delayHours: number,
+  baseAt: Date,
+  brandId: string | null,
+): Promise<void> {
+  const when = computeStepSchedule(baseAt, delayDays, delayHours);
+  const whenJ = applyJitter(when, 90, Math.random()).toISOString();
+  await supabase.from("outreach_send_queue").insert({
+    company_id: PLATFORM_COMPANY,
+    enrollment_id: enr.id,
+    contact_id: contact.id,
+    brand_id: brandId,
+    channel: "email",
+    kind,
+    node_id: node.id,
+    to_email: contact.email,
+    subject: kind === "send" ? (node.subject ?? "") : null,
+    body: kind === "send" ? (node.body ?? "") : "",
+    status: "queued",
+    scheduled_for: whenJ,
+  });
+  await supabase.from("outreach_enrollments")
+    .update({ current_step: node.step_order, current_node_id: node.id, next_action_at: whenJ }).eq("id", enr.id);
+}
+
+/**
+ * Avanza la cadenza a GRAFO dopo aver "consumato" il nodo corrente `fromNodeId`
+ * (l'email appena inviata, oppure il wait appena scaduto). Risolve la catena
+ * condition/end immediata e accoda l'email successiva (send) o l'instradamento
+ * differito del prossimo wait (advance); se la catena finisce → 'completed'.
+ */
+async function advanceGraph(
+  supabase: any,
+  enr: EnrRow,
+  nodes: FlowNode[],
+  fromNodeId: string | null,
+  contact: any,
+  baseAt: Date,
+  brandId: string | null,
+): Promise<void> {
+  const fromNode = nodeById(nodes, fromNodeId);
+  // successore: next_default del nodo consumato (le email/wait hanno un solo
+  // successore; le condition sono già state risolte dentro planNextAction quando
+  // sono il punto di partenza — ma qui partiamo sempre da un email o un wait).
+  const startId = fromNode?.next_default ?? null;
+  const activity = await computeActivity(supabase, enr.id);
+  const plan = planNextAction(nodes, startId, activity);
+  if (plan.aborted) {
+    console.warn("[outreach-dispatch] guardia anti-loop grafo: completo enrollment", enr.id);
+  }
+  if (plan.kind === "complete" || !plan.node) {
+    await supabase.from("outreach_enrollments")
+      .update({ status: "completed", current_node_id: fromNode?.id ?? enr.current_node_id ?? null, next_action_at: null })
+      .eq("id", enr.id);
+    return;
+  }
+  // un'email da spedire richiede un contatto contattabile; un 'advance' (wait) no.
+  if (plan.kind === "send" && await stopIfUncontactable(supabase, enr.id, contact)) return;
+  await enqueuePlanned(supabase, enr, contact, plan.node, plan.kind, plan.delayDays, plan.delayHours, baseAt, brandId);
+}
+
+/**
+ * Avanza la cadenza dopo un invio riuscito. Sceglie la traversata:
+ *   • GRAFO   se la sequenza ha rami (next_*) o l'iscrizione ha già current_node_id
+ *             → segue i nodi (email/wait/condition/end).
+ *   • LINEARE (legacy) altrimenti → percorso step_order ATTUALE, invariato.
  */
 async function advanceEnrollment(
   supabase: any,
-  enr: { id: string; sequence_id: string; current_step: number },
+  enr: EnrRow,
   contact: any,
   sentAt: Date,
   brandId: string | null,
 ): Promise<void> {
   const { data: stepsRaw } = await supabase
     .from("outreach_sequence_steps")
-    .select("step_order,channel,delay_days,delay_hours,subject,body")
+    .select(STEP_COLS)
     .eq("sequence_id", enr.sequence_id).order("step_order", { ascending: true });
-  const next = nextEmailStep((stepsRaw || []) as SeqStep[], enr.current_step);
+  const nodes = (stepsRaw || []) as FlowNode[];
+
+  // Routing grafo vs legacy: zero regressioni sul lineare.
+  if (isGraphSequence(nodes) || enr.current_node_id) {
+    // Nodo appena inviato: quello tracciato (current_node_id) o, al primo passo
+    // di una sequenza a grafo ancora "legacy-enrolled", l'entry node.
+    const fromId = enr.current_node_id ?? entryNode(nodes)?.id ?? null;
+    await advanceGraph(supabase, enr, nodes, fromId, contact, sentAt, brandId);
+    return;
+  }
+
+  // ── Percorso LINEARE legacy (invariato) ──────────────────────────────────
+  const next = nextEmailStep(nodes as unknown as SeqStep[], enr.current_step);
   if (!next) {
     await supabase.from("outreach_enrollments")
       .update({ status: "completed", next_action_at: null }).eq("id", enr.id);
     return;
   }
-  if (!contact?.email || contact?.optout_email) {
-    await supabase.from("outreach_enrollments").update({
-      status: contact?.optout_email ? "opted_out" : "stopped",
-      next_action_at: null,
-      stop_reason: contact?.optout_email ? "optout_email" : "no_email",
-    }).eq("id", enr.id);
-    return;
-  }
+  if (await stopIfUncontactable(supabase, enr.id, contact)) return;
   const when = computeStepSchedule(sentAt, next.delay_days, next.delay_hours);
   // Jitter umano: spalma il follow-up su una finestra di 0..90 min così i passi
   // successivi non partono tutti allo stesso minuto. La finestra di invio resta a valle.
@@ -82,6 +215,90 @@ async function advanceEnrollment(
   });
   await supabase.from("outreach_enrollments")
     .update({ current_step: next.step_order, next_action_at: whenJ }).eq("id", enr.id);
+}
+
+/**
+ * PASS GRAFO — instradamenti differiti (righe 'advance' dovute). Una riga
+ * 'advance' viene creata quando la traversata incontra un nodo 'wait': scaduto il
+ * delay, qui riprendiamo il grafo DAL wait (node_id), valutando le condizioni a
+ * valle con segnali aggiornati (aperture/risposte maturate nel frattempo).
+ *
+ * Per ogni riga: gate iscrizione (pausa→lascia in coda; terminale→annulla;
+ * opt-out→ferma), poi marca la riga 'sent' (consumata, idempotenza anti-doppio) e
+ * chiama advanceGraph. NON spedisce nulla. Best-effort: il chiamante cattura
+ * l'errore se la colonna 'kind' non esiste (pre-migrazione).
+ */
+async function processAdvanceQueue(
+  supabase: any,
+  now: Date,
+  result: { processed: number; deferred: number; skipped: number },
+): Promise<void> {
+  const { data: rows, error } = await supabase
+    .from("outreach_send_queue")
+    .select("id, enrollment_id, contact_id, brand_id, node_id")
+    .eq("status", "queued").eq("kind", "advance")
+    .lte("scheduled_for", now.toISOString())
+    .order("scheduled_for", { ascending: true })
+    .limit(BATCH);
+  if (error) throw error; // 'kind' assente → gestito dal chiamante
+  if (!rows || rows.length === 0) return;
+
+  // carica iscrizioni, contatti e step delle sequenze coinvolte
+  const enrIds = [...new Set(rows.map((r: any) => r.enrollment_id).filter(Boolean))];
+  const enrById = new Map<string, EnrRow & { status: string }>();
+  if (enrIds.length) {
+    const { data: es } = await supabase.from("outreach_enrollments")
+      .select("id,status,sequence_id,current_step,current_node_id").in("id", enrIds);
+    for (const e of es || []) enrById.set(e.id, e);
+  }
+  const contactIds = [...new Set(rows.map((r: any) => r.contact_id).filter(Boolean))];
+  const contactById = new Map<string, any>();
+  if (contactIds.length) {
+    const { data: cs } = await supabase.from("marketing_contacts")
+      .select("id,email,optout_email").in("id", contactIds);
+    for (const c of cs || []) contactById.set(c.id, c);
+  }
+  const seqIds = [...new Set([...enrById.values()].map((e) => e.sequence_id).filter(Boolean))];
+  const nodesBySeq = new Map<string, FlowNode[]>();
+  if (seqIds.length) {
+    const { data: steps } = await supabase.from("outreach_sequence_steps")
+      .select(STEP_COLS).in("sequence_id", seqIds).order("step_order", { ascending: true });
+    for (const s of (steps || []) as any[]) {
+      const arr = nodesBySeq.get(s.sequence_id) ?? [];
+      arr.push(s as FlowNode);
+      nodesBySeq.set(s.sequence_id, arr);
+    }
+  }
+
+  for (const row of rows) {
+    result.processed++;
+    const enr = row.enrollment_id ? enrById.get(row.enrollment_id) : null;
+    if (!enr) {
+      await supabase.from("outreach_send_queue")
+        .update({ status: "cancelled", last_error: "advance senza enrollment" }).eq("id", row.id);
+      result.skipped++;
+      continue;
+    }
+    if (enr.status === "paused") { result.deferred++; continue; } // resta in coda
+    if (TERMINAL_ENROLLMENT.has(enr.status)) {
+      await supabase.from("outreach_send_queue")
+        .update({ status: "cancelled", last_error: `enrollment ${enr.status}` }).eq("id", row.id);
+      result.skipped++;
+      continue;
+    }
+    const contact = row.contact_id ? contactById.get(row.contact_id) : null;
+    // consuma la riga (idempotenza: una sola volta), poi continua la traversata.
+    await supabase.from("outreach_send_queue")
+      .update({ status: "sent", sent_at: now.toISOString() }).eq("id", row.id);
+    try {
+      const nodes = nodesBySeq.get(enr.sequence_id) ?? [];
+      // riprendiamo DAL nodo 'wait' (row.node_id): advanceGraph parte dal suo
+      // next_default e risolve le condizioni a valle.
+      await advanceGraph(supabase, { ...enr }, nodes, row.node_id ?? enr.current_node_id ?? null, contact, now, row.brand_id ?? null);
+    } catch (e) {
+      console.warn("[outreach-dispatch] advance grafo fallito:", e instanceof Error ? e.message : e);
+    }
+  }
 }
 
 Deno.serve(async (req) => {
@@ -111,15 +328,39 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // 1. coda dovuta
-    const { data: queue, error: qErr } = await supabase
-      .from("outreach_send_queue")
-      .select("id, to_email, subject, body, attempts, max_attempts, contact_id, enrollment_id, brand_id")
-      .eq("status", "queued").eq("channel", "email")
-      .lte("scheduled_for", now.toISOString())
-      .order("scheduled_for", { ascending: true })
-      .limit(BATCH);
-    if (qErr) throw qErr;
+    // 0. PASS GRAFO — instradamenti differiti dovuti (righe 'advance', tipiche dei
+    // nodi 'wait'): NON si spediscono, riprendono la traversata valutando le
+    // condizioni con segnali aggiornati. Best-effort: se la colonna 'kind' non
+    // esiste (migrazione grafo non applicata) il select fallisce → skip silenzioso.
+    try {
+      await processAdvanceQueue(supabase, now, result);
+    } catch (advErr) {
+      // colonna kind assente o errore non fatale: il cold lineare prosegue.
+      console.warn("[outreach-dispatch] advance-pass skip:", advErr instanceof Error ? advErr.message : advErr);
+    }
+
+    // 1. coda dovuta — SOLO righe spedibili (kind='send'). Le righe 'advance' sono
+    // gestite sopra. Filtro tollerante: se 'kind' non esiste ricade su tutte le
+    // righe (legacy), che sono comunque send.
+    let queue: any[] | null = null;
+    {
+      const sel = () => supabase
+        .from("outreach_send_queue")
+        .select("id, to_email, subject, body, attempts, max_attempts, contact_id, enrollment_id, brand_id")
+        .eq("status", "queued").eq("channel", "email")
+        .lte("scheduled_for", now.toISOString())
+        .order("scheduled_for", { ascending: true })
+        .limit(BATCH);
+      const r = await sel().eq("kind", "send");
+      if (r.error) {
+        // 'kind' assente (pre-migrazione grafo): riprova senza il filtro.
+        const r2 = await sel();
+        if (r2.error) throw r2.error;
+        queue = r2.data;
+      } else {
+        queue = r.data;
+      }
+    }
     if (!queue || queue.length === 0) return json({ ...result, note: "coda vuota" }, 200, cors);
 
     // 2. caselle del pool
@@ -151,11 +392,20 @@ Deno.serve(async (req) => {
 
     // stato iscrizioni del batch: non spedire se in pausa (resta in coda) o terminata (annulla)
     const enrollmentIds = [...new Set(queue.map((q) => q.enrollment_id).filter(Boolean))];
-    const enrollmentById = new Map<string, { id: string; status: string; sequence_id: string; current_step: number }>();
+    const enrollmentById = new Map<string, { id: string; status: string; sequence_id: string; current_step: number; current_node_id?: string | null }>();
     if (enrollmentIds.length) {
-      const { data: es } = await supabase
-        .from("outreach_enrollments")
-        .select("id,status,sequence_id,current_step").in("id", enrollmentIds);
+      // current_node_id (grafo) caricato in modo tollerante: se la colonna non
+      // esiste (pre-migrazione) ricade sul select base → percorso legacy.
+      let es: any[] | null = null;
+      const r = await supabase.from("outreach_enrollments")
+        .select("id,status,sequence_id,current_step,current_node_id").in("id", enrollmentIds);
+      if (r.error) {
+        const r2 = await supabase.from("outreach_enrollments")
+          .select("id,status,sequence_id,current_step").in("id", enrollmentIds);
+        es = r2.data;
+      } else {
+        es = r.data;
+      }
       for (const e of es || []) enrollmentById.set(e.id, e);
     }
 
