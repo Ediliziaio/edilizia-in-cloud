@@ -38,7 +38,7 @@ export default function BlogTeaserSection() {
           {articles.map((a, i) => (
             <Link
               key={a.slug}
-              to={`/blog/${a.slug}`}
+              to={`/blog/${a.slug}/`}
               className={`block p-6 rounded-2xl bg-[#f8f9fa] border border-gray-100 hover:border-[#F97415]/40 hover:bg-white hover:shadow-lg transition-all duration-700 group ${
                 isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
               }`}

@@ -42,6 +42,10 @@ Disallow: /portale-tecnico/
 # (fix GSC: /blog?q={search_term_string} scansionato dal vecchio SearchAction)
 Disallow: /blog?q=
 Disallow: /blog/?q=
+# Cloudflare email obfuscation: il link /cdn-cgi/l/email-protection (inserito
+# automaticamente da Cloudflare al posto delle email) risponde 404 se seguito
+# dai crawler → fix GSC "Non trovata (404)".
+Disallow: /cdn-cgi/
 
 # ── AI / Search Crawlers ─────────────────────────────────────────
 # Tutti i crawler AI sono ammessi per search e RAG (non per training).
@@ -53,6 +57,7 @@ Allow: /
 # del gruppo "*": i Disallow critici vanno ripetuti qui.
 Disallow: /blog?q=
 Disallow: /blog/?q=
+Disallow: /cdn-cgi/
 
 User-agent: GPTBot
 Allow: /

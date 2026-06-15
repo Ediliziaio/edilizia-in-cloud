@@ -918,7 +918,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                 {relPosts.map((post) => (
                   <Link
                     key={post.id}
-                    to={`/blog/${post.slug}`}
+                    to={`/blog/${post.slug}/`}
                     className="group flex flex-col bg-gray-50 rounded-2xl overflow-hidden border border-gray-200 hover:border-[#F97415]/40 hover:shadow-lg transition-all duration-300"
                   >
                     <img

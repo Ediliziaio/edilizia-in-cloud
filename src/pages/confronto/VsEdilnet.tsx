@@ -417,7 +417,7 @@ export default function VsEdilnet() {
             <h2 className="text-lg font-bold text-[#111111] mb-6">Leggi anche</h2>
             <div className="grid sm:grid-cols-3 gap-4">
               {vsRelatedPosts.map((p) => (
-                <Link key={p.slug} to={`/blog/${p.slug}`} className="group flex flex-col gap-2 rounded-xl border border-gray-200 hover:border-[#F97415]/40 p-4 transition-all hover:shadow-sm">
+                <Link key={p.slug} to={`/blog/${p.slug}/`} className="group flex flex-col gap-2 rounded-xl border border-gray-200 hover:border-[#F97415]/40 p-4 transition-all hover:shadow-sm">
                   <img src={p.coverImage} alt={p.title} className="w-full h-28 object-cover rounded-lg" loading="lazy" />
                   <span className="text-[10px] font-bold uppercase tracking-wider text-[#F97415]">{p.category}</span>
                   <span className="text-sm font-semibold text-[#111111] leading-snug group-hover:text-[#F97415] transition-colors line-clamp-2">{p.title}</span>
