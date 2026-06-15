@@ -44,6 +44,7 @@ import { ContactCallHistory } from "@/components/telephony/ContactCallHistory";
 import { STATUS_OPTIONS, inferOpportunityStatusFromStage } from "@/types/opportunities";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cleanPhone } from "@/lib/contactUtils";
+import { QuickContactSendDialog, type QuickSendChannel } from "@/components/contacts/QuickContactSendDialog";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 
@@ -103,6 +104,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   // Contact fields
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  // Popup invio rapido SMS/WhatsApp/Email al contatto (senza navigare via).
+  const [quickSend, setQuickSend] = useState<{ open: boolean; channel: QuickSendChannel }>({ open: false, channel: "whatsapp" });
   const [contactCity, setContactCity] = useState("");
   const [contactCustomValues, setContactCustomValues] = useState<Record<string, string>>({});
 
@@ -495,7 +498,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 {contactEmail && (
                   <button
                     type="button"
-                    onClick={() => { navigate(`/azienda/marketing/messaggi?contact=${opportunity.contact_id}&channel=email`); onOpenChange(false); }}
+                    onClick={() => setQuickSend({ open: true, channel: "email" })}
                     className="h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-violet-50 hover:text-violet-600 transition-colors"
                     aria-label="Invia email"
                     title={`Email a ${contactEmail}`}
@@ -506,10 +509,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 {contactPhone && (
                   <button
                     type="button"
-                    onClick={() => { navigate(`/azienda/marketing/messaggi?contact=${opportunity.contact_id}&channel=whatsapp`); onOpenChange(false); }}
+                    onClick={() => setQuickSend({ open: true, channel: "whatsapp" })}
                     className="h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
-                    aria-label="Invia WhatsApp"
-                    title="Invia WhatsApp"
+                    aria-label="Invia SMS o WhatsApp"
+                    title="Invia SMS o WhatsApp"
                   >
                     <MessageCircle className="h-4 w-4" />
                   </button>
@@ -1158,6 +1161,18 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {opportunity.contact_id && (
+      <QuickContactSendDialog
+        open={quickSend.open}
+        onOpenChange={(v) => setQuickSend((s) => ({ ...s, open: v }))}
+        contactId={opportunity.contact_id}
+        name={fullName}
+        phone={contactPhone}
+        email={contactEmail}
+        defaultChannel={quickSend.channel}
+      />
+    )}
     </>
   );
 }
