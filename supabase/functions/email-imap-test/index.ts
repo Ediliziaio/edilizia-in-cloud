@@ -13,7 +13,7 @@
  * Aggiorna last_test_ok / last_test_at / last_test_error sul record.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { imapTestConnection } from "../_shared/imapSmtpClient.ts";
+import { imapTestConnection, smtpTestConnection } from "../_shared/imapSmtpClient.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -87,6 +87,9 @@ Deno.serve(async (req) => {
       imap_username: c.imap_username || c.email_address,
       password: c.password,
       email_address: c.email_address,
+      smtp_host: c.smtp_host,
+      smtp_port: c.smtp_port,
+      smtp_secure: c.smtp_secure,
     };
   } else if (body.imap_host && body.password) {
     cfg = {
@@ -95,11 +98,16 @@ Deno.serve(async (req) => {
       imap_secure: body.imap_secure ?? true,
       imap_username: body.imap_username || body.email_address || "",
       password: body.password,
+      email_address: body.email_address,
+      smtp_host: body.smtp_host,
+      smtp_port: body.smtp_port,
+      smtp_secure: body.smtp_secure,
     };
   } else {
     return jsonResponse({ ok: false, error: "connection_id or inline config required" }, 400);
   }
 
+  // 1) IMAP (ricezione) — bloccante: senza IMAP non si legge nulla.
   try {
     await imapTestConnection({
       host: cfg.imap_host,
@@ -108,26 +116,51 @@ Deno.serve(async (req) => {
       username: cfg.imap_username,
       password: cfg.password,
     });
-
-    if (connectionId) {
-      await supabase.rpc("email_imap_record_test", {
-        p_connection_id: connectionId,
-        p_ok: true,
-        p_error: null,
-      });
-    }
-    return jsonResponse({ ok: true, message: "Connessione IMAP verificata" });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = `IMAP (ricezione): ${e instanceof Error ? e.message : String(e)}`;
     if (connectionId) {
       await supabase.rpc("email_imap_record_test", {
-        p_connection_id: connectionId,
-        p_ok: false,
-        p_error: msg.slice(0, 500),
+        p_connection_id: connectionId, p_ok: false, p_error: msg.slice(0, 500),
       });
     }
-    return jsonResponse({ ok: false, error: msg }, 400);
+    return jsonResponse({ ok: false, imap_ok: false, smtp_ok: false, error: msg }, 400);
   }
+
+  // 2) SMTP (invio) — testato solo se l'host è fornito. Verifica host/porta/AUTH
+  //    SENZA inviare email, così "Test connessione" garantisce anche l'invio.
+  let smtpOk = false;
+  let smtpError: string | null = null;
+  if (cfg.smtp_host && cfg.smtp_port) {
+    const r = await smtpTestConnection({
+      host: cfg.smtp_host,
+      port: cfg.smtp_port,
+      secure: cfg.smtp_secure ?? false,
+      username: cfg.imap_username,
+      password: cfg.password,
+    });
+    smtpOk = r.ok;
+    if (!r.ok) smtpError = `SMTP (invio): ${r.error ?? "verifica fallita"}`;
+  }
+
+  const allOk = smtpError === null;
+  if (connectionId) {
+    await supabase.rpc("email_imap_record_test", {
+      p_connection_id: connectionId,
+      p_ok: allOk,
+      p_error: smtpError ? smtpError.slice(0, 500) : null,
+    });
+  }
+
+  if (smtpError) {
+    // IMAP ok ma SMTP no: l'utente potrà ricevere ma non inviare → segnaliamo.
+    return jsonResponse({ ok: false, imap_ok: true, smtp_ok: false, error: smtpError }, 400);
+  }
+  return jsonResponse({
+    ok: true,
+    imap_ok: true,
+    smtp_ok: smtpOk,
+    message: smtpOk ? "Connessione IMAP e SMTP verificate" : "Connessione IMAP verificata",
+  });
 });
 
 function jsonResponse(body: unknown, status = 200): Response {
