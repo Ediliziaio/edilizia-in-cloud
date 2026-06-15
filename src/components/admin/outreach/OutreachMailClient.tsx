@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,13 +9,17 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import {
   Inbox, Mailbox, Mail, Search, ChevronLeft, MessageSquare, AlertTriangle, Building2,
-  Send, Loader2, Wand2, CheckCheck, Archive, Layers,
+  Send, Loader2, Wand2, CheckCheck, Archive, Layers, PanelRightOpen, PanelRightClose,
+  User, Phone, Tag, ShieldBan, Pause, Play, ThumbsUp, ThumbsDown, Clock, Briefcase,
+  Activity, ShieldCheck,
 } from "lucide-react";
 import { MigrationGate } from "./_shared";
+import { OutreachConvertContactDialog } from "./OutreachConvertContactDialog";
 import {
-  INTENT_META, type Conversation, type StatusFilter,
+  INTENT_META, ENROLLMENT_STATUS_META, type Conversation, type StatusFilter,
+  type LeadContext, type LeadSequence,
   contactName, iniziali, relativeTime, fullTime, providerLabel, senderStatusColor,
-  useOutreachConversations, useReplyComposer,
+  useOutreachConversations, useReplyComposer, useLeadContext, useLeadActions, isEnrollmentLive,
 } from "./useOutreachConversations";
 
 /**
@@ -37,9 +41,9 @@ import {
  */
 export function OutreachMailClient({ companyId }: { companyId: string }) {
   const {
-    conversations, counts, sendersById, senders,
+    conversations, counts, sendersById, senders, unreadBySender,
     isLoading, errored, tableMissing,
-    markRead, markAllRead, archiveRead, filterConversations,
+    markRead, markAllRead, archiveRead, setIntent, filterConversations,
   } = useOutreachConversations(companyId);
   const { replyText, setReplyText, sending, aiDrafting, sendReply, draftWithAi } = useReplyComposer(companyId);
 
@@ -48,6 +52,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
   const [senderId, setSenderId] = useState<string | null>(null); // null = tutte le caselle
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [showListMobile, setShowListMobile] = useState(false); // overlay caselle su mobile
+  const [showContext, setShowContext] = useState(true); // pannello contesto lead (destra)
 
   const filtered = useMemo(
     () => filterConversations(conversations, filter, search, senderId),
@@ -58,6 +63,11 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
     () => conversations.find((c) => c.key === selectedKey) ?? null,
     [conversations, selectedKey],
   );
+
+  // Contesto + azioni del lead selezionato (DRY: dal hook condiviso).
+  const { context: leadContext, isLoading: leadLoading, liveSequence } =
+    useLeadContext(companyId, selected?.contact ?? null, selected);
+  const leadActions = useLeadActions(companyId);
 
   // Numero di conversazioni attive per casella (badge nel pannello sinistro).
   const convCountBySender = useMemo(() => {
@@ -77,6 +87,35 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
     setShowListMobile(false);
     if (conv.unread && conv.contact?.id) markRead.mutate(conv.contact.id);
   };
+
+  // Scorciatoie J/K: sposta la selezione nella lista filtrata. Ignorate mentre si
+  // scrive in un input/textarea (così non rubano i tasti alla composizione). Il
+  // listener si ri-registra quando cambia la lista filtrata o la selezione: la
+  // closure cattura i valori correnti, niente ref scritti in render.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || el?.isContentEditable) return;
+      const k = e.key.toLowerCase();
+      if (k !== "j" && k !== "k") return;
+      if (filtered.length === 0) return;
+      e.preventDefault();
+      const idx = filtered.findIndex((c) => c.key === selectedKey);
+      const nextIdx = k === "j"
+        ? (idx < 0 ? 0 : Math.min(idx + 1, filtered.length - 1))
+        : (idx < 0 ? 0 : Math.max(idx - 1, 0));
+      const next = filtered[nextIdx];
+      if (next && next.key !== selectedKey) {
+        setSelectedKey(next.key);
+        setReplyText("");
+        if (next.unread && next.contact?.id) markRead.mutate(next.contact.id);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filtered, selectedKey, markRead, setReplyText]);
 
   const selectSender = (id: string | null) => {
     setSenderId(id);
@@ -163,6 +202,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
                   title={s.email}
                   badge={providerLabel(s.provider)}
                   count={convCountBySender.get(s.id) || undefined}
+                  unread={unreadBySender.get(s.id) || undefined}
                 />
               ))
             )}
@@ -182,6 +222,11 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
           <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
             <Inbox className="h-4 w-4 text-orange-500" /> Conversazioni
             {counts.unread > 0 && <Badge className="bg-orange-500">{counts.unread}</Badge>}
+            {/* Hint scorciatoie tastiera (solo desktop). */}
+            <span
+              className="hidden cursor-help select-none rounded border px-1 text-[10px] font-normal text-muted-foreground lg:inline"
+              title="Scorciatoie · J/K: conversazione successiva/precedente · ⌘/Ctrl+Invio: invia la risposta"
+            >?</span>
             {activeSender && (
               <Badge variant="outline" className="ml-auto max-w-[150px] gap-1 truncate text-[10px] font-normal">
                 <Mailbox className="h-3 w-3 shrink-0" /><span className="truncate">{activeSender.email}</span>
@@ -340,24 +385,58 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
             <div>
               <MessageSquare className="mx-auto mb-3 h-10 w-10 opacity-30" />
               <p className="text-sm">Seleziona una conversazione.</p>
-              <p className="mt-1 text-xs">Inviate a destra, risposte a sinistra.</p>
+              <p className="mt-1 text-xs">Inviate a destra, risposte a sinistra. <kbd className="rounded border bg-muted px-1 text-[10px]">J</kbd>/<kbd className="rounded border bg-muted px-1 text-[10px]">K</kbd> per spostarti.</p>
             </div>
           </div>
         ) : (
-          <ThreadPane
-            selected={selected}
-            mailbox={selected.primarySenderId ? sendersById.get(selected.primarySenderId) ?? null : null}
-            replyText={replyText}
-            setReplyText={setReplyText}
-            sending={sending}
-            aiDrafting={aiDrafting}
-            onSend={sendReply}
-            onDraft={draftWithAi}
-            onBack={() => setSelectedKey(null)}
-          />
+          <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+            <div className="flex min-w-0 flex-1 flex-col">
+              <ThreadPane
+                selected={selected}
+                mailbox={selected.primarySenderId ? sendersById.get(selected.primarySenderId) ?? null : null}
+                replyText={replyText}
+                setReplyText={setReplyText}
+                sending={sending}
+                aiDrafting={aiDrafting}
+                onSend={sendReply}
+                onDraft={draftWithAi}
+                onBack={() => setSelectedKey(null)}
+                showContext={showContext}
+                onToggleContext={() => setShowContext((v) => !v)}
+              />
+            </div>
+            {showContext && (
+              <LeadContextPanel
+                companyId={companyId}
+                conversation={selected}
+                context={leadContext}
+                loading={leadLoading}
+                liveSequence={liveSequence}
+                actions={leadActions}
+                onSetIntent={(intent) => selected.contact?.id && setIntent.mutate({ contactId: selected.contact.id, intent })}
+                intentPending={setIntent.isPending}
+                onClose={() => setShowContext(false)}
+              />
+            )}
+          </div>
         )}
       </section>
     </div>
+  );
+}
+
+/**
+ * PostaUnreadBadge — pillola arancione col numero di risposte non lette, da usare
+ * accanto al label del TabsTrigger "Posta". Riusa il conteggio del hook condiviso
+ * (stessa fonte del client), così resta sempre allineato. Niente badge se zero.
+ */
+export function PostaUnreadBadge({ companyId }: { companyId: string }) {
+  const { counts, tableMissing, errored } = useOutreachConversations(companyId);
+  if (tableMissing || errored || counts.unread <= 0) return null;
+  return (
+    <Badge className="ml-1.5 h-4 min-w-4 justify-center bg-orange-500 px-1 text-[10px] tabular-nums">
+      {counts.unread > 99 ? "99+" : counts.unread}
+    </Badge>
   );
 }
 
@@ -366,7 +445,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
    ────────────────────────────────────────────────────────────────────────── */
 
 function MailboxButton({
-  active, onClick, icon, title, badge, count, countTone = "muted",
+  active, onClick, icon, title, badge, count, unread, countTone = "muted",
 }: {
   active: boolean;
   onClick: () => void;
@@ -374,6 +453,8 @@ function MailboxButton({
   title: string;
   badge?: string;
   count?: number;
+  /** Conversazioni non lette della casella → pillola arancione prioritaria. */
+  unread?: number;
   countTone?: "muted" | "orange";
 }) {
   return (
@@ -391,12 +472,14 @@ function MailboxButton({
       {badge && (
         <span className="shrink-0 rounded bg-muted px-1 text-[9px] font-medium uppercase text-muted-foreground">{badge}</span>
       )}
-      {count != null && count > 0 && (
+      {unread != null && unread > 0 ? (
+        <span className="shrink-0 rounded-full bg-orange-500 px-1.5 text-[10px] tabular-nums text-white" title={`${unread} non lette`}>{unread}</span>
+      ) : count != null && count > 0 ? (
         <span className={cn(
           "shrink-0 rounded-full px-1.5 text-[10px] tabular-nums",
           countTone === "orange" ? "bg-orange-500 text-white" : "bg-muted text-muted-foreground",
         )}>{count}</span>
-      )}
+      ) : null}
     </button>
   );
 }
@@ -437,6 +520,7 @@ function FilterPills({
 
 function ThreadPane({
   selected, mailbox, replyText, setReplyText, sending, aiDrafting, onSend, onDraft, onBack,
+  showContext, onToggleContext,
 }: {
   selected: Conversation;
   mailbox: { email: string; provider: string } | null;
@@ -447,6 +531,8 @@ function ThreadPane({
   onSend: (contactId: string) => void | Promise<void>;
   onDraft: (contactId: string) => void | Promise<void>;
   onBack: () => void;
+  showContext: boolean;
+  onToggleContext: () => void;
 }) {
   const name = contactName(selected.contact, selected.email);
   const counterpart = selected.contact?.email || selected.email;
@@ -472,6 +558,16 @@ function ThreadPane({
               )}
             </div>
           </div>
+          {/* Toggle pannello contesto lead (nascosto su mobile: là è in fondo al thread). */}
+          <Button
+            variant="ghost" size="icon"
+            className="hidden shrink-0 lg:inline-flex"
+            aria-label={showContext ? "Nascondi contesto lead" : "Mostra contesto lead"}
+            title={showContext ? "Nascondi contesto lead" : "Mostra contesto lead"}
+            onClick={onToggleContext}
+          >
+            {showContext ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+          </Button>
         </div>
         {/* Casella di riferimento della conversazione (da/verso quale casella). */}
         <div className="flex items-center gap-1.5 pl-0 text-[11px] text-muted-foreground sm:pl-12">
@@ -578,5 +674,219 @@ function ThreadPane({
         </div>
       )}
     </>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Pannello CONTESTO LEAD + AZIONI RAPIDE (colonna destra / stack su mobile)
+   ────────────────────────────────────────────────────────────────────────── */
+
+type LeadActionsApi = ReturnType<typeof useLeadActions>;
+
+function LeadContextPanel({
+  companyId, conversation, context, loading, liveSequence, actions, onSetIntent, intentPending, onClose,
+}: {
+  companyId: string;
+  conversation: Conversation;
+  context: LeadContext | null;
+  loading: boolean;
+  liveSequence: LeadSequence | null;
+  actions: LeadActionsApi;
+  onSetIntent: (intent: string) => void;
+  intentPending: boolean;
+  onClose: () => void;
+}) {
+  const contact = context?.contact ?? conversation.contact ?? null;
+  const contactId = contact?.id ?? null;
+  const email = contact?.email ?? conversation.email ?? null;
+  const name = contactName(contact, conversation.email);
+  const lastIntent = conversation.lastIntent;
+  const paused = !!liveSequence && liveSequence.status === "paused";
+  const busy = actions.pauseSequence.isPending || actions.resumeSequence.isPending || actions.suppressContact.isPending;
+
+  return (
+    <aside className="flex w-full shrink-0 flex-col border-t bg-background lg:w-[300px] lg:border-l lg:border-t-0">
+      <div className="flex shrink-0 items-center justify-between border-b px-3 py-2">
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <User className="h-3.5 w-3.5" /> Contesto lead
+        </h3>
+        <Button variant="ghost" size="icon" className="h-6 w-6 lg:hidden" aria-label="Chiudi contesto" onClick={onClose}>
+          <PanelRightClose className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="space-y-4 p-3">
+          {/* ── Identità ── */}
+          <div className="flex items-start gap-3">
+            <Avatar className="h-10 w-10 shrink-0">
+              <AvatarFallback className="bg-primary/10 text-xs text-primary">{iniziali(name)}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold">{name}</div>
+              {contact?.company_name && (
+                <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                  <Building2 className="h-3 w-3 shrink-0" />{contact.company_name}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {!contact ? (
+            // Caso test attuale: conversazione esistente ma email non in rubrica.
+            <div className="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">Nessun contatto collegato</p>
+              <p className="mt-1">Questa email non è in <code className="rounded bg-muted px-1">marketing_contacts</code>. Le azioni sul lead (sequenza, intento, opportunità, opt-out) si attivano collegando un contatto.</p>
+              {email && (
+                <p className="mt-2 inline-flex items-center gap-1 break-all"><Mail className="h-3 w-3 shrink-0" />{email}</p>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* ── Coordinate ── */}
+              <div className="space-y-1.5 text-xs">
+                {email && <InfoRow icon={<Mail className="h-3.5 w-3.5" />} value={email} mono />}
+                {contact.phone && <InfoRow icon={<Phone className="h-3.5 w-3.5" />} value={contact.phone} />}
+                {contact.source && <InfoRow icon={<Activity className="h-3.5 w-3.5" />} value={contact.source} label="Sorgente" />}
+              </div>
+
+              {/* ── Contattabilità ── */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {context?.suppressed ? (
+                  <Badge variant="outline" className="gap-1 border-red-200 bg-red-100 text-[10px] text-red-700">
+                    <ShieldBan className="h-3 w-3" /> {contact.optout_email ? "Opt-out" : "Soppresso"}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-100 text-[10px] text-emerald-700">
+                    <ShieldCheck className="h-3 w-3" /> Contattabile
+                  </Badge>
+                )}
+                {lastIntent && INTENT_META[lastIntent] && (
+                  <Badge variant="outline" className={cn("text-[10px]", INTENT_META[lastIntent].cls)}>{INTENT_META[lastIntent].label}</Badge>
+                )}
+              </div>
+
+              {/* ── Liste / tag ── */}
+              {contact.tags && contact.tags.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1">
+                  <Tag className="h-3 w-3 text-muted-foreground" />
+                  {contact.tags.slice(0, 8).map((t) => (
+                    <span key={t} className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{t}</span>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Stato sequenza ── */}
+              <div>
+                <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Sequenza</div>
+                {loading ? (
+                  <Skeleton className="h-12 w-full rounded-md" />
+                ) : context && context.sequences.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {context.sequences.slice(0, 3).map((s) => {
+                      const meta = ENROLLMENT_STATUS_META[s.status];
+                      return (
+                        <div key={s.enrollmentId} className="rounded-md border bg-muted/20 p-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-xs font-medium">{s.sequenceName ?? "Sequenza"}</span>
+                            <Badge variant="outline" className={cn("shrink-0 text-[9px]", meta?.cls)}>{meta?.label ?? s.status}</Badge>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                            <span>Step {s.currentStep}</span>
+                            {isEnrollmentLive(s.status) && s.nextActionAt && (
+                              <span className="inline-flex items-center gap-1">
+                                <Clock className="h-3 w-3" /> Prossimo {relativeTime(s.nextActionAt)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Non iscritto a nessuna sequenza.</p>
+                )}
+              </div>
+
+              {/* ── Mini-stats ── */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <Stat label="Inviate" value={context?.sentCount ?? conversation.sentCount} />
+                <Stat label="Risposte" value={context?.replyCount ?? conversation.replyCount} />
+                <Stat label="Ultima" value={relativeTime(context?.lastActivityAt ?? conversation.lastAt) || "—"} small />
+              </div>
+            </>
+          )}
+        </div>
+      </ScrollArea>
+
+      {/* ── Azioni rapide ── */}
+      <div className="shrink-0 space-y-2 border-t bg-background p-3">
+        <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Azioni rapide</div>
+        {/* Intent 1-click */}
+        <div className="grid grid-cols-3 gap-1.5">
+          <Button size="sm" variant={lastIntent === "interested" ? "default" : "outline"} className="h-7 gap-1 px-1 text-[11px]"
+            disabled={!contactId || intentPending} onClick={() => onSetIntent("interested")} title="Segna: Interessato">
+            <ThumbsUp className="h-3 w-3" /> Sì
+          </Button>
+          <Button size="sm" variant={lastIntent === "out_of_office" ? "default" : "outline"} className="h-7 gap-1 px-1 text-[11px]"
+            disabled={!contactId || intentPending} onClick={() => onSetIntent("out_of_office")} title="Segna: Non ora / fuori sede">
+            <Clock className="h-3 w-3" /> Dopo
+          </Button>
+          <Button size="sm" variant={lastIntent === "not_interested" ? "default" : "outline"} className="h-7 gap-1 px-1 text-[11px]"
+            disabled={!contactId || intentPending} onClick={() => onSetIntent("not_interested")} title="Segna: Non interessato">
+            <ThumbsDown className="h-3 w-3" /> No
+          </Button>
+        </div>
+        {/* Pausa/Riprendi + Converti + Sopprimi */}
+        <div className="grid grid-cols-2 gap-1.5">
+          {paused ? (
+            <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" disabled={!contactId || busy}
+              onClick={() => contactId && actions.resumeSequence.mutate(contactId)}>
+              {actions.resumeSequence.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />} Riprendi
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" disabled={!contactId || !liveSequence || busy}
+              onClick={() => contactId && actions.pauseSequence.mutate(contactId)} title={liveSequence ? "Metti in pausa la sequenza" : "Nessuna sequenza attiva"}>
+              {actions.pauseSequence.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pause className="h-3.5 w-3.5" />} Pausa
+            </Button>
+          )}
+          <OutreachConvertContactDialog
+            companyId={companyId}
+            trigger={
+              <Button size="sm" variant="outline" className="h-8 w-full gap-1.5 text-xs" disabled={!contactId}>
+                <Briefcase className="h-3.5 w-3.5" /> Opportunità
+              </Button>
+            }
+            initialContactId={contactId ?? undefined}
+          />
+        </div>
+        <Button size="sm" variant="outline" className="h-8 w-full gap-1.5 text-xs text-red-600 hover:text-red-700"
+          disabled={!contactId || busy || context?.suppressed}
+          onClick={() => contactId && actions.suppressContact.mutate({ contactId, email })}
+          title={context?.suppressed ? "Già soppresso" : "Aggiungi alla blocklist e ferma la sequenza"}>
+          {actions.suppressContact.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldBan className="h-3.5 w-3.5" />}
+          {context?.suppressed ? "Già soppresso" : "Sopprimi (opt-out)"}
+        </Button>
+      </div>
+    </aside>
+  );
+}
+
+function InfoRow({ icon, value, label, mono }: { icon: React.ReactNode; value: string; label?: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center gap-2 text-muted-foreground">
+      <span className="shrink-0 text-muted-foreground/70">{icon}</span>
+      {label && <span className="shrink-0 text-[10px] uppercase">{label}:</span>}
+      <span className={cn("min-w-0 truncate text-foreground", mono && "break-all font-mono text-[11px]")}>{value}</span>
+    </div>
+  );
+}
+
+function Stat({ label, value, small }: { label: string; value: string | number; small?: boolean }) {
+  return (
+    <div className="rounded-md border bg-muted/20 px-1.5 py-1.5">
+      <div className={cn("font-semibold tabular-nums", small ? "text-[11px] leading-tight" : "text-base")}>{value}</div>
+      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
+    </div>
   );
 }

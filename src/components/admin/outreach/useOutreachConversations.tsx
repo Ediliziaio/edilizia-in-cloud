@@ -29,6 +29,28 @@ const T_SENT = "outreach_send_queue";
 const T_REPLIES = "outreach_replies";
 const T_CONTACTS = "marketing_contacts";
 const T_SENDERS = "outreach_sender_accounts";
+const T_ENROLLMENTS = "outreach_enrollments";
+const T_SEQUENCES = "outreach_sequences";
+const T_SUPPRESSIONS = "email_suppressions";
+
+// Stati enrollment che il dispatcher considera "chiusi" (non riprendibili dalla UI).
+const TERMINAL_ENROLLMENT = new Set(["completed", "stopped", "replied", "bounced", "opted_out"]);
+
+/** Etichette + colore degli stati sequenza per i badge del pannello contesto. */
+export const ENROLLMENT_STATUS_META: Record<string, { label: string; cls: string }> = {
+  active: { label: "Attiva", cls: "border-emerald-200 bg-emerald-100 text-emerald-700" },
+  paused: { label: "In pausa", cls: "border-orange-200 bg-orange-100 text-orange-700" },
+  completed: { label: "Completata", cls: "border-blue-200 bg-blue-100 text-blue-700" },
+  replied: { label: "Ha risposto", cls: "border-green-200 bg-green-100 text-green-700" },
+  stopped: { label: "Fermata", cls: "bg-muted text-muted-foreground" },
+  bounced: { label: "Bounce", cls: "border-red-200 bg-red-100 text-red-700" },
+  opted_out: { label: "Opt-out", cls: "border-red-200 bg-red-100 text-red-700" },
+};
+
+/** Una sequenza è "viva" (riprendibile/pausabile) se non è in uno stato terminale. */
+export function isEnrollmentLive(status: string): boolean {
+  return !TERMINAL_ENROLLMENT.has(status);
+}
 
 // Etichette intento (Unibox NLP).
 export const INTENT_META: Record<string, { label: string; cls: string }> = {
@@ -75,6 +97,34 @@ export interface ContactRow {
   last_name: string | null;
   company_name: string | null;
   email: string | null;
+  phone: string | null;
+  tags: string[] | null;
+  source: string | null;
+  optout_email: boolean | null;
+  last_activity_at: string | null;
+}
+
+/** Stato sequenza del lead (enrollment + nome sequenza + prossimo invio). */
+export interface LeadSequence {
+  enrollmentId: string;
+  sequenceId: string;
+  sequenceName: string | null;
+  /** active | paused | completed | stopped | replied | bounced | opted_out */
+  status: string;
+  currentStep: number;
+  nextActionAt: string | null;
+}
+
+/** Contesto completo del lead per il pannello laterale del client. */
+export interface LeadContext {
+  contact: ContactRow;
+  /** Iscrizioni del contatto, più recenti prima. */
+  sequences: LeadSequence[];
+  /** È in blocklist email (email_suppressions) per la company admin. */
+  suppressed: boolean;
+  sentCount: number;
+  replyCount: number;
+  lastActivityAt: string | null;
 }
 
 export interface ThreadMsg {
@@ -105,6 +155,10 @@ export interface Conversation {
   senderAccountIds: string[];
   /** Casella di riferimento = la più recente che ha inviato (può essere null). */
   primarySenderId: string | null;
+  /** N. email inviate nel thread (mini-stat del pannello contesto). */
+  sentCount: number;
+  /** N. risposte in arrivo nel thread (mini-stat del pannello contesto). */
+  replyCount: number;
 }
 
 export type StatusFilter = "all" | "interested" | "unread" | "archived";
@@ -221,7 +275,7 @@ export function useOutreachConversations(companyId: string) {
     queryFn: async () => {
       const { data, error } = await db
         .from(T_CONTACTS)
-        .select("id,first_name,last_name,company_name,email")
+        .select("id,first_name,last_name,company_name,email,phone,tags,source,optout_email,last_activity_at")
         .eq("company_id", companyId)
         .limit(1000);
       if (error) throw error;
@@ -293,6 +347,34 @@ export function useOutreachConversations(companyId: string) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
+  // Intent 1-click: aggiorna l'intent dell'ULTIMA risposta in arrivo del contatto.
+  // L'intent vive per-risposta (outreach_replies.intent); la conversazione mostra
+  // quello della risposta più recente, quindi è quella che aggiorniamo.
+  const setIntent = useMutation({
+    mutationFn: async ({ contactId, intent }: { contactId: string; intent: string }) => {
+      const { data: last, error: selErr } = await db
+        .from(T_REPLIES)
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("contact_id", contactId)
+        .order("received_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (selErr) throw selErr;
+      if (!last?.id) throw new Error("Nessuna risposta da etichettare per questo contatto");
+      const { error } = await db
+        .from(T_REPLIES)
+        .update({ intent, intent_confidence: 1 })
+        .eq("id", last.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Intento aggiornato");
+      qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
   const sendersById = useMemo(
     () => new Map((sendersQ.data ?? []).map((s) => [s.id, s])),
     [sendersQ.data],
@@ -322,6 +404,8 @@ export function useOutreachConversations(companyId: string) {
           archived: false,
           senderAccountIds: [],
           primarySenderId: null,
+          sentCount: 0,
+          replyCount: 0,
         };
         groups.set(key, conv);
       } else if (!conv.email && email) {
@@ -338,6 +422,7 @@ export function useOutreachConversations(companyId: string) {
       // Senza contact_id raggruppiamo per email destinataria, così la conversazione resta tracciabile.
       if (!s.contact_id && !s.to_email) continue;
       const conv = ensure(s.contact_id, s.to_email);
+      conv.sentCount++;
       conv.messages.push({
         id: `s:${s.id}`,
         direction: "out",
@@ -369,6 +454,7 @@ export function useOutreachConversations(companyId: string) {
     for (const r of replies) {
       if (!r.contact_id && !r.from_email) continue;
       const conv = ensure(r.contact_id, r.from_email);
+      conv.replyCount++;
       conv.messages.push({
         id: `r:${r.id}`,
         direction: "in",
@@ -411,6 +497,16 @@ export function useOutreachConversations(companyId: string) {
     archived: conversations.filter((c) => c.archived).length,
   }), [conversations]);
 
+  // Conversazioni NON LETTE per casella (badge nel pannello sinistro del client).
+  const unreadBySender = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const conv of conversations) {
+      if (conv.archived || !conv.unread) continue;
+      for (const id of conv.senderAccountIds) m.set(id, (m.get(id) ?? 0) + 1);
+    }
+    return m;
+  }, [conversations]);
+
   const isLoading = sentQ.isLoading || repliesQ.isLoading || contactsQ.isLoading;
   const errored = sentQ.error || repliesQ.error;
   const tableMissing =
@@ -448,6 +544,7 @@ export function useOutreachConversations(companyId: string) {
     counts,
     sendersById,
     senders: sendersQ.data ?? [],
+    unreadBySender,
     // stato query
     isLoading,
     errored,
@@ -456,10 +553,268 @@ export function useOutreachConversations(companyId: string) {
     markRead,
     markAllRead,
     archiveRead,
+    setIntent,
     // helper
     filterConversations,
     queryClient: qc,
   };
+}
+
+/**
+ * useLeadContext — contesto laterale del lead per il client Posta.
+ *
+ * Dato il contatto selezionato, carica le sue iscrizioni (outreach_enrollments)
+ * con il nome della sequenza e verifica se l'email è in blocklist
+ * (email_suppressions). Le mini-stats (inviate/risposte/ultima attività) arrivano
+ * già pronte dalla Conversation, quindi qui non servono altre query. Disabilitato
+ * quando manca il contatto (conversazione senza lead collegato).
+ */
+export function useLeadContext(
+  companyId: string,
+  contact: ContactRow | null,
+  conversation: { sentCount: number; replyCount: number; lastAt: string | null } | null,
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const contactId = contact?.id ?? null;
+  const email = (contact?.email ?? "").trim().toLowerCase();
+
+  const enrollmentsQ = useQuery({
+    queryKey: ["outreach-lead-enrollments", companyId, contactId],
+    enabled: !!contactId,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from(T_ENROLLMENTS)
+        .select("id,sequence_id,status,current_step,next_action_at,created_at")
+        .eq("company_id", companyId)
+        .eq("contact_id", contactId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{
+        id: string; sequence_id: string; status: string;
+        current_step: number; next_action_at: string | null; created_at: string;
+      }>;
+      // Nomi sequenza in un colpo solo (evita N+1).
+      const seqIds = [...new Set(rows.map((r) => r.sequence_id).filter(Boolean))];
+      const nameById = new Map<string, string>();
+      if (seqIds.length) {
+        const { data: seqs } = await db
+          .from(T_SEQUENCES).select("id,name").in("id", seqIds);
+        for (const s of (seqs ?? []) as Array<{ id: string; name: string }>) nameById.set(s.id, s.name);
+      }
+      return rows.map<LeadSequence>((r) => ({
+        enrollmentId: r.id,
+        sequenceId: r.sequence_id,
+        sequenceName: nameById.get(r.sequence_id) ?? null,
+        status: r.status,
+        currentStep: r.current_step,
+        nextActionAt: r.next_action_at,
+      }));
+    },
+  });
+
+  // In blocklist? email_normalized è generata da `email`: confrontiamo su quello.
+  const suppressionQ = useQuery({
+    queryKey: ["outreach-lead-suppressed", companyId, email],
+    enabled: !!email,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from(T_SUPPRESSIONS)
+        .select("id")
+        .eq("email_normalized", email)
+        .or(`company_id.eq.${companyId},company_id.is.null`)
+        .limit(1);
+      if (error) throw error;
+      return (data ?? []).length > 0;
+    },
+  });
+
+  const context = useMemo<LeadContext | null>(() => {
+    if (!contact) return null;
+    return {
+      contact,
+      sequences: enrollmentsQ.data ?? [],
+      suppressed: (suppressionQ.data ?? false) || !!contact.optout_email,
+      sentCount: conversation?.sentCount ?? 0,
+      replyCount: conversation?.replyCount ?? 0,
+      lastActivityAt: conversation?.lastAt ?? contact.last_activity_at ?? null,
+    };
+  }, [contact, enrollmentsQ.data, suppressionQ.data, conversation]);
+
+  return {
+    context,
+    isLoading: enrollmentsQ.isLoading || suppressionQ.isLoading,
+    /** La sequenza "viva" più recente (per le azioni pausa/riprendi). */
+    liveSequence: (enrollmentsQ.data ?? []).find((s) => isEnrollmentLive(s.status)) ?? null,
+  };
+}
+
+/**
+ * useLeadActions — mutazioni d'azione rapida sul lead selezionato: pausa/riprendi
+ * sequenza, sopprimi (opt-out). La conversione lead→opportunità riusa il dialog
+ * dedicato (OutreachConvertContactDialog), non serve duplicarla qui.
+ *
+ * Pausa = enrollment 'paused' + righe coda future 'queued' → 'cancelled' (il
+ * dispatcher salta gli enrollment 'paused'; cancellare le righe ferma subito i
+ * follow-up — STESSA operazione dell'auto-pausa server-side). Riprendi = riporta
+ * l'enrollment ad 'active'; le nuove righe le riaccoda il dispatcher avanzando la
+ * cadenza, ma per ripartire subito riaccodiamo lo step corrente.
+ */
+export function useLeadActions(companyId: string) {
+  const qc = useQueryClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+
+  const invalidate = (contactId: string | null) => {
+    qc.invalidateQueries({ queryKey: ["outreach-inbox-sent", companyId] });
+    qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] });
+    qc.invalidateQueries({ queryKey: ["outreach-lead-enrollments", companyId, contactId] });
+    qc.invalidateQueries({ queryKey: ["outreach-lead-suppressed", companyId] });
+  };
+
+  // Pausa TUTTE le sequenze vive del contatto (idempotente).
+  const pauseSequence = useMutation({
+    mutationFn: async (contactId: string) => {
+      const { data: enrs, error: selErr } = await db
+        .from(T_ENROLLMENTS)
+        .select("id,status")
+        .eq("company_id", companyId)
+        .eq("contact_id", contactId)
+        .eq("status", "active");
+      if (selErr) throw selErr;
+      const ids = ((enrs ?? []) as Array<{ id: string }>).map((e) => e.id);
+      if (ids.length === 0) return { paused: 0 };
+      const { error: updErr } = await db
+        .from(T_ENROLLMENTS)
+        .update({ status: "paused", next_action_at: null })
+        .in("id", ids);
+      if (updErr) throw updErr;
+      // Ferma subito i follow-up già accodati ma non ancora spediti.
+      const { error: qErr } = await db
+        .from(T_SENT)
+        .update({ status: "cancelled", last_error: "sequenza in pausa (manuale)" })
+        .in("enrollment_id", ids)
+        .eq("status", "queued");
+      if (qErr) throw qErr;
+      return { paused: ids.length };
+    },
+    onSuccess: (res, contactId) => {
+      toast.success(res.paused > 0 ? "Sequenza messa in pausa" : "Nessuna sequenza attiva da mettere in pausa");
+      invalidate(contactId);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
+  // Riprendi: riporta le sequenze in pausa del contatto ad 'active' e riaccoda lo
+  // step corrente così riparte subito (entro la finestra d'invio del dispatcher).
+  const resumeSequence = useMutation({
+    mutationFn: async (contactId: string) => {
+      const { data: enrs, error: selErr } = await db
+        .from(T_ENROLLMENTS)
+        .select("id,sequence_id,current_step")
+        .eq("company_id", companyId)
+        .eq("contact_id", contactId)
+        .eq("status", "paused");
+      if (selErr) throw selErr;
+      const rows = (enrs ?? []) as Array<{ id: string; sequence_id: string; current_step: number }>;
+      if (rows.length === 0) return { resumed: 0 };
+      const nowIso = new Date().toISOString();
+      const { error: updErr } = await db
+        .from(T_ENROLLMENTS)
+        .update({ status: "active", next_action_at: nowIso })
+        .in("id", rows.map((r) => r.id));
+      if (updErr) throw updErr;
+      // Dati contatto per la riga di coda.
+      const { data: c } = await db
+        .from(T_CONTACTS).select("id,email").eq("id", contactId).maybeSingle();
+      const toEmail = (c as { email?: string } | null)?.email ?? null;
+      // Step corrente di ciascuna sequenza → riaccoda una riga 'queued' se manca.
+      for (const r of rows) {
+        const { data: step } = await db
+          .from("outreach_sequence_steps")
+          .select("subject,body")
+          .eq("sequence_id", r.sequence_id)
+          .eq("step_order", r.current_step)
+          .maybeSingle();
+        // Non duplicare: salta se esiste già una riga 'queued' per quell'enrollment.
+        const { data: pending } = await db
+          .from(T_SENT).select("id").eq("enrollment_id", r.id).eq("status", "queued").limit(1);
+        if (((pending ?? []) as unknown[]).length > 0) continue;
+        await db.from(T_SENT).insert({
+          company_id: companyId,
+          enrollment_id: r.id,
+          contact_id: contactId,
+          channel: "email",
+          to_email: toEmail,
+          subject: (step as { subject?: string } | null)?.subject ?? "",
+          body: (step as { body?: string } | null)?.body ?? "",
+          status: "queued",
+          scheduled_for: nowIso,
+        });
+      }
+      return { resumed: rows.length };
+    },
+    onSuccess: (res, contactId) => {
+      toast.success(res.resumed > 0 ? "Sequenza ripresa" : "Nessuna sequenza in pausa da riprendere");
+      invalidate(contactId);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
+  // Sopprimi (opt-out): blocklist email_suppressions + optout_email sul contatto +
+  // pausa le sequenze vive. Coerente con l'opt-out automatico del reply-handler.
+  const suppressContact = useMutation({
+    mutationFn: async ({ contactId, email }: { contactId: string; email: string | null }) => {
+      const nowIso = new Date().toISOString();
+      const normalized = (email ?? "").trim().toLowerCase();
+      if (normalized) {
+        const { error: supErr } = await db
+          .from(T_SUPPRESSIONS)
+          .upsert(
+            {
+              email: normalized,
+              company_id: companyId,
+              reason: "unsubscribe",
+              suppressed_at: nowIso,
+              notes: "Opt-out manuale dalla Posta cold",
+            },
+            { onConflict: "company_id,email_normalized,reason", ignoreDuplicates: true },
+          );
+        if (supErr) throw supErr;
+      }
+      const { error: cErr } = await db
+        .from(T_CONTACTS)
+        .update({ optout_email: true, optout_at: nowIso, optout_reason: "manual" })
+        .eq("id", contactId);
+      if (cErr) throw cErr;
+      // Ferma le sequenze vive (active|paused) → opted_out + annulla la coda.
+      const { data: enrs } = await db
+        .from(T_ENROLLMENTS)
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("contact_id", contactId)
+        .in("status", ["active", "paused"]);
+      const ids = ((enrs ?? []) as Array<{ id: string }>).map((e) => e.id);
+      if (ids.length) {
+        await db.from(T_ENROLLMENTS)
+          .update({ status: "opted_out", next_action_at: null, stop_reason: "optout_email" })
+          .in("id", ids);
+        await db.from(T_SENT)
+          .update({ status: "cancelled", last_error: "optout_email" })
+          .in("enrollment_id", ids)
+          .eq("status", "queued");
+      }
+    },
+    onSuccess: (_res, vars) => {
+      toast.success("Contatto soppresso: non riceverà più email cold");
+      invalidate(vars.contactId);
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
+  return { pauseSequence, resumeSequence, suppressContact };
 }
 
 /**

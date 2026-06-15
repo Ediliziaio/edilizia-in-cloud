@@ -13,17 +13,32 @@ import { Briefcase, Plus, Loader2 } from "lucide-react";
  * Converte un contatto/lead in opportunità nella pipeline. Risolve pipeline +
  * primo stage dinamicamente (nessun id hard-coded). Inserisce in
  * marketing_opportunities (tabella esistente). Colma il gap CRITICO dell'audit.
+ *
+ * Riusabile: `trigger` permette un bottone custom (es. dal pannello contesto della
+ * Posta) e `initialContactId` preseleziona il contatto saltando lo step di scelta.
  */
 
 interface Contact { id: string; first_name: string; last_name: string | null; company_name: string | null; }
 
-export function OutreachConvertContactDialog({ companyId, onCreated }: { companyId: string; onCreated?: () => void }) {
+export function OutreachConvertContactDialog({ companyId, onCreated, trigger, initialContactId }: {
+  companyId: string;
+  onCreated?: () => void;
+  trigger?: React.ReactNode;
+  initialContactId?: string;
+}) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [contactId, setContactId] = useState("");
+  const [contactId, setContactId] = useState(initialContactId ?? "");
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Apertura/chiusura: all'apertura preseleziona il contatto passato (niente
+  // setState-in-effect → lo facciamo nell'handler onOpenChange).
+  const handleOpenChange = (next: boolean) => {
+    if (next && initialContactId) setContactId(initialContactId);
+    setOpen(next);
+  };
 
   const contacts = useQuery({
     queryKey: ["convert-contacts", companyId],
@@ -78,9 +93,9 @@ export function OutreachConvertContactDialog({ companyId, onCreated }: { company
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Crea opportunità</Button>
+        {trigger ?? <Button variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Crea opportunità</Button>}
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle className="flex items-center gap-2"><Briefcase className="h-4 w-4" /> Lead → opportunità</DialogTitle></DialogHeader>

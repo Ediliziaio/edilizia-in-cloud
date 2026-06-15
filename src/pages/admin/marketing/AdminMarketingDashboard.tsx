@@ -13,7 +13,7 @@ import { OutreachBrands } from "@/components/admin/outreach/OutreachBrands";
 import { OutreachSendWindowCard } from "@/components/admin/outreach/OutreachSendWindowCard";
 import { OutreachQueueStatus } from "@/components/admin/outreach/OutreachQueueStatus";
 import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences";
-import { OutreachMailClient } from "@/components/admin/outreach/OutreachMailClient";
+import { OutreachMailClient, PostaUnreadBadge } from "@/components/admin/outreach/OutreachMailClient";
 import { OutreachInboxPreview } from "@/components/admin/outreach/OutreachInboxPreview";
 import { OutreachActivityFeed } from "@/components/admin/outreach/OutreachActivityFeed";
 import { OutreachLists } from "@/components/admin/outreach/OutreachLists";
@@ -149,7 +149,7 @@ function OutreachCockpit() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex h-auto justify-start gap-1 overflow-x-auto bg-muted/60 p-1 whitespace-nowrap">
           <TabsTrigger value="oggi"><Flame className="mr-1.5 h-4 w-4" /> Oggi</TabsTrigger>
-          <TabsTrigger value="posta"><Inbox className="mr-1.5 h-4 w-4" /> Posta</TabsTrigger>
+          <TabsTrigger value="posta"><Inbox className="mr-1.5 h-4 w-4" /> Posta<PostaUnreadBadge companyId={companyId} /></TabsTrigger>
           <TabsTrigger value="lead"><Users className="mr-1.5 h-4 w-4" /> Lead &amp; Liste</TabsTrigger>
           <TabsTrigger value="sequenze"><Send className="mr-1.5 h-4 w-4" /> Sequenze</TabsTrigger>
           <TabsTrigger value="pipeline"><Briefcase className="mr-1.5 h-4 w-4" /> Pipeline</TabsTrigger>
