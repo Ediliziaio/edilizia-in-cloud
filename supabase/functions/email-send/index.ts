@@ -22,7 +22,7 @@
  * di proprietà.
  */
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { smtpSend, buildRFC822, type SmtpAttachment } from "../_shared/imapSmtpClient.ts";
+import { smtpSend, buildRFC822, imapAppend, type SmtpAttachment } from "../_shared/imapSmtpClient.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -433,6 +433,30 @@ Deno.serve(async (req) => {
         .eq("id", outbox.id);
       await insertSentCopy(supabase, outbox, c.email_address, sent.messageId)
         .catch((e) => console.warn("[email-send] sent copy failed:", e));
+      // APPEND nei "Inviati" del server IMAP → l'email compare anche nella webmail
+      // del provider (Aruba/Register/…). Best-effort: non blocca l'invio riuscito.
+      try {
+        const rfc822 = buildRFC822({
+          from: c.email_address,
+          to: outbox.to_emails,
+          cc: outbox.cc_emails,
+          bcc: outbox.bcc_emails,
+          subject: outbox.subject,
+          bodyHtml: outbox.body_html,
+          bodyText: outbox.body_text,
+          inReplyTo: inReplyToHeader,
+          references: referencesHeader,
+          messageId: sent.messageId,
+          attachments: smtpAttachments,
+        });
+        const appendRes = await imapAppend(
+          { host: c.imap_host, port: c.imap_port, secure: c.imap_secure, username: c.imap_username || c.email_address, password: c.password },
+          rfc822,
+        );
+        if (!appendRes.ok) console.warn("[email-send] imap APPEND Sent skipped:", appendRes.error);
+      } catch (e) {
+        console.warn("[email-send] imap APPEND Sent error:", e instanceof Error ? e.message : e);
+      }
       return jsonResponse({
         ok: true,
         outbox_id: outbox.id,
