@@ -14,15 +14,22 @@ import {
   Send, Loader2, Wand2, CheckCheck, Archive, Layers, PanelRightOpen, PanelRightClose,
   User, Phone, Tag, ShieldBan, Pause, Play, ThumbsUp, ThumbsDown, Clock, Briefcase,
   Activity, ShieldCheck, Check, XCircle, Ban, MessageSquareReply, X, CalendarClock, GitBranch, Sparkles,
+  AlarmClock, AlarmClockOff,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Calendar } from "@/components/ui/calendar";
 import { MigrationGate } from "./_shared";
 import { OutreachConvertContactDialog } from "./OutreachConvertContactDialog";
 import {
   INTENT_META, ENROLLMENT_STATUS_META, type Conversation, type StatusFilter, type DateFilter,
   type SequenceOption, type LeadContext, type LeadSequence, type MsgDelivery, type AiSummary,
-  contactName, iniziali, relativeTime, fullTime, providerLabel, senderStatusColor, stripHtml,
+  type SnoozePreset, contactName, iniziali, relativeTime, fullTime, providerLabel, senderStatusColor,
+  stripHtml, snoozeUntil,
   useOutreachConversations, useReplyComposer, useLeadContext, useLeadActions, isEnrollmentLive,
 } from "./useOutreachConversations";
 import { useReplySnippets, type ReplySnippet } from "./useReplySnippets";
@@ -56,7 +63,8 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
   const {
     conversations, counts, sendersById, senders, unreadBySender, sequenceOptions,
     isLoading, errored, tableMissing,
-    markRead, markAllRead, archiveRead, setIntent, filterConversations, signatureForSender,
+    markRead, markAllRead, archiveRead, setIntent, snoozeConversation, unsnooze,
+    filterConversations, signatureForSender,
   } = useOutreachConversations(companyId);
   const { replyText, setReplyText, sending, aiDrafting, sendReply, draftWithAi, summarizing, summarizeWithAi } = useReplyComposer(companyId);
   const snippets = useReplySnippets();
@@ -526,7 +534,11 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
                         )}
                         <div className="mt-0.5 flex items-center justify-between gap-2">
                           <span className="truncate text-xs text-muted-foreground">{conv.lastSnippet}</span>
-                          {intentMeta && (
+                          {conv.snoozedUntil ? (
+                            <Badge variant="outline" className="shrink-0 gap-1 border-amber-200 bg-amber-50 text-[10px] text-amber-700">
+                              <AlarmClock className="h-2.5 w-2.5" />{relativeTime(conv.snoozedUntil)}
+                            </Badge>
+                          ) : intentMeta && (
                             <Badge variant="outline" className={cn("shrink-0 text-[10px]", intentMeta.cls)}>{intentMeta.label}</Badge>
                           )}
                         </div>
@@ -599,6 +611,9 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
                 summarizing={summarizing}
                 onSummarize={() => summarizeWithAi(selected.messages)}
                 onUseDraft={(text) => setReplyText(text)}
+                onSnooze={(until) => selected.contact?.id && snoozeConversation.mutate({ contactId: selected.contact.id, until })}
+                onUnsnooze={() => selected.contact?.id && unsnooze.mutate({ contactId: selected.contact.id })}
+                snoozePending={snoozeConversation.isPending || unsnooze.isPending}
               />
             )}
           </div>
@@ -671,7 +686,7 @@ function FilterPills({
   filter, counts, onChange,
 }: {
   filter: StatusFilter;
-  counts: { interested: number; unread: number; archived: number };
+  counts: { interested: number; unread: number; snoozed: number; archived: number };
   onChange: (f: StatusFilter) => void;
 }) {
   return (
@@ -680,6 +695,7 @@ function FilterPills({
         { k: "all", label: "Tutte" },
         { k: "interested", label: "Interessati", count: counts.interested },
         { k: "unread", label: "Non lette", count: counts.unread },
+        { k: "snoozed", label: "Posticipate", count: counts.snoozed },
         { k: "archived", label: "Archiviate", count: counts.archived },
       ] as const).map((f) => (
         <button
@@ -973,7 +989,7 @@ type LeadActionsApi = ReturnType<typeof useLeadActions>;
 
 function LeadContextPanel({
   companyId, conversation, context, loading, liveSequence, actions, onSetIntent, intentPending, onClose,
-  summarizing, onSummarize, onUseDraft,
+  summarizing, onSummarize, onUseDraft, onSnooze, onUnsnooze, snoozePending,
 }: {
   companyId: string;
   conversation: Conversation;
@@ -988,6 +1004,10 @@ function LeadContextPanel({
   summarizing: boolean;
   onSummarize: () => Promise<AiSummary | null>;
   onUseDraft: (text: string) => void;
+  /** Posticipa: snooze fino a `until` (ISO) / annulla / stato in corso. */
+  onSnooze: (until: string) => void;
+  onUnsnooze: () => void;
+  snoozePending: boolean;
 }) {
   const contact = context?.contact ?? conversation.contact ?? null;
   const contactId = contact?.id ?? null;
@@ -1172,8 +1192,120 @@ function LeadContextPanel({
           {actions.suppressContact.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldBan className="h-3.5 w-3.5" />}
           {context?.suppressed ? "Già soppresso" : "Sopprimi (opt-out)"}
         </Button>
+
+        {/* Posticipa: nasconde la conversazione dalle viste normali fino all'ora scelta
+            (la fa riapparire da sola). Funge anche da promemoria di follow-up. */}
+        <SnoozeControl
+          contactId={contactId}
+          snoozedUntil={conversation.snoozedUntil}
+          pending={snoozePending}
+          onSnooze={onSnooze}
+          onUnsnooze={onUnsnooze}
+        />
       </div>
     </aside>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Posticipa (snooze) — menu con preset + Data… (calendario), o badge "Posticipata
+   fino a …" con "Annulla posticipo" quando già attiva. Lo snooze stesso funge da
+   promemoria: non esiste una tabella task adatta allo scope super-admin Outreach.
+   ────────────────────────────────────────────────────────────────────────── */
+function SnoozeControl({
+  contactId, snoozedUntil, pending, onSnooze, onUnsnooze,
+}: {
+  contactId: string | null;
+  snoozedUntil: string | null;
+  pending: boolean;
+  onSnooze: (until: string) => void;
+  onUnsnooze: () => void;
+}) {
+  const [calOpen, setCalOpen] = useState(false);
+
+  const presets: { preset: SnoozePreset; label: string }[] = [
+    { preset: "3h", label: "Tra 3 ore" },
+    { preset: "tomorrow", label: "Domani mattina" },
+    { preset: "3d", label: "Tra 3 giorni" },
+    { preset: "1w", label: "Tra 1 settimana" },
+  ];
+
+  // Già posticipata: mostra fino a quando + azioni per riportarla ora / annullare.
+  if (snoozedUntil) {
+    return (
+      <div className="space-y-1.5 rounded-md border border-amber-200 bg-amber-50 p-2">
+        <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-700">
+          <AlarmClock className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">Posticipata fino a {fullTime(snoozedUntil)}</span>
+        </div>
+        <Button
+          size="sm" variant="outline"
+          className="h-7 w-full gap-1.5 text-[11px]"
+          disabled={!contactId || pending}
+          onClick={onUnsnooze}
+          title="Riporta subito la conversazione nelle viste normali"
+        >
+          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlarmClockOff className="h-3.5 w-3.5" />}
+          Ripristina ora
+        </Button>
+      </div>
+    );
+  }
+
+  // Non posticipata: menu preset + Data… (apre il calendario in un popover).
+  return (
+    <div className="flex items-center gap-1.5">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size="sm" variant="outline"
+            className="h-8 flex-1 gap-1.5 text-xs"
+            disabled={!contactId || pending}
+            title="Nascondi la conversazione fino a una data scelta (promemoria di follow-up)"
+          >
+            {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlarmClock className="h-3.5 w-3.5" />}
+            Posticipa
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuLabel className="text-[11px]">Posticipa a…</DropdownMenuLabel>
+          {presets.map((p) => (
+            <DropdownMenuItem
+              key={p.preset}
+              className="text-xs"
+              onSelect={() => onSnooze(snoozeUntil(p.preset))}
+            >
+              <Clock className="mr-2 h-3.5 w-3.5 text-muted-foreground" /> {p.label}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="text-xs" onSelect={(e) => { e.preventDefault(); setCalOpen(true); }}>
+            <CalendarClock className="mr-2 h-3.5 w-3.5 text-muted-foreground" /> Data…
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Selettore data custom: posticipa alle 9:00 del giorno scelto (futuro). */}
+      <Popover open={calOpen} onOpenChange={setCalOpen}>
+        <PopoverTrigger asChild>
+          <span className="sr-only" aria-hidden />
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-auto p-0">
+          <Calendar
+            mode="single"
+            initialFocus
+            disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
+            onSelect={(d) => {
+              if (!d) return;
+              const at = new Date(d);
+              at.setHours(9, 0, 0, 0);
+              onSnooze(at.toISOString());
+              setCalOpen(false);
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
 

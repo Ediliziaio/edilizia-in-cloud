@@ -32,6 +32,7 @@ const T_SENDERS = "outreach_sender_accounts";
 const T_ENROLLMENTS = "outreach_enrollments";
 const T_SEQUENCES = "outreach_sequences";
 const T_SUPPRESSIONS = "email_suppressions";
+const T_CONV_STATE = "outreach_conversation_state";
 
 // Stati enrollment che il dispatcher considera "chiusi" (non riprendibili dalla UI).
 const TERMINAL_ENROLLMENT = new Set(["completed", "stopped", "replied", "bounced", "opted_out"]);
@@ -197,9 +198,11 @@ export interface Conversation {
   sequenceIds: string[];
   /** Nomi delle sequenze iscritte (allineati a sequenceIds), per tooltip/UX. */
   sequenceNames: string[];
+  /** Posticipata fino a (ISO) se snoozed_until > now, altrimenti null. Solo per i contatti collegati. */
+  snoozedUntil: string | null;
 }
 
-export type StatusFilter = "all" | "interested" | "unread" | "archived";
+export type StatusFilter = "all" | "interested" | "unread" | "snoozed" | "archived";
 
 /** Finestra rapida sull'ultima attività della conversazione (lastAt). */
 export type DateFilter = "all" | "today" | "7d" | "30d";
@@ -225,6 +228,36 @@ export function dateFilterFloor(filter: DateFilter, now: number = Date.now()): n
     case "30d": return now - 30 * 24 * 60 * 60 * 1000;
     default: return null;
   }
+}
+
+/** Preset del menu "Posticipa". `custom` apre il selettore data. */
+export type SnoozePreset = "3h" | "tomorrow" | "3d" | "1w";
+
+/**
+ * Calcola l'istante (ISO) a cui riportare in vista una conversazione posticipata.
+ * Logica pura (testabile): `from` di default è ora.
+ *   3h       → +3 ore
+ *   tomorrow → domani alle 9:00 (ora locale)
+ *   3d / 1w  → +3 giorni / +7 giorni
+ */
+export function snoozeUntil(preset: SnoozePreset, from: Date = new Date()): string {
+  const d = new Date(from.getTime());
+  switch (preset) {
+    case "3h":
+      d.setHours(d.getHours() + 3);
+      break;
+    case "tomorrow":
+      d.setDate(d.getDate() + 1);
+      d.setHours(9, 0, 0, 0);
+      break;
+    case "3d":
+      d.setDate(d.getDate() + 3);
+      break;
+    case "1w":
+      d.setDate(d.getDate() + 7);
+      break;
+  }
+  return d.toISOString();
 }
 
 export function contactName(c: ContactRow | null, email: string | null): string {
@@ -411,6 +444,25 @@ export function useOutreachConversations(companyId: string) {
     },
   });
 
+  // Stato snooze per conversazione (contact_id → snoozed_until). Best-effort: se
+  // la tabella manca (migrazione non applicata) il filtro "Posticipate" resta
+  // vuoto e nulla viene nascosto. Carichiamo solo le righe ancora posticipate
+  // (snoozed_until nel futuro): le scadute non servono più (la conversazione
+  // riappare da sola). retry:false per non bloccare la UI.
+  const snoozeStateQ = useQuery({
+    queryKey: ["outreach-inbox-snooze", companyId],
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from(T_CONV_STATE)
+        .select("contact_id,snoozed_until")
+        .eq("company_id", companyId)
+        .gt("snoozed_until", new Date().toISOString());
+      if (error) throw error;
+      return (data ?? []) as Array<{ contact_id: string; snoozed_until: string | null }>;
+    },
+  });
+
   const markRead = useMutation({
     mutationFn: async (contactId: string) => {
       const { error } = await db
@@ -497,6 +549,44 @@ export function useOutreachConversations(companyId: string) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
+  // Posticipa una conversazione: upsert dello stato (snoozed_until) per contatto.
+  // Upsert su (company_id, contact_id) così ri-posticipare aggiorna la riga senza
+  // duplicare. La conversazione esce dalle viste normali (hook) finché scade.
+  const snoozeConversation = useMutation({
+    mutationFn: async ({ contactId, until }: { contactId: string; until: string }) => {
+      const { error } = await db
+        .from(T_CONV_STATE)
+        .upsert(
+          { company_id: companyId, contact_id: contactId, snoozed_until: until, updated_at: new Date().toISOString() },
+          { onConflict: "company_id,contact_id" },
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Conversazione posticipata");
+      qc.invalidateQueries({ queryKey: ["outreach-inbox-snooze", companyId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
+  // Annulla il posticipo: azzera snoozed_until (la riga resta, innocua). La
+  // conversazione riappare subito nelle viste normali.
+  const unsnooze = useMutation({
+    mutationFn: async ({ contactId }: { contactId: string }) => {
+      const { error } = await db
+        .from(T_CONV_STATE)
+        .update({ snoozed_until: null, updated_at: new Date().toISOString() })
+        .eq("company_id", companyId)
+        .eq("contact_id", contactId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Posticipo annullato");
+      qc.invalidateQueries({ queryKey: ["outreach-inbox-snooze", companyId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
   const sendersById = useMemo(
     () => new Map((sendersQ.data ?? []).map((s) => [s.id, s])),
     [sendersQ.data],
@@ -547,6 +637,7 @@ export function useOutreachConversations(companyId: string) {
           replyCount: 0,
           sequenceIds: [],
           sequenceNames: [],
+          snoozedUntil: null,
         };
         groups.set(key, conv);
       } else if (!conv.email && email) {
@@ -627,6 +718,13 @@ export function useOutreachConversations(companyId: string) {
       set.add(e.sequence_id);
     }
 
+    // Snooze per contatto (contact_id → snoozed_until). La query porta solo le
+    // righe ancora nel futuro; le scadute non compaiono → snoozedUntil resta null.
+    const snoozeByContact = new Map<string, string>();
+    for (const s of snoozeStateQ.data ?? []) {
+      if (s.contact_id && s.snoozed_until) snoozeByContact.set(s.contact_id, s.snoozed_until);
+    }
+
     const list = Array.from(groups.values());
     for (const conv of list) {
       const inN = inCount.get(conv.key) ?? 0;
@@ -648,25 +746,31 @@ export function useOutreachConversations(companyId: string) {
         conv.sequenceIds = [...seqSet];
         conv.sequenceNames = conv.sequenceIds.map((id) => seqNameById.get(id) ?? "Sequenza");
       }
+      // Posticipata: solo le conversazioni con contatto collegato hanno uno stato snooze.
+      conv.snoozedUntil = cid ? snoozeByContact.get(cid) ?? null : null;
     }
     // Conversazioni ordinate per ultima attività desc.
     list.sort((a, b) => new Date(b.lastAt ?? 0).getTime() - new Date(a.lastAt ?? 0).getTime());
     return list;
-  }, [sentQ.data, repliesQ.data, contactsQ.data, enrollmentsAllQ.data, sequencesQ.data]);
+  }, [sentQ.data, repliesQ.data, contactsQ.data, enrollmentsAllQ.data, sequencesQ.data, snoozeStateQ.data]);
 
   const counts = useMemo(() => ({
-    // Solo conversazioni attive (non interamente archiviate) per i contatori di testata.
-    interested: conversations.filter((c) => !c.archived && c.lastIntent === "interested").length,
-    unread: conversations.filter((c) => !c.archived && c.unread).length,
-    read: conversations.filter((c) => !c.archived && c.hasRead).length,
+    // Solo conversazioni attive (non interamente archiviate, non posticipate) per i
+    // contatori di testata: le posticipate sono nascoste dalle viste normali e
+    // hanno un proprio contatore dedicato.
+    interested: conversations.filter((c) => !c.archived && !c.snoozedUntil && c.lastIntent === "interested").length,
+    unread: conversations.filter((c) => !c.archived && !c.snoozedUntil && c.unread).length,
+    read: conversations.filter((c) => !c.archived && !c.snoozedUntil && c.hasRead).length,
+    snoozed: conversations.filter((c) => !c.archived && !!c.snoozedUntil).length,
     archived: conversations.filter((c) => c.archived).length,
   }), [conversations]);
 
   // Conversazioni NON LETTE per casella (badge nel pannello sinistro del client).
+  // Le posticipate non contano: sono fuori dalle viste normali finché scadono.
   const unreadBySender = useMemo(() => {
     const m = new Map<string, number>();
     for (const conv of conversations) {
-      if (conv.archived || !conv.unread) continue;
+      if (conv.archived || conv.snoozedUntil || !conv.unread) continue;
       for (const id of conv.senderAccountIds) m.set(id, (m.get(id) ?? 0) + 1);
     }
     return m;
@@ -714,6 +818,10 @@ export function useOutreachConversations(companyId: string) {
       // Le conversazioni interamente archiviate appaiono solo sotto il filtro "Archiviate".
       if (filter === "archived") { if (!conv.archived) return false; }
       else if (conv.archived) return false;
+      // Le posticipate (snoozed_until > now) appaiono SOLO sotto "Posticipate" e
+      // sono nascoste da tutte le altre viste finché l'ora non passa.
+      if (filter === "snoozed") { if (!conv.snoozedUntil) return false; }
+      else if (filter !== "archived" && conv.snoozedUntil) return false;
       if (filter === "interested" && conv.lastIntent !== "interested") return false;
       if (filter === "unread" && !conv.unread) return false;
       // Filtro casella: la conversazione deve aver usato la casella selezionata.
@@ -751,6 +859,8 @@ export function useOutreachConversations(companyId: string) {
     markAllRead,
     archiveRead,
     setIntent,
+    snoozeConversation,
+    unsnooze,
     // helper
     filterConversations,
     signatureForSender,
