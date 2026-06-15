@@ -135,6 +135,81 @@ export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ mes
   }
 }
 
+/**
+ * smtpTestConnection — verifica che le credenziali SMTP siano valide senza
+ * inviare alcuna email. Imita l'handshake di `smtpSend` fino all'AUTH LOGIN:
+ *   1. apre la connessione (TLS diretto se `secure`, altrimenti plain)
+ *   2. legge il banner 220
+ *   3. EHLO outreach.local
+ *   4. se NON secure e il server annuncia STARTTLS → STARTTLS + upgrade TLS + EHLO
+ *   5. AUTH LOGIN con username/password base64 (attende 235)
+ *   6. QUIT e chiude.
+ * Ritorna {ok:true} se l'auth riesce, altrimenti {ok:false, error}.
+ */
+export async function smtpTestConnection(cfg: SmtpConfig): Promise<{ ok: boolean; error?: string }> {
+  const { host, port, secure, username, password } = cfg;
+
+  let conn: Deno.TcpConn | Deno.TlsConn;
+  try {
+    conn = secure
+      ? await Deno.connectTls({ hostname: host, port })
+      : await Deno.connect({ hostname: host, port });
+  } catch (e) {
+    return { ok: false, error: `smtp_connect: ${e instanceof Error ? e.message : String(e)}` };
+  }
+
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  const buf = new Uint8Array(8192);
+
+  async function readLine(): Promise<string> {
+    const n = await conn.read(buf);
+    if (n === null) throw new Error("smtp_connection_closed");
+    return decoder.decode(buf.subarray(0, n));
+  }
+  async function send(line: string): Promise<void> {
+    await conn.write(encoder.encode(line + "\r\n"));
+  }
+  async function expect(prefix: string): Promise<string> {
+    const resp = await readLine();
+    if (!resp.startsWith(prefix)) {
+      throw new Error(`smtp_unexpected: ${resp.slice(0, 200)}`);
+    }
+    return resp;
+  }
+
+  try {
+    // Greeting
+    await expect("220");
+    await send(`EHLO outreach.local`);
+    let ehloResp = await readLine();
+
+    // STARTTLS se port 587 e server lo supporta
+    if (!secure && ehloResp.toLowerCase().includes("starttls")) {
+      await send("STARTTLS");
+      await expect("220");
+      conn = await Deno.startTls(conn as Deno.TcpConn, { hostname: host });
+      await send(`EHLO outreach.local`);
+      ehloResp = await readLine();
+    }
+
+    // AUTH LOGIN
+    await send("AUTH LOGIN");
+    await expect("334");
+    await send(btoa(username));
+    await expect("334");
+    await send(btoa(password));
+    await expect("235");
+
+    await send("QUIT");
+    try { conn.close(); } catch { /* ignore */ }
+    return { ok: true };
+  } catch (e) {
+    try { conn.close(); } catch { /* ignore */ }
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 function escapeHeader(s: string): string {
   // RFC 2047 encoded-word per header con caratteri non-ASCII.
   // Il control char \x00 nella range è intenzionale (definisce

@@ -44,6 +44,11 @@ verify_jwt = false
 [functions.outreach-mailbox-connect]
 verify_jwt = true
 
+# Testa connessione SMTP+IMAP di una casella (no invio email): aggiorna
+# connection_status/error/checked_at. Solo super_admin (JWT richiesto).
+[functions.outreach-mailbox-test]
+verify_jwt = true
+
 # Anteprima/test email nodi automazione — auth JWT manuale (qualsiasi utente loggato).
 [functions.automation-email-render]
 verify_jwt = false
