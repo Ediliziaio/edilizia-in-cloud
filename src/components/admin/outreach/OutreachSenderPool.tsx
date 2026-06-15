@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Globe, Mailbox, Plus, Trash2, Flame, ShieldCheck, AlertTriangle, Copy, Pause, Play, RefreshCw } from "lucide-react";
+import { Loader2, Globe, Mailbox, Plus, Trash2, Flame, ShieldCheck, AlertTriangle, Copy, Pause, Play, RefreshCw, Plug } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
 
 /**
@@ -30,6 +30,7 @@ interface Domain {
 interface Sender {
   id: string; email: string; display_name: string | null; provider: string; status: string;
   sending_domain_id: string | null; daily_cap_target: number; warmup_day: number; daily_sent: number;
+  connection_status?: string | null;
 }
 
 const effectiveCap = (s: Sender, base = 5, step = 5) => Math.min(s.daily_cap_target, base + s.warmup_day * step);
@@ -150,15 +151,92 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
   );
 }
 
+type CasellaKind = "ee" | "smtp";
+
 function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; caselle: Sender[]; brandName?: string; onChange: () => void }) {
   const [showDns, setShowDns] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [kind, setKind] = useState<CasellaKind>("ee");
   const [locals, setLocals] = useState("");
   const [cap, setCap] = useState("40");
   const [busy, setBusy] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const [verifying, setVerifying] = useState(false);
+
+  // Stato del form "casella SMTP reale". La password è un campo controllato
+  // locale: non finisce mai in stato globale né nei log, e si svuota al submit.
+  const [smtpEmail, setSmtpEmail] = useState("");
+  const [smtpHost, setSmtpHost] = useState("");
+  const [smtpPort, setSmtpPort] = useState("465");
+  const [smtpSecure, setSmtpSecure] = useState(true);
+  const [smtpUser, setSmtpUser] = useState("");
+  const [smtpPass, setSmtpPass] = useState("");
+  const [imapHost, setImapHost] = useState("");
+  const [imapPort, setImapPort] = useState("993");
+
+  function applyPreset(preset: "google" | "outlook" | "custom") {
+    if (preset === "google") {
+      setSmtpHost("smtp.gmail.com"); setSmtpPort("465"); setSmtpSecure(true);
+      setImapHost("imap.gmail.com"); setImapPort("993");
+    } else if (preset === "outlook") {
+      setSmtpHost("smtp.office365.com"); setSmtpPort("587"); setSmtpSecure(false);
+      setImapHost("outlook.office365.com"); setImapPort("993");
+    } else {
+      setSmtpHost(""); setSmtpPort(""); setSmtpSecure(true);
+      setImapHost(""); setImapPort("");
+    }
+  }
+
+  function resetSmtp() {
+    setSmtpEmail(""); setSmtpHost(""); setSmtpPort("465"); setSmtpSecure(true);
+    setSmtpUser(""); setSmtpPass(""); setImapHost(""); setImapPort("993");
+  }
+
+  async function addSmtpCasella() {
+    const email = smtpEmail.trim().toLowerCase();
+    if (!email.includes("@") || !email.includes(".")) { toast.error("Inserisci un indirizzo email valido"); return; }
+    if (!smtpHost.trim() || !smtpPort.trim()) { toast.error("SMTP host e porta sono obbligatori"); return; }
+    if (!smtpPass) { toast.error("Inserisci la password della casella"); return; }
+    setBusy(true);
+    try {
+      // a. crea la riga (paused: l'utente la attiva dopo che il test è ok)
+      const { data: created, error: insErr } = await db.from(T_SENDERS).insert({
+        company_id: domain.company_id, email, provider: "smtp",
+        sending_domain_id: domain.id, brand_id: domain.brand_id,
+        smtp_host: smtpHost.trim(), smtp_port: Number(smtpPort), smtp_secure: smtpSecure,
+        smtp_username: smtpUser.trim() || email,
+        imap_host: imapHost.trim() || null, imap_port: imapPort ? Number(imapPort) : null, imap_secure: true,
+        daily_cap_target: Number(cap) || 40, status: "paused",
+      }).select("id").single();
+      if (insErr) throw insErr;
+      const id = created?.id as string;
+
+      // b. salva la password nel Vault (edge dedicata: mai in chiaro nel DB)
+      const pwd = smtpPass;
+      const { data: connData, error: connErr } = await supabase.functions.invoke("outreach-mailbox-connect", { body: { sender_account_id: id, password: pwd } });
+      if (connErr || connData?.error) {
+        toast.error(`Casella creata ma password non salvata: ${connErr?.message || connData?.error}`);
+        resetSmtp(); onChange();
+        return;
+      }
+
+      // c. test immediato SMTP+IMAP (non invia email): esito nel toast
+      const { data: testData } = await supabase.functions.invoke("outreach-mailbox-test", { body: { sender_account_id: id } });
+      if (testData?.ok) {
+        toast.success(`Casella SMTP creata e verificata (SMTP ✓ · IMAP ✓). Riattivala per usarla.`);
+      } else {
+        toast.warning(`Casella creata, ma il test connessione è fallito: ${testData?.error || "verifica le credenziali"}. Correggi e ritesta.`);
+      }
+
+      // d. reset + refresh
+      resetSmtp(); setShowAdd(false); onChange();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function verifyDns() {
     setVerifying(true);
@@ -242,12 +320,52 @@ function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; 
 
       {showAdd && (
         <div className="space-y-2 border-t bg-muted/20 p-2.5">
-          <Label className="text-xs">Crea caselle su <span className="font-mono">@{domain.domain}</span> — un nome per riga (es. <code>marco</code>, <code>info</code>)</Label>
-          <Textarea value={locals} onChange={(e) => setLocals(e.target.value)} rows={2} placeholder={"marco\ninfo\nlucia"} className="text-sm" />
-          <div className="flex items-end gap-2">
-            <div className="w-24 space-y-1"><Label className="text-xs">Cap/g target</Label><Input type="number" value={cap} onChange={(e) => setCap(e.target.value)} className="h-8" /></div>
-            <Button size="sm" className="h-8" disabled={busy} onClick={addCaselle}>{busy ? "…" : "Crea caselle"}</Button>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs">Tipo casella</Label>
+            <Select value={kind} onValueChange={(v) => setKind(v as CasellaKind)}>
+              <SelectTrigger className="h-8 w-[200px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ee">Elastic Email (condivisa)</SelectItem>
+                <SelectItem value="smtp">SMTP reale (casella propria)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+
+          {kind === "ee" ? (
+            <>
+              <Label className="text-xs">Crea caselle su <span className="font-mono">@{domain.domain}</span> — un nome per riga (es. <code>marco</code>, <code>info</code>)</Label>
+              <Textarea value={locals} onChange={(e) => setLocals(e.target.value)} rows={2} placeholder={"marco\ninfo\nlucia"} className="text-sm" />
+              <div className="flex items-end gap-2">
+                <div className="w-24 space-y-1"><Label className="text-xs">Cap/g target</Label><Input type="number" value={cap} onChange={(e) => setCap(e.target.value)} className="h-8" /></div>
+                <Button size="sm" className="h-8" disabled={busy} onClick={addCaselle}>{busy ? "…" : "Crea caselle"}</Button>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Preset:</span>
+                <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => applyPreset("google")}>Google Workspace</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => applyPreset("outlook")}>Outlook/M365</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => applyPreset("custom")}>Personalizzato</Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <div className="col-span-2 space-y-1 sm:col-span-3"><Label className="text-xs">Email completa</Label><Input value={smtpEmail} onChange={(e) => setSmtpEmail(e.target.value)} placeholder={`marco@${domain.domain}`} className="h-8" autoComplete="off" /></div>
+                <div className="space-y-1"><Label className="text-xs">SMTP host</Label><Input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.gmail.com" className="h-8 font-mono" /></div>
+                <div className="space-y-1"><Label className="text-xs">SMTP porta</Label><Input type="number" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} className="h-8" /></div>
+                <div className="flex items-end gap-1.5 pb-1.5">
+                  <input id={`tls-${domain.id}`} type="checkbox" checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} className="h-4 w-4" />
+                  <Label htmlFor={`tls-${domain.id}`} className="text-xs">TLS implicito (SSL)</Label>
+                </div>
+                <div className="col-span-2 space-y-1 sm:col-span-1"><Label className="text-xs">Username</Label><Input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder="= email" className="h-8 font-mono" autoComplete="off" /></div>
+                <div className="col-span-2 space-y-1 sm:col-span-2"><Label className="text-xs">Password</Label><Input type="password" value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} placeholder="••••••••" className="h-8" autoComplete="new-password" /></div>
+                <div className="space-y-1"><Label className="text-xs">IMAP host</Label><Input value={imapHost} onChange={(e) => setImapHost(e.target.value)} placeholder="imap.gmail.com" className="h-8 font-mono" /></div>
+                <div className="space-y-1"><Label className="text-xs">IMAP porta</Label><Input type="number" value={imapPort} onChange={(e) => setImapPort(e.target.value)} className="h-8" /></div>
+                <div className="space-y-1"><Label className="text-xs">Cap/g target</Label><Input type="number" value={cap} onChange={(e) => setCap(e.target.value)} className="h-8" /></div>
+              </div>
+              <p className="text-[10px] text-muted-foreground">La password è salvata cifrata nel Vault (mai in chiaro). La casella parte in pausa: dopo un test riuscito riattivala per inserirla nella rotazione.</p>
+              <Button size="sm" className="h-8" disabled={busy} onClick={addSmtpCasella}>{busy ? "Creo e testo…" : "Crea casella SMTP"}</Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -262,9 +380,11 @@ function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; 
 
 function CasellaRow({ casella, onChange }: { casella: Sender; onChange: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const paused = casella.status === "paused" || casella.status === "disabled";
+  const isSmtp = casella.provider === "smtp";
 
   async function setStatus(status: string) {
     setBusy(true);
@@ -272,6 +392,20 @@ function CasellaRow({ casella, onChange }: { casella: Sender; onChange: () => vo
     setBusy(false);
     if (error) { toast.error(error.message); return; }
     onChange();
+  }
+  async function testConnection() {
+    setTesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("outreach-mailbox-test", { body: { sender_account_id: casella.id } });
+      if (error) throw error;
+      if (data?.ok) toast.success("Connessione OK (SMTP ✓ · IMAP ✓)");
+      else toast.error(`Test fallito: ${data?.error || "verifica le credenziali"}`);
+      onChange();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Test non riuscito");
+    } finally {
+      setTesting(false);
+    }
   }
   async function del() {
     const { error } = await db.from(T_SENDERS).delete().eq("id", casella.id);
@@ -285,6 +419,7 @@ function CasellaRow({ casella, onChange }: { casella: Sender; onChange: () => vo
         <div className="flex items-center gap-2">
           <span className="truncate font-mono text-xs">{casella.email}</span>
           <Badge variant={casella.status === "active" ? "default" : casella.status === "warming" ? "secondary" : "outline"} className="text-[10px]">{casella.status}</Badge>
+          {isSmtp && <ConnBadge status={casella.connection_status} />}
         </div>
         <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
           <span className="inline-flex items-center gap-1"><ShieldCheck className="h-3 w-3" />{casella.provider}</span>
@@ -293,6 +428,11 @@ function CasellaRow({ casella, onChange }: { casella: Sender; onChange: () => vo
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        {isSmtp && (
+          <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" disabled={testing} onClick={testConnection}>
+            {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plug className="h-3.5 w-3.5" />} Testa connessione
+          </Button>
+        )}
         <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" disabled={busy} onClick={() => setStatus(paused ? "warming" : "paused")}>
           {paused ? <><Play className="h-3.5 w-3.5" /> Riattiva</> : <><Pause className="h-3.5 w-3.5" /> Pausa</>}
         </Button>
@@ -300,6 +440,17 @@ function CasellaRow({ casella, onChange }: { casella: Sender; onChange: () => vo
       </div>
     </div>
   );
+}
+
+function ConnBadge({ status }: { status?: string | null }) {
+  const s = status ?? "untested";
+  const cls = s === "ok"
+    ? "bg-emerald-100 text-emerald-700"
+    : s === "error"
+    ? "bg-red-100 text-red-700"
+    : "bg-muted text-muted-foreground";
+  const label = s === "ok" ? "connessa" : s === "error" ? "errore" : "non testata";
+  return <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${cls}`}>{label}</span>;
 }
 
 function DnsRow({ type, host, value }: { type: string; host: string; value: string }) {
