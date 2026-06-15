@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { callElevenLabsProxy } from "@/modules/ai-agents/hooks/useElevenLabsProxy";
 import { useUnifiedAgents } from "@/hooks/useUnifiedAgents";
+import { Link } from "react-router-dom";
 import {
   Phone,
   RefreshCw,
@@ -13,7 +14,7 @@ import {
   Bot,
   CheckCircle,
   XCircle,
-  Download,
+  Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -83,62 +84,6 @@ export function TelephonyTab() {
     },
   });
 
-  // Importa nella tab Telefonia i numeri Telnyx già posseduti dall'azienda
-  // (stesso account usato per gli SMS): virtual_phone_numbers + sms_telnyx_numbers.
-  // Da qui possono poi essere assegnati a un agente e collegati a ElevenLabs.
-  const norm = (s: string) => (s || "").replace(/\s+/g, "");
-  const importTelnyx = useMutation({
-    mutationFn: async () => {
-      if (!companyId) throw new Error("Azienda non disponibile");
-      const existing = new Set(numbers.map((n) => norm(n.numero)));
-      const found: { numero: string; etichetta: string | null }[] = [];
-
-      // Numeri virtuali (voce+sms) — fonte principale per la voce
-      const vpn = await supabase
-        .from("virtual_phone_numbers")
-        .select("phone_number, friendly_name, is_active")
-        .eq("company_id", companyId)
-        .eq("is_active", true);
-      (vpn.data ?? []).forEach((r: { phone_number?: string | null; friendly_name?: string | null }) => {
-        if (r.phone_number) found.push({ numero: r.phone_number, etichetta: r.friendly_name ?? null });
-      });
-
-      // Numeri Telnyx dedicati agli SMS (best-effort: se RLS li nasconde resta [])
-      const sms = await supabase
-        .from("sms_telnyx_numbers")
-        .select("numero_e164, numero_display, stato")
-        .eq("company_id", companyId)
-        .eq("stato", "attivo");
-      (sms.data ?? []).forEach((r: { numero_e164?: string | null; numero_display?: string | null }) => {
-        if (r.numero_e164) found.push({ numero: r.numero_e164, etichetta: r.numero_display ?? null });
-      });
-
-      const seen = new Set<string>();
-      const toInsert = found
-        .filter((s) => !existing.has(norm(s.numero)))
-        .filter((s) => { const k = norm(s.numero); if (seen.has(k)) return false; seen.add(k); return true; })
-        .map((s) => ({
-          company_id: companyId,
-          numero: s.numero,
-          nome_etichetta: s.etichetta,
-          provider: "telnyx",
-          capacita: ["voce", "sms"],
-          attivo: true,
-        }));
-
-      if (toInsert.length === 0) return { inserted: 0 };
-      const { error } = await supabase.from("ai_phone_numbers_v2" as never).insert(toInsert as never);
-      if (error) throw error;
-      return { inserted: toInsert.length };
-    },
-    onSuccess: (r) => {
-      queryClient.invalidateQueries({ queryKey: ["ai-phone-numbers-v2"] });
-      if (r.inserted > 0) toast.success(`${r.inserted} numero/i Telnyx importato/i`);
-      else toast.info("Nessun nuovo numero Telnyx da importare");
-    },
-    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore import numeri Telnyx"),
-  });
-
   // Collega il numero a ElevenLabs (provisioning sullo stesso account Telnyx):
   // dopo questo passaggio l'agente vocale può effettuare chiamate da quel numero.
   const linkToEL = useMutation({
@@ -194,13 +139,13 @@ export function TelephonyTab() {
             Numeri Telefonici
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Gestisci i numeri assegnati agli agenti vocali e sincronizza con ElevenLabs.
+            Assegna un numero a un agente vocale e collegalo per le chiamate AI. I numeri si
+            gestiscono in <Link to="/azienda/impostazioni/numeri-telefono" className="underline font-medium">Impostazioni → Telefonia</Link>.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => importTelnyx.mutate()} disabled={importTelnyx.isPending}>
-            {importTelnyx.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Download className="h-4 w-4 mr-1.5" />}
-            Importa numeri Telnyx
+          <Button asChild variant="outline" size="sm">
+            <Link to="/azienda/impostazioni/numeri-telefono"><Settings2 className="h-4 w-4 mr-1.5" /> Gestisci numeri</Link>
           </Button>
           <Button variant="outline" size="sm" onClick={syncFromEL} disabled={syncing}>
             {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
@@ -221,12 +166,11 @@ export function TelephonyTab() {
           </div>
           <p className="text-foreground font-medium">Nessun numero configurato</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-            Usa <strong>Importa numeri Telnyx</strong> per portare qui i numeri che usi già per gli SMS:
-            potrai assegnarli a un agente vocale e collegarli per le chiamate.
+            I numeri per le chiamate AI si aggiungono in <strong>Impostazioni → Telefonia</strong>
+            (sezione "Numeri per chiamate AI"). Poi qui li assegni a un agente vocale.
           </p>
-          <Button variant="default" size="sm" className="mt-4" onClick={() => importTelnyx.mutate()} disabled={importTelnyx.isPending}>
-            {importTelnyx.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Download className="h-4 w-4 mr-1.5" />}
-            Importa numeri Telnyx
+          <Button asChild variant="default" size="sm" className="mt-4">
+            <Link to="/azienda/impostazioni/numeri-telefono"><Settings2 className="h-4 w-4 mr-1.5" /> Vai a Telefonia</Link>
           </Button>
         </div>
       ) : (

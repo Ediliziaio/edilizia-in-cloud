@@ -106,7 +106,7 @@ const SETTINGS_ITEMS: SettingsItem[] = [
   { label: "Crediti & saldo",            path: "/azienda/impostazioni/crediti" },
   { label: "API platform",               path: "/azienda/impostazioni/api" },
   { label: "Webhook",                    path: "/azienda/impostazioni/webhook" },
-  { label: "Numeri virtuali",            path: "/azienda/impostazioni/numeri-telefono" },
+  { label: "Telefonia",                  path: "/azienda/impostazioni/numeri-telefono" },
   { label: "Piano abbonamento",          path: "/azienda/impostazioni/abbonamento" },
   { label: "Fatturazione",               path: "/azienda/impostazioni/fatturazione" },
   { label: "Fatturazione elettronica",   path: "/azienda/impostazioni/fatturazione-nativa" },

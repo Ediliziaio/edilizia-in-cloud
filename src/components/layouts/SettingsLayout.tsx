@@ -50,7 +50,7 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   api:                    { title: "API platform",             description: "Gestisci le chiavi API per integrazioni avanzate" },
   webhook:                { title: "Webhook",                  description: "Configura i webhook per eventi in tempo reale" },
   "dominio-email":        { title: "Dominio email",            description: "Invia email dal tuo dominio aziendale per deliverability e branding" },
-  "numeri-telefono":      { title: "Numeri virtuali",          description: "Gestisci i numeri telefonici virtuali" },
+  "numeri-telefono":      { title: "Telefonia",                description: "Sistema telefonico: numeri aziendali, numeri per gli agenti AI e Centralino" },
   abbonamento:            { title: "Piano abbonamento",        description: "Gestisci il tuo piano e i dettagli dell'abbonamento" },
   // v8.6.57 — Voce unica "Fatturazione" con 2 tab interni (esterna vs nativa)
   fatturazione:           { title: "Fatturazione",             description: "Provider esterni (Fatture in Cloud, Aruba, ecc.) o configurazione SDI nativa" },

@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   usePhoneNumbers,
@@ -48,7 +51,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Phone, Plus, Search, Trash2, MessageSquare, PhoneCall, Info, Loader2 } from "lucide-react";
+import { Phone, Plus, Search, Trash2, MessageSquare, PhoneCall, Info, Loader2, Download, Bot, ArrowRight, Link2, Headphones } from "lucide-react";
 import { Link } from "react-router-dom";
 
 type PurchaseStep = "search" | "results" | "confirm";
@@ -63,6 +66,50 @@ export default function SettingsPhoneNumbers() {
   const purchaseMutation = usePurchaseNumber(companyId);
   const releaseMutation = useReleaseNumber(companyId);
   const assignMutation = useAssignNumber();
+  const queryClient = useQueryClient();
+
+  // Numeri per le chiamate AI (voce) — pool ai_phone_numbers_v2. Gestiti qui in
+  // Telefonia; l'assegnazione a un agente avviene in Agenti AI → Telefonia.
+  const { data: aiNumbers = [] } = useQuery({
+    queryKey: ["ai-phone-numbers-v2", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("ai_phone_numbers_v2" as never)
+        .select("id, numero, nome_etichetta, agent_id, elevenlabs_phone_id, attivo")
+        .eq("company_id", companyId!)
+        .order("creato_il", { ascending: false });
+      return (data ?? []) as unknown as { id: string; numero: string; nome_etichetta: string | null; agent_id: string | null; elevenlabs_phone_id: string | null; attivo: boolean }[];
+    },
+  });
+
+  const norm = (s: string) => (s || "").replace(/\s+/g, "");
+  const importTelnyx = useMutation({
+    mutationFn: async () => {
+      if (!companyId) throw new Error("Azienda non disponibile");
+      const existing = new Set(aiNumbers.map((n) => norm(n.numero)));
+      const found: { numero: string; etichetta: string | null }[] = [];
+      const vpn = await supabase.from("virtual_phone_numbers").select("phone_number, friendly_name, is_active").eq("company_id", companyId).eq("is_active", true);
+      (vpn.data ?? []).forEach((r: { phone_number?: string | null; friendly_name?: string | null }) => { if (r.phone_number) found.push({ numero: r.phone_number, etichetta: r.friendly_name ?? null }); });
+      const sms = await supabase.from("sms_telnyx_numbers").select("numero_e164, numero_display, stato").eq("company_id", companyId).eq("stato", "attivo");
+      (sms.data ?? []).forEach((r: { numero_e164?: string | null; numero_display?: string | null }) => { if (r.numero_e164) found.push({ numero: r.numero_e164, etichetta: r.numero_display ?? null }); });
+      const seen = new Set<string>();
+      const toInsert = found
+        .filter((s) => !existing.has(norm(s.numero)))
+        .filter((s) => { const k = norm(s.numero); if (seen.has(k)) return false; seen.add(k); return true; })
+        .map((s) => ({ company_id: companyId, numero: s.numero, nome_etichetta: s.etichetta, provider: "telnyx", capacita: ["voce", "sms"], attivo: true }));
+      if (toInsert.length === 0) return { inserted: 0 };
+      const { error } = await supabase.from("ai_phone_numbers_v2" as never).insert(toInsert as never);
+      if (error) throw error;
+      return { inserted: toInsert.length };
+    },
+    onSuccess: (r) => {
+      queryClient.invalidateQueries({ queryKey: ["ai-phone-numbers-v2"] });
+      if (r.inserted > 0) toast.success(`${r.inserted} numero/i Telnyx importato/i`);
+      else toast.info("Nessun nuovo numero Telnyx da importare");
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore import numeri Telnyx"),
+  });
 
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [step, setStep] = useState<PurchaseStep>("search");
@@ -110,9 +157,11 @@ export default function SettingsPhoneNumbers() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Numeri Virtuali</h2>
+          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Phone className="h-6 w-6 text-primary" /> Telefonia
+          </h2>
           <p className="text-muted-foreground">
-            Gestisci i numeri di telefono aziendali per SMS e chiamate.
+            Sistema telefonico aziendale: gestisci qui i numeri per SMS, chiamate e agenti AI.
           </p>
         </div>
         <Dialog open={purchaseOpen} onOpenChange={(open) => { setPurchaseOpen(open); if (!open) resetPurchase(); }}>
@@ -253,6 +302,28 @@ export default function SettingsPhoneNumbers() {
         </Dialog>
       </div>
 
+      {/* Scorciatoie: dove si usano i numeri (logica GHL — gestione qui, uso altrove) */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Link to="/azienda/centralino" className="group rounded-xl border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/30">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><Headphones className="h-5 w-5" /></div>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-sm flex items-center gap-1.5">Centralino <ArrowRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" /></p>
+              <p className="text-xs text-muted-foreground">Chiama e parla dal browser col numero aziendale.</p>
+            </div>
+          </div>
+        </Link>
+        <Link to="/azienda/agenti-ai?tab=telefonia" className="group rounded-xl border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/30">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Bot className="h-5 w-5" /></div>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-sm flex items-center gap-1.5">Agenti AI · Telefonia <ArrowRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" /></p>
+              <p className="text-xs text-muted-foreground">Assegna un numero a un agente vocale per le chiamate AI.</p>
+            </div>
+          </div>
+        </Link>
+      </div>
+
       {/* Info box */}
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="flex items-start gap-3 pt-4">
@@ -272,10 +343,10 @@ export default function SettingsPhoneNumbers() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Phone className="h-5 w-5" />
-            Numeri Attivi
+            Numeri aziendali (SMS & voce)
           </CardTitle>
           <CardDescription>
-            {numbers?.length || 0} numeri attivi per la tua azienda
+            {numbers?.length || 0} numeri attivi · acquisto, etichetta, assegnazione e rilascio
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -359,6 +430,63 @@ export default function SettingsPhoneNumbers() {
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Numeri per le chiamate AI (voce) — pool ai_phone_numbers_v2 */}
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-primary" /> Numeri per chiamate AI (voce)
+            </CardTitle>
+            <CardDescription>
+              Numeri abilitati alle chiamate degli agenti vocali. L'assegnazione a un agente si fa in{" "}
+              <Link to="/azienda/agenti-ai?tab=telefonia" className="underline font-medium">Agenti AI → Telefonia</Link>.
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => importTelnyx.mutate()} disabled={importTelnyx.isPending} className="shrink-0">
+            {importTelnyx.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Download className="h-4 w-4 mr-1.5" />}
+            Importa numeri Telnyx
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {aiNumbers.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8 text-sm">
+              Nessun numero per le chiamate AI. Usa <strong>Importa numeri Telnyx</strong> per portarli qui dai numeri che usi già per gli SMS.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Numero</TableHead>
+                  <TableHead>Etichetta</TableHead>
+                  <TableHead>Pronto per chiamate AI</TableHead>
+                  <TableHead>Stato</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {aiNumbers.map((n) => (
+                  <TableRow key={n.id}>
+                    <TableCell className="font-mono text-sm">{n.numero}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{n.nome_etichetta || "—"}</TableCell>
+                    <TableCell>
+                      {n.elevenlabs_phone_id ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-primary"><Link2 className="h-3.5 w-3.5" /> Collegato</span>
+                      ) : n.agent_id ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-amber-600">Da collegare in Agenti AI</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">Nessun agente assegnato</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={n.attivo ? "secondary" : "outline"} className="text-xs">{n.attivo ? "Attivo" : "Disattivo"}</Badge>
                     </TableCell>
                   </TableRow>
                 ))}
