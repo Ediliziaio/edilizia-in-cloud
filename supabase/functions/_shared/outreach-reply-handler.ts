@@ -65,13 +65,13 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
   let intent: string | null = null;
   if (inserted?.id) intent = await classifyAndStoreIntent(admin, inserted.id, r.subject ?? "", snippet ?? "");
 
-  // 3. STOP su risposta: ferma la sequenza e annulla i messaggi ancora in coda.
-  if (r.enrollmentId) {
-    await admin.from("outreach_enrollments")
-      .update({ status: "replied", stop_reason: "Risposta del destinatario" }).eq("id", r.enrollmentId);
-    await admin.from("outreach_send_queue")
-      .update({ status: "cancelled" }).eq("enrollment_id", r.enrollmentId).eq("status", "queued");
-  }
+  // 3. AUTO-PAUSA SU RISPOSTA: chi risponde non deve più ricevere follow-up cold.
+  // Fermiamo TUTTE le iscrizioni ancora vive del contatto (non solo quella passata
+  // dal chiamante: un lead può essere in più sequenze) → 'replied' + annulliamo i
+  // messaggi ancora 'queued'. Idempotente (filtri su status) e coerente con lo
+  // skip del dispatcher (TERMINAL_ENROLLMENT include 'replied'). Se manca il
+  // contatto ricadiamo sull'enrollmentId passato, se presente.
+  await stopActiveSequences(admin, r.contactId, r.enrollmentId);
 
   // 4. Se l'AI ha capito "unsubscribe", opt-out del contatto e blocklist.
   if (intent === "unsubscribe") {
@@ -86,6 +86,36 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
       );
     }
   }
+}
+
+/**
+ * Ferma le sequenze cold ancora attive del contatto dopo una sua risposta.
+ * Stati vivi = 'active' | 'paused' (gli altri sono già terminali). Le porta a
+ * 'replied' e annulla i messaggi ancora 'queued'. Se non c'è il contatto ma c'è
+ * un enrollmentId esplicito, ferma almeno quello. Idempotente.
+ */
+async function stopActiveSequences(admin: any, contactId: string | null, enrollmentId?: string | null): Promise<void> {
+  let ids: string[] = [];
+  if (contactId) {
+    const { data: enrs } = await admin
+      .from("outreach_enrollments")
+      .select("id")
+      .eq("company_id", PLATFORM_COMPANY)
+      .eq("contact_id", contactId)
+      .in("status", ["active", "paused"]);
+    ids = ((enrs ?? []) as Array<{ id: string }>).map((e) => e.id);
+  }
+  // Fallback: nessun contatto collegato ma il chiamante ha trovato un enrollment.
+  if (ids.length === 0 && enrollmentId) ids = [enrollmentId];
+  if (ids.length === 0) return;
+
+  await admin.from("outreach_enrollments")
+    .update({ status: "replied", next_action_at: null, stop_reason: "Risposta del destinatario" })
+    .in("id", ids);
+  await admin.from("outreach_send_queue")
+    .update({ status: "cancelled", last_error: "reply received" })
+    .in("enrollment_id", ids)
+    .eq("status", "queued");
 }
 
 /**
