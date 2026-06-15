@@ -49,6 +49,11 @@ verify_jwt = true
 [functions.outreach-mailbox-test]
 verify_jwt = true
 
+# Risposta 2-vie dall'inbox Outreach: invia DALLA stessa casella che ha
+# contattato il prospect (SMTP reale o EE legacy) con threading. Solo super_admin (JWT richiesto).
+[functions.outreach-reply-send]
+verify_jwt = true
+
 # Anteprima/test email nodi automazione — auth JWT manuale (qualsiasi utente loggato).
 [functions.automation-email-render]
 verify_jwt = false
