@@ -45,6 +45,7 @@ import { STATUS_OPTIONS, inferOpportunityStatusFromStage } from "@/types/opportu
 import { usePermissions } from "@/hooks/usePermissions";
 import { cleanPhone } from "@/lib/contactUtils";
 import { QuickContactSendDialog, type QuickSendChannel } from "@/components/contacts/QuickContactSendDialog";
+import { ContactCommunicationsHistory } from "@/components/contacts/ContactCommunicationsHistory";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 
@@ -1018,6 +1019,16 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 />
               )}
 
+              {tab === "activities" && (contactPhone || contactEmail) && (
+                <ContactCommunicationsHistory
+                  companyId={companyId}
+                  contactId={opportunity.contact_id}
+                  phone={contactPhone}
+                  email={contactEmail}
+                  className="mt-3"
+                />
+              )}
+
               {tab === "quotes" && opportunity.contact_id && companyId && (
                 <OpportunityQuotesTab
                   contactId={opportunity.contact_id}
@@ -1172,6 +1183,11 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         email={contactEmail}
         context={opportunity.name}
         defaultChannel={quickSend.channel}
+        onSent={() => {
+          queryClient.invalidateQueries({ queryKey: ["comm-sms"] });
+          queryClient.invalidateQueries({ queryKey: ["comm-wa"] });
+          queryClient.invalidateQueries({ queryKey: ["comm-email"] });
+        }}
       />
     )}
     </>
