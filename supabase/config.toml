@@ -39,6 +39,11 @@ verify_jwt = false
 [functions.outreach-warmup]
 verify_jwt = false
 
+# Collega una casella SMTP/IMAP: salva la password nel Vault (mai in chiaro nel DB)
+# e collega secret_ref. Solo super_admin (JWT richiesto).
+[functions.outreach-mailbox-connect]
+verify_jwt = true
+
 # Anteprima/test email nodi automazione — auth JWT manuale (qualsiasi utente loggato).
 [functions.automation-email-render]
 verify_jwt = false
