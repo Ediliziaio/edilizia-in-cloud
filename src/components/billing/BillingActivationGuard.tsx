@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Building2, CreditCard, CheckCircle2, Loader2, Lock, LogOut, ShieldCheck,
+  Building2, CreditCard, CheckCircle2, Loader2, Lock, LogOut, ShieldCheck, Landmark,
 } from "lucide-react";
 
 /**
@@ -166,21 +166,80 @@ function BillingDataForm({
   );
 }
 
-function PaymentStep({ done }: { done: boolean }) {
+function PaymentStep({ done, companyId, method }: { done: boolean; companyId?: string; method: string }) {
+  const { refreshAuth } = useAuth();
   const startSetup = useStartCardSetup();
+  const [bonificoOpen, setBonificoOpen] = useState(false);
+  const [savingBonifico, setSavingBonifico] = useState(false);
+
   if (done) {
-    return <p className="text-sm text-muted-foreground">Metodo di pagamento registrato. ✔</p>;
+    const label =
+      method === "bank_transfer" ? "Bonifico bancario selezionato."
+      : method === "sepa_debit" ? "Addebito SEPA registrato."
+      : "Carta / SEPA registrata.";
+    return <p className="text-sm text-muted-foreground">{label} ✔</p>;
   }
+
+  const confirmBonifico = async () => {
+    if (!companyId) return;
+    setSavingBonifico(true);
+    try {
+      const { error } = await supabase.from("companies").update({ payment_method: "bank_transfer" }).eq("id", companyId);
+      if (error) throw error;
+      toast.success("Bonifico selezionato come metodo di pagamento");
+      await refreshAuth();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Errore";
+      toast.error("Impossibile salvare la scelta", { description: msg });
+    } finally {
+      setSavingBonifico(false);
+    }
+  };
+
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
-        Registra una carta aziendale per attivare il gestionale. <strong>Nessun addebito</strong> finché
-        non usi strumenti a consumo (è richiesta anche con il piano gratuito).
-      </p>
-      <Button onClick={() => startSetup.mutate()} disabled={startSetup.isPending} className="w-full sm:w-auto">
-        <CreditCard className="mr-2 h-4 w-4" />
-        {startSetup.isPending ? "Apertura…" : "Aggiungi carta"}
-      </Button>
+    <div className="space-y-4">
+      {/* Opzione consigliata: carta o SEPA via Stripe */}
+      <div className="space-y-2">
+        <p className="text-sm text-muted-foreground">
+          <strong>Consigliato.</strong> Registra una <strong>carta</strong> o un <strong>addebito SEPA</strong>{" "}
+          (dal conto bancario): l'incasso è automatico. Nessun addebito finché non usi strumenti a consumo.
+        </p>
+        <Button onClick={() => startSetup.mutate()} disabled={startSetup.isPending} className="w-full sm:w-auto">
+          <CreditCard className="mr-2 h-4 w-4" />
+          {startSetup.isPending ? "Apertura…" : "Aggiungi carta o SEPA"}
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <span className="h-px flex-1 bg-border" />
+        <span className="text-[11px] uppercase tracking-wider text-muted-foreground">oppure</span>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
+      {/* Opzione bonifico (dichiarativa) */}
+      {!bonificoOpen ? (
+        <Button variant="outline" onClick={() => setBonificoOpen(true)} className="w-full sm:w-auto">
+          <Landmark className="mr-2 h-4 w-4" />
+          Paga con bonifico
+        </Button>
+      ) : (
+        <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+          <p className="text-sm">
+            Con il <strong>bonifico</strong> riceverai le coordinate bancarie e la fattura
+            dall'amministrazione. Nota: il bonifico <strong>non</strong> è un addebito automatico,
+            quindi gli strumenti a consumo restano subordinati al saldo.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={confirmBonifico} disabled={savingBonifico}>
+              {savingBonifico ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Conferma bonifico
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setBonificoOpen(false)} disabled={savingBonifico}>
+              Annulla
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -266,7 +325,11 @@ export function BillingActivationGuard({ children }: { children: ReactNode }) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <PaymentStep done={paymentDone} />
+                <PaymentStep
+                  done={paymentDone}
+                  companyId={effectiveCompany?.id}
+                  method={String(c?.payment_method ?? "none").toLowerCase()}
+                />
               </CardContent>
             </Card>
 
