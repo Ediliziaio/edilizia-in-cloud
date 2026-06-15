@@ -9,14 +9,14 @@ import { Badge } from "@/components/ui/badge";
  * dove inserire (campo attivo oggetto/corpo) via `onInsert`.
  */
 
-export const OUTREACH_VAR_CHIPS = [
+const OUTREACH_VAR_CHIPS = [
   "{{first_name}}",
   "{{first_name|amico}}",
   "{{company_name}}",
   "{{last_name}}",
   "{{email}}",
 ];
-export const OUTREACH_SPINTAX_CHIP = "{Ciao|Salve|Buongiorno}";
+const OUTREACH_SPINTAX_CHIP = "{Ciao|Salve|Buongiorno}";
 
 export function OutreachVarChips({
   onInsert,

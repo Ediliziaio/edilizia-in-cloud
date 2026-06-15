@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Mail, MessageCircle, Smartphone, X, Route, AlertTriangle, Flag, CheckCircle2 } from "lucide-react";
 import type { PreviewActivity, PreviewChannel, PreviewResult } from "./preview";
+import { htmlToPreviewText } from "../_shared";
 
 /**
  * Pannello "Anteprima percorso": scegli le ipotesi (Ha aperto? · Ha risposto?)
@@ -103,7 +104,7 @@ export function PathPreviewPanel({ activity, onActivityChange, result, trackOpen
                   {em.channel === "email" && (
                     <p className="mt-1 truncate text-xs font-medium text-foreground">{em.subject || "(senza oggetto)"}</p>
                   )}
-                  {em.body && <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-muted-foreground">{em.body}</p>}
+                  {em.body && <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-muted-foreground">{htmlToPreviewText(em.body)}</p>}
                 </div>
               );
             })

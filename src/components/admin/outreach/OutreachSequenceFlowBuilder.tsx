@@ -27,7 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Loader2, Mail, MessageCircle, Smartphone, Clock, GitBranch, Flag, Save, X, AlertTriangle, Network, Sparkles, LayoutGrid, Route } from "lucide-react";
+import { Loader2, Mail, MessageCircle, Smartphone, Clock, GitBranch, Flag, Save, X, AlertTriangle, Network, Sparkles, LayoutGrid, Route, Plus } from "lucide-react";
 import { NodeMeasureFix } from "@/components/flow-builder/NodeMeasureFix";
 import { computeAutoLayout } from "@/components/flow-builder/autoLayout";
 import { outreachNodeTypes, outreachEdgeTypes } from "./flow";
@@ -44,13 +44,15 @@ const T_STEP = "outreach_sequence_steps";
 
 type PaletteKind = Exclude<OutreachNodeType, never>;
 
-const PALETTE: { kind: PaletteKind; label: string; icon: typeof Mail; color: string }[] = [
-  { kind: "email", label: "Email", icon: Mail, color: "text-orange-600" },
-  { kind: "whatsapp", label: "WhatsApp", icon: MessageCircle, color: "text-emerald-600" },
-  { kind: "sms", label: "SMS", icon: Smartphone, color: "text-sky-600" },
-  { kind: "wait", label: "Attesa", icon: Clock, color: "text-purple-600" },
-  { kind: "condition", label: "Condizione", icon: GitBranch, color: "text-amber-600" },
-  { kind: "end", label: "Fine", icon: Flag, color: "text-muted-foreground" },
+// Palette nodi: gruppo "Messaggi" (invianti) + gruppo "Logica" (controllo flusso).
+// Ogni voce porta colore icona + hover accent coerenti con i nodi sul canvas.
+const PALETTE: { kind: PaletteKind; label: string; icon: typeof Mail; color: string; hover: string; group: "msg" | "logic" }[] = [
+  { kind: "email", label: "Email", icon: Mail, color: "text-orange-600", hover: "hover:bg-orange-50 dark:hover:bg-orange-950/40", group: "msg" },
+  { kind: "whatsapp", label: "WhatsApp", icon: MessageCircle, color: "text-emerald-600", hover: "hover:bg-emerald-50 dark:hover:bg-emerald-950/40", group: "msg" },
+  { kind: "sms", label: "SMS", icon: Smartphone, color: "text-sky-600", hover: "hover:bg-sky-50 dark:hover:bg-sky-950/40", group: "msg" },
+  { kind: "wait", label: "Attesa", icon: Clock, color: "text-purple-600", hover: "hover:bg-purple-50 dark:hover:bg-purple-950/40", group: "logic" },
+  { kind: "condition", label: "Condizione", icon: GitBranch, color: "text-amber-600", hover: "hover:bg-amber-50 dark:hover:bg-amber-950/40", group: "logic" },
+  { kind: "end", label: "Fine", icon: Flag, color: "text-muted-foreground", hover: "hover:bg-muted", group: "logic" },
 ];
 
 function defaultData(kind: OutreachNodeType): FlowNodeData {
@@ -87,6 +89,8 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
   const [previewOpen, setPreviewOpen] = useState(false);
   const [activity, setActivity] = useState<PreviewActivity>({ opened: true, replied: false });
   const [aiOpen, setAiOpen] = useState(false);
+  // Hint onboarding del canvas (dismiss manuale, UI-only).
+  const [hintDismissed, setHintDismissed] = useState(false);
   const initializedRef = useRef(false);
   const fitRef = useRef(false);
 
@@ -337,6 +341,17 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
   const selectedNode = useMemo(() => rfNodes.find((n) => n.id === selectedId) ?? null, [rfNodes, selectedId]);
   const globalIssues = issues.filter((i) => !i.nodeId);
 
+  // Flusso "vuoto/minimale": solo i nodi seed Email→Fine senza contenuto. In tal
+  // caso mostriamo l'hint onboarding (finché non viene chiuso o si edita qualcosa).
+  const isPristineFlow = useMemo(() => {
+    if (rfNodes.length > 2) return false;
+    return rfNodes.every((n) => {
+      const d = (n.data ?? {}) as FlowNodeData;
+      return !d.subject?.trim() && !d.body?.trim() && !d.condition_type && !d.template_name?.trim();
+    });
+  }, [rfNodes]);
+  const showHint = isPristineFlow && !hintDismissed && !previewOpen && !selectedNode;
+
   // ── Anteprima percorso: simula il cammino del lead dalle ipotesi correnti.
   //    Calcolata solo quando il pannello è aperto (traversata pura, no effetti). ──
   const preview = useMemo(
@@ -467,25 +482,52 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
               <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
               <Controls />
               <MiniMap nodeStrokeWidth={3} className="!bg-background !border-border" maskColor="hsl(var(--muted) / 0.5)" />
-              {/* Palette */}
+              {/* Palette: gruppi Messaggi / Logica con accent per tipo */}
               <Panel position="top-left">
-                <div className="flex flex-col gap-1 rounded-lg border bg-background/95 p-1.5 shadow-sm backdrop-blur">
-                  <span className="px-1 pb-0.5 text-[10px] font-semibold uppercase text-muted-foreground">Aggiungi</span>
-                  {PALETTE.map((p) => {
-                    const Icon = p.icon;
-                    return (
-                      <button
-                        key={p.kind}
-                        type="button"
-                        onClick={() => addPaletteNode(p.kind)}
-                        className="flex items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-muted"
-                      >
-                        <Icon className={`h-3.5 w-3.5 ${p.color}`} /> {p.label}
-                      </button>
-                    );
-                  })}
+                <div className="flex w-[148px] flex-col gap-0.5 rounded-xl border bg-background/95 p-2 shadow-md backdrop-blur">
+                  <span className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Aggiungi nodo</span>
+                  {(["msg", "logic"] as const).map((group) => (
+                    <div key={group} className="space-y-0.5">
+                      <span className="block px-1 pt-1 text-[9px] font-medium uppercase tracking-wide text-muted-foreground/60">
+                        {group === "msg" ? "Messaggi" : "Logica"}
+                      </span>
+                      {PALETTE.filter((p) => p.group === group).map((p) => {
+                        const Icon = p.icon;
+                        return (
+                          <button
+                            key={p.kind}
+                            type="button"
+                            onClick={() => addPaletteNode(p.kind)}
+                            className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors ${p.hover}`}
+                          >
+                            <Icon className={`h-3.5 w-3.5 shrink-0 ${p.color}`} /> {p.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                  <div className="mt-1 flex items-start gap-1 border-t px-1 pt-1.5 text-[9px] leading-tight text-muted-foreground/70">
+                    <Plus className="mt-px h-2.5 w-2.5 shrink-0" />
+                    <span>Usa il + su un arco per inserire tra due nodi</span>
+                  </div>
                 </div>
               </Panel>
+
+              {/* Hint onboarding: mostrato finché il flusso è minimale (solo i 2 nodi
+                  seed Email→Fine, senza contenuto). Guida verso palette / AI / +. */}
+              {showHint && (
+                <Panel position="bottom-center">
+                  <div className="mb-2 flex items-center gap-2 rounded-full border bg-background/95 px-3 py-1.5 text-[11px] shadow-md backdrop-blur">
+                    <Network className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+                    <span className="text-muted-foreground">
+                      Costruisci il flusso: aggiungi nodi dalla palette, collega gli handle o premi <span className="font-medium text-foreground">Genera con AI</span>.
+                    </span>
+                    <button type="button" onClick={() => setHintDismissed(true)} className="ml-1 shrink-0 rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Nascondi suggerimento">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                </Panel>
+              )}
             </ReactFlow>
           )}
         </div>

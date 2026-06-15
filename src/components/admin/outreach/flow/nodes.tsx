@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { Mail, Clock, GitBranch, Flag, AlertTriangle, Check, X, MessageCircle, Smartphone, FileText } from "lucide-react";
+import { htmlToPreviewText } from "../_shared";
 
 /**
  * Nodi custom del builder a grafo delle SEQUENZE CONDIZIONALI (outreach).
@@ -67,7 +68,7 @@ function EmailNodeComponent({ data, selected }: NodeProps) {
         </p>
         {d.body?.trim() && (
           <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-muted-foreground">
-            {d.body}
+            {htmlToPreviewText(d.body)}
           </p>
         )}
       </div>
@@ -133,7 +134,7 @@ function MessageNodeCard({
           </span>
         )}
         <p className="line-clamp-2 text-[12px] leading-tight text-foreground">
-          {data.body?.trim() || data.label || (data.template_name?.trim() ? "Template approvato" : "Messaggio…")}
+          {data.body?.trim() ? htmlToPreviewText(data.body) : (data.label || (data.template_name?.trim() ? "Template approvato" : "Messaggio…"))}
         </p>
       </div>
       <Handle type="source" position={Position.Bottom} className={`${styles.handle} ${HANDLE}`} />
