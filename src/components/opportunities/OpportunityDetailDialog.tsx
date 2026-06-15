@@ -27,7 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
   Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder,
-  Target, AlertTriangle, Trophy, MessageCircle, ExternalLink,
+  Target, AlertTriangle, Trophy, MessageCircle, ExternalLink, History,
 } from "lucide-react";
 import { useUpdateOpportunityMutation } from "@/hooks/useSalesOS";
 import { format } from "date-fns";
@@ -40,12 +40,11 @@ import { LinkedRendersList } from "@/components/render/LinkedRendersList";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import { OpportunityAppointmentTab } from "@/components/opportunities/OpportunityAppointmentTab";
 import { OpportunityQuotesTab } from "@/components/opportunities/OpportunityQuotesTab";
-import { ContactCallHistory } from "@/components/telephony/ContactCallHistory";
 import { STATUS_OPTIONS, inferOpportunityStatusFromStage } from "@/types/opportunities";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cleanPhone } from "@/lib/contactUtils";
 import { QuickContactSendDialog, type QuickSendChannel } from "@/components/contacts/QuickContactSendDialog";
-import { ContactCommunicationsHistory } from "@/components/contacts/ContactCommunicationsHistory";
+import { ContactActivityRegister } from "@/components/contacts/ContactActivityRegister";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 
@@ -58,7 +57,7 @@ interface Props {
   canEdit?: boolean;
 }
 
-type Tab = "details" | "notes" | "appointments" | "activities" | "documents" | "quotes";
+type Tab = "details" | "notes" | "appointments" | "registro" | "activities" | "documents" | "quotes";
 
 function sanitizeSearchTerm(value: string) {
   return value.replace(/[%,]/g, " ").trim();
@@ -434,6 +433,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const sidebarTabs: { key: Tab; label: string; mobileLabel?: string; icon: React.ReactNode; enabled: boolean }[] = [
     { key: "details", label: "Dettagli dell'opportunità", mobileLabel: "Dettagli", icon: <FileText className="h-4 w-4" />, enabled: true },
     { key: "appointments", label: "Prenota/aggiorna appuntamento", mobileLabel: "Appuntamento", icon: <CalendarDays className="h-4 w-4" />, enabled: true },
+    { key: "registro", label: "Registro attività", mobileLabel: "Registro", icon: <History className="h-4 w-4" />, enabled: true },
     { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: true },
     { key: "notes", label: "Note", icon: <StickyNote className="h-4 w-4" />, enabled: true },
     { key: "documents", label: "Documenti", icon: <Folder className="h-4 w-4" />, enabled: true },
@@ -1010,22 +1010,14 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 <LinkedRendersList contactId={opportunity.contact_id} opportunityId={opportunity.id} />
               )}
 
-              {tab === "activities" && (opportunity.contact_id || contactPhone) && (
-                <ContactCallHistory
-                  contactId={opportunity.contact_id}
-                  phone={contactPhone}
-                  name={fullName}
-                  className="mt-3"
-                />
-              )}
-
-              {tab === "activities" && (contactPhone || contactEmail) && (
-                <ContactCommunicationsHistory
+              {tab === "registro" && (
+                <ContactActivityRegister
                   companyId={companyId}
                   contactId={opportunity.contact_id}
                   phone={contactPhone}
                   email={contactEmail}
-                  className="mt-3"
+                  contactCreatedAt={contact?.created_at ?? opportunity.created_at}
+                  contactSource={contact?.source ?? opportunity.source}
                 />
               )}
 
