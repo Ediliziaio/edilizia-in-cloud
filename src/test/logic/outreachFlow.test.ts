@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   nodeType,
   isGraphSequence,
+  isSendNode,
   entryNode,
   nodeById,
   evalCondition,
@@ -326,5 +327,89 @@ describe("planNextAction", () => {
     const p = planNextAction(nodes, "c1", ACT_OPENED);
     expect(p.kind).toBe("complete");
     expect(p.aborted).toBe(true);
+  });
+});
+
+// ── MULTICANALE: nodi whatsapp/sms come nodi d'INVIO nella traversata ────────
+describe("isSendNode — nodi d'invio (email/whatsapp/sms)", () => {
+  it("email/whatsapp/sms sono nodi d'invio", () => {
+    expect(isSendNode("email")).toBe(true);
+    expect(isSendNode("whatsapp")).toBe(true);
+    expect(isSendNode("sms")).toBe(true);
+  });
+  it("wait/condition/end NON sono nodi d'invio", () => {
+    expect(isSendNode("wait")).toBe(false);
+    expect(isSendNode("condition")).toBe(false);
+    expect(isSendNode("end")).toBe(false);
+  });
+});
+
+describe("isGraphSequence — un nodo whatsapp/sms rende la sequenza un grafo", () => {
+  it("presenza di un nodo whatsapp → è grafo (esce dal percorso lineare)", () => {
+    const g = [
+      node({ id: "a", node_type: "email" }),
+      node({ id: "w", node_type: "whatsapp" }),
+    ];
+    expect(isGraphSequence(g)).toBe(true);
+  });
+  it("presenza di un nodo sms → è grafo", () => {
+    const g = [
+      node({ id: "a", node_type: "email" }),
+      node({ id: "s", node_type: "sms" }),
+    ];
+    expect(isGraphSequence(g)).toBe(true);
+  });
+});
+
+describe("nextNode / resolveActionable — whatsapp/sms hanno 1 solo successore (next_default)", () => {
+  it("whatsapp → next_default (come l'email)", () => {
+    expect(nextNode(node({ id: "w", node_type: "whatsapp", next_default: "b" }), ACT_NONE)).toEqual({ nextId: "b" });
+  });
+  it("sms → next_default", () => {
+    expect(nextNode(node({ id: "s", node_type: "sms", next_default: "b" }), ACT_NONE)).toEqual({ nextId: "b" });
+  });
+  it("resolveActionable si ferma su un nodo whatsapp (azionabile come l'email)", () => {
+    const nodes = [
+      node({ id: "w", node_type: "whatsapp", next_default: "e" }),
+      node({ id: "e", node_type: "end" }),
+    ];
+    const r = resolveActionable(nodes, nodes[0], ACT_NONE);
+    expect(r.node?.id).toBe("w");
+    expect(r.aborted).toBe(false);
+  });
+});
+
+describe("planNextAction — un nodo whatsapp/sms è kind 'send' (non advance)", () => {
+  it("successore whatsapp → kind 'send' col delay del nodo", () => {
+    const nodes = [
+      node({ id: "a", node_type: "email", next_default: "w" }),
+      node({ id: "w", node_type: "whatsapp", delay_days: 1, delay_hours: 2 }),
+    ];
+    const p = planNextAction(nodes, "w", ACT_NONE);
+    expect(p.kind).toBe("send");
+    expect(p.node?.id).toBe("w");
+    expect(p.delayDays).toBe(1);
+    expect(p.delayHours).toBe(2);
+  });
+  it("successore sms → kind 'send'", () => {
+    const nodes = [
+      node({ id: "a", node_type: "email", next_default: "s" }),
+      node({ id: "s", node_type: "sms", delay_days: 3 }),
+    ];
+    const p = planNextAction(nodes, "s", ACT_NONE);
+    expect(p.kind).toBe("send");
+    expect(p.node?.id).toBe("s");
+    expect(p.delayDays).toBe(3);
+  });
+  it("condition → ramo che porta a un sms: si ferma sull'sms (send)", () => {
+    const nodes = [
+      node({ id: "c", node_type: "condition", condition_type: "not_opened", next_default: "sms1", next_alt: "stop" }),
+      node({ id: "sms1", node_type: "sms", delay_days: 1 }),
+      node({ id: "stop", node_type: "end" }),
+    ];
+    // non ha aperto → ramo SÌ → sms1
+    const p = planNextAction(nodes, "c", ACT_NONE);
+    expect(p.kind).toBe("send");
+    expect(p.node?.id).toBe("sms1");
   });
 });

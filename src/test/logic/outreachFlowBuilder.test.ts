@@ -4,6 +4,9 @@ import {
   aiFlowToReactFlow,
   insertNodeOnEdge,
   flowToSteps,
+  channelOfNodeType,
+  isSendNodeType,
+  validateFlow,
   type FlowNodeData,
   type AiFlowGraph,
 } from "@/components/admin/outreach/flow/graph";
@@ -182,5 +185,150 @@ describe("simulatePath", () => {
     expect(evalConditionPreview(null, { opened: true, replied: true })).toBe(false);
     expect(evalConditionPreview("replied", { opened: false, replied: true })).toBe(true);
     expect(evalConditionPreview("not_replied", { opened: false, replied: true })).toBe(false);
+  });
+});
+
+// ── E. MULTICANALE: nodi whatsapp/sms nel builder ────────────────────────────
+describe("channelOfNodeType / isSendNodeType", () => {
+  it("mappa i nodi d'invio sul loro canale", () => {
+    expect(channelOfNodeType("email")).toBe("email");
+    expect(channelOfNodeType("whatsapp")).toBe("whatsapp");
+    expect(channelOfNodeType("sms")).toBe("sms");
+    expect(channelOfNodeType("wait")).toBeNull();
+    expect(channelOfNodeType("end")).toBeNull();
+  });
+  it("isSendNodeType true solo per email/whatsapp/sms", () => {
+    expect(isSendNodeType("email")).toBe(true);
+    expect(isSendNodeType("whatsapp")).toBe(true);
+    expect(isSendNodeType("sms")).toBe(true);
+    expect(isSendNodeType("condition")).toBe(false);
+  });
+});
+
+describe("flowToSteps — canale/node_type/body dei nodi messaggio", () => {
+  // email(root) → whatsapp → sms → end
+  const nodes = [
+    n("e", "email", { subject: "Oggetto", body: "Corpo email", delay_days: 0 }, 0),
+    n("w", "whatsapp", { body: "Ciao via WhatsApp {{first_name}}", delay_days: 2 }, 150),
+    n("s", "sms", { body: "Promemoria SMS", delay_days: 1 }, 300),
+    n("end", "end", {}, 450),
+  ];
+  const edges = [
+    e("e1", "e", "w"),
+    e("e2", "w", "s"),
+    e("e3", "s", "end"),
+  ];
+
+  it("il nodo whatsapp → channel 'whatsapp', node_type 'whatsapp', body valorizzato, subject null", () => {
+    const steps = flowToSteps(nodes, edges, "seq-1");
+    const wa = steps.find((s) => s.id === "w")!;
+    expect(wa.channel).toBe("whatsapp");
+    expect(wa.node_type).toBe("whatsapp");
+    expect(wa.body).toBe("Ciao via WhatsApp {{first_name}}");
+    expect(wa.subject).toBeNull();
+  });
+
+  it("il nodo sms → channel 'sms', node_type 'sms', body valorizzato, subject null", () => {
+    const steps = flowToSteps(nodes, edges, "seq-1");
+    const sms = steps.find((s) => s.id === "s")!;
+    expect(sms.channel).toBe("sms");
+    expect(sms.node_type).toBe("sms");
+    expect(sms.body).toBe("Promemoria SMS");
+    expect(sms.subject).toBeNull();
+  });
+
+  it("l'email resta channel 'email' con oggetto; i link next_default sono coerenti", () => {
+    const steps = flowToSteps(nodes, edges, "seq-1");
+    const em = steps.find((s) => s.id === "e")!;
+    expect(em.channel).toBe("email");
+    expect(em.subject).toBe("Oggetto");
+    expect(em.next_default).toBe("w");
+    expect(steps.find((s) => s.id === "w")!.next_default).toBe("s");
+  });
+
+  it("il wait resta su channel 'email' (placeholder neutro) con body vuoto", () => {
+    const wnodes = [n("e", "email", { body: "x" }, 0), n("wt", "wait", { delay_days: 1 }, 150)];
+    const wedges = [e("ee", "e", "wt")];
+    const steps = flowToSteps(wnodes, wedges, "seq-2");
+    const wt = steps.find((s) => s.id === "wt")!;
+    expect(wt.channel).toBe("email");
+    expect(wt.node_type).toBe("wait");
+    expect(wt.body).toBe("");
+  });
+});
+
+describe("validateFlow — nodi messaggio", () => {
+  it("un flusso di soli whatsapp/sms (nessuna email) NON segnala 'nessun messaggio'", () => {
+    const nodes = [n("w", "whatsapp", { body: "ciao" }, 0), n("end", "end", {}, 150)];
+    const edges = [e("e1", "w", "end")];
+    const issues = validateFlow(nodes, edges);
+    expect(issues.some((i) => /nessun nodo messaggio/i.test(i.message))).toBe(false);
+  });
+
+  it("nodo whatsapp senza corpo → warning dedicato", () => {
+    const nodes = [n("e", "email", { body: "x" }, 0), n("w", "whatsapp", { body: "" }, 150), n("end", "end", {}, 300)];
+    const edges = [e("e1", "e", "w"), e("e2", "w", "end")];
+    const issues = validateFlow(nodes, edges);
+    expect(issues.some((i) => i.nodeId === "w" && /senza testo/i.test(i.message))).toBe(true);
+  });
+});
+
+describe("simulatePath — i nodi messaggio compaiono nel percorso col loro canale", () => {
+  // email → whatsapp → sms → end (cammino lineare, nessuna condizione)
+  const nodes = [
+    n("e", "email", { subject: "Apertura", body: "Email", delay_days: 0 }, 0),
+    n("w", "whatsapp", { body: "WA follow-up", delay_days: 2 }, 150),
+    n("s", "sms", { body: "SMS reminder", delay_days: 1 }, 300),
+    n("end", "end", {}, 450),
+  ];
+  const edges = [e("e1", "e", "w"), e("e2", "w", "s"), e("e3", "s", "end")];
+
+  it("raccoglie email + whatsapp + sms con canale e ritardo cumulato", () => {
+    const act: PreviewActivity = { opened: true, replied: false };
+    const r = simulatePath(nodes, edges, act);
+    expect(r.pathNodeIds).toEqual(["e", "w", "s", "end"]);
+    expect(r.emails.map((m) => m.channel)).toEqual(["email", "whatsapp", "sms"]);
+    // ritardo cumulato: email 0, whatsapp +2 = 2, sms +1 = 3
+    expect(r.emails.map((m) => m.cumulativeDays)).toEqual([0, 2, 3]);
+    // whatsapp/sms non hanno oggetto
+    expect(r.emails[1].subject).toBe("");
+    expect(r.emails[2].subject).toBe("");
+    expect(r.emails[0].subject).toBe("Apertura");
+    expect(r.reachedEnd).toBe(true);
+  });
+});
+
+// ── F. AI-flow client mapping: whatsapp/sms ──────────────────────────────────
+describe("aiFlowToReactFlow — nodi whatsapp/sms", () => {
+  const graph: AiFlowGraph = {
+    name: "Multi",
+    nodes: [
+      { key: "open", type: "email", subject: "Ciao", body: "E", delay_days: 0 },
+      { key: "wa", type: "whatsapp", body: "Msg WA", delay_days: 1 },
+      { key: "sms1", type: "sms", body: "Msg SMS", delay_days: 1 },
+      { key: "end", type: "end" },
+    ],
+    edges: [
+      { from_key: "open", to_key: "wa", branch: "default" },
+      { from_key: "wa", to_key: "sms1", branch: "default" },
+      { from_key: "sms1", to_key: "end", branch: "default" },
+    ],
+  };
+
+  it("materializza i nodi whatsapp/sms col corpo e senza oggetto", () => {
+    const { nodes } = aiFlowToReactFlow(graph);
+    const wa = nodes.find((nd) => nd.type === "whatsapp")!;
+    const sms = nodes.find((nd) => nd.type === "sms")!;
+    expect(wa.data.body).toBe("Msg WA");
+    expect(wa.data.subject).toBeUndefined();
+    expect(sms.data.body).toBe("Msg SMS");
+    expect(sms.data.delay_days).toBe(1);
+  });
+
+  it("flowToSteps sui nodi AI mappa i canali correttamente", () => {
+    const { nodes, edges } = aiFlowToReactFlow(graph);
+    const steps = flowToSteps(nodes, edges, "seq-x");
+    const channels = steps.map((s) => s.channel).sort();
+    expect(channels).toEqual(["email", "email", "sms", "whatsapp"].sort()); // end resta 'email' placeholder
   });
 });
