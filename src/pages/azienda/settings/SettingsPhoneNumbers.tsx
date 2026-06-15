@@ -111,6 +111,20 @@ export default function SettingsPhoneNumbers() {
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore import numeri Telnyx"),
   });
 
+  // Consuntivo chiamate (costo per l'azienda; wholesale+margine solo super_admin).
+  const { data: voiceConsuntivo } = useQuery({
+    queryKey: ["voice-consuntivo", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_voice_consuntivo" as never, { p_company_id: companyId } as never);
+      if (error) throw error;
+      const row = (Array.isArray(data) ? data[0] : data) as
+        | { chiamate: number; minuti: number; costo_cliente: number; costo_wholesale: number | null; margine: number | null }
+        | undefined;
+      return row ?? null;
+    },
+  });
+
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [step, setStep] = useState<PurchaseStep>("search");
   const [searchCountry, setSearchCountry] = useState("IT");
@@ -492,6 +506,50 @@ export default function SettingsPhoneNumbers() {
                 ))}
               </TableBody>
             </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Consuntivo chiamate — costo per l'azienda (+ margine se super_admin) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <PhoneCall className="h-5 w-5 text-primary" /> Consuntivo chiamate
+          </CardTitle>
+          <CardDescription>
+            Riepilogo delle chiamate effettuate dal Centralino e relativo costo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!voiceConsuntivo || Number(voiceConsuntivo.chiamate) === 0 ? (
+            <p className="text-center text-muted-foreground py-6 text-sm">
+              Nessuna chiamata registrata. Il consuntivo comparirà qui dopo le prime chiamate.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-lg border p-3">
+                  <p className="text-2xl font-bold tabular-nums">{Number(voiceConsuntivo.chiamate)}</p>
+                  <p className="text-xs text-muted-foreground">Chiamate</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-2xl font-bold tabular-nums">{Number(voiceConsuntivo.minuti)}</p>
+                  <p className="text-xs text-muted-foreground">Minuti</p>
+                </div>
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <p className="text-2xl font-bold tabular-nums text-primary">€{Number(voiceConsuntivo.costo_cliente).toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground">Costo chiamate</p>
+                </div>
+              </div>
+              {/* Solo super_admin: wholesale + margine piattaforma */}
+              {voiceConsuntivo.costo_wholesale != null && (
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs">
+                  <span className="font-semibold text-muted-foreground">Vista piattaforma</span>
+                  <span>Costo Telnyx: <strong>€{Number(voiceConsuntivo.costo_wholesale).toFixed(2)}</strong></span>
+                  <span className="text-emerald-700">Margine: <strong>€{Number(voiceConsuntivo.margine ?? 0).toFixed(2)}</strong></span>
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
