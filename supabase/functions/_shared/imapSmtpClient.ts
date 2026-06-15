@@ -326,6 +326,7 @@ export interface ImapMessage {
    * sottoinsieme (Auto-Submitted, Precedence, X-Autoreply…): non l'intero blocco.
    */
   headers: Record<string, string>;
+  attachments: Array<{ filename: string; mime: string; contentBase64: string }>;
 }
 
 /** Header che ci interessano per classificare le autorisposte (RFC 3834 & co.). */
@@ -455,37 +456,14 @@ function parseImapMessage(uid: string, fetchResp: string): ImapMessage | null {
   const fromRaw = getHeader("From");
   const fromMatch = /^(?:"?([^"<]+?)"?\s*)?<?([^\s<>]+@[^\s<>]+)>?$/.exec(fromRaw);
 
-  // Body: best-effort estrazione text/plain dalla multipart o body diretto
-  const ctMatch = /^Content-Type:\s*([^;]+)/im.exec(headersBlock);
-  const contentType = (ctMatch?.[1] || "text/plain").toLowerCase();
-  let text = "";
-  let html: string | null = null;
-
-  if (contentType.includes("multipart")) {
-    const boundaryMatch = /boundary="?([^";\r\n]+)"?/i.exec(headersBlock);
-    if (boundaryMatch) {
-      const boundary = boundaryMatch[1];
-      const parts = bodyBlock.split(`--${boundary}`);
-      for (const part of parts) {
-        const partHeaderEnd = part.indexOf("\r\n\r\n");
-        if (partHeaderEnd < 0) continue;
-        const partHeaders = part.substring(0, partHeaderEnd);
-        const phLower = partHeaders.toLowerCase();
-        // Decodifica in base a Content-Transfer-Encoding + charset DELLA PARTE,
-        // così accenti (quoted-printable) e HTML (base64) non escono garbled.
-        if (phLower.includes("content-type: text/plain") && !text) {
-          text = decodeMimeBody(part.substring(partHeaderEnd + 4), partHeaders).trim();
-        } else if (phLower.includes("content-type: text/html") && !html) {
-          html = decodeMimeBody(part.substring(partHeaderEnd + 4), partHeaders).trim();
-        }
-      }
-    }
-  } else if (contentType.includes("text/html")) {
-    html = decodeMimeBody(bodyBlock, headersBlock).trim();
-  } else {
-    text = decodeMimeBody(bodyBlock, headersBlock).trim();
-  }
-
+  // Body + allegati: walker MIME ricorsivo (gestisce multipart/alternative
+  // annidato in multipart/mixed) con decodifica per-parte e cattura allegati.
+  const acc: { text: string; html: string; attachments: ImapMessage["attachments"] } = {
+    text: "", html: "", attachments: [],
+  };
+  walkMimePart(bodyBlock, headersBlock, acc, 0);
+  let text = acc.text;
+  let html: string | null = acc.html || null;
   if (!text && html) {
     text = html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   }
@@ -510,6 +488,7 @@ function parseImapMessage(uid: string, fetchResp: string): ImapMessage | null {
     inReplyTo: getHeader("In-Reply-To") || null,
     references: getHeader("References").split(/\s+/).filter(Boolean),
     headers,
+    attachments: acc.attachments,
   };
 }
 
@@ -551,6 +530,111 @@ function decodeMimeBody(rawBody: string, partHeaders: string): string {
     }
   } catch { /* fallback al testo grezzo */ }
   return rawBody;
+}
+
+/**
+ * walkMimePart — visita ricorsiva di una parte MIME. Riempie acc.text/acc.html
+ * (decodificati) e acc.attachments (filename + mime + base64 grezzo). Gestisce
+ * multipart annidato (mixed→alternative). Max 4 livelli, max 10 allegati.
+ */
+function walkMimePart(
+  block: string,
+  headers: string,
+  acc: { text: string; html: string; attachments: ImapMessage["attachments"] },
+  depth: number,
+): void {
+  const ct = (/content-type:\s*([^;\r\n]+)/i.exec(headers)?.[1] ?? "text/plain").trim().toLowerCase();
+  if (ct.startsWith("multipart") && depth < 4) {
+    const boundary = /boundary="?([^";\r\n]+)"?/i.exec(headers)?.[1];
+    if (!boundary) return;
+    for (const part of block.split(`--${boundary}`)) {
+      const he = part.indexOf("\r\n\r\n");
+      if (he < 0) continue;
+      walkMimePart(part.substring(he + 4), part.substring(0, he), acc, depth + 1);
+    }
+    return;
+  }
+  const hLower = headers.toLowerCase();
+  const fn = /(?:file)?name\*?=(?:"([^"\r\n]+)"|([^;\r\n]+))/i.exec(headers);
+  const filename = fn ? (fn[1] ?? fn[2] ?? "").trim() : "";
+  const isAttachment = hLower.includes("content-disposition: attachment") ||
+    (!!filename && !ct.startsWith("text/"));
+  if (isAttachment && filename) {
+    if (hLower.includes("base64") && acc.attachments.length < 10) {
+      acc.attachments.push({
+        filename: decodeRFC2047(filename),
+        mime: ct || "application/octet-stream",
+        contentBase64: block.replace(/[^A-Za-z0-9+/=]/g, ""),
+      });
+    }
+    return;
+  }
+  if (ct.startsWith("text/plain") && !acc.text) acc.text = decodeMimeBody(block, headers).trim();
+  else if (ct.startsWith("text/html") && !acc.html) acc.html = decodeMimeBody(block, headers).trim();
+}
+
+/**
+ * imapAppend — copia un messaggio RFC822 nella cartella "Inviati" del server IMAP
+ * (comando APPEND con flag \Seen), così le email spedite via SMTP compaiono anche
+ * nella webmail del provider. Prova i nomi cartella comuni (Sent/INBOX.Sent/…).
+ * Best-effort: ritorna {ok} senza lanciare.
+ */
+export async function imapAppend(cfg: ImapConfig, rfc822: string): Promise<{ ok: boolean; folder?: string; error?: string }> {
+  let conn: Deno.TcpConn | Deno.TlsConn;
+  try {
+    conn = cfg.secure
+      ? await Deno.connectTls({ hostname: cfg.host, port: cfg.port })
+      : await Deno.connect({ hostname: cfg.host, port: cfg.port });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  const buf = new Uint8Array(8192);
+  let tag = 0;
+  const nextTag = () => `A${++tag}`;
+  const readResp = async (t: string): Promise<string> => {
+    let result = "";
+    while (true) {
+      const n = await conn.read(buf);
+      if (n === null) break;
+      result += decoder.decode(buf.subarray(0, n));
+      if (result.includes(`${t} OK`) || result.includes(`${t} NO`) || result.includes(`${t} BAD`)) break;
+    }
+    return result;
+  };
+  const cmd = async (c: string): Promise<string> => {
+    const t = nextTag();
+    await conn.write(encoder.encode(`${t} ${c}\r\n`));
+    return await readResp(t);
+  };
+  // CRLF garantiti + size in BYTE (UTF-8) per il literal {N}.
+  const msg = rfc822.replace(/\r?\n/g, "\r\n");
+  const bytes = encoder.encode(msg);
+  const candidates = ["Sent", "INBOX.Sent", "Sent Items", "INBOX.Sent Items", "Posta inviata", "INBOX.Posta inviata"];
+  try {
+    await conn.read(buf); // greeting
+    const login = await cmd(`LOGIN "${cfg.username}" "${cfg.password.replace(/"/g, '\\"')}"`);
+    if (!login.includes("OK")) { try { conn.close(); } catch { /* */ } return { ok: false, error: "imap_login_failed" }; }
+    for (const folder of candidates) {
+      const t = nextTag();
+      // APPEND con literal: server risponde "+ " poi inviamo il messaggio.
+      await conn.write(encoder.encode(`${t} APPEND "${folder}" (\\Seen) {${bytes.length}}\r\n`));
+      const cont = await readResp(t).catch(() => "");
+      if (cont.includes("+")) {
+        await conn.write(bytes);
+        await conn.write(encoder.encode("\r\n"));
+        const fin = await readResp(t);
+        if (fin.includes(`${t} OK`)) { await cmd("LOGOUT"); try { conn.close(); } catch { /* */ } return { ok: true, folder }; }
+      }
+      // folder inesistente o errore → prova il prossimo nome
+    }
+    try { conn.close(); } catch { /* */ }
+    return { ok: false, error: "no_sent_folder_matched" };
+  } catch (e) {
+    try { conn.close(); } catch { /* */ }
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 function decodeRFC2047(s: string): string {

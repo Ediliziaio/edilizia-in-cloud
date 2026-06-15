@@ -27,7 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
   Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder,
-  Target, AlertTriangle, Trophy, MessageCircle, ExternalLink,
+  Target, AlertTriangle, Trophy, MessageCircle, ExternalLink, History,
 } from "lucide-react";
 import { useUpdateOpportunityMutation } from "@/hooks/useSalesOS";
 import { format } from "date-fns";
@@ -40,10 +40,11 @@ import { LinkedRendersList } from "@/components/render/LinkedRendersList";
 import { MarketingDocumentsPanel } from "@/components/marketing/MarketingDocumentsPanel";
 import { OpportunityAppointmentTab } from "@/components/opportunities/OpportunityAppointmentTab";
 import { OpportunityQuotesTab } from "@/components/opportunities/OpportunityQuotesTab";
-import { ContactCallHistory } from "@/components/telephony/ContactCallHistory";
 import { STATUS_OPTIONS, inferOpportunityStatusFromStage } from "@/types/opportunities";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cleanPhone } from "@/lib/contactUtils";
+import { QuickContactSendDialog, type QuickSendChannel } from "@/components/contacts/QuickContactSendDialog";
+import { ContactActivityRegister } from "@/components/contacts/ContactActivityRegister";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 
@@ -56,7 +57,7 @@ interface Props {
   canEdit?: boolean;
 }
 
-type Tab = "details" | "notes" | "appointments" | "activities" | "documents" | "quotes";
+type Tab = "details" | "notes" | "appointments" | "registro" | "activities" | "documents" | "quotes";
 
 function sanitizeSearchTerm(value: string) {
   return value.replace(/[%,]/g, " ").trim();
@@ -103,6 +104,8 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   // Contact fields
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  // Popup invio rapido SMS/WhatsApp/Email al contatto (senza navigare via).
+  const [quickSend, setQuickSend] = useState<{ open: boolean; channel: QuickSendChannel }>({ open: false, channel: "whatsapp" });
   const [contactCity, setContactCity] = useState("");
   const [contactCustomValues, setContactCustomValues] = useState<Record<string, string>>({});
 
@@ -430,6 +433,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
   const sidebarTabs: { key: Tab; label: string; mobileLabel?: string; icon: React.ReactNode; enabled: boolean }[] = [
     { key: "details", label: "Dettagli dell'opportunità", mobileLabel: "Dettagli", icon: <FileText className="h-4 w-4" />, enabled: true },
     { key: "appointments", label: "Prenota/aggiorna appuntamento", mobileLabel: "Appuntamento", icon: <CalendarDays className="h-4 w-4" />, enabled: true },
+    { key: "registro", label: "Registro attività", mobileLabel: "Registro", icon: <History className="h-4 w-4" />, enabled: true },
     { key: "activities", label: "Attività", icon: <Activity className="h-4 w-4" />, enabled: true },
     { key: "notes", label: "Note", icon: <StickyNote className="h-4 w-4" />, enabled: true },
     { key: "documents", label: "Documenti", icon: <Folder className="h-4 w-4" />, enabled: true },
@@ -495,7 +499,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 {contactEmail && (
                   <button
                     type="button"
-                    onClick={() => { navigate(`/azienda/marketing/messaggi?contact=${opportunity.contact_id}&channel=email`); onOpenChange(false); }}
+                    onClick={() => setQuickSend({ open: true, channel: "email" })}
                     className="h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-violet-50 hover:text-violet-600 transition-colors"
                     aria-label="Invia email"
                     title={`Email a ${contactEmail}`}
@@ -506,10 +510,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 {contactPhone && (
                   <button
                     type="button"
-                    onClick={() => { navigate(`/azienda/marketing/messaggi?contact=${opportunity.contact_id}&channel=whatsapp`); onOpenChange(false); }}
+                    onClick={() => setQuickSend({ open: true, channel: "whatsapp" })}
                     className="h-9 w-9 sm:h-8 sm:w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
-                    aria-label="Invia WhatsApp"
-                    title="Invia WhatsApp"
+                    aria-label="Invia SMS o WhatsApp"
+                    title="Invia SMS o WhatsApp"
                   >
                     <MessageCircle className="h-4 w-4" />
                   </button>
@@ -1006,12 +1010,18 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 <LinkedRendersList contactId={opportunity.contact_id} opportunityId={opportunity.id} />
               )}
 
-              {tab === "activities" && (opportunity.contact_id || contactPhone) && (
-                <ContactCallHistory
+              {tab === "registro" && (
+                <ContactActivityRegister
+                  companyId={companyId}
                   contactId={opportunity.contact_id}
                   phone={contactPhone}
-                  name={fullName}
-                  className="mt-3"
+                  email={contactEmail}
+                  contactCreatedAt={contact?.created_at ?? opportunity.created_at}
+                  contactSource={contact?.source ?? opportunity.source}
+                  members={[...salespeople, ...staff, ...callCenterUsers].reduce((acc: { id: string; name: string }[], m: any) => {
+                    if (m?.id && !acc.some((x) => x.id === m.id)) acc.push({ id: m.id, name: m.name });
+                    return acc;
+                  }, [])}
                 />
               )}
 
@@ -1158,6 +1168,24 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {opportunity.contact_id && (
+      <QuickContactSendDialog
+        open={quickSend.open}
+        onOpenChange={(v) => setQuickSend((s) => ({ ...s, open: v }))}
+        contactId={opportunity.contact_id}
+        name={fullName}
+        phone={contactPhone}
+        email={contactEmail}
+        context={opportunity.name}
+        defaultChannel={quickSend.channel}
+        onSent={() => {
+          queryClient.invalidateQueries({ queryKey: ["comm-sms"] });
+          queryClient.invalidateQueries({ queryKey: ["comm-wa"] });
+          queryClient.invalidateQueries({ queryKey: ["comm-email"] });
+        }}
+      />
+    )}
     </>
   );
 }

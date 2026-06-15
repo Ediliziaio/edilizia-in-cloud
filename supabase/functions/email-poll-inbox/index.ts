@@ -224,6 +224,43 @@ async function materializeGmailAttachments(
   return out;
 }
 
+/**
+ * materializeImapAttachments — come la variante Gmail, ma i byte sono GIÀ nel
+ * messaggio IMAP (base64): decodifica + upload nel bucket. Filtra ai soli
+ * allegati documentali (pdf/xml/p7m), rispetta cap per-run e per-file.
+ */
+async function materializeImapAttachments(
+  supa: SupabaseClient,
+  companyId: string,
+  providerMessageId: string,
+  atts: Array<{ filename: string; mime: string; contentBase64: string }>,
+  runCounter: { n: number },
+): Promise<Array<{ filename: string; mime: string; size: number; storage_path: string }>> {
+  const out: Array<{ filename: string; mime: string; size: number; storage_path: string }> = [];
+  for (const a of atts) {
+    if (runCounter.n >= MAX_ATT_PER_RUN) break;
+    if (!isDocAttachment(a.filename, a.mime)) continue;
+    try {
+      const bin = atob(a.contentBase64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      if (bytes.byteLength === 0 || bytes.byteLength > MAX_ATT_BYTES) continue;
+      await ensureAttachBucket(supa);
+      const path = `${companyId}/${providerMessageId}/${Date.now()}-${sanitizeFilename(a.filename)}`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const up = await (supa as any).storage.from(ATTACH_BUCKET).upload(path, bytes, {
+        contentType: a.mime || "application/octet-stream", upsert: true,
+      });
+      if (up.error) continue;
+      out.push({ filename: a.filename, mime: a.mime, size: bytes.byteLength, storage_path: path });
+      runCounter.n++;
+    } catch (e) {
+      console.warn("[email-poll] imap attachment materialize failed:", e instanceof Error ? e.message : e);
+    }
+  }
+  return out;
+}
+
 function parseReferences(raw: string): string[] {
   return raw
     .split(/\s+/)
@@ -914,20 +951,31 @@ Deno.serve(async (req) => {
           new Date(sinceTs),
           50,
         );
-        emails = imapMsgs.map((m) => ({
-          message_id: m.messageId,
-          from_email: m.from,
-          from_name: m.fromName,
-          to_email: c.email_address,
-          subject: m.subject || "(senza oggetto)",
-          text: m.text || "",
-          html: null,
-          provider_message_id: m.messageId,
-          provider_thread_id: null,
-          in_reply_to: null,
-          references_ids: [],
-          received_at: m.date ? new Date(m.date).toISOString() : new Date().toISOString(),
-        }));
+        const imapAttRun = { n: 0 };
+        emails = [];
+        for (const m of imapMsgs) {
+          const attachments = m.attachments && m.attachments.length
+            ? await materializeImapAttachments(supa, conn.company_id!, m.messageId, m.attachments, imapAttRun)
+            : [];
+          const parsedDate = m.date ? new Date(m.date) : null;
+          emails.push({
+            message_id: m.messageId,
+            from_email: m.from,
+            from_name: m.fromName,
+            to_email: c.email_address,
+            subject: m.subject || "(senza oggetto)",
+            text: m.text || "",
+            html: m.html, // ora decodificato dal parser (base64/quoted-printable)
+            provider_message_id: m.messageId,
+            provider_thread_id: null,
+            in_reply_to: m.inReplyTo,
+            references_ids: m.references ?? [],
+            received_at: parsedDate && !isNaN(parsedDate.getTime())
+              ? parsedDate.toISOString()
+              : new Date().toISOString(),
+            attachments,
+          });
+        }
       } else {
         // Branch OAuth Gmail/Outlook
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

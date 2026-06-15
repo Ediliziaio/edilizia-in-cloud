@@ -41,9 +41,12 @@ interface Props {
    * Memoizzare nel chiamante per evitare re-render inutili.
    */
   contactFields?: Record<string, string>;
+  /** Testo da iniettare nel composer (es. bozza AI). Applicato quando seedAt cambia. */
+  seedText?: string;
+  seedAt?: number;
 }
 
-export function WhatsAppComposer({ phone, onSend, isSending, className, contactFields }: Props) {
+export function WhatsAppComposer({ phone, onSend, isSending, className, contactFields, seedText, seedAt }: Props) {
   const { data: numbers = [] } = useWhatsAppNumbers();
   const activeNumbers = useMemo(
     () => numbers.filter((n) => n.stato === "active" && n.webhook_verified),
@@ -68,6 +71,11 @@ export function WhatsAppComposer({ phone, onSend, isSending, className, contactF
   }, [isOpen, windowLoading]);
 
   const [text, setText] = useState("");
+  // Inietta una bozza esterna (es. AI) quando seedAt cambia.
+  useEffect(() => {
+    if (seedText) setText(seedText.slice(0, 4096));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedAt]);
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [vars, setVars] = useState<string[]>([]);
 
