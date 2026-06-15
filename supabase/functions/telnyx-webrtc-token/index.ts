@@ -39,6 +39,9 @@ Deno.serve(async (req) => {
     if (!companyId) return errorResponse("Azienda non trovata", 400, cors);
 
     // ── Config Telnyx (stesso account SMS) ──
+    // L'API key arriva dalla tabella telnyx_settings o, in fallback, dal secret
+    // di ambiente TELNYX_API_KEY (lo stesso usato per gli SMS): così la centralina
+    // funziona anche se la tabella non è popolata.
     const { data: settings } = await admin
       .from("telnyx_settings")
       .select("api_key_encrypted, connection_id")
@@ -46,18 +49,28 @@ Deno.serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
-    if (!settings?.api_key_encrypted) {
-      return errorResponse("Telnyx non configurato (api key mancante)", 400, cors);
-    }
-    if (!settings.connection_id) {
+    const apiKey = settings?.api_key_encrypted
+      ? await decryptMaybeEncrypted(settings.api_key_encrypted, getEncryptionKey())
+      : (Deno.env.get("TELNYX_API_KEY") ?? "");
+    if (!apiKey) {
       return errorResponse(
-        "Connessione Telnyx WebRTC non configurata. Configura una Credential Connection in telnyx_settings.connection_id.",
+        "Telnyx non configurato: manca l'API key (popola telnyx_settings oppure imposta il secret TELNYX_API_KEY).",
         400,
         cors,
       );
     }
 
-    const apiKey = await decryptMaybeEncrypted(settings.api_key_encrypted, getEncryptionKey());
+    // La Credential Connection dedicata al WebRTC: dalla tabella o dal secret
+    // TELNYX_WEBRTC_CONNECTION_ID. Senza, le chiamate dal browser non sono attivabili.
+    const connectionId = settings?.connection_id || Deno.env.get("TELNYX_WEBRTC_CONNECTION_ID") || "";
+    if (!connectionId) {
+      return errorResponse(
+        "Centralino non ancora attivo: manca la Credential Connection Telnyx per il WebRTC (telnyx_settings.connection_id oppure secret TELNYX_WEBRTC_CONNECTION_ID).",
+        400,
+        cors,
+      );
+    }
+
     const tHeaders = { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" };
 
     // ── Credential per operatore (crea se assente, riusa altrimenti) ──
@@ -76,7 +89,7 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: tHeaders,
         body: JSON.stringify({
-          connection_id: settings.connection_id,
+          connection_id: connectionId,
           name: `EiC WebRTC ${user.email ?? user.id}`.slice(0, 80),
         }),
       });

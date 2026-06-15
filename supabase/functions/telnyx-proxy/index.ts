@@ -141,19 +141,30 @@ Deno.serve(async (req) => {
       return json({ success: true });
     }
 
-    // Load Telnyx settings for all other actions
-    const { data: telnyxSettings } = await adminClient
+    // Load Telnyx settings (tabella). Fallback ai secret di ambiente quando la
+    // tabella non è popolata: stessa identità Telnyx usata dalle funzioni SMS,
+    // così l'acquisto/ricerca numeri funziona anche senza riga in telnyx_settings.
+    const { data: tableSettings } = await adminClient
       .from("telnyx_settings")
       .select("*")
       .eq("is_active", true)
       .limit(1)
       .maybeSingle();
 
+    const envApiKey = Deno.env.get("TELNYX_API_KEY") ?? "";
+    const telnyxSettings = tableSettings ?? (envApiKey ? {
+      api_key_encrypted: null as string | null,
+      messaging_profile_id: Deno.env.get("TELNYX_MESSAGING_PROFILE_ID") ?? null,
+      connection_id: Deno.env.get("TELNYX_WEBRTC_CONNECTION_ID") ?? null,
+    } : null);
+
     if (!telnyxSettings) {
-      return json({ error: "Telnyx non configurato. Configurare le credenziali nelle impostazioni piattaforma." }, 500);
+      return json({ error: "Telnyx non configurato. Configurare le credenziali nelle impostazioni piattaforma o il secret TELNYX_API_KEY." }, 500);
     }
 
-    const apiKey = await decrypt(telnyxSettings.api_key_encrypted, encKey);
+    const apiKey = telnyxSettings.api_key_encrypted
+      ? await decrypt(telnyxSettings.api_key_encrypted, encKey)
+      : envApiKey;
     if (!apiKey) return json({ error: "Chiave API Telnyx non valida" }, 500);
 
     let result: unknown;

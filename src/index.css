@@ -76,7 +76,21 @@
   }
 }
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+/* ── Fix bordo trigger Select (Radix) ──────────────────────────────────────────
+   I trigger dei Select sono <button>: il reset globale `button { border: 0 }`
+   (non in @layer, quindi vince sulle utility Tailwind) ne azzerava il bordo,
+   mentre gli <input> restavano bordati → i menu a tendina sembravano "piatti" e
+   non selezionabili. Ripristiniamo un bordo coerente con gli input — regola
+   NON-layerizzata e con specificità > `button`, così vince sul reset —
+   escludendo i trigger volutamente senza bordo (.border-0 / .border-none usati
+   nei campi inline e nei select "trasparenti" di alcune dashboard). */
+[role="combobox"]:not(.border-0):not(.border-none) {
+  border-width: 1px;
+  border-style: solid;
+  border-color: hsl(var(--input));
+}
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
 All colors MUST be HSL.
 */
 

@@ -924,6 +924,8 @@ export default function CompanyRoutesContainer() {
           />
           <Route path="form-builder" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFormBuilder />)} />
           <Route path="numeri-telefono" element={withCompanyPermission("canViewSettingsCustomization", <SettingsPhoneNumbers />)} />
+          {/* Alias GHL-style: "Telefonia / Sistema telefonico" → pagina numeri */}
+          <Route path="telefonia" element={<Navigate to="/azienda/impostazioni/numeri-telefono" replace />} />
         </Route>
 
         <Route path="ritenute-garanzia" element={withCompanyPermission("canViewOrders", <FeatureRoute featureKey="ritenute_garanzia"><ErrorBoundary title="Errore nel caricamento ritenute"><RitenuteGaranzia /></ErrorBoundary></FeatureRoute>)} />

@@ -267,10 +267,6 @@ export default function CompanyCustomerDetail() {
     enabled: !!id && !!effectiveCompany?.id,
   });
 
-  const openTicketsCount = tickets.filter(
-    (t) => t.status !== "closed" && t.status !== "resolved",
-  ).length;
-
   // ── Rapportini Intervento ────────────────────────────────────────────────────
   // FIX 2026-05-09: rapportini_intervento NON ha customer_id (vedi migration
   // 20260809000001_interventi.sql) — la relazione passa via tickets.customer_id.
