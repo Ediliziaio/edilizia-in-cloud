@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Phone, MessageSquare, Mail, FileText, CalendarPlus, Loader2, BellRing } from "lucide-react";
+import { Phone, MessageSquare, Mail, FileText, CalendarPlus, Loader2, BellRing, ClipboardList } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -33,6 +33,8 @@ interface Props {
   getPdfBlob: () => Promise<{ blob: Blob; filename: string } | null>;
   /** Importo/scadenza da sollecitare (prossima rata non pagata). */
   paymentDue?: { amount: number; dueDate?: string | null; label?: string | null } | null;
+  /** Apre il popup "Operatività commessa" (prossima azione/responsabile/checklist). */
+  onOpenOps?: () => void;
 }
 
 const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
@@ -40,7 +42,7 @@ const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency"
 type Attachment = { name: string; size: number; mime: string; storage_path: string };
 
 export function OrderQuickActions({
-  orderId, orderCode, companyId, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue,
+  orderId, orderCode, companyId, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps,
 }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -112,6 +114,13 @@ export function OrderQuickActions({
         <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground mr-1 hidden sm:inline">
           Azioni rapide
         </span>
+        {onOpenOps && (
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 border-primary/40 text-primary hover:bg-primary/5"
+            onClick={onOpenOps}
+            title="Prossima azione, responsabile e checklist fasi">
+            <ClipboardList className="h-3.5 w-3.5" /> Operatività
+          </Button>
+        )}
         <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={handleCall} disabled={!hasPhone}
           title={hasPhone ? `Chiama ${customer?.phone}` : "Telefono cliente mancante"}>
           <Phone className="h-3.5 w-3.5 text-emerald-600" /> Chiama

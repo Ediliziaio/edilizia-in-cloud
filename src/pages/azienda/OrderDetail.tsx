@@ -276,6 +276,7 @@ function OrderDetailInner() {
   const { downloadPDF, getPDFBlob, isGenerating: isGeneratingPDF } = useOrdinePDF();
   // true mentre carichiamo on-demand i dati ricchi del PDF (vedi handleDownloadPDF)
   const [pdfPreparing, setPdfPreparing] = useState(false);
+  const [opsOpen, setOpsOpen] = useState(false);
 
   // Monta UN SOLO layout (mobile O desktop): prima erano entrambi nel tree
   // nascosti via CSS → ogni card della pagina renderizzava due volte.
@@ -999,6 +1000,7 @@ function OrderDetailInner() {
             const residuo = unpaid.reduce((s, i) => s + i.amount, 0);
             return { amount: next?.amount ?? residuo, dueDate: next?.expected_date ?? null, label: next?.label ?? null };
           })()}
+          onOpenOps={() => setOpsOpen(true)}
         />
       )}
 
@@ -1057,24 +1059,6 @@ function OrderDetailInner() {
             itemsLoading={orderItemsPending}
           />
         </ErrorBoundary>
-
-        {/* Pannello operativo: prossima azione + responsabile + checklist fasi */}
-        {effectiveCompany?.id && (
-          <ErrorBoundary fallback={<></>}>
-            <OrderOperationalPanel
-              orderId={id!}
-              companyId={effectiveCompany.id}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              initialNextAction={(order as any).next_action}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              initialNextActionDate={(order as any).next_action_date}
-              initialAssignedTo={order.assigned_to}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              initialChecklist={(order as any).operational_checklist}
-              canEdit={permissions.canEditOrders}
-            />
-          </ErrorBoundary>
-        )}
 
         {/* Sopralluoghi collegati (rilievo misure) */}
         <ErrorBoundary fallback={<></>}>
@@ -1781,6 +1765,31 @@ function OrderDetailInner() {
       </div>
 
       {/* ── Dialogs ──────────────────────────────────────────── */}
+
+      {/* Operatività commessa (popup): prossima azione + responsabile + checklist */}
+      {effectiveCompany?.id && (
+        <Dialog open={opsOpen} onOpenChange={setOpsOpen}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Operatività commessa</DialogTitle>
+              <DialogDescription>Prossima azione, responsabile e avanzamento fasi.</DialogDescription>
+            </DialogHeader>
+            <OrderOperationalPanel
+              orderId={id!}
+              companyId={effectiveCompany.id}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              initialNextAction={(order as any).next_action}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              initialNextActionDate={(order as any).next_action_date}
+              initialAssignedTo={order.assigned_to}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              initialChecklist={(order as any).operational_checklist}
+              canEdit={permissions.canEditOrders}
+              asCard={false}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Delete confirm (triggered by OrdineDetailHeader) */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>

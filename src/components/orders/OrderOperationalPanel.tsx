@@ -38,10 +38,13 @@ interface Props {
   initialAssignedTo?: string | null;
   initialChecklist?: Record<string, boolean> | null;
   canEdit?: boolean;
+  /** Se false renderizza il solo contenuto (senza Card) — per uso dentro un Dialog. */
+  asCard?: boolean;
 }
 
 export function OrderOperationalPanel({
   orderId, companyId, initialNextAction, initialNextActionDate, initialAssignedTo, initialChecklist, canEdit = true,
+  asCard = true,
 }: Props) {
   const queryClient = useQueryClient();
   const { data: staff = [] } = useCompanyStaffUsers(companyId, "all");
@@ -98,14 +101,8 @@ export function OrderOperationalPanel({
   };
   const dirtyAction = (nextAction ?? "") !== (initialNextAction ?? "") || (nextActionDate ?? "") !== (initialNextActionDate ?? "");
 
-  return (
-    <Card className="border-primary/20 bg-primary/5">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Target className="h-4 w-4 text-primary" /> Operatività commessa
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+  const body = (
+    <div className="space-y-4">
         {/* Prossima azione + scadenza */}
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
@@ -179,7 +176,19 @@ export function OrderOperationalPanel({
             ))}
           </div>
         </div>
-      </CardContent>
+    </div>
+  );
+
+  if (!asCard) return body;
+
+  return (
+    <Card className="border-primary/20 bg-primary/5">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Target className="h-4 w-4 text-primary" /> Operatività commessa
+        </CardTitle>
+      </CardHeader>
+      <CardContent>{body}</CardContent>
     </Card>
   );
 }
