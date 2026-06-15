@@ -12,10 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  Loader2, Plus, Trash2, Mail, MessageSquare, Phone, ChevronRight, ChevronDown, AlertTriangle, Send, Sparkles, Eye, Split, Copy, LayoutTemplate, Info,
+  Loader2, Plus, Trash2, Mail, MessageSquare, Phone, ChevronRight, ChevronDown, AlertTriangle, Send, Sparkles, Eye, Split, Copy, LayoutTemplate, Info, Network,
 } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
 import { OutreachEnrollDialog } from "./OutreachEnrollDialog";
+import { OutreachSequenceFlowBuilder } from "./OutreachSequenceFlowBuilder";
 import { OutreachSequenceStats } from "./OutreachSequenceStats";
 import { OutreachAbzPanel } from "./OutreachAbzPanel";
 import { renderTemplate, contactToVars, hashSeed } from "../../../../supabase/functions/_shared/outreach-template";
@@ -69,6 +70,8 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
   const [aiAngle, setAiAngle] = useState("");
   const [newName, setNewName] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Sequenza aperta nel builder visuale a nodi (dialog fullscreen).
+  const [flowSeq, setFlowSeq] = useState<Seq | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
@@ -333,6 +336,7 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
                     <SelectItem value="paused">In pausa</SelectItem><SelectItem value="archived">Archiviata</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" title="Apri il builder visuale a nodi (flussi if/then)" onClick={() => setFlowSeq(seq)}><Network className="h-3.5 w-3.5" /> Builder visuale</Button>
                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Duplica sequenza" disabled={dupSeq.isPending} onClick={() => dupSeq.mutate(seq)}><Copy className="h-3.5 w-3.5" /></Button>
                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => delSeq.mutate(seq.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
               </div>
@@ -353,6 +357,16 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
           </Card>
         );
       })}
+
+      {flowSeq && (
+        <OutreachSequenceFlowBuilder
+          open={!!flowSeq}
+          onClose={() => setFlowSeq(null)}
+          sequenceId={flowSeq.id}
+          sequenceName={flowSeq.name}
+          trackOpens={flowSeq.track_opens === true}
+        />
+      )}
     </div>
   );
 }
