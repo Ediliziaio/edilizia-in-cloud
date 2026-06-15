@@ -456,20 +456,23 @@ function parseImapMessage(uid: string, fetchResp: string): ImapMessage | null {
       const boundary = boundaryMatch[1];
       const parts = bodyBlock.split(`--${boundary}`);
       for (const part of parts) {
-        const partLower = part.toLowerCase();
-        if (partLower.includes("content-type: text/plain") && !text) {
-          const partHeaderEnd = part.indexOf("\r\n\r\n");
-          if (partHeaderEnd > -1) text = part.substring(partHeaderEnd + 4).trim();
-        } else if (partLower.includes("content-type: text/html") && !html) {
-          const partHeaderEnd = part.indexOf("\r\n\r\n");
-          if (partHeaderEnd > -1) html = part.substring(partHeaderEnd + 4).trim();
+        const partHeaderEnd = part.indexOf("\r\n\r\n");
+        if (partHeaderEnd < 0) continue;
+        const partHeaders = part.substring(0, partHeaderEnd);
+        const phLower = partHeaders.toLowerCase();
+        // Decodifica in base a Content-Transfer-Encoding + charset DELLA PARTE,
+        // così accenti (quoted-printable) e HTML (base64) non escono garbled.
+        if (phLower.includes("content-type: text/plain") && !text) {
+          text = decodeMimeBody(part.substring(partHeaderEnd + 4), partHeaders).trim();
+        } else if (phLower.includes("content-type: text/html") && !html) {
+          html = decodeMimeBody(part.substring(partHeaderEnd + 4), partHeaders).trim();
         }
       }
     }
   } else if (contentType.includes("text/html")) {
-    html = bodyBlock.trim();
+    html = decodeMimeBody(bodyBlock, headersBlock).trim();
   } else {
-    text = bodyBlock.trim();
+    text = decodeMimeBody(bodyBlock, headersBlock).trim();
   }
 
   if (!text && html) {
@@ -489,6 +492,46 @@ function parseImapMessage(uid: string, fetchResp: string): ImapMessage | null {
     inReplyTo: getHeader("In-Reply-To") || null,
     references: getHeader("References").split(/\s+/).filter(Boolean),
   };
+}
+
+/**
+ * decodeMimeBody — decodifica il corpo di una parte MIME in base a
+ * Content-Transfer-Encoding (base64 / quoted-printable) e charset dichiarati
+ * nei suoi header. Senza questo i corpi base64/QP venivano mostrati grezzi
+ * (HTML illeggibile, accenti italiani come "=C3=A8"). Fallback: testo as-is.
+ */
+function decodeMimeBody(rawBody: string, partHeaders: string): string {
+  const cte = (/content-transfer-encoding:\s*([^\r\n;]+)/i.exec(partHeaders)?.[1] ?? "").trim().toLowerCase();
+  const charset = (/charset="?([^"\r\n;]+)"?/i.exec(partHeaders)?.[1] ?? "utf-8").trim();
+  const toText = (bytes: Uint8Array): string => {
+    for (const cs of [charset, "utf-8"]) {
+      try { return new TextDecoder(cs, { fatal: false }).decode(bytes); } catch { /* prova il prossimo */ }
+    }
+    return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  };
+  try {
+    if (cte.includes("base64")) {
+      const clean = rawBody.replace(/[^A-Za-z0-9+/=]/g, "");
+      const bin = atob(clean);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return toText(bytes);
+    }
+    if (cte.includes("quoted-printable")) {
+      const unfolded = rawBody.replace(/=\r?\n/g, ""); // soft line breaks
+      const out: number[] = [];
+      for (let i = 0; i < unfolded.length; i++) {
+        if (unfolded[i] === "=" && /^[0-9A-Fa-f]{2}$/.test(unfolded.substr(i + 1, 2))) {
+          out.push(parseInt(unfolded.substr(i + 1, 2), 16));
+          i += 2;
+        } else {
+          out.push(unfolded.charCodeAt(i) & 0xff);
+        }
+      }
+      return toText(new Uint8Array(out));
+    }
+  } catch { /* fallback al testo grezzo */ }
+  return rawBody;
 }
 
 function decodeRFC2047(s: string): string {

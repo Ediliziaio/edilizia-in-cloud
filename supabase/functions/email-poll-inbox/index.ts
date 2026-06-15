@@ -15,6 +15,9 @@ import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 // IMAP support (Sprint E4 — provider non-OAuth)
+// 2026-06-15: il parser in _shared ora decodifica Content-Transfer-Encoding
+// (base64/quoted-printable) + charset → corpi email leggibili (accenti, HTML).
+// Questo import forza il redeploy della funzione per includere il parser aggiornato.
 import { imapFetchUnreadSince, type ImapMessage } from "../_shared/imapSmtpClient.ts";
 
 interface ConnectionDue {
