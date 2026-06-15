@@ -13,7 +13,8 @@ import { OutreachBrands } from "@/components/admin/outreach/OutreachBrands";
 import { OutreachSendWindowCard } from "@/components/admin/outreach/OutreachSendWindowCard";
 import { OutreachQueueStatus } from "@/components/admin/outreach/OutreachQueueStatus";
 import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences";
-import { OutreachInbox } from "@/components/admin/outreach/OutreachInbox";
+import { OutreachMailClient } from "@/components/admin/outreach/OutreachMailClient";
+import { OutreachInboxPreview } from "@/components/admin/outreach/OutreachInboxPreview";
 import { OutreachActivityFeed } from "@/components/admin/outreach/OutreachActivityFeed";
 import { OutreachLists } from "@/components/admin/outreach/OutreachLists";
 import { OutreachComposeDialog } from "@/components/admin/outreach/OutreachComposeDialog";
@@ -27,7 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Loader2, LayoutDashboard, Flame, Users, Send, Briefcase, ShieldCheck,
-  Radar, Mail, MessageSquare, Phone, Workflow, ArrowRight,
+  Radar, Mail, MessageSquare, Phone, Workflow, ArrowRight, Inbox,
 } from "lucide-react";
 
 /**
@@ -148,6 +149,7 @@ function OutreachCockpit() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex h-auto justify-start gap-1 overflow-x-auto bg-muted/60 p-1 whitespace-nowrap">
           <TabsTrigger value="oggi"><Flame className="mr-1.5 h-4 w-4" /> Oggi</TabsTrigger>
+          <TabsTrigger value="posta"><Inbox className="mr-1.5 h-4 w-4" /> Posta</TabsTrigger>
           <TabsTrigger value="lead"><Users className="mr-1.5 h-4 w-4" /> Lead &amp; Liste</TabsTrigger>
           <TabsTrigger value="sequenze"><Send className="mr-1.5 h-4 w-4" /> Sequenze</TabsTrigger>
           <TabsTrigger value="pipeline"><Briefcase className="mr-1.5 h-4 w-4" /> Pipeline</TabsTrigger>
@@ -181,7 +183,12 @@ function OutreachCockpit() {
           </Card>
 
           <OutreachActivityFeed companyId={companyId} />
-          <OutreachInbox companyId={companyId} />
+          <OutreachInboxPreview companyId={companyId} onOpenMailbox={() => setTab("posta")} />
+        </TabsContent>
+
+        {/* ── POSTA ── */}
+        <TabsContent value="posta" className="mt-4">
+          <OutreachMailClient companyId={companyId} />
         </TabsContent>
 
         {/* ── LEAD & LISTE ── */}
