@@ -21,6 +21,7 @@ import { OutreachComposeDialog } from "@/components/admin/outreach/OutreachCompo
 import { OutreachMessagePlayground } from "@/components/admin/outreach/OutreachMessagePlayground";
 import { OutreachAnalytics } from "@/components/admin/outreach/OutreachAnalytics";
 import { OutreachPipelineAnalytics } from "@/components/admin/outreach/OutreachPipelineAnalytics";
+import { OutreachStatsDashboard } from "@/components/admin/outreach/OutreachStatsDashboard";
 import { OutreachConvertContactDialog } from "@/components/admin/outreach/OutreachConvertContactDialog";
 import { OutreachOverdueFollowups } from "@/components/admin/outreach/OutreachOverdueFollowups";
 import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
@@ -28,7 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Loader2, LayoutDashboard, Flame, Users, Send, Briefcase, ShieldCheck,
-  Radar, Mail, MessageSquare, Phone, Workflow, ArrowRight, Inbox,
+  Radar, Mail, MessageSquare, Phone, Workflow, ArrowRight, Inbox, BarChart3,
 } from "lucide-react";
 
 /**
@@ -153,6 +154,7 @@ function OutreachCockpit() {
           <TabsTrigger value="lead"><Users className="mr-1.5 h-4 w-4" /> Lead &amp; Liste</TabsTrigger>
           <TabsTrigger value="sequenze"><Send className="mr-1.5 h-4 w-4" /> Sequenze</TabsTrigger>
           <TabsTrigger value="pipeline"><Briefcase className="mr-1.5 h-4 w-4" /> Pipeline</TabsTrigger>
+          <TabsTrigger value="statistiche"><BarChart3 className="mr-1.5 h-4 w-4" /> Statistiche</TabsTrigger>
           <TabsTrigger value="deliverability"><ShieldCheck className="mr-1.5 h-4 w-4" /> Deliverability</TabsTrigger>
         </TabsList>
 
@@ -215,6 +217,11 @@ function OutreachCockpit() {
           <OutreachOverdueFollowups companyId={companyId} />
           <div className="flex justify-end"><OutreachConvertContactDialog companyId={companyId} /></div>
           <Shortcut to="/admin/marketing/opportunita" icon={Briefcase} label="Apri la pipeline (kanban)" desc="Trascina le opportunità tra gli stage" />
+        </TabsContent>
+
+        {/* ── STATISTICHE ── */}
+        <TabsContent value="statistiche" className="mt-4">
+          <OutreachStatsDashboard companyId={companyId} />
         </TabsContent>
 
         {/* ── DELIVERABILITY ── */}
