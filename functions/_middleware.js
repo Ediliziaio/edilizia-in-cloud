@@ -69,6 +69,61 @@ function canonicalUrl(pathname = "/") {
   return `${BASE}${path.replace(/\/$/, "")}/`;
 }
 
+// ─── Alias legacy / SEO short-URL → canonical FINALE (un solo 301) ────────────
+// Causa-radice GSC "Pagina con reindirizzamento": prima questi alias stavano
+// solo in public/_redirects (sorgente SENZA trailing slash). Ma il middleware
+// normalizza lo slash PRIMA che _redirects scatti, quindi:
+//   /gestionale-cantieri → 301 /gestionale-cantieri/ → (non matcha più la
+//   regola _redirects) → 200 SPA shell  ❌ soft-404 / contenuto duplicato
+//   /per/imprese-costruzione → 301 …/  → 301 /per/imprese-edili/  ❌ catena 2 hop
+// Risolvendoli QUI, nel blocco di canonicalizzazione, ogni alias fa UN SOLO 301
+// verso la destinazione canonica (già con slash), host/protocol inclusi.
+// La chiave è SEMPRE senza trailing slash; il valore è la canonical 200 finale.
+const LEGACY_REDIRECTS = {
+  "/home": "/",
+  "/register": "/demo/",
+  "/gestionale-edilizia": "/software-gestionale-edilizia/",
+  "/software-edilizia": "/software-gestionale-edilizia/",
+  "/software-imprese-edili": "/software-gestionale-edilizia/",
+  "/software-gestione-cantieri": "/funzionalita/gestione-cantieri/",
+  "/gestionale-cantieri": "/funzionalita/gestione-cantieri/",
+  "/gestione-cantieri-software": "/funzionalita/gestione-cantieri/",
+  "/app-gestione-cantiere": "/funzionalita/app-cantiere-mobile/",
+  "/app-cantiere": "/funzionalita/app-cantiere-mobile/",
+  "/rapportini-cantiere": "/funzionalita/app-cantiere-mobile/",
+  "/software-preventivi-edilizia": "/funzionalita/preventivi-edilizia/",
+  "/gestione-magazzino-edilizia": "/funzionalita/magazzino-cantiere/",
+  "/software-magazzino-edilizia": "/funzionalita/magazzino-cantiere/",
+  "/ddt-cantiere": "/funzionalita/ddt-digitali/",
+  "/giornale-lavori-cantiere": "/funzionalita/giornale-lavori/",
+  "/cronoprogramma-lavori": "/funzionalita/calendario-lavori/",
+  "/contabilita-cantiere": "/funzionalita/contabilita-fiscale/",
+  "/crm-edilizia": "/funzionalita/crm-edilizia/",
+  "/sal-cantiere": "/blog/sal-cantiere-come-funziona/",
+  "/computo-metrico": "/blog/computo-metrico-estimativo-guida/",
+  "/computo-metrico-estimativo": "/blog/computo-metrico-estimativo-guida/",
+  "/software-serramentisti": "/per/serramentisti/",
+  "/gestionale-serramentisti": "/per/serramentisti/",
+  "/software-impiantisti": "/per/impiantisti/",
+  "/gestionale-impiantisti": "/per/impiantisti/",
+  "/software-ristrutturazioni": "/per/ristrutturatori/",
+  "/software-ristrutturazioni-edilizie": "/per/ristrutturatori/",
+  "/migrazione-gestionale-edilizia": "/pianifica-migrazione/",
+  "/migrare-da-primus": "/pianifica-migrazione/",
+  "/passare-da-primus": "/pianifica-migrazione/",
+  "/migrare-da-teamsystem": "/pianifica-migrazione/",
+  "/import-dati-gestionale-edilizia": "/pianifica-migrazione/",
+  "/onboarding-gestionale-edilizia": "/pianifica-migrazione/",
+  // route rinominata: imprese-costruzione (vecchio) → imprese-edili (canonical)
+  "/per/imprese-costruzione": "/per/imprese-edili/",
+  "/per": "/per/imprese-edili/",
+  // alias legali legacy
+  "/privacy": "/privacy-policy/",
+  "/termini": "/termini-e-condizioni/",
+  "/cookie": "/cookie-policy/",
+  "/blog/categoria": "/blog/",
+};
+
 // ─── Blog: metadati post a scope modulo ──────────────────────────────────────
 // Fix GSC 2026-06: l'indice /blog linkava solo 3 articoli su 54 → il resto
 // erano pagine orfane senza link interni ("Scansionata ma non indicizzata").
@@ -1997,7 +2052,10 @@ const ROUTES = {
     ],
   },
 
-  "/per/imprese-costruzione": {
+  // Canonical = /per/imprese-edili (route rinominata): il prerender SEO deve
+  // stare sulla destinazione, non sul vecchio /per/imprese-costruzione che ora
+  // fa 301 (vedi LEGACY_REDIRECTS). Prima il prerender era sull'URL sbagliato.
+  "/per/imprese-edili": {
     title: "Gestionale per Imprese di Costruzione | Più Margini, Più Controllo, Zero Caos",
     description:
       "Il gestionale con AI per imprese di costruzione: margine reale per commessa in tempo reale, SAL automatici, subappaltatori, forecast di cassa a 90 giorni e computi metrici.",
@@ -2019,7 +2077,7 @@ const ROUTES = {
     intro:
       "Edilizia in Cloud governa tutta l'impresa impiantistica: margine reale per intervento con ore di trasferta e collaudo sempre fatturate, fatturazione automatica post-intervento, magazzino ricambi per furgone e contratti di manutenzione ricorrente.",
     links: [
-      { href: "/per/imprese-costruzione", label: "Per Imprese di Costruzione" },
+      { href: "/per/imprese-edili", label: "Per Imprese di Costruzione" },
       { href: "/per/serramentisti", label: "Per Serramentisti" },
       { href: "/demo", label: "Richiedi Demo" },
     ],
@@ -2033,7 +2091,7 @@ const ROUTES = {
     intro:
       "Gestisci le tue ristrutturazioni dalla A alla Z: preventivi con computo dettagliato, SAL mensili, pratiche per bonus 110% e Superbonus, fatturazione elettronica integrata.",
     links: [
-      { href: "/per/imprese-costruzione", label: "Per Imprese di Costruzione" },
+      { href: "/per/imprese-edili", label: "Per Imprese di Costruzione" },
       { href: "/per/fotovoltaico", label: "Per Fotovoltaico" },
       { href: "/demo", label: "Richiedi Demo" },
     ],
@@ -2078,7 +2136,7 @@ const ROUTES = {
       "Anche le piccole imprese edili meritano un gestionale professionale. Con Edilizia in Cloud parti subito, senza formazione lunga e senza costi nascosti. Piano Starter da 127€/mese.",
     links: [
       { href: "/prezzi", label: "Vedi i Prezzi" },
-      { href: "/per/imprese-costruzione", label: "Per Imprese di Costruzione" },
+      { href: "/per/imprese-edili", label: "Per Imprese di Costruzione" },
       { href: "/demo", label: "Richiedi Demo" },
     ],
   },
@@ -2703,7 +2761,7 @@ function resolveRoute(pathname) {
         { href: "/demo", label: `Demo Imprese ${cityName}` },
         { href: "/funzionalita/gestione-cantieri", label: "Gestione Cantieri" },
         { href: "/funzionalita/fatturazione-elettronica", label: "Fatturazione SDI" },
-        { href: "/per/imprese-costruzione", label: "Per Imprese di Costruzione" },
+        { href: "/per/imprese-edili", label: "Per Imprese di Costruzione" },
         { href: "/software-gestionale-edilizia", label: "Tutte le città" },
       ],
       jsonLd: [
@@ -2882,18 +2940,16 @@ export async function onRequest({ request, next, env }) {
     // chain e GSC li segnala come "Pagina con reindirizzamento".
     let normalizedPath = path;
     if (isMain) {
-      // /home (legacy) → /
-      if (normalizedPath === "/home" || normalizedPath === "/home/") {
-        normalizedPath = "/";
-      } else if (normalizedPath === "/gestionale-edilizia" || normalizedPath === "/gestionale-edilizia/") {
-        // Audit GEO 2026-06: URL legacy linkato in giro ma senza route SPA né
-        // prerender → i crawler AI (GPTBot/ClaudeBot/Perplexity) ricevevano
-        // 404 e gli utenti una shell vuota. La pagina equivalente è il city hub.
-        normalizedPath = "/software-gestionale-edilizia/";
+      // 1) Alias legacy / SEO short-URL → canonical finale in UN SOLO hop.
+      //    La chiave si cerca SEMPRE senza trailing slash, così sia /ddt-cantiere
+      //    sia /ddt-cantiere/ risolvono alla stessa destinazione senza catena.
+      const aliasKey = normalizedPath !== "/" ? normalizedPath.replace(/\/$/, "") : "/";
+      if (LEGACY_REDIRECTS[aliasKey]) {
+        normalizedPath = LEGACY_REDIRECTS[aliasKey];
       } else if (!isFile && normalizedPath !== "/" && !normalizedPath.endsWith("/")) {
-        // Trailing slash normalization (skip root e file con estensione).
-        // Le SPA route HTML devono terminare con "/" per matchare la canonical
-        // dichiarata in <link rel="canonical"> e nel sitemap.xml.
+        // 2) Trailing slash normalization (skip root e file con estensione).
+        //    Le SPA route HTML devono terminare con "/" per matchare la canonical
+        //    dichiarata in <link rel="canonical"> e nel sitemap.xml.
         normalizedPath = `${normalizedPath}/`;
       }
     }
