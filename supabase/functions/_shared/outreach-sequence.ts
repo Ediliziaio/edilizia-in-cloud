@@ -53,3 +53,10 @@ export function computeStepSchedule(base: Date, delayDays?: number | null, delay
   const h = Math.max(0, Math.trunc(delayHours ?? 0));
   return new Date(base.getTime() + d * 86_400_000 + h * 3_600_000);
 }
+
+/** Applica un jitter casuale (0..maxMinutes) a una data, per spalmare gli invii. rand in [0,1). */
+export function applyJitter(date: Date, maxMinutes: number, rand: number): Date {
+  const m = Math.max(0, maxMinutes);
+  const offset = Math.floor(Math.max(0, Math.min(1, rand)) * m) * 60_000;
+  return new Date(date.getTime() + offset);
+}

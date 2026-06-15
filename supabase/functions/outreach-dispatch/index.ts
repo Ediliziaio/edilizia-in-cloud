@@ -23,7 +23,7 @@ import { assignSenders, type SenderState } from "../_shared/outreach-dispatch-lo
 import { renderTemplate, contactToVars, hashSeed } from "../_shared/outreach-template.ts";
 import { isWithinSendWindow, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
-import { nextEmailStep, computeStepSchedule, type SeqStep } from "../_shared/outreach-sequence.ts";
+import { nextEmailStep, computeStepSchedule, applyJitter, type SeqStep } from "../_shared/outreach-sequence.ts";
 import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -64,7 +64,10 @@ async function advanceEnrollment(
     }).eq("id", enr.id);
     return;
   }
-  const when = computeStepSchedule(sentAt, next.delay_days, next.delay_hours).toISOString();
+  const when = computeStepSchedule(sentAt, next.delay_days, next.delay_hours);
+  // Jitter umano: spalma il follow-up su una finestra di 0..90 min così i passi
+  // successivi non partono tutti allo stesso minuto. La finestra di invio resta a valle.
+  const whenJ = applyJitter(when, 90, Math.random()).toISOString();
   await supabase.from("outreach_send_queue").insert({
     company_id: PLATFORM_COMPANY,
     enrollment_id: enr.id,
@@ -75,10 +78,10 @@ async function advanceEnrollment(
     subject: next.subject ?? "",
     body: next.body ?? "",
     status: "queued",
-    scheduled_for: when,
+    scheduled_for: whenJ,
   });
   await supabase.from("outreach_enrollments")
-    .update({ current_step: next.step_order, next_action_at: when }).eq("id", enr.id);
+    .update({ current_step: next.step_order, next_action_at: whenJ }).eq("id", enr.id);
 }
 
 Deno.serve(async (req) => {
