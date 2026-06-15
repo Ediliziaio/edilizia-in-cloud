@@ -234,7 +234,7 @@ export default function CreateLavoroAppaltatore() {
             .from("orders")
             .update({ work_lat: coords.lat, work_lng: coords.lng } as never)
             .eq("id", orderId);
-        });
+        }).catch(() => { /* geocoding best-effort: non bloccante */ });
       }
 
       // Persisti anche le rate nella tabella order_installments per

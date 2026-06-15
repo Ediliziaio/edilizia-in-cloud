@@ -327,6 +327,11 @@ export default function DDTRicezioneDetail() {
       return;
     }
     const qty = Math.round(rawQty * 100) / 100;
+    const pending = itemPendingQty(selectedItem);
+    if (qty > pending) {
+      toast.error("La quantità ricevuta supera il residuo");
+      return;
+    }
     if (!selectedItem.order_item_id) {
       toast.error("order_item_id mancante");
       return;

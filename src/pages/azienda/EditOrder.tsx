@@ -517,7 +517,7 @@ function EditOrderInner() {
             .update({ work_lat: coords.lat, work_lng: coords.lng } as never)
             .eq("id", id!)
             .eq("company_id", effectiveCompany.id);
-        });
+        }).catch(() => { /* geocoding best-effort: non bloccante */ });
       }
 
       // Upsert installments: delete old, insert new

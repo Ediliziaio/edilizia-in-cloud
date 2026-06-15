@@ -643,7 +643,7 @@ export default function DDTRicezioneList() {
                           </div>
                         </td>
                         <td className="p-3 text-muted-foreground text-xs">
-                          {format(new Date(ddt.data_ricezione), "dd/MM/yyyy", { locale: it })}
+                          {(ddt.data_ricezione ?? ddt.data_ddt) ? format(new Date(ddt.data_ricezione ?? ddt.data_ddt), "dd/MM/yyyy", { locale: it }) : "—"}
                         </td>
                         <td className="p-3">
                           <div className="flex flex-col gap-0.5">
@@ -825,7 +825,7 @@ function MobileDDTCard({
 
           {/* Line 3: meta (data · ODA · corriere) */}
           <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground flex-wrap">
-            <span>{format(new Date(ddt.data_ricezione), "dd/MM/yyyy", { locale: it })}</span>
+            <span>{(ddt.data_ricezione ?? ddt.data_ddt) ? format(new Date(ddt.data_ricezione ?? ddt.data_ddt), "dd/MM/yyyy", { locale: it }) : "—"}</span>
             {po?.oda_number && (
               <span className="inline-flex items-center gap-0.5 text-primary">
                 <ShoppingCart className="h-2.5 w-2.5" />

@@ -121,7 +121,7 @@ export default function AssistenzaLavoriHub() {
     queryKey: ["hub-tickets", effectiveCompany?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("tickets")
         .select("id, subject, status, priority, tipo, created_at")
         .eq("company_id", effectiveCompany.id)
@@ -129,6 +129,7 @@ export default function AssistenzaLavoriHub() {
         .in("tipo", ["supporto"])
         .order("created_at", { ascending: false })
         .limit(20);
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!effectiveCompany?.id,
@@ -140,7 +141,7 @@ export default function AssistenzaLavoriHub() {
     queryKey: ["hub-interventi", effectiveCompany?.id, today, in7Days],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("tickets")
         .select("id, subject, status, priority, data_intervento_prevista, assigned_to")
         .eq("company_id", effectiveCompany.id)
@@ -148,6 +149,7 @@ export default function AssistenzaLavoriHub() {
         .in("status", ["aperto", "in_lavorazione"])
         .order("data_intervento_prevista", { ascending: true, nullsFirst: false })
         .limit(20);
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!effectiveCompany?.id,
@@ -159,7 +161,7 @@ export default function AssistenzaLavoriHub() {
     queryKey: ["hub-manutenzioni", effectiveCompany?.id, today, in7Days],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("piani_manutenzione")
         .select("id, titolo, prossima_scadenza, stato, frequenza_tipo")
         .eq("company_id", effectiveCompany.id)
@@ -167,6 +169,7 @@ export default function AssistenzaLavoriHub() {
         .lte("prossima_scadenza", in7Days)
         .order("prossima_scadenza", { ascending: true })
         .limit(20);
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!effectiveCompany?.id,

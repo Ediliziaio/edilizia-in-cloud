@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGPS } from "@/hooks/useGPS";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,7 +70,7 @@ export default function GiornaleLavori() {
   });
 
   // Fetch orders — filter out any with missing/empty id to prevent Radix SelectItem crash
-  const { data: rawOrders = [] } = useQuery({
+  const { data: rawOrders = [], isError: ordersError } = useQuery({
     queryKey: ["orders-attivi", companyId],
     queryFn: async () => {
       // 2026-05-27 (UX audit fix): rimosso .limit(50) — l'impresa con 50+
@@ -77,12 +78,13 @@ export default function GiornaleLavori() {
       // visibile, impossibile registrare giornale lavori su cantieri vecchi.
       // Alzato a 500: copre tutte le imprese reali; per chi supera, va aggiunto
       // un combobox cercabile (TODO).
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("orders")
         .select("id, description, order_code")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .limit(500);
+      if (error) throw error;
       return data || [];
     },
     enabled: !!companyId,
@@ -90,7 +92,7 @@ export default function GiornaleLavori() {
   const orders = rawOrders.filter((o: any) => o?.id && typeof o.id === "string" && o.id.length > 0);
 
   // Fetch giornale entries
-  const { data: entries = [], isLoading } = useQuery({
+  const { data: entries = [], isLoading, isError: entriesError } = useQuery({
     queryKey: ["giornale-lavori", companyId, selectedOrderId],
     queryFn: async () => {
       let q = supabase
@@ -100,7 +102,8 @@ export default function GiornaleLavori() {
         .order("data_lavori", { ascending: false })
         .limit(200);
       if (selectedOrderId) q = q.eq("order_id", selectedOrderId);
-      const { data } = await q;
+      const { data, error } = await q;
+      if (error) throw error;
       return data || [];
     },
     enabled: !!companyId,
@@ -358,6 +361,13 @@ export default function GiornaleLavori() {
           </div>
         )}
       </div>
+
+      {/* Errore di caricamento — non mascherare con l'empty-state "Nessun report" */}
+      {(entriesError || ordersError) && (
+        <Alert variant="destructive">
+          <AlertDescription>Errore nel caricamento. Riprova.</AlertDescription>
+        </Alert>
+      )}
 
       {/* Entries list */}
       {isLoading ? (

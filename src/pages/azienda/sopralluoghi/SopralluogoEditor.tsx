@@ -191,6 +191,7 @@ export default function SopralluogoEditor() {
         qc.invalidateQueries({ queryKey: ["sopralluogo", id] });
       } catch {
         setAutoSaveStatus("error");
+        toast.error("Errore nel salvataggio automatico delle note");
       }
     }, 600);
     return () => clearTimeout(timer);

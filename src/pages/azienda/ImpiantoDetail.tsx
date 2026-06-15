@@ -5,6 +5,7 @@ import { NuovoInterventoDialog } from "@/components/interventi/NuovoInterventoDi
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +31,7 @@ export default function ImpiantoDetail() {
   const [esecuzioneForm, setEsecuzioneForm] = useState({ data: new Date().toLocaleDateString("en-CA"), esito: "ok", note: "" });
   const [nuovoInterventoOpen, setNuovoInterventoOpen] = useState(false);
 
-  const { data: impianto, isLoading } = useQuery({
+  const { data: impianto, isLoading, isError: impiantoError } = useQuery({
     queryKey: ["impianto", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -47,11 +48,12 @@ export default function ImpiantoDetail() {
   const { data: contratto } = useQuery({
     queryKey: ["contratto-impianto", id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("contratti_manutenzione")
         .select("*")
         .eq("impianto_id", id!)
         .maybeSingle();
+      if (error) throw error;
       return data;
     },
     enabled: !!id,
@@ -91,11 +93,12 @@ export default function ImpiantoDetail() {
     queryKey: ["esecuzioni-impianto", piani.map((p: any) => p.id).join(",")],
     queryFn: async () => {
       if (piani.length === 0) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("esecuzioni_manutenzione")
         .select("*, piano:piani_manutenzione(titolo)")
         .in("piano_id", piani.map((p: any) => p.id))
         .order("data_esecuzione", { ascending: false });
+      if (error) throw error;
       return data ?? [];
     },
     enabled: piani.length > 0,
@@ -134,6 +137,16 @@ export default function ImpiantoDetail() {
     <div className="p-6 space-y-4">
       <Skeleton className="h-8 w-48" />
       <Skeleton className="h-40 w-full rounded-lg" />
+    </div>
+  );
+
+  if (impiantoError) return (
+    <div className="p-6 max-w-md mx-auto">
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>Errore nel caricamento dell'impianto. Riprova.</AlertDescription>
+      </Alert>
+      <Button variant="outline" className="mt-4" onClick={() => navigate("/azienda/manutenzione")}>Torna alla lista</Button>
     </div>
   );
 

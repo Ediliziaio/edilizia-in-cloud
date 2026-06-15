@@ -44,7 +44,7 @@ export default function OrderDiaryPage() {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "id, order_code, description, current_status_id, customer:customers(id, first_name, last_name, email, phone)"
+          "id, order_code, description, current_status_id, customer:profiles!orders_customer_id_fkey(id, first_name, last_name, email, phone)"
         )
         .eq("id", id!)
         .eq("company_id", effectiveCompany!.id)
