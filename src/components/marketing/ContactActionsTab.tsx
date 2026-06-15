@@ -10,6 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ConvertToCustomerDialog } from "./ConvertToCustomerDialog";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 import { ContactCallHistory } from "@/components/telephony/ContactCallHistory";
+import { QuickContactSendDialog, type QuickSendChannel } from "@/components/contacts/QuickContactSendDialog";
 
 interface ContactActionsTabProps {
   contact: any;
@@ -41,16 +42,12 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
     enabled: !!companyId,
   });
 
-  const handleSendMessage = (channel: string) => {
-    if (channel === "whatsapp" && contact.phone) {
-      navigate(`/azienda/marketing/messaggi?contact=${contact.id}&channel=whatsapp`);
-    } else if (channel === "email" && contact.email) {
-      navigate(`/azienda/marketing/messaggi?contact=${contact.id}&channel=email`);
-    } else if (channel === "sms" && contact.phone) {
-      navigate(`/azienda/marketing/messaggi?contact=${contact.id}&channel=sms`);
-    } else {
-      toast.error(`Dati di contatto mancanti per ${channel}`);
-    }
+  // Popup invio rapido (SMS/WhatsApp/Email + AI) — sostituisce la navigazione a /messaggi.
+  const [quickSend, setQuickSend] = useState<{ open: boolean; channel: QuickSendChannel }>({ open: false, channel: "whatsapp" });
+  const handleSendMessage = (channel: QuickSendChannel) => {
+    if ((channel === "whatsapp" || channel === "sms") && !contact.phone) { toast.error("Numero di telefono mancante"); return; }
+    if (channel === "email" && !contact.email) { toast.error("Email mancante"); return; }
+    setQuickSend({ open: true, channel });
   };
 
   const softphone = useSoftphoneOptional();
@@ -268,6 +265,21 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <QuickContactSendDialog
+        open={quickSend.open}
+        onOpenChange={(v) => setQuickSend((s) => ({ ...s, open: v }))}
+        contactId={contact.id}
+        name={`${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() || contact.email || contact.phone}
+        phone={contact.phone}
+        email={contact.email}
+        defaultChannel={quickSend.channel}
+        onSent={() => {
+          queryClient.invalidateQueries({ queryKey: ["comm-sms"] });
+          queryClient.invalidateQueries({ queryKey: ["comm-wa"] });
+          queryClient.invalidateQueries({ queryKey: ["comm-email"] });
+        }}
+      />
     </div>
   );
 });

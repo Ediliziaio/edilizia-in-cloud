@@ -9,7 +9,7 @@
  *  - AI       → "✨ Genera con AI" su SMS ed Email (edge ai-compose-message): da
  *               un'istruzione libera + tono produce il messaggio, poi modificabile.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,7 +28,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Smartphone, MessageSquare, Mail, Send, Loader2, Sparkles, PenLine } from "lucide-react";
+import { Smartphone, MessageSquare, Mail, Send, Loader2, Sparkles, PenLine, Paperclip, X } from "lucide-react";
 
 export type QuickSendChannel = "sms" | "whatsapp" | "email";
 
@@ -99,6 +99,8 @@ export function QuickContactSendDialog({
   const [emailCc, setEmailCc] = useState("");
   const [emailBcc, setEmailBcc] = useState("");
   const [ccBccVisible, setCcBccVisible] = useState(false);
+  const [attachments, setAttachments] = useState<Array<{ name: string; size: number; mime: string; storage_path: string; uploading: boolean }>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // AI assist (condiviso SMS/Email)
   const [aiInstruction, setAiInstruction] = useState("");
@@ -109,7 +111,7 @@ export function QuickContactSendDialog({
       setChannel(initialChannel);
       setSmsText(""); setEmailSubject(""); setEmailBody("");
       setAiInstruction(""); setAiTone(TONES[0]); setSigEdit(false);
-      setEmailCc(""); setEmailBcc(""); setCcBccVisible(false);
+      setEmailCc(""); setEmailBcc(""); setCcBccVisible(false); setAttachments([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -202,6 +204,29 @@ export function QuickContactSendDialog({
     onError: (e) => toast.error("AI non disponibile", { description: e instanceof Error ? e.message : String(e) }),
   });
 
+  // ── Allegati email (bucket email-attachments) ──
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || !user?.id) return;
+    for (const file of Array.from(files)) {
+      if (file.size > 15 * 1024 * 1024) { toast.error(`${file.name} supera 15MB`); continue; }
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+      const storagePath = `${user.id}/quick/${crypto.randomUUID()}-${safe}`;
+      setAttachments((a) => [...a, { name: file.name, size: file.size, mime: file.type || "application/octet-stream", storage_path: storagePath, uploading: true }]);
+      const { error } = await supabase.storage.from("email-attachments").upload(storagePath, file, { contentType: file.type || "application/octet-stream", upsert: false });
+      if (error) {
+        setAttachments((a) => a.filter((x) => x.storage_path !== storagePath));
+        toast.error(`Upload fallito: ${file.name}`);
+      } else {
+        setAttachments((a) => a.map((x) => x.storage_path === storagePath ? { ...x, uploading: false } : x));
+      }
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+  const removeAttachment = (storagePath: string) => {
+    setAttachments((a) => a.filter((x) => x.storage_path !== storagePath));
+    void supabase.storage.from("email-attachments").remove([storagePath]);
+  };
+
   // ── Email send (con firma) ──
   const sendEmail = useMutation({
     mutationFn: async () => {
@@ -225,7 +250,9 @@ export function QuickContactSendDialog({
         .insert({
           user_id: user.id, company_id: effectiveCompany.id, oauth_connection_id: emailFrom,
           to_emails: [email], cc_emails: parseEmails(emailCc), bcc_emails: parseEmails(emailBcc),
-          subject, body_text: finalText, body_html: finalHtml, attachments: [], status: "queued",
+          subject, body_text: finalText, body_html: finalHtml,
+          attachments: attachments.filter((a) => !a.uploading).map((a) => ({ filename: a.name, size: a.size, mime: a.mime, storage_path: a.storage_path })),
+          status: "queued",
         })
         .select("id").single();
       if (insErr) throw insErr;
@@ -380,8 +407,29 @@ export function QuickContactSendDialog({
                   {!sigEnabled && <p className="text-[10px] text-muted-foreground">Firma disattivata per questa email.</p>}
                 </div>
 
-                <div className="flex justify-end">
-                  <Button size="sm" className="gap-1.5 bg-violet-600 hover:bg-violet-700" onClick={() => sendEmail.mutate()} disabled={!emailFrom || !emailSubject.trim() || !emailBody.trim() || sendEmail.isPending}>
+                {/* Allegati */}
+                <div className="space-y-1">
+                  <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+                  {attachments.length > 0 && (
+                    <ul className="space-y-1">
+                      {attachments.map((a) => (
+                        <li key={a.storage_path} className="flex items-center gap-2 rounded border px-2 py-1 text-[11px]">
+                          <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <span className="truncate flex-1">{a.name}</span>
+                          <span className="text-muted-foreground shrink-0">{(a.size / 1024).toFixed(0)} KB</span>
+                          {a.uploading ? <Loader2 className="h-3 w-3 animate-spin shrink-0" /> : (
+                            <button type="button" onClick={() => removeAttachment(a.storage_path)} className="text-rose-500 hover:text-rose-700 shrink-0" aria-label="Rimuovi allegato"><X className="h-3 w-3" /></button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="flex items-center justify-between">
+                  <Button type="button" variant="ghost" size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground" onClick={() => fileInputRef.current?.click()}>
+                    <Paperclip className="h-3.5 w-3.5" /> Allega file
+                  </Button>
+                  <Button size="sm" className="gap-1.5 bg-violet-600 hover:bg-violet-700" onClick={() => sendEmail.mutate()} disabled={!emailFrom || !emailSubject.trim() || !emailBody.trim() || sendEmail.isPending || attachments.some((a) => a.uploading)}>
                     {sendEmail.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Invia Email
                   </Button>
                 </div>
