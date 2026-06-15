@@ -70,6 +70,12 @@ verify_jwt = true
 [functions.outreach-ai-sequence]
 verify_jwt = true
 
+# Generatore AI di FLUSSI cold condizionali (grafo) da un brief. Ritorna
+# { name, nodes, edges } (la UI mappa key→uuid, branch→handle, auto-layout, poi
+# l'utente salva). Best-effort: grafo vuoto su errore. Solo super_admin (JWT richiesto).
+[functions.outreach-ai-flow]
+verify_jwt = true
+
 # Riepilogo AI di una conversazione cold nell'inbox Outreach: dal thread (passato dal
 # client) genera { summary, intent_hint, suggested_reply }. Solo super_admin (JWT richiesto).
 [functions.outreach-ai-summary]
