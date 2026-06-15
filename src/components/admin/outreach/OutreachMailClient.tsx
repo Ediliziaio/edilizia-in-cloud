@@ -33,6 +33,7 @@ import {
   useOutreachConversations, useReplyComposer, useLeadContext, useLeadActions, isEnrollmentLive,
 } from "./useOutreachConversations";
 import { useReplySnippets, type ReplySnippet } from "./useReplySnippets";
+import { avatarTint } from "./outreachAvatar";
 
 /**
  * OutreachMailClient — client email a 3 pannelli dedicato al COLD outreach.
@@ -234,20 +235,21 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
 
   if (isLoading) {
     return (
-      <div className={cn(MAIL_CLIENT_HEIGHT, "flex overflow-hidden rounded-xl border bg-card")}>
-        <div className="hidden w-[220px] shrink-0 space-y-2 border-r p-3 lg:block">
-          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full rounded-md" />)}
+      <div className={cn(MAIL_CLIENT_HEIGHT, "flex overflow-hidden rounded-xl border border-border bg-muted/30 shadow-sm")}>
+        <div className="hidden w-[244px] shrink-0 space-y-2 border-r border-border bg-background p-3 lg:block">
+          <Skeleton className="h-4 w-24 rounded" />
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-lg" />)}
         </div>
-        <div className="w-full space-y-2 border-r p-3 md:w-[340px]">
-          {Array.from({ length: 7 }).map((_, i) => (
-            <div key={i} className="flex gap-3 p-2">
+        <div className="w-full space-y-1 border-r border-border bg-background p-3 md:w-[360px]">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-lg p-2.5">
               <Skeleton className="h-10 w-10 rounded-full" />
-              <div className="flex-1 space-y-2"><Skeleton className="h-3 w-2/3" /><Skeleton className="h-3 w-1/2" /></div>
+              <div className="flex-1 space-y-2"><Skeleton className="h-3 w-2/3 rounded" /><Skeleton className="h-3 w-1/2 rounded" /></div>
             </div>
           ))}
         </div>
-        <div className="hidden flex-1 items-center justify-center md:flex">
-          <Skeleton className="h-40 w-2/3 rounded-2xl" />
+        <div className="hidden flex-1 items-center justify-center bg-muted/30 md:flex">
+          <Skeleton className="h-44 w-2/3 rounded-2xl" />
         </div>
       </div>
     );
@@ -255,7 +257,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
 
   if (errored) {
     return (
-      <div className="flex items-center gap-2 rounded-xl border bg-card p-4 text-sm text-red-600">
+      <div className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
         <AlertTriangle className="h-4 w-4 shrink-0" />
         Errore nel caricamento: {errored instanceof Error ? errored.message : "imprevisto"}
       </div>
@@ -268,32 +270,35 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
     // overflow-x-auto: se a viewport stretti i floor delle colonne (conversazioni +
     // thread + contesto) non entrano, scorre in orizzontale invece di schiacciare il
     // thread. Verticale resta clippato per mantenere il bordo arrotondato.
-    <div className={cn(MAIL_CLIENT_HEIGHT, "flex overflow-x-auto overflow-y-hidden rounded-xl border bg-card")}>
+    <div className={cn(MAIL_CLIENT_HEIGHT, "flex overflow-x-auto overflow-y-hidden rounded-xl border border-border bg-muted/30 shadow-sm")}>
       {/* ═══ Pannello caselle & filtri (sinistra) ═══ */}
       {/* A ≥lg si mostra solo quando il contesto lead è chiuso: con il contesto aperto
           collassa nel selettore compatto in cima alla lista, lasciando spazio al thread. */}
       <aside className={cn(
-        "hidden w-[230px] shrink-0 flex-col border-r bg-background",
+        "hidden w-[244px] shrink-0 flex-col border-r border-border bg-background",
         mailboxColumnVisible && "lg:flex",
       )}>
-        <div className="border-b p-3">
-          <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <Mailbox className="h-4 w-4 text-orange-500" /> Caselle
-          </h2>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">Filtra per casella che ha inviato</p>
+        <div className="flex items-center gap-2 px-4 py-3.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Mailbox className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold leading-tight">Caselle</h2>
+            <p className="truncate text-[11px] text-muted-foreground">Filtra per mittente</p>
+          </div>
         </div>
         <ScrollArea className="flex-1">
-          <div className="space-y-0.5 p-2">
+          <div className="space-y-0.5 px-2 pb-2">
             <MailboxButton
               active={senderId === null}
               onClick={() => selectSender(null)}
               icon={<Layers className="h-4 w-4" />}
               title="Tutte le caselle"
               count={counts.unread || undefined}
-              countTone="orange"
+              countTone="primary"
             />
             {senders.length === 0 ? (
-              <p className="px-2 py-3 text-[11px] text-muted-foreground">
+              <p className="px-2.5 py-3 text-[11px] leading-relaxed text-muted-foreground">
                 Nessuna casella configurata. Aggiungile in Deliverability → Pool mittenti.
               </p>
             ) : (
@@ -312,7 +317,8 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
             )}
           </div>
         </ScrollArea>
-        <div className="space-y-2 border-t p-2">
+        <div className="space-y-2.5 border-t border-border bg-muted/30 p-3">
+          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Filtri</div>
           <FilterPills filter={filter} counts={counts} onChange={changeFilter} />
           <ConversationFacets
             sequenceOptions={sequenceOptions}
@@ -326,38 +332,40 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
 
       {/* ═══ Lista conversazioni (centro) ═══ */}
       <aside className={cn(
-        "flex w-full flex-col border-r bg-background md:w-[340px] md:min-w-[300px]",
+        "flex w-full flex-col border-r border-border bg-background md:w-[360px] md:min-w-[320px]",
         selected ? "hidden md:flex" : "flex",
       )}>
-        <div className="border-b p-3">
-          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-            <Inbox className="h-4 w-4 text-orange-500" /> Conversazioni
-            {counts.unread > 0 && <Badge className="bg-orange-500">{counts.unread}</Badge>}
+        <div className="space-y-2.5 border-b border-border px-3 py-3">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Inbox className="h-4 w-4" />
+            </span>
+            <h2 className="text-sm font-semibold leading-tight">Conversazioni</h2>
+            {counts.unread > 0 && (
+              <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-primary-foreground">
+                {counts.unread}
+              </span>
+            )}
             {/* Hint scorciatoie tastiera (solo desktop). */}
             <span
-              className="hidden cursor-help select-none rounded border px-1 text-[10px] font-normal text-muted-foreground lg:inline"
+              className="ml-auto hidden cursor-help select-none rounded-md border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground lg:inline"
               title="Scorciatoie · J/K: conversazione successiva/precedente · ⌘/Ctrl+Invio: invia la risposta"
-            >?</span>
-            {activeSender && (
-              <Badge variant="outline" className="ml-auto max-w-[150px] gap-1 truncate text-[10px] font-normal">
-                <Mailbox className="h-3 w-3 shrink-0" /><span className="truncate">{activeSender.email}</span>
-              </Badge>
-            )}
-          </h2>
+            >J / K</span>
+          </div>
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Cerca nome o email…"
               aria-label="Cerca conversazione"
-              className="h-9 pl-8"
+              className="h-9 rounded-lg border-border bg-muted/40 pl-9 text-sm shadow-none focus-visible:bg-background"
             />
           </div>
 
           {/* Filtri stato — visibili quando il pannello caselle è nascosto (mobile/tablet,
               o desktop col contesto lead aperto che ne collassa la colonna). */}
-          <div className={cn("mt-2 space-y-2", mailboxColumnVisible && "lg:hidden")}>
+          <div className={cn("space-y-2", mailboxColumnVisible && "lg:hidden")}>
             <FilterPills filter={filter} counts={counts} onChange={changeFilter} />
             <ConversationFacets
               sequenceOptions={sequenceOptions}
@@ -369,18 +377,18 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
           </div>
 
           {/* Selettore casella compatto: idem, sostituisce la colonna caselle quando nascosta. */}
-          <div className={cn("mt-2", mailboxColumnVisible && "lg:hidden")}>
+          <div className={cn(mailboxColumnVisible && "lg:hidden")}>
             <button
               type="button"
               onClick={() => setShowListMobile((v) => !v)}
-              className="flex w-full items-center gap-2 rounded-md border bg-muted/40 px-2.5 py-1.5 text-left text-[11px]"
+              className="flex w-full items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-left text-[11px] transition-colors hover:bg-muted/70"
             >
               <Mailbox className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span className="flex-1 truncate">{activeSender ? activeSender.email : "Tutte le caselle"}</span>
+              <span className="flex-1 truncate font-medium">{activeSender ? activeSender.email : "Tutte le caselle"}</span>
               <span className="text-muted-foreground">cambia</span>
             </button>
             {showListMobile && (
-              <div className="mt-1 max-h-48 overflow-y-auto rounded-md border bg-background p-1">
+              <div className="mt-1 max-h-48 space-y-0.5 overflow-y-auto rounded-lg border border-border bg-background p-1.5 shadow-sm">
                 <MailboxButton active={senderId === null} onClick={() => selectSender(null)} icon={<Layers className="h-4 w-4" />} title="Tutte le caselle" />
                 {senders.map((s) => (
                   <MailboxButton
@@ -399,10 +407,10 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
           {/* Azioni "su tutte" — nascoste quando c'è una selezione multipla attiva
               (in quel caso comanda la barra azioni mirata sotto). */}
           {selectedCount === 0 && (counts.unread > 0 || counts.read > 0) && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               {counts.unread > 0 && (
                 <Button
-                  size="sm" variant="outline" className="h-7 gap-1 text-[11px]"
+                  size="sm" variant="outline" className="h-7 gap-1.5 rounded-lg border-border text-[11px] shadow-none"
                   disabled={markAllRead.isPending}
                   onClick={() => markAllRead.mutate()}
                   title="Segna come lette tutte le risposte non lette"
@@ -413,7 +421,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
               )}
               {counts.read > 0 && (
                 <Button
-                  size="sm" variant="outline" className="h-7 gap-1 text-[11px]"
+                  size="sm" variant="outline" className="h-7 gap-1.5 rounded-lg border-border text-[11px] shadow-none"
                   disabled={archiveRead.isPending}
                   onClick={() => archiveRead.mutate()}
                   title="Archivia le conversazioni le cui risposte sono già state lette"
@@ -426,23 +434,30 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
           )}
 
           {/* Seleziona tutte (filtrate) + barra azioni mirata sulla selezione. */}
-          {filtered.length > 0 && (
-            <div className="mt-2 flex items-center gap-2">
-              <label className="flex cursor-pointer select-none items-center gap-1.5 text-[11px] text-muted-foreground">
-                <Checkbox
-                  checked={allFilteredSelected ? true : selectedCount > 0 ? "indeterminate" : false}
-                  onCheckedChange={toggleSelectAll}
-                  aria-label="Seleziona tutte le conversazioni filtrate"
-                />
-                {selectedCount > 0 ? `${selectedCount} selezionate` : "Seleziona tutte"}
-              </label>
-            </div>
+          {filtered.length > 0 && selectedCount === 0 && (
+            <label className="flex cursor-pointer select-none items-center gap-2 text-[11px] font-medium text-muted-foreground">
+              <Checkbox
+                checked={false}
+                onCheckedChange={toggleSelectAll}
+                aria-label="Seleziona tutte le conversazioni filtrate"
+              />
+              Seleziona tutte
+            </label>
           )}
 
           {selectedCount > 0 && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 p-1.5">
+            <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/[0.06] p-1.5">
+              <label className="flex cursor-pointer select-none items-center gap-1.5 pl-1 pr-1 text-[11px] font-semibold text-primary">
+                <Checkbox
+                  checked={allFilteredSelected ? true : "indeterminate"}
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Seleziona tutte le conversazioni filtrate"
+                />
+                {selectedCount} sel.
+              </label>
+              <span className="h-4 w-px bg-primary/20" aria-hidden />
               <Button
-                size="sm" variant="outline" className="h-7 gap-1 text-[11px]"
+                size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[11px] hover:bg-primary/10"
                 disabled={markAllRead.isPending || selectedContactIds.length === 0}
                 onClick={bulkMarkRead}
                 title={selectedContactIds.length === 0
@@ -453,7 +468,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
                 Segna lette
               </Button>
               <Button
-                size="sm" variant="outline" className="h-7 gap-1 text-[11px]"
+                size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[11px] hover:bg-primary/10"
                 disabled={archiveRead.isPending || selectedContactIds.length === 0}
                 onClick={bulkArchive}
                 title={selectedContactIds.length === 0
@@ -464,11 +479,11 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
                 Archivia
               </Button>
               <Button
-                size="sm" variant="ghost" className="h-7 gap-1 text-[11px] text-muted-foreground"
+                size="sm" variant="ghost" className="ml-auto h-7 gap-1 px-2 text-[11px] text-muted-foreground hover:bg-primary/10"
                 onClick={clearSelection}
                 title="Annulla la selezione"
               >
-                <X className="h-3 w-3" /> Deseleziona
+                <X className="h-3 w-3" />
               </Button>
             </div>
           )}
@@ -476,83 +491,31 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
 
         <ScrollArea className="flex-1">
           {filtered.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              <Inbox className="mx-auto mb-2 h-5 w-5 opacity-50" />
-              {conversations.length === 0
-                ? "Nessuna conversazione ancora. Le email inviate e le risposte compaiono qui."
-                : activeSender
-                  ? "Nessuna conversazione per questa casella e questo filtro."
-                  : "Nessuna conversazione per questo filtro."}
+            <div className="flex flex-col items-center px-8 py-16 text-center">
+              <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <Inbox className="h-5 w-5" />
+              </span>
+              <p className="max-w-[230px] text-sm text-muted-foreground">
+                {conversations.length === 0
+                  ? "Nessuna conversazione ancora. Le email inviate e le risposte compaiono qui."
+                  : activeSender
+                    ? "Nessuna conversazione per questa casella e questo filtro."
+                    : "Nessuna conversazione per questo filtro."}
+              </p>
             </div>
           ) : (
-            <ul className="divide-y">
-              {filtered.map((conv) => {
-                const name = contactName(conv.contact, conv.email);
-                const company = conv.contact?.company_name;
-                const active = conv.key === selectedKey;
-                const intentMeta = conv.lastIntent ? INTENT_META[conv.lastIntent] : null;
-                const mailbox = conv.primarySenderId ? sendersById.get(conv.primarySenderId) ?? null : null;
-                const checked = selectedKeys.has(conv.key);
-                return (
-                  <li
-                    key={conv.key}
-                    className={cn(
-                      "flex items-stretch transition-colors hover:bg-muted/60",
-                      active && "bg-muted",
-                      checked && "bg-primary/5",
-                    )}
-                  >
-                    {/* Checkbox di selezione multipla — fuori dal <button> (HTML valido). */}
-                    <div className="flex shrink-0 items-center pl-2.5">
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={() => toggleSelected(conv.key)}
-                        aria-label={`Seleziona conversazione con ${name}`}
-                      />
-                    </div>
-                    <button
-                      onClick={() => handleSelect(conv)}
-                      className="flex min-w-0 flex-1 gap-3 py-2.5 pl-2.5 pr-3 text-left"
-                    >
-                      <div className="relative shrink-0">
-                        <Avatar className="h-10 w-10">
-                          <AvatarFallback className="bg-primary/10 text-xs text-primary">{iniziali(name)}</AvatarFallback>
-                        </Avatar>
-                        {conv.unread && (
-                          <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-orange-500 ring-2 ring-background" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className={cn("truncate text-sm", conv.unread ? "font-semibold" : "font-medium")}>{name}</span>
-                          <span className="shrink-0 text-[10px] text-muted-foreground">{relativeTime(conv.lastAt)}</span>
-                        </div>
-                        {company && (
-                          <div className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
-                            <Building2 className="h-3 w-3 shrink-0" />{company}
-                          </div>
-                        )}
-                        <div className="mt-0.5 flex items-center justify-between gap-2">
-                          <span className="truncate text-xs text-muted-foreground">{conv.lastSnippet}</span>
-                          {conv.snoozedUntil ? (
-                            <Badge variant="outline" className="shrink-0 gap-1 border-amber-200 bg-amber-50 text-[10px] text-amber-700">
-                              <AlarmClock className="h-2.5 w-2.5" />{relativeTime(conv.snoozedUntil)}
-                            </Badge>
-                          ) : intentMeta && (
-                            <Badge variant="outline" className={cn("shrink-0 text-[10px]", intentMeta.cls)}>{intentMeta.label}</Badge>
-                          )}
-                        </div>
-                        {mailbox && (
-                          <div className="mt-1 flex items-center gap-1 truncate text-[10px] text-muted-foreground/80">
-                            <Mailbox className="h-2.5 w-2.5 shrink-0" />
-                            <span className="truncate">{mailbox.email}</span>
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
+            <ul className="space-y-0.5 p-2">
+              {filtered.map((conv) => (
+                <ConversationRow
+                  key={conv.key}
+                  conv={conv}
+                  active={conv.key === selectedKey}
+                  checked={selectedKeys.has(conv.key)}
+                  mailbox={conv.primarySenderId ? sendersById.get(conv.primarySenderId) ?? null : null}
+                  onSelect={() => handleSelect(conv)}
+                  onToggle={() => toggleSelected(conv.key)}
+                />
+              ))}
             </ul>
           )}
         </ScrollArea>
@@ -562,16 +525,20 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
       <section
         key={selectedKey ?? "vuota"}
         className={cn(
-          "flex min-w-0 flex-1 flex-col bg-muted/20",
+          "flex min-w-0 flex-1 flex-col bg-muted/30",
           selected ? "flex max-md:animate-in max-md:slide-in-from-right-4 max-md:fade-in-0 max-md:duration-200" : "hidden md:flex",
         )}
       >
         {!selected ? (
-          <div className="flex flex-1 items-center justify-center p-8 text-center text-muted-foreground">
-            <div>
-              <MessageSquare className="mx-auto mb-3 h-10 w-10 opacity-30" />
-              <p className="text-sm">Seleziona una conversazione.</p>
-              <p className="mt-1 text-xs">Inviate a destra, risposte a sinistra. <kbd className="rounded border bg-muted px-1 text-[10px]">J</kbd>/<kbd className="rounded border bg-muted px-1 text-[10px]">K</kbd> per spostarti.</p>
+          <div className="flex flex-1 items-center justify-center p-8 text-center">
+            <div className="max-w-xs">
+              <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-background text-muted-foreground shadow-sm ring-1 ring-border">
+                <MessageSquare className="h-6 w-6" />
+              </span>
+              <p className="text-sm font-medium text-foreground">Seleziona una conversazione</p>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                Le email inviate appaiono a destra, le risposte a sinistra. Usa <kbd className="rounded border border-border bg-background px-1 text-[10px] font-medium shadow-sm">J</kbd> / <kbd className="rounded border border-border bg-background px-1 text-[10px] font-medium shadow-sm">K</kbd> per spostarti tra le conversazioni.
+              </p>
             </div>
           </div>
         ) : (
@@ -632,7 +599,7 @@ export function PostaUnreadBadge({ companyId }: { companyId: string }) {
   const { counts, tableMissing, errored } = useOutreachConversations(companyId);
   if (tableMissing || errored || counts.unread <= 0) return null;
   return (
-    <Badge className="ml-1.5 h-4 min-w-4 justify-center bg-orange-500 px-1 text-[10px] tabular-nums">
+    <Badge className="ml-1.5 h-4 min-w-4 justify-center bg-primary px-1 text-[10px] tabular-nums">
       {counts.unread > 99 ? "99+" : counts.unread}
     </Badge>
   );
@@ -651,9 +618,9 @@ function MailboxButton({
   title: string;
   badge?: string;
   count?: number;
-  /** Conversazioni non lette della casella → pillola arancione prioritaria. */
+  /** Conversazioni non lette della casella → pillola accent prioritaria. */
   unread?: number;
-  countTone?: "muted" | "orange";
+  countTone?: "muted" | "primary";
 }) {
   return (
     <button
@@ -661,21 +628,21 @@ function MailboxButton({
       onClick={onClick}
       title={title}
       className={cn(
-        "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[13px] transition-colors",
-        active ? "bg-primary/10 font-medium text-primary" : "hover:bg-muted/70",
+        "group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] transition-colors",
+        active ? "bg-primary/10 font-medium text-primary" : "text-foreground hover:bg-muted/70",
       )}
     >
-      <span className="flex h-4 w-4 shrink-0 items-center justify-center">{icon}</span>
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground group-hover:text-foreground">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{title}</span>
       {badge && (
-        <span className="shrink-0 rounded bg-muted px-1 text-[9px] font-medium uppercase text-muted-foreground">{badge}</span>
+        <span className="shrink-0 rounded bg-muted px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">{badge}</span>
       )}
       {unread != null && unread > 0 ? (
-        <span className="shrink-0 rounded-full bg-orange-500 px-1.5 text-[10px] tabular-nums text-white" title={`${unread} non lette`}>{unread}</span>
+        <span className="shrink-0 rounded-full bg-primary px-1.5 text-[10px] font-semibold tabular-nums text-primary-foreground" title={`${unread} non lette`}>{unread}</span>
       ) : count != null && count > 0 ? (
         <span className={cn(
-          "shrink-0 rounded-full px-1.5 text-[10px] tabular-nums",
-          countTone === "orange" ? "bg-orange-500 text-white" : "bg-muted text-muted-foreground",
+          "shrink-0 rounded-full px-1.5 text-[10px] font-medium tabular-nums",
+          countTone === "primary" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
         )}>{count}</span>
       ) : null}
     </button>
@@ -690,30 +657,123 @@ function FilterPills({
   onChange: (f: StatusFilter) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1.5">
       {([
         { k: "all", label: "Tutte" },
         { k: "interested", label: "Interessati", count: counts.interested },
         { k: "unread", label: "Non lette", count: counts.unread },
         { k: "snoozed", label: "Posticipate", count: counts.snoozed },
         { k: "archived", label: "Archiviate", count: counts.archived },
-      ] as const).map((f) => (
-        <button
-          key={f.k}
-          type="button"
-          onClick={() => onChange(f.k)}
-          className={cn(
-            "rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors",
-            filter === f.k ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70",
-          )}
-        >
-          {f.label}
-          {"count" in f && f.count > 0 && (
-            <span className="ml-1 rounded-full bg-background/20 px-1 tabular-nums">{f.count}</span>
-          )}
-        </button>
-      ))}
+      ] as const).map((f) => {
+        const active = filter === f.k;
+        return (
+          <button
+            key={f.k}
+            type="button"
+            onClick={() => onChange(f.k)}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+              active
+                ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                : "border-border bg-background text-muted-foreground hover:border-foreground/20 hover:text-foreground",
+            )}
+          >
+            {f.label}
+            {"count" in f && f.count > 0 && (
+              <span className={cn(
+                "rounded-full px-1 text-[10px] tabular-nums",
+                active ? "bg-primary-foreground/20" : "bg-muted text-muted-foreground",
+              )}>{f.count}</span>
+            )}
+          </button>
+        );
+      })}
     </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   ConversationRow — riga premium della lista (stile Unibox Instantly/Smartlead).
+   Avatar a tinta deterministica + dot non-letto, nome in evidenza, snippet a 1
+   riga, ora relativa discreta, badge intent/posticipata e badge casella. Riga
+   selezionata: barra accent a sinistra + leggera tinta. Checkbox fuori dal
+   <button> (HTML valido) e visibile su hover/selezione per non sporcare la riga.
+   ────────────────────────────────────────────────────────────────────────── */
+function ConversationRow({
+  conv, active, checked, mailbox, onSelect, onToggle,
+}: {
+  conv: Conversation;
+  active: boolean;
+  checked: boolean;
+  mailbox: SenderRow | null;
+  onSelect: () => void;
+  onToggle: () => void;
+}) {
+  const name = contactName(conv.contact, conv.email);
+  const company = conv.contact?.company_name;
+  const intentMeta = conv.lastIntent ? INTENT_META[conv.lastIntent] : null;
+  return (
+    <li
+      className={cn(
+        "group relative flex items-stretch overflow-hidden rounded-lg transition-colors",
+        active ? "bg-primary/[0.07]" : "hover:bg-muted/60",
+        checked && !active && "bg-primary/[0.05]",
+      )}
+    >
+      {/* Barra accent della riga selezionata. */}
+      {active && <span className="absolute inset-y-1.5 left-0 w-1 rounded-r-full bg-primary" aria-hidden />}
+      {/* Checkbox di selezione multipla — fuori dal <button> (HTML valido). */}
+      <div className={cn(
+        "flex shrink-0 items-center pl-2.5 transition-opacity",
+        checked ? "opacity-100" : "opacity-0 focus-within:opacity-100 group-hover:opacity-100",
+      )}>
+        <Checkbox
+          checked={checked}
+          onCheckedChange={onToggle}
+          aria-label={`Seleziona conversazione con ${name}`}
+        />
+      </div>
+      <button
+        onClick={onSelect}
+        className="flex min-w-0 flex-1 gap-3 py-2.5 pl-2 pr-3 text-left"
+      >
+        <div className="relative shrink-0">
+          <Avatar className="h-10 w-10">
+            <AvatarFallback className={cn("text-xs font-semibold", avatarTint(name))}>{iniziali(name)}</AvatarFallback>
+          </Avatar>
+          {conv.unread && (
+            <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-primary ring-2 ring-background" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className={cn("truncate text-sm", conv.unread ? "font-semibold text-foreground" : "font-medium text-foreground/90")}>{name}</span>
+            <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{relativeTime(conv.lastAt)}</span>
+          </div>
+          {company && (
+            <div className="flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+              <Building2 className="h-3 w-3 shrink-0" /><span className="truncate">{company}</span>
+            </div>
+          )}
+          <div className="mt-0.5 flex items-center justify-between gap-2">
+            <span className={cn("truncate text-xs", conv.unread ? "text-foreground/70" : "text-muted-foreground")}>{conv.lastSnippet}</span>
+            {conv.snoozedUntil ? (
+              <Badge variant="outline" className="shrink-0 gap-1 border-amber-200 bg-amber-50 text-[10px] font-medium text-amber-700">
+                <AlarmClock className="h-2.5 w-2.5" />{relativeTime(conv.snoozedUntil)}
+              </Badge>
+            ) : intentMeta && (
+              <Badge variant="outline" className={cn("shrink-0 text-[10px] font-medium", intentMeta.cls)}>{intentMeta.label}</Badge>
+            )}
+          </div>
+          {mailbox && (
+            <div className="mt-1.5 flex items-center gap-1 truncate">
+              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", senderStatusColor(mailbox.status))} />
+              <span className="truncate text-[10px] text-muted-foreground/80">{mailbox.email}</span>
+            </div>
+          )}
+        </div>
+      </button>
+    </li>
   );
 }
 
@@ -747,7 +807,7 @@ function ConversationFacets({
           value={sequenceId ?? ALL_SEQUENCES}
           onValueChange={(v) => onSequence(v === ALL_SEQUENCES ? null : v)}
         >
-          <SelectTrigger className="h-7 w-auto min-w-[7.5rem] max-w-[12rem] gap-1.5 px-2 text-[11px]" aria-label="Filtra per sequenza">
+          <SelectTrigger className="h-7 w-auto min-w-[7.5rem] max-w-[12rem] gap-1.5 rounded-lg border-border bg-background px-2.5 text-[11px] shadow-none" aria-label="Filtra per sequenza">
             <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <SelectValue placeholder="Sequenza" />
           </SelectTrigger>
@@ -760,7 +820,7 @@ function ConversationFacets({
         </Select>
       )}
       <Select value={dateFilter} onValueChange={(v) => onDate(v as DateFilter)}>
-        <SelectTrigger className="h-7 w-auto min-w-[6.5rem] gap-1.5 px-2 text-[11px]" aria-label="Filtra per data">
+        <SelectTrigger className="h-7 w-auto min-w-[6.5rem] gap-1.5 rounded-lg border-border bg-background px-2.5 text-[11px] shadow-none" aria-label="Filtra per data">
           <CalendarClock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <SelectValue />
         </SelectTrigger>
@@ -821,25 +881,41 @@ function ThreadPane({
 
   return (
     <>
-      <header className="flex shrink-0 flex-col gap-1 border-b bg-background px-3 py-2 sm:px-4">
+      <header className="flex shrink-0 flex-col gap-2 border-b border-border bg-background px-3 py-3 sm:px-4">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="-ml-1 md:hidden" aria-label="Torna alla lista" onClick={onBack}>
+          <Button variant="ghost" size="icon" className="-ml-1 shrink-0 md:hidden" aria-label="Torna alla lista" onClick={onBack}>
             <ChevronLeft className="h-5 w-5" />
           </Button>
-          <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-primary/10 text-xs text-primary">{iniziali(name)}</AvatarFallback>
+          <Avatar className="h-9 w-9 shrink-0">
+            <AvatarFallback className={cn("text-xs font-semibold", avatarTint(name))}>{iniziali(name)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold">{name}</div>
             <div className="flex items-center gap-3 truncate text-xs text-muted-foreground">
               {counterpart && (
-                <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" />{counterpart}</span>
+                <span className="inline-flex min-w-0 items-center gap-1"><Mail className="h-3 w-3 shrink-0" /><span className="truncate">{counterpart}</span></span>
               )}
               {selected.contact?.company_name && (
-                <span className="inline-flex items-center gap-1"><Building2 className="h-3 w-3" />{selected.contact.company_name}</span>
+                <span className="inline-flex min-w-0 items-center gap-1"><Building2 className="h-3 w-3 shrink-0" /><span className="truncate">{selected.contact.company_name}</span></span>
               )}
             </div>
           </div>
+          {/* Casella di riferimento — badge curato (da/verso quale casella). */}
+          {mailbox ? (
+            <Badge
+              variant="outline"
+              className="hidden max-w-[200px] shrink-0 items-center gap-1.5 rounded-lg border-border bg-muted/40 py-1 pl-2 pr-1.5 font-normal sm:inline-flex"
+              title={`Casella: ${mailbox.email}`}
+            >
+              <Mailbox className="h-3 w-3 shrink-0 text-primary" />
+              <span className="truncate text-[11px] text-foreground">{mailbox.email}</span>
+              <span className="shrink-0 rounded bg-background px-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">{providerLabel(mailbox.provider)}</span>
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="hidden shrink-0 gap-1 rounded-lg border-border bg-muted/40 font-normal text-[10px] text-muted-foreground sm:inline-flex">
+              <Mailbox className="h-3 w-3" /> Casella non tracciata
+            </Badge>
+          )}
           {/* Toggle pannello contesto lead (nascosto su mobile: là è in fondo al thread). */}
           <Button
             variant="ghost" size="icon"
@@ -851,56 +927,29 @@ function ThreadPane({
             {showContext ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
           </Button>
         </div>
-        {/* Casella di riferimento della conversazione (da/verso quale casella). */}
-        <div className="flex items-center gap-1.5 pl-0 text-[11px] text-muted-foreground sm:pl-12">
-          <Mailbox className="h-3 w-3 shrink-0 text-orange-500" />
+        {/* Casella di riferimento compatta su mobile (sotto i floor del badge sopra). */}
+        <div className="flex items-center gap-1.5 pl-12 text-[11px] text-muted-foreground sm:hidden">
+          <Mailbox className="h-3 w-3 shrink-0 text-primary" />
           {mailbox ? (
-            <span className="truncate">
-              Casella: <span className="font-medium text-foreground">{mailbox.email}</span>
-              <span className="ml-1 rounded bg-muted px-1 text-[9px] font-medium uppercase">{providerLabel(mailbox.provider)}</span>
-            </span>
+            <span className="truncate">Casella: <span className="font-medium text-foreground">{mailbox.email}</span></span>
           ) : (
-            <span>Casella non determinata (nessun invio tracciato)</span>
+            <span>Casella non determinata</span>
           )}
         </div>
       </header>
 
-      <ScrollArea className="flex-1 px-3 py-4 sm:px-4">
-        <div className="mx-auto max-w-3xl space-y-3">
+      <ScrollArea className="flex-1 px-3 py-5 sm:px-4">
+        <div className="mx-auto max-w-3xl space-y-4">
           {selected.messages.map((m, i) => {
-            const out = m.direction === "out";
             const prev = selected.messages[i - 1];
             // Mostra l'oggetto solo se cambia rispetto al messaggio precedente.
             const showSubject = !!m.subject && m.subject !== prev?.subject;
-            const intentMeta = m.intent ? INTENT_META[m.intent] : null;
+            // Separatore data: prima riga o quando cambia il giorno rispetto al precedente.
+            const showDay = i === 0 || !sameDay(m.at, prev?.at ?? null);
             return (
-              <div key={m.id} className={cn("flex", out ? "justify-end" : "justify-start")}>
-                <div className={cn(
-                  "max-w-[85%] rounded-2xl border px-3.5 py-2 shadow-sm",
-                  out ? "border-primary/20 bg-primary/10" : "bg-background",
-                )}>
-                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    <Mail className="h-3 w-3" />
-                    {out ? "Inviata" : "Risposta"}
-                    {/* Stato di consegna (solo inviate): dati reali da outreach_send_queue. */}
-                    {out && m.delivery && <DeliveryBadge delivery={m.delivery} />}
-                    {intentMeta && (
-                      <Badge variant="outline" className={cn("ml-1 px-1 py-0 text-[9px] normal-case", intentMeta.cls)}>{intentMeta.label}</Badge>
-                    )}
-                  </div>
-                  {showSubject && <div className="mb-1 text-sm font-semibold">{m.subject}</div>}
-                  {out ? (
-                    // Inviate: corpo HTML nostro → render fedele.
-                    <div
-                      className="prose prose-sm max-w-none break-words text-sm [&_a]:text-primary [&_p]:my-1"
-                      dangerouslySetInnerHTML={{ __html: m.body || "—" }}
-                    />
-                  ) : (
-                    // Risposte: testo/snippet grezzo → niente HTML non fidato.
-                    <p className="whitespace-pre-wrap break-words text-sm">{m.body || "—"}</p>
-                  )}
-                  <div className="mt-1 text-right text-[10px] text-muted-foreground">{fullTime(m.at)}</div>
-                </div>
+              <div key={m.id}>
+                {showDay && <ThreadDayDivider iso={m.at} />}
+                <ThreadBubble msg={m} showSubject={showSubject} />
               </div>
             );
           })}
@@ -909,75 +958,143 @@ function ThreadPane({
 
       {/* ═══ Box risposta 2-vie ═══ */}
       {contactId ? (
-        <div className="shrink-0 border-t bg-background p-3 sm:px-4">
-          {/* Toolbar: risposte rapide + firma (inserimento 1-click al cursore). */}
-          <div className="mb-1.5 flex items-center gap-1.5">
-            <QuickRepliesMenu
-              snippets={snippets}
+        <div className="shrink-0 border-t border-border bg-background p-3 sm:px-4">
+          <div className="rounded-xl border border-border bg-muted/30 shadow-sm transition-colors focus-within:border-primary/40 focus-within:bg-background">
+            {/* Toolbar: risposte rapide + firma (inserimento 1-click al cursore). */}
+            <div className="flex items-center gap-1 border-b border-border px-2 py-1.5">
+              <QuickRepliesMenu
+                snippets={snippets}
+                disabled={sending || aiDrafting}
+                onInsert={insertAtCursor}
+              />
+              {signature && (
+                <Button
+                  type="button" size="sm" variant="ghost"
+                  className="h-7 gap-1.5 px-2 text-[11px] text-muted-foreground"
+                  disabled={sending || aiDrafting}
+                  onClick={() => insertAtCursor(signatureToText(signature))}
+                  title="Inserisci la firma del brand"
+                >
+                  <Tag className="h-3.5 w-3.5" /> Firma
+                </Button>
+              )}
+            </div>
+            <Textarea
+              ref={replyRef}
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder={mailbox
+                ? `Scrivi una risposta… verrà inviata da ${mailbox.email}.`
+                : "Scrivi una risposta… verrà inviata dalla stessa casella che ha contattato il prospect."}
+              aria-label="Testo della risposta"
+              rows={3}
+              className="resize-none border-0 bg-transparent text-sm shadow-none focus-visible:ring-0"
               disabled={sending || aiDrafting}
-              onInsert={insertAtCursor}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !sending && replyText.trim()) {
+                  e.preventDefault();
+                  void onSend(contactId);
+                }
+              }}
             />
-            {signature && (
-              <Button
-                type="button" size="sm" variant="ghost"
-                className="h-7 gap-1.5 px-2 text-[11px] text-muted-foreground"
-                disabled={sending || aiDrafting}
-                onClick={() => insertAtCursor(signatureToText(signature))}
-                title="Inserisci la firma del brand"
-              >
-                <Tag className="h-3.5 w-3.5" /> Firma
-              </Button>
-            )}
-          </div>
-          <Textarea
-            ref={replyRef}
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-            placeholder={mailbox
-              ? `Scrivi una risposta… verrà inviata da ${mailbox.email}.`
-              : "Scrivi una risposta… verrà inviata dalla stessa casella che ha contattato il prospect."}
-            aria-label="Testo della risposta"
-            rows={3}
-            className="resize-none text-sm"
-            disabled={sending || aiDrafting}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !sending && replyText.trim()) {
-                e.preventDefault();
-                void onSend(contactId);
-              }
-            }}
-          />
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="text-[11px] text-muted-foreground">⌘/Ctrl + Invio per inviare</span>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm" variant="outline"
-                onClick={() => void onDraft(contactId)}
-                disabled={sending || aiDrafting}
-                className="gap-1.5"
-                title="L'AI legge la conversazione e propone una risposta da rivedere"
-              >
-                {aiDrafting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                {aiDrafting ? "Scrivo…" : "Bozza AI"}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => void onSend(contactId)}
-                disabled={sending || aiDrafting || !replyText.trim()}
-                className="gap-1.5"
-              >
-                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {sending ? "Invio…" : "Invia risposta"}
-              </Button>
+            <div className="flex items-center justify-between gap-2 px-2.5 pb-2 pt-0.5">
+              <span className="hidden text-[11px] text-muted-foreground sm:inline">
+                <kbd className="rounded border border-border bg-background px-1 text-[10px] font-medium">⌘</kbd>
+                <kbd className="ml-0.5 rounded border border-border bg-background px-1 text-[10px] font-medium">↵</kbd> per inviare
+              </span>
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  size="sm" variant="outline"
+                  onClick={() => void onDraft(contactId)}
+                  disabled={sending || aiDrafting}
+                  className="h-8 gap-1.5 border-primary/30 text-primary hover:bg-primary/5 hover:text-primary"
+                  title="L'AI legge la conversazione e propone una risposta da rivedere"
+                >
+                  {aiDrafting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                  {aiDrafting ? "Scrivo…" : "Bozza AI"}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => void onSend(contactId)}
+                  disabled={sending || aiDrafting || !replyText.trim()}
+                  className="h-8 gap-1.5"
+                >
+                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {sending ? "Invio…" : "Invia risposta"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       ) : (
-        <div className="shrink-0 border-t bg-background px-4 py-3 text-[11px] text-muted-foreground">
-          Conversazione senza contatto collegato — rispondi dal tuo client email.
+        <div className="shrink-0 border-t border-border bg-background px-4 py-3">
+          <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-[11px] text-muted-foreground">
+            <Mail className="h-3.5 w-3.5 shrink-0" />
+            Conversazione senza contatto collegato — rispondi dal tuo client email.
+          </div>
         </div>
       )}
     </>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   ThreadBubble — bolla del thread (stile Unibox). Inviate a destra con tinta
+   accent leggera, risposte a sinistra neutre su sfondo bianco. Header con
+   etichetta direzione, badge consegna/aperta/auto-reply e oggetto (se cambia).
+   ────────────────────────────────────────────────────────────────────────── */
+function ThreadBubble({ msg, showSubject }: { msg: ThreadMsg; showSubject: boolean }) {
+  const out = msg.direction === "out";
+  const intentMeta = msg.intent ? INTENT_META[msg.intent] : null;
+  return (
+    <div className={cn("flex", out ? "justify-end" : "justify-start")}>
+      <div className={cn(
+        "max-w-[85%] rounded-2xl border px-3.5 py-2.5 shadow-sm",
+        out
+          ? "rounded-br-md border-primary/20 bg-primary/[0.07]"
+          : "rounded-bl-md border-border bg-background",
+      )}>
+        <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <span className={cn(
+            "inline-flex items-center gap-1 rounded px-1.5 py-px",
+            out ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+          )}>
+            <Mail className="h-2.5 w-2.5" />
+            {out ? "Inviata" : "Risposta"}
+          </span>
+          {/* Stato di consegna (solo inviate): dati reali da outreach_send_queue. */}
+          {out && msg.delivery && <DeliveryBadge delivery={msg.delivery} />}
+          {intentMeta && (
+            <Badge variant="outline" className={cn("px-1.5 py-0 text-[9px] font-medium normal-case", intentMeta.cls)}>{intentMeta.label}</Badge>
+          )}
+        </div>
+        {showSubject && <div className="mb-1 text-sm font-semibold text-foreground">{msg.subject}</div>}
+        {out ? (
+          // Inviate: corpo HTML nostro → render fedele.
+          <div
+            className="prose prose-sm max-w-none break-words text-sm text-foreground [&_a]:text-primary [&_p]:my-1"
+            dangerouslySetInnerHTML={{ __html: msg.body || "—" }}
+          />
+        ) : (
+          // Risposte: testo/snippet grezzo → niente HTML non fidato.
+          <p className="whitespace-pre-wrap break-words text-sm text-foreground">{msg.body || "—"}</p>
+        )}
+        <div className="mt-1.5 text-right text-[10px] tabular-nums text-muted-foreground">{fullTime(msg.at)}</div>
+      </div>
+    </div>
+  );
+}
+
+/** Separatore data tra i messaggi del thread (chip centrato discreto). */
+function ThreadDayDivider({ iso }: { iso: string | null }) {
+  const label = dayLabel(iso);
+  if (!label) return null;
+  return (
+    <div className="my-3 flex items-center gap-3">
+      <span className="h-px flex-1 bg-border" aria-hidden />
+      <span className="rounded-full border border-border bg-background px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground shadow-sm">{label}</span>
+      <span className="h-px flex-1 bg-border" aria-hidden />
+    </div>
   );
 }
 
@@ -1018,9 +1135,9 @@ function LeadContextPanel({
   const busy = actions.pauseSequence.isPending || actions.resumeSequence.isPending || actions.suppressContact.isPending;
 
   return (
-    <aside className="flex w-full shrink-0 flex-col border-t bg-background lg:w-[300px] lg:border-l lg:border-t-0">
-      <div className="flex shrink-0 items-center justify-between border-b px-3 py-2">
-        <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <aside className="flex w-full shrink-0 flex-col border-t border-border bg-muted/30 lg:w-[312px] lg:border-l lg:border-t-0">
+      <div className="flex shrink-0 items-center justify-between border-b border-border bg-background px-3 py-3">
+        <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           <User className="h-3.5 w-3.5" /> Contesto lead
         </h3>
         <Button variant="ghost" size="icon" className="h-6 w-6 lg:hidden" aria-label="Chiudi contesto" onClick={onClose}>
@@ -1029,17 +1146,23 @@ function LeadContextPanel({
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="space-y-4 p-3">
-          {/* ── Identità ── */}
-          <div className="flex items-start gap-3">
-            <Avatar className="h-10 w-10 shrink-0">
-              <AvatarFallback className="bg-primary/10 text-xs text-primary">{iniziali(name)}</AvatarFallback>
+        <div className="space-y-3 p-3">
+          {/* ── Identità ── (card pulita) */}
+          <div className="flex items-start gap-3 rounded-xl border border-border bg-background p-3 shadow-sm">
+            <Avatar className="h-11 w-11 shrink-0">
+              <AvatarFallback className={cn("text-sm font-semibold", avatarTint(name))}>{iniziali(name)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold">{name}</div>
               {contact?.company_name && (
                 <div className="flex items-center gap-1 truncate text-xs text-muted-foreground">
-                  <Building2 className="h-3 w-3 shrink-0" />{contact.company_name}
+                  <Building2 className="h-3 w-3 shrink-0" /><span className="truncate">{contact.company_name}</span>
+                </div>
+              )}
+              {/* Coordinate sintetiche dentro la card identità. */}
+              {email && (
+                <div className="mt-1 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                  <Mail className="h-3 w-3 shrink-0" /><span className="truncate font-mono">{email}</span>
                 </div>
               )}
             </div>
@@ -1059,68 +1182,72 @@ function LeadContextPanel({
 
           {!contact ? (
             // Caso test attuale: conversazione esistente ma email non in rubrica.
-            <div className="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+            <div className="rounded-xl border border-dashed border-border bg-background p-3 text-xs text-muted-foreground shadow-sm">
               <p className="font-medium text-foreground">Nessun contatto collegato</p>
-              <p className="mt-1">Questa email non è in <code className="rounded bg-muted px-1">marketing_contacts</code>. Le azioni sul lead (sequenza, intento, opportunità, opt-out) si attivano collegando un contatto.</p>
+              <p className="mt-1 leading-relaxed">Questa email non è in <code className="rounded bg-muted px-1">marketing_contacts</code>. Le azioni sul lead (sequenza, intento, opportunità, opt-out) si attivano collegando un contatto.</p>
               {email && (
                 <p className="mt-2 inline-flex items-center gap-1 break-all"><Mail className="h-3 w-3 shrink-0" />{email}</p>
               )}
             </div>
           ) : (
             <>
-              {/* ── Coordinate ── */}
-              <div className="space-y-1.5 text-xs">
-                {email && <InfoRow icon={<Mail className="h-3.5 w-3.5" />} value={email} mono />}
-                {contact.phone && <InfoRow icon={<Phone className="h-3.5 w-3.5" />} value={contact.phone} />}
-                {contact.source && <InfoRow icon={<Activity className="h-3.5 w-3.5" />} value={contact.source} label="Sorgente" />}
-              </div>
-
-              {/* ── Contattabilità ── */}
+              {/* ── Stato / contattabilità + intento ── */}
               <div className="flex flex-wrap items-center gap-1.5">
                 {context?.suppressed ? (
-                  <Badge variant="outline" className="gap-1 border-red-200 bg-red-100 text-[10px] text-red-700">
+                  <Badge variant="outline" className="gap-1 border-red-200 bg-red-50 text-[10px] font-medium text-red-700">
                     <ShieldBan className="h-3 w-3" /> {contact.optout_email ? "Opt-out" : "Soppresso"}
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-100 text-[10px] text-emerald-700">
+                  <Badge variant="outline" className="gap-1 border-emerald-200 bg-emerald-50 text-[10px] font-medium text-emerald-700">
                     <ShieldCheck className="h-3 w-3" /> Contattabile
                   </Badge>
                 )}
                 {lastIntent && INTENT_META[lastIntent] && (
-                  <Badge variant="outline" className={cn("text-[10px]", INTENT_META[lastIntent].cls)}>{INTENT_META[lastIntent].label}</Badge>
+                  <Badge variant="outline" className={cn("text-[10px] font-medium", INTENT_META[lastIntent].cls)}>{INTENT_META[lastIntent].label}</Badge>
                 )}
               </div>
+
+              {/* ── Coordinate aggiuntive (email è già nella card identità) ── */}
+              {(contact.phone || contact.source) && (
+                <div className="space-y-1.5 rounded-xl border border-border bg-background p-3 text-xs shadow-sm">
+                  {contact.phone && <InfoRow icon={<Phone className="h-3.5 w-3.5" />} value={contact.phone} />}
+                  {contact.source && <InfoRow icon={<Activity className="h-3.5 w-3.5" />} value={contact.source} label="Sorgente" />}
+                </div>
+              )}
 
               {/* ── Liste / tag ── */}
               {contact.tags && contact.tags.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1">
                   <Tag className="h-3 w-3 text-muted-foreground" />
                   {contact.tags.slice(0, 8).map((t) => (
-                    <span key={t} className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{t}</span>
+                    <span key={t} className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{t}</span>
                   ))}
                 </div>
               )}
 
               {/* ── Stato sequenza ── */}
-              <div>
-                <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Sequenza</div>
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Sequenza</div>
                 {loading ? (
-                  <Skeleton className="h-12 w-full rounded-md" />
+                  <Skeleton className="h-14 w-full rounded-xl" />
                 ) : context && context.sequences.length > 0 ? (
                   <div className="space-y-1.5">
                     {context.sequences.slice(0, 3).map((s) => {
                       const meta = ENROLLMENT_STATUS_META[s.status];
                       return (
-                        <div key={s.enrollmentId} className="rounded-md border bg-muted/20 p-2">
+                        <div key={s.enrollmentId} className="rounded-xl border border-border bg-background p-2.5 shadow-sm">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="truncate text-xs font-medium">{s.sequenceName ?? "Sequenza"}</span>
-                            <Badge variant="outline" className={cn("shrink-0 text-[9px]", meta?.cls)}>{meta?.label ?? s.status}</Badge>
+                            <span className="inline-flex min-w-0 items-center gap-1.5 text-xs font-medium">
+                              <GitBranch className="h-3 w-3 shrink-0 text-muted-foreground" />
+                              <span className="truncate">{s.sequenceName ?? "Sequenza"}</span>
+                            </span>
+                            <Badge variant="outline" className={cn("shrink-0 text-[9px] font-medium", meta?.cls)}>{meta?.label ?? s.status}</Badge>
                           </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
-                            <span>Step {s.currentStep}</span>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                            <span className="inline-flex items-center gap-1"><Layers className="h-2.5 w-2.5" /> Step {s.currentStep}</span>
                             {isEnrollmentLive(s.status) && s.nextActionAt && (
                               <span className="inline-flex items-center gap-1">
-                                <Clock className="h-3 w-3" /> Prossimo {relativeTime(s.nextActionAt)}
+                                <Clock className="h-2.5 w-2.5" /> Prossimo {relativeTime(s.nextActionAt)}
                               </span>
                             )}
                           </div>
@@ -1129,15 +1256,18 @@ function LeadContextPanel({
                     })}
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground">Non iscritto a nessuna sequenza.</p>
+                  <p className="rounded-xl border border-dashed border-border bg-background px-3 py-2.5 text-xs text-muted-foreground shadow-sm">Non iscritto a nessuna sequenza.</p>
                 )}
               </div>
 
               {/* ── Mini-stats ── */}
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <Stat label="Inviate" value={context?.sentCount ?? conversation.sentCount} />
-                <Stat label="Risposte" value={context?.replyCount ?? conversation.replyCount} />
-                <Stat label="Ultima" value={relativeTime(context?.lastActivityAt ?? conversation.lastAt) || "—"} small />
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Attività</div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <Stat label="Inviate" value={context?.sentCount ?? conversation.sentCount} />
+                  <Stat label="Risposte" value={context?.replyCount ?? conversation.replyCount} />
+                  <Stat label="Ultima" value={relativeTime(context?.lastActivityAt ?? conversation.lastAt) || "—"} small />
+                </div>
               </div>
             </>
           )}
@@ -1145,21 +1275,21 @@ function LeadContextPanel({
       </ScrollArea>
 
       {/* ── Azioni rapide ── */}
-      <div className="shrink-0 space-y-2 border-t bg-background p-3">
-        <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Azioni rapide</div>
+      <div className="shrink-0 space-y-2.5 border-t border-border bg-background p-3">
+        <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Intento</div>
         {/* Intent 1-click */}
         <div className="grid grid-cols-3 gap-1.5">
-          <Button size="sm" variant={lastIntent === "interested" ? "default" : "outline"} className="h-7 gap-1 px-1 text-[11px]"
+          <Button size="sm" variant={lastIntent === "interested" ? "default" : "outline"} className="h-8 gap-1 px-1 text-[11px]"
             disabled={!contactId || intentPending} onClick={() => onSetIntent("interested")} title="Segna: Interessato">
-            <ThumbsUp className="h-3 w-3" /> Sì
+            <ThumbsUp className="h-3.5 w-3.5" /> Sì
           </Button>
-          <Button size="sm" variant={lastIntent === "out_of_office" ? "default" : "outline"} className="h-7 gap-1 px-1 text-[11px]"
+          <Button size="sm" variant={lastIntent === "out_of_office" ? "default" : "outline"} className="h-8 gap-1 px-1 text-[11px]"
             disabled={!contactId || intentPending} onClick={() => onSetIntent("out_of_office")} title="Segna: Non ora / fuori sede">
-            <Clock className="h-3 w-3" /> Dopo
+            <Clock className="h-3.5 w-3.5" /> Dopo
           </Button>
-          <Button size="sm" variant={lastIntent === "not_interested" ? "default" : "outline"} className="h-7 gap-1 px-1 text-[11px]"
+          <Button size="sm" variant={lastIntent === "not_interested" ? "default" : "outline"} className="h-8 gap-1 px-1 text-[11px]"
             disabled={!contactId || intentPending} onClick={() => onSetIntent("not_interested")} title="Segna: Non interessato">
-            <ThumbsDown className="h-3 w-3" /> No
+            <ThumbsDown className="h-3.5 w-3.5" /> No
           </Button>
         </div>
         {/* Pausa/Riprendi + Converti + Sopprimi */}
@@ -1185,7 +1315,7 @@ function LeadContextPanel({
             initialContactId={contactId ?? undefined}
           />
         </div>
-        <Button size="sm" variant="outline" className="h-8 w-full gap-1.5 text-xs text-red-600 hover:text-red-700"
+        <Button size="sm" variant="outline" className="h-8 w-full gap-1.5 border-destructive/30 text-xs text-destructive hover:bg-destructive/5 hover:text-destructive"
           disabled={!contactId || busy || context?.suppressed}
           onClick={() => contactId && actions.suppressContact.mutate({ contactId, email })}
           title={context?.suppressed ? "Già soppresso" : "Aggiungi alla blocklist e ferma la sequenza"}>
@@ -1335,7 +1465,7 @@ function AiSummaryBlock({
   };
 
   return (
-    <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5">
+    <div className="rounded-xl border border-primary/20 bg-primary/[0.06] p-2.5 shadow-sm">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
           <Sparkles className="h-3.5 w-3.5" /> Riepilogo AI
@@ -1401,9 +1531,9 @@ function InfoRow({ icon, value, label, mono }: { icon: React.ReactNode; value: s
 
 function Stat({ label, value, small }: { label: string; value: string | number; small?: boolean }) {
   return (
-    <div className="rounded-md border bg-muted/20 px-1.5 py-1.5">
-      <div className={cn("font-semibold tabular-nums", small ? "text-[11px] leading-tight" : "text-base")}>{value}</div>
-      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
+    <div className="rounded-xl border border-border bg-background px-1.5 py-2 shadow-sm">
+      <div className={cn("font-semibold tabular-nums text-foreground", small ? "text-[11px] leading-tight" : "text-lg leading-none")}>{value}</div>
+      <div className="mt-1 text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
     </div>
   );
 }
@@ -1477,6 +1607,27 @@ function DeliveryBadge({ delivery }: { delivery: MsgDelivery }) {
       )}
     </TooltipProvider>
   );
+}
+
+/** True se due ISO cadono nello stesso giorno solare (locale). Null → false. */
+function sameDay(a: string | null, b: string | null): boolean {
+  if (!a || !b) return false;
+  const da = new Date(a), db = new Date(b);
+  if (Number.isNaN(da.getTime()) || Number.isNaN(db.getTime())) return false;
+  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+}
+
+/** Etichetta del separatore data nel thread: "Oggi"/"Ieri" o data estesa (IT). */
+function dayLabel(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (sameDay(iso, today.toISOString())) return "Oggi";
+  if (sameDay(iso, yesterday.toISOString())) return "Ieri";
+  return new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "long", year: "numeric" }).format(d);
 }
 
 /** Firma brand → testo per la textarea (le firme sono HTML, qui le linearizziamo). */
