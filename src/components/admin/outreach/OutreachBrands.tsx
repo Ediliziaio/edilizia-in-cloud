@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Trash2, Building2 } from "lucide-react";
@@ -25,6 +26,8 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
   const [name, setName] = useState("");
   const [fromName, setFromName] = useState("");
   const [replyTo, setReplyTo] = useState("");
+  const [signature, setSignature] = useState("");
+  const [footerAddress, setFooterAddress] = useState("");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
 
@@ -45,10 +48,11 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
       const { error } = await db.from(T).insert({
         company_id: companyId, name: name.trim(),
         from_name: fromName.trim() || null, reply_to: replyTo.trim() || null,
+        signature: signature.trim() || null, footer_address: footerAddress.trim() || null,
       });
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Brand creato"); setName(""); setFromName(""); setReplyTo(""); setShow(false); invalidate(); },
+    onSuccess: () => { toast.success("Brand creato"); setName(""); setFromName(""); setReplyTo(""); setSignature(""); setFooterAddress(""); setShow(false); invalidate(); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
@@ -87,6 +91,12 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
               <Input value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Edilizia in Cloud" className="h-8" /></div>
             <div className="min-w-[150px] flex-1 space-y-1"><Label className="text-xs">Reply-to</Label>
               <Input value={replyTo} onChange={(e) => setReplyTo(e.target.value)} placeholder="risposte@dominio" className="h-8" /></div>
+            <div className="basis-full space-y-1"><Label className="text-xs">Firma email</Label>
+              <Textarea value={signature} onChange={(e) => setSignature(e.target.value)} placeholder={"Cordiali saluti,\n{{first_name}}\nEdilizia in Cloud"} rows={3} className="text-sm" />
+              <p className="text-[11px] text-muted-foreground">Appesa in fondo a ogni email. Supporta {"{{first_name}}"} e spintax.</p></div>
+            <div className="basis-full space-y-1"><Label className="text-xs">Indirizzo (footer)</Label>
+              <Input value={footerAddress} onChange={(e) => setFooterAddress(e.target.value)} placeholder="Via Roma 1, 20100 Milano (MI)" className="h-8" />
+              <p className="text-[11px] text-muted-foreground">Indirizzo postale nel footer (obbligo anti-spam).</p></div>
             <Button size="sm" className="h-8" disabled={add.isPending} onClick={() => add.mutate()}>{add.isPending ? "…" : "Salva"}</Button>
           </div>
         )}
