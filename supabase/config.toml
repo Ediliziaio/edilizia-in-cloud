@@ -28,6 +28,12 @@ verify_jwt = false
 [functions.outreach-inbound]
 verify_jwt = false
 
+# Lettura risposte via IMAP (cron): legge le mailbox del pool, matcha il contatto
+# e riusa handleInboundReply (stop sequenza su risposta). Auth x-cron-secret ==
+# PROACTIVE_CRON_SECRET o service role.
+[functions.outreach-imap-poll]
+verify_jwt = false
+
 # Warm-up caselle (cron): le caselle del pool si scambiano email di riscaldamento.
 # Auth x-cron-secret == PROACTIVE_CRON_SECRET o service role.
 [functions.outreach-warmup]
