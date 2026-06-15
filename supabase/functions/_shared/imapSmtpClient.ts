@@ -426,7 +426,7 @@ function decodeRFC2047(s: string): string {
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
         return new TextDecoder().decode(bytes);
       } else {
-        return payload.replace(/_/g, " ").replace(/=([0-9A-Fa-f]{2})/g, (_, hex) =>
+        return payload.replace(/_/g, " ").replace(/=([0-9A-Fa-f]{2})/g, (_: string, hex: string) =>
           String.fromCharCode(parseInt(hex, 16)),
         );
       }
