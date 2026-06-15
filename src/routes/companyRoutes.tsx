@@ -296,6 +296,7 @@ const Scadenzario = lazy(() => import("@/pages/azienda/billing/Scadenzario"));
 
 // Billing mode guard
 import { BillingModeGuard } from "@/components/billing/BillingModeGuard";
+import { BillingActivationGuard } from "@/components/billing/BillingActivationGuard";
 const DocumentiFiscaliList = lazy(() => import("@/pages/azienda/fatturazione/DocumentiFiscaliList"));
 const EditorDocumento = lazy(() => import("@/pages/azienda/fatturazione/EditorDocumento"));
 const DocumentoDetail = lazy(() => import("@/pages/azienda/fatturazione/DocumentoDetail"));
@@ -459,7 +460,9 @@ export default function CompanyRoutesContainer() {
           <ProtectedRoute allowedRoles={[...COMPANY_ROLES]}>
             <CompanyAppGuard>
               <ErrorBoundary title="Errore nell'area azienda">
-                <CompanyLayout />
+                <BillingActivationGuard>
+                  <CompanyLayout />
+                </BillingActivationGuard>
               </ErrorBoundary>
             </CompanyAppGuard>
           </ProtectedRoute>
