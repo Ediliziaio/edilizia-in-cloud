@@ -16,8 +16,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { normalizeInbound, isSnsSubscriptionConfirmation } from "../_shared/outreach-inbound-logic.ts";
 import { classifyDeliveryEvent, shouldPauseSender, type DeliveryEvent } from "../_shared/outreach-reputation.ts";
-import { aiRouterComplete } from "../_shared/aiRouter.ts";
-import { normalizeIntent, normalizeConfidence, INTENT_SYSTEM_PROMPT, buildIntentUserPrompt } from "../_shared/outreach-intent.ts";
+import { handleInboundReply } from "../_shared/outreach-reply-handler.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -83,38 +82,15 @@ Deno.serve(async (req) => {
       enrollmentId = enr?.id ?? null;
     }
 
-    // 7. Scrivi la risposta nell'inbox
-    const { data: inserted, error: insErr } = await supabase.from("outreach_replies").insert({
-      company_id: PLATFORM_COMPANY, contact_id: contactId, enrollment_id: enrollmentId,
-      channel: "email", from_email: norm.fromEmail, subject: norm.subject, snippet: norm.snippet,
-      status: "unread", received_at: nowIso, raw: body ?? {},
-    }).select("id").single();
-    if (insErr) throw insErr;
+    // 7. Gestisci la risposta (inbox + intent + stop sequenza + opt-out).
+    // Logica condivisa col poller IMAP (outreach-imap-poll): _shared/outreach-reply-handler.
+    await handleInboundReply(supabase, {
+      contactId, enrollmentId,
+      from: norm.fromEmail, subject: norm.subject ?? "", text: norm.snippet ?? "",
+      messageId: norm.messageId,
+    });
 
-    // 7b. Classifica l'intento con l'AI (best-effort, non blocca)
-    let intent: string | null = null;
-    if (inserted?.id) intent = await classifyAndStoreIntent(supabase, inserted.id, norm.subject ?? "", norm.snippet ?? "");
-
-    // 8. STOP su risposta: ferma la sequenza e annulla i messaggi ancora in coda.
-    // Se l'AI ha capito "unsubscribe", opt-out del contatto e blocklist.
-    if (enrollmentId) {
-      await supabase.from("outreach_enrollments")
-        .update({ status: "replied", stop_reason: "Risposta del destinatario" }).eq("id", enrollmentId);
-      await supabase.from("outreach_send_queue")
-        .update({ status: "cancelled" }).eq("enrollment_id", enrollmentId).eq("status", "queued");
-    }
-    if (intent === "unsubscribe") {
-      if (contactId) {
-        await supabase.from("marketing_contacts")
-          .update({ optout_email: true, optout_at: nowIso, optout_reason: "unsubscribe" }).eq("id", contactId);
-      }
-      await supabase.from("email_suppressions").upsert(
-        { company_id: PLATFORM_COMPANY, email: norm.fromEmail, reason: "unsubscribe", notes: "Richiesta nella risposta (AI)" },
-        { onConflict: "company_id,email_normalized,reason" },
-      );
-    }
-
-    return json({ ok: true, matched: !!contactId, stopped: !!enrollmentId, intent }, 200, cors);
+    return json({ ok: true, matched: !!contactId, stopped: !!enrollmentId }, 200, cors);
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500, cors);
   }
@@ -181,41 +157,6 @@ async function handleDeliveryEvent(supabase: any, ev: DeliveryEvent, rawBody: an
   }
 
   return { type: ev.type, processed: ev.emails.length, senders_paused: pausedSenders.size };
-}
-
-/**
- * Classifica l'intento di una risposta con l'AI (Unibox NLP) e lo salva sulla
- * riga outreach_replies. Best-effort: ogni errore (AI giù, colonna assente
- * prima della migrazione) viene loggato ma non blocca l'ingestione.
- */
-async function classifyAndStoreIntent(supabase: any, replyId: string, subject: string, snippet: string): Promise<string | null> {
-  try {
-    const result = await aiRouterComplete({
-      supabase,
-      taskKey: "outreach_reply_intent",
-      messages: [
-        { role: "system", content: INTENT_SYSTEM_PROMPT },
-        { role: "user", content: buildIntentUserPrompt(subject, snippet) },
-      ],
-      params: { temperature: 0, max_tokens: 60 },
-      responseFormat: { type: "json_object" },
-      companyId: PLATFORM_COMPANY,
-      userId: null,
-      skipCharge: true,
-    });
-    let intent = "other";
-    let confidence = 0;
-    try {
-      const o = JSON.parse(result.content || "{}");
-      intent = normalizeIntent(o.intent);
-      confidence = normalizeConfidence(o.confidence);
-    } catch { /* default other */ }
-    await supabase.from("outreach_replies").update({ intent, intent_confidence: confidence }).eq("id", replyId);
-    return intent;
-  } catch (e) {
-    console.warn("[outreach-inbound] intent classify skip:", e instanceof Error ? e.message : e);
-    return null;
-  }
 }
 
 function json(body: unknown, status: number, cors: Record<string, string>): Response {
