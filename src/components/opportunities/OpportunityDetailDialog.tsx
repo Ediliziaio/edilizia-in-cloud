@@ -1180,9 +1180,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         context={opportunity.name}
         defaultChannel={quickSend.channel}
         onSent={() => {
-          queryClient.invalidateQueries({ queryKey: ["comm-sms"] });
-          queryClient.invalidateQueries({ queryKey: ["comm-wa"] });
-          queryClient.invalidateQueries({ queryKey: ["comm-email"] });
+          // Aggiorna il Registro attività (timeline) dopo l'invio dal popup.
+          queryClient.invalidateQueries({ queryKey: ["reg-sms"] });
+          queryClient.invalidateQueries({ queryKey: ["reg-wa"] });
+          queryClient.invalidateQueries({ queryKey: ["reg-email-out"] });
         }}
       />
     )}
