@@ -424,6 +424,11 @@ export default function SettingsEmailDomain() {
               <p className="text-xs text-muted-foreground">
                 Senza <code>https://</code> o <code>www.</code>. Solo il dominio radice.
               </p>
+              {inputDomain.trim() !== "" && !domainValid && (
+                <p className="text-xs text-destructive">
+                  Inserisci un dominio valido, es. azienda.it
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

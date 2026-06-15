@@ -323,13 +323,19 @@ export default function SettingsFinanziamenti() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {tabelleFiltrate.length === 0 && search && (
+                {tabelleFiltrate.length === 0 &&
+                  (search.trim() !== "" ||
+                    statusFilter !== "all" ||
+                    finanziariaFilter !== "all" ||
+                    durataFilter !== "all") && (
                   <TableRow>
                     <TableCell
                       colSpan={9}
                       className="text-center py-8 text-muted-foreground"
                     >
-                      Nessuna tabella trovata per "{search}".
+                      {search.trim() !== ""
+                        ? `Nessuna tabella trovata per "${search}".`
+                        : "Nessuna tabella trovata con i filtri selezionati."}
                     </TableCell>
                   </TableRow>
                 )}
