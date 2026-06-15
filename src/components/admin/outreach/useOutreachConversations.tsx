@@ -183,13 +183,39 @@ export interface Conversation {
   sentCount: number;
   /** N. risposte in arrivo nel thread (mini-stat del pannello contesto). */
   replyCount: number;
+  /** Sequenze (outreach_sequences.id) a cui il contatto è iscritto. Per il filtro campagna. */
+  sequenceIds: string[];
+  /** Nomi delle sequenze iscritte (allineati a sequenceIds), per tooltip/UX. */
+  sequenceNames: string[];
 }
 
 export type StatusFilter = "all" | "interested" | "unread" | "archived";
 
+/** Finestra rapida sull'ultima attività della conversazione (lastAt). */
+export type DateFilter = "all" | "today" | "7d" | "30d";
+
+/** Voce del selettore "Filtra per sequenza/campagna" (id reale + label). */
+export interface SequenceOption {
+  id: string;
+  name: string;
+}
+
 const UNREAD = "unread";
 const READ = "read";
 const ARCHIVED = "archived";
+
+/**
+ * Confine inferiore (epoch ms) della finestra `DateFilter`, oppure null per "tutto".
+ * Esportata per testabilità (logica pura).
+ */
+export function dateFilterFloor(filter: DateFilter, now: number = Date.now()): number | null {
+  switch (filter) {
+    case "today": return now - 24 * 60 * 60 * 1000;
+    case "7d": return now - 7 * 24 * 60 * 60 * 1000;
+    case "30d": return now - 30 * 24 * 60 * 60 * 1000;
+    default: return null;
+  }
+}
 
 export function contactName(c: ContactRow | null, email: string | null): string {
   if (c) {
@@ -339,6 +365,42 @@ export function useOutreachConversations(companyId: string) {
     },
   });
 
+  // Iscrizioni a sequenza per TUTTI i contatti dell'azienda → mappa contatto →
+  // sequenze (id + nome). Serve al filtro "per sequenza/campagna" nella lista
+  // conversazioni e popola sequenceIds/sequenceNames per conversazione. Una sola
+  // query enrollments + una per i nomi (evita N+1). Best-effort: se la tabella
+  // manca (migrazione non applicata) il filtro semplicemente non mostra opzioni.
+  const enrollmentsAllQ = useQuery({
+    queryKey: ["outreach-inbox-enrollments", companyId],
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from(T_ENROLLMENTS)
+        .select("contact_id,sequence_id")
+        .eq("company_id", companyId)
+        .limit(5000);
+      if (error) throw error;
+      return (data ?? []) as Array<{ contact_id: string | null; sequence_id: string | null }>;
+    },
+  });
+
+  // Sequenze attive dell'azienda (per le opzioni del dropdown filtro). I nomi di
+  // TUTTE le sequenze (anche non attive) servono comunque per le etichette delle
+  // conversazioni, quindi carichiamo l'elenco completo e filtriamo lato opzioni.
+  const sequencesQ = useQuery({
+    queryKey: ["outreach-inbox-sequences", companyId],
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from(T_SEQUENCES)
+        .select("id,name,status")
+        .eq("company_id", companyId)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string; status: string }>;
+    },
+  });
+
   const markRead = useMutation({
     mutationFn: async (contactId: string) => {
       const { error } = await db
@@ -353,35 +415,45 @@ export function useOutreachConversations(companyId: string) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
-  // Bulk: tutte le risposte non lette dell'azienda → lette.
+  // Bulk: segna lette le risposte non lette. Senza argomenti agisce su TUTTA
+  // l'azienda (comportamento storico); con un elenco di contactId agisce SOLO
+  // sulle conversazioni selezionate (selezione multipla del client). Le
+  // conversazioni senza contatto collegato non hanno risposte etichettabili per
+  // contatto, quindi vengono semplicemente ignorate dal filtro `.in()`.
   const markAllRead = useMutation({
-    mutationFn: async () => {
-      const { error } = await db
-        .from(T_REPLIES)
-        .update({ status: READ })
+    mutationFn: async (contactIds?: string[]) => {
+      let q = db.from(T_REPLIES).update({ status: READ })
         .eq("company_id", companyId)
         .eq("status", UNREAD);
+      if (contactIds && contactIds.length > 0) q = q.in("contact_id", contactIds);
+      const { error } = await q;
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("Tutte le risposte segnate come lette");
+    onSuccess: (_res, contactIds) => {
+      toast.success(contactIds && contactIds.length > 0
+        ? "Conversazioni selezionate segnate come lette"
+        : "Tutte le risposte segnate come lette");
       qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
-  // Bulk: tutte le risposte lette dell'azienda → archiviate (escono dalla lista di default).
+  // Bulk: archivia le risposte lette → escono dalla lista di default. Senza
+  // argomenti agisce su tutta l'azienda; con un elenco di contactId agisce solo
+  // sulle conversazioni selezionate. Allineato a markAllRead.
   const archiveRead = useMutation({
-    mutationFn: async () => {
-      const { error } = await db
-        .from(T_REPLIES)
-        .update({ status: ARCHIVED })
+    mutationFn: async (contactIds?: string[]) => {
+      let q = db.from(T_REPLIES).update({ status: ARCHIVED })
         .eq("company_id", companyId)
         .eq("status", READ);
+      if (contactIds && contactIds.length > 0) q = q.in("contact_id", contactIds);
+      const { error } = await q;
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("Conversazioni lette archiviate");
+    onSuccess: (_res, contactIds) => {
+      toast.success(contactIds && contactIds.length > 0
+        ? "Conversazioni selezionate archiviate"
+        : "Conversazioni lette archiviate");
       qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
@@ -463,6 +535,8 @@ export function useOutreachConversations(companyId: string) {
           primarySenderId: null,
           sentCount: 0,
           replyCount: 0,
+          sequenceIds: [],
+          sequenceNames: [],
         };
         groups.set(key, conv);
       } else if (!conv.email && email) {
@@ -532,6 +606,17 @@ export function useOutreachConversations(companyId: string) {
       if (r.status === ARCHIVED) archivedCount.set(conv.key, (archivedCount.get(conv.key) ?? 0) + 1);
     }
 
+    // Sequenze per contatto (per il filtro campagna + etichette). Le iscrizioni
+    // sono per contact_id; le conversazioni senza contatto restano senza sequenza.
+    const seqNameById = new Map((sequencesQ.data ?? []).map((s) => [s.id, s.name]));
+    const seqIdsByContact = new Map<string, Set<string>>();
+    for (const e of enrollmentsAllQ.data ?? []) {
+      if (!e.contact_id || !e.sequence_id) continue;
+      let set = seqIdsByContact.get(e.contact_id);
+      if (!set) { set = new Set(); seqIdsByContact.set(e.contact_id, set); }
+      set.add(e.sequence_id);
+    }
+
     const list = Array.from(groups.values());
     for (const conv of list) {
       const inN = inCount.get(conv.key) ?? 0;
@@ -546,11 +631,18 @@ export function useOutreachConversations(companyId: string) {
       // Intent dell'ultima risposta in arrivo (non delle inviate).
       const lastIn = [...conv.messages].reverse().find((m) => m.direction === "in" && m.intent);
       conv.lastIntent = lastIn?.intent ?? null;
+      // Sequenze del contatto collegato (vuote per le email sciolte).
+      const cid = conv.contact?.id ?? null;
+      const seqSet = cid ? seqIdsByContact.get(cid) : undefined;
+      if (seqSet && seqSet.size > 0) {
+        conv.sequenceIds = [...seqSet];
+        conv.sequenceNames = conv.sequenceIds.map((id) => seqNameById.get(id) ?? "Sequenza");
+      }
     }
     // Conversazioni ordinate per ultima attività desc.
     list.sort((a, b) => new Date(b.lastAt ?? 0).getTime() - new Date(a.lastAt ?? 0).getTime());
     return list;
-  }, [sentQ.data, repliesQ.data, contactsQ.data]);
+  }, [sentQ.data, repliesQ.data, contactsQ.data, enrollmentsAllQ.data, sequencesQ.data]);
 
   const counts = useMemo(() => ({
     // Solo conversazioni attive (non interamente archiviate) per i contatori di testata.
@@ -570,20 +662,44 @@ export function useOutreachConversations(companyId: string) {
     return m;
   }, [conversations]);
 
+  // Opzioni del dropdown "Filtra per sequenza/campagna": sequenze attive +
+  // qualsiasi sequenza che abbia almeno una conversazione (così se una campagna
+  // è stata messa in pausa/archiviata ma ha ancora thread, resta filtrabile).
+  // Ordinate per nome, deduplicate.
+  const sequenceOptions = useMemo<SequenceOption[]>(() => {
+    const seqs = sequencesQ.data ?? [];
+    const withConv = new Set<string>();
+    for (const conv of conversations) for (const id of conv.sequenceIds) withConv.add(id);
+    const out = new Map<string, string>();
+    for (const s of seqs) {
+      if (s.status === "active" || withConv.has(s.id)) out.set(s.id, s.name);
+    }
+    return [...out.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, "it"));
+  }, [sequencesQ.data, conversations]);
+
   const isLoading = sentQ.isLoading || repliesQ.isLoading || contactsQ.isLoading;
   const errored = sentQ.error || repliesQ.error;
   const tableMissing =
     (sentQ.error && isMissingTableError(sentQ.error)) ||
     (repliesQ.error && isMissingTableError(repliesQ.error));
 
-  /** Filtro stato + ricerca testuale, riusabile da entrambi i componenti. */
+  /**
+   * Filtro stato + ricerca + casella + sequenza + data, riusabile da entrambi i
+   * componenti. `sequenceId`/`dateFilter` sono opzionali (back-compat con l'inbox
+   * compatta che passa solo i primi argomenti).
+   */
   const filterConversations = (
     convs: Conversation[],
     filter: StatusFilter,
     search: string,
     senderId?: string | null,
+    sequenceId?: string | null,
+    dateFilter: DateFilter = "all",
   ): Conversation[] => {
     const q = search.trim().toLowerCase();
+    const floor = dateFilterFloor(dateFilter);
     return convs.filter((conv) => {
       // Le conversazioni interamente archiviate appaiono solo sotto il filtro "Archiviate".
       if (filter === "archived") { if (!conv.archived) return false; }
@@ -592,6 +708,13 @@ export function useOutreachConversations(companyId: string) {
       if (filter === "unread" && !conv.unread) return false;
       // Filtro casella: la conversazione deve aver usato la casella selezionata.
       if (senderId && !conv.senderAccountIds.includes(senderId)) return false;
+      // Filtro sequenza/campagna: il contatto deve essere iscritto a quella sequenza.
+      if (sequenceId && !conv.sequenceIds.includes(sequenceId)) return false;
+      // Filtro data: l'ultima attività deve cadere dentro la finestra scelta.
+      if (floor != null) {
+        const t = conv.lastAt ? new Date(conv.lastAt).getTime() : 0;
+        if (!(t >= floor)) return false;
+      }
       if (q) {
         const name = contactName(conv.contact, conv.email).toLowerCase();
         const email = (conv.contact?.email || conv.email || "").toLowerCase();
@@ -608,6 +731,7 @@ export function useOutreachConversations(companyId: string) {
     sendersById,
     senders: sendersQ.data ?? [],
     unreadBySender,
+    sequenceOptions,
     // stato query
     isLoading,
     errored,

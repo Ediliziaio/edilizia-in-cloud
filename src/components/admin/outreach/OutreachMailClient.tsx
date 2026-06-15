@@ -6,20 +6,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   Inbox, Mailbox, Mail, Search, ChevronLeft, MessageSquare, AlertTriangle, Building2,
   Send, Loader2, Wand2, CheckCheck, Archive, Layers, PanelRightOpen, PanelRightClose,
   User, Phone, Tag, ShieldBan, Pause, Play, ThumbsUp, ThumbsDown, Clock, Briefcase,
-  Activity, ShieldCheck, Check, XCircle, Ban, MessageSquareReply,
+  Activity, ShieldCheck, Check, XCircle, Ban, MessageSquareReply, X, CalendarClock, GitBranch,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { MigrationGate } from "./_shared";
 import { OutreachConvertContactDialog } from "./OutreachConvertContactDialog";
 import {
-  INTENT_META, ENROLLMENT_STATUS_META, type Conversation, type StatusFilter,
-  type LeadContext, type LeadSequence, type MsgDelivery,
+  INTENT_META, ENROLLMENT_STATUS_META, type Conversation, type StatusFilter, type DateFilter,
+  type SequenceOption, type LeadContext, type LeadSequence, type MsgDelivery,
   contactName, iniziali, relativeTime, fullTime, providerLabel, senderStatusColor, stripHtml,
   useOutreachConversations, useReplyComposer, useLeadContext, useLeadActions, isEnrollmentLive,
 } from "./useOutreachConversations";
@@ -52,7 +54,7 @@ const MAIL_CLIENT_HEIGHT = "h-[calc(100vh-15rem)] min-h-[520px]";
 
 export function OutreachMailClient({ companyId }: { companyId: string }) {
   const {
-    conversations, counts, sendersById, senders, unreadBySender,
+    conversations, counts, sendersById, senders, unreadBySender, sequenceOptions,
     isLoading, errored, tableMissing,
     markRead, markAllRead, archiveRead, setIntent, filterConversations, signatureForSender,
   } = useOutreachConversations(companyId);
@@ -62,7 +64,13 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
   const [senderId, setSenderId] = useState<string | null>(null); // null = tutte le caselle
+  const [sequenceId, setSequenceId] = useState<string | null>(null); // null = tutte le sequenze
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all"); // finestra ultima attività
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  // Selezione multipla per le azioni bulk mirate. Resettata al cambio di QUALSIASI
+  // filtro/casella negli handler (niente setState-in-effect): le righe selezionate
+  // potrebbero uscire dalla lista filtrata, evitiamo di operare su conversazioni nascoste.
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [showListMobile, setShowListMobile] = useState(false); // overlay caselle su mobile
   // Override esplicito del pannello contesto lead: null = segue il default (aperto
   // se la conversazione ha un contatto collegato, chiuso se è solo un'email sciolta).
@@ -70,8 +78,8 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
   const [contextOverride, setContextOverride] = useState<boolean | null>(null);
 
   const filtered = useMemo(
-    () => filterConversations(conversations, filter, search, senderId),
-    [conversations, filter, search, senderId, filterConversations],
+    () => filterConversations(conversations, filter, search, senderId, sequenceId, dateFilter),
+    [conversations, filter, search, senderId, sequenceId, dateFilter, filterConversations],
   );
 
   const selected = useMemo(
@@ -101,6 +109,54 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
     }
     return m;
   }, [conversations]);
+
+  // ── Selezione multipla (derivata sulla lista FILTRATA corrente) ──
+  // Conta solo le righe selezionate ancora presenti nel filtro, così la barra
+  // azioni non mente se un filtro ne ha nascoste alcune nel frattempo.
+  const filteredSelectedKeys = useMemo(
+    () => filtered.filter((c) => selectedKeys.has(c.key)).map((c) => c.key),
+    [filtered, selectedKeys],
+  );
+  const selectedCount = filteredSelectedKeys.length;
+  const allFilteredSelected = filtered.length > 0 && selectedCount === filtered.length;
+
+  // contactId delle conversazioni selezionate (solo quelle con contatto: le azioni
+  // bulk agiscono per contact_id sulle risposte). Dedup difensivo.
+  const selectedContactIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const conv of filtered) {
+      if (selectedKeys.has(conv.key) && conv.contact?.id) ids.add(conv.contact.id);
+    }
+    return [...ids];
+  }, [filtered, selectedKeys]);
+
+  const toggleSelected = (key: string) =>
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+
+  const toggleSelectAll = () =>
+    setSelectedKeys((prev) => {
+      // Se sono già tutte selezionate (rispetto al filtro) → deseleziona tutto.
+      const allKeys = filtered.map((c) => c.key);
+      const everySelected = allKeys.length > 0 && allKeys.every((k) => prev.has(k));
+      return everySelected ? new Set() : new Set(allKeys);
+    });
+
+  const clearSelection = () => setSelectedKeys(new Set());
+
+  // Azioni bulk MIRATE: riusano le mutazioni del hook passando i contactId
+  // selezionati (le stesse usate per "tutte", estese per accettare un sottoinsieme).
+  const bulkMarkRead = () => {
+    if (selectedContactIds.length === 0) return;
+    markAllRead.mutate(selectedContactIds, { onSuccess: () => clearSelection() });
+  };
+  const bulkArchive = () => {
+    if (selectedContactIds.length === 0) return;
+    archiveRead.mutate(selectedContactIds, { onSuccess: () => clearSelection() });
+  };
 
   // Apre la conversazione e segna lette le risposte non lette (handler onClick:
   // niente setState-in-effect). Svuota la bozza al cambio conversazione.
@@ -145,8 +201,15 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
   const selectSender = (id: string | null) => {
     setSenderId(id);
     setSelectedKey(null);
+    setSelectedKeys(new Set()); // cambio casella → svuota la selezione multipla
     setShowListMobile(false);
   };
+
+  // Handler dei filtri che, oltre a impostare lo stato, AZZERANO la selezione
+  // multipla (le righe selezionate potrebbero uscire dalla lista filtrata).
+  const changeFilter = (f: StatusFilter) => { setFilter(f); setSelectedKeys(new Set()); };
+  const changeSequence = (id: string | null) => { setSequenceId(id); setSelectedKeys(new Set()); };
+  const changeDate = (d: DateFilter) => { setDateFilter(d); setSelectedKeys(new Set()); };
 
   if (tableMissing) {
     return (
@@ -241,8 +304,15 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
             )}
           </div>
         </ScrollArea>
-        <div className="border-t p-2">
-          <FilterPills filter={filter} counts={counts} onChange={setFilter} />
+        <div className="space-y-2 border-t p-2">
+          <FilterPills filter={filter} counts={counts} onChange={changeFilter} />
+          <ConversationFacets
+            sequenceOptions={sequenceOptions}
+            sequenceId={sequenceId}
+            onSequence={changeSequence}
+            dateFilter={dateFilter}
+            onDate={changeDate}
+          />
         </div>
       </aside>
 
@@ -279,8 +349,15 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
 
           {/* Filtri stato — visibili quando il pannello caselle è nascosto (mobile/tablet,
               o desktop col contesto lead aperto che ne collassa la colonna). */}
-          <div className={cn("mt-2", mailboxColumnVisible && "lg:hidden")}>
-            <FilterPills filter={filter} counts={counts} onChange={setFilter} />
+          <div className={cn("mt-2 space-y-2", mailboxColumnVisible && "lg:hidden")}>
+            <FilterPills filter={filter} counts={counts} onChange={changeFilter} />
+            <ConversationFacets
+              sequenceOptions={sequenceOptions}
+              sequenceId={sequenceId}
+              onSequence={changeSequence}
+              dateFilter={dateFilter}
+              onDate={changeDate}
+            />
           </div>
 
           {/* Selettore casella compatto: idem, sostituisce la colonna caselle quando nascosta. */}
@@ -311,7 +388,9 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
             )}
           </div>
 
-          {(counts.unread > 0 || counts.read > 0) && (
+          {/* Azioni "su tutte" — nascoste quando c'è una selezione multipla attiva
+              (in quel caso comanda la barra azioni mirata sotto). */}
+          {selectedCount === 0 && (counts.unread > 0 || counts.read > 0) && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {counts.unread > 0 && (
                 <Button
@@ -337,6 +416,54 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
               )}
             </div>
           )}
+
+          {/* Seleziona tutte (filtrate) + barra azioni mirata sulla selezione. */}
+          {filtered.length > 0 && (
+            <div className="mt-2 flex items-center gap-2">
+              <label className="flex cursor-pointer select-none items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Checkbox
+                  checked={allFilteredSelected ? true : selectedCount > 0 ? "indeterminate" : false}
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Seleziona tutte le conversazioni filtrate"
+                />
+                {selectedCount > 0 ? `${selectedCount} selezionate` : "Seleziona tutte"}
+              </label>
+            </div>
+          )}
+
+          {selectedCount > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 p-1.5">
+              <Button
+                size="sm" variant="outline" className="h-7 gap-1 text-[11px]"
+                disabled={markAllRead.isPending || selectedContactIds.length === 0}
+                onClick={bulkMarkRead}
+                title={selectedContactIds.length === 0
+                  ? "Le conversazioni selezionate non hanno un contatto collegato"
+                  : "Segna lette le risposte delle conversazioni selezionate"}
+              >
+                {markAllRead.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />}
+                Segna lette
+              </Button>
+              <Button
+                size="sm" variant="outline" className="h-7 gap-1 text-[11px]"
+                disabled={archiveRead.isPending || selectedContactIds.length === 0}
+                onClick={bulkArchive}
+                title={selectedContactIds.length === 0
+                  ? "Le conversazioni selezionate non hanno un contatto collegato"
+                  : "Archivia le risposte lette delle conversazioni selezionate"}
+              >
+                {archiveRead.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
+                Archivia
+              </Button>
+              <Button
+                size="sm" variant="ghost" className="h-7 gap-1 text-[11px] text-muted-foreground"
+                onClick={clearSelection}
+                title="Annulla la selezione"
+              >
+                <X className="h-3 w-3" /> Deseleziona
+              </Button>
+            </div>
+          )}
         </div>
 
         <ScrollArea className="flex-1">
@@ -357,14 +484,27 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
                 const active = conv.key === selectedKey;
                 const intentMeta = conv.lastIntent ? INTENT_META[conv.lastIntent] : null;
                 const mailbox = conv.primarySenderId ? sendersById.get(conv.primarySenderId) ?? null : null;
+                const checked = selectedKeys.has(conv.key);
                 return (
-                  <li key={conv.key}>
+                  <li
+                    key={conv.key}
+                    className={cn(
+                      "flex items-stretch transition-colors hover:bg-muted/60",
+                      active && "bg-muted",
+                      checked && "bg-primary/5",
+                    )}
+                  >
+                    {/* Checkbox di selezione multipla — fuori dal <button> (HTML valido). */}
+                    <div className="flex shrink-0 items-center pl-2.5">
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => toggleSelected(conv.key)}
+                        aria-label={`Seleziona conversazione con ${name}`}
+                      />
+                    </div>
                     <button
                       onClick={() => handleSelect(conv)}
-                      className={cn(
-                        "flex w-full gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/60",
-                        active && "bg-muted",
-                      )}
+                      className="flex min-w-0 flex-1 gap-3 py-2.5 pl-2.5 pr-3 text-left"
                     >
                       <div className="relative shrink-0">
                         <Avatar className="h-10 w-10">
@@ -554,6 +694,63 @@ function FilterPills({
           )}
         </button>
       ))}
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Faccette filtro: sequenza/campagna + finestra data sull'ultima attività.
+   Due Select compatti shadcn. Il filtro sequenza scompare se non ci sono
+   campagne filtrabili (nessuna sequenza attiva né con conversazioni).
+   ────────────────────────────────────────────────────────────────────────── */
+const ALL_SEQUENCES = "__all__";
+
+const DATE_FILTER_OPTIONS: { value: DateFilter; label: string }[] = [
+  { value: "all", label: "Sempre" },
+  { value: "today", label: "Oggi" },
+  { value: "7d", label: "Ultimi 7 giorni" },
+  { value: "30d", label: "Ultimi 30 giorni" },
+];
+
+function ConversationFacets({
+  sequenceOptions, sequenceId, onSequence, dateFilter, onDate,
+}: {
+  sequenceOptions: SequenceOption[];
+  sequenceId: string | null;
+  onSequence: (id: string | null) => void;
+  dateFilter: DateFilter;
+  onDate: (d: DateFilter) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {sequenceOptions.length > 0 && (
+        <Select
+          value={sequenceId ?? ALL_SEQUENCES}
+          onValueChange={(v) => onSequence(v === ALL_SEQUENCES ? null : v)}
+        >
+          <SelectTrigger className="h-7 w-auto min-w-[7.5rem] max-w-[12rem] gap-1.5 px-2 text-[11px]" aria-label="Filtra per sequenza">
+            <GitBranch className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <SelectValue placeholder="Sequenza" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_SEQUENCES} className="text-xs">Tutte le sequenze</SelectItem>
+            {sequenceOptions.map((s) => (
+              <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      <Select value={dateFilter} onValueChange={(v) => onDate(v as DateFilter)}>
+        <SelectTrigger className="h-7 w-auto min-w-[6.5rem] gap-1.5 px-2 text-[11px]" aria-label="Filtra per data">
+          <CalendarClock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {DATE_FILTER_OPTIONS.map((o) => (
+            <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
