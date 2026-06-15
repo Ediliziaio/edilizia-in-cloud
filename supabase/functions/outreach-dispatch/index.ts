@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
     // 2. caselle del pool
     const { data: sendersRaw, error: sErr } = await supabase
       .from("outreach_sender_accounts")
-      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,email,display_name,brand_id")
+      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,email,display_name,brand_id,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref")
       .in("status", ["active", "warming"]);
     if (sErr) throw sErr;
     const senders = (sendersRaw || []) as any[];
@@ -237,6 +237,16 @@ Deno.serve(async (req) => {
           );
           html += `<p style="font-size:11px;color:#9ca3af;margin-top:24px">Non vuoi più ricevere queste email? <a href="${unsubscribeUrl}" style="color:#9ca3af">Disiscriviti</a>.</p>`;
         }
+        // Casella SMTP reale: instrada l'invio sul suo server (la password sta in
+        // Vault, recuperata via RPC). Caselle EE legacy: mailboxOverride resta
+        // undefined → comportamento invariato (invio via API Elastic Email).
+        let mailboxOverride: { host: string; port: number; secure: boolean; username: string; password: string } | undefined;
+        if (sender.provider === "smtp" && sender.secret_ref) {
+          const { data: pwd } = await supabase.rpc("outreach_mailbox_secret", { p_ref: sender.secret_ref });
+          if (pwd && sender.smtp_host && sender.smtp_port) {
+            mailboxOverride = { host: sender.smtp_host, port: sender.smtp_port, secure: sender.smtp_secure ?? true, username: sender.smtp_username ?? sender.email, password: pwd as string };
+          }
+        }
         const res = await sendEmailUnified({
           companyId: PLATFORM_COMPANY,
           stream: "marketing",
@@ -244,6 +254,7 @@ Deno.serve(async (req) => {
           subject: renderTemplate(chosen ? chosen.text : (item.subject || ""), vars, { seed }),
           html,
           senderOverride: { from, replyTo, source: "outreach_pool" },
+          mailboxOverride,
           metadata: { outreach_queue_id: item.id, sender_account_id: sender.id, variant_index: variantIndex, unsubscribe_url: unsubscribeUrl },
         });
         if (res && res.ok === false) {
