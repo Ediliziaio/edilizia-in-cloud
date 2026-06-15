@@ -66,9 +66,12 @@ export function OutreachAnalytics({ companyId }: { companyId: string }) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 border-b border-border pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <BarChart3 className="h-5 w-5 text-orange-500" /> Analytics campagne (email)
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10">
+            <BarChart3 className="h-4 w-4 text-primary" />
+          </span>
+          Analytics campagne (email)
         </CardTitle>
         <Button
           size="sm"
@@ -81,15 +84,25 @@ export function OutreachAnalytics({ companyId }: { companyId: string }) {
           <Download className="h-3.5 w-3.5" /> Esporta CSV
         </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-5">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {steps.map((st) => {
             const Icon = st.icon;
             const color = st.tone === "good" ? "text-emerald-600" : st.tone === "warn" ? "text-amber-600" : "text-foreground";
+            const iconWrap = st.tone === "good"
+              ? "bg-emerald-50 text-emerald-600"
+              : st.tone === "warn"
+                ? "bg-amber-50 text-amber-600"
+                : "bg-muted text-muted-foreground";
             return (
-              <div key={st.label} className="rounded-lg border p-3">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Icon className="h-3.5 w-3.5" />{st.label}</div>
-                <div className={`mt-1 text-xl font-bold ${color}`}>{st.value}</div>
+              <div key={st.label} className="rounded-lg border border-border bg-card p-3.5 transition-colors hover:border-primary/30">
+                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <span className={`flex h-6 w-6 items-center justify-center rounded-md ${iconWrap}`}>
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                  {st.label}
+                </div>
+                <div className={`mt-2 text-2xl font-bold tabular-nums ${color}`}>{st.value}</div>
                 {st.rate && <div className="text-[11px] text-muted-foreground">{st.rate} delle inviate</div>}
               </div>
             );

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -52,34 +52,48 @@ async function safeCount(
   }
 }
 
+/** Etichetta di sezione (uppercase, tracking) alla Instantly per separare i blocchi del cockpit. */
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <h2 className="px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{children}</h2>
+  );
+}
+
 function Kpi({ icon: Icon, label, value, hint, tone = "default" }: {
   icon: typeof Users; label: string; value: string; hint?: string;
   tone?: "default" | "good" | "warn";
 }) {
   const toneCls = tone === "good" ? "text-emerald-600" : tone === "warn" ? "text-amber-600" : "text-foreground";
+  const iconWrap = tone === "good"
+    ? "bg-emerald-50 text-emerald-600"
+    : tone === "warn"
+      ? "bg-amber-50 text-amber-600"
+      : "bg-primary/10 text-primary";
   return (
-    <Card>
-      <CardContent className="flex items-start gap-3 p-4">
-        <div className="mt-0.5 rounded-lg bg-muted p-2"><Icon className="h-5 w-5 text-muted-foreground" /></div>
-        <div className="min-w-0">
-          <div className={`text-2xl font-bold leading-tight ${toneCls}`}>{value}</div>
-          <div className="text-sm font-medium text-foreground">{label}</div>
-          {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/30">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconWrap}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <div className={`mt-2 text-2xl font-bold leading-tight tabular-nums ${toneCls}`}>{value}</div>
+      {hint && <div className="mt-0.5 text-xs text-muted-foreground">{hint}</div>}
+    </div>
   );
 }
 
 function Shortcut({ to, icon: Icon, label, desc }: { to: string; icon: typeof Mail; label: string; desc: string }) {
   return (
-    <Link to={to} className="group flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-orange-300 hover:bg-orange-50/40">
-      <div className="rounded-lg bg-muted p-2 group-hover:bg-orange-100"><Icon className="h-5 w-5 text-muted-foreground group-hover:text-orange-600" /></div>
+    <Link to={to} className="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/40 hover:bg-primary/[0.03]">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+        <Icon className="h-5 w-5" />
+      </div>
       <div className="min-w-0 flex-1">
         <div className="font-semibold">{label}</div>
         <div className="truncate text-xs text-muted-foreground">{desc}</div>
       </div>
-      <ArrowRight className="h-4 w-4 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-orange-600" />
+      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-primary" />
     </Link>
   );
 }
@@ -132,61 +146,93 @@ function OutreachCockpit() {
   const contactable = contacts.data != null && suppressed.data != null
     ? Math.max(0, contacts.data - suppressed.data) : null;
 
+  const tabs = [
+    { value: "oggi", icon: Flame, label: "Oggi" },
+    { value: "posta", icon: Inbox, label: "Posta", badge: <PostaUnreadBadge companyId={companyId} /> },
+    { value: "lead", icon: Users, label: "Lead & Liste" },
+    { value: "sequenze", icon: Send, label: "Sequenze" },
+    { value: "pipeline", icon: Briefcase, label: "Pipeline" },
+    { value: "statistiche", icon: BarChart3, label: "Statistiche" },
+    { value: "deliverability", icon: ShieldCheck, label: "Deliverability" },
+  ];
+
   return (
-    <div className="space-y-6 p-4 sm:p-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <Radar className="h-6 w-6 text-orange-500" /> Outreach Engine
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            La tua console quotidiana di cold outreach multi-canale. Email-first, poi WhatsApp e SMS.
-          </p>
+    <div className="min-h-full bg-muted/30">
+      <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
+        {/* Header pagina */}
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+              <Radar className="h-6 w-6 text-primary" />
+            </span>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Outreach Engine</h1>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                La tua console quotidiana di cold outreach multi-canale. Email-first, poi WhatsApp e SMS.
+              </p>
+            </div>
+          </div>
+          <OutreachComposeDialog companyId={companyId} />
         </div>
-        <OutreachComposeDialog companyId={companyId} />
-      </div>
 
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="flex h-auto justify-start gap-1 overflow-x-auto bg-muted/60 p-1 whitespace-nowrap">
-          <TabsTrigger value="oggi"><Flame className="mr-1.5 h-4 w-4" /> Oggi</TabsTrigger>
-          <TabsTrigger value="posta"><Inbox className="mr-1.5 h-4 w-4" /> Posta<PostaUnreadBadge companyId={companyId} /></TabsTrigger>
-          <TabsTrigger value="lead"><Users className="mr-1.5 h-4 w-4" /> Lead &amp; Liste</TabsTrigger>
-          <TabsTrigger value="sequenze"><Send className="mr-1.5 h-4 w-4" /> Sequenze</TabsTrigger>
-          <TabsTrigger value="pipeline"><Briefcase className="mr-1.5 h-4 w-4" /> Pipeline</TabsTrigger>
-          <TabsTrigger value="statistiche"><BarChart3 className="mr-1.5 h-4 w-4" /> Statistiche</TabsTrigger>
-          <TabsTrigger value="deliverability"><ShieldCheck className="mr-1.5 h-4 w-4" /> Deliverability</TabsTrigger>
-        </TabsList>
-
-        {/* ── OGGI ── */}
-        <TabsContent value="oggi" className="mt-4 space-y-5">
-          <OutreachSetupChecklist companyId={companyId} />
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi icon={Users} label="Contatti in rubrica" value={fmt(contacts.data)} hint="nel CRM marketing admin" />
-            <Kpi icon={ShieldCheck} label="Contattabili" value={fmt(contactable)} hint="al netto dei soppressi" tone="good" />
-            <Kpi icon={ShieldCheck} label="Soppressi / opt-out" value={fmt(suppressed.data)} hint="bounce, lamentele, disiscritti" tone="warn" />
-            <Kpi icon={Send} label="Campagne create" value={fmt(campaigns.data)} hint="totali nel sistema" />
+        <Tabs value={tab} onValueChange={setTab}>
+          {/* Tab bar segmented/underline alla Instantly */}
+          <div className="-mx-1 overflow-x-auto px-1 pb-px">
+            <TabsList className="inline-flex h-auto items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-sm">
+              {tabs.map((t) => (
+                <TabsTrigger
+                  key={t.value}
+                  value={t.value}
+                  className="gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
+                >
+                  <t.icon className="h-4 w-4" />
+                  {t.label}
+                  {t.badge}
+                </TabsTrigger>
+              ))}
+            </TabsList>
           </div>
 
-          <OutreachQueueStatus companyId={companyId} />
+          {/* ── OGGI ── */}
+          <TabsContent value="oggi" className="mt-5 space-y-6">
+            <OutreachSetupChecklist companyId={companyId} />
 
-          <OutreachAnalytics companyId={companyId} />
+            <div className="space-y-3">
+              <SectionLabel>Panoramica</SectionLabel>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <Kpi icon={Users} label="Contatti in rubrica" value={fmt(contacts.data)} hint="nel CRM marketing admin" />
+                <Kpi icon={ShieldCheck} label="Contattabili" value={fmt(contactable)} hint="al netto dei soppressi" tone="good" />
+                <Kpi icon={ShieldCheck} label="Soppressi / opt-out" value={fmt(suppressed.data)} hint="bounce, lamentele, disiscritti" tone="warn" />
+                <Kpi icon={Send} label="Campagne create" value={fmt(campaigns.data)} hint="totali nel sistema" />
+              </div>
+            </div>
 
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-base">Scorciatoie</CardTitle></CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Shortcut to="/admin/marketing/lead-scraper" icon={Radar} label="Lead Scraper" desc="Trova nuovi lead (6 sorgenti + AI)" />
-              <Shortcut to="/admin/marketing/opportunita" icon={Briefcase} label="Pipeline opportunità" desc="Le risposte calde diventano deal" />
-              <Shortcut to="/admin/marketing/email" icon={Mail} label="Email marketing" desc="Campagne e template" />
-              <Shortcut to="/admin/marketing/whatsapp" icon={MessageSquare} label="WhatsApp" desc="Broadcast e template" />
-              <Shortcut to="/admin/marketing/sms" icon={Phone} label="SMS" desc="Campagne SMS (Telnyx)" />
-              <Shortcut to="/admin/marketing/automazioni" icon={Workflow} label="Automazioni" desc="Flussi e sequenze" />
-            </CardContent>
-          </Card>
+            <div className="space-y-3">
+              <SectionLabel>Motore &amp; performance</SectionLabel>
+              <OutreachQueueStatus companyId={companyId} />
+              <OutreachAnalytics companyId={companyId} />
+            </div>
 
-          <OutreachActivityFeed companyId={companyId} />
-          <OutreachInboxPreview companyId={companyId} onOpenMailbox={() => setTab("posta")} />
-        </TabsContent>
+            <div className="space-y-3">
+              <SectionLabel>Da leggere &amp; attività</SectionLabel>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <OutreachInboxPreview companyId={companyId} onOpenMailbox={() => setTab("posta")} />
+                <OutreachActivityFeed companyId={companyId} />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <SectionLabel>Scorciatoie</SectionLabel>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <Shortcut to="/admin/marketing/lead-scraper" icon={Radar} label="Lead Scraper" desc="Trova nuovi lead (6 sorgenti + AI)" />
+                <Shortcut to="/admin/marketing/opportunita" icon={Briefcase} label="Pipeline opportunità" desc="Le risposte calde diventano deal" />
+                <Shortcut to="/admin/marketing/email" icon={Mail} label="Email marketing" desc="Campagne e template" />
+                <Shortcut to="/admin/marketing/whatsapp" icon={MessageSquare} label="WhatsApp" desc="Broadcast e template" />
+                <Shortcut to="/admin/marketing/sms" icon={Phone} label="SMS" desc="Campagne SMS (Telnyx)" />
+                <Shortcut to="/admin/marketing/automazioni" icon={Workflow} label="Automazioni" desc="Flussi e sequenze" />
+              </div>
+            </div>
+          </TabsContent>
 
         {/* ── POSTA ── */}
         <TabsContent value="posta" className="mt-4">
@@ -233,7 +279,8 @@ function OutreachCockpit() {
           <SuppressionAddCard companyId={companyId} />
           <EmailSuppressionsTable />
         </TabsContent>
-      </Tabs>
+        </Tabs>
+      </div>
     </div>
   );
 }
