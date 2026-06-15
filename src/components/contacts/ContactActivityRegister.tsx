@@ -23,7 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   UserPlus, StickyNote, Phone, Bot, Smartphone, MessageSquare,
   Mail, MailOpen, CalendarDays, Activity, ArrowUpRight, ArrowDownLeft,
-  Loader2, RefreshCw, Clock,
+  Loader2, RefreshCw, Clock, CornerDownRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -53,10 +53,13 @@ interface RegItem {
   title: string;
   text?: string | null;
   at: string; // ISO
-  meta?: string | null;   // riga secondaria (stato, durata…)
-  byId?: string | null;   // created_by → risolto a nome via members
-  by?: string | null;     // nome già pronto (es. operatore chiamata)
-  future?: boolean;       // appuntamento futuro
+  meta?: string | null;     // stato/durata
+  agentId?: string | null;  // utente azienda (user_id/created_by/assigned_to) → nome via members
+  agentName?: string | null;// nome già pronto (operatore chiamata, "Agente AI")
+  toLabel?: string | null;  // destinatario (email/numero) per i messaggi inviati
+  fromLabel?: string | null;// mittente (email/nome/numero) per i messaggi ricevuti
+  isReply?: boolean;        // email che è una risposta a un nostro messaggio (o viceversa)
+  future?: boolean;         // appuntamento futuro
 }
 
 const KIND_META: Record<EventKind, { Icon: typeof Mail; color: string; bg: string }> = {
@@ -168,7 +171,7 @@ export function ContactActivityRegister({
       return (data ?? []).map((r: any) => {
         const label = ACTIVITY_LABELS[r.activity_type]
           || (r.activity_type ? r.activity_type.charAt(0).toUpperCase() + r.activity_type.slice(1).replace(/_/g, " ") : "Attività");
-        return { id: `act_${r.id}`, kind: "activity" as const, title: label, text: r.description, byId: r.created_by, at: r.created_at };
+        return { id: `act_${r.id}`, kind: "activity" as const, title: label, text: r.description, agentId: r.created_by, at: r.created_at };
       });
     },
   });
@@ -186,7 +189,7 @@ export function ContactActivityRegister({
         .order("created_at", { ascending: false }).limit(30);
       if (error) return [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []).map((r: any) => ({ id: `note_${r.id}`, kind: "note" as const, title: "Nota", text: r.content, byId: r.created_by, at: r.created_at }));
+      return (data ?? []).map((r: any) => ({ id: `note_${r.id}`, kind: "note" as const, title: "Nota", text: r.content, agentId: r.created_by, at: r.created_at }));
     },
   });
 
@@ -212,7 +215,7 @@ export function ContactActivityRegister({
         out.push({
           id: `hc_${r.id}`, kind: "call_human", direction: outbound ? "outbound" : "inbound",
           title: outbound ? "Chiamata in uscita" : "Chiamata in entrata",
-          by: r.user_name || null,
+          agentName: r.user_name || null,
           meta: [dur && `durata ${dur}`, r.status].filter(Boolean).join(" · ") || null,
           at: r.started_at,
         });
@@ -228,7 +231,7 @@ export function ContactActivityRegister({
           const dur = fmtDur(r.duration_seconds);
           out.push({
             id: `ac_${r.id}`, kind: "call_ai", direction: (r.call_direction || "outbound") === "inbound" ? "inbound" : "outbound",
-            title: "Chiamata AI", text: r.summary, by: "Agente AI",
+            title: "Chiamata AI", text: r.summary, agentName: "Agente AI",
             meta: [dur && `durata ${dur}`, r.status].filter(Boolean).join(" · ") || null,
             at: r.started_at,
           });
@@ -246,17 +249,23 @@ export function ContactActivityRegister({
     queryFn: async (): Promise<RegItem[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let q: any = supabase.from("sms_messages")
-        .select("id, direction, status, to_number, body, sent_at, created_at, trigger_ref")
+        .select("id, direction, status, to_number, from_number, body, sent_at, created_at, trigger_ref, created_by")
         .eq("company_id", companyId).order("created_at", { ascending: false }).limit(30);
       q = tail ? q.ilike("to_number", `%${tail}%`) : q.eq("trigger_ref", contactId);
       const { data, error } = await q;
       if (error) return [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []).map((r: any) => ({
-        id: `sms_${r.id}`, kind: "sms" as const,
-        direction: r.direction === "inbound" ? "inbound" : "outbound",
-        title: "SMS", text: r.body, meta: r.status, at: r.sent_at ?? r.created_at,
-      }));
+      return (data ?? []).map((r: any) => {
+        const inbound = r.direction === "inbound";
+        return {
+          id: `sms_${r.id}`, kind: "sms" as const,
+          direction: inbound ? "inbound" : "outbound",
+          title: "SMS", text: r.body, meta: r.status, at: r.sent_at ?? r.created_at,
+          agentId: inbound ? null : r.created_by,
+          toLabel: inbound ? null : r.to_number,
+          fromLabel: inbound ? (r.from_number || r.to_number) : null,
+        };
+      });
     },
   });
 
@@ -273,11 +282,16 @@ export function ContactActivityRegister({
         .order("created_at", { ascending: false }).limit(30);
       if (error) return [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []).map((r: any) => ({
-        id: `wa_${r.id}`, kind: "whatsapp" as const,
-        direction: r.direction === "inbound" ? "inbound" : "outbound",
-        title: "WhatsApp", text: r.content_text, at: r.created_at,
-      }));
+      return (data ?? []).map((r: any) => {
+        const inbound = r.direction === "inbound";
+        return {
+          id: `wa_${r.id}`, kind: "whatsapp" as const,
+          direction: inbound ? "inbound" : "outbound",
+          title: "WhatsApp", text: r.content_text, at: r.created_at,
+          toLabel: inbound ? null : r.to_phone,
+          fromLabel: inbound ? r.from_phone : null,
+        };
+      });
     },
   });
 
@@ -289,7 +303,7 @@ export function ContactActivityRegister({
     queryFn: async (): Promise<RegItem[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).from("email_outbox")
-        .select("id, subject, body_text, status, sent_at, created_at")
+        .select("id, subject, body_text, status, sent_at, created_at, user_id, to_emails, in_reply_to_id")
         .eq("company_id", companyId).contains("to_emails", [mail])
         .order("created_at", { ascending: false }).limit(30);
       if (error) return [];
@@ -297,6 +311,8 @@ export function ContactActivityRegister({
       return (data ?? []).map((r: any) => ({
         id: `eo_${r.id}`, kind: "email_out" as const, direction: "outbound" as const,
         title: r.subject || "Email", text: r.body_text, meta: r.status, at: r.sent_at ?? r.created_at,
+        agentId: r.user_id, toLabel: Array.isArray(r.to_emails) ? r.to_emails[0] : null,
+        isReply: !!r.in_reply_to_id,
       }));
     },
   });
@@ -313,7 +329,7 @@ export function ContactActivityRegister({
       if (orParts.length === 0) return [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).from("email_inbox")
-        .select("id, from_email, from_name, subject, raw_text, ai_summary, received_at, created_at")
+        .select("id, from_email, from_name, subject, raw_text, ai_summary, received_at, created_at, in_reply_to")
         .eq("company_id", companyId).or(orParts.join(","))
         .order("received_at", { ascending: false }).limit(30);
       if (error) return [];
@@ -322,7 +338,8 @@ export function ContactActivityRegister({
         id: `ei_${r.id}`, kind: "email_in" as const, direction: "inbound" as const,
         title: r.subject || "Email ricevuta",
         text: r.ai_summary || r.raw_text,
-        by: r.from_name || r.from_email || null,
+        fromLabel: r.from_name ? `${r.from_name}${r.from_email ? ` <${r.from_email}>` : ""}` : (r.from_email || null),
+        isReply: !!r.in_reply_to,
         at: r.received_at ?? r.created_at,
       }));
     },
@@ -349,7 +366,7 @@ export function ContactActivityRegister({
         const stato = r.is_completed ? "completato" : (future ? "in programma" : (r.status || "da svolgere"));
         return {
           id: `ap_${r.id}`, kind: "appointment" as const,
-          title: r.title || "Appuntamento", meta: stato, byId: r.assigned_to, at: when, future,
+          title: r.title || "Appuntamento", meta: stato, agentId: r.assigned_to, at: when, future,
         };
       });
     },
@@ -485,7 +502,23 @@ export function ContactActivityRegister({
                   const meta = KIND_META[i.kind];
                   const Icon = meta.Icon;
                   const dir = i.direction;
-                  const author = i.by || (i.byId ? memberMap.get(i.byId) : null);
+                  const agent = i.agentName || (i.agentId ? memberMap.get(i.agentId) : null);
+                  // Sottotitolo "da chi → a chi": chiaro per ogni canale.
+                  const subParts: string[] = [];
+                  if (i.meta) subParts.push(i.meta);
+                  if (i.kind === "note" || i.kind === "activity") {
+                    if (agent) subParts.push(`di ${agent}`);
+                  } else if (i.kind === "appointment") {
+                    if (agent) subParts.push(`assegnato a ${agent}`);
+                  } else if (i.kind === "entry") {
+                    // nessun mittente
+                  } else if (dir === "inbound") {
+                    if (i.fromLabel) subParts.push(`da ${i.fromLabel}`);
+                  } else {
+                    if (agent) subParts.push(`da ${agent}`);
+                    if (i.toLabel) subParts.push(`a ${i.toLabel}`);
+                  }
+                  const subtitle = subParts.join(" · ");
                   const longText = !!i.text && i.text.length > 160;
                   const isOpen = expanded.has(i.id);
                   return (
@@ -504,15 +537,20 @@ export function ContactActivityRegister({
                                   {dir === "outbound" ? "inviato" : "ricevuto"}
                                 </span>
                               )}
+                              {i.isReply && (
+                                <span className="inline-flex items-center gap-0.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-medium text-violet-700">
+                                  <CornerDownRight className="h-2.5 w-2.5" /> risposta
+                                </span>
+                              )}
                               {i.future && (
                                 <span className="inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px] font-medium text-indigo-700">
                                   <Clock className="h-2.5 w-2.5" /> futuro
                                 </span>
                               )}
                             </div>
-                            {(i.meta || author) && (
-                              <p className="text-[11px] text-muted-foreground mt-0.5">
-                                {[i.meta, author && `di ${author}`].filter(Boolean).join(" · ")}
+                            {subtitle && (
+                              <p className="text-[11px] text-muted-foreground mt-0.5 break-words">
+                                {subtitle}
                               </p>
                             )}
                             {i.text && (
