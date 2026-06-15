@@ -307,3 +307,137 @@ export function validateFlow(nodes: Node<FlowNodeData>[], edges: Edge[]): Valida
 
   return issues;
 }
+
+// ── AI: grafo generato (key/branch) → nodi+archi React Flow ──────────────────
+//
+// L'edge outreach-ai-flow ritorna un grafo "logico" con key-stringa e branch
+// ('default' | 'alt'). Qui lo si materializza in nodi+archi React Flow:
+//   • key → uuid (crypto.randomUUID) stabile per nodo, così gli id nodo restano
+//     uuid validi e il salvataggio (id nodo = id step) funziona invariato.
+//   • branch 'default' → handle "yes" sulle condition (→ next_default), assente
+//     sugli altri nodi; branch 'alt' → handle "no" sulle condition (→ next_alt).
+// Le posizioni sono placeholder (verticali): il chiamante applica subito
+// l'auto-layout. Robusto: scarta archi verso key inesistenti e (per le non-
+// condition / per (source,branch) duplicati) tiene una sola uscita.
+
+export interface AiFlowNode {
+  key: string;
+  type: OutreachNodeType;
+  condition_type?: OutreachConditionType | null;
+  subject?: string | null;
+  body?: string | null;
+  delay_days?: number | null;
+  delay_hours?: number | null;
+}
+export interface AiFlowEdge {
+  from_key: string;
+  to_key: string;
+  branch: "default" | "alt";
+}
+export interface AiFlowGraph {
+  name?: string;
+  nodes: AiFlowNode[];
+  edges: AiFlowEdge[];
+}
+
+export function aiFlowToReactFlow(
+  graph: AiFlowGraph,
+): { nodes: Node<FlowNodeData>[]; edges: Edge[] } {
+  const rawNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  const rawEdges = Array.isArray(graph?.edges) ? graph.edges : [];
+
+  // key → uuid (dedup per key: la prima vince).
+  const idByKey = new Map<string, string>();
+  const typeByKey = new Map<string, OutreachNodeType>();
+  const nodes: Node<FlowNodeData>[] = [];
+  rawNodes.forEach((n, i) => {
+    const key = String(n?.key ?? "").trim();
+    const type = (n?.type ?? "email") as OutreachNodeType;
+    if (!key || idByKey.has(key)) return;
+    const id = crypto.randomUUID();
+    idByKey.set(key, id);
+    typeByKey.set(key, type);
+    const data: FlowNodeData =
+      type === "email"
+        ? {
+            subject: (n.subject ?? "") || "",
+            body: n.body ?? "",
+            delay_days: Math.max(0, Math.trunc(Number(n.delay_days) || 0)),
+            delay_hours: Math.max(0, Math.trunc(Number(n.delay_hours) || 0)),
+          }
+        : type === "wait"
+        ? {
+            delay_days: Math.max(0, Math.trunc(Number(n.delay_days) || 0)),
+            delay_hours: Math.max(0, Math.trunc(Number(n.delay_hours) || 0)),
+          }
+        : type === "condition"
+        ? { condition_type: n.condition_type ?? null }
+        : {};
+    nodes.push({
+      id,
+      type,
+      position: { x: COL.x, y: COL.yStart + i * COL.yGap },
+      data,
+    });
+  });
+
+  // Archi: branch → handle, scartando key inesistenti e uscite duplicate.
+  const edges: Edge[] = [];
+  const usedOut = new Set<string>(); // (sourceId::handleKey) → 1 sola uscita
+  for (const e of rawEdges) {
+    const fromId = idByKey.get(String(e?.from_key ?? "").trim());
+    const toId = idByKey.get(String(e?.to_key ?? "").trim());
+    if (!fromId || !toId || fromId === toId) continue;
+    const isCond = typeByKey.get(String(e.from_key).trim()) === "condition";
+    const handle: "yes" | "no" | undefined = isCond
+      ? (e.branch === "alt" ? "no" : "yes")
+      : undefined;
+    const slot = `${fromId}::${handle ?? "d"}`;
+    if (usedOut.has(slot)) continue;
+    usedOut.add(slot);
+    edges.push(mkEdge(fromId, toId, handle));
+  }
+
+  return { nodes, edges };
+}
+
+// ── Inserimento di un nodo SU un arco ("+") ──────────────────────────────────
+//
+// Inserisce `newNode` TRA i due estremi dell'arco `edgeId`, ricablando gli archi
+// e RISPETTANDO il ramo (handle yes/no) dell'arco originale: l'arco entrante
+// (source → nuovo) eredita il sourceHandle originale; l'arco uscente (nuovo →
+// target) parte dal nuovo nodo con handle di default (yes se il nuovo nodo è una
+// condition, altrimenti nessuno) verso il target originale. Trasformazione PURA
+// su nodi+archi (nessuna persistenza: il salvataggio resta differito).
+//
+// Ritorna i nuovi array nodes/edges; se l'arco non esiste, ritorna invariati.
+export function insertNodeOnEdge(
+  nodes: Node<FlowNodeData>[],
+  edges: Edge[],
+  edgeId: string,
+  newNode: Node<FlowNodeData>,
+): { nodes: Node<FlowNodeData>[]; edges: Edge[] } {
+  const edge = edges.find((e) => e.id === edgeId);
+  if (!edge) return { nodes, edges };
+  const source = nodes.find((n) => n.id === edge.source);
+  const target = nodes.find((n) => n.id === edge.target);
+  if (!source || !target) return { nodes, edges };
+
+  // Posiziona il nuovo nodo a metà arco (l'auto-layout "Riordina" rifinisce).
+  const positioned: Node<FlowNodeData> = {
+    ...newNode,
+    position: {
+      x: Math.round((source.position.x + target.position.x) / 2),
+      y: Math.round((source.position.y + target.position.y) / 2),
+    },
+  };
+  const isCondNew = (positioned.type as OutreachNodeType) === "condition";
+
+  const nextEdges = edges.filter((e) => e.id !== edgeId);
+  // source → nuovo: conserva il ramo originale (handle yes/no o default).
+  nextEdges.push(mkEdge(source.id, positioned.id, (edge.sourceHandle ?? undefined) as "yes" | "no" | undefined));
+  // nuovo → target: ramo default del nuovo nodo (yes se condition).
+  nextEdges.push(mkEdge(positioned.id, target.id, isCondNew ? "yes" : undefined));
+
+  return { nodes: [...nodes, positioned], edges: nextEdges };
+}

@@ -27,14 +27,18 @@ import { Badge } from "@/components/ui/badge";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Loader2, Mail, Clock, GitBranch, Flag, Save, X, AlertTriangle, Network } from "lucide-react";
+import { Loader2, Mail, Clock, GitBranch, Flag, Save, X, AlertTriangle, Network, Sparkles, LayoutGrid, Route } from "lucide-react";
 import { NodeMeasureFix } from "@/components/flow-builder/NodeMeasureFix";
-import { outreachNodeTypes } from "./flow";
+import { computeAutoLayout } from "@/components/flow-builder/autoLayout";
+import { outreachNodeTypes, outreachEdgeTypes } from "./flow";
 import { NodeEditorPanel } from "./flow/NodeEditorPanel";
+import { PathPreviewPanel } from "./flow/PathPreviewPanel";
+import { AiFlowDialog } from "./flow/AiFlowDialog";
 import {
-  stepsToFlow, flowToSteps, validateFlow,
+  stepsToFlow, flowToSteps, validateFlow, aiFlowToReactFlow, insertNodeOnEdge,
   type StepRow, type FlowNodeData, type OutreachNodeType,
 } from "./flow/graph";
+import { simulatePath, type PreviewActivity } from "./flow/preview";
 
 const T_STEP = "outreach_sequence_steps";
 
@@ -74,6 +78,10 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loadedRows, setLoadedRows] = useState<StepRow[]>([]);
+  // Pannello laterale destro: editor del nodo selezionato oppure anteprima percorso.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [activity, setActivity] = useState<PreviewActivity>({ opened: true, replied: false });
+  const [aiOpen, setAiOpen] = useState(false);
   const initializedRef = useRef(false);
   const fitRef = useRef(false);
 
@@ -188,6 +196,31 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
     if (kind !== "end") setSelectedId(id);
   }, [rfNodes.length, rf, setRfNodes]);
 
+  // ── Inserimento nodo SU un arco ("+"): default Attesa (il caso più comune tra
+  //    due email). Riusa insertNodeOnEdge (puro), poi seleziona il nuovo nodo. ──
+  const insertOnEdge = useCallback((edgeId: string) => {
+    const id = crypto.randomUUID();
+    const newNode: Node<FlowNodeData> = {
+      id, type: "wait", position: { x: 0, y: 0 }, data: defaultData("wait"),
+    };
+    // insertNodeOnEdge è puro: calcola nodi+archi coerenti dallo stato corrente e
+    // applicali con due set separati (niente effetto dentro un updater di stato).
+    const res = insertNodeOnEdge(rfNodes, rfEdges, edgeId, newNode);
+    setRfNodes(res.nodes);
+    setRfEdges(res.edges);
+    setPreviewOpen(false);
+    setSelectedId(id);
+  }, [rfNodes, rfEdges, setRfEdges, setRfNodes]);
+
+  // ── Riordina: auto-layout topologico (riusa computeAutoLayout delle Automazioni,
+  //    che gestisce già il bias dei rami yes/no). Aggiorna pos_x/pos_y. ──
+  const reorder = useCallback(() => {
+    const { positions, movedCount } = computeAutoLayout(rfNodes, rfEdges);
+    if (movedCount === 0) { toast.info("Layout già ordinato"); return; }
+    setRfNodes((nds) => nds.map((n) => (positions[n.id] ? { ...n, position: positions[n.id] } : n)));
+    requestAnimationFrame(() => { try { rf.fitView({ padding: 0.2, duration: 300 }); } catch { /* noop */ } });
+  }, [rfNodes, rfEdges, setRfNodes, rf]);
+
   const onNodesDelete = useCallback((deleted: Node[]) => {
     setSelectedId((prev) => (deleted.some((n) => n.id === prev) ? null : prev));
   }, []);
@@ -206,6 +239,39 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
     if (node.type === "end") { setSelectedId(null); return; }
     setSelectedId(node.id);
   }, []);
+
+  // ── Genera il GRAFO con l'AI (edge outreach-ai-flow): brief → { nodes, edges }
+  //    → mappa key→uuid + branch→handle (aiFlowToReactFlow) → auto-layout → sul
+  //    canvas (non ancora salvato). Degrada con toast se l'edge non è deployata
+  //    o ritorna un grafo vuoto (best-effort lato edge). ──
+  const aiGenerate = useMutation({
+    mutationFn: async (brief: string) => {
+      const { data, error } = await supabase.functions.invoke("outreach-ai-flow", {
+        body: { brief },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const nodes = Array.isArray(data?.nodes) ? data.nodes : [];
+      const edges = Array.isArray(data?.edges) ? data.edges : [];
+      if (nodes.length === 0) {
+        throw new Error(data?.reason || "L'AI non ha prodotto un flusso, riprova con un brief più dettagliato");
+      }
+      return aiFlowToReactFlow({ name: data.name, nodes, edges });
+    },
+    onSuccess: ({ nodes, edges }) => {
+      // Auto-layout immediato sul grafo generato, poi sul canvas.
+      const { positions } = computeAutoLayout(nodes, edges);
+      const laid = nodes.map((n) => (positions[n.id] ? { ...n, position: positions[n.id] } : n));
+      setRfNodes(laid);
+      setRfEdges(edges);
+      setSelectedId(null);
+      setPreviewOpen(false);
+      setAiOpen(false);
+      toast.success("Flusso generato: rivedilo e salva");
+      requestAnimationFrame(() => { try { rf.fitView({ padding: 0.2, duration: 300 }); } catch { /* noop */ } });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore AI (l'edge potrebbe non essere deployata)"),
+  });
 
   // ── Salvataggio: upsert nodi, set next_*, elimina step rimossi ──
   const save = useMutation({
@@ -266,6 +332,51 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
   const selectedNode = useMemo(() => rfNodes.find((n) => n.id === selectedId) ?? null, [rfNodes, selectedId]);
   const globalIssues = issues.filter((i) => !i.nodeId);
 
+  // ── Anteprima percorso: simula il cammino del lead dalle ipotesi correnti.
+  //    Calcolata solo quando il pannello è aperto (traversata pura, no effetti). ──
+  const preview = useMemo(
+    () => simulatePath(rfNodes, rfEdges, activity),
+    [rfNodes, rfEdges, activity],
+  );
+  const activeNodeIds = useMemo(
+    () => (previewOpen ? new Set(preview.pathNodeIds) : null),
+    [previewOpen, preview.pathNodeIds],
+  );
+  const activeEdgeIds = useMemo(
+    () => (previewOpen ? new Set(preview.pathEdgeIds) : null),
+    [previewOpen, preview.pathEdgeIds],
+  );
+
+  // Decoro gli archi per il render SENZA toccare lo stato salvato: ogni arco è di
+  // tipo "addStep" (mostra il "+") e porta onAddNode; in anteprima, gli archi del
+  // cammino sono marcati __active per l'evidenziazione. Tenere il callback fuori
+  // dallo stato evita churn/closure stantii (niente setState-in-effect).
+  const renderEdges = useMemo(
+    () =>
+      rfEdges.map((e) => ({
+        ...e,
+        type: "addStep",
+        data: {
+          ...e.data,
+          onAddNode: previewOpen ? undefined : insertOnEdge,
+          __active: activeEdgeIds ? activeEdgeIds.has(e.id) : false,
+        },
+      })),
+    [rfEdges, previewOpen, insertOnEdge, activeEdgeIds],
+  );
+
+  // Nodi decorati con il flag di evidenziazione anteprima (opacità nodi fuori cammino).
+  const renderNodes = useMemo(
+    () =>
+      activeNodeIds
+        ? rfNodes.map((n) => ({
+            ...n,
+            style: { ...n.style, opacity: activeNodeIds.has(n.id) ? 1 : 0.35 },
+          }))
+        : rfNodes,
+    [rfNodes, activeNodeIds],
+  );
+
   return (
     <div className="flex h-full flex-col">
       {/* Top bar */}
@@ -290,6 +401,21 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
               </Tooltip>
             </TooltipProvider>
           )}
+          <Button size="sm" variant="outline" className="h-8 gap-1" title="Genera un flusso condizionale con l'AI da un brief" onClick={() => setAiOpen(true)}>
+            <Sparkles className="h-3.5 w-3.5" /> Genera con AI
+          </Button>
+          <Button size="sm" variant="outline" className="h-8 gap-1" title="Riordina i nodi in un layout leggibile" onClick={reorder}>
+            <LayoutGrid className="h-3.5 w-3.5" /> Riordina
+          </Button>
+          <Button
+            size="sm"
+            variant={previewOpen ? "default" : "outline"}
+            className="h-8 gap-1"
+            title="Simula il percorso del contatto"
+            onClick={() => { setPreviewOpen((v) => !v); if (!previewOpen) setSelectedId(null); }}
+          >
+            <Route className="h-3.5 w-3.5" /> Anteprima
+          </Button>
           <Button size="sm" className="h-8 gap-1" disabled={save.isPending} onClick={() => save.mutate()}>
             {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
             {save.isPending ? "Salvo…" : "Salva flusso"}
@@ -312,17 +438,18 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
             <div className="flex h-full items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
           ) : (
             <ReactFlow
-              nodes={rfNodes}
-              edges={rfEdges}
+              nodes={renderNodes}
+              edges={renderEdges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
               onNodesDelete={onNodesDelete}
-              onNodeClick={onNodeClick}
+              onNodeClick={previewOpen ? undefined : onNodeClick}
               onPaneClick={() => setSelectedId(null)}
               nodeTypes={outreachNodeTypes}
+              edgeTypes={outreachEdgeTypes}
               defaultEdgeOptions={{
-                type: "smoothstep",
+                type: "addStep",
                 style: { stroke: "#64748b", strokeWidth: 2 },
                 markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: "#64748b" },
               }}
@@ -358,7 +485,15 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
           )}
         </div>
 
-        {selectedNode && (
+        {previewOpen ? (
+          <PathPreviewPanel
+            activity={activity}
+            onActivityChange={setActivity}
+            result={preview}
+            trackOpens={trackOpens}
+            onClose={() => setPreviewOpen(false)}
+          />
+        ) : selectedNode ? (
           <NodeEditorPanel
             node={selectedNode}
             trackOpens={trackOpens}
@@ -366,8 +501,16 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
             onDelete={() => deleteNode(selectedNode.id)}
             onClose={() => setSelectedId(null)}
           />
-        )}
+        ) : null}
       </div>
+
+      <AiFlowDialog
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        pending={aiGenerate.isPending}
+        hasExistingNodes={rfNodes.length > 0}
+        onGenerate={(brief) => aiGenerate.mutate(brief)}
+      />
     </div>
   );
 }
