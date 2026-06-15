@@ -2,6 +2,7 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   loadProviderSettings,
+  sendViaProvider,
   sendViaProviderWithFailover,
   EmailSendResult,
 } from "./emailProvider.ts";
@@ -54,6 +55,13 @@ export interface UnifiedEmailArgs {
     /** Provenance string persisted in the log metadata (e.g. "platform_default", "custom_domain_transactional"). */
     source?: string;
   };
+  /**
+   * Per-mailbox SMTP override (Outreach cold mailboxes with provider='smtp').
+   * When provided, the send goes out via this mailbox's own SMTP server instead
+   * of the Elastic Email / provider-with-failover path. Suppression checks and
+   * delivery logging still apply. Does NOT require the EE apiKey to be set.
+   */
+  mailboxOverride?: { host: string; port: number; secure: boolean; username: string; password: string };
 }
 
 export interface UnifiedEmailResult extends EmailSendResult {
@@ -100,8 +108,10 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
   let recipients = normalized.valid;
 
   // ── 1. Provider settings ─────────────────────────────────────────────────
+  // Per mailboxOverride (casella SMTP propria) l'apiKey EE non serve: l'invio
+  // non passa dal provider-with-failover. In quel caso non blocchiamo qui.
   const settings = await loadProviderSettings(args.stream);
-  if (!settings.apiKey) {
+  if (!settings.apiKey && !args.mailboxOverride) {
     return {
       ok: false,
       status: 500,
@@ -335,20 +345,28 @@ export async function sendEmailUnified(args: UnifiedEmailArgs): Promise<UnifiedE
   }
 
   try {
-    result = await sendViaProviderWithFailover(args.stream, settings, {
-      from:    fromAddress,
-      to:      recipients,
-      subject: args.subject,
-      html:    args.html,
-      text:    args.text,
-      replyTo: effectiveReplyTo,
-      attachments: args.attachments,
-      headers: providerHeaders,
-    }, {
-      domain: providerDomain ?? customDomain ?? settings.domain ?? undefined,
-      stream: args.stream,
-      disableNativeTracking: args.stream === "marketing",
-    });
+    if (args.mailboxOverride) {
+      // Invio via SMTP per-casella (Outreach cold mailbox provider='smtp').
+      result = await sendViaProvider("smtp", "", {
+        from: fromAddress, to: recipients, subject: args.subject, html: args.html, text: args.text,
+        replyTo: effectiveReplyTo, attachments: args.attachments, headers: providerHeaders,
+      }, { smtp: args.mailboxOverride, stream: args.stream });
+    } else {
+      result = await sendViaProviderWithFailover(args.stream, settings, {
+        from:    fromAddress,
+        to:      recipients,
+        subject: args.subject,
+        html:    args.html,
+        text:    args.text,
+        replyTo: effectiveReplyTo,
+        attachments: args.attachments,
+        headers: providerHeaders,
+      }, {
+        domain: providerDomain ?? customDomain ?? settings.domain ?? undefined,
+        stream: args.stream,
+        disableNativeTracking: args.stream === "marketing",
+      });
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     refundedAfterProviderFailure = await refundFailedSend(msg);
