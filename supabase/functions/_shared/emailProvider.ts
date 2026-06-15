@@ -1,4 +1,5 @@
 import { getPlatformSetting } from "./getPlatformSetting.ts";
+import { smtpSend, type SmtpConfig } from "./imapSmtpClient.ts";
 
 /**
  * P1-6: sanitizza il display name mittente per RFC 5322.
@@ -200,6 +201,7 @@ export async function sendViaProvider(
     domain?: string;
     stream?: "marketing" | "transactional";
     disableNativeTracking?: boolean;
+    smtp?: SmtpConfig;
   }
 ): Promise<EmailSendResult> {
   let url: string;
@@ -213,6 +215,26 @@ export async function sendViaProvider(
   const disableNativeTracking = opts?.disableNativeTracking ?? (stream === "marketing");
 
   switch (provider) {
+    case "smtp": {
+      if (!opts?.smtp) {
+        return { ok: false, status: 500, body: { error: "Config SMTP mancante per la casella" } };
+      }
+      try {
+        const { messageId } = await smtpSend(opts.smtp, {
+          from: fromEmail,
+          fromName: fromName,
+          to: req.to,
+          subject: req.subject,
+          bodyHtml: req.html,
+          bodyText: req.text ?? null,
+          headers: req.headers,
+        });
+        return { ok: true, status: 200, body: { messageId }, providerMessageId: messageId, providerUsed: "smtp" };
+      } catch (e) {
+        return { ok: false, status: 502, body: { error: e instanceof Error ? e.message : String(e) }, providerUsed: "smtp" };
+      }
+    }
+
     case "sendgrid": {
       url = "https://api.sendgrid.com/v3/mail/send";
       headers = {
