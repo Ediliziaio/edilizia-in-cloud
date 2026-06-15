@@ -116,9 +116,13 @@ export default function SettingsWhatsAppBot() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Copiato!");
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copiato!");
+    } catch {
+      toast.error("Impossibile copiare negli appunti");
+    }
   };
 
   if (isLoading) {

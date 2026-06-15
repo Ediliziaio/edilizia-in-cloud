@@ -528,6 +528,9 @@ function MarginiPdfTab({
                   min="0" max="100"
                   onBlur={async (e) => {
                     const val = e.target.value.trim() === "" ? null : parseFloat(e.target.value);
+                    // Niente write/toast se il valore non è cambiato o non è valido (apri/chiudi senza modifiche).
+                    if (val !== null && !Number.isFinite(val)) return;
+                    if (val === (cat.margine_target_percentuale ?? null)) return;
                     const { error } = await (supabase.from("listino_categorie") as any)
                       .update({ margine_target_percentuale: val })
                       .eq("id", cat.id).eq("company_id", companyId);

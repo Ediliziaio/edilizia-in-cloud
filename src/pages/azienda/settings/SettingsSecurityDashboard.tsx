@@ -254,7 +254,7 @@ export default function SettingsSecurityDashboard() {
               <div>
                 <p className="font-medium text-destructive">Account bloccati</p>
                 <div className="mt-1 space-y-1">
-                  {overview.locked_accounts.map((u: any) => (
+                  {(overview.locked_accounts ?? []).map((u: any) => (
                     <p key={u.id} className="text-sm text-muted-foreground">
                       {u.first_name} {u.last_name} — bloccato fino a{" "}
                       {new Date(u.locked_until).toLocaleString("it-IT")}
