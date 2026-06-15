@@ -63,6 +63,8 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
   const qc = useQueryClient();
   const [creating, setCreating] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiAngle, setAiAngle] = useState("");
   const [newName, setNewName] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -170,6 +172,39 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
+  // Genera una cadenza intera con l'AI (edge outreach-ai-sequence) a partire da
+  // un "angle", poi la materializza nel DB come una sequenza in bozza + i suoi
+  // step (stesso pattern di createFromTemplate). L'utente la rivede ed edita.
+  const generateWithAi = useMutation({
+    mutationFn: async (angle: string) => {
+      const { data, error } = await supabase.functions.invoke("outreach-ai-sequence", {
+        body: { angle, steps: 3 },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const steps = (data?.steps ?? []) as { delay_days: number; subject: string; body: string }[];
+      if (!steps.length) throw new Error("Nessuna sequenza generata");
+
+      const { data: created, error: cErr } = await db.from(T_SEQ)
+        .insert({ company_id: companyId, name: String(data.name || "Cadenza AI").slice(0, 120), status: "draft" })
+        .select("id").single();
+      if (cErr) throw cErr;
+      const rows = steps.map((s, i) => ({
+        sequence_id: created.id, step_order: i, channel: "email",
+        delay_days: Number(s.delay_days) || 0, delay_hours: 0,
+        subject: s.subject ?? null, body: s.body ?? "",
+      }));
+      const { error: sErr } = await db.from(T_STEP).insert(rows);
+      if (sErr) throw sErr;
+      return created.id as string;
+    },
+    onSuccess: (id) => {
+      toast.success("Sequenza generata con AI");
+      setAiOpen(false); setAiAngle(""); setExpanded(id); invalidate();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore AI"),
+  });
+
   if (q.isLoading) return <div className="flex items-center justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
   if (q.error && isMissingTableError(q.error)) {
     return <MigrationGate title="Sequenze multi-step — pronto" unlocks={[
@@ -192,10 +227,34 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">Cadenze multi-step: il contatto entra e riceve lo step giusto ogni giorno.</p>
         <div className="flex shrink-0 items-center gap-1.5">
-          <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => { setTemplateOpen((v) => !v); setCreating(false); }}><LayoutTemplate className="h-3.5 w-3.5" /> Da template</Button>
-          <Button size="sm" className="h-8 gap-1" onClick={() => { setCreating((v) => !v); setTemplateOpen(false); }}><Plus className="h-3.5 w-3.5" /> Nuova sequenza</Button>
+          <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => { setAiOpen((v) => !v); setTemplateOpen(false); setCreating(false); }}><Sparkles className="h-3.5 w-3.5" /> Genera con AI</Button>
+          <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => { setTemplateOpen((v) => !v); setAiOpen(false); setCreating(false); }}><LayoutTemplate className="h-3.5 w-3.5" /> Da template</Button>
+          <Button size="sm" className="h-8 gap-1" onClick={() => { setCreating((v) => !v); setTemplateOpen(false); setAiOpen(false); }}><Plus className="h-3.5 w-3.5" /> Nuova sequenza</Button>
         </div>
       </div>
+
+      {aiOpen && (
+        <Card><CardContent className="space-y-2 p-3">
+          <div className="flex items-end gap-2">
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">Angolo della cadenza</Label>
+              <Input
+                value={aiAngle}
+                onChange={(e) => setAiAngle(e.target.value)}
+                placeholder="es. risparmio su fatturazione e gestione cantieri"
+                className="h-8"
+                disabled={generateWithAi.isPending}
+                onKeyDown={(e) => { if (e.key === "Enter" && !generateWithAi.isPending) generateWithAi.mutate(aiAngle.trim()); }}
+              />
+            </div>
+            <Button size="sm" className="h-8 gap-1" disabled={generateWithAi.isPending} onClick={() => generateWithAi.mutate(aiAngle.trim())}>
+              {generateWithAi.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              {generateWithAi.isPending ? "Genero…" : "Genera"}
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">L'AI crea una cadenza di 3 email (apertura + 2 follow-up) come bozza, con variabili e spintax. Potrai rivederla ed editarla prima di attivarla.</p>
+        </CardContent></Card>
+      )}
 
       {templateOpen && (
         <div className="grid gap-2 sm:grid-cols-2">
