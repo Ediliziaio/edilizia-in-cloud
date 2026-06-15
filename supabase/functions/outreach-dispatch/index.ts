@@ -131,9 +131,9 @@ Deno.serve(async (req) => {
     const senderById = new Map(senders.map((s) => [s.id, s]));
     const queueById = new Map(queue.map((q) => [q.id, q]));
 
-    // identità per brand (from_name / reply_to override)
-    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,from_name,reply_to");
-    const brandById = new Map<string, { from_name: string | null; reply_to: string | null }>();
+    // identità per brand (from_name / reply_to override) + firma e indirizzo footer
+    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,from_name,reply_to,signature,footer_address");
+    const brandById = new Map<string, { from_name: string | null; reply_to: string | null; signature: string | null; footer_address: string | null }>();
     for (const b of brandsRaw || []) brandById.set(b.id, b);
 
     // vars dei contatti per la personalizzazione (variabili + spintax al send)
@@ -229,13 +229,22 @@ Deno.serve(async (req) => {
         // Unsubscribe firmato (HMAC; legacy-mode senza secret) + header List-Unsubscribe:
         // compliance/deliverability del cold. Serve il contatto (rid) per la soppressione.
         let html = renderTemplate(item.body || "", vars, { seed });
+        // firma del brand (sign-off): passa da renderTemplate → supporta variabili/spintax
+        if (brand?.signature) {
+          html += `<br><br>${renderTemplate(brand.signature, vars, { seed })}`;
+        }
+        // footer compliance: indirizzo postale (CAN-SPAM) + disiscrizione
         let unsubscribeUrl: string | undefined;
         if (item.contact_id) {
           unsubscribeUrl = await appendTrackingSig(
             `${SUPABASE_URL}/functions/v1/email-tracking?type=unsub&rid=${item.contact_id}&co=${PLATFORM_COMPANY}`,
             { co: PLATFORM_COMPANY, rid: item.contact_id, type: "unsub" },
           );
-          html += `<p style="font-size:11px;color:#9ca3af;margin-top:24px">Non vuoi più ricevere queste email? <a href="${unsubscribeUrl}" style="color:#9ca3af">Disiscriviti</a>.</p>`;
+        }
+        const addr = brand?.footer_address ? `${brand.footer_address} · ` : "";
+        const unsubHtml = item.contact_id ? `Non vuoi più ricevere queste email? <a href="${unsubscribeUrl}" style="color:#9ca3af">Disiscriviti</a>.` : "";
+        if (addr || unsubHtml) {
+          html += `<p style="font-size:11px;color:#9ca3af;margin-top:24px">${addr}${unsubHtml}</p>`;
         }
         // Casella SMTP reale: instrada l'invio sul suo server (la password sta in
         // Vault, recuperata via RPC). Caselle EE legacy: mailboxOverride resta
