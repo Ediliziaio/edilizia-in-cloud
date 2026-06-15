@@ -61,6 +61,14 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
+/** CSV/space-separated → lista email valide, lowercased, dedup. */
+function parseEmails(raw: string): string[] {
+  if (!raw.trim()) return [];
+  const seen = new Set<string>();
+  return raw.split(/[,;\s]+/).map((e) => e.trim().toLowerCase())
+    .filter((e) => e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && !seen.has(e) && seen.add(e));
+}
+
 export function QuickContactSendDialog({
   open, onOpenChange, contactId, name, phone, email, context, defaultChannel = "sms", onSent,
 }: QuickContactSendDialogProps) {
@@ -80,12 +88,17 @@ export function QuickContactSendDialog({
   const [channel, setChannel] = useState<QuickSendChannel>(initialChannel);
   const [smsText, setSmsText] = useState("");
   const [waSending, setWaSending] = useState(false);
+  const [waSeedText, setWaSeedText] = useState("");
+  const [waSeedAt, setWaSeedAt] = useState(0);
   const [emailFrom, setEmailFrom] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
   const [sigEnabled, setSigEnabled] = useState(true);
   const [sigText, setSigText] = useState("");
   const [sigEdit, setSigEdit] = useState(false);
+  const [emailCc, setEmailCc] = useState("");
+  const [emailBcc, setEmailBcc] = useState("");
+  const [ccBccVisible, setCcBccVisible] = useState(false);
 
   // AI assist (condiviso SMS/Email)
   const [aiInstruction, setAiInstruction] = useState("");
@@ -96,6 +109,7 @@ export function QuickContactSendDialog({
       setChannel(initialChannel);
       setSmsText(""); setEmailSubject(""); setEmailBody("");
       setAiInstruction(""); setAiTone(TONES[0]); setSigEdit(false);
+      setEmailCc(""); setEmailBcc(""); setCcBccVisible(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -155,11 +169,13 @@ export function QuickContactSendDialog({
 
   // ── AI compose ──
   const composeAi = useMutation({
-    mutationFn: async (ch: QuickSendChannel): Promise<{ subject?: string; body?: string }> => {
+    mutationFn: async (vars: { ch: QuickSendChannel; mode?: "generate" | "refine"; currentText?: string; instructionOverride?: string }): Promise<{ subject?: string; body?: string; mode: "generate" | "refine"; ch: QuickSendChannel }> => {
       const { data, error } = await supabase.functions.invoke("ai-compose-message", {
         body: {
-          channel: ch,
-          instruction: aiInstruction.trim(),
+          channel: vars.ch,
+          mode: vars.mode ?? "generate",
+          current_text: vars.currentText ?? "",
+          instruction: (vars.instructionOverride ?? aiInstruction).trim(),
           tone: aiTone,
           contact_name: fullName || null,
           context: context ?? null,
@@ -170,15 +186,18 @@ export function QuickContactSendDialog({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const r = data as any;
       if (r?.ok === false) throw new Error(r?.error ?? "Generazione fallita");
-      return { subject: r?.subject, body: r?.body };
+      return { subject: r?.subject, body: r?.body, mode: vars.mode ?? "generate", ch: vars.ch };
     },
-    onSuccess: (r, ch) => {
-      if (ch === "sms") setSmsText((r.body ?? "").slice(0, SMS_MAX));
-      else if (ch === "email") {
-        if (r.subject) setEmailSubject(r.subject.slice(0, 200));
+    onSuccess: (r) => {
+      if (r.ch === "sms") setSmsText((r.body ?? "").slice(0, SMS_MAX));
+      else if (r.ch === "email") {
+        if (r.subject && r.mode !== "refine") setEmailSubject(r.subject.slice(0, 200));
         if (r.body) setEmailBody(r.body.slice(0, 50_000));
+      } else if (r.ch === "whatsapp") {
+        setWaSeedText(r.body ?? "");
+        setWaSeedAt((n) => n + 1);
       }
-      toast.success("Bozza generata", { description: "Modificala pure prima di inviare." });
+      toast.success(r.mode === "refine" ? "Testo rielaborato" : "Bozza generata", { description: "Modificala pure prima di inviare." });
     },
     onError: (e) => toast.error("AI non disponibile", { description: e instanceof Error ? e.message : String(e) }),
   });
@@ -205,7 +224,7 @@ export function QuickContactSendDialog({
         .from("email_outbox")
         .insert({
           user_id: user.id, company_id: effectiveCompany.id, oauth_connection_id: emailFrom,
-          to_emails: [email], cc_emails: [], bcc_emails: [],
+          to_emails: [email], cc_emails: parseEmails(emailCc), bcc_emails: parseEmails(emailBcc),
           subject, body_text: finalText, body_html: finalHtml, attachments: [], status: "queued",
         })
         .select("id").single();
@@ -246,7 +265,12 @@ export function QuickContactSendDialog({
           <TabsContent value="sms" className="space-y-2 pt-2">
             {hasPhone ? (
               <>
-                <AiAssistRow instruction={aiInstruction} setInstruction={setAiInstruction} tone={aiTone} setTone={setAiTone} pending={composeAi.isPending} onGenerate={() => composeAi.mutate("sms")} />
+                <AiAssistRow
+                  instruction={aiInstruction} setInstruction={setAiInstruction} tone={aiTone} setTone={setAiTone}
+                  pending={composeAi.isPending} currentText={smsText}
+                  onGenerate={() => composeAi.mutate({ ch: "sms" })}
+                  onRefine={(act) => composeAi.mutate({ ch: "sms", mode: "refine", currentText: smsText, instructionOverride: act })}
+                />
                 <Textarea placeholder="Scrivi l'SMS…" value={smsText} onChange={(e) => setSmsText(e.target.value.slice(0, SMS_MAX))} rows={4} className="text-sm resize-y" />
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-muted-foreground">{smsText.length}/{SMS_MAX} · {Math.max(1, Math.ceil(smsText.length / 153))} segmento/i</span>
@@ -261,8 +285,16 @@ export function QuickContactSendDialog({
           {/* WhatsApp */}
           <TabsContent value="whatsapp" className="space-y-2 pt-2">
             {hasPhone ? (
+              <>
+              <AiAssistRow
+                instruction={aiInstruction} setInstruction={setAiInstruction} tone={aiTone} setTone={setAiTone}
+                pending={composeAi.isPending} currentText=""
+                onGenerate={() => composeAi.mutate({ ch: "whatsapp" })}
+                onRefine={() => composeAi.mutate({ ch: "whatsapp" })}
+              />
               <WhatsAppComposer
                 phone={cleanPhone} isSending={waSending} contactFields={waContactFields}
+                seedText={waSeedText} seedAt={waSeedAt}
                 onSend={async ({ waNumberId, content, template }) => {
                   if (!effectiveCompany?.id) { toast.error("Azienda non disponibile"); return; }
                   setWaSending(true);
@@ -278,6 +310,7 @@ export function QuickContactSendDialog({
                   finally { setWaSending(false); }
                 }}
               />
+              </>
             ) : <p className="text-xs text-muted-foreground italic py-4 text-center">Il contatto non ha un numero di telefono.</p>}
           </TabsContent>
 
@@ -306,9 +339,25 @@ export function QuickContactSendDialog({
                   </Select>
                 </div>
 
-                <AiAssistRow instruction={aiInstruction} setInstruction={setAiInstruction} tone={aiTone} setTone={setAiTone} pending={composeAi.isPending} onGenerate={() => composeAi.mutate("email")} />
+                <AiAssistRow
+                  instruction={aiInstruction} setInstruction={setAiInstruction} tone={aiTone} setTone={setAiTone}
+                  pending={composeAi.isPending} currentText={emailBody}
+                  onGenerate={() => composeAi.mutate({ ch: "email" })}
+                  onRefine={(act) => composeAi.mutate({ ch: "email", mode: "refine", currentText: emailBody, instructionOverride: act })}
+                />
 
-                <Input placeholder="Oggetto" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value.slice(0, 200))} className="h-8 text-sm" />
+                <div className="flex items-center gap-2">
+                  <Input placeholder="Oggetto" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value.slice(0, 200))} className="h-8 text-sm flex-1" />
+                  {!ccBccVisible && (
+                    <button type="button" className="text-[10px] text-blue-600 hover:underline font-medium shrink-0" onClick={() => setCcBccVisible(true)}>+ Cc/Ccn</button>
+                  )}
+                </div>
+                {ccBccVisible && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input placeholder="Cc (virgola)" value={emailCc} onChange={(e) => setEmailCc(e.target.value)} className="h-8 text-xs" />
+                    <Input placeholder="Ccn / Bcc (virgola)" value={emailBcc} onChange={(e) => setEmailBcc(e.target.value)} className="h-8 text-xs" />
+                  </div>
+                )}
                 <Textarea placeholder="Scrivi l'email…" value={emailBody} onChange={(e) => setEmailBody(e.target.value.slice(0, 50_000))} rows={5} className="text-sm resize-y" />
 
                 {/* Firma editabile */}
@@ -345,9 +394,11 @@ export function QuickContactSendDialog({
   );
 }
 
-/** Riga "Scrivi con l'AI" — componente a livello modulo per non remountare il textarea. */
+const PRESETS = ["Proponi un sopralluogo", "Sollecito preventivo", "Conferma appuntamento", "Ringraziamento"];
+
+/** Riga "Scrivi con l'AI" — a livello modulo per non remountare il textarea. */
 function AiAssistRow({
-  instruction, setInstruction, tone, setTone, pending, onGenerate,
+  instruction, setInstruction, tone, setTone, pending, onGenerate, onRefine, currentText,
 }: {
   instruction: string;
   setInstruction: (v: string) => void;
@@ -355,11 +406,27 @@ function AiAssistRow({
   setTone: (v: string) => void;
   pending: boolean;
   onGenerate: () => void;
+  onRefine: (action: string) => void;
+  currentText: string;
 }) {
+  const hasText = currentText.trim().length > 0;
   return (
     <div className="rounded-lg border border-orange-200 bg-orange-50/50 p-2 space-y-1.5">
       <div className="flex items-center gap-1.5 text-[11px] font-semibold text-orange-700">
         <Sparkles className="h-3.5 w-3.5" /> Scrivi con l'AI
+      </div>
+      {/* Preset rapidi → riempiono l'istruzione */}
+      <div className="flex flex-wrap gap-1">
+        {PRESETS.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => setInstruction(p)}
+            className="rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[10px] text-orange-700 hover:bg-orange-100"
+          >
+            {p}
+          </button>
+        ))}
       </div>
       <Textarea
         placeholder="Cosa vuoi dire? Es: «proponi un sopralluogo per gli impianti del condominio la prossima settimana»"
@@ -380,6 +447,23 @@ function AiAssistRow({
           Genera
         </Button>
       </div>
+      {/* Rielabora il testo già scritto */}
+      {hasText && (
+        <div className="flex flex-wrap items-center gap-1 pt-0.5">
+          <span className="text-[10px] text-muted-foreground">Sul testo:</span>
+          {[["Migliora", "migliora il testo rendendolo più chiaro e professionale"], ["Accorcia", "accorcia il testo mantenendo il messaggio"], ["Allunga", "espandi il testo con qualche dettaglio utile"], ["Più formale", "rendi il testo più formale"]].map(([label, act]) => (
+            <button
+              key={label}
+              type="button"
+              disabled={pending}
+              onClick={() => onRefine(act)}
+              className="rounded-md border bg-white px-1.5 py-0.5 text-[10px] hover:bg-muted disabled:opacity-50"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

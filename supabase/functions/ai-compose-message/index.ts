@@ -29,6 +29,9 @@ Deno.serve(async (req) => {
     const contactName = typeof body?.contact_name === "string" ? body.contact_name.slice(0, 120).trim() : "";
     const context = typeof body?.context === "string" ? body.context.slice(0, 800).trim() : "";
     const companyId = typeof body?.company_id === "string" ? body.company_id : null;
+    // mode: "generate" (da zero) | "refine" (rielabora un testo esistente)
+    const mode = body?.mode === "refine" ? "refine" : "generate";
+    const currentText = typeof body?.current_text === "string" ? body.current_text.slice(0, 6000).trim() : "";
 
     const channelRules =
       channel === "sms"
@@ -43,11 +46,18 @@ Tono richiesto: ${tone}. Italiano naturale, chiaro, concreto e umano. Niente "Sp
 Rispondi ESCLUSIVAMENTE con JSON valido, senza testo extra:
 ${channel === "email" ? '{"subject":"...","body":"..."}' : '{"body":"..."}'}`;
 
-    const user = [
-      contactName ? `Destinatario: ${contactName}.` : "",
-      context ? `Contesto (opportunità/cliente): ${context}.` : "",
-      instruction ? `Obiettivo del messaggio: ${instruction}.` : "Scrivi un messaggio di follow-up cortese, utile e che inviti a un prossimo passo concreto.",
-    ].filter(Boolean).join("\n");
+    const user = mode === "refine" && currentText
+      ? [
+          contactName ? `Destinatario: ${contactName}.` : "",
+          context ? `Contesto: ${context}.` : "",
+          `Rielabora il messaggio qui sotto secondo questa indicazione: ${instruction || "miglioralo"}. Mantieni il senso e la lingua, restituisci SOLO il messaggio finale nel JSON richiesto.`,
+          `--- MESSAGGIO ATTUALE ---\n${currentText}`,
+        ].filter(Boolean).join("\n")
+      : [
+          contactName ? `Destinatario: ${contactName}.` : "",
+          context ? `Contesto (opportunità/cliente): ${context}.` : "",
+          instruction ? `Obiettivo del messaggio: ${instruction}.` : "Scrivi un messaggio di follow-up cortese, utile e che inviti a un prossimo passo concreto.",
+        ].filter(Boolean).join("\n");
 
     const result = await aiRouterComplete({
       supabase: admin,
