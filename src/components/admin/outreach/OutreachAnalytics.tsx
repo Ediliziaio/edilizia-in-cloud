@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, Send, MailOpen, MousePointerClick, AlertTriangle, MessageSquareReply } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { BarChart3, Send, MailOpen, MousePointerClick, AlertTriangle, MessageSquareReply, Download } from "lucide-react";
+import { exportToCSV } from "@/lib/csvExport";
 
 /**
  * Analytics campagne email cold — funnel + tassi su email_delivery_log
@@ -35,19 +37,49 @@ export function OutreachAnalytics({ companyId }: { companyId: string }) {
   const fmt = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("it-IT"));
 
   const steps = [
-    { icon: Send, label: "Inviate", value: fmt(s), rate: null as string | null, tone: "default" as const },
-    { icon: MailOpen, label: "Aperte", value: fmt(o), rate: pct(o, s), tone: "good" as const },
-    { icon: MousePointerClick, label: "Cliccate", value: fmt(c), rate: pct(c, s), tone: "good" as const },
-    { icon: MessageSquareReply, label: "Risposte", value: fmt(r), rate: pct(r, s), tone: "good" as const },
-    { icon: AlertTriangle, label: "Bounce", value: fmt(b), rate: pct(b, s), tone: "warn" as const },
+    { icon: Send, label: "Inviate", value: fmt(s), raw: s, rate: null as string | null, tone: "default" as const },
+    { icon: MailOpen, label: "Aperte", value: fmt(o), raw: o, rate: pct(o, s), tone: "good" as const },
+    { icon: MousePointerClick, label: "Cliccate", value: fmt(c), raw: c, rate: pct(c, s), tone: "good" as const },
+    { icon: MessageSquareReply, label: "Risposte", value: fmt(r), raw: r, rate: pct(r, s), tone: "good" as const },
+    { icon: AlertTriangle, label: "Bounce", value: fmt(b), raw: b, rate: pct(b, s), tone: "warn" as const },
   ];
+
+  // Esporta il funnel mostrato come CSV lato client (nessuna nuova query): una riga
+  // per metrica con valore grezzo e percentuale sulle inviate. exportToCSV gestisce
+  // BOM, quoting RFC-4180 e anti formula-injection (src/lib/csvExport).
+  const handleExport = () => {
+    const rows = steps.map((st) => ({
+      metrica: st.label,
+      valore: st.raw == null ? "" : String(st.raw),
+      percentuale: st.rate && st.rate !== "—" ? st.rate : "",
+    }));
+    const columns = [
+      { key: "metrica", label: "Metrica" },
+      { key: "valore", label: "Valore" },
+      { key: "percentuale", label: "% sulle inviate" },
+    ];
+    exportToCSV(rows, columns, `outreach-analytics-${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
+  // Niente da esportare finché non c'è almeno un invio registrato.
+  const hasData = s != null && s > 0;
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <BarChart3 className="h-5 w-5 text-orange-500" /> Analytics campagne (email)
         </CardTitle>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1.5"
+          onClick={handleExport}
+          disabled={!hasData}
+          title={hasData ? "Scarica il funnel come file CSV" : "Nessun dato da esportare"}
+        >
+          <Download className="h-3.5 w-3.5" /> Esporta CSV
+        </Button>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
