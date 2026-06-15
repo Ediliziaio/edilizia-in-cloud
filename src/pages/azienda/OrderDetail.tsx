@@ -61,6 +61,7 @@ import { TimelineCantiere } from "@/components/orders/TimelineCantiere";
 import { useOrdinePDF, type OrdinePDFProps } from "@/hooks/useOrdinePDF";
 import { OrderQuickActions } from "@/components/orders/OrderQuickActions";
 import { OrderOperationalPanel } from "@/components/orders/OrderOperationalPanel";
+import { OrderFilesDialog } from "@/components/orders/OrderFilesDialog";
 
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
@@ -277,6 +278,7 @@ function OrderDetailInner() {
   // true mentre carichiamo on-demand i dati ricchi del PDF (vedi handleDownloadPDF)
   const [pdfPreparing, setPdfPreparing] = useState(false);
   const [opsOpen, setOpsOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
 
   // Monta UN SOLO layout (mobile O desktop): prima erano entrambi nel tree
   // nascosti via CSS → ogni card della pagina renderizzava due volte.
@@ -1001,6 +1003,7 @@ function OrderDetailInner() {
             return { amount: next?.amount ?? residuo, dueDate: next?.expected_date ?? null, label: next?.label ?? null };
           })()}
           onOpenOps={() => setOpsOpen(true)}
+          onOpenFiles={() => setFilesOpen(true)}
         />
       )}
 
@@ -1790,6 +1793,20 @@ function OrderDetailInner() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Documenti e file della commessa (popup) */}
+      <OrderFilesDialog
+        open={filesOpen}
+        onOpenChange={setFilesOpen}
+        fatture={fattureCollegate}
+        documenti={documentiCommessa}
+        items={displayItems}
+        onOpenDocumento={handleOpenOrderDocument}
+        formatDocType={formatAttachmentType}
+        onDownloadFattura={handleDownloadFiscalDocument}
+        onDownloadOrderPdf={handleDownloadPDF}
+        pdfBusy={pdfPreparing || isGeneratingPDF}
+      />
 
       {/* Delete confirm (triggered by OrdineDetailHeader) */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>

@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Phone, MessageSquare, Mail, FileText, CalendarPlus, Loader2, BellRing, ClipboardList } from "lucide-react";
+import { Phone, MessageSquare, Mail, FileText, CalendarPlus, Loader2, BellRing, ClipboardList, FolderOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -35,6 +35,8 @@ interface Props {
   paymentDue?: { amount: number; dueDate?: string | null; label?: string | null } | null;
   /** Apre il popup "Operatività commessa" (prossima azione/responsabile/checklist). */
   onOpenOps?: () => void;
+  /** Apre il popup "Documenti e file" della commessa. */
+  onOpenFiles?: () => void;
 }
 
 const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
@@ -42,7 +44,7 @@ const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency"
 type Attachment = { name: string; size: number; mime: string; storage_path: string };
 
 export function OrderQuickActions({
-  orderId, orderCode, companyId, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps,
+  orderId, orderCode, companyId, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps, onOpenFiles,
 }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -119,6 +121,13 @@ export function OrderQuickActions({
             onClick={onOpenOps}
             title="Prossima azione, responsabile e checklist fasi">
             <ClipboardList className="h-3.5 w-3.5" /> Operatività
+          </Button>
+        )}
+        {onOpenFiles && (
+          <Button variant="outline" size="sm" className="h-8 gap-1.5"
+            onClick={onOpenFiles}
+            title="Tutti i file: PDF, fatture, allegati commessa e schede articoli">
+            <FolderOpen className="h-3.5 w-3.5 text-amber-600" /> Documenti
           </Button>
         )}
         <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={handleCall} disabled={!hasPhone}
