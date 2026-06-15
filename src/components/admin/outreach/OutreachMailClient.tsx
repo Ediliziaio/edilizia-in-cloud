@@ -52,7 +52,10 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
   const [senderId, setSenderId] = useState<string | null>(null); // null = tutte le caselle
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [showListMobile, setShowListMobile] = useState(false); // overlay caselle su mobile
-  const [showContext, setShowContext] = useState(true); // pannello contesto lead (destra)
+  // Override esplicito del pannello contesto lead: null = segue il default (aperto
+  // se la conversazione ha un contatto collegato, chiuso se è solo un'email sciolta).
+  // Si azzera al cambio conversazione negli handler (niente setState-in-effect).
+  const [contextOverride, setContextOverride] = useState<boolean | null>(null);
 
   const filtered = useMemo(
     () => filterConversations(conversations, filter, search, senderId),
@@ -63,6 +66,14 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
     () => conversations.find((c) => c.key === selectedKey) ?? null,
     [conversations, selectedKey],
   );
+
+  // Contesto aperto di default solo quando c'è un lead vero collegato: per le email
+  // verso indirizzi non in rubrica il pannello resterebbe vuoto ("Nessun contatto")
+  // e schiaccerebbe il thread, quindi parte chiuso. Il toggle resta sempre disponibile.
+  const showContext = contextOverride ?? Boolean(selected?.contact);
+  // Con il contesto aperto su desktop la colonna "Caselle" collassa nel selettore
+  // compatto (come sotto lg), restituendo larghezza al thread di lettura.
+  const mailboxColumnVisible = !showContext;
 
   // Contesto + azioni del lead selezionato (DRY: dal hook condiviso).
   const { context: leadContext, isLoading: leadLoading, liveSequence } =
@@ -85,6 +96,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
     setSelectedKey(conv.key);
     setReplyText("");
     setShowListMobile(false);
+    setContextOverride(null); // nuova conversazione → torna al default (contatto sì/no)
     if (conv.unread && conv.contact?.id) markRead.mutate(conv.contact.id);
   };
 
@@ -110,6 +122,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
       if (next && next.key !== selectedKey) {
         setSelectedKey(next.key);
         setReplyText("");
+        setContextOverride(null); // cambio conversazione → default contesto
         if (next.unread && next.contact?.id) markRead.mutate(next.contact.id);
       }
     };
@@ -169,9 +182,17 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
   const activeSender = senderId ? sendersById.get(senderId) ?? null : null;
 
   return (
-    <div className="flex h-[620px] overflow-hidden rounded-xl border bg-card">
+    // overflow-x-auto: se a viewport stretti i floor delle colonne (conversazioni +
+    // thread + contesto) non entrano, scorre in orizzontale invece di schiacciare il
+    // thread. Verticale resta clippato per mantenere il bordo arrotondato.
+    <div className="flex h-[620px] overflow-x-auto overflow-y-hidden rounded-xl border bg-card">
       {/* ═══ Pannello caselle & filtri (sinistra) ═══ */}
-      <aside className="hidden w-[230px] shrink-0 flex-col border-r bg-background lg:flex">
+      {/* A ≥lg si mostra solo quando il contesto lead è chiuso: con il contesto aperto
+          collassa nel selettore compatto in cima alla lista, lasciando spazio al thread. */}
+      <aside className={cn(
+        "hidden w-[230px] shrink-0 flex-col border-r bg-background",
+        mailboxColumnVisible && "lg:flex",
+      )}>
         <div className="border-b p-3">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <Mailbox className="h-4 w-4 text-orange-500" /> Caselle
@@ -244,13 +265,14 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
             />
           </div>
 
-          {/* Filtri stato — visibili anche senza il pannello caselle (mobile/tablet) */}
-          <div className="mt-2 lg:hidden">
+          {/* Filtri stato — visibili quando il pannello caselle è nascosto (mobile/tablet,
+              o desktop col contesto lead aperto che ne collassa la colonna). */}
+          <div className={cn("mt-2", mailboxColumnVisible && "lg:hidden")}>
             <FilterPills filter={filter} counts={counts} onChange={setFilter} />
           </div>
 
-          {/* Selettore casella compatto su mobile/tablet (pannello sinistro nascosto) */}
-          <div className="mt-2 lg:hidden">
+          {/* Selettore casella compatto: idem, sostituisce la colonna caselle quando nascosta. */}
+          <div className={cn("mt-2", mailboxColumnVisible && "lg:hidden")}>
             <button
               type="button"
               onClick={() => setShowListMobile((v) => !v)}
@@ -390,7 +412,11 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-            <div className="flex min-w-0 flex-1 flex-col">
+            {/* Floor di larghezza del thread su desktop: col contesto lead aperto non
+                deve mai comprimersi fino a "una parola per riga". min-w-0 resta per lo
+                stack mobile (ellissi); a ≥lg vince il floor e, se lo spazio non basta,
+                è il contenitore dei pannelli a scorrere in orizzontale. */}
+            <div className="flex min-w-0 flex-1 flex-col lg:min-w-[380px]">
               <ThreadPane
                 selected={selected}
                 mailbox={selected.primarySenderId ? sendersById.get(selected.primarySenderId) ?? null : null}
@@ -402,7 +428,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
                 onDraft={draftWithAi}
                 onBack={() => setSelectedKey(null)}
                 showContext={showContext}
-                onToggleContext={() => setShowContext((v) => !v)}
+                onToggleContext={() => setContextOverride(!showContext)}
               />
             </div>
             {showContext && (
@@ -415,7 +441,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
                 actions={leadActions}
                 onSetIntent={(intent) => selected.contact?.id && setIntent.mutate({ contactId: selected.contact.id, intent })}
                 intentPending={setIntent.isPending}
-                onClose={() => setShowContext(false)}
+                onClose={() => setContextOverride(false)}
               />
             )}
           </div>
