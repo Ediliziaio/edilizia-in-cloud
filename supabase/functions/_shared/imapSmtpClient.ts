@@ -44,6 +44,7 @@ export interface SmtpMessage {
   inReplyTo?: string | null;
   references?: string[];
   attachments?: SmtpAttachment[];
+  headers?: Record<string, string>;
 }
 
 export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ messageId: string }> {
@@ -118,6 +119,7 @@ export async function smtpSend(cfg: SmtpConfig, msg: SmtpMessage): Promise<{ mes
       inReplyTo: msg.inReplyTo, references: msg.references,
       messageId,
       attachments: msg.attachments,
+      headers: msg.headers,
     });
     // Dot-stuffing (RFC 5321): righe che iniziano con . vanno raddoppiate
     const stuffed = rfc822.replace(/\r\n\./g, "\r\n..");
@@ -158,6 +160,7 @@ export function buildRFC822(opts: {
   references?: string[];
   messageId: string;
   attachments?: SmtpAttachment[];
+  headers?: Record<string, string>;
 }): string {
   const fromHeader = opts.fromName ? `${escapeHeader(opts.fromName)} <${opts.from}>` : opts.from;
   const lines: string[] = [];
@@ -170,6 +173,11 @@ export function buildRFC822(opts: {
   lines.push(`Message-ID: ${opts.messageId}`);
   if (opts.inReplyTo) lines.push(`In-Reply-To: ${opts.inReplyTo}`);
   if (opts.references && opts.references.length > 0) lines.push(`References: ${opts.references.join(" ")}`);
+  if (opts.headers) {
+    for (const [k, v] of Object.entries(opts.headers)) {
+      if (v != null && String(v).length) lines.push(`${escapeHeader(k)}: ${escapeHeader(String(v))}`);
+    }
+  }
   lines.push(`MIME-Version: 1.0`);
 
   const hasHtml = !!opts.bodyHtml && opts.bodyHtml.trim().length > 0;
