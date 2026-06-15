@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { Mail, Clock, GitBranch, Flag, AlertTriangle, Check, X, MessageCircle, Smartphone } from "lucide-react";
+import { Mail, Clock, GitBranch, Flag, AlertTriangle, Check, X, MessageCircle, Smartphone, FileText } from "lucide-react";
 
 /**
  * Nodi custom del builder a grafo delle SEQUENZE CONDIZIONALI (outreach).
@@ -27,6 +27,8 @@ type NodeData = {
   delay_hours?: number;
   condition_type?: string | null;
   hasWarning?: boolean;
+  // Template WhatsApp approvato (solo nodi whatsapp): mostrato come badge sul nodo.
+  template_name?: string | null;
 };
 
 function delayLabel(d?: number, h?: number): string {
@@ -123,8 +125,15 @@ function MessageNodeCard({
         {data.hasWarning && <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />}
       </div>
       <div className="px-3 py-2">
+        {/* Badge template approvato (WhatsApp): segnala invio conforme Meta (cold-ready). */}
+        {data.template_name?.trim() && (
+          <span className="mb-1 inline-flex max-w-full items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
+            <FileText className="h-2.5 w-2.5 shrink-0" />
+            <span className="truncate">Template: {data.template_name.trim()}</span>
+          </span>
+        )}
         <p className="line-clamp-2 text-[12px] leading-tight text-foreground">
-          {data.body?.trim() || data.label || "Messaggio…"}
+          {data.body?.trim() || data.label || (data.template_name?.trim() ? "Template approvato" : "Messaggio…")}
         </p>
       </div>
       <Handle type="source" position={Position.Bottom} className={`${styles.handle} ${HANDLE}`} />

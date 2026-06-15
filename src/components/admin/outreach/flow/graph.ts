@@ -25,6 +25,9 @@ export function isSendNodeType(t: OutreachNodeType): boolean {
   return channelOfNodeType(t) !== null;
 }
 
+/** Mappa posizionale dei parametri di un template WhatsApp: { "1": "{{first_name}}", "2": "testo" }. */
+export type TemplateParams = Record<string, string>;
+
 /** Riga `outreach_sequence_steps` (campi rilevanti per il builder). */
 export interface StepRow {
   id: string;
@@ -41,6 +44,10 @@ export interface StepRow {
   next_alt: string | null;
   pos_x: number | null;
   pos_y: number | null;
+  // Template WhatsApp approvato (compliance Meta cold): solo per node_type='whatsapp'.
+  template_name: string | null;
+  template_language: string | null;
+  template_params: TemplateParams | null;
 }
 
 /** Dati portati da un nodo React Flow del builder. */
@@ -52,6 +59,11 @@ export interface FlowNodeData extends Record<string, unknown> {
   delay_hours?: number;
   condition_type?: OutreachConditionType | null;
   hasWarning?: boolean;
+  // Template WhatsApp (solo nodi whatsapp): nome+lingua del template approvato e
+  // mappatura posizionale dei placeholder body → variabile/testo. Assente = testo libero.
+  template_name?: string | null;
+  template_language?: string | null;
+  template_params?: TemplateParams | null;
 }
 
 const COL = { x: 320, yStart: 60, yGap: 150 };
@@ -83,6 +95,10 @@ function mkNode(s: StepRow, pos: { x: number; y: number }): Node<FlowNodeData> {
       delay_days: s.delay_days ?? 0,
       delay_hours: s.delay_hours ?? 0,
       condition_type: s.condition_type ?? null,
+      // Template WhatsApp: portato dal DB così il nodo riapre col template impostato.
+      template_name: s.template_name ?? null,
+      template_language: s.template_language ?? null,
+      template_params: s.template_params ?? null,
     },
   };
 }
@@ -168,6 +184,32 @@ export interface StepUpsert {
   next_alt: string | null;
   pos_x: number;
   pos_y: number;
+  // Template WhatsApp (solo node_type='whatsapp'; NULL altrove → testo libero/legacy).
+  template_name: string | null;
+  template_language: string | null;
+  template_params: TemplateParams | null;
+}
+
+/**
+ * Normalizza i campi template per la persistenza: validi SOLO sui nodi WhatsApp
+ * con un template_name effettivo. Su ogni altro nodo (o WhatsApp senza template) →
+ * tripletta NULL = testo libero/legacy. Scarta i params se manca il nome (il CHECK
+ * DB rifiuterebbe params senza template_name).
+ */
+function templateFields(
+  type: OutreachNodeType,
+  data: FlowNodeData,
+): { template_name: string | null; template_language: string | null; template_params: TemplateParams | null } {
+  const name = type === "whatsapp" ? (data.template_name?.trim() || "") : "";
+  if (!name) return { template_name: null, template_language: null, template_params: null };
+  const params = data.template_params && Object.keys(data.template_params).length > 0
+    ? data.template_params
+    : null;
+  return {
+    template_name: name,
+    template_language: data.template_language?.trim() || "it",
+    template_params: params,
+  };
 }
 
 /**
@@ -261,6 +303,8 @@ export function flowToSteps(
       next_alt: isCond ? (outAlt.get(n.id) ?? null) : null,
       pos_x: Math.round(n.position.x),
       pos_y: Math.round(n.position.y),
+      // Template WhatsApp approvato (compliance Meta cold): solo sui nodi whatsapp.
+      ...templateFields(type, data),
     };
   });
 }
@@ -319,9 +363,19 @@ export function validateFlow(nodes: Node<FlowNodeData>[], edges: Edge[]): Valida
     }
     // Nodo messaggio non-email (WhatsApp/SMS) senza corpo: nulla da inviare.
     if (n.type === "whatsapp" || n.type === "sms") {
-      const body = ((n.data ?? {}) as FlowNodeData).body ?? "";
-      if (!body.trim()) {
+      const nd = (n.data ?? {}) as FlowNodeData;
+      const body = nd.body ?? "";
+      const hasTpl = n.type === "whatsapp" && !!nd.template_name?.trim();
+      // WhatsApp con template: il corpo è opzionale (i parametri bastano). Senza
+      // template serve un corpo (testo libero). SMS: serve sempre il corpo.
+      if (!body.trim() && !hasTpl) {
         issues.push({ nodeId: n.id, level: "warning", message: `Nodo ${n.type === "whatsapp" ? "WhatsApp" : "SMS"} senza testo: nessun messaggio verrà inviato.` });
+      }
+      // Compliance Meta: a freddo (finestra 24h chiusa) il testo libero viene
+      // rifiutato. Senza template approvato il nodo WhatsApp verrà saltato per i
+      // contatti cold → avviso non bloccante.
+      if (n.type === "whatsapp" && !hasTpl) {
+        issues.push({ nodeId: n.id, level: "warning", message: "Nodo WhatsApp senza template approvato: a freddo (fuori finestra 24h) il messaggio viene saltato. Imposta un template per i contatti cold." });
       }
     }
     // Orfano: non raggiungibile e non è esso stesso una radice valida.
