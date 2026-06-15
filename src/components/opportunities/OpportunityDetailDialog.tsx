@@ -1018,6 +1018,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   email={contactEmail}
                   contactCreatedAt={contact?.created_at ?? opportunity.created_at}
                   contactSource={contact?.source ?? opportunity.source}
+                  members={[...salespeople, ...staff, ...callCenterUsers].reduce((acc: { id: string; name: string }[], m: any) => {
+                    if (m?.id && !acc.some((x) => x.id === m.id)) acc.push({ id: m.id, name: m.name });
+                    return acc;
+                  }, [])}
                 />
               )}
 
