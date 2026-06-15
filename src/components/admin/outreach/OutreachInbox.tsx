@@ -11,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import {
-  Inbox, Mail, Search, ChevronLeft, MessageSquare, AlertTriangle, Building2, Send, Loader2, Wand2,
+  Inbox, Mail, Search, ChevronLeft, MessageSquare, AlertTriangle, Building2, Send, Loader2, Wand2, CheckCheck, Archive,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -94,9 +94,15 @@ interface Conversation {
   lastSnippet: string;
   lastIntent: string | null;
   unread: boolean;
+  /** Ha almeno una risposta in arrivo già letta (status='read') → archiviabile. */
+  hasRead: boolean;
+  /** Ha ≥1 risposta in arrivo e tutte sono archiviate → nascosta di default. */
+  archived: boolean;
 }
 
 const UNREAD = "unread";
+const READ = "read";
+const ARCHIVED = "archived";
 
 function contactName(c: ContactRow | null, email: string | null): string {
   if (c) {
@@ -138,7 +144,7 @@ function stripHtml(html: string): string {
 
 export function OutreachInbox({ companyId }: { companyId: string }) {
   const qc = useQueryClient();
-  const [filter, setFilter] = useState<"all" | "interested" | "unread">("all");
+  const [filter, setFilter] = useState<"all" | "interested" | "unread" | "archived">("all");
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
@@ -207,6 +213,40 @@ export function OutreachInbox({ companyId }: { companyId: string }) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
+  // Azione bulk: tutte le risposte non lette dell'azienda → lette.
+  const markAllRead = useMutation({
+    mutationFn: async () => {
+      const { error } = await db
+        .from(T_REPLIES)
+        .update({ status: READ })
+        .eq("company_id", companyId)
+        .eq("status", UNREAD);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Tutte le risposte segnate come lette");
+      qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
+  // Azione bulk: tutte le risposte lette dell'azienda → archiviate (escono dalla lista di default).
+  const archiveRead = useMutation({
+    mutationFn: async () => {
+      const { error } = await db
+        .from(T_REPLIES)
+        .update({ status: ARCHIVED })
+        .eq("company_id", companyId)
+        .eq("status", READ);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Conversazioni lette archiviate");
+      qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
   const conversations = useMemo<Conversation[]>(() => {
     const sent = sentQ.data ?? [];
     const replies = repliesQ.data ?? [];
@@ -227,6 +267,8 @@ export function OutreachInbox({ companyId }: { companyId: string }) {
           lastSnippet: "",
           lastIntent: null,
           unread: false,
+          hasRead: false,
+          archived: false,
         };
         groups.set(key, conv);
       } else if (!conv.email && email) {
@@ -249,6 +291,10 @@ export function OutreachInbox({ companyId }: { companyId: string }) {
       });
     }
 
+    // Conteggio risposte in arrivo e quante archiviate, per stabilire se la
+    // conversazione è interamente archiviata (→ fuori dalla lista di default).
+    const inCount = new Map<string, number>();
+    const archivedCount = new Map<string, number>();
     for (const r of replies) {
       if (!r.contact_id && !r.from_email) continue;
       const conv = ensure(r.contact_id, r.from_email);
@@ -261,10 +307,15 @@ export function OutreachInbox({ companyId }: { companyId: string }) {
         intent: r.intent,
       });
       if (r.status === UNREAD) conv.unread = true;
+      if (r.status === READ) conv.hasRead = true;
+      inCount.set(conv.key, (inCount.get(conv.key) ?? 0) + 1);
+      if (r.status === ARCHIVED) archivedCount.set(conv.key, (archivedCount.get(conv.key) ?? 0) + 1);
     }
 
     const list = Array.from(groups.values());
     for (const conv of list) {
+      const inN = inCount.get(conv.key) ?? 0;
+      conv.archived = inN > 0 && (archivedCount.get(conv.key) ?? 0) === inN;
       // Messaggi del thread in ordine cronologico ASC (il più recente in fondo).
       conv.messages.sort((a, b) => new Date(a.at ?? 0).getTime() - new Date(b.at ?? 0).getTime());
       const last = conv.messages[conv.messages.length - 1];
@@ -282,13 +333,19 @@ export function OutreachInbox({ companyId }: { companyId: string }) {
   }, [sentQ.data, repliesQ.data, contactsQ.data]);
 
   const counts = useMemo(() => ({
-    interested: conversations.filter((c) => c.lastIntent === "interested").length,
-    unread: conversations.filter((c) => c.unread).length,
+    // Solo conversazioni attive (non interamente archiviate) per i contatori di testata.
+    interested: conversations.filter((c) => !c.archived && c.lastIntent === "interested").length,
+    unread: conversations.filter((c) => !c.archived && c.unread).length,
+    read: conversations.filter((c) => !c.archived && c.hasRead).length,
+    archived: conversations.filter((c) => c.archived).length,
   }), [conversations]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return conversations.filter((conv) => {
+      // Le conversazioni interamente archiviate appaiono solo sotto il filtro "Archiviate".
+      if (filter === "archived") { if (!conv.archived) return false; }
+      else if (conv.archived) return false;
       if (filter === "interested" && conv.lastIntent !== "interested") return false;
       if (filter === "unread" && !conv.unread) return false;
       if (q) {
@@ -436,6 +493,7 @@ export function OutreachInbox({ companyId }: { companyId: string }) {
               { k: "all", label: "Tutte" },
               { k: "interested", label: "Interessati", count: counts.interested },
               { k: "unread", label: "Non lette", count: counts.unread },
+              { k: "archived", label: "Archiviate", count: counts.archived },
             ] as const).map((f) => (
               <button
                 key={f.k}
@@ -453,6 +511,36 @@ export function OutreachInbox({ companyId }: { companyId: string }) {
               </button>
             ))}
           </div>
+          {(counts.unread > 0 || counts.read > 0) && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {counts.unread > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1 text-[11px]"
+                  disabled={markAllRead.isPending}
+                  onClick={() => markAllRead.mutate()}
+                  title="Segna come lette tutte le risposte non lette"
+                >
+                  {markAllRead.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCheck className="h-3 w-3" />}
+                  Segna tutte lette
+                </Button>
+              )}
+              {counts.read > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1 text-[11px]"
+                  disabled={archiveRead.isPending}
+                  onClick={() => archiveRead.mutate()}
+                  title="Archivia le conversazioni le cui risposte sono già state lette"
+                >
+                  {archiveRead.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
+                  Archivia lette
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         <ScrollArea className="flex-1">
