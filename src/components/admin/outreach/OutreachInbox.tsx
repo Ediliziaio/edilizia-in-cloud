@@ -5,12 +5,13 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import {
-  Inbox, Mail, Search, ChevronLeft, MessageSquare, AlertTriangle, Building2,
+  Inbox, Mail, Search, ChevronLeft, MessageSquare, AlertTriangle, Building2, Send, Loader2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -140,6 +141,8 @@ export function OutreachInbox({ companyId }: { companyId: string }) {
   const [filter, setFilter] = useState<"all" | "interested" | "unread">("all");
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [sending, setSending] = useState(false);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
@@ -302,10 +305,39 @@ export function OutreachInbox({ companyId }: { companyId: string }) {
   );
 
   // Apre la conversazione e segna lette le sue risposte non lette (handler onClick:
-  // niente setState-in-effect → nessun warning React Compiler).
+  // niente setState-in-effect → nessun warning React Compiler). Svuota la bozza
+  // di risposta al cambio conversazione.
   const handleSelect = (conv: Conversation) => {
     setSelectedKey(conv.key);
+    setReplyText("");
     if (conv.unread && conv.contact?.id) markRead.mutate(conv.contact.id);
+  };
+
+  // Invia la risposta DALLA stessa casella che ha contattato il prospect
+  // (edge outreach-reply-send). Richiede il contact_id: per le conversazioni
+  // raggruppate-per-email senza contatto il box non viene mostrato.
+  const sendReply = async (contactId: string) => {
+    const text = replyText.trim();
+    if (!text) {
+      toast.error("Scrivi una risposta prima di inviare");
+      return;
+    }
+    setSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("outreach-reply-send", {
+        body: { contact_id: contactId, body: text.replace(/\n/g, "<br>") },
+      });
+      if (error) throw error;
+      if (data && (data as { error?: string }).error) throw new Error((data as { error?: string }).error);
+      toast.success("Risposta inviata");
+      setReplyText("");
+      qc.invalidateQueries({ queryKey: ["outreach-inbox-sent", companyId] });
+      qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Invio non riuscito");
+    } finally {
+      setSending(false);
+    }
   };
 
   const isLoading = sentQ.isLoading || repliesQ.isLoading || contactsQ.isLoading;
@@ -534,6 +566,43 @@ export function OutreachInbox({ companyId }: { companyId: string }) {
                 })}
               </div>
             </ScrollArea>
+
+            {/* ═══ Box risposta 2-vie ═══ */}
+            {selected.contact?.id ? (
+              <div className="shrink-0 border-t bg-background p-3 sm:px-4">
+                <Textarea
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="Scrivi una risposta… verrà inviata dalla stessa casella che ha contattato il prospect."
+                  aria-label="Testo della risposta"
+                  rows={3}
+                  className="resize-none text-sm"
+                  disabled={sending}
+                  onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !sending && replyText.trim()) {
+                      e.preventDefault();
+                      void sendReply(selected.contact!.id);
+                    }
+                  }}
+                />
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-muted-foreground">⌘/Ctrl + Invio per inviare</span>
+                  <Button
+                    size="sm"
+                    onClick={() => void sendReply(selected.contact!.id)}
+                    disabled={sending || !replyText.trim()}
+                    className="gap-1.5"
+                  >
+                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    {sending ? "Invio…" : "Invia risposta"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="shrink-0 border-t bg-background px-4 py-3 text-[11px] text-muted-foreground">
+                Conversazione senza contatto collegato — rispondi dal tuo client email.
+              </div>
+            )}
           </>
         )}
       </section>
