@@ -1,15 +1,22 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Mail, X, Route, AlertTriangle, Flag, CheckCircle2 } from "lucide-react";
-import type { PreviewActivity, PreviewResult } from "./preview";
+import { Mail, MessageCircle, Smartphone, X, Route, AlertTriangle, Flag, CheckCircle2 } from "lucide-react";
+import type { PreviewActivity, PreviewChannel, PreviewResult } from "./preview";
 
 /**
  * Pannello "Anteprima percorso": scegli le ipotesi (Ha aperto? · Ha risposto?)
  * → mostra il cammino che il lead seguirebbe (i nodi/edge attivi sono evidenziati
- * sul canvas dal builder) ed elenca le email che riceverebbe, con ritardo
- * cumulato. Nessun invio: solo simulazione (la traversata vera è in preview.ts,
- * replica della logica del dispatcher Fase 1).
+ * sul canvas dal builder) ed elenca i messaggi (email/WhatsApp/SMS) che riceverebbe,
+ * con ritardo cumulato. Nessun invio: solo simulazione (la traversata vera è in
+ * preview.ts, replica della logica del dispatcher Fase 1).
  */
+
+/** Icona + colore + etichetta per canale del messaggio simulato. */
+const CHANNEL_META: Record<PreviewChannel, { Icon: typeof Mail; color: string; label: string }> = {
+  email: { Icon: Mail, color: "text-orange-500", label: "Email" },
+  whatsapp: { Icon: MessageCircle, color: "text-emerald-500", label: "WhatsApp" },
+  sms: { Icon: Smartphone, color: "text-sky-500", label: "SMS" },
+};
 
 type Props = {
   activity: PreviewActivity;
@@ -57,7 +64,7 @@ export function PathPreviewPanel({ activity, onActivityChange, result, trackOpen
 
       <div className="flex-1 space-y-3 overflow-y-auto p-3">
         <p className="text-[11px] text-muted-foreground">
-          Simula cosa farebbe il contatto: il cammino risultante è evidenziato sul canvas e qui sotto trovi le email che riceverebbe. Nessun invio reale.
+          Simula cosa farebbe il contatto: il cammino risultante è evidenziato sul canvas e qui sotto trovi i messaggi (email, WhatsApp, SMS) che riceverebbe. Nessun invio reale.
         </p>
 
         <div className="space-y-2 rounded-lg border bg-muted/20 p-2.5">
@@ -73,25 +80,33 @@ export function PathPreviewPanel({ activity, onActivityChange, result, trackOpen
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase text-muted-foreground">Email ricevute</span>
+            <span className="text-[11px] font-semibold uppercase text-muted-foreground">Messaggi ricevuti</span>
             <Badge variant="secondary" className="text-[10px]">{emails.length}</Badge>
           </div>
           {emails.length === 0 ? (
             <p className="rounded-lg border border-dashed bg-muted/20 p-3 text-center text-[11px] text-muted-foreground">
-              Con queste ipotesi il contatto non riceverebbe nessuna email.
+              Con queste ipotesi il contatto non riceverebbe nessun messaggio.
             </p>
           ) : (
-            emails.map((em, i) => (
-              <div key={em.nodeId} className="rounded-lg border bg-card p-2.5">
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <Mail className="h-3 w-3 text-orange-500" />
-                  <span className="font-semibold">#{i + 1}</span>
-                  <Badge variant="outline" className="ml-auto text-[9px]">G+{em.cumulativeDays}</Badge>
+            emails.map((em, i) => {
+              const cm = CHANNEL_META[em.channel];
+              const Icon = cm.Icon;
+              return (
+                <div key={em.nodeId} className="rounded-lg border bg-card p-2.5">
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <Icon className={`h-3 w-3 ${cm.color}`} />
+                    <span className="font-semibold">#{i + 1}</span>
+                    <span className="text-muted-foreground/70">{cm.label}</span>
+                    <Badge variant="outline" className="ml-auto text-[9px]">G+{em.cumulativeDays}</Badge>
+                  </div>
+                  {/* l'oggetto esiste solo per l'email; whatsapp/sms mostrano solo il corpo. */}
+                  {em.channel === "email" && (
+                    <p className="mt-1 truncate text-xs font-medium text-foreground">{em.subject || "(senza oggetto)"}</p>
+                  )}
+                  {em.body && <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-muted-foreground">{em.body}</p>}
                 </div>
-                <p className="mt-1 truncate text-xs font-medium text-foreground">{em.subject || "(senza oggetto)"}</p>
-                {em.body && <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-muted-foreground">{em.body}</p>}
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 

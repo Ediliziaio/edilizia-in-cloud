@@ -25,12 +25,17 @@ export interface PreviewActivity {
   replied: boolean;
 }
 
-/** Una tappa "email" del cammino simulato (ciò che il lead riceverebbe). */
+/** Canale di una tappa messaggio del cammino simulato. */
+export type PreviewChannel = "email" | "whatsapp" | "sms";
+
+/** Una tappa MESSAGGIO del cammino simulato (ciò che il lead riceverebbe). */
 export interface PreviewEmail {
   nodeId: string;
+  /** canale del messaggio: email (con oggetto) / whatsapp / sms (solo corpo). */
+  channel: PreviewChannel;
   subject: string;
   body: string;
-  /** Ritardo cumulato (giorni) dall'inizio del flusso a questa email. */
+  /** Ritardo cumulato (giorni) dall'inizio del flusso a questo messaggio. */
   cumulativeDays: number;
 }
 
@@ -150,13 +155,18 @@ export function simulatePath(
     const t = nodeType(node);
     const data = (node.data ?? {}) as FlowNodeData;
 
-    if (t === "email" || t === "wait") {
+    // I nodi d'invio (email/whatsapp/sms) e i wait portano un ritardo cumulato.
+    const sendChannel: PreviewChannel | null =
+      t === "email" ? "email" : t === "whatsapp" ? "whatsapp" : t === "sms" ? "sms" : null;
+    if (sendChannel || t === "wait") {
       cumulativeDays += Math.max(0, Math.trunc(data.delay_days ?? 0));
     }
-    if (t === "email") {
+    if (sendChannel) {
       emails.push({
         nodeId: currentId,
-        subject: (data.subject ?? "").trim(),
+        channel: sendChannel,
+        // l'oggetto esiste solo per l'email; whatsapp/sms hanno solo il corpo.
+        subject: sendChannel === "email" ? (data.subject ?? "").trim() : "",
         body: (data.body ?? "").trim(),
         cumulativeDays,
       });

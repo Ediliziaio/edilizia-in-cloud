@@ -27,7 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Loader2, Mail, Clock, GitBranch, Flag, Save, X, AlertTriangle, Network, Sparkles, LayoutGrid, Route } from "lucide-react";
+import { Loader2, Mail, MessageCircle, Smartphone, Clock, GitBranch, Flag, Save, X, AlertTriangle, Network, Sparkles, LayoutGrid, Route } from "lucide-react";
 import { NodeMeasureFix } from "@/components/flow-builder/NodeMeasureFix";
 import { computeAutoLayout } from "@/components/flow-builder/autoLayout";
 import { outreachNodeTypes, outreachEdgeTypes } from "./flow";
@@ -46,6 +46,8 @@ type PaletteKind = Exclude<OutreachNodeType, never>;
 
 const PALETTE: { kind: PaletteKind; label: string; icon: typeof Mail; color: string }[] = [
   { kind: "email", label: "Email", icon: Mail, color: "text-orange-600" },
+  { kind: "whatsapp", label: "WhatsApp", icon: MessageCircle, color: "text-emerald-600" },
+  { kind: "sms", label: "SMS", icon: Smartphone, color: "text-sky-600" },
   { kind: "wait", label: "Attesa", icon: Clock, color: "text-purple-600" },
   { kind: "condition", label: "Condizione", icon: GitBranch, color: "text-amber-600" },
   { kind: "end", label: "Fine", icon: Flag, color: "text-muted-foreground" },
@@ -54,6 +56,9 @@ const PALETTE: { kind: PaletteKind; label: string; icon: typeof Mail; color: str
 function defaultData(kind: OutreachNodeType): FlowNodeData {
   switch (kind) {
     case "email": return { subject: "", body: "", delay_days: 0, delay_hours: 0 };
+    // nodi messaggio non-email: solo corpo + ritardo (niente oggetto).
+    case "whatsapp": return { body: "", delay_days: 1, delay_hours: 0 };
+    case "sms": return { body: "", delay_days: 1, delay_hours: 0 };
     case "wait": return { delay_days: 1, delay_hours: 0 };
     case "condition": return { condition_type: null };
     case "end": return {};

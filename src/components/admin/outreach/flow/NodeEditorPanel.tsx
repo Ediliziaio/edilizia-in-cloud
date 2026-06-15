@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, Clock, GitBranch, Flag, Trash2, X, Split, Info } from "lucide-react";
+import { Mail, MessageCircle, Smartphone, Clock, GitBranch, Flag, Trash2, X, Split, Info } from "lucide-react";
 import type { Node } from "@xyflow/react";
 import type { FlowNodeData, OutreachConditionType } from "./graph";
 import { parseVariants } from "../../../../../supabase/functions/_shared/outreach-abz";
@@ -13,6 +13,8 @@ import { parseVariants } from "../../../../../supabase/functions/_shared/outreac
 /**
  * Pannello laterale di modifica del nodo selezionato.
  *   • Email     : oggetto + corpo (con inserimento variabili/spintax + varianti A/Z) + ritardo
+ *   • WhatsApp  : corpo (variabili/spintax) + ritardo — niente oggetto; richiede telefono
+ *   • SMS       : corpo (variabili/spintax) + ritardo — niente oggetto; richiede telefono
  *   • Attesa    : solo ritardo (giorni/ore)
  *   • Condizione: condition_type + hint sul tracking aperture
  *   • Fine      : nessun campo
@@ -47,16 +49,22 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
 
   const meta: Record<string, { icon: typeof Mail; title: string; color: string }> = {
     email: { icon: Mail, title: "Email", color: "text-orange-600" },
+    whatsapp: { icon: MessageCircle, title: "WhatsApp", color: "text-emerald-600" },
+    sms: { icon: Smartphone, title: "SMS", color: "text-sky-600" },
     wait: { icon: Clock, title: "Attesa", color: "text-purple-600" },
     condition: { icon: GitBranch, title: "Condizione", color: "text-amber-600" },
     end: { icon: Flag, title: "Fine", color: "text-muted-foreground" },
   };
   const m = meta[type] ?? meta.email;
   const Icon = m.icon;
+  // Nodi messaggio non-email: solo corpo (niente oggetto, niente A/Z, niente tracking).
+  const isMessageChannel = type === "whatsapp" || type === "sms";
+  const isSendNode = type === "email" || isMessageChannel;
 
   function insertChip(chip: string) {
-    if (type !== "email") return;
-    if (activeField === "subject") {
+    if (!isSendNode) return;
+    // SMS/WhatsApp non hanno oggetto: l'inserimento variabili va sempre nel corpo.
+    if (type === "email" && activeField === "subject") {
       const el = subjRef.current;
       const cur = data.subject ?? "";
       const s = el?.selectionStart ?? cur.length;
@@ -93,21 +101,31 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto p-3">
-        {type === "email" && (
+        {isMessageChannel && (
+          <p className="flex items-start gap-1.5 rounded-lg border bg-muted/30 p-2 text-[11px] text-muted-foreground">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Richiede il numero di telefono del contatto: chi non ha un numero (o ha l'opt-out {type === "whatsapp" ? "WhatsApp" : "SMS"}) viene saltato e la cadenza prosegue.
+          </p>
+        )}
+
+        {isSendNode && (
           <>
+            {/* Oggetto: SOLO email. SMS/WhatsApp non hanno oggetto. */}
+            {type === "email" && (
+              <div className="space-y-1">
+                <Label className="text-xs">Oggetto</Label>
+                <Input
+                  ref={subjRef}
+                  value={data.subject ?? ""}
+                  onFocus={() => setActiveField("subject")}
+                  onChange={(e) => onChange({ subject: e.target.value })}
+                  placeholder="{{first_name}}, una domanda veloce"
+                  className="h-8"
+                />
+              </div>
+            )}
             <div className="space-y-1">
-              <Label className="text-xs">Oggetto</Label>
-              <Input
-                ref={subjRef}
-                value={data.subject ?? ""}
-                onFocus={() => setActiveField("subject")}
-                onChange={(e) => onChange({ subject: e.target.value })}
-                placeholder="{{first_name}}, una domanda veloce"
-                className="h-8"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Corpo</Label>
+              <Label className="text-xs">{type === "email" ? "Corpo" : "Messaggio"}</Label>
               <Textarea
                 ref={bodyRef}
                 value={data.body ?? ""}
@@ -119,7 +137,9 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[11px] text-muted-foreground">Inserisci variabile (nel campo {activeField === "subject" ? "oggetto" : "corpo"})</Label>
+              <Label className="text-[11px] text-muted-foreground">
+                Inserisci variabile{type === "email" ? ` (nel campo ${activeField === "subject" ? "oggetto" : "corpo"})` : ""}
+              </Label>
               <div className="flex flex-wrap gap-1">
                 {VAR_CHIPS.map((c) => (
                   <button key={c} type="button" onClick={() => insertChip(c)} className="rounded border bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] hover:bg-muted">
@@ -130,12 +150,15 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
                   {"{a|b}"}
                 </button>
               </div>
-              <div className="flex items-center gap-2">
-                <Button type="button" size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={addVariant} title="Variante A/Z separata da ===">
-                  <Split className="h-3.5 w-3.5" /> Variante A/Z
-                </Button>
-                {bodyVariants.length > 1 && <Badge variant="secondary" className="text-[10px]">A/Z ×{bodyVariants.length}</Badge>}
-              </div>
+              {/* Varianti A/Z: solo email (l'A/Z testing sull'oggetto è email-only). */}
+              {type === "email" && (
+                <div className="flex items-center gap-2">
+                  <Button type="button" size="sm" variant="outline" className="h-7 gap-1 text-xs" onClick={addVariant} title="Variante A/Z separata da ===">
+                    <Split className="h-3.5 w-3.5" /> Variante A/Z
+                  </Button>
+                  {bodyVariants.length > 1 && <Badge variant="secondary" className="text-[10px]">A/Z ×{bodyVariants.length}</Badge>}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -173,7 +196,7 @@ export function NodeEditorPanel({ node, trackOpens, onChange, onDelete, onClose 
           </p>
         )}
 
-        {(type === "email" || type === "wait") && (
+        {(isSendNode || type === "wait") && (
           <div className="space-y-1">
             <Label className="text-xs">Ritardo prima di questo step</Label>
             <div className="flex items-center gap-2">

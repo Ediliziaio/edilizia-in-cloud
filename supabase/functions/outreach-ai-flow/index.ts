@@ -26,7 +26,7 @@ import { aiRouterComplete } from "../_shared/aiRouter.ts";
 
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 
-type NodeType = "email" | "wait" | "condition" | "end";
+type NodeType = "email" | "whatsapp" | "sms" | "wait" | "condition" | "end";
 type ConditionType = "opened" | "not_opened" | "replied" | "not_replied";
 type Branch = "default" | "alt";
 
@@ -57,9 +57,13 @@ Progetta un FLUSSO (grafo) di cold outreach CONDIZIONALE — non una semplice li
 
 NODI disponibili (campo "type"):
 - "email": un'email da inviare. Ha "subject" (3-6 parole) e "body" (45-85 parole), più "delay_days"/"delay_hours" = attesa PRIMA di inviarla.
+- "whatsapp": un messaggio WhatsApp. Ha SOLO "body" (1-3 frasi brevissime, niente oggetto) e "delay_days"/"delay_hours". Richiede il numero di telefono del contatto. Tono ancora più diretto e colloquiale dell'email.
+- "sms": un SMS. Ha SOLO "body" (max ~160 caratteri, niente oggetto) e "delay_days"/"delay_hours". Richiede il numero di telefono. Brevissimo e diretto.
 - "wait": un nodo di sola attesa (pausa), con "delay_days"/"delay_hours". Usalo per dare tempo al contatto di reagire prima di valutare una condizione.
 - "condition": un bivio. Ha "condition_type" tra: "opened" (ha aperto l'ultima email), "not_opened" (non l'ha aperta), "replied" (ha risposto), "not_replied" (non ha risposto). NON ha testo.
 - "end": nodo terminale (la sequenza si conclude).
+
+CANALI: l'email è il canale principale. Usa nodi "whatsapp"/"sms" come follow-up multicanale (es. un promemoria SMS dopo che il contatto non ha aperto l'email), MAI come primo nodo: la radice deve essere sempre un'email. Non eccedere: al più 1-2 nodi non-email in tutto il flusso.
 
 ARCHI (campo "edges"): ogni arco collega "from_key" → "to_key" con "branch":
 - "default": il flusso normale; per una "condition" è il ramo SÌ (condizione vera).
@@ -74,15 +78,15 @@ STRUTTURA TIPICA da seguire (adattala al brief):
        - NO → email di chiusura gentile ("breakup") → end
 Lo STOP su risposta è IMPLICITO nel dispatcher: non serve un nodo per fermarsi sulla risposta, ma puoi usare la condizione "replied" per diramare prima della chiusura.
 
-REGOLE DI SCRITTURA (per i nodi email):
+REGOLE DI SCRITTURA (per i nodi email/whatsapp/sms):
 - Italiano, tono professionale ma umano e diretto. Niente "Spettabile" né formule da circolare; niente piaggeria.
-- Oggetto 3-6 parole, corpo 45-85 parole. Brevissimi. UNA sola call-to-action soft (una domanda che invita a rispondere). Niente link, niente allegati, niente firma finale.
+- Email: oggetto 3-6 parole, corpo 45-85 parole. WhatsApp: 1-3 frasi. SMS: max ~160 caratteri. Brevissimi. UNA sola call-to-action soft (una domanda che invita a rispondere). Niente link, niente allegati, niente firma finale.
 - Personalizza con {{first_name}} e {{company_name}} dove naturale; per il fallback usa {{first_name|}} o {{company_name|la vostra impresa}}.
 - Puoi usare lo spintax {opzione1|opzione2} per piccole variazioni (es. "{Ciao|Salve} {{first_name|}}"), con parsimonia.
 - Niente claim esagerati o percentuali inventate. Niente emoji. Niente markdown. Niente grassetti. Niente spam words (gratis, offerta, sconto, promozione, !!!).
 
 VINCOLI SUL GRAFO:
-- Da 5 a 9 nodi totali. Almeno 2 email e almeno 1 condition. Un solo nodo radice (la prima email, senza archi entranti).
+- Da 5 a 9 nodi totali. Almeno 2 nodi d'invio (email/whatsapp/sms) e almeno 1 condition. Un solo nodo radice (la prima EMAIL, senza archi entranti).
 - Ogni "key" è una stringa breve e unica (es. "email_apertura", "attesa1", "cond_aperto", "email_followup", "fine_ok").
 - delay_days CRESCENTI lungo il percorso principale, primo step a 0.
 - Ogni ramo deve terminare (direttamente o indirettamente) in un nodo "end".
@@ -126,8 +130,10 @@ function extractJsonObject(text: string): unknown | undefined {
   return undefined;
 }
 
-const NODE_TYPES = new Set<NodeType>(["email", "wait", "condition", "end"]);
+const NODE_TYPES = new Set<NodeType>(["email", "whatsapp", "sms", "wait", "condition", "end"]);
 const CONDITION_TYPES = new Set<ConditionType>(["opened", "not_opened", "replied", "not_replied"]);
+/** Tipi di nodo INVIANTI (hanno un corpo): email + canali messaggio. */
+const SEND_NODE_TYPES = new Set<NodeType>(["email", "whatsapp", "sms"]);
 
 function clampInt(v: unknown, min: number, max: number): number {
   const n = Number(v);
@@ -164,18 +170,23 @@ function normalizeFlow(parsed: unknown): AiFlow | null {
       node.condition_type = CONDITION_TYPES.has(ct) ? ct : "not_opened";
     }
     if (type === "email") {
+      // l'oggetto esiste SOLO per l'email; whatsapp/sms hanno solo il corpo.
       node.subject = String(r.subject ?? "").trim().slice(0, 200) || null;
+    }
+    if (SEND_NODE_TYPES.has(type)) {
+      // tutti i nodi d'invio (email/whatsapp/sms) hanno un corpo e un ritardo.
       node.body = String(r.body ?? "").trim();
     }
-    if (type === "email" || type === "wait") {
+    if (SEND_NODE_TYPES.has(type) || type === "wait") {
       node.delay_days = clampInt(r.delay_days, 0, 365);
       node.delay_hours = clampInt(r.delay_hours, 0, 23);
     }
     nodes.push(node);
   }
   if (nodes.length === 0) return null;
-  // Serve almeno un'email: un grafo senza email non invierebbe nulla.
-  if (!nodes.some((n) => n.type === "email")) return null;
+  // Serve almeno un nodo d'invio (email/whatsapp/sms): un grafo senza messaggi
+  // non invierebbe nulla.
+  if (!nodes.some((n) => SEND_NODE_TYPES.has(n.type))) return null;
 
   const keys = new Set(nodes.map((n) => n.key));
   const typeByKey = new Map(nodes.map((n) => [n.key, n.type]));
