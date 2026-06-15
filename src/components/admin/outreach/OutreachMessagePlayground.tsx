@@ -2,7 +2,6 @@ import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -155,21 +154,27 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Wand2 className="h-5 w-5 text-orange-500" /> Anteprima & editor messaggio
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <section className="rounded-xl border border-border bg-card shadow-sm">
+      {/* header */}
+      <header className="flex items-center gap-2.5 border-b border-border px-4 py-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Wand2 className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold leading-tight">Anteprima &amp; editor messaggio</h3>
+          <p className="text-xs text-muted-foreground">Variabili, spintax e spam-score su un contatto reale</p>
+        </div>
+      </header>
+
+      <div className="space-y-3 p-4">
         <p className="text-xs text-muted-foreground">
-          Scrivi oggetto e corpo, prova variabili e <strong>spintax</strong> su un contatto vero, controlla lo <strong>spam-score</strong> e invia un test a te prima di lanciare. Lo spintax <code className="rounded bg-muted px-1">{"{Ciao|Salve}"}</code> varia il messaggio tra destinatari (meno spam).
+          Scrivi oggetto e corpo, prova variabili e <strong>spintax</strong> su un contatto vero, controlla lo <strong>spam-score</strong> e invia un test a te prima di lanciare. Lo spintax <code className="rounded bg-muted px-1 font-mono">{"{Ciao|Salve}"}</code> varia il messaggio tra destinatari (meno spam).
         </p>
 
         {/* AI bar */}
-        <div className="space-y-2 rounded-lg border border-orange-200 bg-orange-50/40 p-2">
+        <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/[0.04] p-2.5">
           <div className="flex flex-wrap items-center gap-2">
-            <Sparkles className="h-4 w-4 shrink-0 text-orange-500" />
+            <Sparkles className="h-4 w-4 shrink-0 text-primary" />
             <Input value={angle} onChange={(e) => setAngle(e.target.value)} placeholder="Angle (opzionale): es. risparmio su fatturazione e cantieri" className="h-8 flex-1 text-xs" />
             <Button size="sm" className="h-8 gap-1" disabled={aiBusy} onClick={generateAI}>
               {aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Genera con AI
@@ -178,7 +183,7 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
           <div className="flex flex-wrap gap-1 pl-6">
             {ANGLE_PRESETS.map((a) => (
               <button key={a} type="button" onClick={() => setAngle(a)}
-                className="rounded-full border border-orange-200 bg-white px-2 py-0.5 text-[10px] text-orange-700 hover:bg-orange-100">
+                className="rounded-full border border-primary/20 bg-card px-2 py-0.5 text-[10px] text-primary transition-colors hover:bg-primary/10">
                 {a}
               </button>
             ))}
@@ -208,7 +213,7 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
               <div className="flex flex-wrap gap-1">
                 {CHIPS.map((c) => (
                   <button key={c} type="button" onClick={() => insertChip(c)}
-                    className="rounded border bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground hover:bg-orange-50 hover:text-orange-600">
+                    className="rounded border border-border bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary">
                     {c}
                   </button>
                 ))}
@@ -231,12 +236,12 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
                 </Select>
               )}
             </div>
-            <div className="min-h-[180px] rounded-lg border bg-card p-3 text-sm">
-              <div className="mb-2 border-b pb-2">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Oggetto</span>
-                <p className="font-medium">{renderedSubject || <span className="text-muted-foreground">(vuoto)</span>}</p>
+            <div className="min-h-[180px] overflow-hidden rounded-lg border border-border bg-muted/20 text-sm">
+              <div className="border-b border-border bg-card px-3 py-2">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Oggetto</span>
+                <p className="font-medium leading-snug">{renderedSubject || <span className="text-muted-foreground">(vuoto)</span>}</p>
               </div>
-              <div className="whitespace-pre-wrap">{renderedBody}</div>
+              <div className="whitespace-pre-wrap px-3 py-2.5 leading-relaxed">{renderedBody}</div>
             </div>
             {list.length === 0 && (
               <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -247,16 +252,20 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
         </div>
 
         {/* spam-score */}
-        <div className="rounded-lg border p-3">
+        <div className="rounded-lg border border-border p-3">
           <div className="mb-2 flex items-center gap-2">
             <level.Icon className={`h-4 w-4 ${level.cls}`} />
-            <span className="text-xs font-medium">Spam-score: <span className={level.cls}>{score.score}/100 · {level.label}</span></span>
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Spam-score</span>
+            <span className={`text-sm font-semibold tabular-nums ${level.cls}`}>{score.score}<span className="text-xs font-normal text-muted-foreground">/100</span></span>
+            <span className={`text-xs font-medium ${level.cls}`}>· {level.label}</span>
             <div className="ml-auto h-1.5 w-32 overflow-hidden rounded-full bg-muted">
-              <div className={`h-full ${level.bar}`} style={{ width: `${score.score}%` }} />
+              <div className={`h-full rounded-full ${level.bar}`} style={{ width: `${score.score}%` }} />
             </div>
           </div>
           {score.signals.length === 0 ? (
-            <p className="text-[11px] text-muted-foreground">Nessun segnale di rischio. Email pulita e pronta.</p>
+            <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" /> Nessun segnale di rischio. Email pulita e pronta.
+            </p>
           ) : (
             <ul className="space-y-1">
               {score.signals.map((s, i) => (
@@ -270,11 +279,11 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
 
         {/* varianti spintax */}
         {variants.length > 0 && (
-          <div className="rounded-lg border p-3">
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-medium"><Shuffle className="h-3.5 w-3.5 text-orange-500" /> Come variano gli invii (spintax)</p>
+          <div className="rounded-lg border border-border p-3">
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"><Shuffle className="h-3.5 w-3.5 text-primary" /> Come variano gli invii (spintax)</p>
             <div className="grid gap-2 sm:grid-cols-3">
               {variants.map((v, i) => (
-                <div key={i} className="rounded border bg-muted/30 p-2 text-[11px]">
+                <div key={i} className="rounded-md border border-border bg-muted/30 p-2 text-[11px]">
                   <p className="mb-1 font-medium leading-tight">{v.subject}</p>
                   <p className="line-clamp-3 whitespace-pre-wrap text-muted-foreground">{v.body}</p>
                 </div>
@@ -284,7 +293,7 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
         )}
 
         {/* invia test */}
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-2">
           <Send className="h-4 w-4 shrink-0 text-muted-foreground" />
           <Input value={testEmail} onChange={(e) => setTestEmail(e.target.value)} placeholder={me.data ? `Invia test a… (${me.data})` : "Invia test a… (la tua email)"}
             className="h-8 flex-1 text-xs" type="email" />
@@ -292,7 +301,7 @@ export function OutreachMessagePlayground({ companyId }: { companyId: string }) 
             {testBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />} Invia test a me
           </Button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

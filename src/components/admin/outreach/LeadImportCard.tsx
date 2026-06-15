@@ -2,7 +2,6 @@ import { useRef, useState } from "react";
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { classifyEmail, isLowQuality } from "../../../../supabase/functions/_shared/email-quality";
-import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, RotateCcw, ArrowRight } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, RotateCcw, ArrowRight, Tag, Loader2 } from "lucide-react";
 
 /**
  * Importatore liste lead (CSV) → marketing_contacts.
@@ -69,17 +68,22 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<Result | null>(null);
   const [excludeLowQuality, setExcludeLowQuality] = useState(true);
+  const [dragOver, setDragOver] = useState(false);
+  const [parsing, setParsing] = useState(false);
 
   function reset() {
     setPhase("idle"); setFileName(""); setHeaders([]); setRows([]); setMapping({});
-    setProgress(0); setResult(null);
+    setProgress(0); setResult(null); setParsing(false);
     if (fileRef.current) fileRef.current.value = "";
   }
 
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  function parseFile(file: File) {
+    if (!/\.csv$/i.test(file.name) && file.type && !file.type.includes("csv")) {
+      toast.error("Carica un file CSV.");
+      return;
+    }
     setFileName(file.name);
+    setParsing(true);
     Papa.parse<CsvRow>(file, {
       header: true,
       skipEmptyLines: "greedy",
@@ -95,10 +99,24 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
         setHeaders(flds);
         setRows(data);
         setMapping(autoMap(flds));
+        setParsing(false);
         setPhase("mapping");
       },
       error: (err) => { toast.error(`Errore di parsing: ${err.message}`); reset(); },
     });
+  }
+
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) parseFile(file);
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    if (phase !== "idle") return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) parseFile(file);
   }
 
   function setField(field: Field, value: string) {
@@ -183,71 +201,120 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
   }
 
   const hasContactCol = !!mapping.email || !!mapping.phone;
+  const STEPS = ["File", "Mappatura", "Esito"] as const;
+  const stepIdx = phase === "idle" ? 0 : phase === "done" ? 2 : 1;
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <FileSpreadsheet className="h-5 w-5 text-orange-500" /> Importa lista (CSV)
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* IDLE */}
+    <section className="rounded-xl border border-border bg-card shadow-sm">
+      {/* header */}
+      <header className="flex items-center gap-2.5 border-b border-border px-4 py-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <FileSpreadsheet className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold leading-tight">Importa lista (CSV)</h3>
+          <p className="text-xs text-muted-foreground">Parsing, mappatura colonne e dedup automatica</p>
+        </div>
+        {/* stepper */}
+        <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
+          {STEPS.map((s, i) => (
+            <div key={s} className="flex items-center gap-1.5">
+              <span
+                className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold ${
+                  i < stepIdx ? "bg-primary/15 text-primary" : i === stepIdx ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {i < stepIdx ? "✓" : i + 1}
+              </span>
+              <span className={`text-[11px] ${i === stepIdx ? "font-medium text-foreground" : "text-muted-foreground"}`}>{s}</span>
+              {i < STEPS.length - 1 && <span className="h-px w-4 bg-border" />}
+            </div>
+          ))}
+        </div>
+      </header>
+
+      <div className="space-y-4 p-4">
+        {/* IDLE — dropzone */}
         {phase === "idle" && (
-          <div className="rounded-xl border-2 border-dashed p-8 text-center">
-            <Upload className="mx-auto mb-3 h-8 w-8 text-muted-foreground/60" />
-            <p className="mb-1 text-sm font-medium">Carica un file CSV di lead</p>
-            <p className="mb-4 text-xs text-muted-foreground">
-              Intestazione nella prima riga. Mapperai tu le colonne. Dedup automatica su email.
-            </p>
+          <>
             <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onFile} className="hidden" id="lead-csv" />
-            <Button onClick={() => fileRef.current?.click()} className="gap-2">
-              <Upload className="h-4 w-4" /> Scegli file CSV
-            </Button>
-          </div>
+            <button
+              type="button"
+              onClick={() => !parsing && fileRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); if (!parsing) setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={onDrop}
+              className={`flex w-full flex-col items-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
+                dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 hover:bg-muted/30"
+              }`}
+            >
+              <span className={`mb-3 flex h-12 w-12 items-center justify-center rounded-full transition-colors ${dragOver ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                {parsing ? <Loader2 className="h-6 w-6 animate-spin" /> : <Upload className="h-6 w-6" />}
+              </span>
+              <p className="text-sm font-medium">
+                {parsing ? "Lettura del file…" : dragOver ? "Rilascia per caricare" : "Trascina un CSV o clicca per scegliere"}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Intestazione nella prima riga. Mapperai tu le colonne. Dedup automatica su email.
+              </p>
+            </button>
+          </>
         )}
 
         {/* MAPPING */}
         {phase === "mapping" && (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <Badge variant="secondary" className="gap-1"><FileSpreadsheet className="h-3 w-3" />{fileName}</Badge>
-              <span className="text-muted-foreground">{rows.length.toLocaleString("it-IT")} righe · {headers.length} colonne</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="gap-1 font-normal"><FileSpreadsheet className="h-3 w-3" />{fileName}</Badge>
+              <span className="text-xs text-muted-foreground tabular-nums">{rows.length.toLocaleString("it-IT")} righe · {headers.length} colonne</span>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {FIELDS.map(({ key, label }) => (
-                <div key={key} className="space-y-1">
-                  <Label className="text-xs">{label}{key === "first_name" && <span className="text-muted-foreground"> (fallback automatico)</span>}</Label>
-                  <Select value={mapping[key] ?? NONE} onValueChange={(v) => setField(key, v)}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="— ignora —" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NONE}>— ignora —</SelectItem>
-                      {headers.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
+            <div>
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Mappa le colonne</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {FIELDS.map(({ key, label }) => {
+                  const mapped = !!mapping[key];
+                  return (
+                    <div key={key} className="space-y-1">
+                      <Label className="flex items-center gap-1.5 text-xs">
+                        <span className={`h-1.5 w-1.5 rounded-full ${mapped ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                        {label}{key === "first_name" && <span className="text-muted-foreground"> (fallback automatico)</span>}
+                      </Label>
+                      <Select value={mapping[key] ?? NONE} onValueChange={(v) => setField(key, v)}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="— ignora —" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NONE}>— ignora —</SelectItem>
+                          {headers.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs" htmlFor="list-tag">Tag di lista (applicato a tutti i contatti)</Label>
+              <Label className="flex items-center gap-1.5 text-xs" htmlFor="list-tag">
+                <Tag className="h-3 w-3 text-muted-foreground" /> Tag di lista (applicato a tutti i contatti)
+              </Label>
               <Input id="list-tag" value={listTag} onChange={(e) => setListTag(e.target.value)} className="h-9" placeholder="es. import-fiere-2026" />
             </div>
 
-            <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-              <input type="checkbox" checked={excludeLowQuality} onChange={(e) => setExcludeLowQuality(e.target.checked)} className="accent-orange-500" />
-              Escludi email <strong className="font-medium text-foreground">role</strong> (info@, noreply@) e <strong className="font-medium text-foreground">usa-e-getta</strong> — meno bounce
+            <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border bg-muted/30 p-2.5 text-xs text-muted-foreground">
+              <input type="checkbox" checked={excludeLowQuality} onChange={(e) => setExcludeLowQuality(e.target.checked)} className="mt-0.5 accent-primary" />
+              <span>
+                Escludi email <strong className="font-medium text-foreground">role</strong> (info@, noreply@) e <strong className="font-medium text-foreground">usa-e-getta</strong> — meno bounce
+              </span>
             </label>
 
             {!hasContactCol && (
-              <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                Mappa almeno <strong>Email</strong> o <strong>Telefono</strong>: i contatti senza recapito vengono scartati.
+                <span>Mappa almeno <strong>Email</strong> o <strong>Telefono</strong>: i contatti senza recapito vengono scartati.</span>
               </div>
             )}
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 border-t border-border pt-3">
               <Button onClick={runImport} disabled={!hasContactCol} className="gap-2">
                 Importa {rows.length.toLocaleString("it-IT")} righe <ArrowRight className="h-4 w-4" />
               </Button>
@@ -258,21 +325,28 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
 
         {/* IMPORTING */}
         {phase === "importing" && (
-          <div className="space-y-3 py-4">
-            <p className="text-sm text-muted-foreground">Importazione in corso…</p>
+          <div className="space-y-3 py-6">
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" /> Importazione in corso…
+            </p>
             <Progress value={progress} />
-            <p className="text-right text-xs text-muted-foreground">{progress}%</p>
+            <p className="text-right text-xs text-muted-foreground tabular-nums">{progress}%</p>
           </div>
         )}
 
         {/* DONE */}
         {phase === "done" && result && (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-emerald-600">
-              <CheckCircle2 className="h-5 w-5" />
-              <span className="font-semibold">{result.imported.toLocaleString("it-IT")} contatti importati</span>
+            <div className="flex items-center gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                <CheckCircle2 className="h-5 w-5" />
+              </span>
+              <div>
+                <div className="text-sm font-semibold text-emerald-700">{result.imported.toLocaleString("it-IT")} contatti importati</div>
+                <div className="text-xs text-emerald-600/80">nella lista "{listTag.trim() || "import"}"</div>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <Stat label="Righe nel file" value={result.total} />
               <Stat label="Importati" value={result.imported} tone="good" />
               <Stat label="Errori" value={result.errors} tone={result.errors ? "bad" : "default"} />
@@ -284,17 +358,17 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
             <Button onClick={reset} variant="outline" className="gap-2"><RotateCcw className="h-4 w-4" /> Importa un'altra lista</Button>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 
 function Stat({ label, value, tone = "default" }: { label: string; value: number; tone?: "default" | "good" | "bad" }) {
-  const cls = tone === "good" ? "text-emerald-600" : tone === "bad" ? "text-red-600" : "text-foreground";
+  const cls = tone === "good" ? "text-emerald-600" : tone === "bad" && value > 0 ? "text-red-600" : "text-foreground";
   return (
-    <div className="rounded-lg border p-2">
-      <div className={`text-lg font-bold ${cls}`}>{value.toLocaleString("it-IT")}</div>
-      <div className="text-xs text-muted-foreground">{label}</div>
+    <div className="rounded-lg border border-border bg-muted/20 px-2.5 py-2">
+      <div className={`text-lg font-bold tabular-nums ${cls}`}>{value.toLocaleString("it-IT")}</div>
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
     </div>
   );
 }
