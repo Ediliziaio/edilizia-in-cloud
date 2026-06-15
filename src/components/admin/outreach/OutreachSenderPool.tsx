@@ -2,26 +2,41 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Globe, Mailbox, Plus, Trash2, Flame, ShieldCheck, AlertTriangle, Copy, Pause, Play, RefreshCw, Plug } from "lucide-react";
+import { Loader2, Globe, Mailbox, Plus, Trash2, Flame, AlertTriangle, Copy, Pause, Play, RefreshCw, Plug, Check, ChevronRight, MailPlus } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
+import {
+  FieldLabel, HeatBar, HealthPill, ProviderBadge, StatusDot, senderTone, type Health,
+} from "./deliverabilityUi";
 
 /**
  * Gestione infrastruttura di invio cold: DOMINI → CASELLE (email) annidate per
- * dominio, raggruppate per brand. Per ogni dominio: stato, badge DNS verificabili,
- * pannello "DNS da configurare" (record da inserire), e creazione caselle facile
- * (local-part @ dominio). Per ogni casella: warm-up, cap, pausa/riattiva, elimina.
+ * dominio, raggruppate per brand. Layout stile Instantly/Smartlead "Email Accounts":
+ * card caselle pulite con dot di stato, badge provider, barra warm-up e salute.
+ * Per ogni dominio: stato, badge DNS verificabili, pannello "DNS da configurare"
+ * (record da inserire), e creazione caselle facile (local-part @ dominio).
  * Tabelle outreach_* (migrazioni 20270815000000 + 20270817000000 brand).
  */
 
 const T_DOMAINS = "outreach_sending_domains";
 const T_SENDERS = "outreach_sender_accounts";
+
+// Soglie reputazione allineate a shouldAutoPause (auto-pausa a bounce>=10 || lamentele>=2).
+const MAX_BOUNCES = 10;
+const MAX_COMPLAINTS = 2;
+const WARN_BOUNCES = 5;
+const WARN_COMPLAINTS = 1;
+
+function healthLevel(bounce: number, complaint: number): Health {
+  if (bounce >= MAX_BOUNCES || complaint >= MAX_COMPLAINTS) return "a rischio";
+  if (bounce >= WARN_BOUNCES || complaint >= WARN_COMPLAINTS) return "attenzione";
+  return "ok";
+}
 
 interface Domain {
   id: string; company_id: string; domain: string; status: string;
@@ -30,10 +45,13 @@ interface Domain {
 interface Sender {
   id: string; email: string; display_name: string | null; provider: string; status: string;
   sending_domain_id: string | null; daily_cap_target: number; warmup_day: number; daily_sent: number;
-  connection_status?: string | null;
+  connection_status?: string | null; connection_error?: string | null;
+  smtp_host?: string | null; bounce_count?: number | null; complaint_count?: number | null;
 }
 
-const effectiveCap = (s: Sender, base = 5, step = 5) => Math.min(s.daily_cap_target, base + s.warmup_day * step);
+const BASE = 5;
+const STEP = 5;
+const effectiveCap = (s: Sender, base = BASE, step = STEP) => Math.min(s.daily_cap_target, base + s.warmup_day * step);
 
 export function OutreachSenderPool({ companyId }: { companyId: string }) {
   const qc = useQueryClient();
@@ -79,7 +97,17 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
-  if (pool.isLoading) return <div className="flex items-center justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
+  if (pool.isLoading) {
+    return (
+      <section className="rounded-xl border border-border bg-muted/30 p-5">
+        <div className="space-y-3">
+          <div className="h-5 w-44 animate-pulse rounded bg-muted" />
+          <div className="h-24 animate-pulse rounded-lg bg-muted/70" />
+          <div className="h-24 animate-pulse rounded-lg bg-muted/70" />
+        </div>
+      </section>
+    );
+  }
   if (pool.error && isMissingTableError(pool.error)) {
     return <MigrationGate title="Pool mittenti & domini cold — pronto" unlocks={[
       "Più caselle su domini cold dedicati, con rotazione automatica.",
@@ -94,6 +122,7 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
   const domains = (pool.data?.domains ?? []).slice();
   const senders = pool.data?.senders ?? [];
   const totalCapacity = senders.filter((s) => s.status !== "disabled").reduce((sum, s) => sum + effectiveCap(s), 0);
+  const activeCount = senders.filter((s) => senderTone(s.status, s.connection_status) === "active").length;
   const brandName = new Map((brands.data ?? []).map((b) => [b.id, b.name]));
   const sendersByDomain = new Map<string, Sender[]>();
   for (const s of senders) {
@@ -105,48 +134,82 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
   // ordina i domini per brand (così sono raggruppati visivamente)
   domains.sort((a, b) => (brandName.get(a.brand_id ?? "") ?? "~").localeCompare(brandName.get(b.brand_id ?? "") ?? "~") || a.domain.localeCompare(b.domain));
 
+  const empty = domains.length === 0 && noDomain.length === 0;
+
   return (
-    <div className="space-y-4">
+    <section className="space-y-4 rounded-xl border border-border bg-muted/30 p-4 shadow-sm sm:p-5">
+      {/* header sezione */}
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+            <Mailbox className="h-4 w-4 text-primary" /> Caselle mittenti
+          </h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">Domini cold dedicati e caselle in rotazione, con warm-up e DNS.</p>
+        </div>
+        <Button size="sm" variant="outline" className="h-8 gap-1.5 bg-card" onClick={() => setShowDomain((v) => !v)}>
+          <Plus className="h-3.5 w-3.5" /> Dominio
+        </Button>
+      </header>
+
+      {/* riepilogo pool */}
       <div className="grid grid-cols-3 gap-3">
         <Stat icon={Globe} label="Domini" value={domains.length} />
-        <Stat icon={Mailbox} label="Caselle" value={senders.length} />
+        <Stat icon={Mailbox} label="Caselle" value={senders.length} hint={activeCount > 0 ? `${activeCount} attive` : undefined} />
         <Stat icon={Flame} label="Capacità/giorno" value={totalCapacity} hint="cap effettivo (warm-up)" tone="good" />
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="flex items-center gap-2 text-base"><Globe className="h-4 w-4" /> Domini & caselle</CardTitle>
-          <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => setShowDomain((v) => !v)}><Plus className="h-3.5 w-3.5" /> Dominio</Button>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {showDomain && (
-            <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/30 p-3">
-              <div className="min-w-[160px] flex-1 space-y-1"><Label className="text-xs">Dominio cold</Label><Input value={newDomain} onChange={(e) => setNewDomain(e.target.value)} placeholder="mail-edilizia.com" className="h-8" /></div>
-              <div className="w-20 space-y-1"><Label className="text-xs">Cap/g</Label><Input type="number" value={newDomainCap} onChange={(e) => setNewDomainCap(e.target.value)} className="h-8" /></div>
-              <div className="w-[150px] space-y-1"><Label className="text-xs">Brand</Label>
-                <Select value={domainBrandId || "none"} onValueChange={(v) => setDomainBrandId(v === "none" ? "" : v)}>
-                  <SelectTrigger className="h-8"><SelectValue placeholder="—" /></SelectTrigger>
-                  <SelectContent><SelectItem value="none">— nessuno —</SelectItem>{(brands.data ?? []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <Button size="sm" className="h-8" disabled={addDomain.isPending} onClick={() => addDomain.mutate()}>{addDomain.isPending ? "…" : "Salva"}</Button>
+      {/* form nuovo dominio */}
+      {showDomain && (
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[180px] flex-1 space-y-1.5"><FieldLabel>Dominio cold</FieldLabel><Input value={newDomain} onChange={(e) => setNewDomain(e.target.value)} placeholder="mail-edilizia.com" className="h-9 font-mono" /></div>
+            <div className="w-24 space-y-1.5"><FieldLabel>Cap/g</FieldLabel><Input type="number" value={newDomainCap} onChange={(e) => setNewDomainCap(e.target.value)} className="h-9" /></div>
+            <div className="w-[160px] space-y-1.5"><FieldLabel>Brand</FieldLabel>
+              <Select value={domainBrandId || "none"} onValueChange={(v) => setDomainBrandId(v === "none" ? "" : v)}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectContent><SelectItem value="none">— nessuno —</SelectItem>{(brands.data ?? []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
-          )}
+            <Button size="sm" className="h-9" disabled={addDomain.isPending} onClick={() => addDomain.mutate()}>{addDomain.isPending ? "…" : "Salva dominio"}</Button>
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">Usa un dominio cold dedicato, mai il dominio principale aziendale.</p>
+        </div>
+      )}
 
-          {domains.length === 0 ? (
-            <p className="py-3 text-center text-sm text-muted-foreground">Nessun dominio. Aggiungi un dominio cold dedicato (mai il dominio principale).</p>
-          ) : domains.map((d) => (
+      {/* contenuto */}
+      {empty ? (
+        <EmptyState onAdd={() => setShowDomain(true)} />
+      ) : (
+        <div className="space-y-3">
+          {domains.map((d) => (
             <DomainCard key={d.id} domain={d} caselle={sendersByDomain.get(d.id) ?? []} brandName={d.brand_id ? brandName.get(d.brand_id) : undefined} onChange={invalidate} />
           ))}
 
           {noDomain.length > 0 && (
-            <div className="space-y-1.5 pt-1">
-              <p className="text-xs font-medium text-muted-foreground">Caselle senza dominio</p>
-              {noDomain.map((s) => <CasellaRow key={s.id} casella={s} onChange={invalidate} />)}
+            <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+              <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"><AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> Caselle senza dominio</p>
+              <div className="space-y-2">
+                {noDomain.map((s) => <SenderAccountCard key={s.id} casella={s} onChange={invalidate} />)}
+              </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function EmptyState({ onAdd }: { onAdd: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 py-10 text-center">
+      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+        <MailPlus className="h-6 w-6 text-primary" />
+      </div>
+      <p className="text-sm font-semibold text-foreground">Nessuna casella mittente</p>
+      <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+        Aggiungi un dominio cold dedicato, poi crea le caselle che spediranno in rotazione. Il warm-up parte da {BASE} invii/giorno e sale di {STEP} al giorno.
+      </p>
+      <Button size="sm" className="mt-4 gap-1.5" onClick={onAdd}><Plus className="h-3.5 w-3.5" /> Aggiungi dominio</Button>
     </div>
   );
 }
@@ -282,35 +345,50 @@ function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; 
     toast.success("Dominio rimosso"); onChange();
   }
 
+  const dnsCount = [domain.spf_verified, domain.dkim_verified, domain.dmarc_verified].filter(Boolean).length;
+  const dnsAllOk = dnsCount === 3;
+
   return (
-    <div className="rounded-lg border">
-      <div className="flex items-center justify-between gap-2 p-2.5">
-        <div className="min-w-0">
+    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      {/* intestazione dominio */}
+      <div className="flex items-start justify-between gap-3 p-4">
+        <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-sm">{domain.domain}</span>
-            <Badge variant={domain.status === "active" ? "default" : "secondary"} className="text-[10px]">{domain.status}</Badge>
-            {brandName && <Badge variant="outline" className="text-[10px]">{brandName}</Badge>}
-            <span className="text-[11px] text-muted-foreground">{caselle.length} caselle · {domain.daily_cap}/g</span>
+            <Globe className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="font-mono text-sm font-semibold text-foreground">{domain.domain}</span>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${domain.status === "active" ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20" : "bg-muted text-muted-foreground ring-border"}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${domain.status === "active" ? "bg-emerald-500" : "bg-muted-foreground/50"}`} /> {domain.status}
+            </span>
+            {brandName && <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-inset ring-border">{brandName}</span>}
           </div>
-          <div className="mt-1 flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1"><Mailbox className="h-3 w-3" /> {caselle.length} {caselle.length === 1 ? "casella" : "caselle"}</span>
+            <span className="text-border">·</span>
+            <span>cap {domain.daily_cap}/g</span>
+          </div>
+          {/* badge DNS */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <FieldLabel className="mr-0.5">DNS</FieldLabel>
             <DnsBadge ok={domain.spf_verified} label="SPF" onClick={() => toggleDns("spf_verified", domain.spf_verified)} />
             <DnsBadge ok={domain.dkim_verified} label="DKIM" onClick={() => toggleDns("dkim_verified", domain.dkim_verified)} />
             <DnsBadge ok={domain.dmarc_verified} label="DMARC" onClick={() => toggleDns("dmarc_verified", domain.dmarc_verified)} />
-            <button className="inline-flex items-center gap-1 rounded border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[11px] text-orange-700 hover:bg-orange-100 disabled:opacity-60" onClick={verifyDns} disabled={verifying}>
+            <button className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-60" onClick={verifyDns} disabled={verifying}>
               {verifying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Verifica DNS
             </button>
-            <button className="text-[11px] text-orange-600 hover:underline" onClick={() => setShowDns((v) => !v)}>{showDns ? "nascondi DNS" : "DNS da configurare"}</button>
+            {!dnsAllOk && (
+              <button className="text-[10px] font-medium text-primary hover:underline" onClick={() => setShowDns((v) => !v)}>{showDns ? "nascondi record" : "record da configurare"}</button>
+            )}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => setShowAdd((v) => !v)}><Plus className="h-3.5 w-3.5" /> Casella</Button>
-          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={del}><Trash2 className="h-3.5 w-3.5" /></Button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button size="sm" variant="outline" className="h-8 gap-1.5 px-2.5 text-xs" onClick={() => setShowAdd((v) => !v)}><Plus className="h-3.5 w-3.5" /> Casella</Button>
+          <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive" onClick={del}><Trash2 className="h-3.5 w-3.5" /></Button>
         </div>
       </div>
 
       {showDns && (
-        <div className="space-y-1.5 border-t bg-muted/20 p-2.5 text-xs">
-          <p className="text-muted-foreground">Inserisci questi record nel DNS del dominio, poi premi <strong>Verifica DNS</strong> (legge lo stato reale da Elastic Email). I badge restano cliccabili come override manuale.</p>
+        <div className="space-y-2 border-t border-border bg-muted/40 p-4 text-xs">
+          <p className="text-muted-foreground">Inserisci questi record nel DNS del dominio, poi premi <strong className="font-medium text-foreground">Verifica DNS</strong> (legge lo stato reale da Elastic Email). I badge restano cliccabili come override manuale.</p>
           <DnsRow type="TXT" host="@" value="v=spf1 a mx include:_spf.elasticemail.com ~all" />
           <DnsRow type="TXT" host={`api._domainkey.${domain.domain}`} value="(valore DKIM dal pannello Elastic Email)" />
           <DnsRow type="TXT" host={`_dmarc.${domain.domain}`} value="v=DMARC1; p=none; rua=mailto:dmarc@" />
@@ -319,11 +397,11 @@ function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; 
       )}
 
       {showAdd && (
-        <div className="space-y-2 border-t bg-muted/20 p-2.5">
+        <div className="space-y-3 border-t border-border bg-muted/40 p-4">
           <div className="flex items-center gap-2">
-            <Label className="text-xs">Tipo casella</Label>
+            <FieldLabel>Tipo casella</FieldLabel>
             <Select value={kind} onValueChange={(v) => setKind(v as CasellaKind)}>
-              <SelectTrigger className="h-8 w-[200px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-[230px] bg-card"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ee">Elastic Email (condivisa)</SelectItem>
                 <SelectItem value="smtp">SMTP reale (casella propria)</SelectItem>
@@ -333,58 +411,74 @@ function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; 
 
           {kind === "ee" ? (
             <>
-              <Label className="text-xs">Crea caselle su <span className="font-mono">@{domain.domain}</span> — un nome per riga (es. <code>marco</code>, <code>info</code>)</Label>
-              <Textarea value={locals} onChange={(e) => setLocals(e.target.value)} rows={2} placeholder={"marco\ninfo\nlucia"} className="text-sm" />
+              <Label className="text-xs">Crea caselle su <span className="font-mono font-medium text-foreground">@{domain.domain}</span> — un nome per riga (es. <code>marco</code>, <code>info</code>)</Label>
+              <Textarea value={locals} onChange={(e) => setLocals(e.target.value)} rows={2} placeholder={"marco\ninfo\nlucia"} className="bg-card text-sm" />
               <div className="flex items-end gap-2">
-                <div className="w-24 space-y-1"><Label className="text-xs">Cap/g target</Label><Input type="number" value={cap} onChange={(e) => setCap(e.target.value)} className="h-8" /></div>
-                <Button size="sm" className="h-8" disabled={busy} onClick={addCaselle}>{busy ? "…" : "Crea caselle"}</Button>
+                <div className="w-28 space-y-1.5"><FieldLabel>Cap/g target</FieldLabel><Input type="number" value={cap} onChange={(e) => setCap(e.target.value)} className="h-9 bg-card" /></div>
+                <Button size="sm" className="h-9" disabled={busy} onClick={addCaselle}>{busy ? "…" : "Crea caselle"}</Button>
               </div>
             </>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">Preset:</span>
-                <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => applyPreset("google")}>Google Workspace</Button>
-                <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => applyPreset("outlook")}>Outlook/M365</Button>
-                <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => applyPreset("custom")}>Personalizzato</Button>
+                <FieldLabel className="mr-1">Preset</FieldLabel>
+                <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("google")}>Google Workspace</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("outlook")}>Outlook/M365</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("custom")}>Personalizzato</Button>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                <div className="col-span-2 space-y-1 sm:col-span-3"><Label className="text-xs">Email completa</Label><Input value={smtpEmail} onChange={(e) => setSmtpEmail(e.target.value)} placeholder={`marco@${domain.domain}`} className="h-8" autoComplete="off" /></div>
-                <div className="space-y-1"><Label className="text-xs">SMTP host</Label><Input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.gmail.com" className="h-8 font-mono" /></div>
-                <div className="space-y-1"><Label className="text-xs">SMTP porta</Label><Input type="number" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} className="h-8" /></div>
-                <div className="flex items-end gap-1.5 pb-1.5">
-                  <input id={`tls-${domain.id}`} type="checkbox" checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} className="h-4 w-4" />
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="col-span-2 space-y-1.5 sm:col-span-3"><FieldLabel>Email completa</FieldLabel><Input value={smtpEmail} onChange={(e) => setSmtpEmail(e.target.value)} placeholder={`marco@${domain.domain}`} className="h-9 bg-card" autoComplete="off" /></div>
+                <div className="space-y-1.5"><FieldLabel>SMTP host</FieldLabel><Input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.gmail.com" className="h-9 bg-card font-mono" /></div>
+                <div className="space-y-1.5"><FieldLabel>SMTP porta</FieldLabel><Input type="number" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} className="h-9 bg-card" /></div>
+                <div className="flex items-end gap-1.5 pb-2">
+                  <input id={`tls-${domain.id}`} type="checkbox" checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} className="h-4 w-4 accent-primary" />
                   <Label htmlFor={`tls-${domain.id}`} className="text-xs">TLS implicito (SSL)</Label>
                 </div>
-                <div className="col-span-2 space-y-1 sm:col-span-1"><Label className="text-xs">Username</Label><Input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder="= email" className="h-8 font-mono" autoComplete="off" /></div>
-                <div className="col-span-2 space-y-1 sm:col-span-2"><Label className="text-xs">Password</Label><Input type="password" value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} placeholder="••••••••" className="h-8" autoComplete="new-password" /></div>
-                <div className="space-y-1"><Label className="text-xs">IMAP host</Label><Input value={imapHost} onChange={(e) => setImapHost(e.target.value)} placeholder="imap.gmail.com" className="h-8 font-mono" /></div>
-                <div className="space-y-1"><Label className="text-xs">IMAP porta</Label><Input type="number" value={imapPort} onChange={(e) => setImapPort(e.target.value)} className="h-8" /></div>
-                <div className="space-y-1"><Label className="text-xs">Cap/g target</Label><Input type="number" value={cap} onChange={(e) => setCap(e.target.value)} className="h-8" /></div>
+                <div className="col-span-2 space-y-1.5 sm:col-span-1"><FieldLabel>Username</FieldLabel><Input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder="= email" className="h-9 bg-card font-mono" autoComplete="off" /></div>
+                <div className="col-span-2 space-y-1.5 sm:col-span-2"><FieldLabel>Password</FieldLabel><Input type="password" value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} placeholder="••••••••" className="h-9 bg-card" autoComplete="new-password" /></div>
+                <div className="space-y-1.5"><FieldLabel>IMAP host</FieldLabel><Input value={imapHost} onChange={(e) => setImapHost(e.target.value)} placeholder="imap.gmail.com" className="h-9 bg-card font-mono" /></div>
+                <div className="space-y-1.5"><FieldLabel>IMAP porta</FieldLabel><Input type="number" value={imapPort} onChange={(e) => setImapPort(e.target.value)} className="h-9 bg-card" /></div>
+                <div className="space-y-1.5"><FieldLabel>Cap/g target</FieldLabel><Input type="number" value={cap} onChange={(e) => setCap(e.target.value)} className="h-9 bg-card" /></div>
               </div>
-              <p className="text-[10px] text-muted-foreground">La password è salvata cifrata nel Vault (mai in chiaro). La casella parte in pausa: dopo un test riuscito riattivala per inserirla nella rotazione.</p>
-              <Button size="sm" className="h-8" disabled={busy} onClick={addSmtpCasella}>{busy ? "Creo e testo…" : "Crea casella SMTP"}</Button>
+              <p className="flex items-start gap-1.5 rounded-lg bg-card px-2.5 py-2 text-[10px] text-muted-foreground ring-1 ring-inset ring-border">
+                <ShieldHint /> La password è salvata cifrata nel Vault (mai in chiaro). La casella parte in pausa: dopo un test riuscito riattivala per inserirla nella rotazione.
+              </p>
+              <Button size="sm" className="h-9" disabled={busy} onClick={addSmtpCasella}>{busy ? "Creo e testo…" : "Crea casella SMTP"}</Button>
             </div>
           )}
         </div>
       )}
 
       {caselle.length > 0 && (
-        <div className="space-y-1 border-t p-2">
-          {caselle.map((s) => <CasellaRow key={s.id} casella={s} onChange={onChange} />)}
+        <div className="space-y-2 border-t border-border bg-muted/20 p-3">
+          {caselle.map((s) => <SenderAccountCard key={s.id} casella={s} onChange={onChange} />)}
         </div>
       )}
     </div>
   );
 }
 
-function CasellaRow({ casella, onChange }: { casella: Sender; onChange: () => void }) {
+/**
+ * Card casella stile Instantly "Email Accounts": riga email + provider + dot di
+ * stato in alto; sotto, micro-metriche (warm-up con heat-bar + ETA, inviate oggi,
+ * salute reputazione). Azioni pulite a destra. Tutta la logica resta invariata.
+ */
+function SenderAccountCard({ casella, onChange }: { casella: Sender; onChange: () => void }) {
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const paused = casella.status === "paused" || casella.status === "disabled";
   const isSmtp = casella.provider === "smtp";
+  const tone = senderTone(casella.status, casella.connection_status);
+
+  const cap = effectiveCap(casella);
+  const isFull = cap >= casella.daily_cap_target;
+  const daysToFull = Math.max(0, Math.ceil((casella.daily_cap_target - BASE) / STEP));
+  const remainingDays = Math.max(0, daysToFull - casella.warmup_day);
+  const heatPct = casella.daily_cap_target > 0 ? Math.min(100, Math.round((cap / casella.daily_cap_target) * 100)) : 0;
+  const sentPct = cap > 0 ? Math.min(100, Math.round((casella.daily_sent / cap) * 100)) : 0;
+  const health = healthLevel(casella.bounce_count ?? 0, casella.complaint_count ?? 0);
 
   async function setStatus(status: string) {
     setBusy(true);
@@ -414,43 +508,67 @@ function CasellaRow({ casella, onChange }: { casella: Sender; onChange: () => vo
   }
 
   return (
-    <div className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-muted/40">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="truncate font-mono text-xs">{casella.email}</span>
-          <Badge variant={casella.status === "active" ? "default" : casella.status === "warming" ? "secondary" : "outline"} className="text-[10px]">{casella.status}</Badge>
-          {isSmtp && <ConnBadge status={casella.connection_status} />}
+    <div className="rounded-lg border border-border bg-card p-3 shadow-sm transition-colors hover:border-border/80">
+      {/* riga superiore: email + provider + stato */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate font-mono text-sm font-medium text-foreground">{casella.email}</span>
+            <ProviderBadge provider={casella.provider} host={casella.smtp_host} />
+          </div>
+          <StatusDot tone={tone} />
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1"><ShieldCheck className="h-3 w-3" />{casella.provider}</span>
-          <span>· warm-up g.{casella.warmup_day}</span>
-          <span>· {casella.daily_sent}/{effectiveCap(casella)} oggi</span>
+        <div className="flex shrink-0 items-center gap-1">
+          {isSmtp && (
+            <Button size="sm" variant="ghost" className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground" disabled={testing} onClick={testConnection}>
+              {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plug className="h-3.5 w-3.5" />} Testa
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground" disabled={busy} onClick={() => setStatus(paused ? "warming" : "paused")}>
+            {paused ? <><Play className="h-3.5 w-3.5" /> Riattiva</> : <><Pause className="h-3.5 w-3.5" /> Pausa</>}
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive" onClick={del}><Trash2 className="h-3.5 w-3.5" /></Button>
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
-        {isSmtp && (
-          <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" disabled={testing} onClick={testConnection}>
-            {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plug className="h-3.5 w-3.5" />} Testa connessione
-          </Button>
-        )}
-        <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" disabled={busy} onClick={() => setStatus(paused ? "warming" : "paused")}>
-          {paused ? <><Play className="h-3.5 w-3.5" /> Riattiva</> : <><Pause className="h-3.5 w-3.5" /> Pausa</>}
-        </Button>
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={del}><Trash2 className="h-3.5 w-3.5" /></Button>
+
+      {/* errore connessione (se presente) */}
+      {casella.connection_status === "error" && casella.connection_error && (
+        <p className="mt-2 flex items-start gap-1.5 rounded-md bg-red-50 px-2 py-1 text-[10px] text-red-700">
+          <AlertTriangle className="mt-px h-3 w-3 shrink-0" /> <span className="truncate">{casella.connection_error}</span>
+        </p>
+      )}
+
+      {/* metriche: warm-up + inviate oggi + salute */}
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1.4fr_1fr_auto] sm:items-end">
+        {/* warm-up heat */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <FieldLabel>Warm-up · g.{casella.warmup_day}</FieldLabel>
+            <span className="text-[10px] font-medium text-muted-foreground">
+              cap {cap}/{casella.daily_cap_target} {isFull ? "· a regime" : `· ETA ${remainingDays}g`}
+            </span>
+          </div>
+          <HeatBar pct={heatPct} indicatorClassName={isFull ? "bg-emerald-500" : "bg-amber-500"} />
+        </div>
+        {/* inviate oggi */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between">
+            <FieldLabel>Oggi</FieldLabel>
+            <span className="text-[10px] font-medium text-muted-foreground">{casella.daily_sent}/{cap}</span>
+          </div>
+          <HeatBar pct={sentPct} indicatorClassName="bg-sky-500" />
+        </div>
+        {/* salute */}
+        <div className="flex items-center sm:justify-end sm:pb-0.5">
+          <HealthPill health={health} />
+        </div>
       </div>
     </div>
   );
 }
 
-function ConnBadge({ status }: { status?: string | null }) {
-  const s = status ?? "untested";
-  const cls = s === "ok"
-    ? "bg-emerald-100 text-emerald-700"
-    : s === "error"
-    ? "bg-red-100 text-red-700"
-    : "bg-muted text-muted-foreground";
-  const label = s === "ok" ? "connessa" : s === "error" ? "errore" : "non testata";
-  return <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${cls}`}>{label}</span>;
+function ShieldHint() {
+  return <Check className="mt-px h-3 w-3 shrink-0 text-emerald-500" />;
 }
 
 function DnsRow({ type, host, value }: { type: string; host: string; value: string }) {
@@ -458,30 +576,30 @@ function DnsRow({ type, host, value }: { type: string; host: string; value: stri
     try { await navigator.clipboard.writeText(value); toast.success("Copiato"); } catch { /* no-op */ }
   }
   return (
-    <div className="flex items-center gap-2 rounded border bg-card px-2 py-1">
-      <Badge variant="outline" className="shrink-0 text-[10px]">{type}</Badge>
+    <div className="flex items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5">
+      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground ring-1 ring-inset ring-border">{type}</span>
       <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{host}</span>
-      <span className="min-w-0 flex-1 truncate font-mono text-[11px]">{value}</span>
-      <button className="shrink-0 text-muted-foreground hover:text-foreground" onClick={copy} title="Copia"><Copy className="h-3.5 w-3.5" /></button>
+      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground">{value}</span>
+      <button className="shrink-0 text-muted-foreground transition-colors hover:text-foreground" onClick={copy} title="Copia"><Copy className="h-3.5 w-3.5" /></button>
     </div>
   );
 }
 
 function Stat({ icon: Icon, label, value, hint, tone = "default" }: { icon: typeof Globe; label: string; value: number; hint?: string; tone?: "default" | "good" }) {
   return (
-    <Card><CardContent className="p-3">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Icon className="h-3.5 w-3.5" />{label}</div>
-      <div className={`mt-0.5 text-xl font-bold ${tone === "good" ? "text-emerald-600" : ""}`}>{value.toLocaleString("it-IT")}</div>
-      {hint && <div className="text-[10px] text-muted-foreground">{hint}</div>}
-    </CardContent></Card>
+    <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+      <div className="flex items-center gap-1.5"><Icon className="h-3.5 w-3.5 text-muted-foreground" /><FieldLabel>{label}</FieldLabel></div>
+      <div className={`mt-1 text-2xl font-bold tabular-nums ${tone === "good" ? "text-emerald-600" : "text-foreground"}`}>{value.toLocaleString("it-IT")}</div>
+      {hint && <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">{tone === "good" && <ChevronRight className="h-3 w-3" />}{hint}</div>}
+    </div>
   );
 }
 
 function DnsBadge({ ok, label, onClick }: { ok: boolean; label: string; onClick?: () => void }) {
   return (
     <button type="button" onClick={onClick} title="Clic per segnare verificato/non verificato"
-      className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${ok ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}>
-      {ok ? "✓ " : ""}{label}
+      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset transition-colors ${ok ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20 hover:bg-emerald-100" : "bg-muted text-muted-foreground ring-border hover:bg-muted/70"}`}>
+      {ok ? <Check className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />}{label}
     </button>
   );
 }

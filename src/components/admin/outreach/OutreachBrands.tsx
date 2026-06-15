@@ -2,23 +2,26 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Trash2, Building2 } from "lucide-react";
+import { Plus, Trash2, Building2, AtSign, CornerUpLeft, PenLine, MapPin, Check } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
+import { FieldLabel } from "./deliverabilityUi";
 
 /**
  * Gestione Brand = pool isolati di domini+caselle per il cold multi-brand.
  * Ogni sequenza sceglie un brand e spedisce solo dai suoi domini (reputazione
- * separata per marchio). Tabella outreach_brands (migrazione 20270817000000).
+ * separata per marchio). Stile Instantly/Smartlead: card pulite con identità
+ * mittente, firma e indirizzo footer. Tabella outreach_brands (migrazione 20270817000000).
  */
 
 const T = "outreach_brands";
-interface Brand { id: string; name: string; from_name: string | null; reply_to: string | null; status: string; }
+interface Brand {
+  id: string; name: string; from_name: string | null; reply_to: string | null; status: string;
+  signature: string | null; footer_address: string | null;
+}
 
 export function OutreachBrands({ companyId }: { companyId: string }) {
   const qc = useQueryClient();
@@ -62,7 +65,16 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
-  if (q.isLoading) return <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
+  if (q.isLoading) {
+    return (
+      <section className="rounded-xl border border-border bg-muted/30 p-5">
+        <div className="space-y-3">
+          <div className="h-5 w-40 animate-pulse rounded bg-muted" />
+          <div className="h-20 animate-pulse rounded-lg bg-muted/70" />
+        </div>
+      </section>
+    );
+  }
   if (q.error && isMissingTableError(q.error)) {
     return <MigrationGate title="Brand (pool mittenti) — pronto" unlocks={[
       "Raggruppa domini e caselle per brand (es. 5 domini per ogni marchio).",
@@ -74,47 +86,99 @@ export function OutreachBrands({ companyId }: { companyId: string }) {
 
   const brands = q.data ?? [];
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="flex items-center gap-2 text-base"><Building2 className="h-5 w-5 text-orange-500" /> Brand · pool mittenti</CardTitle>
-        <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => setShow((v) => !v)}><Plus className="h-3.5 w-3.5" /> Brand</Button>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <p className="text-xs text-muted-foreground">
-          Ogni brand è un pool isolato di domini + caselle. Le sequenze scelgono il brand → spediscono solo da quei domini (reputazione separata per marchio).
-        </p>
-        {show && (
-          <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/30 p-3">
-            <div className="min-w-[160px] flex-1 space-y-1"><Label className="text-xs">Nome brand</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Edilizia in Cloud — cold" className="h-8" /></div>
-            <div className="min-w-[130px] flex-1 space-y-1"><Label className="text-xs">From name</Label>
-              <Input value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Edilizia in Cloud" className="h-8" /></div>
-            <div className="min-w-[150px] flex-1 space-y-1"><Label className="text-xs">Reply-to</Label>
-              <Input value={replyTo} onChange={(e) => setReplyTo(e.target.value)} placeholder="risposte@dominio" className="h-8" /></div>
-            <div className="basis-full space-y-1"><Label className="text-xs">Firma email</Label>
+    <section className="space-y-4 rounded-xl border border-border bg-muted/30 p-4 shadow-sm sm:p-5">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+            <Building2 className="h-4 w-4 text-primary" /> Brand · pool mittenti
+          </h3>
+          <p className="mt-0.5 max-w-xl text-xs text-muted-foreground">
+            Ogni brand è un pool isolato di domini + caselle. Le sequenze scelgono il brand e spediscono solo da quei domini (reputazione separata per marchio).
+          </p>
+        </div>
+        <Button size="sm" variant="outline" className="h-8 gap-1.5 bg-card" onClick={() => setShow((v) => !v)}><Plus className="h-3.5 w-3.5" /> Brand</Button>
+      </header>
+
+      {show && (
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5"><FieldLabel>Nome brand</FieldLabel>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Edilizia in Cloud — cold" className="h-9" /></div>
+            <div className="space-y-1.5"><FieldLabel>From name</FieldLabel>
+              <Input value={fromName} onChange={(e) => setFromName(e.target.value)} placeholder="Edilizia in Cloud" className="h-9" /></div>
+            <div className="space-y-1.5"><FieldLabel>Reply-to</FieldLabel>
+              <Input value={replyTo} onChange={(e) => setReplyTo(e.target.value)} placeholder="risposte@dominio" className="h-9 font-mono" /></div>
+            <div className="space-y-1.5 sm:col-span-3"><FieldLabel>Firma email</FieldLabel>
               <Textarea value={signature} onChange={(e) => setSignature(e.target.value)} placeholder={"Cordiali saluti,\n{{first_name}}\nEdilizia in Cloud"} rows={3} className="text-sm" />
               <p className="text-[11px] text-muted-foreground">Appesa in fondo a ogni email. Supporta {"{{first_name}}"} e spintax.</p></div>
-            <div className="basis-full space-y-1"><Label className="text-xs">Indirizzo (footer)</Label>
-              <Input value={footerAddress} onChange={(e) => setFooterAddress(e.target.value)} placeholder="Via Roma 1, 20100 Milano (MI)" className="h-8" />
+            <div className="space-y-1.5 sm:col-span-3"><FieldLabel>Indirizzo (footer)</FieldLabel>
+              <Input value={footerAddress} onChange={(e) => setFooterAddress(e.target.value)} placeholder="Via Roma 1, 20100 Milano (MI)" className="h-9" />
               <p className="text-[11px] text-muted-foreground">Indirizzo postale nel footer (obbligo anti-spam).</p></div>
-            <Button size="sm" className="h-8" disabled={add.isPending} onClick={() => add.mutate()}>{add.isPending ? "…" : "Salva"}</Button>
           </div>
-        )}
-        {brands.length === 0 ? (
-          <p className="py-3 text-center text-sm text-muted-foreground">Nessun brand. Creane uno per ogni marchio (es. "EIC cold", "Marketing edile").</p>
-        ) : brands.map((b) => (
-          <div key={b.id} className="flex items-center justify-between gap-2 rounded-lg border p-2.5">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="truncate text-sm font-medium">{b.name}</span>
-                <Badge variant={b.status === "active" ? "default" : "secondary"} className="text-[10px]">{b.status}</Badge>
-              </div>
-              <div className="mt-0.5 text-[11px] text-muted-foreground">{b.from_name ? `From: ${b.from_name}` : "From: —"}{b.reply_to ? ` · reply: ${b.reply_to}` : ""}</div>
-            </div>
-            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => del.mutate(b.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+          <div className="mt-3 flex justify-end">
+            <Button size="sm" className="h-9" disabled={add.isPending} onClick={() => add.mutate()}>{add.isPending ? "…" : "Salva brand"}</Button>
           </div>
-        ))}
-      </CardContent>
-    </Card>
+        </div>
+      )}
+
+      {brands.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 py-10 text-center">
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+            <Building2 className="h-6 w-6 text-primary" />
+          </div>
+          <p className="text-sm font-semibold text-foreground">Nessun brand</p>
+          <p className="mt-1 max-w-sm text-xs text-muted-foreground">Creane uno per ogni marchio (es. "EIC cold", "Marketing edile"): dominio, firma e identità mittente dedicate.</p>
+          <Button size="sm" className="mt-4 gap-1.5" onClick={() => setShow(true)}><Plus className="h-3.5 w-3.5" /> Crea brand</Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {brands.map((b) => <BrandCard key={b.id} brand={b} onDelete={() => del.mutate(b.id)} deleting={del.isPending} />)}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function BrandCard({ brand, onDelete, deleting }: { brand: Brand; onDelete: () => void; deleting: boolean }) {
+  return (
+    <div className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10"><Building2 className="h-4 w-4 text-primary" /></div>
+          <div className="min-w-0">
+            <span className="block truncate text-sm font-semibold text-foreground">{brand.name}</span>
+            <span className={`mt-0.5 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-inset ${brand.status === "active" ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20" : "bg-muted text-muted-foreground ring-border"}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${brand.status === "active" ? "bg-emerald-500" : "bg-muted-foreground/50"}`} /> {brand.status}
+            </span>
+          </div>
+        </div>
+        <Button size="sm" variant="ghost" className="h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-destructive" disabled={deleting} onClick={onDelete}><Trash2 className="h-3.5 w-3.5" /></Button>
+      </div>
+
+      <dl className="mt-3 space-y-2 border-t border-border pt-3 text-xs">
+        <Row icon={AtSign} label="From">{brand.from_name || <span className="text-muted-foreground/70">non impostato</span>}</Row>
+        <Row icon={CornerUpLeft} label="Reply-to">{brand.reply_to ? <span className="font-mono">{brand.reply_to}</span> : <span className="text-muted-foreground/70">non impostato</span>}</Row>
+        <Row icon={PenLine} label="Firma">
+          {brand.signature
+            ? <span className="line-clamp-2 whitespace-pre-line text-muted-foreground">{brand.signature}</span>
+            : <span className="text-muted-foreground/70">non impostata</span>}
+        </Row>
+        <Row icon={MapPin} label="Footer">
+          {brand.footer_address
+            ? <span className="inline-flex items-center gap-1 text-emerald-700"><Check className="h-3 w-3" /> {brand.footer_address}</span>
+            : <span className="text-amber-600">manca (obbligo anti-spam)</span>}
+        </Row>
+      </dl>
+    </div>
+  );
+}
+
+function Row({ icon: Icon, label, children }: { icon: typeof AtSign; label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2">
+      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <span className="w-14 shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="min-w-0 flex-1 text-foreground">{children}</span>
+    </div>
   );
 }
