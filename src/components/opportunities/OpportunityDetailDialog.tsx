@@ -1170,6 +1170,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         name={fullName}
         phone={contactPhone}
         email={contactEmail}
+        context={opportunity.name}
         defaultChannel={quickSend.channel}
       />
     )}
