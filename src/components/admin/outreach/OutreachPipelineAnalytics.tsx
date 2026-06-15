@@ -1,17 +1,25 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
-import { Trophy, Briefcase, TrendingUp, Euro, Timer } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Trophy, Briefcase, TrendingUp, Euro, Timer, Target, Download } from "lucide-react";
+import { exportToCSV } from "@/lib/csvExport";
 
 /**
  * Analytics pipeline — win rate, valore aperto, forecast pesato (value*probability),
  * valore vinto, velocità media (giorni a chiusura). Su marketing_opportunities
  * (esistente). Colma il gap analytics segnalato nell'audit pipeline.
+ *
+ * Linguaggio visivo allineato al cockpit (OutreachAnalytics): card con header a
+ * chip, KPI a tile con label uppercase + icona colorata e numero grande tabellare,
+ * stile Instantly/Smartlead. Solo presentazione, nessun cambio dati/query.
  */
 
 interface Opp { status: string; value: number | null; probability: number | null; created_at: string; updated_at: string; }
 
 const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(n));
+
+type Tone = "default" | "good" | "accent";
 
 export function OutreachPipelineAnalytics({ companyId }: { companyId: string }) {
   const q = useQuery({
@@ -42,30 +50,83 @@ export function OutreachPipelineAnalytics({ companyId }: { companyId: string }) 
     : null;
 
   const err = !!q.error;
-  const cards = [
+  const loading = q.isLoading;
+  const cards: { icon: typeof Trophy; label: string; value: string; hint: string; tone: Tone }[] = [
     { icon: Trophy, label: "Win rate", value: err ? "—" : winRate == null ? "—" : `${winRate}%`, hint: closedTotal > 0 ? `${won.length}/${closedTotal} chiuse vinte` : "ancora nessuna chiusa", tone: "good" },
-    { icon: Briefcase, label: "Opportunità aperte", value: err ? "—" : String(open.length), hint: "in pipeline", tone: "default" },
-    { icon: Euro, label: "Valore pipeline", value: err ? "—" : eur(openValue), hint: "aperto, lordo", tone: "default" },
+    { icon: Briefcase, label: "Opp. aperte", value: err ? "—" : String(open.length), hint: "in pipeline", tone: "default" },
+    { icon: Euro, label: "Valore pipeline", value: err ? "—" : eur(openValue), hint: "aperto, lordo", tone: "accent" },
     { icon: TrendingUp, label: "Forecast pesato", value: err ? "—" : eur(forecast), hint: "valore × probabilità", tone: "good" },
-    { icon: Trophy, label: "Valore vinto", value: err ? "—" : eur(wonValue), hint: `${won.length} deal`, tone: "good" },
+    { icon: Target, label: "Valore vinto", value: err ? "—" : eur(wonValue), hint: `${won.length} deal chiusi`, tone: "good" },
     { icon: Timer, label: "Velocità media", value: err ? "—" : avgDays == null ? "—" : `${avgDays}g`, hint: "giorni a chiusura", tone: "default" },
   ];
 
+  // Esporta i KPI mostrati come CSV lato client (nessuna nuova query). exportToCSV
+  // gestisce BOM, quoting RFC-4180 e anti formula-injection (src/lib/csvExport).
+  const handleExport = () => {
+    const rows = cards.map((c) => ({ kpi: c.label, valore: c.value === "—" ? "" : c.value, dettaglio: c.hint }));
+    const columns = [
+      { key: "kpi", label: "KPI" },
+      { key: "valore", label: "Valore" },
+      { key: "dettaglio", label: "Dettaglio" },
+    ];
+    exportToCSV(rows, columns, `pipeline-analytics-${new Date().toISOString().slice(0, 10)}.csv`);
+  };
+
+  const hasData = !err && opps.length > 0;
+
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {cards.map((c) => {
-        const Icon = c.icon;
-        const color = c.tone === "good" ? "text-emerald-600" : "text-foreground";
-        return (
-          <Card key={c.label}>
-            <CardContent className="p-3">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Icon className="h-3.5 w-3.5" />{c.label}</div>
-              <div className={`mt-0.5 text-xl font-bold ${color}`}>{c.value}</div>
-              <div className="text-[10px] text-muted-foreground">{c.hint}</div>
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 border-b border-border pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10">
+            <TrendingUp className="h-4 w-4 text-primary" />
+          </span>
+          Analytics pipeline
+        </CardTitle>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1.5"
+          onClick={handleExport}
+          disabled={!hasData}
+          title={hasData ? "Scarica i KPI come file CSV" : "Nessun dato da esportare"}
+        >
+          <Download className="h-3.5 w-3.5" /> Esporta CSV
+        </Button>
+      </CardHeader>
+      <CardContent className="pt-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {cards.map((c) => {
+            const Icon = c.icon;
+            const color = c.tone === "good" ? "text-emerald-600" : c.tone === "accent" ? "text-primary" : "text-foreground";
+            const iconWrap = c.tone === "good"
+              ? "bg-emerald-50 text-emerald-600"
+              : c.tone === "accent"
+                ? "bg-primary/10 text-primary"
+                : "bg-muted text-muted-foreground";
+            return (
+              <div key={c.label} className="rounded-lg border border-border bg-card p-3.5 transition-colors hover:border-primary/30">
+                <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <span className={`flex h-6 w-6 items-center justify-center rounded-md ${iconWrap}`}>
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                  {c.label}
+                </div>
+                <div className={`mt-2 text-2xl font-bold tabular-nums ${loading ? "text-muted-foreground/40" : color}`}>{loading ? "…" : c.value}</div>
+                <div className="text-[11px] text-muted-foreground">{c.hint}</div>
+              </div>
+            );
+          })}
+        </div>
+        {err && (
+          <p className="mt-3 text-xs text-muted-foreground">Impossibile caricare i dati della pipeline al momento.</p>
+        )}
+        {!err && !loading && opps.length === 0 && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Nessuna opportunità ancora in pipeline: i KPI (win rate, forecast, velocità) si popolano appena converti i primi lead in opportunità.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }

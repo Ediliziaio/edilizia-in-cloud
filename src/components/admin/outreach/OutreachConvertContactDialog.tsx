@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Briefcase, Plus, Loader2 } from "lucide-react";
+import { Briefcase, Plus, Loader2, ArrowRight } from "lucide-react";
+import { avatarTint } from "./outreachAvatar";
 
 /**
  * Converte un contatto/lead in opportunità nella pipeline. Risolve pipeline +
@@ -68,6 +69,7 @@ export function OutreachConvertContactDialog({ companyId, onCreated, trigger, in
 
   const selected = contacts.data?.find((c) => c.id === contactId);
   const noPipeline = open && !pipeline.isLoading && !pipeline.data;
+  const initials = (c: Contact) => `${c.first_name?.[0] ?? ""}${c.last_name?.[0] ?? ""}`.toUpperCase() || (c.company_name?.[0] ?? "?").toUpperCase();
 
   async function create() {
     const finalName = (name.trim() || (selected ? `${selected.first_name} ${selected.last_name ?? ""}`.trim() : "")) || selected?.company_name || "";
@@ -98,23 +100,44 @@ export function OutreachConvertContactDialog({ companyId, onCreated, trigger, in
         {trigger ?? <Button variant="outline" className="gap-2"><Plus className="h-4 w-4" /> Crea opportunità</Button>}
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle className="flex items-center gap-2"><Briefcase className="h-4 w-4" /> Lead → opportunità</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10">
+              <Briefcase className="h-4 w-4 text-primary" />
+            </span>
+            Converti lead in opportunità
+          </DialogTitle>
+        </DialogHeader>
         {noPipeline ? (
           <p className="py-4 text-sm text-muted-foreground">Nessuna pipeline configurata per l'admin. Crea prima una pipeline e i suoi stage.</p>
         ) : (
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Contatto</Label>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Contatto</Label>
               <Select value={contactId} onValueChange={(v) => { setContactId(v); const c = contacts.data?.find((x) => x.id === v); if (c && !name) setName(`${c.first_name} ${c.last_name ?? ""}`.trim()); }}>
-                <SelectTrigger className="h-9"><SelectValue placeholder={contacts.isLoading ? "Carico…" : "Scegli contatto"} /></SelectTrigger>
+                <SelectTrigger className="h-10"><SelectValue placeholder={contacts.isLoading ? "Carico…" : "Scegli contatto"} /></SelectTrigger>
                 <SelectContent>
                   {(contacts.data ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.first_name} {c.last_name ?? ""}{c.company_name ? ` · ${c.company_name}` : ""}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {selected && (
+                <div className="mt-2 flex items-center gap-2.5 rounded-lg border border-border bg-muted/40 p-2.5">
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${avatarTint(selected.id)}`}>{initials(selected)}</span>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-foreground">{`${selected.first_name} ${selected.last_name ?? ""}`.trim() || "—"}</div>
+                    {selected.company_name && <div className="truncate text-xs text-muted-foreground">{selected.company_name}</div>}
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="space-y-1"><Label className="text-xs">Nome opportunità</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="es. Gestionale per Rossi Srl" className="h-9" /></div>
-            <div className="space-y-1"><Label className="text-xs">Valore stimato (€)</Label><Input type="number" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0" className="h-9" /></div>
-            {pipeline.data && <p className="text-[11px] text-muted-foreground">Entra nello stage iniziale: <strong>{pipeline.data.stageName}</strong></p>}
+            <div className="space-y-1.5"><Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Nome opportunità</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="es. Gestionale per Rossi Srl" className="h-10" /></div>
+            <div className="space-y-1.5"><Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Valore stimato (€)</Label><Input type="number" value={value} onChange={(e) => setValue(e.target.value)} placeholder="0" className="h-10" /></div>
+            {pipeline.data && (
+              <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-primary" />
+                <span>Entra nello stage iniziale <strong className="font-semibold text-foreground">{pipeline.data.stageName}</strong></span>
+              </div>
+            )}
           </div>
         )}
         <DialogFooter>
