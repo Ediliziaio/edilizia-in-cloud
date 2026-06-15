@@ -28,10 +28,13 @@ import {
   isGraphSequence,
   entryNode,
   nodeById,
+  nodeType,
   planNextAction,
   type FlowNode,
   type FlowActivity,
 } from "../_shared/outreach-flow.ts";
+import { channelForNodeType, planChannelSend, type OutreachChannel } from "../_shared/outreach-channel.ts";
+import { sendOnChannel } from "../_shared/outreachChannelSend.ts";
 import { appendTrackingSig, outreachOpenPixelUrl } from "../_shared/emailTrackingSignature.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -107,16 +110,24 @@ async function enqueuePlanned(
 ): Promise<void> {
   const when = computeStepSchedule(baseAt, delayDays, delayHours);
   const whenJ = applyJitter(when, 90, Math.random()).toISOString();
+  // Canale della riga = canale del nodo d'invio (email/whatsapp/sms). Le righe
+  // 'advance' (wait) restano sul canale 'email' (riga di solo instradamento, non
+  // spedita: il CHECK su channel è soddisfatto, il pass advance le pesca per kind).
+  const ch: OutreachChannel = kind === "send" ? (channelForNodeType(nodeType(node)) ?? "email") : "email";
+  const isMsg = ch === "whatsapp" || ch === "sms";
   await supabase.from("outreach_send_queue").insert({
     company_id: PLATFORM_COMPANY,
     enrollment_id: enr.id,
     contact_id: contact.id,
     brand_id: brandId,
-    channel: "email",
+    channel: ch,
     kind,
     node_id: node.id,
-    to_email: contact.email,
-    subject: kind === "send" ? (node.subject ?? "") : null,
+    // recapito sul campo del canale: email → to_email, whatsapp/sms → to_phone.
+    to_email: isMsg ? null : contact.email,
+    to_phone: isMsg ? (contact.phone ?? null) : null,
+    // SMS/WhatsApp non hanno oggetto; il corpo è il body del nodo (renderizzato al send).
+    subject: kind === "send" && ch === "email" ? (node.subject ?? "") : null,
     body: kind === "send" ? (node.body ?? "") : "",
     status: "queued",
     scheduled_for: whenJ,
@@ -156,8 +167,13 @@ async function advanceGraph(
       .eq("id", enr.id);
     return;
   }
-  // un'email da spedire richiede un contatto contattabile; un 'advance' (wait) no.
-  if (plan.kind === "send" && await stopIfUncontactable(supabase, enr.id, contact)) return;
+  // Un'EMAIL da spedire richiede un contatto contattabile via email (gate legacy).
+  // I nodi messaggio (whatsapp/sms) NON usano l'email: il loro requisito (telefono
+  // presente, opt-out di canale) è valutato al momento dell'invio nel pass dedicato,
+  // dove un telefono mancante → skip + avanzamento (non si ferma l'iscrizione).
+  // Un 'advance' (wait) non richiede contattabilità.
+  const planChannel = plan.kind === "send" ? channelForNodeType(nodeType(plan.node)) : null;
+  if (plan.kind === "send" && planChannel === "email" && await stopIfUncontactable(supabase, enr.id, contact)) return;
   await enqueuePlanned(supabase, enr, contact, plan.node, plan.kind, plan.delayDays, plan.delayHours, baseAt, brandId);
 }
 
@@ -254,8 +270,10 @@ async function processAdvanceQueue(
   const contactIds = [...new Set(rows.map((r: any) => r.contact_id).filter(Boolean))];
   const contactById = new Map<string, any>();
   if (contactIds.length) {
+    // phone incluso: dopo un 'wait' la traversata può portare a un nodo whatsapp/sms,
+    // e enqueuePlanned ha bisogno del telefono per popolare to_phone della riga.
     const { data: cs } = await supabase.from("marketing_contacts")
-      .select("id,email,optout_email").in("id", contactIds);
+      .select("id,email,phone,optout_email").in("id", contactIds);
     for (const c of cs || []) contactById.set(c.id, c);
   }
   const seqIds = [...new Set([...enrById.values()].map((e) => e.sequence_id).filter(Boolean))];
@@ -301,6 +319,130 @@ async function processAdvanceQueue(
   }
 }
 
+/**
+ * PASS MULTICANALE — righe d'invio NON-email dovute (channel in 'whatsapp'|'sms',
+ * kind='send'). Speculare al pass email ma SENZA casella/pool/warm-up: il mittente
+ * è il numero del provider (Telnyx/Meta), gestito da outreachChannelSend.
+ *
+ * Per ogni riga: gate iscrizione (pausa→lascia in coda; terminale→annulla), poi
+ * planChannelSend (telefono presente? opt-out di canale?):
+ *   • non spedibile (telefono mancante / opt-out) → riga 'skipped' con last_error +
+ *     AVANZA la cadenza (il telefono mancante NON deve bloccare la sequenza);
+ *   • spedibile → lock 'sending', render del body (variabili+spintax), invio via
+ *     provider; ok → 'sent' + advanceEnrollment; ko → retry/failed come l'email.
+ *
+ * Idempotenza: lock ottimistico 'sending' come il pass email. Best-effort: se la
+ * colonna 'kind'/'to_phone' non esiste (pre-migrazione) il select fallisce → il
+ * chiamante cattura e prosegue col cold email.
+ */
+async function processMessageChannelQueue(
+  supabase: any,
+  now: Date,
+  result: { processed: number; sent: number; failed: number; skipped: number; deferred: number },
+): Promise<void> {
+  const { data: rows, error } = await supabase
+    .from("outreach_send_queue")
+    .select("id, channel, to_phone, body, attempts, max_attempts, contact_id, enrollment_id, brand_id")
+    .eq("status", "queued").eq("kind", "send")
+    .in("channel", ["whatsapp", "sms"])
+    .lte("scheduled_for", now.toISOString())
+    .order("scheduled_for", { ascending: true })
+    .limit(BATCH);
+  if (error) throw error; // colonna assente (pre-migrazione) → gestito dal chiamante
+  if (!rows || rows.length === 0) return;
+
+  // iscrizioni del batch (gate pausa/terminale + advance dopo invio)
+  const enrIds = [...new Set(rows.map((r: any) => r.enrollment_id).filter(Boolean))];
+  const enrById = new Map<string, EnrRow & { status: string }>();
+  if (enrIds.length) {
+    let es: any[] | null = null;
+    const r = await supabase.from("outreach_enrollments")
+      .select("id,status,sequence_id,current_step,current_node_id").in("id", enrIds);
+    es = r.error ? null : r.data;
+    for (const e of es || []) enrById.set(e.id, e);
+  }
+
+  // contatti: telefono + opt-out di canale (skip se mancante/optato)
+  const contactIds = [...new Set(rows.map((r: any) => r.contact_id).filter(Boolean))];
+  const contactById = new Map<string, any>();
+  if (contactIds.length) {
+    const { data: cs } = await supabase.from("marketing_contacts")
+      .select("id,first_name,last_name,company_name,email,phone,optout_email,optout_sms,optout_whatsapp").in("id", contactIds);
+    for (const c of cs || []) contactById.set(c.id, c);
+  }
+
+  for (const item of rows) {
+    result.processed++;
+    const channel = item.channel as OutreachChannel;
+    const enr = item.enrollment_id ? enrById.get(item.enrollment_id) : null;
+    if (enr) {
+      if (enr.status === "paused") { result.deferred++; continue; } // resta in coda
+      if (TERMINAL_ENROLLMENT.has(enr.status)) {
+        await supabase.from("outreach_send_queue")
+          .update({ status: "cancelled", last_error: `enrollment ${enr.status}` }).eq("id", item.id);
+        result.skipped++;
+        continue;
+      }
+    }
+
+    const contact = item.contact_id ? contactById.get(item.contact_id) : null;
+    // telefono presente + nessun opt-out di canale? Altrimenti SALTA e AVANZA.
+    const plan = planChannelSend(channel, contact);
+    if (!plan.ok) {
+      await supabase.from("outreach_send_queue")
+        .update({ status: "skipped", last_error: plan.skipReason ?? "non spedibile" }).eq("id", item.id);
+      result.skipped++;
+      // la cadenza prosegue: il nodo è stato "consumato" (saltato), si avanza il grafo.
+      if (enr) {
+        try { await advanceEnrollment(supabase, enr, contact, now, item.brand_id ?? null); }
+        catch (e) { console.warn("[outreach-dispatch] advance post-skip msg fallito:", e instanceof Error ? e.message : e); }
+      }
+      continue;
+    }
+
+    // lock ottimistico (idempotenza anti-doppio, come il pass email)
+    await supabase.from("outreach_send_queue").update({ status: "sending" }).eq("id", item.id);
+    try {
+      // personalizzazione al send: variabili + spintax, seed stabile per destinatario.
+      // SMS/WhatsApp non hanno oggetto: si invia solo il body renderizzato.
+      const vars = contact ? contactToVars(contact) : {};
+      const seed = hashSeed(plan.phone || item.id);
+      const text = renderTemplate(item.body || "", vars, { seed });
+      const res = await sendOnChannel(supabase, channel === "sms" ? "sms" : "whatsapp", plan.phone, text);
+      if (!res.ok) {
+        // recapito non riuscito a livello provider: non ritentare (come l'email su ok=false).
+        await supabase.from("outreach_send_queue")
+          .update({ status: "skipped", to_phone: plan.phone, last_error: (res.error ?? "invio non riuscito").slice(0, 500) })
+          .eq("id", item.id);
+        result.skipped++;
+        // best-effort: avanza comunque la cadenza (il nodo è stato tentato).
+        if (enr) {
+          try { await advanceEnrollment(supabase, enr, contact, now, item.brand_id ?? null); }
+          catch (e) { console.warn("[outreach-dispatch] advance post-skip provider fallito:", e instanceof Error ? e.message : e); }
+        }
+        continue;
+      }
+      await supabase.from("outreach_send_queue")
+        .update({ status: "sent", sent_at: now.toISOString(), to_phone: plan.phone, last_error: res.providerMessageId ? `mid:${res.providerMessageId}` : null })
+        .eq("id", item.id);
+      result.sent++;
+      if (enr) {
+        try { await advanceEnrollment(supabase, enr, contact, now, item.brand_id ?? null); }
+        catch (e) { console.warn("[outreach-dispatch] advance post-send msg fallito:", e instanceof Error ? e.message : e); }
+      }
+    } catch (e) {
+      const attempts = (item.attempts || 0) + 1;
+      const isFinal = attempts >= (item.max_attempts || 3);
+      await supabase.from("outreach_send_queue").update({
+        status: isFinal ? "failed" : "queued",
+        attempts,
+        last_error: e instanceof Error ? e.message : String(e),
+      }).eq("id", item.id);
+      result.failed++;
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
@@ -337,6 +479,16 @@ Deno.serve(async (req) => {
     } catch (advErr) {
       // colonna kind assente o errore non fatale: il cold lineare prosegue.
       console.warn("[outreach-dispatch] advance-pass skip:", advErr instanceof Error ? advErr.message : advErr);
+    }
+
+    // 0-bis. PASS MULTICANALE — righe d'invio whatsapp/sms dovute (kind='send',
+    // channel != email). Gestite a parte dal pass email: mittente del provider,
+    // niente casella/warm-up. Telefono mancante/opt-out → skip + avanzamento.
+    // Best-effort: se 'kind'/'to_phone' non esiste (pre-migrazione) → skip silenzioso.
+    try {
+      await processMessageChannelQueue(supabase, now, result);
+    } catch (msgErr) {
+      console.warn("[outreach-dispatch] message-channel-pass skip:", msgErr instanceof Error ? msgErr.message : msgErr);
     }
 
     // 1. coda dovuta — SOLO righe spedibili (kind='send'). Le righe 'advance' sono

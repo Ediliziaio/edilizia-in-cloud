@@ -12,9 +12,11 @@
  * nel dispatcher.
  *
  * Modello nodo (outreach_sequence_steps esteso):
- *   • node_type:      'email' | 'wait' | 'condition' | 'end'
+ *   • node_type:      'email' | 'whatsapp' | 'sms' | 'wait' | 'condition' | 'end'
+ *                     (email/whatsapp/sms = nodi d'INVIO; differiscono solo per il
+ *                      canale di spedizione, gestito nel dispatcher via outreach-channel)
  *   • condition_type: 'opened' | 'not_opened' | 'replied' | 'not_replied'  (solo se node_type='condition')
- *   • next_default:   successore (email/wait) oppure ramo "SÌ" (condition)
+ *   • next_default:   successore (nodi d'invio/wait) oppure ramo "SÌ" (condition)
  *   • next_alt:       ramo "NO" (solo condition)
  *
  * NB open-tracking: la condizione 'opened'/'not_opened' guarda open_count
@@ -23,8 +25,16 @@
  * "non aperto" (ramo NO per 'opened', ramo SÌ per 'not_opened').
  */
 
-export type NodeType = "email" | "wait" | "condition" | "end";
+export type NodeType = "email" | "wait" | "condition" | "end" | "whatsapp" | "sms";
 export type ConditionType = "opened" | "not_opened" | "replied" | "not_replied";
+
+/** Tipi di nodo INVIANTI (accodano/spediscono un messaggio): email + canali msg. */
+const SEND_NODE_TYPES: ReadonlySet<NodeType> = new Set<NodeType>(["email", "whatsapp", "sms"]);
+
+/** True se il nodo è un nodo d'invio (email/whatsapp/sms): si ferma qui per spedire. */
+export function isSendNode(t: NodeType): boolean {
+  return SEND_NODE_TYPES.has(t);
+}
 
 /** Nodo del grafo = riga outreach_sequence_steps con i campi flusso. */
 export interface FlowNode {
@@ -147,7 +157,10 @@ export function nextNode(node: FlowNode, activity: FlowActivity): NextDecision {
       const yes = evalCondition(node.condition_type, activity);
       return { nextId: yes ? (node.next_default ?? null) : (node.next_alt ?? null), branch: yes };
     }
+    // email / whatsapp / sms (nodi d'invio) e wait: un solo successore = next_default.
     case "email":
+    case "whatsapp":
+    case "sms":
     case "wait":
     default:
       return { nextId: node.next_default ?? null };
@@ -175,7 +188,8 @@ export interface PlannedAction {
  * A partire dal nodo successore `startId` (es. next_default del nodo appena
  * inviato, oppure il target di una riga 'advance'), risolve la catena
  * condition/end IMMEDIATA e ritorna l'azione del dispatcher:
- *   • prossimo nodo 'email'  → { kind:'send',     node, delay del nodo email }
+ *   • prossimo nodo d'invio  → { kind:'send',     node, delay del nodo }
+ *     (email/whatsapp/sms: il dispatcher accoda/spedisce sul canale del nodo)
  *   • prossimo nodo 'wait'   → { kind:'advance',  node, delay del wait }     (differito)
  *   • catena finita / 'end'  → { kind:'complete', node:null }
  *   • loop di condizioni     → { kind:'complete', aborted:true }             (sicuro)
@@ -232,7 +246,9 @@ export function resolveActionable(
   const seen = new Set<string>();
   while (current) {
     const t = nodeType(current);
-    if (t === "email" || t === "wait") {
+    // nodi d'invio (email/whatsapp/sms) e wait: punto in cui il dispatcher si ferma
+    // per fare l'effetto (invio sul canale, o schedulazione del delay del wait).
+    if (isSendNode(t) || t === "wait") {
       return { node: current, hops, aborted: false };
     }
     if (t === "end") {
