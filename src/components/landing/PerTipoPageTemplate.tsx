@@ -15,7 +15,7 @@ import { blogPosts } from "@/data/blogPosts";
 
 // ── Catalogo settori per cross-linking ──────────────────────────────────────
 const ALL_SECTORS = [
-  { slug: "/per/imprese-costruzione", label: "Imprese di Costruzione", emoji: "🏗️" },
+  { slug: "/per/imprese-edili",        label: "Imprese di Costruzione", emoji: "🏗️" },
   { slug: "/per/impiantisti",          label: "Impiantisti",            emoji: "⚡" },
   { slug: "/per/ristrutturatori",      label: "Ristrutturatori",        emoji: "🔨" },
   { slug: "/per/fotovoltaico",         label: "Fotovoltaico",           emoji: "☀️" },

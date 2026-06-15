@@ -550,8 +550,9 @@ const App = () => (
               <Route path="/glossario-edilizia" element={<Glossario />} />
               <Route path="/software-gestionale-edilizia" element={<CityHub />} />
               <Route path="/integrazioni" element={<Integrazioni />} />
-              <Route path="/per/imprese-costruzione" element={<ImpreseCostuzione />} />
-              {/* SEO alias — il footer linka a /per/imprese-edili/ (keyword più cercata). */}
+              {/* Vecchio URL → canonical: lato server fa 301 (middleware LEGACY_REDIRECTS);
+                  qui rispecchiamo il redirect anche per la navigazione client-side. */}
+              <Route path="/per/imprese-costruzione" element={<Navigate to="/per/imprese-edili" replace />} />
               <Route path="/per/imprese-edili" element={<ImpreseCostuzione />} />
               <Route path="/per/impiantisti" element={<Impiantisti />} />
               <Route path="/per/ristrutturatori" element={<Ristrutturatori />} />
