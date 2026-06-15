@@ -211,10 +211,13 @@ export function ImapCustomDialog({ open, onOpenChange }: ImapCustomDialogProps) 
       if (r?.ok === false) throw new Error(r.error ?? "Test fallito");
       return r;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setTestStatus("ok");
       setTestError(null);
-      toast.success("Connessione IMAP verificata");
+      const msg = data && typeof data === "object" && "message" in data
+        ? String((data as { message?: string }).message ?? "")
+        : "";
+      toast.success(msg || "Connessione verificata (ricezione + invio)");
     },
     onError: (e) => {
       setTestStatus("error");
@@ -376,7 +379,7 @@ export function ImapCustomDialog({ open, onOpenChange }: ImapCustomDialogProps) 
           {testStatus === "ok" && (
             <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg p-2">
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-              Connessione IMAP verificata. Puoi salvare.
+              Ricezione (IMAP) e invio (SMTP) verificati. Puoi salvare.
             </div>
           )}
           {testStatus === "error" && testError && (() => {
