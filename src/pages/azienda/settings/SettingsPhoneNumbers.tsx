@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/table";
 import { Phone, Plus, Search, Trash2, MessageSquare, PhoneCall, Info, Loader2, Download, Bot, ArrowRight, Link2, Headphones } from "lucide-react";
 import { Link } from "react-router-dom";
+import { TelephonyComplianceCard } from "@/components/telephony/TelephonyComplianceCard";
 
 type PurchaseStep = "search" | "results" | "confirm";
 
@@ -110,6 +111,21 @@ export default function SettingsPhoneNumbers() {
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Errore import numeri Telnyx"),
   });
+
+  // Stato normativo: l'acquisto di numeri IT è bloccato finché non è approvato.
+  const { data: complianceStato } = useQuery({
+    queryKey: ["telephony-compliance-stato", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("company_telephony_compliance" as never)
+        .select("stato")
+        .eq("company_id", companyId!)
+        .maybeSingle();
+      return ((data as { stato?: string } | null)?.stato) ?? "da_compilare";
+    },
+  });
+  const canBuyNumbers = complianceStato === "approvato";
 
   // Consuntivo chiamate (costo per l'azienda; wholesale+margine solo super_admin).
   const { data: voiceConsuntivo } = useQuery({
@@ -180,7 +196,9 @@ export default function SettingsPhoneNumbers() {
         </div>
         <Dialog open={purchaseOpen} onOpenChange={(open) => { setPurchaseOpen(open); if (!open) resetPurchase(); }}>
           <DialogTrigger asChild>
-            <Button><Plus className="mr-2 h-4 w-4" />Acquista Numero</Button>
+            <Button disabled={!canBuyNumbers} title={canBuyNumbers ? "Acquista un numero" : "Completa e fai approvare i Dati normativi per acquistare numeri italiani"}>
+              <Plus className="mr-2 h-4 w-4" />Acquista Numero
+            </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -351,6 +369,9 @@ export default function SettingsPhoneNumbers() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Dati normativi compilati dall'azienda (responsabilità sua) */}
+      <TelephonyComplianceCard />
 
       {/* Numbers table */}
       <Card>

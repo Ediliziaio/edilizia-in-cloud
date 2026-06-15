@@ -190,6 +190,23 @@ Deno.serve(async (req) => {
       case "buy_number": {
         if (!payload?.phone_number) throw new Error("phone_number richiesto");
 
+        // ── GATE NORMATIVO (server-side, non aggirabile dalla UI) ──
+        // Un'azienda può acquistare un numero SOLO se i suoi dati normativi sono
+        // APPROVATI: così la titolarità/responsabilità è sua. Le service-call
+        // interne (automazioni) restano consentite.
+        if (!isServiceCall && companyId) {
+          const { data: comp } = await adminClient
+            .from("company_telephony_compliance")
+            .select("stato")
+            .eq("company_id", companyId)
+            .maybeSingle();
+          if (comp?.stato !== "approvato") {
+            return json({
+              error: "Acquisto bloccato: i Dati normativi dell'azienda non sono ancora approvati. Completali in Impostazioni → Telefonia.",
+            }, 403);
+          }
+        }
+
         const orderBody: Record<string, unknown> = {
           phone_numbers: [{ phone_number: payload.phone_number }],
         };

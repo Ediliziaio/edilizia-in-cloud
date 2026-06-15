@@ -49,7 +49,7 @@ function PostCard({ post, featured = false }: PostCardProps) {
   if (featured) {
     return (
       <Link
-        to={`/blog/${post.slug}`}
+        to={`/blog/${post.slug}/`}
         className="group col-span-full grid md:grid-cols-2 bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100"
       >
         <div className="relative overflow-hidden">
@@ -103,7 +103,7 @@ function PostCard({ post, featured = false }: PostCardProps) {
 
   return (
     <Link
-      to={`/blog/${post.slug}`}
+      to={`/blog/${post.slug}/`}
       className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 flex flex-col"
     >
       <div className="relative overflow-hidden">

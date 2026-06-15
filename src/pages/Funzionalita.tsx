@@ -445,7 +445,7 @@ export default function Funzionalita() {
             ].map((post) => (
               <Link
                 key={post.slug}
-                to={`/blog/${post.slug}`}
+                to={`/blog/${post.slug}/`}
                 className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-white hover:border-[#F97415]/40 hover:bg-[#F97415]/5 transition-all group"
               >
                 <span className="flex-1 text-sm font-semibold text-[#111111] group-hover:text-[#F97415] transition-colors leading-snug">

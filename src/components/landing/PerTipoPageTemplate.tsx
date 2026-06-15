@@ -15,7 +15,7 @@ import { blogPosts } from "@/data/blogPosts";
 
 // ── Catalogo settori per cross-linking ──────────────────────────────────────
 const ALL_SECTORS = [
-  { slug: "/per/imprese-costruzione", label: "Imprese di Costruzione", emoji: "🏗️" },
+  { slug: "/per/imprese-edili",        label: "Imprese di Costruzione", emoji: "🏗️" },
   { slug: "/per/impiantisti",          label: "Impiantisti",            emoji: "⚡" },
   { slug: "/per/ristrutturatori",      label: "Ristrutturatori",        emoji: "🔨" },
   { slug: "/per/fotovoltaico",         label: "Fotovoltaico",           emoji: "☀️" },
@@ -918,7 +918,7 @@ export default function PerTipoPageTemplate({ config }: { config: PerTipoConfig 
                 {relPosts.map((post) => (
                   <Link
                     key={post.id}
-                    to={`/blog/${post.slug}`}
+                    to={`/blog/${post.slug}/`}
                     className="group flex flex-col bg-gray-50 rounded-2xl overflow-hidden border border-gray-200 hover:border-[#F97415]/40 hover:shadow-lg transition-all duration-300"
                   >
                     <img

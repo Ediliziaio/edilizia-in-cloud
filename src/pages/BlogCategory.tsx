@@ -221,7 +221,7 @@ export default function BlogCategory() {
             {/* Featured post full-width */}
             {featured && (
               <Link
-                to={`/blog/${featured.slug}`}
+                to={`/blog/${featured.slug}/`}
                 className="md:col-span-2 lg:col-span-3 group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 flex flex-col md:flex-row"
               >
                 <div className="md:w-1/2 relative overflow-hidden">
@@ -264,7 +264,7 @@ export default function BlogCategory() {
             {rest.map((post) => (
               <Link
                 key={post.id}
-                to={`/blog/${post.slug}`}
+                to={`/blog/${post.slug}/`}
                 className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 flex flex-col"
               >
                 <div className="relative overflow-hidden">

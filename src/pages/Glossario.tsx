@@ -266,7 +266,7 @@ export default function Glossario() {
                       {g.relatedBlogSlugs.map((b) => (
                         <Link
                           key={b.slug}
-                          to={`/blog/${b.slug}`}
+                          to={`/blog/${b.slug}/`}
                           className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-[#111111] hover:text-white transition-colors"
                         >
                           <ArrowRight size={10} />
@@ -313,7 +313,7 @@ export default function Glossario() {
               { slug: "ccnl-edilizia-guida", label: "CCNL Edilizia Industria: Guida Pratica 2024-2026" },
               { slug: "attestazione-soa-imprese-edili", label: "Attestazione SOA: Come Ottenerla e Mantenerla" },
             ].map((post) => (
-              <Link key={post.slug} to={`/blog/${post.slug}`}
+              <Link key={post.slug} to={`/blog/${post.slug}/`}
                 className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 hover:border-[#F97415]/40 hover:bg-[#F97415]/5 transition-all group">
                 <span className="flex-1 text-sm font-semibold text-[#111111] group-hover:text-[#F97415] transition-colors">
                   {post.label}

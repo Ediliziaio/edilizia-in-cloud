@@ -1105,7 +1105,7 @@ export default function FunzionalitaPageTemplate({
               {relatedPosts.map((p) => (
                 <Link
                   key={p.slug}
-                  to={`/blog/${p.slug}`}
+                  to={`/blog/${p.slug}/`}
                   className="group flex flex-col gap-2 rounded-xl border border-slate-200 p-4 transition-all hover:border-[#F97415]/40 hover:shadow-sm"
                 >
                   <img

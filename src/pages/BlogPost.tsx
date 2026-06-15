@@ -140,7 +140,7 @@ function RelatedPostCard({ post }: RelatedPostCardProps) {
   const colorClass = categoryColors[post.category] ?? "bg-gray-100 text-gray-700";
   return (
     <Link
-      to={`/blog/${post.slug}`}
+      to={`/blog/${post.slug}/`}
       className="group flex gap-4 bg-gray-50 rounded-xl p-4 hover:bg-gray-100 transition-colors border border-gray-200"
     >
       <img loading="lazy"
@@ -179,7 +179,7 @@ export default function BlogPost() {
       ? {
           title: post.title,
           description: post.excerpt,
-          canonical: `/blog/${post.slug}`,
+          canonical: `/blog/${post.slug}/`,
           type: "article",
           publishedTime: post.publishedAt,
           modifiedTime: post.updatedAt ?? post.publishedAt,
@@ -569,7 +569,7 @@ export default function BlogPost() {
                 return (
                   <Link
                     key={rp.id}
-                    to={`/blog/${rp.slug}`}
+                    to={`/blog/${rp.slug}/`}
                     className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 flex flex-col"
                   >
                     <div className="relative overflow-hidden">
