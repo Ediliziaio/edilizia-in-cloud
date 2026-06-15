@@ -328,7 +328,7 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
               <CardContent className="space-y-2 pt-0">
                 {steps.length > 0 && <CadenceTimeline steps={steps} />}
                 <OutreachSequenceStats sequenceId={seq.id} />
-                <OutreachAbzPanel sequenceId={seq.id} />
+                <OutreachAbzPanel sequenceId={seq.id} steps={steps} onApplied={invalidate} />
                 <SequenceSteps companyId={companyId} sequenceId={seq.id} steps={steps} onChange={invalidate} db={db} />
               </CardContent>
             )}

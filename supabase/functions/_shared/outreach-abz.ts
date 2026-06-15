@@ -33,3 +33,15 @@ export function pickWinner(stats: VariantStat[], minVolume = 20): { index: numbe
   }
   return best;
 }
+
+/**
+ * Collassa un oggetto multi-variante alla sola variante vincente: "applica" il
+ * risultato dell'A/Z al testo dello step. Se l'indice è fuori range o non ci sono
+ * varianti multiple, ritorna l'oggetto invariato (no-op sicuro). Puro/testabile.
+ */
+export function applyWinnerToSubject(subject: string, winnerIndex: number, delim: string = VARIANT_DELIM): string {
+  const variants = parseVariants(subject, delim);
+  if (variants.length < 2) return subject; // niente A/Z → invariato
+  if (winnerIndex < 0 || winnerIndex >= variants.length) return subject; // indice non valido → invariato
+  return variants[winnerIndex];
+}

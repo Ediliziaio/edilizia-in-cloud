@@ -1,22 +1,43 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { Trophy, FlaskConical } from "lucide-react";
-import { pickWinner } from "../../../../supabase/functions/_shared/outreach-abz";
+import { Button } from "@/components/ui/button";
+import { Trophy, FlaskConical, Check, Loader2 } from "lucide-react";
+import { applyWinnerToSubject, parseVariants, pickWinner } from "../../../../supabase/functions/_shared/outreach-abz";
 
 /**
  * Risultati A/Z di una sequenza: per ogni variante spedita (variant_index sulla
  * coda) quante email inviate, quante risposte e il tasso; evidenzia la vincente
  * (miglior reply rate). Attribuzione a livello iscrizione (variante del 1° invio).
  * Compare solo se sono state usate ≥2 varianti. Errore tabella → silenzioso.
+ *
+ * "Applica vincente": collassa l'oggetto multi-variante degli step email che hanno
+ * più varianti alla sola vincente (applyWinnerToSubject), così i prossimi invii
+ * usano solo quella. Lo step e il suo oggetto arrivano da OutreachSequences (props
+ * `steps`), che ha già caricato gli step della sequenza.
  */
 
 const LETTER = (i: number) => String.fromCharCode(65 + i); // 0→A, 1→B…
 const CAP = 2000;
+const T_STEP = "outreach_sequence_steps";
 
-export function OutreachAbzPanel({ sequenceId }: { sequenceId: string }) {
+interface AbzStep { id: string; channel: string; subject: string | null }
+
+export function OutreachAbzPanel({
+  sequenceId,
+  steps = [],
+  onApplied,
+}: {
+  sequenceId: string;
+  /** Step della sequenza (da OutreachSequences) — servono per applicare la vincente all'oggetto. */
+  steps?: AbzStep[];
+  /** Callback per invalidare la lista sequenze dopo l'applicazione. */
+  onApplied?: () => void;
+}) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
+  const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["outreach-abz", sequenceId],
     retry: false,
@@ -52,13 +73,57 @@ export function OutreachAbzPanel({ sequenceId }: { sequenceId: string }) {
     },
   });
 
+  // Step email con oggetto multi-variante = candidati su cui applicare la vincente.
+  const abzSteps = steps.filter((s) => s.channel === "email" && parseVariants(s.subject ?? "").length > 1);
+
+  const applyWinner = useMutation({
+    mutationFn: async (winnerIndex: number) => {
+      if (abzSteps.length === 0) throw new Error("Nessuno step con oggetto multi-variante");
+      for (const s of abzSteps) {
+        const collapsed = applyWinnerToSubject(s.subject ?? "", winnerIndex);
+        if (collapsed === (s.subject ?? "")) continue; // nessun cambio (indice fuori range) → salta
+        const { error } = await db.from(T_STEP).update({ subject: collapsed }).eq("id", s.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success("Variante vincente applicata all'oggetto");
+      qc.invalidateQueries({ queryKey: ["outreach-abz", sequenceId] });
+      onApplied?.();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
   const d = q.data;
   if (q.error || !d || d.variants.length < 2) return null; // niente A/Z in corso
 
+  const winnerIdx = d.winner && d.winner.index >= 0 ? d.winner.index : null;
+  // Mostriamo il bottone solo se c'è una vincente reale (con almeno una risposta) e
+  // c'è uno step su cui applicarla che non sia già collassato a quella variante.
+  const canApply =
+    winnerIdx !== null &&
+    (d.variants.find((v) => v.index === winnerIdx)?.replied ?? 0) > 0 &&
+    abzSteps.some((s) => applyWinnerToSubject(s.subject ?? "", winnerIdx) !== (s.subject ?? ""));
+
   return (
     <div className="space-y-1.5 rounded-lg border bg-card p-2.5">
-      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-        <FlaskConical className="h-3.5 w-3.5" /> RISULTATI A/Z
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+          <FlaskConical className="h-3.5 w-3.5" /> RISULTATI A/Z
+        </div>
+        {canApply && winnerIdx !== null && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1 text-xs"
+            disabled={applyWinner.isPending}
+            onClick={() => applyWinner.mutate(winnerIdx)}
+            title={`Tieni solo la variante ${LETTER(winnerIdx)} sull'oggetto: i prossimi invii useranno quella`}
+          >
+            {applyWinner.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+            {applyWinner.isPending ? "Applico…" : `Applica vincente (${LETTER(winnerIdx)})`}
+          </Button>
+        )}
       </div>
       <div className="space-y-1">
         {d.variants.map((v) => {
