@@ -13,7 +13,7 @@ import { OutreachBrands } from "@/components/admin/outreach/OutreachBrands";
 import { OutreachSendWindowCard } from "@/components/admin/outreach/OutreachSendWindowCard";
 import { OutreachQueueStatus } from "@/components/admin/outreach/OutreachQueueStatus";
 import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences";
-import { OutreachReplyInbox } from "@/components/admin/outreach/OutreachReplyInbox";
+import { OutreachInbox } from "@/components/admin/outreach/OutreachInbox";
 import { OutreachActivityFeed } from "@/components/admin/outreach/OutreachActivityFeed";
 import { OutreachLists } from "@/components/admin/outreach/OutreachLists";
 import { OutreachComposeDialog } from "@/components/admin/outreach/OutreachComposeDialog";
@@ -181,7 +181,7 @@ function OutreachCockpit() {
           </Card>
 
           <OutreachActivityFeed companyId={companyId} />
-          <OutreachReplyInbox companyId={companyId} />
+          <OutreachInbox companyId={companyId} />
         </TabsContent>
 
         {/* ── LEAD & LISTE ── */}
