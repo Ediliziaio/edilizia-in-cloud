@@ -28,8 +28,8 @@ import { OutreachConvertContactDialog } from "./OutreachConvertContactDialog";
 import {
   INTENT_META, ENROLLMENT_STATUS_META, type Conversation, type StatusFilter, type DateFilter,
   type SequenceOption, type LeadContext, type LeadSequence, type MsgDelivery, type AiSummary,
-  type SnoozePreset, contactName, iniziali, relativeTime, fullTime, providerLabel, senderStatusColor,
-  stripHtml, snoozeUntil,
+  type SnoozePreset, type SenderRow, type ThreadMsg, contactName, iniziali, relativeTime, fullTime,
+  providerLabel, senderStatusColor, stripHtml, snoozeUntil,
   useOutreachConversations, useReplyComposer, useLeadContext, useLeadActions, isEnrollmentLive,
 } from "./useOutreachConversations";
 import { useReplySnippets, type ReplySnippet } from "./useReplySnippets";
