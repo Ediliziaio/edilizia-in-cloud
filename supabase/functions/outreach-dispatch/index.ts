@@ -24,7 +24,7 @@ import { renderTemplate, contactToVars, hashSeed } from "../_shared/outreach-tem
 import { isWithinSendWindow, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
 import { nextEmailStep, computeStepSchedule, applyJitter, type SeqStep } from "../_shared/outreach-sequence.ts";
-import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
+import { appendTrackingSig, outreachOpenPixelUrl } from "../_shared/emailTrackingSignature.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -159,6 +159,19 @@ Deno.serve(async (req) => {
       for (const e of es || []) enrollmentById.set(e.id, e);
     }
 
+    // Open-tracking per-sequenza (opt-in, default OFF). Carichiamo track_opens per
+    // le sequenze del batch: il pixel verrà iniettato SOLO per gli invii la cui
+    // sequenza ha track_opens=true. Best-effort: se la colonna manca (migrazione
+    // 20270821000000 non applicata) il select fallisce → la mappa resta vuota →
+    // nessun pixel ovunque (comportamento cold sicuro).
+    const trackOpensBySequence = new Map<string, boolean>();
+    const sequenceIds = [...new Set([...enrollmentById.values()].map((e) => e.sequence_id).filter(Boolean))];
+    if (sequenceIds.length) {
+      const { data: seqs } = await supabase
+        .from("outreach_sequences").select("id,track_opens").in("id", sequenceIds);
+      for (const s of seqs || []) trackOpensBySequence.set(s.id, s.track_opens === true);
+    }
+
     // 3. assegnazione round-robin PER BRAND: ogni item è spedito SOLO dalle
     // caselle del suo brand (pool isolati → reputazione separata). Item e caselle
     // senza brand condividono il pool "__none__".
@@ -248,6 +261,21 @@ Deno.serve(async (req) => {
         const unsubHtml = item.contact_id ? `Non vuoi più ricevere queste email? <a href="${unsubscribeUrl}" style="color:#9ca3af">Disiscriviti</a>.` : "";
         if (addr || unsubHtml) {
           html += `<p style="font-size:11px;color:#9ca3af;margin-top:24px">${addr}${unsubHtml}</p>`;
+        }
+        // Open-tracking (opt-in, default OFF): inietta il pixel 1×1 firmato SOLO se la
+        // sequenza dell'invio ha track_opens=true. Senza enrollment/sequenza, o con
+        // track_opens=false → nessun pixel (cold protetto). outreachOpenPixelUrl ritorna
+        // null anche se EMAIL_TRACKING_SECRET manca (fail-safe): in quel caso log + invio
+        // prosegue senza pixel, mai blocchiamo lo spedito.
+        const seqIdForItem = enr?.sequence_id ?? null;
+        const trackOpens = seqIdForItem ? (trackOpensBySequence.get(seqIdForItem) ?? false) : false;
+        if (trackOpens) {
+          const pixelUrl = await outreachOpenPixelUrl(`${SUPABASE_URL}/functions/v1`, item.id);
+          if (pixelUrl) {
+            html += `<img src="${pixelUrl}" alt="" width="1" height="1" style="display:none;width:1px;height:1px;border:0;overflow:hidden" />`;
+          } else {
+            console.warn("[outreach-dispatch] track_opens attivo ma EMAIL_TRACKING_SECRET assente — pixel non iniettato per", item.id);
+          }
         }
         // Casella SMTP reale: instrada l'invio sul suo server (la password sta in
         // Vault, recuperata via RPC). Caselle EE legacy: mailboxOverride resta

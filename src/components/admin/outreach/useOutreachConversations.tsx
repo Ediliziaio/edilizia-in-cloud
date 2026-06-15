@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
-import { isMissingTableError } from "./_shared";
+import { isMissingTableError, isMissingColumnError } from "./_shared";
 
 /**
  * useOutreachConversations — logica condivisa dell'inbox cold.
@@ -87,6 +87,10 @@ interface SentRow {
   last_error: string | null;
   /** Tentativi di invio (utile nel tooltip se >1). */
   attempts: number | null;
+  /** Prima apertura tracciata (open-tracking opt-in), o null. Colonna 20270821000000. */
+  opened_at: string | null;
+  /** Numero di aperture tracciate. 0 se mai aperta o tracking off. Colonna 20270821000000. */
+  open_count: number | null;
 }
 
 /**
@@ -101,6 +105,10 @@ export interface MsgDelivery {
   sentAt: string | null;
   error: string | null;
   attempts: number | null;
+  /** Open-tracking (opt-in): prima apertura tracciata, o null se mai aperta/tracking off. */
+  openedAt: string | null;
+  /** Open-tracking (opt-in): numero di aperture. 0 se mai aperta o tracking off. */
+  openCount: number;
 }
 
 interface ReplyRow {
@@ -331,19 +339,35 @@ export function useOutreachConversations(companyId: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
 
+  // Colonne base sempre presenti (migrazione core 20270815000000) + le due
+  // dell'open-tracking (20270821000000) che potrebbero non essere ancora applicate.
+  const SENT_BASE_COLS = "id,contact_id,to_email,subject,body,sent_at,sender_account_id,status,last_error,attempts";
+  const SENT_OPEN_COLS = "opened_at,open_count";
+
   const sentQ = useQuery({
     queryKey: ["outreach-inbox-sent", companyId],
     retry: false,
     queryFn: async () => {
-      const { data, error } = await db
-        .from(T_SENT)
-        .select("id,contact_id,to_email,subject,body,sent_at,sender_account_id,status,last_error,attempts")
-        .eq("company_id", companyId)
-        .eq("status", "sent")
-        .order("sent_at", { ascending: false })
-        .limit(500);
+      // Prova con le colonne open-tracking; se la migrazione 20270821000000 non è
+      // applicata il select fallisce (colonna inesistente) → ricade sulle colonne
+      // base senza rompere l'inbox (open_count/opened_at sintetizzati a 0/null).
+      const run = (cols: string) =>
+        db.from(T_SENT)
+          .select(cols)
+          .eq("company_id", companyId)
+          .eq("status", "sent")
+          .order("sent_at", { ascending: false })
+          .limit(500);
+      let { data, error } = await run(`${SENT_BASE_COLS},${SENT_OPEN_COLS}`);
+      if (error && isMissingColumnError(error)) {
+        ({ data, error } = await run(SENT_BASE_COLS));
+      }
       if (error) throw error;
-      return (data ?? []) as SentRow[];
+      return (data ?? []).map((r: Record<string, unknown>) => ({
+        ...r,
+        opened_at: (r.opened_at as string | null) ?? null,
+        open_count: (r.open_count as number | null) ?? null,
+      })) as SentRow[];
     },
   });
 
@@ -667,6 +691,8 @@ export function useOutreachConversations(companyId: string) {
           sentAt: s.sent_at,
           error: s.last_error,
           attempts: s.attempts,
+          openedAt: s.opened_at,
+          openCount: s.open_count ?? 0,
         },
       });
       if (s.sender_account_id) {

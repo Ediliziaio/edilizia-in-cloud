@@ -14,7 +14,7 @@ import {
   Send, Loader2, Wand2, CheckCheck, Archive, Layers, PanelRightOpen, PanelRightClose,
   User, Phone, Tag, ShieldBan, Pause, Play, ThumbsUp, ThumbsDown, Clock, Briefcase,
   Activity, ShieldCheck, Check, XCircle, Ban, MessageSquareReply, X, CalendarClock, GitBranch, Sparkles,
-  AlarmClock, AlarmClockOff,
+  AlarmClock, AlarmClockOff, Eye,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -1438,6 +1438,15 @@ function DeliveryBadge({ delivery }: { delivery: MsgDelivery }) {
     delivery.error ? `Dettaglio: ${delivery.error}` : null,
     delivery.attempts && delivery.attempts > 1 ? `Tentativi: ${delivery.attempts}` : null,
   ].filter(Boolean).join("\n");
+  // Open-tracking (opt-in): mostra "Aperta N×" accanto alla consegna quando ci sono
+  // aperture tracciate. Dato reale da outreach_send_queue.open_count/opened_at;
+  // 0 = mai aperta o tracking off → nessun badge (niente "0 aperture" fuorviante).
+  const opened = delivery.openCount > 0;
+  const openWhen = fullTime(delivery.openedAt);
+  const openTip = [
+    `Aperta ${delivery.openCount} ${delivery.openCount === 1 ? "volta" : "volte"}`,
+    openWhen ? `Prima apertura: ${openWhen}` : null,
+  ].filter(Boolean).join("\n");
   return (
     <TooltipProvider delayDuration={150}>
       <Tooltip>
@@ -1452,6 +1461,20 @@ function DeliveryBadge({ delivery }: { delivery: MsgDelivery }) {
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-[260px] whitespace-pre-line text-[11px]">{tip}</TooltipContent>
       </Tooltip>
+      {opened && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              variant="outline"
+              className="ml-1 gap-0.5 px-1 py-0 text-[9px] font-medium normal-case border-violet-200 bg-violet-50 text-violet-700"
+            >
+              <Eye className="h-2.5 w-2.5" />
+              Aperta{delivery.openCount > 1 ? ` ${delivery.openCount}×` : ""}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-[260px] whitespace-pre-line text-[11px]">{openTip}</TooltipContent>
+        </Tooltip>
+      )}
     </TooltipProvider>
   );
 }

@@ -23,6 +23,12 @@ verify_jwt = false
 [functions.outreach-dispatch]
 verify_jwt = false
 
+# Pixel di apertura cold (opt-in per-sequenza, default OFF). Chiamato dai client di
+# posta del prospect → DEVE essere pubblico (verify_jwt=false). Registra l'apertura
+# sulla riga outreach_send_queue solo con firma HMAC valida (EMAIL_TRACKING_SECRET).
+[functions.outreach-track-open]
+verify_jwt = false
+
 # Ingestione risposte cold (webhook SES inbound/SNS/reply-to). Auth secret-gated
 # (x-inbound-secret == OUTREACH_INBOUND_SECRET). Ferma la sequenza su risposta.
 [functions.outreach-inbound]

@@ -15,6 +15,25 @@ export function isMissingTableError(err: unknown): boolean {
   );
 }
 
+/**
+ * Colonna assente (migrazione additiva non ancora applicata) — distinta dal caso
+ * "tabella assente": qui la tabella esiste ma manca una colonna nuova, quindi il
+ * chiamante ricade su un select ridotto invece di mostrare il MigrationGate.
+ * Postgres: 42703 "column ... does not exist"; PostgREST: PGRST204 / messaggio
+ * "could not find the 'x' column" (schema cache).
+ */
+export function isMissingColumnError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { code?: string; message?: string };
+  const code = e.code ?? "";
+  const msg = (e.message ?? "").toLowerCase();
+  return (
+    code === "42703" || code === "PGRST204" ||
+    (msg.includes("column") && msg.includes("does not exist")) ||
+    (msg.includes("could not find") && msg.includes("column"))
+  );
+}
+
 export const OUTREACH_MIGRATION_FILE = "supabase/migrations/20270815000000_outreach_engine_core.sql";
 
 /** Stato "funzione pronta, attivala con la migrazione". Mostrato finché le tabelle non esistono. */

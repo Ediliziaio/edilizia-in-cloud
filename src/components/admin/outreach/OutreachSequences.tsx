@@ -9,8 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  Loader2, Plus, Trash2, Mail, MessageSquare, Phone, ChevronRight, ChevronDown, AlertTriangle, Send, Sparkles, Eye, Split, Copy, LayoutTemplate,
+  Loader2, Plus, Trash2, Mail, MessageSquare, Phone, ChevronRight, ChevronDown, AlertTriangle, Send, Sparkles, Eye, Split, Copy, LayoutTemplate, Info,
 } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
 import { OutreachEnrollDialog } from "./OutreachEnrollDialog";
@@ -29,7 +31,7 @@ const PREVIEW_SAMPLE = { first_name: "Mario", last_name: "Rossi", company_name: 
 const T_SEQ = "outreach_sequences";
 const T_STEP = "outreach_sequence_steps";
 
-interface Seq { id: string; name: string; status: string; description: string | null; created_at: string; brand_id: string | null; }
+interface Seq { id: string; name: string; status: string; description: string | null; created_at: string; brand_id: string | null; track_opens?: boolean | null; }
 interface Step { id: string; sequence_id: string; step_order: number; channel: string; delay_days: number; delay_hours: number; subject: string | null; body: string; }
 
 const CH_ICON: Record<string, typeof Mail> = { email: Mail, whatsapp: MessageSquare, sms: Phone };
@@ -104,6 +106,17 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
       if (error) throw error;
     },
     onSuccess: () => invalidate(),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
+  // Toggle open-tracking per-sequenza (default OFF). Salva outreach_sequences.track_opens:
+  // il dispatcher inietta il pixel SOLO quando true. Tooltip di avviso deliverability.
+  const setTrackOpens = useMutation({
+    mutationFn: async ({ id, value }: { id: string; value: boolean }) => {
+      const { error } = await db.from(T_SEQ).update({ track_opens: value }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_res, vars) => { toast.success(vars.value ? "Tracking aperture attivo" : "Tracking aperture disattivato"); invalidate(); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
@@ -327,6 +340,11 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
             {isOpen && (
               <CardContent className="space-y-2 pt-0">
                 {steps.length > 0 && <CadenceTimeline steps={steps} />}
+                <TrackOpensToggle
+                  checked={seq.track_opens === true}
+                  pending={setTrackOpens.isPending}
+                  onChange={(value) => setTrackOpens.mutate({ id: seq.id, value })}
+                />
                 <OutreachSequenceStats sequenceId={seq.id} />
                 <OutreachAbzPanel sequenceId={seq.id} steps={steps} onApplied={invalidate} />
                 <SequenceSteps companyId={companyId} sequenceId={seq.id} steps={steps} onChange={invalidate} db={db} />
@@ -335,6 +353,49 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
           </Card>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Toggle "Traccia aperture" per-sequenza (default OFF). Quando attivo, il
+ * dispatcher inietta un pixel 1×1 firmato nelle email della sequenza. Avviso
+ * esplicito sulla deliverability: nel cold il pixel può ridurre la consegna.
+ */
+function TrackOpensToggle({ checked, pending, onChange }: {
+  checked: boolean;
+  pending: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/20 p-2.5">
+      <div className="min-w-0 space-y-0.5">
+        <div className="flex items-center gap-1.5">
+          <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium">Traccia aperture</span>
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground/70 hover:text-muted-foreground" aria-label="Avviso sul tracking aperture">
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[260px] text-[11px]">
+                Il pixel di tracking può ridurre la consegna nel cold — attiva solo se necessario.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Inserisce un pixel 1×1 per sapere se l'email è stata aperta. Disattivo di default.
+        </p>
+      </div>
+      <Switch
+        checked={checked}
+        disabled={pending}
+        onCheckedChange={onChange}
+        aria-label="Traccia aperture email di questa sequenza"
+      />
     </div>
   );
 }
