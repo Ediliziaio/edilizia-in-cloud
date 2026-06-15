@@ -48,7 +48,9 @@ export function OutreachAddEdge({
         path={edgePath}
         markerEnd={markerEnd}
         style={{
-          stroke: active ? "#f97316" : "#64748b",
+          // Token del tema (no hex hardcoded): grigio bordo a riposo, primary sul
+          // cammino attivo dell'anteprima percorso.
+          stroke: active ? "hsl(var(--primary))" : "hsl(var(--border))",
           strokeWidth: active ? 3 : 2,
           // Larghezza COSTANTE a ogni zoom (altrimenti il tratto da 2px diventa
           // sub-pixel col fitView su molti nodi → archi invisibili).

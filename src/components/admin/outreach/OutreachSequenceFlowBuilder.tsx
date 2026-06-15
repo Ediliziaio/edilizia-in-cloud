@@ -400,9 +400,11 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
   return (
     <div className="flex h-full flex-col">
       {/* Top bar */}
-      <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+      <div className="flex items-center justify-between gap-2 border-b bg-background px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
-          <Network className="h-4 w-4 shrink-0 text-orange-500" />
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Network className="h-4 w-4" />
+          </div>
           <span className="truncate text-sm font-semibold">{sequenceName}</span>
           <Badge variant="outline" className="shrink-0 text-[10px]">Builder visuale</Badge>
         </div>
@@ -470,25 +472,26 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
               edgeTypes={outreachEdgeTypes}
               defaultEdgeOptions={{
                 type: "addStep",
-                style: { stroke: "#64748b", strokeWidth: 2 },
-                markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: "#64748b" },
+                style: { stroke: "hsl(var(--border))", strokeWidth: 2 },
+                markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: "hsl(var(--border))" },
               }}
               deleteKeyCode={["Backspace", "Delete"]}
               fitView
+              proOptions={{ hideAttribution: true }}
               className="bg-muted/30"
             >
               {/* Fix archi invisibili (React 18 + RF v12): forza la misurazione dei nodi. */}
               <NodeMeasureFix />
-              <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-              <Controls />
-              <MiniMap nodeStrokeWidth={3} className="!bg-background !border-border" maskColor="hsl(var(--muted) / 0.5)" />
+              <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} className="!opacity-60" />
+              <Controls className="!rounded-lg !border !border-border !bg-background/95 !shadow-md [&>button]:!border-border [&>button]:!bg-background [&>button:hover]:!bg-muted" showInteractive={false} />
+              <MiniMap nodeStrokeWidth={3} pannable zoomable className="!rounded-lg !border !border-border !bg-background/95 !shadow-md" maskColor="hsl(var(--muted) / 0.55)" />
               {/* Palette: gruppi Messaggi / Logica con accent per tipo */}
               <Panel position="top-left">
-                <div className="flex w-[148px] flex-col gap-0.5 rounded-xl border bg-background/95 p-2 shadow-md backdrop-blur">
+                <div className="flex w-[156px] flex-col gap-0.5 rounded-xl border border-border bg-background/95 p-2.5 shadow-lg backdrop-blur">
                   <span className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Aggiungi nodo</span>
                   {(["msg", "logic"] as const).map((group) => (
                     <div key={group} className="space-y-0.5">
-                      <span className="block px-1 pt-1 text-[9px] font-medium uppercase tracking-wide text-muted-foreground/60">
+                      <span className="block px-1 pt-1.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground/60">
                         {group === "msg" ? "Messaggi" : "Logica"}
                       </span>
                       {PALETTE.filter((p) => p.group === group).map((p) => {
@@ -498,7 +501,7 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
                             key={p.kind}
                             type="button"
                             onClick={() => addPaletteNode(p.kind)}
-                            className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors ${p.hover}`}
+                            className={`flex w-full items-center gap-2 rounded-lg border border-transparent px-2 py-1.5 text-left text-xs font-medium transition-colors hover:border-border ${p.hover}`}
                           >
                             <Icon className={`h-3.5 w-3.5 shrink-0 ${p.color}`} /> {p.label}
                           </button>
@@ -506,7 +509,7 @@ function FlowCanvas({ sequenceId, sequenceName, trackOpens, onClose }: Omit<Prop
                       })}
                     </div>
                   ))}
-                  <div className="mt-1 flex items-start gap-1 border-t px-1 pt-1.5 text-[9px] leading-tight text-muted-foreground/70">
+                  <div className="mt-1.5 flex items-start gap-1 border-t pt-2 text-[9px] leading-tight text-muted-foreground/70">
                     <Plus className="mt-px h-2.5 w-2.5 shrink-0" />
                     <span>Usa il + su un arco per inserire tra due nodi</span>
                   </div>
