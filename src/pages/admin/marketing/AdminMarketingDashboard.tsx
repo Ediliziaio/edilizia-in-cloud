@@ -7,6 +7,11 @@ import { PlatformCompanyProvider } from "@/components/admin/PlatformCompanyProvi
 import { LeadImportCard } from "@/components/admin/outreach/LeadImportCard";
 import { SuppressionAddCard } from "@/components/admin/outreach/SuppressionAddCard";
 import { OutreachSenderPool } from "@/components/admin/outreach/OutreachSenderPool";
+import { OutreachWarmupDashboard } from "@/components/admin/outreach/OutreachWarmupDashboard";
+import { OutreachSetupChecklist } from "@/components/admin/outreach/OutreachSetupChecklist";
+import { OutreachBrands } from "@/components/admin/outreach/OutreachBrands";
+import { OutreachSendWindowCard } from "@/components/admin/outreach/OutreachSendWindowCard";
+import { OutreachQueueStatus } from "@/components/admin/outreach/OutreachQueueStatus";
 import { OutreachSequences } from "@/components/admin/outreach/OutreachSequences";
 import { OutreachReplyInbox } from "@/components/admin/outreach/OutreachReplyInbox";
 import { OutreachActivityFeed } from "@/components/admin/outreach/OutreachActivityFeed";
@@ -22,7 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Loader2, LayoutDashboard, Flame, Users, Send, Briefcase, ShieldCheck,
-  Radar, Mail, MessageSquare, Phone, Workflow, ArrowRight, Construction,
+  Radar, Mail, MessageSquare, Phone, Workflow, ArrowRight,
 } from "lucide-react";
 
 /**
@@ -77,20 +82,23 @@ function Shortcut({ to, icon: Icon, label, desc }: { to: string; icon: typeof Ma
   );
 }
 
-function Soon({ phase, title, points }: { phase: string; title: string; points: string[] }) {
+function ComplianceCard() {
+  const items = [
+    "Blocklist email attiva: bounce e lamentele rimuovono il contatto in automatico.",
+    "Ogni arruolamento salta opt-out, contatti soppressi e chi è già in cadenza.",
+    "Gestisci e aggiungi soppressioni nella scheda Deliverability.",
+  ];
   return (
-    <Card className="border-dashed">
+    <Card>
       <CardHeader className="pb-2">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Construction className="h-5 w-5" />
-          <span className="text-xs font-semibold uppercase tracking-wide">{phase}</span>
-        </div>
-        <CardTitle className="text-lg">{title}</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ShieldCheck className="h-5 w-5 text-emerald-500" /> Conformità & opt-out
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <ul className="space-y-1.5 text-sm text-muted-foreground">
-          {points.map((p) => (
-            <li key={p} className="flex gap-2"><span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-orange-400" />{p}</li>
+          {items.map((p) => (
+            <li key={p} className="flex gap-2"><span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />{p}</li>
           ))}
         </ul>
       </CardContent>
@@ -148,12 +156,15 @@ function OutreachCockpit() {
 
         {/* ── OGGI ── */}
         <TabsContent value="oggi" className="mt-4 space-y-5">
+          <OutreachSetupChecklist companyId={companyId} />
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Kpi icon={Users} label="Contatti in rubrica" value={fmt(contacts.data)} hint="nel CRM marketing admin" />
             <Kpi icon={ShieldCheck} label="Contattabili" value={fmt(contactable)} hint="al netto dei soppressi" tone="good" />
             <Kpi icon={ShieldCheck} label="Soppressi / opt-out" value={fmt(suppressed.data)} hint="bounce, lamentele, disiscritti" tone="warn" />
             <Kpi icon={Send} label="Campagne create" value={fmt(campaigns.data)} hint="totali nel sistema" />
           </div>
+
+          <OutreachQueueStatus companyId={companyId} />
 
           <OutreachAnalytics companyId={companyId} />
 
@@ -182,10 +193,7 @@ function OutreachCockpit() {
           <LeadImportCard companyId={companyId} onImported={() => contacts.refetch()} />
           <OutreachLists companyId={companyId} />
           <OutreachMessagePlayground companyId={companyId} />
-          <Soon phase="Fase 0 — prossimo" title="Opt-out per canale" points={[
-            "La suppression email è già attiva (scheda Deliverability).",
-            "Opt-out separato per SMS e WhatsApp arriva con la migrazione dedicata.",
-          ]} />
+          <ComplianceCard />
         </TabsContent>
 
         {/* ── SEQUENZE ── */}
@@ -204,7 +212,10 @@ function OutreachCockpit() {
 
         {/* ── DELIVERABILITY ── */}
         <TabsContent value="deliverability" className="mt-4 space-y-4">
+          <OutreachBrands companyId={companyId} />
+          <OutreachWarmupDashboard companyId={companyId} />
           <OutreachSenderPool companyId={companyId} />
+          <OutreachSendWindowCard />
           <SuppressionAddCard companyId={companyId} />
           <EmailSuppressionsTable />
         </TabsContent>

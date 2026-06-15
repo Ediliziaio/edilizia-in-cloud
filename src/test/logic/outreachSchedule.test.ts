@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isWithinSendWindow, localParts, DEFAULT_SEND_WINDOW,
+  isWithinSendWindow, localParts, DEFAULT_SEND_WINDOW, parseSendWindow,
 } from "../../../supabase/functions/_shared/outreach-schedule";
 
 // 2026-06-15 = lunedì (estate, CEST +2) · 2026-01-12 = lunedì (inverno, CET +1)
@@ -50,5 +50,38 @@ describe("finestra personalizzata", () => {
   });
   it("DEFAULT esportato è Lun-Ven 8-19", () => {
     expect(DEFAULT_SEND_WINDOW).toMatchObject({ days: [1, 2, 3, 4, 5], startHour: 8, endHour: 19, timeZone: "Europe/Rome" });
+  });
+});
+
+describe("parseSendWindow — config robusta da platform_settings", () => {
+  it("null/undefined → default", () => {
+    expect(parseSendWindow(null)).toEqual(DEFAULT_SEND_WINDOW);
+    expect(parseSendWindow(undefined)).toEqual(DEFAULT_SEND_WINDOW);
+  });
+  it("JSON string valido", () => {
+    expect(parseSendWindow('{"days":[1,3,5],"startHour":9,"endHour":17,"timeZone":"Europe/Rome"}'))
+      .toEqual({ days: [1, 3, 5], startHour: 9, endHour: 17, timeZone: "Europe/Rome" });
+  });
+  it("oggetto già parsato", () => {
+    expect(parseSendWindow({ days: [2, 4], startHour: 10, endHour: 16, timeZone: "Europe/Paris" }))
+      .toEqual({ days: [2, 4], startHour: 10, endHour: 16, timeZone: "Europe/Paris" });
+  });
+  it("JSON malformato → default (non lancia)", () => {
+    expect(parseSendWindow("{non json")).toEqual(DEFAULT_SEND_WINDOW);
+  });
+  it("ore invalide (start>=end) → default su ore/tz validi", () => {
+    const r = parseSendWindow({ days: [1], startHour: 20, endHour: 8, timeZone: "Europe/Rome" });
+    expect(r.startHour).toBe(DEFAULT_SEND_WINDOW.startHour);
+    expect(r.endHour).toBe(DEFAULT_SEND_WINDOW.endHour);
+    expect(r.days).toEqual([1]);
+  });
+  it("giorni fuori range filtrati", () => {
+    expect(parseSendWindow({ days: [1, 9, -2, 3] }).days).toEqual([1, 3]);
+  });
+  it("giorni vuoti → default", () => {
+    expect(parseSendWindow({ days: [] }).days).toEqual(DEFAULT_SEND_WINDOW.days);
+  });
+  it("timeZone mancante → Europe/Rome", () => {
+    expect(parseSendWindow({ days: [1, 2] }).timeZone).toBe("Europe/Rome");
   });
 });

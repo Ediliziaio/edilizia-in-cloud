@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ListChecks, Tag, Loader2 } from "lucide-react";
+import { OutreachEnrollListDialog } from "./OutreachEnrollListDialog";
 
 /**
  * Le tue liste — i contatti raggruppati per tag (= lista) + breakdown per
@@ -68,6 +69,7 @@ export function OutreachLists({ companyId }: { companyId: string }) {
                   <Tag className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">{l.tag}</span>
                   <Badge variant="outline" className="shrink-0">{fmt(l.count)}</Badge>
+                  <OutreachEnrollListDialog companyId={companyId} tag={l.tag} count={l.count} />
                 </div>
               ))}
               {d.untagged > 0 && (

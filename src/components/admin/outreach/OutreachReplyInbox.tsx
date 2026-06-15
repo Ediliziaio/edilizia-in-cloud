@@ -21,14 +21,25 @@ const T_REPLIES = "outreach_replies";
 interface Reply {
   id: string; channel: string; from_email: string | null; from_phone: string | null;
   subject: string | null; snippet: string | null; status: string; received_at: string;
-  contact_id: string | null;
+  contact_id: string | null; intent: string | null;
 }
 
 const CH_ICON: Record<string, typeof Mail> = { email: Mail, whatsapp: MessageSquare, sms: Phone };
 
+// Etichette intento (Unibox NLP): l'AI le calcola sulle risposte in arrivo.
+const INTENT_META: Record<string, { label: string; cls: string }> = {
+  interested: { label: "Interessato", cls: "border-green-200 bg-green-100 text-green-700" },
+  question: { label: "Domanda", cls: "border-blue-200 bg-blue-100 text-blue-700" },
+  not_interested: { label: "Non interessato", cls: "border-red-200 bg-red-100 text-red-700" },
+  unsubscribe: { label: "Disiscrizione", cls: "border-red-200 bg-red-100 text-red-700" },
+  out_of_office: { label: "Fuori sede", cls: "border-amber-200 bg-amber-100 text-amber-700" },
+  auto_reply: { label: "Auto-risposta", cls: "bg-muted text-muted-foreground" },
+  other: { label: "Altro", cls: "bg-muted text-muted-foreground" },
+};
+
 export function OutreachReplyInbox({ companyId }: { companyId: string }) {
   const qc = useQueryClient();
-  const [filter, setFilter] = useState<"unread" | "all">("unread");
+  const [filter, setFilter] = useState<"unread" | "interested" | "all">("unread");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
@@ -64,7 +75,10 @@ export function OutreachReplyInbox({ companyId }: { companyId: string }) {
 
   const all = q.data ?? [];
   const unreadCount = all.filter((r) => r.status === "unread").length;
-  const rows = filter === "unread" ? all.filter((r) => r.status === "unread") : all;
+  const interestedCount = all.filter((r) => r.intent === "interested").length;
+  const rows = filter === "unread" ? all.filter((r) => r.status === "unread")
+    : filter === "interested" ? all.filter((r) => r.intent === "interested")
+    : all;
 
   return (
     <Card>
@@ -75,6 +89,9 @@ export function OutreachReplyInbox({ companyId }: { companyId: string }) {
         </CardTitle>
         <div className="flex gap-1">
           <Button size="sm" variant={filter === "unread" ? "default" : "ghost"} className="h-7 text-xs" onClick={() => setFilter("unread")}>Da leggere</Button>
+          <Button size="sm" variant={filter === "interested" ? "default" : "ghost"} className="h-7 gap-1 text-xs" onClick={() => setFilter("interested")}>
+            Interessati{interestedCount > 0 && <Badge className="ml-0.5 bg-green-600 px-1 text-[10px]">{interestedCount}</Badge>}
+          </Button>
           <Button size="sm" variant={filter === "all" ? "default" : "ghost"} className="h-7 text-xs" onClick={() => setFilter("all")}>Tutte</Button>
         </div>
       </CardHeader>
@@ -93,6 +110,7 @@ export function OutreachReplyInbox({ companyId }: { companyId: string }) {
                 <div className="flex items-center gap-2">
                   <span className={`truncate text-sm ${unread ? "font-semibold" : "font-medium"}`}>{r.from_email || r.from_phone || "—"}</span>
                   <span className="shrink-0 text-[11px] text-muted-foreground">{relativeTime(r.received_at)}</span>
+                  {r.intent && INTENT_META[r.intent] && <Badge variant="outline" className={`shrink-0 text-[10px] ${INTENT_META[r.intent].cls}`}>{INTENT_META[r.intent].label}</Badge>}
                   {r.status === "handled" && <Badge variant="secondary" className="text-[10px]">gestita</Badge>}
                 </div>
                 {r.subject && <div className="truncate text-sm">{r.subject}</div>}

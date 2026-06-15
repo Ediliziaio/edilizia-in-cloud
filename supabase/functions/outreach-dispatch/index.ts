@@ -21,14 +21,65 @@ import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { assignSenders, type SenderState } from "../_shared/outreach-dispatch-logic.ts";
 import { renderTemplate, contactToVars, hashSeed } from "../_shared/outreach-template.ts";
-import { isWithinSendWindow } from "../_shared/outreach-schedule.ts";
+import { isWithinSendWindow, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
+import { nextEmailStep, computeStepSchedule, type SeqStep } from "../_shared/outreach-sequence.ts";
+import { appendTrackingSig } from "../_shared/emailTrackingSignature.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 const BATCH = 200;
+// Iscrizioni "chiuse": i loro messaggi in coda non vanno spediti.
+const TERMINAL_ENROLLMENT = new Set(["stopped", "completed", "replied", "bounced", "opted_out"]);
+
+/**
+ * Avanza la cadenza dopo un invio riuscito: accoda il prossimo step email
+ * (a sent_at + delay) oppure marca l'iscrizione 'completed'. Se nel frattempo
+ * manca l'email o è arrivato un opt-out, ferma l'iscrizione.
+ */
+async function advanceEnrollment(
+  supabase: any,
+  enr: { id: string; sequence_id: string; current_step: number },
+  contact: any,
+  sentAt: Date,
+  brandId: string | null,
+): Promise<void> {
+  const { data: stepsRaw } = await supabase
+    .from("outreach_sequence_steps")
+    .select("step_order,channel,delay_days,delay_hours,subject,body")
+    .eq("sequence_id", enr.sequence_id).order("step_order", { ascending: true });
+  const next = nextEmailStep((stepsRaw || []) as SeqStep[], enr.current_step);
+  if (!next) {
+    await supabase.from("outreach_enrollments")
+      .update({ status: "completed", next_action_at: null }).eq("id", enr.id);
+    return;
+  }
+  if (!contact?.email || contact?.optout_email) {
+    await supabase.from("outreach_enrollments").update({
+      status: contact?.optout_email ? "opted_out" : "stopped",
+      next_action_at: null,
+      stop_reason: contact?.optout_email ? "optout_email" : "no_email",
+    }).eq("id", enr.id);
+    return;
+  }
+  const when = computeStepSchedule(sentAt, next.delay_days, next.delay_hours).toISOString();
+  await supabase.from("outreach_send_queue").insert({
+    company_id: PLATFORM_COMPANY,
+    enrollment_id: enr.id,
+    contact_id: contact.id,
+    brand_id: brandId,
+    channel: "email",
+    to_email: contact.email,
+    subject: next.subject ?? "",
+    body: next.body ?? "",
+    status: "queued",
+    scheduled_for: when,
+  });
+  await supabase.from("outreach_enrollments")
+    .update({ current_step: next.step_order, next_action_at: when }).eq("id", enr.id);
+}
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
@@ -44,8 +95,15 @@ Deno.serve(async (req) => {
   const today = now.toISOString().slice(0, 10);
   const result = { processed: 0, sent: 0, failed: 0, skipped: 0, deferred: 0 };
 
-  // finestra di invio: niente cold di notte o nel weekend (default Lun-Ven 8-19 Europe/Rome)
-  if (!isWithinSendWindow(now)) {
+  // finestra di invio configurabile (platform_settings.outreach_send_window);
+  // default Lun-Ven 8-19 Europe/Rome. Niente cold di notte o nel weekend.
+  let sendWindow: SendWindow | undefined;
+  try {
+    const { data: ws } = await supabase
+      .from("platform_settings").select("value").eq("key", "outreach_send_window").maybeSingle();
+    if (ws?.value) sendWindow = parseSendWindow(ws.value);
+  } catch { /* default */ }
+  if (!isWithinSendWindow(now, sendWindow)) {
     return json({ ...result, note: "fuori finestra di invio" }, 200, cors);
   }
 
@@ -53,7 +111,7 @@ Deno.serve(async (req) => {
     // 1. coda dovuta
     const { data: queue, error: qErr } = await supabase
       .from("outreach_send_queue")
-      .select("id, to_email, subject, body, attempts, max_attempts, contact_id")
+      .select("id, to_email, subject, body, attempts, max_attempts, contact_id, enrollment_id, brand_id")
       .eq("status", "queued").eq("channel", "email")
       .lte("scheduled_for", now.toISOString())
       .order("scheduled_for", { ascending: true })
@@ -64,7 +122,7 @@ Deno.serve(async (req) => {
     // 2. caselle del pool
     const { data: sendersRaw, error: sErr } = await supabase
       .from("outreach_sender_accounts")
-      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,email,display_name")
+      .select("id,status,daily_cap_target,warmup_base,warmup_step,warmup_day,daily_sent,daily_sent_date,email,display_name,brand_id")
       .in("status", ["active", "warming"]);
     if (sErr) throw sErr;
     const senders = (sendersRaw || []) as any[];
@@ -73,19 +131,57 @@ Deno.serve(async (req) => {
     const senderById = new Map(senders.map((s) => [s.id, s]));
     const queueById = new Map(queue.map((q) => [q.id, q]));
 
+    // identità per brand (from_name / reply_to override)
+    const { data: brandsRaw } = await supabase.from("outreach_brands").select("id,from_name,reply_to");
+    const brandById = new Map<string, { from_name: string | null; reply_to: string | null }>();
+    for (const b of brandsRaw || []) brandById.set(b.id, b);
+
     // vars dei contatti per la personalizzazione (variabili + spintax al send)
     const contactIds = [...new Set(queue.map((q) => q.contact_id).filter(Boolean))];
     const contactById = new Map<string, any>();
     if (contactIds.length) {
       const { data: cs } = await supabase
         .from("marketing_contacts")
-        .select("id,first_name,last_name,company_name,email,phone").in("id", contactIds);
+        .select("id,first_name,last_name,company_name,email,phone,optout_email").in("id", contactIds);
       for (const c of cs || []) contactById.set(c.id, c);
     }
 
-    // 3. assegnazione round-robin entro i cap (logica pura testata)
-    const { assignments } = assignSenders(queue.map((q) => q.id), senders as SenderState[], today);
-    result.deferred = queue.length - assignments.length;
+    // stato iscrizioni del batch: non spedire se in pausa (resta in coda) o terminata (annulla)
+    const enrollmentIds = [...new Set(queue.map((q) => q.enrollment_id).filter(Boolean))];
+    const enrollmentById = new Map<string, { id: string; status: string; sequence_id: string; current_step: number }>();
+    if (enrollmentIds.length) {
+      const { data: es } = await supabase
+        .from("outreach_enrollments")
+        .select("id,status,sequence_id,current_step").in("id", enrollmentIds);
+      for (const e of es || []) enrollmentById.set(e.id, e);
+    }
+
+    // 3. assegnazione round-robin PER BRAND: ogni item è spedito SOLO dalle
+    // caselle del suo brand (pool isolati → reputazione separata). Item e caselle
+    // senza brand condividono il pool "__none__".
+    const bkey = (b: string | null | undefined) => b ?? "__none__";
+    const sendersByBrand = new Map<string, SenderState[]>();
+    for (const s of senders) {
+      const k = bkey(s.brand_id);
+      const arr = sendersByBrand.get(k) ?? [];
+      arr.push(s as SenderState);
+      sendersByBrand.set(k, arr);
+    }
+    const assignments: Array<{ queueId: string; senderId: string }> = [];
+    const itemsByBrand = new Map<string, string[]>();
+    for (const q of queue) {
+      const k = bkey(q.brand_id);
+      const arr = itemsByBrand.get(k) ?? [];
+      arr.push(q.id);
+      itemsByBrand.set(k, arr);
+    }
+    for (const [brand, ids] of itemsByBrand) {
+      const brandSenders = sendersByBrand.get(brand) ?? [];
+      if (brandSenders.length === 0) { result.deferred += ids.length; continue; } // nessuna casella per quel brand
+      const r = assignSenders(ids, brandSenders, today);
+      assignments.push(...r.assignments);
+      result.deferred += ids.length - r.assignments.length;
+    }
 
     const incr = new Map<string, number>(); // invii riusciti per casella in questo tick
 
@@ -95,10 +191,34 @@ Deno.serve(async (req) => {
       const sender = senderById.get(a.senderId);
       if (!item || !sender || !item.to_email) { result.skipped++; continue; }
 
+      // gating iscrizione: pausa → resta in coda; terminata → annulla; opt-out → ferma
+      const enr = item.enrollment_id ? enrollmentById.get(item.enrollment_id) : null;
+      if (enr) {
+        if (enr.status === "paused") { result.deferred++; continue; }
+        if (TERMINAL_ENROLLMENT.has(enr.status)) {
+          await supabase.from("outreach_send_queue")
+            .update({ status: "cancelled", last_error: `enrollment ${enr.status}` }).eq("id", item.id);
+          result.skipped++;
+          continue;
+        }
+      }
+      const contactPre = item.contact_id ? contactById.get(item.contact_id) : null;
+      if (contactPre?.optout_email) {
+        await supabase.from("outreach_send_queue")
+          .update({ status: "cancelled", last_error: "optout_email" }).eq("id", item.id);
+        if (enr) await supabase.from("outreach_enrollments")
+          .update({ status: "opted_out", next_action_at: null, stop_reason: "optout_email" }).eq("id", enr.id);
+        result.skipped++;
+        continue;
+      }
+
       // lock ottimistico
       await supabase.from("outreach_send_queue").update({ status: "sending" }).eq("id", item.id);
       try {
-        const from = sender.display_name ? `${sender.display_name} <${sender.email}>` : sender.email;
+        const brand = sender.brand_id ? brandById.get(sender.brand_id) : null;
+        const fromName = brand?.from_name || sender.display_name;
+        const from = fromName ? `${fromName} <${sender.email}>` : sender.email;
+        const replyTo = brand?.reply_to || sender.email;
         // personalizzazione al send: variabili + spintax, seed stabile per destinatario
         const contact = item.contact_id ? contactById.get(item.contact_id) : null;
         const vars = contact ? contactToVars(contact) : {};
@@ -106,14 +226,25 @@ Deno.serve(async (req) => {
         // A/Z testing: l'oggetto può contenere più varianti separate da "==="
         const chosen = pickVariant(parseVariants(item.subject || ""), seed);
         const variantIndex = chosen ? chosen.index : null;
+        // Unsubscribe firmato (HMAC; legacy-mode senza secret) + header List-Unsubscribe:
+        // compliance/deliverability del cold. Serve il contatto (rid) per la soppressione.
+        let html = renderTemplate(item.body || "", vars, { seed });
+        let unsubscribeUrl: string | undefined;
+        if (item.contact_id) {
+          unsubscribeUrl = await appendTrackingSig(
+            `${SUPABASE_URL}/functions/v1/email-tracking?type=unsub&rid=${item.contact_id}&co=${PLATFORM_COMPANY}`,
+            { co: PLATFORM_COMPANY, rid: item.contact_id, type: "unsub" },
+          );
+          html += `<p style="font-size:11px;color:#9ca3af;margin-top:24px">Non vuoi più ricevere queste email? <a href="${unsubscribeUrl}" style="color:#9ca3af">Disiscriviti</a>.</p>`;
+        }
         const res = await sendEmailUnified({
           companyId: PLATFORM_COMPANY,
           stream: "marketing",
           to: item.to_email,
           subject: renderTemplate(chosen ? chosen.text : (item.subject || ""), vars, { seed }),
-          html: renderTemplate(item.body || "", vars, { seed }),
-          senderOverride: { from, replyTo: sender.email, source: "outreach_pool" },
-          metadata: { outreach_queue_id: item.id, sender_account_id: sender.id, variant_index: variantIndex },
+          html,
+          senderOverride: { from, replyTo, source: "outreach_pool" },
+          metadata: { outreach_queue_id: item.id, sender_account_id: sender.id, variant_index: variantIndex, unsubscribe_url: unsubscribeUrl },
         });
         if (res && res.ok === false) {
           // recapito non riuscito a livello provider (es. soppresso): non ritentare
@@ -128,6 +259,11 @@ Deno.serve(async (req) => {
           .eq("id", item.id);
         incr.set(sender.id, (incr.get(sender.id) || 0) + 1);
         result.sent++;
+        // avanza la cadenza: prossimo step email o completamento iscrizione
+        if (enr) {
+          try { await advanceEnrollment(supabase, enr, contactById.get(item.contact_id), now, item.brand_id ?? null); }
+          catch (advErr) { console.warn("[outreach-dispatch] advance fallito:", advErr instanceof Error ? advErr.message : advErr); }
+        }
       } catch (e) {
         const attempts = (item.attempts || 0) + 1;
         const isFinal = attempts >= (item.max_attempts || 3);

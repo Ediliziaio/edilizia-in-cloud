@@ -10,10 +10,14 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Loader2, Plus, Trash2, Mail, MessageSquare, Phone, ChevronRight, ChevronDown, AlertTriangle, Send, Sparkles, Eye,
+  Loader2, Plus, Trash2, Mail, MessageSquare, Phone, ChevronRight, ChevronDown, AlertTriangle, Send, Sparkles, Eye, Split, Copy, LayoutTemplate,
 } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
+import { OutreachEnrollDialog } from "./OutreachEnrollDialog";
+import { OutreachSequenceStats } from "./OutreachSequenceStats";
+import { OutreachAbzPanel } from "./OutreachAbzPanel";
 import { renderTemplate, contactToVars, hashSeed } from "../../../../supabase/functions/_shared/outreach-template";
+import { parseVariants } from "../../../../supabase/functions/_shared/outreach-abz";
 
 const PREVIEW_SAMPLE = { first_name: "Mario", last_name: "Rossi", company_name: "Rossi Costruzioni", email: "mario@rossi.it" };
 
@@ -25,15 +29,40 @@ const PREVIEW_SAMPLE = { first_name: "Mario", last_name: "Rossi", company_name: 
 const T_SEQ = "outreach_sequences";
 const T_STEP = "outreach_sequence_steps";
 
-interface Seq { id: string; name: string; status: string; description: string | null; created_at: string; }
+interface Seq { id: string; name: string; status: string; description: string | null; created_at: string; brand_id: string | null; }
 interface Step { id: string; sequence_id: string; step_order: number; channel: string; delay_days: number; delay_hours: number; subject: string | null; body: string; }
 
 const CH_ICON: Record<string, typeof Mail> = { email: Mail, whatsapp: MessageSquare, sms: Phone };
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = { active: "default", draft: "outline", paused: "secondary", archived: "secondary" };
 
+// Template cadenze pronte (cold B2B edilizia). delay_days = giorni dall'iscrizione.
+interface TplStep { channel: string; delay_days: number; subject?: string; body: string }
+const TEMPLATES: { name: string; desc: string; steps: TplStep[] }[] = [
+  {
+    name: "Cold 3 step (soft)",
+    desc: "Apertura + 2 follow-up gentili. Ideale per partire.",
+    steps: [
+      { channel: "email", delay_days: 0, subject: "Domanda veloce su {{company_name|la vostra impresa}}", body: "{Ciao|Salve} {{first_name|}},\n\nho visto il lavoro di {{company_name|la vostra impresa}} e mi chiedevo come gestite oggi fatturazione, DDT e cantieri.\n\nHa senso una chiacchierata di 10 minuti?" },
+      { channel: "email", delay_days: 3, subject: "Re: {{company_name|la vostra impresa}}", body: "{{first_name|}}, ci ho pensato: credo possiamo farvi risparmiare ore ogni settimana sulla parte amministrativa di cantiere.\n\nLe va un confronto rapido questa settimana?" },
+      { channel: "email", delay_days: 6, subject: "Chiudo il cerchio", body: "{{first_name|}}, non voglio insistere. Se il tema non è prioritario ora nessun problema — mi dica pure e la lascio in pace. Altrimenti sono qui." },
+    ],
+  },
+  {
+    name: "Cold 4 step + caso studio",
+    desc: "Apertura, valore, prova sociale, chiusura.",
+    steps: [
+      { channel: "email", delay_days: 0, subject: "{{first_name|}}, un'idea per {{company_name|la vostra impresa}}", body: "{Ciao|Salve} {{first_name|}},\n\nlavoriamo con imprese edili come {{company_name|la vostra}} per togliere ore di lavoro manuale su fatture e cantieri. Le interessa capire come?" },
+      { channel: "email", delay_days: 2, subject: "Come funziona in pratica", body: "{{first_name|}}, in pratica: fatturazione elettronica, DDT, preventivi e cantieri in un unico posto. Niente più fogli Excel sparsi.\n\nLe mando un breve esempio?" },
+      { channel: "email", delay_days: 5, subject: "Un'impresa simile alla vostra", body: "{{first_name|}}, un'impresa edile come la vostra ha ridotto del 70% il tempo di fatturazione. Posso raccontarle come in 10 minuti." },
+      { channel: "email", delay_days: 9, subject: "Ultima — poi la lascio in pace", body: "{{first_name|}}, capisco che possa non essere il momento. Le lascio il contatto: quando vorrà, sono qui." },
+    ],
+  },
+];
+
 export function OutreachSequences({ companyId }: { companyId: string }) {
   const qc = useQueryClient();
   const [creating, setCreating] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -57,6 +86,24 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
   });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["outreach-sequences", companyId] });
+
+  const brands = useQuery({
+    queryKey: ["outreach-brands", companyId],
+    retry: false,
+    queryFn: async () => {
+      const { data } = await db.from("outreach_brands").select("id,name").eq("company_id", companyId).order("name");
+      return (data ?? []) as { id: string; name: string }[];
+    },
+  });
+
+  const setBrand = useMutation({
+    mutationFn: async ({ id, brandId }: { id: string; brandId: string | null }) => {
+      const { error } = await db.from(T_SEQ).update({ brand_id: brandId }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => invalidate(),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
 
   const createSeq = useMutation({
     mutationFn: async () => {
@@ -84,6 +131,45 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
   });
 
+  // Duplica sequenza + i suoi step (fetch fresco degli step, niente dipendenza da closure)
+  const dupSeq = useMutation({
+    mutationFn: async (seq: Seq) => {
+      const { data: created, error } = await db.from(T_SEQ)
+        .insert({ company_id: companyId, name: `${seq.name} (copia)`, status: "draft", brand_id: seq.brand_id, description: seq.description })
+        .select("id").single();
+      if (error) throw error;
+      const { data: origSteps } = await db.from(T_STEP).select("*").eq("sequence_id", seq.id).order("step_order");
+      if (origSteps?.length) {
+        const rows = origSteps.map((s: Step) => ({
+          sequence_id: created.id, step_order: s.step_order, channel: s.channel,
+          delay_days: s.delay_days, delay_hours: s.delay_hours, subject: s.subject, body: s.body,
+        }));
+        const { error: sErr } = await db.from(T_STEP).insert(rows);
+        if (sErr) throw sErr;
+      }
+    },
+    onSuccess: () => { toast.success("Sequenza duplicata"); invalidate(); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
+  // Crea una sequenza completa da un template (cadenza + step preimpostati)
+  const createFromTemplate = useMutation({
+    mutationFn: async (tpl: typeof TEMPLATES[number]) => {
+      const { data: created, error } = await db.from(T_SEQ)
+        .insert({ company_id: companyId, name: tpl.name, status: "draft" }).select("id").single();
+      if (error) throw error;
+      const rows = tpl.steps.map((s, i) => ({
+        sequence_id: created.id, step_order: i, channel: s.channel,
+        delay_days: s.delay_days, delay_hours: 0, subject: s.subject ?? null, body: s.body,
+      }));
+      const { error: sErr } = await db.from(T_STEP).insert(rows);
+      if (sErr) throw sErr;
+      return created.id as string;
+    },
+    onSuccess: (id) => { toast.success("Sequenza creata da template"); setTemplateOpen(false); setExpanded(id); invalidate(); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Errore"),
+  });
+
   if (q.isLoading) return <div className="flex items-center justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
   if (q.error && isMissingTableError(q.error)) {
     return <MigrationGate title="Sequenze multi-step — pronto" unlocks={[
@@ -103,10 +189,30 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">Cadenze multi-step: il contatto entra e riceve lo step giusto ogni giorno.</p>
-        <Button size="sm" className="h-8 gap-1" onClick={() => setCreating((v) => !v)}><Plus className="h-3.5 w-3.5" /> Nuova sequenza</Button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => { setTemplateOpen((v) => !v); setCreating(false); }}><LayoutTemplate className="h-3.5 w-3.5" /> Da template</Button>
+          <Button size="sm" className="h-8 gap-1" onClick={() => { setCreating((v) => !v); setTemplateOpen(false); }}><Plus className="h-3.5 w-3.5" /> Nuova sequenza</Button>
+        </div>
       </div>
+
+      {templateOpen && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {TEMPLATES.map((tpl) => (
+            <Card key={tpl.name} className="flex flex-col">
+              <CardContent className="flex flex-1 flex-col gap-2 p-3">
+                <div className="flex items-center gap-2"><LayoutTemplate className="h-4 w-4 text-orange-500" /><span className="text-sm font-medium">{tpl.name}</span></div>
+                <p className="text-xs text-muted-foreground">{tpl.desc}</p>
+                <CadenceTimeline steps={tpl.steps} />
+                <Button size="sm" className="mt-auto h-8 w-full" disabled={createFromTemplate.isPending} onClick={() => createFromTemplate.mutate(tpl)}>
+                  {createFromTemplate.isPending ? "…" : `Usa questo (${tpl.steps.length} step)`}
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {creating && (
         <Card><CardContent className="flex items-end gap-2 p-3">
@@ -134,6 +240,20 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
                 <span className="text-xs text-muted-foreground">{steps.length} step</span>
               </button>
               <div className="flex items-center gap-1">
+                <Select value={seq.brand_id || "none"} onValueChange={(v) => setBrand.mutate({ id: seq.id, brandId: v === "none" ? null : v })}>
+                  <SelectTrigger className="h-7 w-[130px] text-xs" title="Brand: il pool di domini da cui spedisce questa sequenza"><SelectValue placeholder="Brand" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— brand —</SelectItem>
+                    {(brands.data ?? []).map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <OutreachEnrollDialog
+                  companyId={companyId}
+                  sequenceId={seq.id}
+                  sequenceName={seq.name}
+                  emailStepCount={steps.filter((s) => s.channel === "email").length}
+                  onEnrolled={invalidate}
+                />
                 <Select value={seq.status} onValueChange={(v) => setStatus.mutate({ id: seq.id, status: v })}>
                   <SelectTrigger className="h-7 w-[110px] text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -141,11 +261,40 @@ export function OutreachSequences({ companyId }: { companyId: string }) {
                     <SelectItem value="paused">In pausa</SelectItem><SelectItem value="archived">Archiviata</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Duplica sequenza" disabled={dupSeq.isPending} onClick={() => dupSeq.mutate(seq)}><Copy className="h-3.5 w-3.5" /></Button>
                 <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={() => delSeq.mutate(seq.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
               </div>
             </CardHeader>
-            {isOpen && <CardContent className="space-y-2 pt-0"><SequenceSteps companyId={companyId} sequenceId={seq.id} steps={steps} onChange={invalidate} db={db} /></CardContent>}
+            {isOpen && (
+              <CardContent className="space-y-2 pt-0">
+                {steps.length > 0 && <CadenceTimeline steps={steps} />}
+                <OutreachSequenceStats sequenceId={seq.id} />
+                <OutreachAbzPanel sequenceId={seq.id} />
+                <SequenceSteps companyId={companyId} sequenceId={seq.id} steps={steps} onChange={invalidate} db={db} />
+              </CardContent>
+            )}
           </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// Timeline visiva della cadenza: step ordinati per giorno con icona canale e G+N.
+function CadenceTimeline({ steps }: { steps: { channel: string; delay_days: number }[] }) {
+  const ordered = [...steps].sort((a, b) => a.delay_days - b.delay_days);
+  return (
+    <div className="flex items-center gap-1 overflow-x-auto rounded-lg border bg-muted/20 p-2">
+      {ordered.map((s, i) => {
+        const Icon = CH_ICON[s.channel] ?? Mail;
+        return (
+          <div key={i} className="flex items-center gap-1">
+            {i > 0 && <div className="h-px w-4 shrink-0 bg-border" />}
+            <div className="flex shrink-0 flex-col items-center gap-0.5">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-100 text-orange-600"><Icon className="h-3.5 w-3.5" /></div>
+              <span className="text-[10px] text-muted-foreground">G+{s.delay_days}</span>
+            </div>
+          </div>
         );
       })}
     </div>
@@ -164,6 +313,12 @@ function SequenceSteps({ sequenceId, steps, onChange, db }: {
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+
+  const bodyVariants = parseVariants(body);
+  function addVariant() {
+    setBody((b) => (b.trim() ? `${b.trimEnd()}\n===\n` : "===\n"));
+    setShowPreview(true);
+  }
 
   async function generateAI() {
     setAiBusy(true);
@@ -212,7 +367,8 @@ function SequenceSteps({ sequenceId, steps, onChange, db }: {
               <div className="flex items-center gap-2 text-xs">
                 <Badge variant="outline" className="text-[10px]">G+{s.delay_days}</Badge>
                 <span className="font-medium uppercase text-muted-foreground">{s.channel}</span>
-                {s.subject && <span className="truncate font-medium">{s.subject}</span>}
+                {(() => { const n = Math.max(parseVariants(s.body || "").length, parseVariants(s.subject || "").length); return n > 1 ? <Badge variant="secondary" className="text-[10px]">A/Z ×{n}</Badge> : null; })()}
+                {s.subject && <span className="truncate font-medium">{parseVariants(s.subject)[0] ?? s.subject}</span>}
               </div>
               <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{s.body}</p>
             </div>
@@ -237,14 +393,28 @@ function SequenceSteps({ sequenceId, steps, onChange, db }: {
           <Button type="button" size="sm" variant="outline" className="h-8 gap-1" disabled={aiBusy} onClick={generateAI}>
             {aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Genera con AI
           </Button>
+          <Button type="button" size="sm" variant="outline" className="h-8 gap-1" onClick={addVariant} title="Aggiungi una variante A/Z: viene testata separatamente, vince quella con più risposte">
+            <Split className="h-3.5 w-3.5" /> Variante A/Z
+          </Button>
+          {bodyVariants.length > 1 && <Badge variant="secondary" className="text-[10px]">A/Z ×{bodyVariants.length}</Badge>}
           {body.trim() && (
             <Button type="button" size="sm" variant="ghost" className="h-8 gap-1" onClick={() => setShowPreview((v) => !v)}>
               <Eye className="h-3.5 w-3.5" /> {showPreview ? "Nascondi" : "Anteprima"}
             </Button>
           )}
         </div>
+        <p className="text-[11px] text-muted-foreground">
+          A/Z testing: separa le varianti con <code className="rounded bg-muted px-1">===</code> su una riga. Il dispatcher le ruota tra i destinatari e tiene la migliore per tasso di risposta.
+        </p>
         {showPreview && body.trim() && (
-          <div className="whitespace-pre-wrap rounded-lg border bg-card p-2.5 text-xs">{renderTemplate(body, contactToVars(PREVIEW_SAMPLE), { seed: hashSeed(PREVIEW_SAMPLE.email) })}</div>
+          <div className="space-y-1.5">
+            {bodyVariants.map((v, i) => (
+              <div key={i} className="rounded-lg border bg-card p-2.5 text-xs">
+                {bodyVariants.length > 1 && <div className="mb-1 text-[10px] font-semibold uppercase text-muted-foreground">Variante {String.fromCharCode(65 + i)}</div>}
+                <div className="whitespace-pre-wrap">{renderTemplate(v, contactToVars(PREVIEW_SAMPLE), { seed: hashSeed(PREVIEW_SAMPLE.email) })}</div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

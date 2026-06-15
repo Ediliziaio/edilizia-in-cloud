@@ -39,3 +39,37 @@ export function isWithinSendWindow(date: Date, w: SendWindow = DEFAULT_SEND_WIND
   if (!w.days.includes(weekday)) return false;
   return hour >= w.startHour && hour < w.endHour;
 }
+
+/**
+ * Costruisce una SendWindow da config salvata (JSON in platform_settings,
+ * key `outreach_send_window`), validando ogni campo e ripiegando sui default.
+ * Robusta a input malformati: non lancia mai.
+ */
+export function parseSendWindow(raw: unknown): SendWindow {
+  let o: Record<string, unknown> | null = null;
+  if (typeof raw === "string") {
+    try { o = JSON.parse(raw) as Record<string, unknown>; } catch { return DEFAULT_SEND_WINDOW; }
+  } else if (raw && typeof raw === "object") {
+    o = raw as Record<string, unknown>;
+  }
+  if (!o) return DEFAULT_SEND_WINDOW;
+
+  const rawDays = Array.isArray(o.days) ? o.days : null;
+  const days = rawDays
+    ? [...new Set(rawDays.filter((d): d is number => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6))]
+    : DEFAULT_SEND_WINDOW.days;
+
+  const sh = typeof o.startHour === "number" && Number.isInteger(o.startHour) && o.startHour >= 0 && o.startHour <= 23
+    ? o.startHour : DEFAULT_SEND_WINDOW.startHour;
+  const eh = typeof o.endHour === "number" && Number.isInteger(o.endHour) && o.endHour >= 1 && o.endHour <= 24
+    ? o.endHour : DEFAULT_SEND_WINDOW.endHour;
+  const tz = typeof o.timeZone === "string" && o.timeZone.trim() ? o.timeZone : DEFAULT_SEND_WINDOW.timeZone;
+
+  const valid = sh < eh;
+  return {
+    days: days.length ? days : DEFAULT_SEND_WINDOW.days,
+    startHour: valid ? sh : DEFAULT_SEND_WINDOW.startHour,
+    endHour: valid ? eh : DEFAULT_SEND_WINDOW.endHour,
+    timeZone: tz,
+  };
+}
