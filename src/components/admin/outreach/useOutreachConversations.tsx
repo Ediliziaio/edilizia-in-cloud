@@ -68,6 +68,8 @@ export interface SenderRow {
   email: string;
   provider: string;
   status: string;
+  /** Brand della casella (per recuperarne la firma da inserire nelle risposte). */
+  brand_id: string | null;
 }
 
 interface SentRow {
@@ -78,6 +80,26 @@ interface SentRow {
   body: string | null;
   sent_at: string | null;
   sender_account_id: string | null;
+  /** Stato della riga di coda: 'sent' qui (filtrato) ma teniamo il campo per onestà. */
+  status: string | null;
+  /** Errore provider/coda (per stati non riusciti, anche se ora filtriamo i 'sent'). */
+  last_error: string | null;
+  /** Tentativi di invio (utile nel tooltip se >1). */
+  attempts: number | null;
+}
+
+/**
+ * Stato di consegna ONESTO di un'email inviata, derivato dalle colonne reali di
+ * outreach_send_queue. L'Outreach Engine NON traccia aperture/click/bounce per
+ * messaggio (quel tracking vive su email_logs lato campagne): qui non inventiamo
+ * stati. Mappa 1:1 con outreach_send_queue.status + sent_at/last_error/attempts.
+ */
+export interface MsgDelivery {
+  /** sent = spedita dalla casella; failed/skipped/cancelled = non consegnata; queued/sending = in corso. */
+  state: "sent" | "queued" | "sending" | "failed" | "skipped" | "cancelled" | "unknown";
+  sentAt: string | null;
+  error: string | null;
+  attempts: number | null;
 }
 
 interface ReplyRow {
@@ -135,6 +157,8 @@ export interface ThreadMsg {
   body: string | null;
   at: string | null;
   intent: string | null;
+  /** Stato di consegna (solo per le inviate, direction='out'). */
+  delivery?: MsgDelivery;
 }
 
 export interface Conversation {
@@ -244,7 +268,7 @@ export function useOutreachConversations(companyId: string) {
     queryFn: async () => {
       const { data, error } = await db
         .from(T_SENT)
-        .select("id,contact_id,to_email,subject,body,sent_at,sender_account_id")
+        .select("id,contact_id,to_email,subject,body,sent_at,sender_account_id,status,last_error,attempts")
         .eq("company_id", companyId)
         .eq("status", "sent")
         .order("sent_at", { ascending: false })
@@ -291,11 +315,27 @@ export function useOutreachConversations(companyId: string) {
     queryFn: async () => {
       const { data, error } = await db
         .from(T_SENDERS)
-        .select("id,email,provider,status")
+        .select("id,email,provider,status,brand_id")
         .eq("company_id", companyId)
         .order("email");
       if (error) throw error;
       return (data ?? []) as SenderRow[];
+    },
+  });
+
+  // Firme dei brand (per l'inserimento rapido nelle risposte). Best-effort:
+  // colonna `signature` aggiunta da 20270819000000; se assente o vuota → niente
+  // voce "Firma" nel menu snippet. Una sola query, mappata brand_id → firma.
+  const brandSigsQ = useQuery({
+    queryKey: ["outreach-inbox-brand-signatures", companyId],
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("outreach_brands")
+        .select("id,signature")
+        .eq("company_id", companyId);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; signature: string | null }>;
     },
   });
 
@@ -380,6 +420,23 @@ export function useOutreachConversations(companyId: string) {
     [sendersQ.data],
   );
 
+  // brand_id → firma (non vuota). Per l'inserimento rapido della firma in risposta.
+  const brandSignatureById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const b of brandSigsQ.data ?? []) {
+      const sig = (b.signature ?? "").trim();
+      if (sig) m.set(b.id, sig);
+    }
+    return m;
+  }, [brandSigsQ.data]);
+
+  /** Firma del brand della casella che ha inviato la conversazione (o null). */
+  const signatureForSender = (senderId: string | null | undefined): string | null => {
+    if (!senderId) return null;
+    const brandId = sendersById.get(senderId)?.brand_id ?? null;
+    return brandId ? brandSignatureById.get(brandId) ?? null : null;
+  };
+
   const conversations = useMemo<Conversation[]>(() => {
     const sent = sentQ.data ?? [];
     const replies = repliesQ.data ?? [];
@@ -430,6 +487,12 @@ export function useOutreachConversations(companyId: string) {
         body: s.body,
         at: s.sent_at,
         intent: null,
+        delivery: {
+          state: (s.status as MsgDelivery["state"]) ?? "unknown",
+          sentAt: s.sent_at,
+          error: s.last_error,
+          attempts: s.attempts,
+        },
       });
       if (s.sender_account_id) {
         let seen = senderSeen.get(conv.key);
@@ -556,6 +619,7 @@ export function useOutreachConversations(companyId: string) {
     setIntent,
     // helper
     filterConversations,
+    signatureForSender,
     queryClient: qc,
   };
 }

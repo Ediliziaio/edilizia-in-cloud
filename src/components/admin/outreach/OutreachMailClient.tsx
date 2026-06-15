@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,16 +11,19 @@ import {
   Inbox, Mailbox, Mail, Search, ChevronLeft, MessageSquare, AlertTriangle, Building2,
   Send, Loader2, Wand2, CheckCheck, Archive, Layers, PanelRightOpen, PanelRightClose,
   User, Phone, Tag, ShieldBan, Pause, Play, ThumbsUp, ThumbsDown, Clock, Briefcase,
-  Activity, ShieldCheck,
+  Activity, ShieldCheck, Check, XCircle, Ban, MessageSquareReply,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { MigrationGate } from "./_shared";
 import { OutreachConvertContactDialog } from "./OutreachConvertContactDialog";
 import {
   INTENT_META, ENROLLMENT_STATUS_META, type Conversation, type StatusFilter,
-  type LeadContext, type LeadSequence,
-  contactName, iniziali, relativeTime, fullTime, providerLabel, senderStatusColor,
+  type LeadContext, type LeadSequence, type MsgDelivery,
+  contactName, iniziali, relativeTime, fullTime, providerLabel, senderStatusColor, stripHtml,
   useOutreachConversations, useReplyComposer, useLeadContext, useLeadActions, isEnrollmentLive,
 } from "./useOutreachConversations";
+import { useReplySnippets, type ReplySnippet } from "./useReplySnippets";
 
 /**
  * OutreachMailClient — client email a 3 pannelli dedicato al COLD outreach.
@@ -39,13 +42,22 @@ import {
  * Mobile: 2 livelli (lista → dettaglio); il pannello caselle diventa un
  * selettore in cima alla lista.
  */
+/**
+ * Altezza del client: riempie il viewport disponibile come un vero mail client
+ * (header pagina + tab + padding ≈ 15rem di offset), con un pavimento usabile su
+ * viewport corti. Le colonne (lista, thread, contesto) scrollano internamente; il
+ * box risposta resta ancorato in fondo. Usata sia in loading sia a regime.
+ */
+const MAIL_CLIENT_HEIGHT = "h-[calc(100vh-15rem)] min-h-[520px]";
+
 export function OutreachMailClient({ companyId }: { companyId: string }) {
   const {
     conversations, counts, sendersById, senders, unreadBySender,
     isLoading, errored, tableMissing,
-    markRead, markAllRead, archiveRead, setIntent, filterConversations,
+    markRead, markAllRead, archiveRead, setIntent, filterConversations, signatureForSender,
   } = useOutreachConversations(companyId);
   const { replyText, setReplyText, sending, aiDrafting, sendReply, draftWithAi } = useReplyComposer(companyId);
+  const snippets = useReplySnippets();
 
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
@@ -151,7 +163,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
 
   if (isLoading) {
     return (
-      <div className="flex h-[620px] overflow-hidden rounded-xl border bg-card">
+      <div className={cn(MAIL_CLIENT_HEIGHT, "flex overflow-hidden rounded-xl border bg-card")}>
         <div className="hidden w-[220px] shrink-0 space-y-2 border-r p-3 lg:block">
           {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-9 w-full rounded-md" />)}
         </div>
@@ -185,7 +197,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
     // overflow-x-auto: se a viewport stretti i floor delle colonne (conversazioni +
     // thread + contesto) non entrano, scorre in orizzontale invece di schiacciare il
     // thread. Verticale resta clippato per mantenere il bordo arrotondato.
-    <div className="flex h-[620px] overflow-x-auto overflow-y-hidden rounded-xl border bg-card">
+    <div className={cn(MAIL_CLIENT_HEIGHT, "flex overflow-x-auto overflow-y-hidden rounded-xl border bg-card")}>
       {/* ═══ Pannello caselle & filtri (sinistra) ═══ */}
       {/* A ≥lg si mostra solo quando il contesto lead è chiuso: con il contesto aperto
           collassa nel selettore compatto in cima alla lista, lasciando spazio al thread. */}
@@ -420,6 +432,8 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
               <ThreadPane
                 selected={selected}
                 mailbox={selected.primarySenderId ? sendersById.get(selected.primarySenderId) ?? null : null}
+                signature={signatureForSender(selected.primarySenderId)}
+                snippets={snippets}
                 replyText={replyText}
                 setReplyText={setReplyText}
                 sending={sending}
@@ -545,11 +559,14 @@ function FilterPills({
 }
 
 function ThreadPane({
-  selected, mailbox, replyText, setReplyText, sending, aiDrafting, onSend, onDraft, onBack,
+  selected, mailbox, signature, snippets, replyText, setReplyText, sending, aiDrafting, onSend, onDraft, onBack,
   showContext, onToggleContext,
 }: {
   selected: Conversation;
   mailbox: { email: string; provider: string } | null;
+  /** Firma del brand della casella (per l'inserimento rapido), o null. */
+  signature: string | null;
+  snippets: ReturnType<typeof useReplySnippets>;
   replyText: string;
   setReplyText: (v: string) => void;
   sending: boolean;
@@ -563,6 +580,29 @@ function ThreadPane({
   const name = contactName(selected.contact, selected.email);
   const counterpart = selected.contact?.email || selected.email;
   const contactId = selected.contact?.id ?? null;
+  // Ref alla textarea per l'inserimento snippet/firma al cursore.
+  const replyRef = useRef<HTMLTextAreaElement>(null);
+
+  // Inserisce testo alla posizione del cursore (o in coda) e riposiziona il caret.
+  const insertAtCursor = (text: string) => {
+    const el = replyRef.current;
+    if (!el) { setReplyText(replyText ? `${replyText}\n${text}` : text); return; }
+    const start = el.selectionStart ?? replyText.length;
+    const end = el.selectionEnd ?? replyText.length;
+    const before = replyText.slice(0, start);
+    const after = replyText.slice(end);
+    // Spaziatura naturale: se c'è già testo prima senza a-capo, separane con \n.
+    const sep = before && !before.endsWith("\n") && !before.endsWith(" ") ? "\n" : "";
+    const next = `${before}${sep}${text}${after}`;
+    setReplyText(next);
+    // Riporta il focus e posiziona il caret dopo il testo inserito.
+    requestAnimationFrame(() => {
+      el.focus();
+      const caret = (before + sep + text).length;
+      el.setSelectionRange(caret, caret);
+    });
+  };
+
   return (
     <>
       <header className="flex shrink-0 flex-col gap-1 border-b bg-background px-3 py-2 sm:px-4">
@@ -626,6 +666,8 @@ function ThreadPane({
                   <div className="mb-1 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                     <Mail className="h-3 w-3" />
                     {out ? "Inviata" : "Risposta"}
+                    {/* Stato di consegna (solo inviate): dati reali da outreach_send_queue. */}
+                    {out && m.delivery && <DeliveryBadge delivery={m.delivery} />}
                     {intentMeta && (
                       <Badge variant="outline" className={cn("ml-1 px-1 py-0 text-[9px] normal-case", intentMeta.cls)}>{intentMeta.label}</Badge>
                     )}
@@ -652,7 +694,27 @@ function ThreadPane({
       {/* ═══ Box risposta 2-vie ═══ */}
       {contactId ? (
         <div className="shrink-0 border-t bg-background p-3 sm:px-4">
+          {/* Toolbar: risposte rapide + firma (inserimento 1-click al cursore). */}
+          <div className="mb-1.5 flex items-center gap-1.5">
+            <QuickRepliesMenu
+              snippets={snippets}
+              disabled={sending || aiDrafting}
+              onInsert={insertAtCursor}
+            />
+            {signature && (
+              <Button
+                type="button" size="sm" variant="ghost"
+                className="h-7 gap-1.5 px-2 text-[11px] text-muted-foreground"
+                disabled={sending || aiDrafting}
+                onClick={() => insertAtCursor(signatureToText(signature))}
+                title="Inserisci la firma del brand"
+              >
+                <Tag className="h-3.5 w-3.5" /> Firma
+              </Button>
+            )}
+          </div>
           <Textarea
+            ref={replyRef}
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
             placeholder={mailbox
@@ -914,5 +976,164 @@ function Stat({ label, value, small }: { label: string; value: string | number; 
       <div className={cn("font-semibold tabular-nums", small ? "text-[11px] leading-tight" : "text-base")}>{value}</div>
       <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
     </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Stato di consegna per messaggio inviato — ONESTO.
+   L'Outreach Engine NON traccia aperture/click/bounce per messaggio (quel
+   tracking vive su email_logs lato campagne). Qui mappiamo SOLO i dati reali di
+   outreach_send_queue.status: 'sent' = consegnata alla casella/provider; gli
+   stati non riusciti (failed/skipped/cancelled) si mostrano onestamente. Niente
+   "Aperta"/"Cliccata" inventate.
+   ────────────────────────────────────────────────────────────────────────── */
+const DELIVERY_META: Record<MsgDelivery["state"], { label: string; cls: string; icon: typeof Check } | null> = {
+  // 'sent' nell'Outreach Engine = consegnata al provider d'invio (handoff ok).
+  sent: { label: "Consegnata", cls: "border-emerald-200 bg-emerald-50 text-emerald-700", icon: Check },
+  queued: { label: "In coda", cls: "border-slate-200 bg-slate-50 text-slate-600", icon: Clock },
+  sending: { label: "In invio", cls: "border-blue-200 bg-blue-50 text-blue-700", icon: Loader2 },
+  failed: { label: "Non inviata", cls: "border-red-200 bg-red-50 text-red-700", icon: XCircle },
+  skipped: { label: "Saltata", cls: "border-amber-200 bg-amber-50 text-amber-700", icon: Ban },
+  cancelled: { label: "Annullata", cls: "border-slate-200 bg-slate-50 text-slate-500", icon: Ban },
+  unknown: null,
+};
+
+function DeliveryBadge({ delivery }: { delivery: MsgDelivery }) {
+  const meta = DELIVERY_META[delivery.state];
+  if (!meta) return null;
+  const Icon = meta.icon;
+  const when = fullTime(delivery.sentAt);
+  // Tooltip: timestamp invio + eventuale errore/tentativi (dati reali).
+  const tip = [
+    meta.label + (when ? ` · ${when}` : ""),
+    delivery.error ? `Dettaglio: ${delivery.error}` : null,
+    delivery.attempts && delivery.attempts > 1 ? `Tentativi: ${delivery.attempts}` : null,
+  ].filter(Boolean).join("\n");
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge
+            variant="outline"
+            className={cn("ml-1 gap-0.5 px-1 py-0 text-[9px] font-medium normal-case", meta.cls)}
+          >
+            <Icon className={cn("h-2.5 w-2.5", delivery.state === "sending" && "animate-spin")} />
+            {meta.label}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[260px] whitespace-pre-line text-[11px]">{tip}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+/** Firma brand → testo per la textarea (le firme sono HTML, qui le linearizziamo). */
+function signatureToText(sig: string): string {
+  // Mantiene gli a-capo dei <br>/</p> prima di togliere il resto dei tag.
+  const withBreaks = sig.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n");
+  const text = stripHtml(withBreaks);
+  return text.trim();
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Risposte rapide (snippet) — popover con inserimento 1-click + gestione.
+   ────────────────────────────────────────────────────────────────────────── */
+function QuickRepliesMenu({
+  snippets, disabled, onInsert,
+}: {
+  snippets: ReturnType<typeof useReplySnippets>;
+  disabled?: boolean;
+  onInsert: (text: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [managing, setManaging] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [newText, setNewText] = useState("");
+
+  const pick = (s: ReplySnippet) => {
+    onInsert(s.text);
+    setOpen(false);
+  };
+
+  const addSnippet = () => {
+    snippets.add(newLabel, newText);
+    setNewLabel("");
+    setNewText("");
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button" size="sm" variant="ghost"
+          className="h-7 gap-1.5 px-2 text-[11px] text-muted-foreground"
+          disabled={disabled}
+          title="Inserisci una risposta rapida"
+        >
+          <MessageSquareReply className="h-3.5 w-3.5" /> Risposte rapide
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-0">
+        <div className="flex items-center justify-between border-b px-3 py-2">
+          <span className="text-xs font-semibold">Risposte rapide</span>
+          <Button
+            type="button" size="sm" variant="ghost" className="h-6 px-2 text-[11px]"
+            onClick={() => setManaging((v) => !v)}
+          >
+            {managing ? "Fine" : "Gestisci"}
+          </Button>
+        </div>
+        <div className="max-h-72 overflow-y-auto p-1.5">
+          {snippets.snippets.map((s) => (
+            <div key={s.id} className="group flex items-start gap-1 rounded-md px-1 hover:bg-muted/60">
+              <button
+                type="button"
+                onClick={() => pick(s)}
+                className="flex min-w-0 flex-1 flex-col items-start gap-0.5 rounded-md px-1.5 py-1.5 text-left"
+                title="Inserisci nel testo"
+              >
+                <span className="text-xs font-medium">{s.label}</span>
+                <span className="line-clamp-2 text-[11px] text-muted-foreground">{s.text}</span>
+              </button>
+              {managing && !s.builtin && (
+                <Button
+                  type="button" size="icon" variant="ghost"
+                  className="mt-1 h-6 w-6 shrink-0 text-muted-foreground hover:text-red-600"
+                  onClick={() => snippets.remove(s.id)}
+                  title="Elimina snippet"
+                  aria-label={`Elimina ${s.label}`}
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+        {managing && (
+          <div className="space-y-1.5 border-t p-2">
+            <Input
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              placeholder="Etichetta (es. Saluto)"
+              className="h-7 text-xs"
+            />
+            <Textarea
+              value={newText}
+              onChange={(e) => setNewText(e.target.value)}
+              placeholder="Testo dello snippet…"
+              rows={2}
+              className="resize-none text-xs"
+            />
+            <Button
+              type="button" size="sm" className="h-7 w-full gap-1.5 text-[11px]"
+              disabled={!newLabel.trim() || !newText.trim()}
+              onClick={addSnippet}
+            >
+              Aggiungi snippet
+            </Button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
