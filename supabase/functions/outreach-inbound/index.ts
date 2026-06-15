@@ -88,6 +88,7 @@ Deno.serve(async (req) => {
       contactId, enrollmentId,
       from: norm.fromEmail, subject: norm.subject ?? "", text: norm.snippet ?? "",
       messageId: norm.messageId,
+      headers: norm.headers,
     });
 
     return json({ ok: true, matched: !!contactId, stopped: !!enrollmentId }, 200, cors);

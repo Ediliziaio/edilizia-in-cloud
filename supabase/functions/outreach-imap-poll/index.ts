@@ -110,6 +110,7 @@ Deno.serve(async (req) => {
             subject: msg.subject,
             text: msg.text,
             messageId: msg.messageId,
+            headers: msg.headers,
           });
           replies++;
         }

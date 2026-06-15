@@ -46,7 +46,22 @@ describe("normalizeInbound", () => {
     expect(r).toEqual({
       fromEmail: "anna@x.it", toEmail: "marco@mail-edilizia.com",
       subject: "Re: proposta", snippet: "Sì, mi interessa.", messageId: null, inReplyTo: null,
+      headers: {},
     });
+  });
+  it("estrae header (oggetto chiave→valore) lowercase", () => {
+    const r = normalizeInbound({
+      from: "ooo@x.it", subject: "Out of office",
+      headers: { "Auto-Submitted": "auto-replied", "X-Mailer": "Vacation" },
+    });
+    expect(r?.headers).toEqual({ "auto-submitted": "auto-replied", "x-mailer": "Vacation" });
+  });
+  it("estrae header da array stile SES Lambda ({name,value})", () => {
+    const r = normalizeInbound({
+      from: "ooo@x.it", subject: "x",
+      headers: [{ name: "Precedence", value: "bulk" }, { name: "Subject", value: "x" }],
+    });
+    expect(r?.headers?.["precedence"]).toBe("bulk");
   });
   it("chiavi stile Mailgun", () => {
     const r = normalizeInbound({ sender: "boss@impresa.it", recipient: "luca@get-edilizia.com", Subject: "RISPOSTA", "stripped-text": "Chiamami." });

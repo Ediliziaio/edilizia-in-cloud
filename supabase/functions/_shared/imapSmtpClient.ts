@@ -321,7 +321,18 @@ export interface ImapMessage {
   html: string | null;
   inReplyTo: string | null;
   references: string[];
+  /**
+   * Header rilevanti per il rilevamento autorisposte (lowercase→valore). Solo un
+   * sottoinsieme (Auto-Submitted, Precedence, X-Autoreply…): non l'intero blocco.
+   */
+  headers: Record<string, string>;
 }
+
+/** Header che ci interessano per classificare le autorisposte (RFC 3834 & co.). */
+const AUTOREPLY_HEADER_NAMES = [
+  "auto-submitted", "precedence", "x-autoreply", "x-autorespond",
+  "x-auto-response-suppress", "x-mailer", "from",
+];
 
 export async function imapTestConnection(cfg: ImapConfig): Promise<boolean> {
   const conn = cfg.secure
@@ -479,6 +490,13 @@ function parseImapMessage(uid: string, fetchResp: string): ImapMessage | null {
     text = html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
   }
 
+  // Sottoinsieme di header utile al rilevamento autorisposte (lowercase→valore).
+  const headers: Record<string, string> = {};
+  for (const name of AUTOREPLY_HEADER_NAMES) {
+    const v = getHeader(name);
+    if (v) headers[name] = v;
+  }
+
   return {
     uid,
     messageId: getHeader("Message-ID") || `imap-${uid}@local`,
@@ -491,6 +509,7 @@ function parseImapMessage(uid: string, fetchResp: string): ImapMessage | null {
     html: html ? html.slice(0, 64000) : null,
     inReplyTo: getHeader("In-Reply-To") || null,
     references: getHeader("References").split(/\s+/).filter(Boolean),
+    headers,
   };
 }
 

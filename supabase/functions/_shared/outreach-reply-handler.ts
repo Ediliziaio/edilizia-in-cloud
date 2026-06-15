@@ -24,6 +24,7 @@ import {
   buildIntentUserPrompt,
 } from "./outreach-intent.ts";
 import { snippetFrom } from "./outreach-inbound-logic.ts";
+import { isAutoReply, type InboundHeaders } from "./outreach-autoreply.ts";
 
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
 
@@ -34,6 +35,8 @@ export interface InboundReply {
   subject: string;
   text: string;
   messageId?: string | null;
+  /** Header RFC normalizzati (lowercase→valore), se il provider/IMAP li espone. */
+  headers?: InboundHeaders;
 }
 
 /**
@@ -46,7 +49,19 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
   const fromEmail = (r.from || "").trim();
   const snippet = snippetFrom(r.text);
 
-  // 1. Scrivi la risposta nell'inbox
+  // AUTORISPOSTA (OOO / mailer-daemon / no-reply)? Va trattata a parte: salviamo
+  // comunque la riga (resta visibile in Posta), ma NON fermiamo la sequenza e NON
+  // la classifichiamo come "interessato". Header (se presenti) + euristiche su
+  // oggetto/corpo. Vedi outreach-autoreply.ts.
+  const autoReply = isAutoReply({
+    headers: r.headers,
+    subject: r.subject,
+    body: r.text,
+    from: fromEmail,
+  });
+
+  // 1. Scrivi la risposta nell'inbox. Per le autorisposte fissiamo subito
+  // intent='auto_reply' sulla riga (niente classificazione AII a seguire).
   const { data: inserted, error: insErr } = await admin.from("outreach_replies").insert({
     company_id: PLATFORM_COMPANY,
     contact_id: r.contactId,
@@ -56,10 +71,23 @@ export async function handleInboundReply(admin: any, r: InboundReply): Promise<v
     subject: r.subject ?? null,
     snippet,
     status: "unread",
+    intent: autoReply ? "auto_reply" : null,
+    intent_confidence: autoReply ? 1 : null,
     received_at: nowIso,
-    raw: { from: fromEmail, subject: r.subject ?? null, message_id: r.messageId ?? null, text: r.text ?? null },
+    raw: {
+      from: fromEmail,
+      subject: r.subject ?? null,
+      message_id: r.messageId ?? null,
+      text: r.text ?? null,
+      auto_reply: autoReply,
+    },
   }).select("id").single();
   if (insErr) throw insErr;
+
+  // Autorisposta: ci fermiamo qui. La sequenza prosegue (nessuno stop), nessuna
+  // classificazione AI, nessun opt-out. Idempotente: rieseguire reinserisce solo
+  // un'altra riga 'auto_reply' senza toccare iscrizioni/contatto.
+  if (autoReply) return;
 
   // 2. Classifica l'intento con l'AI (best-effort, non blocca)
   let intent: string | null = null;

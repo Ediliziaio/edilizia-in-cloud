@@ -11,6 +11,37 @@ export interface NormalizedInbound {
   snippet: string | null;
   messageId: string | null;
   inReplyTo: string | null;
+  /**
+   * Header RFC normalizzati (lowercase→valore), quando il payload li espone (es.
+   * SES "commonHeaders"/"headers", o un campo `headers` generico). Vuoto se il
+   * provider non li fornisce: il rilevamento autorisposte ricade sulle euristiche.
+   */
+  headers: Record<string, string>;
+}
+
+/**
+ * Estrae header RFC rilevanti per le autorisposte da forme webhook comuni:
+ *   • { headers: { "Auto-Submitted": "...", ... } }        (oggetto chiave→valore)
+ *   • { headers: [ { name, value }, … ] }                  (SES Lambda / array)
+ * Normalizza le chiavi a lowercase. Tollerante: ritorna {} se nulla è presente.
+ */
+function extractHeaders(b: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  const src = (b.headers ?? b.Headers ?? b.commonHeaders) as unknown;
+  if (Array.isArray(src)) {
+    for (const h of src) {
+      if (h && typeof h === "object") {
+        const name = (h as Record<string, unknown>).name ?? (h as Record<string, unknown>).Name;
+        const value = (h as Record<string, unknown>).value ?? (h as Record<string, unknown>).Value;
+        if (typeof name === "string" && value != null) out[name.toLowerCase()] = String(value);
+      }
+    }
+  } else if (src && typeof src === "object") {
+    for (const [k, v] of Object.entries(src as Record<string, unknown>)) {
+      if (v != null) out[k.toLowerCase()] = Array.isArray(v) ? v.join(", ") : String(v);
+    }
+  }
+  return out;
 }
 
 const EMAIL_RE = /[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+/;
@@ -64,6 +95,7 @@ export function normalizeInbound(body: unknown): NormalizedInbound | null {
     snippet: snippetFrom(pick(b, ["text", "body-plain", "stripped-text", "stripped_text", "html", "body"])),
     messageId: (pick(b, ["messageId", "Message-Id", "message-id", "message_id"]) as string | null) ?? null,
     inReplyTo: (pick(b, ["inReplyTo", "In-Reply-To", "in_reply_to"]) as string | null) ?? null,
+    headers: extractHeaders(b),
   };
 }
 
