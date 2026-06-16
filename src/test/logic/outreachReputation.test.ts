@@ -57,3 +57,33 @@ describe("classifyDeliveryEvent — generico", () => {
     expect(classifyDeliveryEvent("stringa").type).toBe("none");
   });
 });
+
+describe("classifyDeliveryEvent — Elastic Email webhook (provider marketing)", () => {
+  it("event=Bounced con destinatario in 'to' → bounce permanente", () => {
+    expect(classifyDeliveryEvent({ event: "Bounced", to: "bad@x.it" }))
+      .toEqual({ type: "bounce", emails: ["bad@x.it"], permanent: true });
+  });
+  it("event=Error → bounce permanente", () => {
+    expect(classifyDeliveryEvent({ event: "Error", to: "err@x.it" }))
+      .toEqual({ type: "bounce", emails: ["err@x.it"], permanent: true });
+  });
+  it("event=AbuseReport → complaint", () => {
+    expect(classifyDeliveryEvent({ event: "AbuseReport", to: "spam@x.it" }))
+      .toEqual({ type: "complaint", emails: ["spam@x.it"], permanent: true });
+  });
+  it("campo 'To' maiuscolo con nome → estrae l'email", () => {
+    expect(classifyDeliveryEvent({ event: "bounced", To: "Mario Rossi <m@x.it>" }))
+      .toEqual({ type: "bounce", emails: ["m@x.it"], permanent: true });
+  });
+  it("soft bounce / deferred → bounce NON permanente", () => {
+    expect(classifyDeliveryEvent({ event: "soft_bounce", email: "s@x.it" }).permanent).toBe(false);
+    expect(classifyDeliveryEvent({ event: "deferred", email: "d@x.it" }).permanent).toBe(false);
+  });
+  it("evento di recapito senza email valida → none", () => {
+    expect(classifyDeliveryEvent({ event: "Bounced" }).type).toBe("none");
+  });
+  it("evento non di recapito (Opened/Sent) → none", () => {
+    expect(classifyDeliveryEvent({ event: "Opened", to: "x@y.it" }).type).toBe("none");
+    expect(classifyDeliveryEvent({ event: "Sent", to: "x@y.it" }).type).toBe("none");
+  });
+});

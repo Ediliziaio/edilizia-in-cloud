@@ -76,16 +76,28 @@ export function classifyDeliveryEvent(payload: unknown): DeliveryEvent {
     return { type: "complaint", emails: uniqLowerEmails(c.complainedRecipients), permanent: true };
   }
 
-  // ── generico (sendgrid/mailgun/brevo-like) ──
+  // ── generico (sendgrid / mailgun / brevo / Elastic Email-like) ──
+  // EE webhook usa event="Bounced"|"Error"|"AbuseReport"|"Unsubscribed"… e mette il
+  // destinatario in `to`. SendGrid/Mailgun/Brevo usano event/type + email/recipient.
+  // Match case-insensitive (già lowercased) sul superset dei nomi-evento dei provider.
   const ev = typeof p.event === "string" ? p.event.toLowerCase()
-    : typeof p.type === "string" ? p.type.toLowerCase() : "";
+    : typeof p.type === "string" ? p.type.toLowerCase()
+    : typeof p.Event === "string" ? (p.Event as string).toLowerCase() : "";
   const oneEmail = typeof p.email === "string" ? p.email
-    : typeof p.recipient === "string" ? p.recipient : null;
-  const emails = oneEmail && oneEmail.includes("@") ? [oneEmail.toLowerCase().trim()] : [];
-  if ((ev === "bounce" || ev === "hard_bounce" || ev === "failed" || ev === "dropped") && emails.length) {
-    return { type: "bounce", emails, permanent: ev !== "failed" };
+    : typeof p.recipient === "string" ? p.recipient
+    : typeof p.to === "string" ? p.to
+    : typeof p.To === "string" ? (p.To as string) : null;
+  const emailMatch = oneEmail ? oneEmail.match(/[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+/) : null;
+  const emails = emailMatch ? [emailMatch[0].toLowerCase().trim()] : [];
+  // bounce duro: bounce/hard_bounce/bounced/dropped/error. 'failed'/'soft' = transitorio.
+  const BOUNCE = new Set(["bounce", "hard_bounce", "hardbounce", "bounced", "dropped", "error"]);
+  const SOFT_BOUNCE = new Set(["failed", "soft_bounce", "softbounce", "deferred", "delayed"]);
+  // complaint/spam: include AbuseReport di Elastic Email.
+  const COMPLAINT = new Set(["complaint", "spam", "spamcomplaint", "complained", "abusereport", "abuse"]);
+  if (emails.length && (BOUNCE.has(ev) || SOFT_BOUNCE.has(ev))) {
+    return { type: "bounce", emails, permanent: BOUNCE.has(ev) };
   }
-  if ((ev === "complaint" || ev === "spam" || ev === "spamcomplaint" || ev === "complained") && emails.length) {
+  if (emails.length && COMPLAINT.has(ev)) {
     return { type: "complaint", emails, permanent: true };
   }
   return none;
