@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   effectiveDailyCap, sentToday, remainingToday, totalCapacity, shouldAutoPause, assignSenders,
-  steadyCap, poolCapacityStats,
+  steadyCap, poolCapacityStats, dailyCapWithVariance,
   type SenderState,
 } from "../../../supabase/functions/_shared/outreach-dispatch-logic";
 
@@ -139,6 +139,88 @@ describe("assignSenders — round-robin con cap", () => {
     const counts = Object.values(perSender);
     expect(Math.max(...counts)).toBeLessThanOrEqual(40); // mai oltre il cap
     expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1); // equa
+  });
+});
+
+describe("dailyCapWithVariance — cap giornaliero umano (varianza deterministica)", () => {
+  it("MAI sopra il cap effettivo (= ≤ daily_cap_target a regime)", () => {
+    // 100 caselle × 30 giorni: nessun valore deve mai superare il cap effettivo.
+    for (let i = 0; i < 100; i++) {
+      const s = sender({ id: `s${i}`, warmup_day: 100, daily_cap_target: 40 });
+      const eff = effectiveDailyCap(s); // 40
+      for (let d = 1; d <= 30; d++) {
+        const v = dailyCapWithVariance(s, `2026-06-${String(d).padStart(2, "0")}`);
+        expect(v).toBeLessThanOrEqual(eff);
+        expect(v).toBeGreaterThanOrEqual(1);
+      }
+    }
+  });
+
+  it("varianza solo verso il basso entro maxReductionPct (15%)", () => {
+    const s = sender({ id: "x", warmup_day: 100, daily_cap_target: 100 }); // eff 100
+    for (let d = 1; d <= 31; d++) {
+      const v = dailyCapWithVariance(s, `2026-07-${String(d).padStart(2, "0")}`);
+      expect(v).toBeLessThanOrEqual(100);
+      expect(v).toBeGreaterThanOrEqual(85); // 100 - 15%
+    }
+  });
+
+  it("deterministico: stesso (casella, giorno) → stesso valore (idempotente tra i tick)", () => {
+    const s = sender({ id: "stable", warmup_day: 100, daily_cap_target: 50 });
+    expect(dailyCapWithVariance(s, "2026-06-20")).toBe(dailyCapWithVariance(s, "2026-06-20"));
+  });
+
+  it("varia tra giorni diversi (non è sempre lo stesso numero tondo)", () => {
+    const s = sender({ id: "vary", warmup_day: 100, daily_cap_target: 80 });
+    const vals = new Set<number>();
+    for (let d = 1; d <= 28; d++) vals.add(dailyCapWithVariance(s, `2026-06-${String(d).padStart(2, "0")}`));
+    // su 28 giorni almeno qualche valore diverso (varianza reale, non costante)
+    expect(vals.size).toBeGreaterThan(1);
+  });
+
+  it("varia tra caselle diverse nello stesso giorno", () => {
+    const day = "2026-06-15";
+    const vals = new Set<number>();
+    for (let i = 0; i < 30; i++) vals.add(dailyCapWithVariance(sender({ id: `mb${i}`, warmup_day: 100, daily_cap_target: 80 }), day));
+    expect(vals.size).toBeGreaterThan(1);
+  });
+
+  it("volumi bassi (cap ≤ floor=5, warm-up iniziale) → nessuna riduzione", () => {
+    const s = sender({ id: "warm", warmup_day: 0 }); // eff = warmup_base = 5
+    expect(effectiveDailyCap(s)).toBe(5);
+    expect(dailyCapWithVariance(s, "2026-06-15")).toBe(5);
+  });
+
+  it("casella non eleggibile (cap effettivo 0) → 0", () => {
+    const s = sender({ id: "z", warmup_base: 0, warmup_step: 0, warmup_day: 0, daily_cap_target: 0 });
+    expect(dailyCapWithVariance(s, "2026-06-15")).toBe(0);
+  });
+});
+
+describe("remainingToday / assignSenders — varianceKey opzionale (retro-compatibile)", () => {
+  it("senza varianceKey: comportamento legacy (cap effettivo pieno)", () => {
+    const s = sender({ warmup_day: 100, daily_cap_target: 40, daily_sent: 10 });
+    expect(remainingToday(s, TODAY)).toBe(30); // identico a prima
+  });
+
+  it("con varianceKey: residuo = capVarianza − inviati, sempre ≤ legacy", () => {
+    const s = sender({ id: "rv", warmup_day: 100, daily_cap_target: 40, daily_sent: 10 });
+    const withVar = remainingToday(s, TODAY, TODAY);
+    expect(withVar).toBeLessThanOrEqual(30);
+    expect(withVar).toBeGreaterThanOrEqual(0);
+  });
+
+  it("assignSenders con varianceKey non sfora mai il cap-varianza per casella", () => {
+    const senders = Array.from({ length: 10 }, (_, i) =>
+      sender({ id: `s${String(i).padStart(2, "0")}`, warmup_day: 100, daily_cap_target: 40 }),
+    );
+    const ids = Array.from({ length: 1000 }, (_, i) => `m${i}`);
+    const { assignments } = assignSenders(ids, senders, TODAY, TODAY);
+    const perSender = assignments.reduce((acc, x) => { acc[x.senderId] = (acc[x.senderId] ?? 0) + 1; return acc; }, {} as Record<string, number>);
+    for (const s of senders) {
+      const cap = dailyCapWithVariance(s, TODAY);
+      expect(perSender[s.id] ?? 0).toBeLessThanOrEqual(cap);
+    }
   });
 });
 

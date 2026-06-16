@@ -54,9 +54,39 @@ export function computeStepSchedule(base: Date, delayDays?: number | null, delay
   return new Date(base.getTime() + d * 86_400_000 + h * 3_600_000);
 }
 
-/** Applica un jitter casuale (0..maxMinutes) a una data, per spalmare gli invii. rand in [0,1). */
-export function applyJitter(date: Date, maxMinutes: number, rand: number): Date {
-  const m = Math.max(0, maxMinutes);
-  const offset = Math.floor(Math.max(0, Math.min(1, rand)) * m) * 60_000;
-  return new Date(date.getTime() + offset);
+/**
+ * Applica un jitter "umano" a una data, per spalmare gli invii nella finestra.
+ * `rand` in [0,1) (di norma Math.random()).
+ *
+ * Default (3 argomenti) — INVARIATO: `applyJitter(date, 90, rand)` =
+ * `date + floor(rand*90) min`, offset 0..maxMinutes al MINUTO tondo (legacy).
+ *
+ * Opzioni (opt-in, non cambiano il default):
+ *  - `minMinutes` (default 0): offset minimo, così i passi non partono tutti
+ *    esattamente al minuto del tick (niente accavallamento sul boundary).
+ *  - `stepSeconds` (default 60): granularità in secondi. Passando 1 si ottiene una
+ *    distribuzione al SECONDO (più naturale: gli invii non cadono tutti sul minuto).
+ *
+ * L'offset è sempre dentro [minMinutes, maxMinutes]; la finestra business (giorni/
+ * orari) resta applicata a valle dal dispatcher — questo NON la scavalca.
+ */
+export function applyJitter(
+  date: Date,
+  maxMinutes: number,
+  rand: number,
+  opts: { minMinutes?: number; stepSeconds?: number } = {},
+): Date {
+  const maxM = Math.max(0, maxMinutes);
+  const minM = Math.max(0, Math.min(opts.minMinutes ?? 0, maxM));
+  const step = Math.max(1, Math.trunc(opts.stepSeconds ?? 60));
+  const r = Math.max(0, Math.min(1, rand));
+  const minSec = minM * 60;
+  const maxSec = maxM * 60;
+  // numero di "scalini" interi di ampiezza `step` nell'intervallo [minSec, maxSec).
+  // L'offset è semi-aperto come il legacy: rand∈[0,1) ⇒ scalino∈[0, span-1] ⇒ il
+  // massimo non viene mai raggiunto. Default step=60 ⇒ floor(rand*maxMinutes) minuti
+  // ⇒ IDENTICO al comportamento storico (offset 0..maxMinutes-1 al minuto).
+  const span = Math.max(0, Math.floor((maxSec - minSec) / step));
+  const offsetSec = minSec + (span > 0 ? Math.min(span - 1, Math.floor(r * span)) * step : 0);
+  return new Date(date.getTime() + offsetSec * 1000);
 }

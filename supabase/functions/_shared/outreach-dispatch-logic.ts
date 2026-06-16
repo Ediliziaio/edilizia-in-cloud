@@ -22,15 +22,63 @@ export function effectiveDailyCap(s: SenderState): number {
   return Math.max(0, Math.min(s.daily_cap_target, ramped));
 }
 
+/** Hash deterministico (FNV-1a 32-bit) → intero non negativo. Per seedare la varianza per casella+data. */
+function fnv1a(str: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/**
+ * Cap giornaliero "umano": il cap effettivo (warm-up + target) ridotto di una
+ * frazione DETERMINISTICA che varia per casella+data, così il tetto non è sempre
+ * lo stesso numero tondo (segnale innaturale per i filtri). La varianza è SOLO
+ * verso il basso: il risultato è SEMPRE ≤ effectiveDailyCap (quindi ≤ daily_cap_target),
+ * mai sopra. Stesso (casella, giorno) → stesso valore (idempotente tra i tick).
+ *
+ * - `maxReductionPct` (default 0.15 = 15%): riduzione massima sotto il cap effettivo.
+ * - Sotto una piccola soglia (cap ≤ `floor`, default 5, tipico warm-up iniziale) NON
+ *   si applica varianza: a volumi minimi togliere invii fa più male che bene.
+ * - Floor a 1 quando il cap effettivo è ≥ 1, così la varianza non azzera mai una
+ *   casella attiva (continuerebbe a non spedire all'infinito).
+ */
+export function dailyCapWithVariance(
+  s: SenderState,
+  dateKey: string,
+  maxReductionPct = 0.15,
+  floor = 5,
+): number {
+  const base = effectiveDailyCap(s);
+  if (base <= floor) return base; // volumi bassi (warm-up iniziale): nessuna riduzione
+  const pct = Math.max(0, Math.min(0.5, maxReductionPct));
+  // frazione in [0, pct] deterministica per casella+data (1000 step di granularità)
+  const frac = (fnv1a(`${s.id}|${dateKey}`) % 1000) / 1000 * pct;
+  const reduced = Math.floor(base * (1 - frac));
+  return Math.max(1, Math.min(base, reduced));
+}
+
 /** Inviati oggi: se il contatore è di un altro giorno vale 0 (reset implicito). */
 export function sentToday(s: SenderState, today: string): number {
   return s.daily_sent_date === today ? Math.max(0, s.daily_sent) : 0;
 }
 
-/** Solo caselle attive/in warm-up contribuiscono; altrimenti 0. */
-export function remainingToday(s: SenderState, today: string): number {
+/**
+ * Capacità residua oggi: cap effettivo − inviati oggi. Solo caselle attive/in
+ * warm-up contribuiscono; altrimenti 0.
+ *
+ * `varianceKey` (opzionale): se passato (es. la data 'YYYY-MM-DD' usata come seed),
+ * il tetto usa `dailyCapWithVariance` → tetto "umano" (varia per casella+giorno,
+ * sempre ≤ cap effettivo). Senza `varianceKey` il comportamento è IDENTICO a prima
+ * (cap effettivo pieno): così la UI/`poolCapacityStats` restano stabili e i test
+ * legacy invariati. Il dispatcher passa la data per spalmare in modo naturale.
+ */
+export function remainingToday(s: SenderState, today: string, varianceKey?: string): number {
   if (s.status !== "active" && s.status !== "warming") return 0;
-  return Math.max(0, effectiveDailyCap(s) - sentToday(s, today));
+  const cap = varianceKey ? dailyCapWithVariance(s, varianceKey) : effectiveDailyCap(s);
+  return Math.max(0, cap - sentToday(s, today));
 }
 
 /** Capacità totale del pool nel giorno. */
@@ -108,16 +156,18 @@ export interface Assignment { queueId: string; senderId: string; }
  * (verranno ripresi al tick successivo).
  */
 export function assignSenders(
-  queueIds: string[], senders: SenderState[], today: string,
+  queueIds: string[], senders: SenderState[], today: string, varianceKey?: string,
 ): { assignments: Assignment[]; unassigned: string[] } {
   // Ordine ROTAZIONE deterministico (per id): a scala (100 caselle) il round-robin
   // resta stabile e prevedibile tra i tick a prescindere dall'ordine di riga del DB,
   // così il volume si spalma in modo equo e ripetibile sul pool.
+  // `varianceKey` (opzionale): se passato, il cap per-casella usa la varianza umana
+  // deterministica (≤ cap effettivo); senza, comportamento legacy invariato.
   const eligible = senders
-    .filter((s) => remainingToday(s, today) > 0)
+    .filter((s) => remainingToday(s, today, varianceKey) > 0)
     .sort((a, b) => a.id.localeCompare(b.id));
   const remaining = new Map<string, number>();
-  for (const s of eligible) remaining.set(s.id, remainingToday(s, today));
+  for (const s of eligible) remaining.set(s.id, remainingToday(s, today, varianceKey));
 
   const assignments: Assignment[] = [];
   const unassigned: string[] = [];
