@@ -35,6 +35,8 @@ export interface ArticleTemplateData {
   pdf_scheda_url: string | null;
   /** Origine: catalogo articoli (article_templates) o listino prodotti (article_families). */
   source?: "catalog" | "listino";
+  /** Costo manodopera/posa da listino (solo article_families), se valorizzato. */
+  manodopera_costo?: number | null;
 }
 
 interface ArticleComboboxProps {
@@ -113,7 +115,7 @@ export function ArticleCombobox({
       const sb = supabase as any;
       const [famRes, catRes] = await Promise.all([
         sb.from("article_families")
-          .select("id, nome, descrizione, immagine_url, prezzo_base_acquisto, prezzo_base_vendita, categoria_id")
+          .select("id, nome, descrizione, immagine_url, prezzo_base_acquisto, prezzo_base_vendita, categoria_id, manodopera_costo_acquisto")
           .eq("company_id", companyId!)
           .eq("attivo", true)
           .is("deleted_at", null)
@@ -129,6 +131,7 @@ export function ArticleCombobox({
       return ((famRes.data ?? []) as Array<{
         id: string; nome: string; descrizione: string | null; immagine_url: string | null;
         prezzo_base_acquisto: number | null; prezzo_base_vendita: number | null; categoria_id: string | null;
+        manodopera_costo_acquisto: number | null;
       }>).map((f): ArticleTemplateData => ({
         id: f.id,
         name: f.nome,
@@ -143,6 +146,7 @@ export function ArticleCombobox({
         immagine_url: f.immagine_url,
         pdf_scheda_url: null,
         source: "listino",
+        manodopera_costo: Number(f.manodopera_costo_acquisto ?? 0) || null,
       }));
     },
   });

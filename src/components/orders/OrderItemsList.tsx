@@ -198,6 +198,10 @@ export function OrderItemsList({
   const [itemStandardCost, setItemStandardCost] = useState<number | undefined>();
   const [itemArticleTemplateId, setItemArticleTemplateId] = useState<string | undefined>();
   const [itemCategoria, setItemCategoria] = useState<string | undefined>();
+  // Anteprima prodotto (transitoria, non persistita): foto + scheda + manodopera dal listino.
+  const [itemImageUrl, setItemImageUrl] = useState<string | undefined>();
+  const [itemPdfSchedaUrl, setItemPdfSchedaUrl] = useState<string | undefined>();
+  const [itemManodoperaCosto, setItemManodoperaCosto] = useState<number | undefined>();
   const [itemStatus, setItemStatus] = useState<OrderItemStatus>("da_ordinare");
   const [itemIsPaid, setItemIsPaid] = useState(false);
   const [itemPaidDate, setItemPaidDate] = useState<Date | undefined>();
@@ -430,6 +434,9 @@ export function OrderItemsList({
     setItemStandardCost(undefined);
     setItemArticleTemplateId(undefined);
     setItemCategoria(undefined);
+    setItemImageUrl(undefined);
+    setItemPdfSchedaUrl(undefined);
+    setItemManodoperaCosto(undefined);
     setItemStatus("da_ordinare");
     setItemIsPaid(false);
     setItemPaidDate(undefined);
@@ -684,6 +691,9 @@ export function OrderItemsList({
       // categoria e la baseline costo sì (alimentano l'analisi Prodotti/Categorie).
       setItemArticleTemplateId(templateData.source === "listino" ? undefined : templateData.id);
       setItemCategoria(templateData.category ?? undefined);
+      setItemImageUrl(templateData.immagine_url ?? undefined);
+      setItemPdfSchedaUrl(templateData.pdf_scheda_url ?? undefined);
+      setItemManodoperaCosto(templateData.manodopera_costo ?? undefined);
       if (templateData.standard_cost > 0) {
         setItemStandardCost(templateData.standard_cost);
         setItemPurchasePrice(templateData.standard_cost.toString());
@@ -694,10 +704,13 @@ export function OrderItemsList({
       if (templateData.supplier_id) setItemSupplierId(templateData.supplier_id);
       if (templateData.description) setItemDescription(templateData.description);
     } else {
-      // Nome digitato a mano (non dal listino) → nessuna baseline/link.
+      // Nome digitato a mano (non dal listino) → nessuna baseline/link/anteprima.
       setItemArticleTemplateId(undefined);
       setItemCategoria(undefined);
       setItemStandardCost(undefined);
+      setItemImageUrl(undefined);
+      setItemPdfSchedaUrl(undefined);
+      setItemManodoperaCosto(undefined);
     }
   };
 
@@ -792,12 +805,29 @@ export function OrderItemsList({
         <div className="space-y-2">
           <Label>Nome Articolo *</Label>
           <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Cerca articolo dal listino o digita…" fallbackCompanyId={fallbackCompanyId} includeListino />
-          {itemStandardCost != null && itemStandardCost > 0 && (
-            <div className="flex items-center gap-2 text-xs rounded-md bg-blue-50 border border-blue-100 px-2.5 py-1.5">
-              <Tag className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-              <span className="text-blue-800">
-                Dal listino{itemCategoria ? <> · {itemCategoria}</> : null} — costo base <strong>{formatCurrency(itemStandardCost)}</strong>/u
-              </span>
+          {((itemStandardCost != null && itemStandardCost > 0) || itemImageUrl || (itemManodoperaCosto != null && itemManodoperaCosto > 0)) && (
+            <div className="flex items-start gap-2.5 rounded-md bg-blue-50 border border-blue-100 p-2.5">
+              {itemImageUrl ? (
+                <img src={itemImageUrl} alt="" loading="lazy" className="h-12 w-12 rounded object-cover border shrink-0" />
+              ) : (
+                <div className="h-12 w-12 rounded bg-blue-100 flex items-center justify-center shrink-0">
+                  <Package className="h-5 w-5 text-blue-500" />
+                </div>
+              )}
+              <div className="text-xs text-blue-900 space-y-0.5 min-w-0">
+                <div className="font-medium">Dal listino{itemCategoria ? <span className="font-normal"> · {itemCategoria}</span> : null}</div>
+                {itemStandardCost != null && itemStandardCost > 0 && (
+                  <div>Costo base materiale: <strong>{formatCurrency(itemStandardCost)}</strong>/u</div>
+                )}
+                {itemManodoperaCosto != null && itemManodoperaCosto > 0 && (
+                  <div>Posa (manodopera): <strong>{formatCurrency(itemManodoperaCosto)}</strong>/u <span className="text-blue-600">— da aggiungere a parte</span></div>
+                )}
+                {itemPdfSchedaUrl && (
+                  <a href={itemPdfSchedaUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
+                    <ExternalLink className="h-3 w-3" /> Scheda tecnica (PDF)
+                  </a>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -855,6 +885,17 @@ export function OrderItemsList({
             })()}
           </div>
         </div>
+        {(() => {
+          const qty = Math.round(Number(itemQuantity)) || 0;
+          const price = itemPurchasePrice.trim() ? Number(itemPurchasePrice) : 0;
+          if (!Number.isFinite(qty) || !Number.isFinite(price) || qty <= 0 || price <= 0) return null;
+          return (
+            <p className="text-xs text-right text-muted-foreground">
+              Totale riga: <span className="font-semibold text-foreground">{formatCurrency(qty * price)}</span>
+              <span className="ml-1">({qty} × {formatCurrency(price)})</span>
+            </p>
+          );
+        })()}
         <div className="space-y-2">
           <Label>IVA Acquisto</Label>
           <Select value={itemVatRate.toString()} onValueChange={(v) => setItemVatRate(parseInt(v))}>
