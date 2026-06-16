@@ -76,7 +76,6 @@ function mapTx(t: any, companyId: string, accountId: string) {
   const remittance = Array.isArray(t?.remittance_information) ? t.remittance_information.join(" ") : (t?.remittance_information ?? null);
   const creditor = t?.creditor?.name ?? null;
   const debtor = t?.debtor?.name ?? null;
-  const counterparty = amount < 0 ? creditor : debtor;
   return {
     company_id: companyId,
     account_id: accountId,
@@ -95,7 +94,8 @@ function mapTx(t: any, companyId: string, accountId: string) {
     // Il codice banca grezzo resta in metadata.bank_transaction_code.
     transaction_type: ind === "DBIT" ? "debit" : "credit",
     status: (t?.status ?? "booked").toString().toLowerCase(),
-    counterparty_name: counterparty,
+    // NB: counterparty_name / counterparty_iban sono colonne GENERATED ALWAYS
+    // (COALESCE(creditor*, debtor*)) → NON vanno scritte qui o l'upsert fallisce.
     metadata: t,
     synced_at: new Date().toISOString(),
   };
@@ -254,9 +254,29 @@ Deno.serve(async (req) => {
           if (status !== 200) { debug.push({ account: acc.external_account_id, status, data }); continue; }
           const txs = data.transactions || [];
           if (txs.length) {
-            const rows = txs.map((t: any) => mapTx(t, companyId, acc.id));
-            await admin.from("bank_transactions").upsert(rows, { onConflict: "company_id,external_transaction_id" });
-            imported += rows.length;
+            // Dedup intra-batch sull'external_transaction_id: due righe con la stessa
+            // chiave nel medesimo upsert fanno fallire l'INSERT ("cannot affect row a second time").
+            const seen = new Set<string>();
+            const rows = txs.map((t: any) => mapTx(t, companyId, acc.id)).filter((r: any) => {
+              if (!r.external_transaction_id || seen.has(r.external_transaction_id)) return false;
+              seen.add(r.external_transaction_id); return true;
+            });
+            const { error: txErr } = await admin.from("bank_transactions")
+              .upsert(rows, { onConflict: "company_id,external_transaction_id" });
+            if (txErr) {
+              // Mai contare come importate righe non salvate: fallback per-riga per
+              // isolare l'eventuale movimento problematico e salvare comunque gli altri.
+              let ok = 0;
+              for (const row of rows) {
+                const { error: e1 } = await admin.from("bank_transactions")
+                  .upsert([row], { onConflict: "company_id,external_transaction_id" });
+                if (!e1) ok++; else if (debug.length < 10) debug.push({ extid: row.external_transaction_id, error: e1.message });
+              }
+              imported += ok;
+              if (ok < rows.length) console.error("[bank-eb] sync upsert parziale:", acc.external_account_id, txErr.message);
+            } else {
+              imported += rows.length;
+            }
           }
           // Best-effort: saldo corrente del conto (per l'overview Tesoreria). Mai bloccante.
           try {

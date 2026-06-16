@@ -60,7 +60,8 @@ function mapTx(t: any, companyId: string, accountId: string) {
     reference: t?.reference_number ?? null,
     transaction_type: ind === "DBIT" ? "debit" : "credit",
     status: (t?.status ?? "booked").toString().toLowerCase(),
-    counterparty_name: amount < 0 ? creditor : debtor, metadata: t, synced_at: new Date().toISOString(),
+    // counterparty_name/_iban sono colonne GENERATED ALWAYS → non scriverle qui.
+    metadata: t, synced_at: new Date().toISOString(),
   };
 }
 
@@ -80,7 +81,7 @@ Deno.serve(async (req) => {
     .eq("bank_connections.status", "linked");
 
   const dateFrom = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
-  let imported = 0, expired = 0, accountsDone = 0;
+  let imported = 0, expired = 0, accountsDone = 0; const txErrors: any[] = [];
   for (const acc of (rows ?? []) as Array<{ id: string; external_account_id: string; company_id: string; connection_id: string }>) {
     try {
       const { status, data } = await eb(`/accounts/${acc.external_account_id}/transactions?date_from=${dateFrom}`);
@@ -91,8 +92,21 @@ Deno.serve(async (req) => {
       if (status !== 200) continue;
       const txs = data.transactions || [];
       if (txs.length) {
-        await admin.from("bank_transactions").upsert(txs.map((t: any) => mapTx(t, acc.company_id, acc.id)), { onConflict: "company_id,external_transaction_id" });
-        imported += txs.length;
+        const seen = new Set<string>();
+        const rows = txs.map((t: any) => mapTx(t, acc.company_id, acc.id)).filter((r: any) => {
+          if (!r.external_transaction_id || seen.has(r.external_transaction_id)) return false;
+          seen.add(r.external_transaction_id); return true;
+        });
+        const { error: txErr } = await admin.from("bank_transactions").upsert(rows, { onConflict: "company_id,external_transaction_id" });
+        if (txErr) {
+          txErrors.push({ account: acc.external_account_id, batch: txErr.message });
+          let ok = 0;
+          for (const row of rows) {
+            const { error: e1 } = await admin.from("bank_transactions").upsert([row], { onConflict: "company_id,external_transaction_id" });
+            if (!e1) ok++; else if (txErrors.length < 8) txErrors.push({ extid: row.external_transaction_id, error: e1.message });
+          }
+          imported += ok;
+        } else imported += rows.length;
       }
       try {
         const bal = await eb(`/accounts/${acc.external_account_id}/balances`);
@@ -110,5 +124,5 @@ Deno.serve(async (req) => {
     }
   }
   console.log(`[bank-eb-cron] done accounts=${accountsDone} imported=${imported} expired=${expired}`);
-  return new Response(JSON.stringify({ ok: true, accounts: accountsDone, imported, expired }), { headers: { "Content-Type": "application/json" } });
+  return new Response(JSON.stringify({ ok: true, accounts: accountsDone, imported, expired, txErrors: txErrors.slice(0, 8) }), { headers: { "Content-Type": "application/json" } });
 });
