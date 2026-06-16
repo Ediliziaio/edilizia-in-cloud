@@ -278,15 +278,29 @@ Deno.serve(async (req) => {
               imported += rows.length;
             }
           }
+          // Nome "amichevole" del conto (Qonto lo mette in `details`: "Conto principale",
+          // "IVA", "Stipendi"...). Lo salviamo come display_name (UI leggibile) e lo usiamo
+          // per agganciare il saldo giusto: Qonto su /balances ritorna TUTTI i saldi nominali
+          // dell'organizzazione nello stesso array → senza match-per-nome ogni conto prenderebbe
+          // il primo saldo (di solito 0). Le banche normali ritornano un solo saldo → fallback.
+          let friendly: string | null = null;
+          try {
+            const det = await eb(`/accounts/${acc.external_account_id}/details`);
+            if (det.status === 200) {
+              friendly = (det.data?.details ?? det.data?.name) || null;
+              if (friendly) await admin.from("bank_accounts").update({ display_name: friendly }).eq("id", acc.id);
+            }
+          } catch { /* nome best-effort */ }
           // Best-effort: saldo corrente del conto (per l'overview Tesoreria). Mai bloccante.
           try {
             const bal = await eb(`/accounts/${acc.external_account_id}/balances`);
             if (bal.status === 200) {
               const arr = Array.isArray(bal.data?.balances) ? bal.data.balances : [];
-              const pick = arr.find((b: any) => ["CLBD", "XPCD", "ITBD", "CLAV", "PRCD"].includes(b?.balance_type)) || arr[0];
+              const byName = friendly ? arr.find((b: any) => (b?.name ?? "").trim() === friendly!.trim()) : null;
+              const pick = byName || arr.find((b: any) => ["CLBD", "XPCD", "ITBD", "CLAV", "PRCD"].includes(b?.balance_type)) || arr[0];
               const amt = pick ? Number(pick?.balance_amount?.amount ?? pick?.amount) : null;
               if (amt != null && !Number.isNaN(amt)) {
-                await admin.from("bank_accounts").update({ current_balance: amt }).eq("id", acc.id);
+                await admin.from("bank_accounts").update({ current_balance: amt, balance_updated_at: new Date().toISOString() }).eq("id", acc.id);
               }
             }
           } catch { /* saldo non disponibile: si prosegue */ }

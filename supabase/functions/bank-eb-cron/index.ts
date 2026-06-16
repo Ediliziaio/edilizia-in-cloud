@@ -108,13 +108,24 @@ Deno.serve(async (req) => {
           imported += ok;
         } else imported += rows.length;
       }
+      // Nome amichevole (Qonto: campo `details`) → display_name + chiave per il saldo giusto.
+      let friendly: string | null = null;
+      try {
+        const det = await eb(`/accounts/${acc.external_account_id}/details`);
+        if (det.status === 200) {
+          friendly = (det.data?.details ?? det.data?.name) || null;
+          if (friendly) await admin.from("bank_accounts").update({ display_name: friendly }).eq("id", acc.id);
+        }
+      } catch { /* nome best-effort */ }
       try {
         const bal = await eb(`/accounts/${acc.external_account_id}/balances`);
         if (bal.status === 200) {
           const arr = Array.isArray(bal.data?.balances) ? bal.data.balances : [];
-          const pick = arr.find((b: any) => ["CLBD", "XPCD", "ITBD", "CLAV", "PRCD"].includes(b?.balance_type)) || arr[0];
+          // Qonto ritorna tutti i saldi nominali nello stesso array → match per nome.
+          const byName = friendly ? arr.find((b: any) => (b?.name ?? "").trim() === friendly!.trim()) : null;
+          const pick = byName || arr.find((b: any) => ["CLBD", "XPCD", "ITBD", "CLAV", "PRCD"].includes(b?.balance_type)) || arr[0];
           const amt = pick ? Number(pick?.balance_amount?.amount ?? pick?.amount) : null;
-          if (amt != null && !Number.isNaN(amt)) await admin.from("bank_accounts").update({ current_balance: amt }).eq("id", acc.id);
+          if (amt != null && !Number.isNaN(amt)) await admin.from("bank_accounts").update({ current_balance: amt, balance_updated_at: new Date().toISOString() }).eq("id", acc.id);
         }
       } catch { /* saldo best-effort */ }
       await admin.from("bank_connections").update({ last_sync_at: new Date().toISOString() }).eq("id", acc.connection_id);
