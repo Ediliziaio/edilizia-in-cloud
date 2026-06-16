@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { useURLFilters } from "@/hooks/useURLFilters";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon } from "lucide-react";
+import { Plus, Package, LayoutList, Columns3, Download, Upload, MoreVertical, ChevronLeft, ChevronRight, ClipboardList, ShoppingCart, AlertTriangle, PieChart, SlidersHorizontal, Columns, FileCheck, FileText, FileSpreadsheet, ChevronDown, CalendarDays, Users as UsersIcon, Target, LifeBuoy, Hammer, CheckCircle2, ShieldCheck, ShoppingBag, Euro, TrendingUp, AlertCircle, Map as MapIcon } from "lucide-react";
 import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 // 🆕 Sprint S3: Sopralluoghi come tab dentro Commesse
@@ -1638,6 +1638,20 @@ function OrdersListInner() {
           </div>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+          {/* Selettore anno commesse — in alto, sempre visibile (filtra le commesse
+              dell'anno scelto; "Tutti" per la vista completa). */}
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="h-9 w-auto min-w-[6.5rem] gap-1" aria-label="Filtra commesse per anno">
+              <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
+              <SelectValue placeholder="Anno" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli anni</SelectItem>
+              {availableYears.map((y) => (
+                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {/* Filtri avanzati */}
           <Button
             variant="outline"

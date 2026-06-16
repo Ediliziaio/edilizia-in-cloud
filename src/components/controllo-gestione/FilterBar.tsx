@@ -40,15 +40,17 @@ export function FilterBar({ value, onChange, showScenario = false }: FilterBarPr
 
   const update = (patch: Partial<CGFilters>) => onChange({ ...value, ...patch });
 
+  // Mobile: una riga compatta (3 colonne, label nascoste, select piccoli) per non
+  // rubare spazio in alto. Desktop (sm+): griglia etichettata classica.
   return (
-    <div className="grid grid-cols-1 gap-3 px-3 sm:px-4 py-3 border-b bg-muted/30 sm:grid-cols-2 lg:grid-cols-4">
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">Anno</Label>
+    <div className="grid grid-cols-3 gap-2 border-b bg-muted/30 px-3 py-2 sm:grid-cols-2 sm:gap-3 sm:px-4 sm:py-3 lg:grid-cols-4">
+      <div className="sm:space-y-1">
+        <Label className="hidden text-xs text-muted-foreground sm:block">Anno</Label>
         <Select
           value={String(value.anno)}
           onValueChange={(v) => update({ anno: Number(v) })}
         >
-          <SelectTrigger className="h-9">
+          <SelectTrigger className="h-8 text-xs sm:h-9 sm:text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -59,13 +61,13 @@ export function FilterBar({ value, onChange, showScenario = false }: FilterBarPr
         </Select>
       </div>
 
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">Periodo</Label>
+      <div className="sm:space-y-1">
+        <Label className="hidden text-xs text-muted-foreground sm:block">Periodo</Label>
         <Select
           value={value.periodo}
           onValueChange={(v) => update({ periodo: v as CGPeriodo })}
         >
-          <SelectTrigger className="h-9">
+          <SelectTrigger className="h-8 text-xs sm:h-9 sm:text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -76,14 +78,14 @@ export function FilterBar({ value, onChange, showScenario = false }: FilterBarPr
         </Select>
       </div>
 
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">Mese</Label>
+      <div className="sm:space-y-1">
+        <Label className="hidden text-xs text-muted-foreground sm:block">Mese</Label>
         <Select
           value={String(value.mese)}
           onValueChange={(v) => update({ mese: Number(v) })}
           disabled={value.periodo === "annuale"}
         >
-          <SelectTrigger className="h-9">
+          <SelectTrigger className="h-8 text-xs sm:h-9 sm:text-sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -102,7 +104,7 @@ export function FilterBar({ value, onChange, showScenario = false }: FilterBarPr
             onValueChange={(v) => update({ scenarioId: v === "_default" ? null : v })}
             disabled={scenariLoading}
           >
-            <SelectTrigger className="h-9">
+            <SelectTrigger className="h-8 text-xs sm:h-9 sm:text-sm">
               <SelectValue placeholder={scenariLoading ? "Caricamento…" : "Predefinito"} />
             </SelectTrigger>
             <SelectContent>
