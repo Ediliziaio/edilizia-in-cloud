@@ -379,6 +379,28 @@ const RST_TEMPLATE_DEFAULTS = {
   show_margine: false,
 } as const;
 
+/**
+ * True se l'errore Supabase indica che la tabella `rst_template_pdf` (o lo schema
+ * rst_*) NON esiste ancora sul DB → il modulo Ristrutturazione non è stato ancora
+ * pubblicato (migrazione `20271001000000_rst_modulo_wave1.sql` non applicata sul
+ * remoto). PostgREST risponde 404 con code `PGRST205` ("Could not find the table
+ * ... in the schema cache"); il DB diretto userebbe `42P01` ("relation does not
+ * exist"). Riconoscerlo permette di degradare con grazia (default in-memory +
+ * banner) invece di restare bloccati sullo skeleton.
+ */
+export function isRstModuleNotPublished(
+  err: { code?: string | null; message?: string | null } | null | undefined,
+): boolean {
+  if (!err) return false;
+  const code = err.code ?? "";
+  const msg = err.message ?? "";
+  return (
+    code === "PGRST205" ||
+    code === "42P01" ||
+    /could not find the table|schema cache|does not exist|rst_template_pdf|rst_progetti/i.test(msg)
+  );
+}
+
 const asArray = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 
 /** Normalizza una riga grezza del DB nel tipo `RstTemplatePdf` (liste sempre array). */
@@ -423,7 +445,13 @@ export async function getRstTemplatePdf(companyId: string): Promise<RstTemplateP
     .select("*")
     .eq("company_id", companyId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Modulo non ancora pubblicato (tabella assente): ritorna i default in-memory
+    // così editor e anteprima PDF si aprono comunque. Il salvataggio segnalerà a
+    // parte, in modo esplicito, che serve pubblicare il modulo.
+    if (isRstModuleNotPublished(error)) return normalizeTemplate(null, companyId);
+    throw new Error(error.message);
+  }
   return normalizeTemplate(data as Record<string, unknown> | null, companyId);
 }
 
@@ -434,6 +462,41 @@ export function useRstTemplatePdf() {
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
     queryFn: () => getRstTemplatePdf(companyId!),
+  });
+}
+
+/** Template di default (in-memory) per quando il modulo non è ancora pubblicato. */
+export function getDefaultRstTemplatePdf(companyId: string | null): RstTemplatePdf {
+  return normalizeTemplate(null, companyId ?? "");
+}
+
+/**
+ * Probe leggera (HEAD) per sapere se il modulo Ristrutturazione è pubblicato sul
+ * DB (tabella `rst_template_pdf` esistente). `false` ⇒ l'editor mostra i default
+ * ma il salvataggio non è ancora possibile. Nessun retry: l'esito è immediato e
+ * non deve far lampeggiare lo skeleton in attesa di backoff.
+ */
+export function useRstBackendReady() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery<boolean>({
+    queryKey: ["rst-backend-ready", companyId] as const,
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    queryFn: async () => {
+      // GET (non HEAD): su 404 il body PostgREST espone code/message, così
+      // `isRstModuleNotPublished` riconosce la tabella mancante. Una HEAD non ha
+      // body e l'errore arriverebbe generico (non riconosciuto → falso negativo).
+      const { error } = await sb()
+        .from("rst_template_pdf")
+        .select("id")
+        .limit(1);
+      if (error) {
+        if (isRstModuleNotPublished(error)) return false;
+        throw new Error(error.message);
+      }
+      return true;
+    },
   });
 }
 
@@ -455,7 +518,14 @@ export function useUpsertRstTemplatePdf() {
         )
         .select()
         .single();
-      if (error) throw new Error(error.message);
+      if (error) {
+        if (isRstModuleNotPublished(error)) {
+          throw new Error(
+            "Il modulo Ristrutturazione non è ancora pubblicato sul database: applica la migrazione (pubblica il modulo) per salvare il template.",
+          );
+        }
+        throw new Error(error.message);
+      }
       return normalizeTemplate(data as Record<string, unknown> | null, companyId);
     },
     onSuccess: (row) => {

@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
   Palette, FileText, Sparkles, ListChecks, Quote, Clock, Building2,
-  Eye, EyeOff, BadgeEuro,
+  Eye, EyeOff, BadgeEuro, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils";
 import {
   useRstTemplatePdf,
   useUpsertRstTemplatePdf,
+  useRstBackendReady,
   useEffectiveCompanyId,
   type RstTemplatePatch,
 } from "@/hooks/useRistrutturazioneProgetto";
@@ -97,6 +98,9 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
   const companyId = useEffectiveCompanyId();
   const { data: template, isLoading } = useRstTemplatePdf();
   const upsert = useUpsertRstTemplatePdf();
+  // Probe: il modulo è pubblicato sul DB? Se no, l'editor mostra comunque i default
+  // (vedi getRstTemplatePdf) + un banner, e il salvataggio segnala che serve pubblicare.
+  const { data: backendReady } = useRstBackendReady();
 
   const [form, setForm] = useState<FormState | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -143,6 +147,19 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
 
   return (
     <div className={cn("space-y-4", embedded ? "" : "mx-auto max-w-4xl p-4")}>
+      {backendReady === false && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="space-y-0.5">
+            <p className="font-medium">Modulo Ristrutturazione non ancora pubblicato sul database</p>
+            <p className="text-amber-800 dark:text-amber-300/90">
+              Stai vedendo e modificando i valori predefiniti: l'editor è pienamente
+              funzionante, ma il salvataggio sarà attivo solo dopo la pubblicazione del
+              modulo (applicazione della migrazione sul database).
+            </p>
+          </div>
+        </div>
+      )}
       {/* Branding */}
       <SectionCard icon={Palette} title="Branding" description="Logo e colori usati nel PDF.">
         <div className="grid gap-4 sm:grid-cols-2">
