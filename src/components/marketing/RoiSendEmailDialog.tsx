@@ -46,19 +46,38 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#039;");
 }
 
-/** Riepilogo HTML brandizzato dei numeri + CTA (fallback se l'allegato è off). */
+/** Riepilogo HTML brandizzato a leve (guadagno netto, ROI, payback) + CTA. */
 function buildEmailHtml(
   results: RoiResults,
   clientName: string,
   message: string,
 ): string {
   const saluto = (clientName || "").trim() || "Gentile cliente";
-  const guadagna = results.risparmioAnnuo > 0;
+  const guadagna = results.guadagnoNettoAnnuo > 0;
   const intro = escapeHtml(message).replace(/\n/g, "<br>");
-  const payback =
-    guadagna && results.paybackGiorni > 0
-      ? `<p style="margin:8px 0 0;font-size:13px;color:#16a34a;font-weight:600;">Si ripaga in ${results.paybackGiorni.toLocaleString("it-IT")} ${results.paybackGiorni === 1 ? "giorno" : "giorni"}.</p>`
-      : "";
+  const roi = results.roiMultiplo > 0 ? `${results.roiMultiplo.toFixed(1)}×` : "—";
+  const payback = results.paybackGiorni > 0 ? results.paybackGiorni.toLocaleString("it-IT") : "—";
+
+  // Striscia metriche secondarie: ROI · payback · costo dell'inazione.
+  const metrics = `
+  <table width="100%" cellpadding="0" cellspacing="0" style="margin:14px 0 0;">
+    <tr>
+      <td width="33%" style="padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;text-align:center;">
+        <span style="font-size:20px;font-weight:800;color:#16a34a;">${roi}</span><br>
+        <span style="font-size:10px;color:#64748b;">ROI su ogni euro</span>
+      </td>
+      <td width="10"></td>
+      <td width="33%" style="padding:12px;background:#f4f6fa;border-radius:8px;border:1px solid #e2e8f0;text-align:center;">
+        <span style="font-size:20px;font-weight:800;color:#1e3a5f;">${payback}</span><br>
+        <span style="font-size:10px;color:#64748b;">giorni per ripagarsi</span>
+      </td>
+      <td width="10"></td>
+      <td width="33%" style="padding:12px;background:#fff7ed;border-radius:8px;border:1px solid #fed7aa;text-align:center;">
+        <span style="font-size:16px;font-weight:800;color:#b45309;">${EUR(results.costoInazioneAnnuo)}</span><br>
+        <span style="font-size:10px;color:#64748b;">non cambiare ti costa/anno</span>
+      </td>
+    </tr>
+  </table>`;
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -76,36 +95,23 @@ function buildEmailHtml(
   <p style="font-size:14px;color:#334155;margin:0 0 16px;">${saluto},</p>
   ${intro ? `<p style="font-size:14px;color:#334155;margin:0 0 20px;line-height:1.6;">${intro}</p>` : ""}
 
-  <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px;">
-    <tr>
-      <td width="50%" style="padding:14px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca;">
-        <span style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#64748b;font-weight:600;">Ti costa oggi</span><br>
-        <span style="font-size:22px;font-weight:700;color:#b91c1c;">${EUR(results.costoAttualeAnnuo)}</span><br>
-        <span style="font-size:11px;color:#94a3b8;">all'anno</span>
-      </td>
-      <td width="12"></td>
-      <td width="50%" style="padding:14px;background:#f0fdf4;border-radius:8px;border:1px solid #86efac;">
-        <span style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#64748b;font-weight:600;">Con EdiliziaInCloud</span><br>
-        <span style="font-size:22px;font-weight:700;color:#16a34a;">${EUR(results.costoConEicAnnuo)}</span><br>
-        <span style="font-size:11px;color:#94a3b8;">all'anno</span>
-      </td>
-    </tr>
-  </table>
-
-  <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0 0;">
-    <tr><td style="padding:18px;background:#1e3a5f;border-radius:8px;text-align:center;">
-      <span style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#9db4d6;font-weight:600;">${guadagna ? "Con EdiliziaInCloud guadagni" : "Stima risparmio"}</span><br>
-      <span style="font-size:30px;font-weight:800;color:#ffffff;">${EUR(Math.max(0, results.risparmioAnnuo))}</span>
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr><td style="padding:20px;background:#1e3a5f;border-radius:8px;text-align:center;">
+      <span style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#9db4d6;font-weight:600;">${guadagna ? "Guadagno netto con EdiliziaInCloud" : "Stima del guadagno netto"}</span><br>
+      <span style="font-size:32px;font-weight:800;color:#ffffff;">${EUR(Math.max(0, results.guadagnoNettoAnnuo))}</span>
       <span style="font-size:14px;color:#9db4d6;font-weight:600;"> / anno</span>
+      ${guadagna ? `<br><span style="font-size:11px;color:#9db4d6;">≈ ${EUR(results.guadagnoNettoMensile)}/mese che tornano in cassa</span>` : ""}
     </td></tr>
   </table>
-  ${payback}
+  ${metrics}
 
-  <p style="font-size:14px;color:#1e3a5f;font-weight:700;margin:20px 0 0;">
-    EdiliziaInCloud non ti costa: ti fa guadagnare.
+  <p style="font-size:14px;color:#1e3a5f;font-weight:700;margin:22px 0 0;">
+    EdiliziaInCloud non è un costo: si ripaga da solo.
   </p>
-  <p style="font-size:12px;color:#64748b;margin:6px 0 0;">
-    In allegato trovi il report completo con il dettaglio dei tuoi numeri.
+  <p style="font-size:12.5px;color:#475569;margin:6px 0 0;line-height:1.6;">
+    Il valore più grande arriva dal <strong>controllo di gestione</strong>: con commesse, conto economico
+    e bilanci in tempo reale recuperi margine che oggi ti sfugge. Nel PDF allegato trovi la proposta
+    completa, leva per leva.
   </p>
 </td></tr>
 
@@ -142,18 +148,19 @@ export function RoiSendEmailDialog({
 }: RoiSendEmailDialogProps) {
   const defaultSubject = useMemo(
     () =>
-      results.risparmioAnnuo > 0
-        ? `${clientName ? `${clientName.trim()}, ` : ""}ecco quanto puoi guadagnare con EdiliziaInCloud`
+      results.guadagnoNettoAnnuo > 0
+        ? `${clientName ? `${clientName.trim()}, ` : ""}la tua proposta di valore EdiliziaInCloud`
         : "La tua analisi ROI con EdiliziaInCloud",
-    [clientName, results.risparmioAnnuo],
+    [clientName, results.guadagnoNettoAnnuo],
   );
   const defaultMessage = useMemo(
     () =>
-      `Come promesso le invio l'analisi personalizzata dei costi della sua attività.\n\n` +
-      `Con EdiliziaInCloud risparmierebbe circa ${EUR(Math.max(0, results.risparmioAnnuo))} all'anno rispetto a quanto spende oggi. ` +
-      `Nel PDF allegato trova tutti i dettagli.\n\n` +
+      `Come promesso le invio la proposta di valore personalizzata per la sua impresa.\n\n` +
+      `Con EdiliziaInCloud il guadagno netto stimato è di circa ${EUR(Math.max(0, results.guadagnoNettoAnnuo))} all'anno: ` +
+      `il valore più grande arriva dal controllo di gestione, che le fa recuperare margine oggi disperso. ` +
+      `Nel PDF allegato trova la proposta completa, leva per leva.\n\n` +
       `Resto a disposizione per qualsiasi chiarimento.`,
-    [results.risparmioAnnuo],
+    [results.guadagnoNettoAnnuo],
   );
 
   // Hydration una-tantum all'apertura del dialog (niente setState-in-effect).
