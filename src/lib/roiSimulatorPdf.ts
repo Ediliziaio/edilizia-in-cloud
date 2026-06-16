@@ -117,6 +117,8 @@ export interface GenerateRoiPdfOptions {
   output?: "save" | "datauristring" | "blob";
   /** Sovrascrive il nome file (default `<cliente>-Proposta-EdiliziaInCloud.pdf`). */
   fileName?: string;
+  /** Referente (persona di contatto): se valorizzato compare in copertina. */
+  referente?: string;
 }
 
 /** Nome file sicuro per il download della proposta. */
@@ -293,7 +295,7 @@ class PdfDoc {
 /* ────────────────────────────── SEZIONI ────────────────────────────── */
 
 /** 1 — Copertina: banda brand, titolo, destinatario, data. */
-function coverPage(p: PdfDoc, cliente: string, results: RoiResults) {
+function coverPage(p: PdfDoc, cliente: string, results: RoiResults, referente?: string) {
   const doc = p.jsdoc;
   // Fascia bianca in alto con il LOGO vero (a colori, su bianco)
   const logoH = 15;
@@ -324,7 +326,17 @@ function coverPage(p: PdfDoc, cliente: string, results: RoiResults) {
   doc.setFontSize(nameSize);
   const nameLines = doc.splitTextToSize(cliente, CONTENT_W);
   doc.text(nameLines, MARGIN, bandTop + 45);
-  const afterName = bandTop + 45 + nameLines.length * (nameSize * 0.42) + 5;
+  let afterName = bandTop + 45 + nameLines.length * (nameSize * 0.42) + 5;
+  // Riga "alla c.a. di {referente}" tra il nome e il sottotitolo (resta nella banda).
+  const ref = (referente || "").trim();
+  if (ref) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(190, 205, 228);
+    const refLine = doc.splitTextToSize(`alla c.a. di ${ref}`, CONTENT_W)[0];
+    doc.text(refLine, MARGIN, Math.min(afterName, bandTop + bandH - 16));
+    afterName += 5.5;
+  }
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10.5);
   doc.setTextColor(190, 205, 228);
@@ -769,7 +781,7 @@ export function generateRoiPdf(
   const p = new PdfDoc(cliente);
 
   // 1 — Copertina (pagina 1, senza running header)
-  coverPage(p, cliente, results);
+  coverPage(p, cliente, results, opts.referente);
 
   // 2..7 — Sezioni contenuto (header+footer ripetuti)
   p.newContentPage();
@@ -793,8 +805,16 @@ export function generateRoiPdf(
  * Estrae il payload base64 puro (senza prefisso `data:...;base64,`) dal data-URI
  * prodotto da jsPDF, pronto per `sendEmailUnified({ attachments: [{ content }] })`.
  */
-export function roiPdfBase64(inputs: RoiInputs, results: RoiResults, clientName: string): string {
-  const dataUri = generateRoiPdf(inputs, results, clientName, { mode: "datauristring" }) as string;
+export function roiPdfBase64(
+  inputs: RoiInputs,
+  results: RoiResults,
+  clientName: string,
+  referente?: string,
+): string {
+  const dataUri = generateRoiPdf(inputs, results, clientName, {
+    mode: "datauristring",
+    referente,
+  }) as string;
   const comma = dataUri.indexOf(",");
   return comma >= 0 ? dataUri.slice(comma + 1) : dataUri;
 }

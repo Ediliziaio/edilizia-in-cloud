@@ -65,6 +65,7 @@ export default function RoiSimulatorPage() {
     abbonamentoMensile: DEFAULT_INPUTS.abbonamentoMensile,
   }));
   const [clientName, setClientName] = useState("");
+  const [referente, setReferente] = useState("");
   const [linkedContact, setLinkedContact] = useState<ContactLite | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -82,6 +83,7 @@ export default function RoiSimulatorPage() {
     inputs: RoiInputs;
     results: RoiResults;
     clientName: string;
+    referente: string;
   } | null>(null);
 
   const { data: contacts = [] } = useQuery({
@@ -202,10 +204,12 @@ export default function RoiSimulatorPage() {
         plans={plans}
         clientName={clientName}
         onClientNameChange={setClientName}
+        referente={referente}
+        onReferenteChange={setReferente}
         onSave={handleSave}
         saving={saveSim.isPending}
-        onExportPdf={({ inputs, results, clientName }) =>
-          generateRoiPdf(inputs, results, clientName)
+        onExportPdf={({ inputs, results, clientName, referente }) =>
+          generateRoiPdf(inputs, results, clientName, { referente })
         }
         onSendEmail={(payload) => setEmailPayload(payload)}
       />
@@ -217,6 +221,7 @@ export default function RoiSimulatorPage() {
           inputs={emailPayload.inputs}
           results={emailPayload.results}
           clientName={emailPayload.clientName}
+          referente={emailPayload.referente}
           defaultEmail={linkedContact?.email ?? null}
         />
       )}

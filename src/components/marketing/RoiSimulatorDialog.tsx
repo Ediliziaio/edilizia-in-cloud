@@ -52,6 +52,7 @@ export function RoiSimulatorDialog({
 
   const [inputs, setInputs] = useState<RoiInputs>(() => structuredClone(DEFAULT_INPUTS));
   const [clientName, setClientName] = useState(defaultClientName ?? "");
+  const [referente, setReferente] = useState("");
   // Hydration una-tantum all'apertura: ultima sim → altrimenti default + piano reale.
   const [hydratedFor, setHydratedFor] = useState<string | null>(null);
   if (open && hydratedFor !== opportunityId) {
@@ -73,6 +74,7 @@ export function RoiSimulatorDialog({
     inputs: RoiInputs;
     results: RoiResults;
     clientName: string;
+    referente: string;
   } | null>(null);
 
   const handleSave = async (payload: {
@@ -113,10 +115,12 @@ export function RoiSimulatorDialog({
           plans={plans}
           clientName={clientName}
           onClientNameChange={setClientName}
+          referente={referente}
+          onReferenteChange={setReferente}
           onSave={handleSave}
           saving={saveSim.isPending}
-          onExportPdf={({ inputs, results, clientName }) =>
-            generateRoiPdf(inputs, results, clientName)
+          onExportPdf={({ inputs, results, clientName, referente }) =>
+            generateRoiPdf(inputs, results, clientName, { referente })
           }
           onSendEmail={(payload) => setEmailPayload(payload)}
         />
@@ -128,6 +132,7 @@ export function RoiSimulatorDialog({
             inputs={emailPayload.inputs}
             results={emailPayload.results}
             clientName={emailPayload.clientName}
+            referente={emailPayload.referente}
             defaultEmail={defaultContactEmail ?? null}
             metadata={{ opportunity_id: opportunityId, contact_id: contactId ?? null }}
           />

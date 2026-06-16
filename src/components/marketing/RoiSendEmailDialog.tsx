@@ -51,8 +51,12 @@ function buildEmailHtml(
   results: RoiResults,
   clientName: string,
   message: string,
+  referente?: string,
 ): string {
-  const saluto = (clientName || "").trim() || "Gentile cliente";
+  // Saluto: se c'è un referente usiamo il suo nome ("Gentile Mario Rossi,"),
+  // altrimenti il nome azienda/cliente, infine un fallback generico.
+  const ref = (referente || "").trim();
+  const saluto = ref ? `Gentile ${ref}` : (clientName || "").trim() || "Gentile cliente";
   const guadagna = results.guadagnoNettoAnnuo > 0;
   const intro = escapeHtml(message).replace(/\n/g, "<br>");
   const roi = results.roiMultiplo > 0 ? `${results.roiMultiplo.toFixed(1)}×` : "—";
@@ -131,6 +135,8 @@ interface RoiSendEmailDialogProps {
   inputs: RoiInputs;
   results: RoiResults;
   clientName: string;
+  /** Referente (persona di contatto): personalizza saluto e copertina PDF. */
+  referente?: string;
   /** Email del contatto, per precompilare il destinatario. */
   defaultEmail?: string | null;
   /** Contesto opzionale (es. opportunity_id) salvato nei metadata di invio. */
@@ -143,6 +149,7 @@ export function RoiSendEmailDialog({
   inputs,
   results,
   clientName,
+  referente,
   defaultEmail,
   metadata,
 }: RoiSendEmailDialogProps) {
@@ -187,8 +194,8 @@ export function RoiSendEmailDialog({
     }
     setSending(true);
     try {
-      const attachmentContent = roiPdfBase64(inputs, results, clientName);
-      const html = buildEmailHtml(results, clientName, message);
+      const attachmentContent = roiPdfBase64(inputs, results, clientName, referente);
+      const html = buildEmailHtml(results, clientName, message, referente);
 
       const { data, error } = await supabase.functions.invoke("send-roi-report", {
         body: {

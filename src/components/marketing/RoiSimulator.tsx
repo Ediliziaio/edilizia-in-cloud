@@ -195,14 +195,17 @@ interface RoiSimulatorProps {
   /** Nome cliente mostrato e salvato (pre-compilato dal deal). */
   clientName?: string;
   onClientNameChange?: (name: string) => void;
+  /** Referente (persona di contatto), opzionale — solo display/export, non salvato. */
+  referente?: string;
+  onReferenteChange?: (v: string) => void;
   /** Callback "Salva simulazione". Riceve inputs+results calcolati. */
   onSave?: (payload: { inputs: RoiInputs; results: RoiResults; clientName: string }) => void;
   saving?: boolean;
   /** Mostra il campo "Nome cliente" in testa (default true). */
   showClientName?: boolean;
   /** Agganci export PDF/email. Se passati, i bottoni si attivano. */
-  onExportPdf?: (payload: { inputs: RoiInputs; results: RoiResults; clientName: string }) => void;
-  onSendEmail?: (payload: { inputs: RoiInputs; results: RoiResults; clientName: string }) => void;
+  onExportPdf?: (payload: { inputs: RoiInputs; results: RoiResults; clientName: string; referente: string }) => void;
+  onSendEmail?: (payload: { inputs: RoiInputs; results: RoiResults; clientName: string; referente: string }) => void;
   /** Piani disponibili per il selettore canone (da useResellerPlans). */
   plans?: ResellerPlan[];
 }
@@ -213,6 +216,8 @@ export function RoiSimulator({
   initialInputs,
   clientName: clientNameProp,
   onClientNameChange,
+  referente = "",
+  onReferenteChange,
   onSave,
   saving = false,
   showClientName = true,
@@ -275,14 +280,25 @@ export function RoiSimulator({
           </CardHeader>
           <CardContent className="space-y-5">
             {showClientName && (
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Nome cliente</Label>
-                <Input
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  placeholder="Es. Edil Rossi S.r.l."
-                  className="h-9"
-                />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Nome cliente</Label>
+                  <Input
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    placeholder="Es. Edil Rossi S.r.l."
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Referente (opzionale)</Label>
+                  <Input
+                    value={referente}
+                    onChange={(e) => onReferenteChange?.(e.target.value)}
+                    placeholder="Es. Mario Rossi"
+                    className="h-9"
+                  />
+                </div>
               </div>
             )}
 
@@ -748,7 +764,7 @@ export function RoiSimulator({
                     variant="outline"
                     className="gap-2"
                     disabled={!onExportPdf}
-                    onClick={() => onExportPdf?.({ inputs, results, clientName })}
+                    onClick={() => onExportPdf?.({ inputs, results, clientName, referente })}
                   >
                     <FileDown className="h-4 w-4" />
                     Esporta PDF
@@ -765,7 +781,7 @@ export function RoiSimulator({
                     variant="outline"
                     className="gap-2"
                     disabled={!onSendEmail}
-                    onClick={() => onSendEmail?.({ inputs, results, clientName })}
+                    onClick={() => onSendEmail?.({ inputs, results, clientName, referente })}
                   >
                     <Mail className="h-4 w-4" />
                     Invia via email
