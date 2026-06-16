@@ -48,6 +48,35 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
     setDirty(true);
   };
 
+  // Mappa lo stato locale nel payload del save (riusato da autosave e flush).
+  const toPayload = (rows: RstComputoVoce[]) =>
+    rows.map((v, i) => ({
+      capitolo_nome: v.capitolo_nome,
+      descrizione: v.descrizione,
+      unita_misura: v.unita_misura,
+      quantita: v.quantita,
+      prezzo_unitario: v.prezzo_unitario,
+      costo_materiali: v.costo_materiali,
+      costo_manodopera: v.costo_manodopera,
+      sconto_pct: v.sconto_pct,
+      margine_eur: v.margine_eur,
+      margine_pct: v.margine_pct,
+      listino_voce_id: v.listino_voce_id,
+      ordine: v.ordine ?? i,
+    }));
+
+  // Refs sempre allineati a stato/save: servono al flush su unmount per leggere
+  // gli ultimi valori senza closure stantie (l'effect di unmount ha deps []).
+  // La sync avviene in un effect (mai durante il render → react-hooks/refs).
+  const computoRef = useRef(computo);
+  const dirtyRef = useRef(dirty);
+  const saveRef = useRef(saveMut);
+  useEffect(() => {
+    computoRef.current = computo;
+    dirtyRef.current = dirty;
+    saveRef.current = saveMut;
+  });
+
   // ─── Autosave debounced (1.2s) ────────────────────────────────────────────
   // `computo` è nelle deps: a ogni modifica il timer si riarma e, allo scadere,
   // salva lo snapshot corrente (debounce naturale sulla "raffica" di edit).
@@ -56,24 +85,10 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
     if (!dirty) return;
     if (timerRef.current) window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
       void (async () => {
         try {
-          await saveMut.mutateAsync(
-            computo.map((v, i) => ({
-              capitolo_nome: v.capitolo_nome,
-              descrizione: v.descrizione,
-              unita_misura: v.unita_misura,
-              quantita: v.quantita,
-              prezzo_unitario: v.prezzo_unitario,
-              costo_materiali: v.costo_materiali,
-              costo_manodopera: v.costo_manodopera,
-              sconto_pct: v.sconto_pct,
-              margine_eur: v.margine_eur,
-              margine_pct: v.margine_pct,
-              listino_voce_id: v.listino_voce_id,
-              ordine: v.ordine ?? i,
-            })),
-          );
+          await saveMut.mutateAsync(toPayload(computo));
           setDirty(false);
           setSavedOnce(true);
         } catch (e) {
@@ -86,7 +101,26 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
     return () => {
       if (timerRef.current) window.clearTimeout(timerRef.current);
     };
-  }, [computo, dirty]); // eslint-disable-line react-hooks/exhaustive-deps -- saveMut stabile (react-query)
+  }, [computo, dirty]); // eslint-disable-line react-hooks/exhaustive-deps -- saveMut/toPayload stabili nel debounce; riarmo gestito a mano
+
+  // ─── Flush su unmount ──────────────────────────────────────────────────────
+  // Se l'utente naviga ad Economia/PDF entro il debounce (1.2s), le modifiche
+  // pendenti non sono ancora salvate (quegli step leggono dalla cache). Alla
+  // smontatura cancelliamo il timer e, se "dirty", salviamo subito lo snapshot
+  // corrente (deps []: gira SOLO all'unmount → nessun loop/doppio-save).
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      if (dirtyRef.current) {
+        void saveRef.current.mutateAsync(toPayload(computoRef.current)).catch(() => {
+          /* best-effort: il componente è già smontato, niente toast/setState */
+        });
+      }
+    };
+  }, []);
 
   const statusLabel = useMemo(() => {
     if (saveMut.isPending) return { icon: "spin" as const, text: "Salvataggio…", cls: "text-muted-foreground" };

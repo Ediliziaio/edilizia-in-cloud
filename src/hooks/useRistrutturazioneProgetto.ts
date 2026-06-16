@@ -225,25 +225,36 @@ export function useSaveComputo(progettoId: string | undefined) {
       // 2) Ricalcola importo di ogni riga PRIMA dell'insert (mai fidarsi del
       //    valore in arrivo dal form) + ordine progressivo stabile.
       const rows = righe.map((r, idx) => {
+        const quantita = Number(r.quantita) || 0;
+        const costo_materiali = Number(r.costo_materiali) || 0;
+        const costo_manodopera = Number(r.costo_manodopera) || 0;
         const importo = calcRigaImporto({
-          quantita: Number(r.quantita) || 0,
+          quantita,
           prezzo_unitario: Number(r.prezzo_unitario) || 0,
           sconto_pct: Number(r.sconto_pct) || 0,
         });
+        // Margine reale della riga (coerente con VoceRow/calcTotaliComputo):
+        // costo riga = (materiali + manodopera) * quantità; il margine deriva
+        // dall'importo già ricalcolato. Clamp NaN→0 per non persistere sporco.
+        const costoRiga = (costo_materiali + costo_manodopera) * quantita;
+        const margine_eur_raw = importo - costoRiga;
+        const margine_pct_raw = importo > 0 ? (margine_eur_raw / importo) * 100 : 0;
+        const margine_eur = Number.isFinite(margine_eur_raw) ? margine_eur_raw : 0;
+        const margine_pct = Number.isFinite(margine_pct_raw) ? margine_pct_raw : 0;
         return {
           progetto_id: progettoId,
           company_id: companyId,
           capitolo_nome: r.capitolo_nome?.trim() || "Generale",
           descrizione: r.descrizione?.trim() || "",
           unita_misura: r.unita_misura,
-          quantita: Number(r.quantita) || 0,
+          quantita,
           prezzo_unitario: Number(r.prezzo_unitario) || 0,
-          costo_materiali: Number(r.costo_materiali) || 0,
-          costo_manodopera: Number(r.costo_manodopera) || 0,
+          costo_materiali,
+          costo_manodopera,
           sconto_pct: Number(r.sconto_pct) || 0,
           importo,
-          margine_eur: Number(r.margine_eur) || 0,
-          margine_pct: Number(r.margine_pct) || 0,
+          margine_eur,
+          margine_pct,
           listino_voce_id: r.listino_voce_id ?? null,
           ordine: r.ordine ?? idx,
         };
