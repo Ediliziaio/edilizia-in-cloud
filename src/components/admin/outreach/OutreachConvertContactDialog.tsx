@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Briefcase, Plus, Loader2, ArrowRight } from "lucide-react";
 import { avatarTint } from "./outreachAvatar";
+import { OutreachBookDemoAction } from "./OutreachBookDemoAction";
 
 /**
  * Converte un contatto/lead in opportunità nella pipeline. Risolve pipeline +
@@ -136,6 +137,20 @@ export function OutreachConvertContactDialog({ companyId, onCreated, trigger, in
               <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
                 <ArrowRight className="h-3.5 w-3.5 shrink-0 text-primary" />
                 <span>Entra nello stage iniziale <strong className="font-semibold text-foreground">{pipeline.data.stageName}</strong></span>
+              </div>
+            )}
+
+            {/* Prenota subito una demo per il lead convertito: riusa la stessa
+                azione del pannello Contesto (dialog appuntamento CRM esistente,
+                sync Google, comparsa nel Calendario marketing). Visibile quando
+                un contatto è selezionato. */}
+            {contactId && (
+              <div className="rounded-lg border border-border bg-muted/20 p-2.5">
+                <OutreachBookDemoAction
+                  companyId={companyId}
+                  contactId={contactId}
+                  contactName={selected ? `${selected.first_name} ${selected.last_name ?? ""}`.trim() || selected.company_name || "" : ""}
+                />
               </div>
             )}
           </div>

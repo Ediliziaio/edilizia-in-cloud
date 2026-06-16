@@ -25,6 +25,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { MigrationGate } from "./_shared";
 import { OutreachConvertContactDialog } from "./OutreachConvertContactDialog";
+import { OutreachBookDemoAction } from "./OutreachBookDemoAction";
 import { OutreachNewMailDialog } from "./OutreachNewMailDialog";
 import {
   INTENT_META, ENROLLMENT_STATUS_META, type Conversation, type StatusFilter, type DateFilter,
@@ -1759,6 +1760,14 @@ function LeadContextPanel({
             initialContactId={contactId ?? undefined}
           />
         </div>
+        {/* Prenota demo: monta la dialog appuntamento CRM esistente (insert in
+            `appointments` + sync Google/Apple + comparsa nel Calendario marketing),
+            precompilando contatto e titolo demo. Visibile solo con un lead collegato. */}
+        <OutreachBookDemoAction
+          companyId={companyId}
+          contactId={contactId}
+          contactName={name}
+        />
         <Button size="sm" variant="outline" className="h-8 w-full gap-1.5 border-destructive/30 text-xs text-destructive hover:bg-destructive/5 hover:text-destructive"
           disabled={!contactId || busy || context?.suppressed}
           onClick={() => contactId && actions.suppressContact.mutate({ contactId, email })}

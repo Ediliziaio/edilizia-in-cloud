@@ -91,6 +91,12 @@ interface Props {
   defaultDate?: string;
   defaultTime?: string;
   defaultContactId?: string;
+  /**
+   * Titolo precompilato per le nuove prenotazioni (ignorato in modifica).
+   * Usato dal flusso Outreach "Prenota demo" per proporre es.
+   * "Demo EdiliziaInCloud — {contatto}" senza duplicare la dialog.
+   */
+  defaultTitle?: string;
 }
 
 import { addMinutesToTimeStr as addMinutesToTime, timeToMin } from "@/lib/marketingCalendarConstants";
@@ -108,6 +114,7 @@ export default function MarketingAppointmentDialog({
   defaultDate,
   defaultTime,
   defaultContactId,
+  defaultTitle,
 }: Props) {
   const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -194,7 +201,7 @@ export default function MarketingAppointmentDialog({
       });
     } else {
       setActiveTab("appointment");
-      setTitle("");
+      setTitle(defaultTitle || "");
       setDescription("");
       const st = defaultTime || "09:00";
       setStartTime(st);
@@ -215,7 +222,7 @@ export default function MarketingAppointmentDialog({
       setFollowUpPriority("normale");
       setAddressData(emptyAddress);
     }
-  }, [appointment, open, defaultDate, defaultTime, defaultCalendarId, defaultContactId]);
+  }, [appointment, open, defaultDate, defaultTime, defaultCalendarId, defaultContactId, defaultTitle]);
 
   useEffect(() => {
     if (!open || isEditing || activeTab === "blocked" || !selectedCalendar) return;
