@@ -33,6 +33,8 @@ export interface ArticleTemplateData {
   description: string | null;
   immagine_url: string | null;
   pdf_scheda_url: string | null;
+  /** Origine: catalogo articoli (article_templates) o listino prodotti (article_families). */
+  source?: "catalog" | "listino";
 }
 
 interface ArticleComboboxProps {
@@ -44,6 +46,12 @@ interface ArticleComboboxProps {
    * Se effectiveCompany è null, usiamo questo (es. company della commessa).
    */
   fallbackCompanyId?: string;
+  /**
+   * Se true, oltre al catalogo articoli (article_templates) mostra anche i
+   * prodotti del Listino (article_families, con foto/costo base). Opt-in:
+   * attivo solo dove serve (es. articoli di commessa).
+   */
+  includeListino?: boolean;
 }
 
 export function ArticleCombobox({
@@ -51,6 +59,7 @@ export function ArticleCombobox({
   onValueChange,
   placeholder = "Seleziona o digita nome articolo...",
   fallbackCompanyId,
+  includeListino = false,
 }: ArticleComboboxProps) {
   const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
@@ -93,12 +102,64 @@ export function ArticleCombobox({
     },
   });
 
-  const filteredTemplates = templates.filter((template) =>
+  // Listino prodotti (article_families) — opt-in. Mappa i prodotti del listino
+  // nello stesso shape del combobox: costo base = prezzo_base_acquisto (baseline),
+  // prezzo = prezzo_base_vendita, categoria risolta dal nome.
+  const { data: listino = [] } = useQuery({
+    queryKey: ["article-combobox-listino", companyId],
+    enabled: !!companyId && includeListino,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const [famRes, catRes] = await Promise.all([
+        sb.from("article_families")
+          .select("id, nome, descrizione, immagine_url, prezzo_base_acquisto, prezzo_base_vendita, categoria_id")
+          .eq("company_id", companyId!)
+          .eq("attivo", true)
+          .is("deleted_at", null)
+          .order("nome")
+          .limit(2000),
+        sb.from("listino_categorie").select("id, nome").eq("company_id", companyId!),
+      ]);
+      if (famRes.error) throw famRes.error;
+      const catName = new Map<string, string>();
+      (catRes.data ?? []).forEach((c: { id: string; nome: string | null }) => {
+        if (c.nome) catName.set(c.id, c.nome);
+      });
+      return ((famRes.data ?? []) as Array<{
+        id: string; nome: string; descrizione: string | null; immagine_url: string | null;
+        prezzo_base_acquisto: number | null; prezzo_base_vendita: number | null; categoria_id: string | null;
+      }>).map((f): ArticleTemplateData => ({
+        id: f.id,
+        name: f.nome,
+        sku: null,
+        category: f.categoria_id ? (catName.get(f.categoria_id) ?? null) : null,
+        unit_price: Number(f.prezzo_base_vendita ?? 0),
+        standard_cost: Number(f.prezzo_base_acquisto ?? 0),
+        unit_of_measure: "pz",
+        vat_rate: 22,
+        supplier_id: null,
+        description: f.descrizione,
+        immagine_url: f.immagine_url,
+        pdf_scheda_url: null,
+        source: "listino",
+      }));
+    },
+  });
+
+  // Catalogo + Listino uniti (catalogo prima). Il catalogo è oggi spesso vuoto:
+  // il listino è la fonte reale dei prodotti.
+  const allTemplates: ArticleTemplateData[] = [
+    ...templates.map((t) => ({ ...t, source: t.source ?? ("catalog" as const) })),
+    ...listino,
+  ];
+
+  const filteredTemplates = allTemplates.filter((template) =>
     template.name.toLowerCase().includes(searchValue.toLowerCase()) ||
     (template.sku && template.sku.toLowerCase().includes(searchValue.toLowerCase()))
   );
 
-  const exactMatch = templates.some(
+  const exactMatch = allTemplates.some(
     (template) => template.name.toLowerCase() === searchValue.toLowerCase()
   );
 
@@ -148,9 +209,11 @@ export function ArticleCombobox({
             <CommandEmpty className="py-3 px-4 text-sm text-muted-foreground">
               {searchValue.trim()
                 ? <>Nessun articolo "{searchValue}" — premi <kbd className="px-1 py-0.5 mx-0.5 rounded border bg-muted text-[10px]">↩</kbd> o clicca sotto per crearne uno nuovo</>
-                : templates.length === 0
-                  ? "Il catalogo articoli è vuoto. Digita un nome per aggiungerlo al volo (verrà salvato a catalogo), oppure popolalo in Impostazioni → Catalogo articoli con foto, scheda e prezzi."
-                  : "Digita per cercare, oppure scegli un articolo del catalogo qui sotto."}
+                : allTemplates.length === 0
+                  ? (includeListino
+                      ? "Nessun prodotto nel listino né nel catalogo. Digita un nome per aggiungerlo al volo, oppure popola il Listino prodotti in Impostazioni → Listino."
+                      : "Il catalogo articoli è vuoto. Digita un nome per aggiungerlo al volo (verrà salvato a catalogo), oppure popolalo in Impostazioni → Catalogo articoli con foto, scheda e prezzi.")
+                  : "Digita per cercare, oppure scegli un prodotto qui sotto."}
             </CommandEmpty>
             <CommandGroup>
               {filteredTemplates.map((template) => (
@@ -183,6 +246,9 @@ export function ArticleCombobox({
                       <span className="font-medium truncate">{template.name}</span>
                       {template.sku && (
                         <span className="text-[10px] text-muted-foreground">({template.sku})</span>
+                      )}
+                      {template.source === "listino" && (
+                        <span className="text-[9px] px-1.5 py-0 rounded-full bg-blue-100 text-blue-700">listino</span>
                       )}
                       {template.category && (
                         <span className="text-[10px] px-1.5 py-0 rounded-full bg-muted text-muted-foreground">

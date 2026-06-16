@@ -679,7 +679,10 @@ export function OrderItemsList({
       // Aggancio listino: salviamo il link + la categoria (snapshot) e la
       // BASELINE da listino in standard_cost (€ pianificato). Il purchase_price
       // parte uguale ma resta editabile = € realmente pagato → scostamento.
-      setItemArticleTemplateId(templateData.id);
+      // I prodotti dal Listino (article_families) NON sono article_templates →
+      // niente article_template_id (FK valida solo per il catalogo), ma la
+      // categoria e la baseline costo sì (alimentano l'analisi Prodotti/Categorie).
+      setItemArticleTemplateId(templateData.source === "listino" ? undefined : templateData.id);
       setItemCategoria(templateData.category ?? undefined);
       if (templateData.standard_cost > 0) {
         setItemStandardCost(templateData.standard_cost);
@@ -788,7 +791,7 @@ export function OrderItemsList({
         </h4>
         <div className="space-y-2">
           <Label>Nome Articolo *</Label>
-          <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Cerca o digita nome articolo…" fallbackCompanyId={fallbackCompanyId} />
+          <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Cerca articolo dal listino o digita…" fallbackCompanyId={fallbackCompanyId} includeListino />
         </div>
         <div className="space-y-2">
           <Label>Descrizione <span className="text-xs text-muted-foreground font-normal">(opzionale)</span></Label>
