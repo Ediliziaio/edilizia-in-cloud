@@ -41,6 +41,7 @@ import StepImmobile from "./RistrutturazioneWizard/StepImmobile";
 import StepComputo from "./RistrutturazioneWizard/StepComputo";
 import StepMedia from "./RistrutturazioneWizard/StepMedia";
 import StepEconomia from "./RistrutturazioneWizard/StepEconomia";
+import StepPdf from "./RistrutturazioneWizard/StepPdf";
 
 const STEP_ICONS: Record<RstWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -437,7 +438,17 @@ export default function RistrutturazioneWizard() {
             {currentStep === "economia" && detail && (
               <StepEconomia form={form} onChange={onChange} computo={detail.computo} />
             )}
-            {currentStep === "pdf" && (
+            {currentStep === "pdf" && id && detail && (
+              // Merge progetto salvato + edit correnti del form (sconto/IVA/
+              // detrazione, cliente, cantiere) così l'anteprima riflette le
+              // modifiche non ancora persistite dello step Economia.
+              <StepPdf
+                progetto={{ ...detail.progetto, ...form }}
+                computo={detail.computo}
+                media={detail.media}
+              />
+            )}
+            {currentStep === "pdf" && !(id && detail) && (
               <StepComingSoon step={currentStep} />
             )}
 
