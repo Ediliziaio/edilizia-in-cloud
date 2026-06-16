@@ -32,6 +32,7 @@ import {
   Trash2,
   ExternalLink,
   Settings,
+  ArrowLeft,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -201,6 +202,13 @@ export default function FotovoltaicoIndex() {
         </div>
         <div className="relative max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-8 flex items-center justify-between flex-wrap gap-3 sm:gap-4">
           <div className="min-w-0 flex-1">
+            <Link
+              to="/azienda/marketing/preventivi"
+              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-blue-100/90 hover:text-white mb-2 transition-colors"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Torna ai Preventivi
+            </Link>
             <div className="text-[10px] sm:text-xs uppercase tracking-widest font-semibold mb-1 text-orange-200">
               ★ MARKETING & VENDITA
             </div>

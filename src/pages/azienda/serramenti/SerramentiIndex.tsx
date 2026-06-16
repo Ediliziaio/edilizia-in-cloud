@@ -42,7 +42,7 @@ import {
   ChevronRight, ChevronLeft, Settings, TrendingUp, FileText, Layers, Trophy,
   XCircle, Wallet, SlidersHorizontal, X, User, MapPin, Package2, Sparkles,
   Briefcase, ClipboardList, FileSignature,
-  AlertTriangle, CheckCircle2,
+  AlertTriangle, CheckCircle2, ArrowLeft,
 } from "lucide-react";
 import { useProgetti, useDeleteProgetto } from "@/lib/serramenti/queries";
 import { cn } from "@/lib/utils";
@@ -414,6 +414,14 @@ export default function SerramentiIndex() {
         </div>
         <div className="relative max-w-[1400px] mx-auto px-3 sm:px-8 py-4 sm:py-8 flex items-center justify-between flex-wrap gap-3 sm:gap-4">
           <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => navigate("/azienda/marketing/preventivi")}
+              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-blue-100/90 hover:text-white mb-2 transition-colors"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Torna ai Preventivi
+            </button>
             <div className="text-[10px] sm:text-[11px] uppercase tracking-widest font-semibold mb-1 text-orange-200">
               ★ MARKETING & VENDITA
             </div>
