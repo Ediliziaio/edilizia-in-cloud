@@ -49,7 +49,17 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   error: { label: "Errore", cls: "bg-rose-100 text-rose-700" },
 };
 
-export default function BankConnectionsCard() {
+interface BankConnectionsCardProps {
+  /** Path su cui Enable Banking reindirizza dopo il consenso (deve essere registrato come Allowed redirect URL). */
+  redirectPath?: string;
+  /** Chiamato dopo un collegamento/sync riuscito, per far aggiornare la pagina che ospita la card. */
+  onChanged?: () => void;
+}
+
+export default function BankConnectionsCard({
+  redirectPath = "/azienda/impostazioni/integrazioni",
+  onChanged,
+}: BankConnectionsCardProps = {}) {
   const companyId = useEffectiveCompanyId();
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -115,6 +125,7 @@ export default function BankConnectionsCard() {
         toast.success("Conto collegato e movimenti importati", { id: t });
         qc.invalidateQueries({ queryKey: ["bank-connections", companyId] });
         qc.invalidateQueries({ queryKey: ["bank-accounts", companyId] });
+        onChanged?.();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Errore nel collegamento", { id: t });
       } finally {
@@ -145,7 +156,7 @@ export default function BankConnectionsCard() {
     if (!selectedBank) return;
     setConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("bank-eb", { body: { action: "start-auth", aspsp_name: selectedBank } });
+      const { data, error } = await supabase.functions.invoke("bank-eb", { body: { action: "start-auth", aspsp_name: selectedBank, redirect_path: redirectPath } });
       if (error || data?.error || !data?.url) throw new Error(data?.error || error?.message || "Errore");
       window.location.href = data.url; // redirect al consenso banca
     } catch (e) {
@@ -162,6 +173,7 @@ export default function BankConnectionsCard() {
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast.success(`Importati ${data?.imported ?? 0} movimenti`, { id: t });
       qc.invalidateQueries({ queryKey: ["bank-connections", companyId] });
+      onChanged?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Errore sincronizzazione", { id: t });
     } finally {

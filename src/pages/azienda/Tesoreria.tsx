@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import TreasuryOverview from "@/components/tesoreria/TreasuryOverview";
 import BankAccountsList from "@/components/tesoreria/BankAccountsList";
 import TransactionsFeed from "@/components/tesoreria/TransactionsFeed";
-import BankConnectionsList from "@/components/tesoreria/BankConnectionsList";
+import BankConnectionsCard from "@/components/integrations/BankConnectionsCard";
 import BankReconciliation from "@/components/tesoreria/BankReconciliation";
 import CashFlowForecast from "@/components/tesoreria/CashFlowForecast";
 import BankAlertRules from "@/components/tesoreria/BankAlertRules";
@@ -110,6 +110,14 @@ export default function Tesoreria() {
     void handleConnectionChanged();
   }, [bankCallback, handleConnectionChanged, handleTabChange]);
 
+  // Callback Open Banking (Enable Banking): il consenso torna su
+  // /azienda/tesoreria?code=&state= → forziamo la tab "connessioni" così
+  // BankConnectionsCard viene montata e completa finalize + sync.
+  const hasBankCode = !!searchParams.get("code");
+  useEffect(() => {
+    if (hasBankCode) handleTabChange("connessioni");
+  }, [hasBankCode, handleTabChange]);
+
   async function handleSync() {
     if (!effectiveCompany?.id) {
       toast.error("Azienda non disponibile");
@@ -118,25 +126,23 @@ export default function Tesoreria() {
 
     setSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("bank-sync", {
-        body: { company_id: effectiveCompany.id },
+      // bank-eb sincronizza tutti i conti dell'azienda (Enable Banking / Open Banking).
+      const { data, error } = await supabase.functions.invoke("bank-eb", {
+        body: { action: "sync" },
       });
-      if (error) {
-        let errBody: { error?: string; message?: string } | null = null;
+      if (error || data?.error) {
+        let errMsg = data?.error || error?.message || "Errore";
         try {
-          const ctx = (error as { context?: unknown }).context;
-          if (ctx instanceof Response) errBody = await ctx.json();
-        } catch {
-          errBody = null;
-        }
-        throw new Error(errBody?.error ?? errBody?.message ?? error.message ?? "Errore");
+          const ctx = (error as { context?: unknown })?.context;
+          if (ctx instanceof Response) {
+            const body = await ctx.json();
+            errMsg = body?.error ?? body?.message ?? errMsg;
+          }
+        } catch { /* mantieni errMsg */ }
+        throw new Error(errMsg);
       }
-      if (data?.success) {
-        toast.success(`Sincronizzati ${data.accounts_synced} conti, ${data.transactions_fetched} transazioni`);
-        await handleConnectionChanged();
-      } else {
-        toast.error("Sincronizzazione fallita");
-      }
+      toast.success(`Sincronizzati ${data?.imported ?? 0} movimenti`);
+      await handleConnectionChanged();
     } catch (e: unknown) {
       toast.error("Errore: " + getErrorMessage(e));
     } finally {
@@ -207,11 +213,7 @@ export default function Tesoreria() {
             <Button variant="ghost" size="sm" onClick={() => handleTabChange("overview")}>
               Torna alla panoramica
             </Button>
-            <BankConnectionsList
-              companyId={effectiveCompany?.id || ""}
-              hasPendingCallback={bankCallback === "1"}
-              onConnectionChanged={handleConnectionChanged}
-            />
+            <BankConnectionsCard redirectPath="/azienda/tesoreria" onChanged={handleConnectionChanged} />
           </div>
         )}
       </div>
@@ -281,11 +283,7 @@ export default function Tesoreria() {
           <TransactionsFeed companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
         </TabsContent>
         <TabsContent value="connessioni">
-          <BankConnectionsList
-            companyId={effectiveCompany?.id || ""}
-            hasPendingCallback={bankCallback === "1"}
-            onConnectionChanged={handleConnectionChanged}
-          />
+          <BankConnectionsCard redirectPath="/azienda/tesoreria" onChanged={handleConnectionChanged} />
         </TabsContent>
         <TabsContent value="riconciliazione">
           <BankReconciliation companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />

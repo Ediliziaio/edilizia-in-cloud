@@ -15,7 +15,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const EB = "https://api.enablebanking.com";
-const REDIRECT_URL = "https://app.ediliziaincloud.com/azienda/impostazioni/integrazioni";
+const REDIRECT_BASE = "https://app.ediliziaincloud.com";
+const REDIRECT_URL = REDIRECT_BASE + "/azienda/impostazioni/integrazioni";
+// Redirect ammessi (devono essere registrati come "Allowed redirect URLs" nell'app Enable Banking).
+const ALLOWED_REDIRECTS = new Set([
+  REDIRECT_BASE + "/azienda/impostazioni/integrazioni",
+  REDIRECT_BASE + "/azienda/tesoreria",
+]);
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -85,7 +91,9 @@ function mapTx(t: any, companyId: string, accountId: string) {
     creditor_iban: t?.creditor_account?.iban ?? null,
     debtor_iban: t?.debtor_account?.iban ?? null,
     reference: t?.reference_number ?? null,
-    transaction_type: t?.bank_transaction_code?.description ?? null,
+    // I componenti Tesoreria classificano entrata/uscita con transaction_type = "credit"|"debit".
+    // Il codice banca grezzo resta in metadata.bank_transaction_code.
+    transaction_type: ind === "DBIT" ? "debit" : "credit",
     status: (t?.status ?? "booked").toString().toLowerCase(),
     counterparty_name: counterparty,
     metadata: t,
@@ -127,9 +135,13 @@ Deno.serve(async (req) => {
         if (!p.aspsp_name) return json({ error: "aspsp_name mancante" }, 400);
         const state = crypto.randomUUID();
         const validUntil = new Date(Date.now() + 89 * 864e5).toISOString();
+        // Redirect dinamico: la pagina chiamante (Integrazioni o Tesoreria) decide dove tornare.
+        // Solo URL whitelistati (= registrati nell'app Enable Banking) sono ammessi.
+        const reqRedirect = REDIRECT_BASE + (typeof p.redirect_path === "string" ? p.redirect_path : "");
+        const redirectUrl = ALLOWED_REDIRECTS.has(reqRedirect) ? reqRedirect : REDIRECT_URL;
         const { status, data } = await eb("/auth", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ access: { valid_until: validUntil }, aspsp: { name: p.aspsp_name, country: "IT" }, state, redirect_url: REDIRECT_URL, psu_type: "business" }),
+          body: JSON.stringify({ access: { valid_until: validUntil }, aspsp: { name: p.aspsp_name, country: "IT" }, state, redirect_url: redirectUrl, psu_type: "business" }),
         });
         if (status !== 200 || !data?.url) return json({ error: data }, 400);
         await admin.from("bank_connections").insert({
@@ -197,8 +209,21 @@ Deno.serve(async (req) => {
             await admin.from("bank_transactions").upsert(rows, { onConflict: "company_id,external_transaction_id" });
             imported += rows.length;
           }
+          // Best-effort: saldo corrente del conto (per l'overview Tesoreria). Mai bloccante.
+          try {
+            const bal = await eb(`/accounts/${acc.external_account_id}/balances`);
+            if (bal.status === 200) {
+              const arr = Array.isArray(bal.data?.balances) ? bal.data.balances : [];
+              const pick = arr.find((b: any) => ["CLBD", "XPCD", "ITBD", "CLAV", "PRCD"].includes(b?.balance_type)) || arr[0];
+              const amt = pick ? Number(pick?.balance_amount?.amount ?? pick?.amount) : null;
+              if (amt != null && !Number.isNaN(amt)) {
+                await admin.from("bank_accounts").update({ current_balance: amt }).eq("id", acc.id);
+              }
+            }
+          } catch { /* saldo non disponibile: si prosegue */ }
         }
-        await admin.from("bank_connections").update({ last_sync_at: new Date().toISOString() }).eq("company_id", companyId).eq("id", connId);
+        const connUpd = admin.from("bank_connections").update({ last_sync_at: new Date().toISOString() }).eq("company_id", companyId);
+        await (connId ? connUpd.eq("id", connId) : connUpd);
         return json({ ok: true, imported, debug: debug.length ? debug : undefined });
       }
 
