@@ -22,6 +22,7 @@ import { toast } from "sonner";
 // - Email: EmailOAuthConnectionsCard in Mio Profilo
 import CompanyCalendarsOverview from "@/components/integrations/CompanyCalendarsOverview";
 import CompanyEmailsOverview from "@/components/integrations/CompanyEmailsOverview";
+import BankConnectionsCard from "@/components/integrations/BankConnectionsCard";
 // Popup components per integrazioni in modalità "popup"
 import GbpConnectionCard from "@/components/integrations/GbpConnectionCard";
 import GoogleAdsConnectionCard from "@/components/integrations/GoogleAdsConnectionCard";
@@ -374,6 +375,9 @@ export default function SettingsIntegrations() {
           Per non-admin entrambi i componenti mostrano solo un placeholder con CTA. */}
       <CompanyCalendarsOverview />
       <CompanyEmailsOverview />
+
+      {/* Open Banking — collegamento conti correnti + import movimenti */}
+      <BankConnectionsCard />
 
       {/* Grid integrazioni */}
       <IntegrationsGrid
