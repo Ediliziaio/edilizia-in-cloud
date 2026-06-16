@@ -20,7 +20,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { assignSenders, type SenderState } from "../_shared/outreach-dispatch-logic.ts";
-import { renderTemplate, contactToVars, hashSeed } from "../_shared/outreach-template.ts";
+import { renderTemplate, contactToVars, hashSeed, htmlToPlainText } from "../_shared/outreach-template.ts";
 import { isWithinSendWindow, parseSendWindow, type SendWindow } from "../_shared/outreach-schedule.ts";
 import { parseVariants, pickVariant } from "../_shared/outreach-abz.ts";
 import { nextEmailStep, computeStepSchedule, applyJitter, type SeqStep } from "../_shared/outreach-sequence.ts";
@@ -109,7 +109,9 @@ async function enqueuePlanned(
   brandId: string | null,
 ): Promise<void> {
   const when = computeStepSchedule(baseAt, delayDays, delayHours);
-  const whenJ = applyJitter(when, 90, Math.random()).toISOString();
+  // Jitter umano: 2..90 min al SECONDO (non sul minuto tondo) → i follow-up non
+  // partono tutti allo stesso minuto del tick. Finestra business applicata a valle.
+  const whenJ = applyJitter(when, 90, Math.random(), { minMinutes: 2, stepSeconds: 1 }).toISOString();
   // Canale della riga = canale del nodo d'invio (email/whatsapp/sms). Le righe
   // 'advance' (wait) restano sul canale 'email' (riga di solo instradamento, non
   // spedita: il CHECK su channel è soddisfatto, il pass advance le pesca per kind).
@@ -214,9 +216,9 @@ async function advanceEnrollment(
   }
   if (await stopIfUncontactable(supabase, enr.id, contact)) return;
   const when = computeStepSchedule(sentAt, next.delay_days, next.delay_hours);
-  // Jitter umano: spalma il follow-up su una finestra di 0..90 min così i passi
-  // successivi non partono tutti allo stesso minuto. La finestra di invio resta a valle.
-  const whenJ = applyJitter(when, 90, Math.random()).toISOString();
+  // Jitter umano: spalma il follow-up su 2..90 min al SECONDO così i passi successivi
+  // non partono tutti allo stesso minuto del tick. La finestra di invio resta a valle.
+  const whenJ = applyJitter(when, 90, Math.random(), { minMinutes: 2, stepSeconds: 1 }).toISOString();
   await supabase.from("outreach_send_queue").insert({
     company_id: PLATFORM_COMPANY,
     enrollment_id: enr.id,
@@ -624,7 +626,9 @@ Deno.serve(async (req) => {
     for (const [brand, ids] of itemsByBrand) {
       const brandSenders = sendersByBrand.get(brand) ?? [];
       if (brandSenders.length === 0) { result.deferred += ids.length; continue; } // nessuna casella per quel brand
-      const r = assignSenders(ids, brandSenders, today);
+      // varianceKey=today: il tetto per-casella varia leggermente per casella+giorno
+      // (sempre ≤ cap effettivo) → volume "umano", non un numero tondo fisso ogni giorno.
+      const r = assignSenders(ids, brandSenders, today, today);
       assignments.push(...r.assignments);
       result.deferred += ids.length - r.assignments.length;
     }
@@ -692,6 +696,12 @@ Deno.serve(async (req) => {
         if (addr || unsubHtml) {
           html += `<p style="font-size:11px;color:#9ca3af;margin-top:24px">${addr}${unsubHtml}</p>`;
         }
+        // Part text/plain (deliverability): deriva la versione testuale dall'HTML
+        // ASSEMBLATO (corpo + firma + footer + disiscrizione) PRIMA del pixel, così il
+        // testo contiene i link reali (es. disiscrizione come URL) ma non il pixel 1×1.
+        // Inviare l'email come multipart/alternative (text + html) riduce lo spam-score:
+        // una HTML-only senza alternativa testuale è un segnale negativo per i filtri.
+        const text = htmlToPlainText(html);
         // Open-tracking (opt-in, default OFF): inietta il pixel 1×1 firmato SOLO se la
         // sequenza dell'invio ha track_opens=true. Senza enrollment/sequenza, o con
         // track_opens=false → nessun pixel (cold protetto). outreachOpenPixelUrl ritorna
@@ -723,6 +733,7 @@ Deno.serve(async (req) => {
           to: item.to_email,
           subject: renderTemplate(chosen ? chosen.text : (item.subject || ""), vars, { seed }),
           html,
+          text,
           senderOverride: { from, replyTo, source: "outreach_pool" },
           mailboxOverride,
           metadata: { outreach_queue_id: item.id, sender_account_id: sender.id, variant_index: variantIndex, unsubscribe_url: unsubscribeUrl },

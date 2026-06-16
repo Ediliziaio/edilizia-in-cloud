@@ -1,6 +1,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { htmlToPlainText } from "../_shared/outreach-template.ts";
 
 /**
  * outreach-reply-send — risposta 2-vie dall'inbox Outreach. Il SUPER_ADMIN
@@ -160,6 +161,8 @@ Deno.serve(async (req) => {
       to,
       subject,
       html: body,
+      // part text/plain (multipart/alternative): meno spam-score della HTML-only.
+      text: htmlToPlainText(body),
       senderOverride: { from, replyTo, source: "outreach_reply" },
       mailboxOverride,
       headers: Object.keys(inReplyToHeaders).length ? inReplyToHeaders : undefined,

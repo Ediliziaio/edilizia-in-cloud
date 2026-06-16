@@ -1,6 +1,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { htmlToPlainText } from "../_shared/outreach-template.ts";
 
 /**
  * outreach-send-single — il SUPER_ADMIN invia UNA email al volo da una casella
@@ -45,6 +46,8 @@ Deno.serve(async (req) => {
       to,
       subject,
       html,
+      // part text/plain (multipart/alternative): meno spam-score della HTML-only.
+      text: htmlToPlainText(html),
       senderOverride: { from, replyTo: sender.email, source: "outreach_single" },
       adminClient: admin,
       metadata: { outreach_single: true, sender_account_id: sender.id, by: userId },

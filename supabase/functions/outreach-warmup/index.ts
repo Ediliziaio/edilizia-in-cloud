@@ -88,6 +88,8 @@ Deno.serve(async (req) => {
           to: p.toEmail,
           subject,
           html: `<p>${body}</p>`,
+          // multipart/alternative: il corpo warm-up è già prosa, il plain è il body nudo.
+          text: body,
           senderOverride: { from: fromAddr, replyTo: p.fromEmail, source: "outreach_warmup" },
           metadata: { warmup: true, from_box: p.fromId, to_box: p.toId },
         });
@@ -111,6 +113,7 @@ Deno.serve(async (req) => {
           to: p.fromEmail,
           subject: `Re: ${origSubject}`,
           html: "<p>Ricevuto, grazie! Ci sentiamo presto.</p>",
+          text: "Ricevuto, grazie! Ci sentiamo presto.",
           senderOverride: { from: replierAddr, replyTo: p.toEmail, source: "outreach_warmup_reply" },
           metadata: { warmup: true, reply: true, from_box: p.toId, to_box: p.fromId },
         });
