@@ -16,6 +16,27 @@ export function isMissingTableError(err: unknown): boolean {
 }
 
 /**
+ * RPC assente (migrazione che crea la funzione non ancora applicata) — il chiamante
+ * ricade sul calcolo client-side invece di rompersi. Postgres: 42883 "function ...
+ * does not exist"; PostgREST: PGRST202 / messaggio "could not find the function"
+ * (schema cache). NB: 42804 ("structure of query does not match function result
+ * type") indica invece una firma DESALLINEATA (funzione vecchia ancora in DB): lo
+ * trattiamo come "assente" per ricadere sul client e non mostrare numeri errati.
+ */
+export function isMissingRpcError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { code?: string; message?: string };
+  const code = e.code ?? "";
+  const msg = (e.message ?? "").toLowerCase();
+  return (
+    code === "42883" || code === "42804" || code === "PGRST202" ||
+    (msg.includes("function") && msg.includes("does not exist")) ||
+    (msg.includes("could not find") && msg.includes("function")) ||
+    msg.includes("schema cache")
+  );
+}
+
+/**
  * Colonna assente (migrazione additiva non ancora applicata) — distinta dal caso
  * "tabella assente": qui la tabella esiste ma manca una colonna nuova, quindi il
  * chiamante ricade su un select ridotto invece di mostrare il MigrationGate.

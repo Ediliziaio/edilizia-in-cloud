@@ -1,23 +1,30 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { isMissingTableError } from "./_shared";
+import { isMissingTableError, isMissingRpcError } from "./_shared";
 
 /**
  * Hook dati della dashboard "Statistiche" dell'Outreach Engine cold.
- * Indipendente dagli altri hook outreach (nessun riuso di useOutreachConversations):
- * una sola query react-query che scarica righe grezze e *aggrega lato client*
- * (andamento giornaliero, funnel, distribuzione coda, salute caselle, per sequenza).
+ * Indipendente dagli altri hook outreach (nessun riuso di useOutreachConversations).
  *
- * Resilienza:
- *  - tabelle assenti (migrazione non applicata) → `migrationNeeded: true`, niente throw.
- *  - tabelle vuote / pochi dati → aggregati a 0, mai NaN o divisioni per zero
- *    (i rapporti percentuali si calcolano in UI con guardie dedicate).
- *  - cap di righe (.limit) per non scaricare dataset enormi: i totali "headline"
- *    arrivano da count head separati, gli array servono solo alle aggregazioni.
+ * Strategia a SCALA (migliaia di invii/risposte):
+ *  1. PERCORSO PRIMARIO — RPC Postgres `outreach_stats_*` (SECURITY DEFINER, scoped
+ *     company + super-admin) che fanno COUNT/GROUP BY in SQL: il client riceve solo
+ *     gli aggregati (payload minuscolo, niente loop su 5.000 righe, conteggi headline
+ *     esatti senza cap). Vedi migrazione 20270825000000_outreach_stats_rpc.sql.
+ *  2. FALLBACK TOLLERANTE — se le RPC non esistono ancora (migrazione non applicata:
+ *     PGRST202/42883), ricade sul calcolo client-side storico (`computeClientSide`),
+ *     identico nei numeri e nell'empty-state. Nessuna regressione finché la migrazione
+ *     non è applicata.
+ *
+ * Resilienza comune:
+ *  - tabelle assenti (motore outreach non installato) → `migrationNeeded: true`, niente throw.
+ *  - tabelle/RPC vuote → aggregati a 0, mai NaN o divisioni per zero (i rapporti %
+ *    si calcolano in UI con guardie dedicate).
  */
 
 const ROW_CAP = 5000;
 const DAILY_WINDOW_DAYS = 30;
+const STATS_TZ = "Europe/Rome"; // bucket giornalieri coerenti con l'asse "oggi" lato client
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
@@ -153,6 +160,44 @@ interface SequenceApiRow {
   status: string | null;
 }
 
+// ── Righe restituite dalle RPC `outreach_stats_*` (percorso server-side) ──
+interface DailyRpcRow {
+  day_key: string;
+  date_label: string;
+  sent: number | string;
+  opened: number | string;
+  replied: number | string;
+}
+interface FunnelRpcRow {
+  sent: number | string;
+  delivered: number | string;
+  opened: number | string;
+  replied: number | string;
+  interested: number | string;
+  active_senders: number | string;
+  contactable: number | string;
+}
+interface QueueRpcRow {
+  status: string | null;
+  total: number | string;
+}
+interface SenderRpcRow {
+  id: string;
+  email: string | null;
+  status: string | null;
+  sent: number | string;
+  bounce: number | string;
+  complaint: number | string;
+}
+interface SequenceRpcRow {
+  id: string;
+  name: string | null;
+  status: string | null;
+  enrolled: number | string;
+  sent: number | string;
+  replied: number | string;
+}
+
 export function useOutreachStats(companyId: string) {
   return useQuery<OutreachStats>({
     queryKey: ["outreach-stats", companyId],
@@ -160,14 +205,142 @@ export function useOutreachStats(companyId: string) {
     staleTime: 60_000,
     queryFn: async () => {
       const db = supabase as Db;
-      const eq = (q: Db) => q.eq("company_id", companyId);
 
       // Probe leggera: se la tabella core manca, mostriamo il MigrationGate.
-      const probe = await eq(db.from("outreach_send_queue").select("id", { count: "exact", head: true }));
+      const probe = await db
+        .from("outreach_send_queue")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId);
       if (probe.error) {
         if (isMissingTableError(probe.error)) return emptyStats(true);
         throw probe.error;
       }
+
+      // PERCORSO PRIMARIO: aggregazioni lato-server. Se le RPC non esistono ancora
+      // (migrazione non applicata) → null, e si ricade sul calcolo client-side.
+      const serverStats = await computeServerSide(db, companyId);
+      if (serverStats) return serverStats;
+
+      return computeClientSide(db, companyId);
+    },
+  });
+}
+
+/**
+ * PERCORSO PRIMARIO — chiama le 5 RPC `outreach_stats_*` in parallelo e mappa il
+ * risultato nello stesso shape `OutreachStats` del client. Ritorna `null` (→ fallback)
+ * se QUALSIASI RPC segnala "funzione assente" (migrazione non applicata): in quel
+ * caso non mescoliamo RPC + client, ricadiamo interamente sul client per coerenza.
+ * Errori "duri" (non-missing) vengono propagati.
+ */
+async function computeServerSide(db: Db, companyId: string): Promise<OutreachStats | null> {
+  const [dailyRes, funnelRes, queueRes, sendersRes, sequencesRes] = await Promise.all([
+    db.rpc("outreach_stats_daily", { p_company: companyId, p_days: DAILY_WINDOW_DAYS, p_tz: STATS_TZ }),
+    db.rpc("outreach_stats_funnel", { p_company: companyId }),
+    db.rpc("outreach_stats_queue_status", { p_company: companyId }),
+    db.rpc("outreach_stats_by_sender", { p_company: companyId }),
+    db.rpc("outreach_stats_by_sequence", { p_company: companyId }),
+  ]);
+
+  const results = [dailyRes, funnelRes, queueRes, sendersRes, sequencesRes];
+  // Migrazione non applicata (anche una sola funzione mancante) → fallback completo.
+  if (results.some((r) => r.error && isMissingRpcError(r.error))) return null;
+  for (const r of results) {
+    if (r.error) throw r.error;
+  }
+
+  // ── Andamento giornaliero: scaffold (ordine/etichette garantiti dal client) ──
+  // L'RPC restituisce già la serie continua; ci allineiamo allo scaffold locale per
+  // robustezza se p_days differisse, riempiendo per chiave giorno.
+  const { points: daily, index: dayIndex } = buildDailyScaffold();
+  for (const row of (dailyRes.data ?? []) as DailyRpcRow[]) {
+    const idx = dayIndex.get(row.day_key);
+    if (idx === undefined) continue;
+    daily[idx].sent = Number(row.sent) || 0;
+    daily[idx].opened = Number(row.opened) || 0;
+    daily[idx].replied = Number(row.replied) || 0;
+  }
+
+  // ── Funnel + totali headline (una riga) ──
+  const f = ((funnelRes.data ?? [])[0] ?? {}) as FunnelRpcRow;
+  const sentTotal = Number(f.sent) || 0;
+  const deliveredTotal = Number(f.delivered) || 0;
+  const openedTotal = Number(f.opened) || 0;
+  const repliedTotal = Number(f.replied) || 0;
+  const interestedTotal = Number(f.interested) || 0;
+  const activeSenders = Number(f.active_senders) || 0;
+  const contactable = Number(f.contactable) || 0;
+
+  const funnel: FunnelStage[] = [
+    { key: "sent", label: "Inviate", value: sentTotal },
+    { key: "delivered", label: "Consegnate", value: deliveredTotal },
+    { key: "opened", label: "Aperte", value: openedTotal },
+    { key: "replied", label: "Risposte", value: repliedTotal },
+    { key: "interested", label: "Interessati", value: interestedTotal },
+  ];
+
+  // ── Distribuzione coda per stato (donut), stesso ordine/etichette del client ──
+  const queue: QueueSlice[] = ((queueRes.data ?? []) as QueueRpcRow[])
+    .map((r) => {
+      const status = (r.status ?? "unknown").toLowerCase();
+      return { status, label: QUEUE_STATUS_LABEL[status] ?? status, value: Number(r.total) || 0 };
+    })
+    .sort((a, b) => {
+      const ia = QUEUE_STATUS_ORDER.indexOf(a.status);
+      const ib = QUEUE_STATUS_ORDER.indexOf(b.status);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+  const queueRowCount = queue.reduce((s, q) => s + q.value, 0);
+
+  // ── Salute per casella (at-risk deciso qui, stessa soglia del client) ──
+  const senders: SenderRow[] = ((sendersRes.data ?? []) as SenderRpcRow[]).map((s) => {
+    const bounce = Number(s.bounce) || 0;
+    const complaint = Number(s.complaint) || 0;
+    return {
+      id: s.id,
+      email: s.email ?? "(senza email)",
+      status: s.status ?? "—",
+      sent: Number(s.sent) || 0,
+      bounce,
+      complaint,
+      atRisk: bounce >= 3 || complaint >= 1 || s.status === "paused" || s.status === "blocked",
+    };
+  });
+
+  // ── Per sequenza ──
+  const sequences: SequenceRow[] = ((sequencesRes.data ?? []) as SequenceRpcRow[]).map((s) => ({
+    id: s.id,
+    name: s.name ?? "(senza nome)",
+    status: s.status ?? "—",
+    enrolled: Number(s.enrolled) || 0,
+    sent: Number(s.sent) || 0,
+    replied: Number(s.replied) || 0,
+  }));
+
+  const totals = {
+    sent: sentTotal,
+    opened: openedTotal,
+    replied: repliedTotal,
+    interested: interestedTotal,
+    delivered: deliveredTotal,
+    activeSenders,
+    contactable,
+  };
+
+  const hasAnyData =
+    sentTotal > 0 || repliedTotal > 0 || sequences.some((s) => s.enrolled > 0) || queueRowCount > 0;
+
+  return { migrationNeeded: false, hasAnyData, totals, daily, funnel, queue, senders, sequences };
+}
+
+/**
+ * FALLBACK — calcolo client-side storico: scarica righe grezze (cap ROW_CAP) e
+ * aggrega in JS. Usato solo finché la migrazione RPC non è applicata. Numeri ed
+ * empty-state identici al percorso server-side.
+ */
+async function computeClientSide(db: Db, companyId: string): Promise<OutreachStats> {
+  {
+      const eq = (q: Db) => q.eq("company_id", companyId);
 
       // Una manciata di letture parallele. Le righe della coda sono limitate da
       // ROW_CAP (ordinate per recenza) e aggregate lato client, così sia
@@ -355,8 +528,7 @@ export function useOutreachStats(companyId: string) {
         sentTotal > 0 || repliedTotal > 0 || enrollRows.length > 0 || queueStatusRows.length > 0;
 
       return { migrationNeeded: false, hasAnyData, totals, daily, funnel, queue, senders, sequences };
-    },
-  });
+  }
 }
 
 function emptyStats(migrationNeeded: boolean): OutreachStats {
