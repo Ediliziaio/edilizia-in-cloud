@@ -163,12 +163,17 @@ Deno.serve(async (req) => {
         });
         console.log(`[bank-eb] start-auth EB /auth status=${status} hasUrl=${!!data?.url} redirect=${redirectUrl}`);
         if (status !== 200 || !data?.url) return json({ error: data }, 400);
-        await admin.from("bank_connections").insert({
+        const { error: connInsErr } = await admin.from("bank_connections").insert({
           company_id: companyId, provider_slug: "enablebanking",
+          institution_id: p.aspsp_name, // NOT NULL nello schema (eredità GoCardless): usiamo il nome banca come id
           institution_name: p.aspsp_name, institution_country: "IT", institution_logo: p.logo ?? null,
           requisition_id: data.authorization_id ?? null, requisition_link: data.url,
           auth_state: state, status: "created", expires_at: validUntil, created_by: user.id,
         });
+        if (connInsErr) {
+          console.error("[bank-eb] start-auth INSERT bank_connections fallita:", connInsErr.message);
+          return json({ error: "Impossibile salvare la connessione: " + connInsErr.message }, 500);
+        }
         return json({ url: data.url });
       }
 
@@ -188,6 +193,10 @@ Deno.serve(async (req) => {
         else connQ = connQ.eq("status", "created").order("created_at", { ascending: false });
         const { data: conn } = await connQ.limit(1).maybeSingle();
         const connectionId = (conn as { id?: string } | null)?.id ?? null;
+        if (!connectionId) {
+          console.error("[bank-eb] finalize: nessuna bank_connections trovata (state=" + (p.state ?? "") + ")");
+          return json({ error: "Connessione non trovata per questo consenso. Riprova il collegamento.", debug: data }, 400);
+        }
 
         const accounts = Array.isArray(data.accounts) ? data.accounts : [];
         let accountsInserted = 0;
@@ -195,12 +204,13 @@ Deno.serve(async (req) => {
           const uid = typeof a === "string" ? a : (a.uid ?? a.account_uid ?? null);
           const accId = (a.account_id ?? a.identification ?? {}) as any;
           if (!uid) continue;
-          await admin.from("bank_accounts").upsert({
+          const { error: accErr } = await admin.from("bank_accounts").upsert({
             company_id: companyId, connection_id: connectionId, external_account_id: uid,
             iban: accId.iban ?? a.iban ?? null, bban: accId.bban ?? null,
             account_name: a.name ?? a.product ?? null, account_owner_name: a.owner_name ?? null,
             currency: a.currency ?? "EUR", is_active: true,
           }, { onConflict: "company_id,external_account_id" });
+          if (accErr) { console.error("[bank-eb] finalize upsert bank_accounts fallita:", accErr.message); continue; }
           accountsInserted++;
         }
         if (connectionId) {
