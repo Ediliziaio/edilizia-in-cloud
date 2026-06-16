@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   effectiveDailyCap, sentToday, remainingToday, totalCapacity, shouldAutoPause, assignSenders,
+  steadyCap, poolCapacityStats,
   type SenderState,
 } from "../../../supabase/functions/_shared/outreach-dispatch-logic";
 
@@ -110,5 +111,88 @@ describe("assignSenders — round-robin con cap", () => {
     expect(perSender.a).toBe(5);
     expect(perSender.b).toBe(5);
     expect(unassigned).toHaveLength(10);
+  });
+
+  it("rotazione deterministica per id, indipendente dall'ordine d'ingresso", () => {
+    const a = sender({ id: "aaa", warmup_day: 100, daily_cap_target: 40 });
+    const b = sender({ id: "bbb", warmup_day: 100, daily_cap_target: 40 });
+    const c = sender({ id: "ccc", warmup_day: 100, daily_cap_target: 40 });
+    const ids = ["m1", "m2", "m3"];
+    const r1 = assignSenders(ids, [c, a, b], TODAY);
+    const r2 = assignSenders(ids, [b, c, a], TODAY);
+    // qualunque sia l'ordine di riga del DB, l'assegnazione è la stessa (ordine per id)
+    expect(r1.assignments.map((x) => x.senderId)).toEqual(["aaa", "bbb", "ccc"]);
+    expect(r2.assignments.map((x) => x.senderId)).toEqual(["aaa", "bbb", "ccc"]);
+  });
+
+  it("spalma 1000 invii su 100 caselle senza sforare alcun cap", () => {
+    // 100 caselle a regime, cap 40 → capacità 4000/giorno; 1000 in coda si distribuiscono
+    // ~10 a casella, nessuna oltre il proprio cap, nessun residuo non assegnato.
+    const senders = Array.from({ length: 100 }, (_, i) =>
+      sender({ id: `s${String(i).padStart(3, "0")}`, warmup_day: 100, daily_cap_target: 40 }),
+    );
+    const ids = Array.from({ length: 1000 }, (_, i) => `m${i}`);
+    const { assignments, unassigned } = assignSenders(ids, senders, TODAY);
+    expect(assignments).toHaveLength(1000);
+    expect(unassigned).toHaveLength(0);
+    const perSender = assignments.reduce((acc, x) => { acc[x.senderId] = (acc[x.senderId] ?? 0) + 1; return acc; }, {} as Record<string, number>);
+    const counts = Object.values(perSender);
+    expect(Math.max(...counts)).toBeLessThanOrEqual(40); // mai oltre il cap
+    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1); // equa
+  });
+});
+
+describe("steadyCap — cap a regime", () => {
+  it("attiva → target", () => { expect(steadyCap(sender({ daily_cap_target: 50 }))).toBe(50); });
+  it("in pausa → 0", () => { expect(steadyCap(sender({ status: "paused", daily_cap_target: 50 }))).toBe(0); });
+});
+
+describe("poolCapacityStats — riepilogo capacità pool a scala", () => {
+  it("pool vuoto: nessuna casella, servono target/fallback caselle", () => {
+    const r = poolCapacityStats([], TODAY, 1000, 40);
+    expect(r.eligible).toBe(0);
+    expect(r.effectiveToday).toBe(0);
+    expect(r.steady).toBe(0);
+    expect(r.mailboxesNeededForTarget).toBe(25); // ceil(1000/40)
+    expect(r.mailboxesToAdd).toBe(25);
+  });
+
+  it("somma capacità effettiva e a regime solo delle eleggibili", () => {
+    const senders = [
+      sender({ id: "a", warmup_day: 100, daily_cap_target: 40, daily_sent: 10 }), // eff 30, steady 40
+      sender({ id: "b", warmup_day: 0, daily_cap_target: 40 }),                   // eff 5,  steady 40, warming
+      sender({ id: "c", status: "paused", daily_cap_target: 40 }),               // escluso
+    ];
+    const r = poolCapacityStats(senders, TODAY, 1000, 40);
+    expect(r.eligible).toBe(2);
+    expect(r.effectiveToday).toBe(35);
+    expect(r.steady).toBe(80);
+    expect(r.warming).toBe(1);
+  });
+
+  it("capacità a regime già sufficiente → needed = -1, nulla da aggiungere", () => {
+    const senders = Array.from({ length: 30 }, (_, i) =>
+      sender({ id: `s${i}`, warmup_day: 100, daily_cap_target: 40 }),
+    ); // steady 1200 ≥ 1000
+    const r = poolCapacityStats(senders, TODAY, 1000, 40);
+    expect(r.steady).toBe(1200);
+    expect(r.mailboxesNeededForTarget).toBe(-1);
+    expect(r.mailboxesToAdd).toBe(0);
+  });
+
+  it("stima caselle da aggiungere sul cap medio reale del pool", () => {
+    // 10 caselle, cap medio 50 → per 1000/g servono ceil(1000/50)=20, da aggiungere 10
+    const senders = Array.from({ length: 10 }, (_, i) =>
+      sender({ id: `s${i}`, warmup_day: 0, daily_cap_target: 50 }),
+    );
+    const r = poolCapacityStats(senders, TODAY, 1000, 40);
+    expect(r.mailboxesNeededForTarget).toBe(20);
+    expect(r.mailboxesToAdd).toBe(10);
+  });
+
+  it("target 0 → nessuna casella necessaria", () => {
+    const r = poolCapacityStats([sender()], TODAY, 0, 40);
+    expect(r.mailboxesNeededForTarget).toBe(0);
+    expect(r.mailboxesToAdd).toBe(0);
   });
 });

@@ -1,7 +1,10 @@
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Flame, ArrowDown, ShieldCheck, ShieldAlert, ShieldX, CornerDownLeft, AlertTriangle } from "lucide-react";
+import { Flame, ArrowDown, ShieldCheck, ShieldAlert, ShieldX, CornerDownLeft, AlertTriangle, Gauge, Target, Plus, Check } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { FieldLabel, HeatBar, HealthPill, StatusDot, senderTone, type Health } from "./deliverabilityUi";
+import { poolCapacityStats, type SenderState } from "../../../../supabase/functions/_shared/outreach-dispatch-logic";
 
 /**
  * Dashboard riscaldamento caselle — vista a colpo d'occhio del warm-up del pool.
@@ -14,6 +17,8 @@ import { FieldLabel, HeatBar, HealthPill, StatusDot, senderTone, type Health } f
 
 const BASE = 5;
 const STEP = 5;
+// Cap-target di riferimento quando il pool è vuoto (stima "quante caselle servono").
+const s_FALLBACK_CAP = 40;
 
 // Soglie reputazione allineate a shouldAutoPause (_shared/outreach-dispatch-logic.ts):
 // auto-pausa a bounce>=10 || lamentele>=2. "attenzione" a metà strada.
@@ -35,7 +40,13 @@ interface Sender {
   bounce_count: number; complaint_count: number;
 }
 
+/** Obiettivo invii/giorno preimpostati per la stima capacità del pool. */
+const TARGET_PRESETS = [200, 500, 1000];
+const DEFAULT_TARGET = 1000;
+const TODAY_ISO = () => new Date().toISOString().slice(0, 10);
+
 export function OutreachWarmupDashboard({ companyId }: { companyId: string }) {
+  const [target, setTarget] = useState<number>(DEFAULT_TARGET);
   const q = useQuery({
     queryKey: ["outreach-warmup-dash", companyId],
     staleTime: 30_000,
@@ -49,7 +60,7 @@ export function OutreachWarmupDashboard({ companyId }: { companyId: string }) {
     },
   });
 
-  const senders = q.data ?? [];
+  const senders = useMemo(() => q.data ?? [], [q.data]);
   const rows = senders.map((s) => {
     const cap = Math.min(s.daily_cap_target, BASE + s.warmup_day * STEP);
     const isFull = cap >= s.daily_cap_target;
@@ -70,6 +81,19 @@ export function OutreachWarmupDashboard({ companyId }: { companyId: string }) {
   const healthWarn = rows.filter((r) => r.health === "attenzione").length;
   const healthRisk = rows.filter((r) => r.health === "a rischio").length;
 
+  // Capacità del pool a scala: stessa matematica del dispatcher (cap effettivo con
+  // warm-up + residuo giornaliero). Mappiamo le righe sullo SenderState atteso dalla
+  // logica pura, usando le stesse costanti BASE/STEP della UI e la data di oggi.
+  const today = TODAY_ISO();
+  const capacity = useMemo(() => {
+    const states: SenderState[] = senders.map((s) => ({
+      id: s.id, status: s.status, daily_cap_target: s.daily_cap_target,
+      warmup_base: BASE, warmup_step: STEP, warmup_day: s.warmup_day,
+      daily_sent: s.daily_sent, daily_sent_date: today,
+    }));
+    return poolCapacityStats(states, today, target, s_FALLBACK_CAP);
+  }, [senders, target, today]);
+
   return (
     <section className="space-y-4 rounded-xl border border-border bg-muted/30 p-4 shadow-sm sm:p-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -88,6 +112,15 @@ export function OutreachWarmupDashboard({ companyId }: { companyId: string }) {
           </div>
         )}
       </header>
+
+      {/* Capacità del pool a scala: capacità giornaliera totale + stima caselle per
+          arrivare all'obiettivo (es. 1000/giorno). Sempre visibile (anche a pool vuoto). */}
+      {!q.isLoading && (
+        <PoolCapacityCard
+          capacity={capacity} target={target} onTarget={setTarget}
+          healthRisk={healthRisk} steadyDays={Math.max(0, Math.ceil((s_FALLBACK_CAP - BASE) / STEP))}
+        />
+      )}
 
       {q.isLoading ? (
         <div className="space-y-2.5">
@@ -159,6 +192,112 @@ export function OutreachWarmupDashboard({ companyId }: { companyId: string }) {
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * Card "Capacità del pool" — riepilogo a scala: capacità giornaliera TOTALE (somma
+ * cap effettivi, come il dispatcher) + capacità a regime, e stima ONESTA di quante
+ * caselle servono per raggiungere l'obiettivo invii/giorno (sul cap medio reale).
+ * L'obiettivo è regolabile (preset 200/500/1000 + campo libero).
+ */
+function PoolCapacityCard({
+  capacity, target, onTarget, healthRisk, steadyDays,
+}: {
+  capacity: ReturnType<typeof poolCapacityStats>;
+  target: number;
+  onTarget: (n: number) => void;
+  healthRisk: number;
+  steadyDays: number;
+}) {
+  const covered = capacity.mailboxesNeededForTarget < 0;
+  const fmt = (n: number) => n.toLocaleString("it-IT");
+  // % dell'obiettivo coperto dalla capacità a regime (cap "barra obiettivo").
+  const pct = target > 0 ? Math.min(100, Math.round((capacity.steady / target) * 100)) : 0;
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10"><Gauge className="h-4 w-4 text-primary" /></span>
+          <div>
+            <h4 className="text-sm font-semibold text-foreground">Capacità del pool</h4>
+            <p className="text-[11px] text-muted-foreground">Quanto puoi spedire al giorno e cosa serve per la tua scala.</p>
+          </div>
+        </div>
+        {/* selettore obiettivo */}
+        <div className="flex items-center gap-1.5">
+          <Target className="h-3.5 w-3.5 text-muted-foreground" />
+          <FieldLabel>Obiettivo/g</FieldLabel>
+          {TARGET_PRESETS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => onTarget(p)}
+              className={`rounded-md px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset transition-colors ${
+                target === p ? "bg-primary text-primary-foreground ring-primary" : "bg-card text-muted-foreground ring-border hover:bg-muted"
+              }`}
+            >
+              {fmt(p)}
+            </button>
+          ))}
+          <Input
+            type="number"
+            min={0}
+            value={target}
+            onChange={(e) => onTarget(Math.max(0, Number(e.target.value) || 0))}
+            className="h-7 w-20 text-xs"
+            aria-label="Obiettivo invii al giorno"
+          />
+        </div>
+      </div>
+
+      {/* metriche capacità */}
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <CapStat label="Capacità oggi" value={fmt(capacity.effectiveToday)} hint="invii spedibili ora" accent="text-emerald-600" />
+        <CapStat label="A regime" value={fmt(capacity.steady)} hint="a warm-up finito" />
+        <CapStat label="Caselle attive" value={fmt(capacity.eligible)} hint={capacity.warming > 0 ? `${capacity.warming} in warm-up` : "tutte a regime"} />
+        <CapStat
+          label="Per l'obiettivo"
+          value={covered ? "OK" : `+${fmt(capacity.mailboxesToAdd)}`}
+          hint={covered ? "capacità sufficiente" : `caselle da aggiungere`}
+          accent={covered ? "text-emerald-600" : capacity.mailboxesToAdd > 0 ? "text-amber-600" : undefined}
+        />
+      </div>
+
+      {/* barra: copertura dell'obiettivo a regime */}
+      <div className="mt-4 space-y-1">
+        <div className="flex items-center justify-between">
+          <FieldLabel>Copertura obiettivo (a regime)</FieldLabel>
+          <span className="text-[10px] font-medium text-muted-foreground">{fmt(capacity.steady)}/{fmt(target)} · {pct}%</span>
+        </div>
+        <HeatBar pct={pct} height="h-2" indicatorClassName={covered ? "bg-emerald-500" : "bg-primary"} />
+      </div>
+
+      {/* riga di sintesi onesta */}
+      <p className="mt-3 flex items-start gap-1.5 text-[11px] text-muted-foreground">
+        {covered ? (
+          <><Check className="mt-px h-3.5 w-3.5 shrink-0 text-emerald-500" /> Con le caselle attive copri <strong className="font-medium text-foreground">{fmt(target)}</strong> invii/giorno a regime.</>
+        ) : (
+          <><Plus className="mt-px h-3.5 w-3.5 shrink-0 text-amber-500" /> Per <strong className="font-medium text-foreground">{fmt(target)}</strong> invii/giorno servono ~<strong className="font-medium text-foreground">{fmt(capacity.mailboxesNeededForTarget)}</strong> caselle ({fmt(capacity.mailboxesToAdd)} da aggiungere). Le nuove caselle partono in warm-up: ~{steadyDays}g per arrivare a cap pieno.</>
+        )}
+      </p>
+      {healthRisk > 0 && (
+        <p className="mt-1.5 flex items-center gap-1.5 rounded-md bg-red-50 px-2 py-1 text-[10px] text-red-700">
+          <ShieldX className="h-3 w-3 shrink-0" /> {healthRisk} {healthRisk === 1 ? "casella a rischio" : "caselle a rischio"}: la capacità reale può calare se vengono messe in pausa.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CapStat({ label, value, hint, accent }: { label: string; value: string; hint?: string; accent?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-2.5">
+      <FieldLabel>{label}</FieldLabel>
+      <p className={`mt-0.5 text-xl font-bold tabular-nums ${accent ?? "text-foreground"}`}>{value}</p>
+      {hint && <p className="mt-0.5 text-[10px] text-muted-foreground">{hint}</p>}
+    </div>
   );
 }
 
