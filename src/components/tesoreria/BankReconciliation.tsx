@@ -24,8 +24,6 @@ import { toast } from "sonner";
 import {
   fmtEur,
   computeMatchScore,
-  pickAutoMatch,
-  autoMatchSummary,
   computePaymentApplication,
   computePaymentReversal,
   detectReconAnomalies,
@@ -204,45 +202,6 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
       toast.error('Errore durante la riconciliazione. Riprova o contatta il supporto.');
     } finally {
       setMatching(false);
-    }
-  }
-
-  // Internal version for auto-match batch — no loadData() during loop
-  async function confirmMatchBatch(tx: any, inv: any): Promise<boolean> {
-    try {
-      const matchedAmount = Math.abs(tx.amount);
-      const { newPaidAmount, newStatus } = computePaymentApplication(inv, matchedAmount);
-
-      const linkRes = await supabase.from("bank_transactions").update({ linked_invoice_id: inv.id }).eq("id", tx.id).eq("company_id", companyId);
-      if (linkRes.error) throw linkRes.error;
-
-      const recRes = await supabase.from("bank_reconciliations").insert({
-        company_id: companyId,
-        transaction_id: tx.id,
-        invoice_id: inv.id,
-        matched_amount: matchedAmount,
-        match_type: "auto",
-        matched_by: user?.id,
-      } as any);
-      if (recRes.error) {
-        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id).eq("company_id", companyId);
-        throw recRes.error;
-      }
-
-      const invRes = await supabase.from("invoices").update({ paid_amount: newPaidAmount, status: newStatus }).eq("id", inv.id).eq("company_id", companyId);
-      if (invRes.error) {
-        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id).eq("company_id", companyId);
-        await supabase.from("bank_reconciliations").delete().eq("transaction_id", tx.id).eq("invoice_id", inv.id).eq("company_id", companyId).is("unmatched_at", null);
-        throw invRes.error;
-      }
-
-      // Update invoice snapshot so next iteration uses updated paid_amount
-      inv.paid_amount = newPaidAmount;
-      inv.status = newStatus;
-      return true;
-    } catch (e: any) {
-      logger.error("Auto-match error:", e);
-      return false;
     }
   }
 
