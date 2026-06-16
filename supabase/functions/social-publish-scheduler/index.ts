@@ -3,8 +3,10 @@
 // ============================================================================
 // Invocato da pg_cron (ogni minuto). Seleziona i social_posts con
 // status='scheduled' e scheduled_at <= now, e li pubblica via publishSocialPost.
-// Protetto da un segreto condiviso (header x-cron-secret) per non essere
-// invocabile da chiunque pur avendo verify_jwt off.
+// Funziona per OGNI azienda senza configurazione: protetto con header
+// x-cron-secret == INTERNAL_CRON_SECRET (env project-wide già configurato; stesso
+// schema dei cron silvio/bulk-scheduler). Il cron lo legge dal vault
+// (silvio_internal_cron_secret) e lo passa nell'header.
 // ============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { publishSocialPost, type SocialPostRow } from "../_shared/socialPublishCore.ts";
@@ -12,9 +14,9 @@ import { publishSocialPost, type SocialPostRow } from "../_shared/socialPublishC
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204 });
 
-  const secret = Deno.env.get("SOCIAL_CRON_SECRET") ?? "";
+  const INTERNAL_CRON_SECRET = Deno.env.get("INTERNAL_CRON_SECRET") ?? "";
   const provided = req.headers.get("x-cron-secret") ?? "";
-  if (!secret || provided !== secret) {
+  if (!INTERNAL_CRON_SECRET || provided !== INTERNAL_CRON_SECRET) {
     return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403, headers: { "Content-Type": "application/json" } });
   }
 
