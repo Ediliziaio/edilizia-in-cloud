@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import CompanyCalendarsOverview from "@/components/integrations/CompanyCalendarsOverview";
 import CompanyEmailsOverview from "@/components/integrations/CompanyEmailsOverview";
 import BankConnectionsCard from "@/components/integrations/BankConnectionsCard";
+import StripePaymentsCard from "@/components/integrations/StripePaymentsCard";
 // Popup components per integrazioni in modalità "popup"
 import GbpConnectionCard from "@/components/integrations/GbpConnectionCard";
 import GoogleAdsConnectionCard from "@/components/integrations/GoogleAdsConnectionCard";
@@ -378,6 +379,9 @@ export default function SettingsIntegrations() {
 
       {/* Open Banking — collegamento conti correnti + import movimenti */}
       <BankConnectionsCard />
+
+      {/* Pagamenti con carta (Stripe Connect) — incassi con markup */}
+      <StripePaymentsCard />
 
       {/* Grid integrazioni */}
       <IntegrationsGrid
