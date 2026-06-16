@@ -24,6 +24,7 @@
  * stabile salvato nel template (ideale per il PDF, niente signed URL scaduti).
  */
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
@@ -175,6 +176,55 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
     await previewPDF({ progetto, computo, media: [], template });
   };
 
+  // ─── Sidebar navigation sezioni ────────────────────────────────────────
+  // Layout app-like: sidebar a sinistra + content panel a destra. Una sezione
+  // visibile alla volta — niente più scroll infinito. Deeplink via `?section=`.
+  type RstSection =
+    | "brand"
+    | "page_cover" | "page_chi_siamo" | "page_testimonianze" | "page_crono" | "page_condizioni"
+    | "contenuti" | "opzioni";
+  const RST_SECTION_GROUPS: Array<{
+    label: string;
+    items: Array<{ id: RstSection; label: string; emoji: string; descr?: string }>;
+  }> = [
+    {
+      label: "AZIENDA",
+      items: [
+        { id: "brand", label: "Brand & azienda", emoji: "🏢", descr: "Logo e colori del PDF" },
+      ],
+    },
+    {
+      label: "PAGINE DEL PDF",
+      items: [
+        { id: "page_cover",         label: "Copertina",     emoji: "🖼️", descr: "Prima pagina del preventivo" },
+        { id: "page_chi_siamo",     label: "Chi siamo",     emoji: "👋", descr: "Presentazione impresa" },
+        { id: "page_testimonianze", label: "Testimonianze", emoji: "⭐", descr: "Recensioni clienti" },
+        { id: "page_crono",         label: "Cronoprogramma", emoji: "📅", descr: "Fasi del cantiere" },
+        { id: "page_condizioni",    label: "Condizioni",    emoji: "📄", descr: "Pagamenti e validità" },
+      ],
+    },
+    {
+      label: "DATI & CONTENUTI",
+      items: [
+        { id: "contenuti", label: "Contenuti",   emoji: "📝", descr: "Esigenze, soluzione, USP" },
+        { id: "opzioni",   label: "Opzioni PDF", emoji: "⚙️", descr: "Visibilità documento" },
+      ],
+    },
+  ];
+  const RST_SECTIONS = RST_SECTION_GROUPS.flatMap((g) => g.items);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sectionFromUrl = (searchParams.get("section") ?? "brand") as RstSection;
+  const activeSection: RstSection = RST_SECTIONS.some((s) => s.id === sectionFromUrl)
+    ? sectionFromUrl
+    : ("brand" as RstSection);
+  const setActiveSection = (id: RstSection) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("section", id);
+      return next;
+    }, { replace: true });
+  };
+
   if (isLoading || !form) {
     return (
       <div className="space-y-3">
@@ -200,206 +250,280 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
           </div>
         </div>
       )}
-      {/* Branding */}
-      <SectionCard icon={Palette} title="Branding" description="Logo e colori usati nel PDF.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <ImageUploadField
-            label="Logo azienda"
-            hint="PNG con sfondo trasparente consigliato."
-            value={form.logo_url}
-            companyId={companyId}
-            onChange={(url) => set("logo_url", url)}
-            aspect="aspect-[3/1]"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <ColorField label="Primario" value={form.color_primary} onChange={(v) => set("color_primary", v)} />
-            <ColorField label="Secondario" value={form.color_secondary} onChange={(v) => set("color_secondary", v)} />
-            <ColorField label="Accent" value={form.color_accent} onChange={(v) => set("color_accent", v)} />
-            <ColorField label="Testo" value={form.color_text} onChange={(v) => set("color_text", v)} />
-          </div>
-        </div>
-      </SectionCard>
 
-      {/* Copertina */}
-      <SectionCard icon={FileText} title="Copertina" description="Titolo, sottotitolo e immagine della prima pagina.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Titolo</Label>
-              <Input
-                value={form.cover_title ?? ""}
-                onChange={(e) => set("cover_title", e.target.value)}
-                placeholder="Preventivo di ristrutturazione"
-              />
+      <div className="grid grid-cols-12 gap-4">
+        {/* ── SIDEBAR ──────────────────────────────────────────────── */}
+        <aside className="col-span-12 md:col-span-3">
+          <nav className="sticky top-[68px] rounded-lg border bg-card p-2 max-h-[calc(100vh-90px)] overflow-y-auto">
+            {RST_SECTION_GROUPS.map((group, gi) => (
+              <div key={group.label} className={gi > 0 ? "mt-3 pt-2 border-t" : ""}>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1.5 mb-0.5">
+                  {group.label}
+                </div>
+                <div className="space-y-0.5">
+                  {group.items.map((s) => {
+                    const isActive = activeSection === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setActiveSection(s.id)}
+                        className={cn(
+                          "w-full text-left rounded-md px-2 py-1.5 transition-all flex items-center gap-2",
+                          isActive
+                            ? "bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm"
+                            : "hover:bg-orange-50 text-foreground",
+                        )}
+                      >
+                        <span className="text-sm leading-none">{s.emoji}</span>
+                        <span className={cn("text-[12px] font-medium leading-tight flex-1 truncate", isActive ? "text-white" : "text-foreground")}>
+                          {s.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            {/* Footer sidebar: scorciatoia Anteprima PDF */}
+            <div className="mt-3 pt-2 border-t">
+              <Button
+                type="button"
+                onClick={() => void handlePreview()}
+                disabled={isPreviewing}
+                variant="outline"
+                size="sm"
+                className="w-full gap-1.5 border-orange-300 text-orange-600 hover:bg-orange-50 h-8"
+              >
+                {isPreviewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
+                Anteprima PDF
+              </Button>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Sottotitolo</Label>
-              <Input
-                value={form.cover_subtitle ?? ""}
-                onChange={(e) => set("cover_subtitle", e.target.value)}
-                placeholder="La tua casa, rinnovata chiavi in mano"
+          </nav>
+        </aside>
+
+        {/* ── CONTENT PANEL ────────────────────────────────────────── */}
+        <div className="col-span-12 md:col-span-9 space-y-4 min-w-0">
+          {/* Branding */}
+          {activeSection === "brand" && (
+            <SectionCard icon={Palette} title="Branding" description="Logo e colori usati nel PDF.">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <ImageUploadField
+                  label="Logo azienda"
+                  hint="PNG con sfondo trasparente consigliato."
+                  value={form.logo_url}
+                  companyId={companyId}
+                  onChange={(url) => set("logo_url", url)}
+                  aspect="aspect-[3/1]"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <ColorField label="Primario" value={form.color_primary} onChange={(v) => set("color_primary", v)} />
+                  <ColorField label="Secondario" value={form.color_secondary} onChange={(v) => set("color_secondary", v)} />
+                  <ColorField label="Accent" value={form.color_accent} onChange={(v) => set("color_accent", v)} />
+                  <ColorField label="Testo" value={form.color_text} onChange={(v) => set("color_text", v)} />
+                </div>
+              </div>
+            </SectionCard>
+          )}
+
+          {/* Copertina */}
+          {activeSection === "page_cover" && (
+            <SectionCard icon={FileText} title="Copertina" description="Titolo, sottotitolo e immagine della prima pagina.">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Titolo</Label>
+                    <Input
+                      value={form.cover_title ?? ""}
+                      onChange={(e) => set("cover_title", e.target.value)}
+                      placeholder="Preventivo di ristrutturazione"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Sottotitolo</Label>
+                    <Input
+                      value={form.cover_subtitle ?? ""}
+                      onChange={(e) => set("cover_subtitle", e.target.value)}
+                      placeholder="La tua casa, rinnovata chiavi in mano"
+                    />
+                  </div>
+                </div>
+                <ImageUploadField
+                  label="Immagine copertina"
+                  hint="Foto orizzontale di un cantiere/render."
+                  value={form.cover_image_url}
+                  companyId={companyId}
+                  onChange={(url) => set("cover_image_url", url)}
+                  aspect="aspect-[16/9]"
+                />
+              </div>
+            </SectionCard>
+          )}
+
+          {/* Chi siamo */}
+          {activeSection === "page_chi_siamo" && (
+            <SectionCard
+              icon={Building2}
+              title="Chi siamo"
+              description="Presentazione dell'impresa nel PDF."
+              toggle={{ value: form.show_chi_siamo, onChange: (v) => set("show_chi_siamo", v), label: "Mostra nel PDF" }}
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Testo presentazione</Label>
+                  <RichTextEditorSafe
+                    value={form.chi_siamo ?? ""}
+                    onChange={(html) => set("chi_siamo", html)}
+                    placeholder="Da oltre 20 anni realizziamo ristrutturazioni complete..."
+                    minHeight={160}
+                  />
+                </div>
+                <ImageUploadField
+                  label="Foto azienda / team"
+                  value={form.chi_siamo_foto_url}
+                  companyId={companyId}
+                  onChange={(url) => set("chi_siamo_foto_url", url)}
+                  aspect="aspect-[4/3]"
+                />
+              </div>
+            </SectionCard>
+          )}
+
+          {/* Testimonianze */}
+          {activeSection === "page_testimonianze" && (
+            <SectionCard icon={Quote} title="Testimonianze" description="Recensioni dei clienti mostrate nel PDF.">
+              <TestimonianzeEditor
+                items={form.testimonianze}
+                onChange={(items) => set("testimonianze", items)}
               />
+            </SectionCard>
+          )}
+
+          {/* Cronoprogramma */}
+          {activeSection === "page_crono" && (
+            <SectionCard
+              icon={Clock}
+              title="Cronoprogramma"
+              description="Le fasi tipiche del cantiere con durata indicativa."
+              toggle={{ value: form.show_cronoprogramma, onChange: (v) => set("show_cronoprogramma", v), label: "Mostra nel PDF" }}
+            >
+              <CronoEditor
+                items={form.cronoprogramma}
+                onChange={(items) => set("cronoprogramma", items)}
+              />
+            </SectionCard>
+          )}
+
+          {/* Condizioni */}
+          {activeSection === "page_condizioni" && (
+            <SectionCard icon={FileText} title="Condizioni e validità" description="Testi legali e di pagamento in coda al PDF.">
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Modalità di pagamento</Label>
+                  <RichTextEditorSafe
+                    value={form.payment_terms_text ?? ""}
+                    onChange={(html) => set("payment_terms_text", html)}
+                    placeholder="30% all'accettazione, 40% a metà lavori, 30% a fine lavori..."
+                    minHeight={100}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Validità dell'offerta</Label>
+                  <Input
+                    value={form.validity_text ?? ""}
+                    onChange={(e) => set("validity_text", e.target.value)}
+                    placeholder="Preventivo valido 30 giorni dalla data di emissione."
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Nota a piè di pagina</Label>
+                  <Input
+                    value={form.footer_text ?? ""}
+                    onChange={(e) => set("footer_text", e.target.value)}
+                    placeholder="Testo aggiuntivo nel footer (opzionale)"
+                  />
+                </div>
+              </div>
+            </SectionCard>
+          )}
+
+          {/* Contenuti: Esigenze / Soluzione / USP */}
+          {activeSection === "contenuti" && (
+            <>
+              <SectionCard icon={ListChecks} title="Esigenze tipiche" description="I problemi del cliente che il vostro intervento risolve.">
+                <ListItemsEditor
+                  items={form.esigenze}
+                  onChange={(items) => set("esigenze", items)}
+                  addLabel="Aggiungi esigenza"
+                  titlePlaceholder="Es. Impianti vecchi e non a norma"
+                  descPlaceholder="Dettaglio (opzionale)"
+                />
+              </SectionCard>
+
+              <SectionCard icon={Sparkles} title="La nostra soluzione" description="Come affrontate il lavoro.">
+                <ListItemsEditor
+                  items={form.soluzione}
+                  onChange={(items) => set("soluzione", items)}
+                  addLabel="Aggiungi voce soluzione"
+                  titlePlaceholder="Es. Rifacimento impianti certificato"
+                  descPlaceholder="Dettaglio (opzionale)"
+                />
+              </SectionCard>
+
+              <SectionCard icon={ListChecks} title="Perché sceglierci (USP)" description="I punti di forza dell'impresa.">
+                <ListItemsEditor
+                  items={form.usp}
+                  onChange={(items) => set("usp", items)}
+                  addLabel="Aggiungi punto di forza"
+                  titlePlaceholder="Es. Cantiere pulito e puntuale"
+                  descPlaceholder="Dettaglio (opzionale)"
+                />
+              </SectionCard>
+            </>
+          )}
+
+          {/* Opzioni PDF */}
+          {activeSection === "opzioni" && (
+            <SectionCard icon={BadgeEuro} title="Opzioni PDF" description="Impostazioni di visibilità del documento.">
+              <label className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                <div>
+                  <p className="text-sm font-medium">Mostra i margini nel PDF</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Visibile solo a te: stampa la marginalità per voce e capitolo. Tienilo
+                    SPENTO per i PDF da consegnare al cliente.
+                  </p>
+                </div>
+                <Switch checked={form.show_margine} onCheckedChange={(v) => set("show_margine", v)} />
+              </label>
+            </SectionCard>
+          )}
+
+          {/* Barra salvataggio sticky */}
+          <div className="sticky bottom-0 z-10 -mx-1 flex items-center justify-between gap-3 rounded-xl border bg-background/95 px-3 py-2.5 shadow-sm backdrop-blur">
+            <span className={cn("text-[11px]", dirty ? "text-amber-600" : "text-muted-foreground")}>
+              {dirty ? "Modifiche non salvate" : "Tutto salvato"}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handlePreview()}
+                disabled={isPreviewing}
+                className="gap-1.5"
+              >
+                {isPreviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSearch className="h-4 w-4" />}
+                Anteprima PDF
+              </Button>
+              <Button
+                onClick={() => void handleSave()}
+                disabled={!dirty || upsert.isPending}
+                className="gap-1.5 bg-orange-500 hover:bg-orange-600"
+              >
+                {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Salva template
+              </Button>
             </div>
           </div>
-          <ImageUploadField
-            label="Immagine copertina"
-            hint="Foto orizzontale di un cantiere/render."
-            value={form.cover_image_url}
-            companyId={companyId}
-            onChange={(url) => set("cover_image_url", url)}
-            aspect="aspect-[16/9]"
-          />
-        </div>
-      </SectionCard>
-
-      {/* Chi siamo */}
-      <SectionCard
-        icon={Building2}
-        title="Chi siamo"
-        description="Presentazione dell'impresa nel PDF."
-        toggle={{ value: form.show_chi_siamo, onChange: (v) => set("show_chi_siamo", v), label: "Mostra nel PDF" }}
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Testo presentazione</Label>
-            <RichTextEditorSafe
-              value={form.chi_siamo ?? ""}
-              onChange={(html) => set("chi_siamo", html)}
-              placeholder="Da oltre 20 anni realizziamo ristrutturazioni complete..."
-              minHeight={160}
-            />
-          </div>
-          <ImageUploadField
-            label="Foto azienda / team"
-            value={form.chi_siamo_foto_url}
-            companyId={companyId}
-            onChange={(url) => set("chi_siamo_foto_url", url)}
-            aspect="aspect-[4/3]"
-          />
-        </div>
-      </SectionCard>
-
-      {/* Esigenze / Soluzione / USP */}
-      <SectionCard icon={ListChecks} title="Esigenze tipiche" description="I problemi del cliente che il vostro intervento risolve.">
-        <ListItemsEditor
-          items={form.esigenze}
-          onChange={(items) => set("esigenze", items)}
-          addLabel="Aggiungi esigenza"
-          titlePlaceholder="Es. Impianti vecchi e non a norma"
-          descPlaceholder="Dettaglio (opzionale)"
-        />
-      </SectionCard>
-
-      <SectionCard icon={Sparkles} title="La nostra soluzione" description="Come affrontate il lavoro.">
-        <ListItemsEditor
-          items={form.soluzione}
-          onChange={(items) => set("soluzione", items)}
-          addLabel="Aggiungi voce soluzione"
-          titlePlaceholder="Es. Rifacimento impianti certificato"
-          descPlaceholder="Dettaglio (opzionale)"
-        />
-      </SectionCard>
-
-      <SectionCard icon={ListChecks} title="Perché sceglierci (USP)" description="I punti di forza dell'impresa.">
-        <ListItemsEditor
-          items={form.usp}
-          onChange={(items) => set("usp", items)}
-          addLabel="Aggiungi punto di forza"
-          titlePlaceholder="Es. Cantiere pulito e puntuale"
-          descPlaceholder="Dettaglio (opzionale)"
-        />
-      </SectionCard>
-
-      {/* Testimonianze */}
-      <SectionCard icon={Quote} title="Testimonianze" description="Recensioni dei clienti mostrate nel PDF.">
-        <TestimonianzeEditor
-          items={form.testimonianze}
-          onChange={(items) => set("testimonianze", items)}
-        />
-      </SectionCard>
-
-      {/* Cronoprogramma */}
-      <SectionCard
-        icon={Clock}
-        title="Cronoprogramma"
-        description="Le fasi tipiche del cantiere con durata indicativa."
-        toggle={{ value: form.show_cronoprogramma, onChange: (v) => set("show_cronoprogramma", v), label: "Mostra nel PDF" }}
-      >
-        <CronoEditor
-          items={form.cronoprogramma}
-          onChange={(items) => set("cronoprogramma", items)}
-        />
-      </SectionCard>
-
-      {/* Condizioni */}
-      <SectionCard icon={FileText} title="Condizioni e validità" description="Testi legali e di pagamento in coda al PDF.">
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Modalità di pagamento</Label>
-            <RichTextEditorSafe
-              value={form.payment_terms_text ?? ""}
-              onChange={(html) => set("payment_terms_text", html)}
-              placeholder="30% all'accettazione, 40% a metà lavori, 30% a fine lavori..."
-              minHeight={100}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Validità dell'offerta</Label>
-            <Input
-              value={form.validity_text ?? ""}
-              onChange={(e) => set("validity_text", e.target.value)}
-              placeholder="Preventivo valido 30 giorni dalla data di emissione."
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Nota a piè di pagina</Label>
-            <Input
-              value={form.footer_text ?? ""}
-              onChange={(e) => set("footer_text", e.target.value)}
-              placeholder="Testo aggiuntivo nel footer (opzionale)"
-            />
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* Opzioni PDF */}
-      <SectionCard icon={BadgeEuro} title="Opzioni PDF" description="Impostazioni di visibilità del documento.">
-        <label className="flex items-center justify-between gap-3 rounded-lg border p-3">
-          <div>
-            <p className="text-sm font-medium">Mostra i margini nel PDF</p>
-            <p className="text-[11px] text-muted-foreground">
-              Visibile solo a te: stampa la marginalità per voce e capitolo. Tienilo
-              SPENTO per i PDF da consegnare al cliente.
-            </p>
-          </div>
-          <Switch checked={form.show_margine} onCheckedChange={(v) => set("show_margine", v)} />
-        </label>
-      </SectionCard>
-
-      {/* Barra salvataggio sticky */}
-      <div className="sticky bottom-0 z-10 -mx-1 flex items-center justify-between gap-3 rounded-xl border bg-background/95 px-3 py-2.5 shadow-sm backdrop-blur">
-        <span className={cn("text-[11px]", dirty ? "text-amber-600" : "text-muted-foreground")}>
-          {dirty ? "Modifiche non salvate" : "Tutto salvato"}
-        </span>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void handlePreview()}
-            disabled={isPreviewing}
-            className="gap-1.5"
-          >
-            {isPreviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSearch className="h-4 w-4" />}
-            Anteprima PDF
-          </Button>
-          <Button
-            onClick={() => void handleSave()}
-            disabled={!dirty || upsert.isPending}
-            className="gap-1.5 bg-orange-500 hover:bg-orange-600"
-          >
-            {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Salva template
-          </Button>
         </div>
       </div>
     </div>
