@@ -44,13 +44,21 @@ const TITLES: Record<string, string> = {
   tickets: "Ticket Aperti",
 };
 
+// `orders.customer_id` → profiles (FK orders_customer_id_fkey). profiles non ha
+// una colonna `name`: il nome si compone da first_name + last_name.
+function custName(c: unknown): string {
+  const p = c as { first_name?: string | null; last_name?: string | null } | null;
+  if (!p) return "—";
+  return `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "—";
+}
+
 function RevenueDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
   const { effectiveCompany } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ["drill-revenue", effectiveCompany?.id, dateFrom.toISOString(), dateTo.toISOString()],
     queryFn: async () => {
       const { data, error } = await supabase.from("orders")
-        .select("id, order_code, description, total_amount, created_at, customer:customers(name)")
+        .select("id, order_code, description, total_amount, created_at, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany!.id)
         .gte("created_at", dateFrom.toISOString())
         .lte("created_at", dateTo.toISOString())
@@ -71,7 +79,7 @@ function RevenueDrill({ dateFrom, dateTo }: { dateFrom: Date; dateTo: Date }) {
         <div key={o.id} className="flex items-center justify-between p-3 rounded-lg border text-sm">
           <div className="min-w-0">
             <div className="font-medium truncate">{o.order_code || o.description || "Ordine"}</div>
-            <div className="text-xs text-muted-foreground">{(o.customer as any)?.name || "—"}</div>
+            <div className="text-xs text-muted-foreground">{custName(o.customer)}</div>
           </div>
           <div className="font-semibold tabular-nums shrink-0 ml-4">{fmtCur(safeNumber(o.total_amount))}</div>
         </div>
@@ -137,7 +145,7 @@ function LateOrdersDrill() {
     queryFn: async () => {
       const todayStr = new Date().toISOString().split("T")[0];
       const { data, error } = await supabase.from("orders")
-        .select("id, order_code, description, expected_date, customer:customers(name)")
+        .select("id, order_code, description, expected_date, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
         .eq("company_id", effectiveCompany!.id)
         .lt("expected_date", todayStr)
         .is("work_end_date", null)
@@ -161,7 +169,7 @@ function LateOrdersDrill() {
           <div key={o.id} className="flex items-center justify-between p-3 rounded-lg border text-sm">
             <div className="min-w-0">
               <div className="font-medium truncate">{o.order_code || o.description || "Ordine"}</div>
-              <div className="text-xs text-muted-foreground">{(o.customer as any)?.name || "—"}</div>
+              <div className="text-xs text-muted-foreground">{custName(o.customer)}</div>
             </div>
             <div className="text-right shrink-0 ml-4">
               <div className="font-semibold text-destructive">{daysLate}gg in ritardo</div>

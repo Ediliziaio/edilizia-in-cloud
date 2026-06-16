@@ -17,6 +17,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { GovernanceThresholdsCard } from "@/components/settings/GovernanceThresholdsCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -227,12 +228,13 @@ function MarginiPdfTab({
     return () => { clearTimeout(debounceRef.current); };
   }, []);
 
-  const { data: imp } = useQuery({
+  const { data: imp, isError } = useQuery({
     queryKey: ["preventivo-impostazioni", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await (supabase.from("preventivo_impostazioni") as any)
+      const { data, error } = await (supabase.from("preventivo_impostazioni") as any)
         .select("*").eq("company_id", companyId).maybeSingle();
+      if (error) throw error;
       return (data ?? null) as PreventivoImpostazioni | null;
     },
   });
@@ -349,6 +351,11 @@ function MarginiPdfTab({
 
   return (
     <div className="space-y-6 max-w-2xl">
+      {isError && (
+        <Alert variant="destructive">
+          <AlertDescription>Errore nel caricamento. Ricarica la pagina.</AlertDescription>
+        </Alert>
+      )}
       <div className="flex justify-end">
         <Button
           size="sm"
@@ -528,6 +535,9 @@ function MarginiPdfTab({
                   min="0" max="100"
                   onBlur={async (e) => {
                     const val = e.target.value.trim() === "" ? null : parseFloat(e.target.value);
+                    // Niente write/toast se il valore non è cambiato o non è valido (apri/chiudi senza modifiche).
+                    if (val !== null && !Number.isFinite(val)) return;
+                    if (val === (cat.margine_target_percentuale ?? null)) return;
                     const { error } = await (supabase.from("listino_categorie") as any)
                       .update({ margine_target_percentuale: val })
                       .eq("id", cat.id).eq("company_id", companyId);
@@ -554,13 +564,14 @@ function CategorieTab({ companyId }: { companyId: string }) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [creatingStandard, setCreatingStandard] = useState(false);
 
-  const { data: categorie = [], isLoading } = useQuery({
+  const { data: categorie = [], isLoading, isError } = useQuery({
     queryKey: ["listino-categorie", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await (supabase.from("listino_categorie") as any)
+      const { data, error } = await (supabase.from("listino_categorie") as any)
         .select("id, nome, colore, immagine_url, margine_target_percentuale")
         .eq("company_id", companyId).order("nome");
+      if (error) throw error;
       return (data ?? []) as Categoria[];
     },
   });
@@ -609,6 +620,11 @@ function CategorieTab({ companyId }: { companyId: string }) {
 
   return (
     <div className="space-y-4">
+      {isError && (
+        <Alert variant="destructive">
+          <AlertDescription>Errore nel caricamento. Ricarica la pagina.</AlertDescription>
+        </Alert>
+      )}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-sm text-muted-foreground">{categorie.length} categorie definite</p>
         <div className="flex gap-2">
@@ -708,13 +724,14 @@ export default function SettingsMargini() {
   const companyId = effectiveCompany?.id;
   const isAdmin = role === "company_admin" || role === "super_admin";
 
-  const { data: categorie = [] } = useQuery({
+  const { data: categorie = [], isError } = useQuery({
     queryKey: ["listino-categorie", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await (supabase.from("listino_categorie") as any)
+      const { data, error } = await (supabase.from("listino_categorie") as any)
         .select("id, nome, colore, immagine_url, margine_target_percentuale")
         .eq("company_id", companyId).order("nome");
+      if (error) throw error;
       return (data ?? []) as Categoria[];
     },
   });
@@ -776,6 +793,12 @@ export default function SettingsMargini() {
           </CardContent>
         </Card>
       </div>
+
+      {isError && (
+        <Alert variant="destructive">
+          <AlertDescription>Errore nel caricamento. Ricarica la pagina.</AlertDescription>
+        </Alert>
+      )}
 
       <Tabs defaultValue="margini">
         <TabsList>

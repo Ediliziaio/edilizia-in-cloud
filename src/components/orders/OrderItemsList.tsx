@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Plus, Trash2, Pencil, Package, Warehouse, CheckCircle, Clock, Copy, Link2, Tag, Truck, Wallet, Paperclip, Upload, FileText, X, ChevronsUpDown, Check, PackageCheck } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -95,6 +97,11 @@ export interface OrderItem {
   unit_price?: number;
   discount_percent?: number;
   standard_cost?: number;
+  // ── Aggancio listino (controllo di gestione costo standard vs reale) ──
+  // article_template_id = link al listino; categoria = snapshot per analisi;
+  // standard_cost = baseline da listino (€ pianificato) vs purchase_price (€ reale).
+  article_template_id?: string | null;
+  categoria?: string | null;
   // ── Ciclo misure (prodotti su misura) — spina dorsale articolo ──
   // Copiati dal preventivo (famiglia + assi + misura iniziale), poi arricchiti
   // dal sopralluogo con la misura definitiva. Vedi migration order_items_measure_lifecycle.
@@ -125,6 +132,13 @@ interface OrderItemsListProps {
    * vede "Nessun articolo / Nessun fornitore" anche se ne esistono nel DB.
    */
   fallbackCompanyId?: string;
+  /**
+   * Se fornito, abilita "aggiungi la posa alla Manodopera" quando si sceglie un
+   * prodotto del listino con costo manodopera. La posa viene creata come voce
+   * order_external_teams (sezione Manodopera) — MAI come order_item: così il
+   * costo non viene contato due volte (materiale qui, posa nella Manodopera).
+   */
+  onAddLabor?: (labor: { external_team_id: string; total_cost: number; notes: string }) => void;
 }
 
 const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string; borderColor: string }> = {
@@ -178,6 +192,7 @@ export function OrderItemsList({
   onItemUpdate,
   showOdaCoverage = false,
   fallbackCompanyId,
+  onAddLabor,
 }: OrderItemsListProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -188,6 +203,17 @@ export function OrderItemsList({
   const [itemSupplierId, setItemSupplierId] = useState<string | undefined>();
   const [itemPurchasePrice, setItemPurchasePrice] = useState("");
   const [itemVatRate, setItemVatRate] = useState<number>(22);
+  // Aggancio listino: baseline costo standard (€ da listino) + link + categoria
+  const [itemStandardCost, setItemStandardCost] = useState<number | undefined>();
+  const [itemArticleTemplateId, setItemArticleTemplateId] = useState<string | undefined>();
+  const [itemCategoria, setItemCategoria] = useState<string | undefined>();
+  // Anteprima prodotto (transitoria, non persistita): foto + scheda + manodopera dal listino.
+  const [itemImageUrl, setItemImageUrl] = useState<string | undefined>();
+  const [itemPdfSchedaUrl, setItemPdfSchedaUrl] = useState<string | undefined>();
+  const [itemManodoperaCosto, setItemManodoperaCosto] = useState<number | undefined>();
+  // Posa → Manodopera: opt-in (solo se onAddLabor fornito) + squadra scelta.
+  const [addPosa, setAddPosa] = useState(false);
+  const [posaTeamId, setPosaTeamId] = useState<string | undefined>();
   const [itemStatus, setItemStatus] = useState<OrderItemStatus>("da_ordinare");
   const [itemIsPaid, setItemIsPaid] = useState(false);
   const [itemPaidDate, setItemPaidDate] = useState<Date | undefined>();
@@ -308,7 +334,7 @@ export function OrderItemsList({
     queryFn: async () => {
       let q = supabase
         .from("purchase_orders")
-        .select("id, oda_number, supplier_id, status, expected_delivery_date")
+        .select("id, oda_number, supplier_id, status, expected_delivery_date, total, created_at, suppliers:supplier_id(name)")
         .eq("company_id", companyId!)
         .neq("status", "annullato")
         .order("created_at", { ascending: false })
@@ -321,6 +347,21 @@ export function OrderItemsList({
       return data ?? [];
     },
     enabled: !!companyId && dialogOpen,
+  });
+
+  // Squadre/subappaltatori per assegnare la posa (solo se l'host abilita onAddLabor).
+  const { data: externalTeams = [] } = useQuery({
+    queryKey: ["external-teams-for-posa", companyId],
+    enabled: !!companyId && !!onAddLabor && dialogOpen,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("external_teams")
+        .select("id, name")
+        .eq("company_id", companyId!)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string | null }>;
+    },
   });
 
   // v8.6.35 — Upload helper riusabile per pendingAttachment
@@ -417,6 +458,14 @@ export function OrderItemsList({
     setItemSupplierId(undefined);
     setItemPurchasePrice("");
     setItemVatRate(22);
+    setItemStandardCost(undefined);
+    setItemArticleTemplateId(undefined);
+    setItemCategoria(undefined);
+    setItemImageUrl(undefined);
+    setItemPdfSchedaUrl(undefined);
+    setItemManodoperaCosto(undefined);
+    setAddPosa(false);
+    setPosaTeamId(undefined);
     setItemStatus("da_ordinare");
     setItemIsPaid(false);
     setItemPaidDate(undefined);
@@ -453,6 +502,9 @@ export function OrderItemsList({
     setItemSupplierId(item.supplier_id);
     setItemPurchasePrice(item.purchase_price?.toString() || "");
     setItemVatRate(item.vat_rate ?? 22);
+    setItemStandardCost(item.standard_cost != null && item.standard_cost > 0 ? item.standard_cost : undefined);
+    setItemArticleTemplateId(item.article_template_id ?? undefined);
+    setItemCategoria(item.categoria ?? undefined);
     setItemStatus(item.status);
     setItemIsPaid(item.is_paid || false);
     setItemPaidDate(item.paid_date ? new Date(item.paid_date) : undefined);
@@ -473,26 +525,26 @@ export function OrderItemsList({
     setDialogOpen(true);
   };
 
-  const handleSaveItem = () => {
+  const handleSaveItem = (): boolean => {
     setDialogError(null);
     if (!itemName.trim()) {
       setDialogError("Inserisci il nome dell'articolo.");
-      return;
+      return false;
     }
 
     const quantity = Math.round(Number(itemQuantity));
     const purchasePrice = itemPurchasePrice.trim() ? Number(itemPurchasePrice) : 0;
     if (!Number.isFinite(quantity) || quantity <= 0) {
       setDialogError("La quantità deve essere maggiore di zero.");
-      return;
+      return false;
     }
     if (!Number.isFinite(purchasePrice) || purchasePrice < 0) {
       setDialogError("Il costo di acquisto non può essere negativo.");
-      return;
+      return false;
     }
     if (!Number.isFinite(itemVatRate) || itemVatRate < 0 || itemVatRate > 100) {
       setDialogError("L'IVA acquisto deve essere compresa tra 0 e 100.");
-      return;
+      return false;
     }
     const totalCost = purchasePrice * quantity;
     
@@ -532,10 +584,15 @@ export function OrderItemsList({
       // v8.6.35 — Tracking & ODA
       delivery_date: itemDeliveryDate ? itemDeliveryDate.toLocaleDateString("en-CA") : undefined,
       linked_purchase_order_id: itemLinkedPoId,
+      // Aggancio listino: baseline da listino (€ standard) + link + categoria.
+      // standard_cost NON è più hardcoded a 0 — porta il costo da listino così
+      // da poterlo confrontare con purchase_price (€ realmente pagato).
+      standard_cost: itemStandardCost ?? 0,
+      article_template_id: itemArticleTemplateId ?? null,
+      categoria: itemCategoria ?? null,
       // Legacy fields zeroed out
       unit_price: 0,
       discount_percent: 0,
-      standard_cost: 0,
     };
 
     if (editingIndex !== null) {
@@ -577,10 +634,20 @@ export function OrderItemsList({
         });
       }
       onItemsChange([...items, newItem]);
+      // Posa dal listino → voce Manodopera (order_external_teams), MAI un order_item:
+      // così il costo manodopera è contato UNA sola volta, nella sezione giusta.
+      if (onAddLabor && addPosa && posaTeamId && itemManodoperaCosto && itemManodoperaCosto > 0) {
+        onAddLabor({
+          external_team_id: posaTeamId,
+          total_cost: Math.round(itemManodoperaCosto * quantity * 100) / 100,
+          notes: `Posa ${commonFields.name} (da listino)`,
+        });
+      }
     }
 
     setDialogOpen(false);
     resetForm();
+    return true;
   };
 
   // v8.6.35 — Helper link ODA esistente: crea record in purchase_order_items
@@ -631,15 +698,18 @@ export function OrderItemsList({
       setDialogError("Il costo di acquisto non può essere negativo."); return;
     }
 
-    // Salva l'item (riusa la stessa logica di handleSaveItem)
-    handleSaveItem();
+    // Salva l'item (riusa la stessa logica di handleSaveItem).
+    // Riapriamo il dialog SOLO se il salvataggio è andato a buon fine:
+    // se la validazione di handleSaveItem fallisce non dobbiamo riaprire.
+    const keepSupplier = itemSupplierId;
+    const keepVat = itemVatRate;
+    const keepStatus = itemStatus;
+    const saved = handleSaveItem();
+    if (!saved) return;
 
     // handleSaveItem chiude il dialog e resetta tutto. Lo riapriamo con i
     // campi "contestuali" pre-compilati (fornitore + IVA + stato) per
     // velocizzare l'inserimento di righe simili.
-    const keepSupplier = itemSupplierId;
-    const keepVat = itemVatRate;
-    const keepStatus = itemStatus;
     setTimeout(() => {
       setDialogOpen(true);
       setItemSupplierId(keepSupplier);
@@ -651,12 +721,34 @@ export function OrderItemsList({
   const handleArticleSelect = (name: string, templateData?: ArticleTemplateData) => {
     setItemName(name);
     if (templateData) {
+      // Aggancio listino: salviamo il link + la categoria (snapshot) e la
+      // BASELINE da listino in standard_cost (€ pianificato). Il purchase_price
+      // parte uguale ma resta editabile = € realmente pagato → scostamento.
+      // I prodotti dal Listino (article_families) NON sono article_templates →
+      // niente article_template_id (FK valida solo per il catalogo), ma la
+      // categoria e la baseline costo sì (alimentano l'analisi Prodotti/Categorie).
+      setItemArticleTemplateId(templateData.source === "listino" ? undefined : templateData.id);
+      setItemCategoria(templateData.category ?? undefined);
+      setItemImageUrl(templateData.immagine_url ?? undefined);
+      setItemPdfSchedaUrl(templateData.pdf_scheda_url ?? undefined);
+      setItemManodoperaCosto(templateData.manodopera_costo ?? undefined);
       if (templateData.standard_cost > 0) {
+        setItemStandardCost(templateData.standard_cost);
         setItemPurchasePrice(templateData.standard_cost.toString());
+      } else {
+        setItemStandardCost(undefined);
       }
       if (templateData.vat_rate !== undefined) setItemVatRate(templateData.vat_rate);
       if (templateData.supplier_id) setItemSupplierId(templateData.supplier_id);
       if (templateData.description) setItemDescription(templateData.description);
+    } else {
+      // Nome digitato a mano (non dal listino) → nessuna baseline/link/anteprima.
+      setItemArticleTemplateId(undefined);
+      setItemCategoria(undefined);
+      setItemStandardCost(undefined);
+      setItemImageUrl(undefined);
+      setItemPdfSchedaUrl(undefined);
+      setItemManodoperaCosto(undefined);
     }
   };
 
@@ -750,7 +842,56 @@ export function OrderItemsList({
         </h4>
         <div className="space-y-2">
           <Label>Nome Articolo *</Label>
-          <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Cerca o digita nome articolo…" fallbackCompanyId={fallbackCompanyId} />
+          <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Cerca articolo dal listino o digita…" fallbackCompanyId={fallbackCompanyId} includeListino />
+          {((itemStandardCost != null && itemStandardCost > 0) || itemImageUrl || (itemManodoperaCosto != null && itemManodoperaCosto > 0)) && (
+            <div className="flex items-start gap-2.5 rounded-md bg-blue-50 border border-blue-100 p-2.5">
+              {itemImageUrl ? (
+                <img src={itemImageUrl} alt="" loading="lazy" className="h-12 w-12 rounded object-cover border shrink-0" />
+              ) : (
+                <div className="h-12 w-12 rounded bg-blue-100 flex items-center justify-center shrink-0">
+                  <Package className="h-5 w-5 text-blue-500" />
+                </div>
+              )}
+              <div className="text-xs text-blue-900 space-y-0.5 min-w-0">
+                <div className="font-medium">Dal listino{itemCategoria ? <span className="font-normal"> · {itemCategoria}</span> : null}</div>
+                {itemStandardCost != null && itemStandardCost > 0 && (
+                  <div>Costo base materiale: <strong>{formatCurrency(itemStandardCost)}</strong>/u</div>
+                )}
+                {itemManodoperaCosto != null && itemManodoperaCosto > 0 && (
+                  <div className="space-y-1.5">
+                    <div>Posa (manodopera): <strong>{formatCurrency(itemManodoperaCosto)}</strong>/u</div>
+                    {onAddLabor ? (
+                      <div className="space-y-1.5">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox checked={addPosa} onCheckedChange={(c) => setAddPosa(c === true)} />
+                          <span>Aggiungi la posa alla <strong>Manodopera</strong> ({formatCurrency(itemManodoperaCosto * (Math.round(Number(itemQuantity)) || 1))} tot.)</span>
+                        </label>
+                        {addPosa && (
+                          <Select value={posaTeamId} onValueChange={setPosaTeamId}>
+                            <SelectTrigger className="h-8 text-xs bg-white"><SelectValue placeholder="Scegli squadra/subappaltatore…" /></SelectTrigger>
+                            <SelectContent>
+                              {externalTeams.length === 0 ? (
+                                <div className="px-2 py-1.5 text-xs text-muted-foreground">Nessuna squadra — creane una in Subappaltatori</div>
+                              ) : externalTeams.map((t) => (
+                                <SelectItem key={t.id} value={t.id}>{t.name ?? "Squadra"}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-blue-600">— da aggiungere a parte nella sezione Manodopera</div>
+                    )}
+                  </div>
+                )}
+                {itemPdfSchedaUrl && (
+                  <a href={itemPdfSchedaUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
+                    <ExternalLink className="h-3 w-3" /> Scheda tecnica (PDF)
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         <div className="space-y-2">
           <Label>Descrizione <span className="text-xs text-muted-foreground font-normal">(opzionale)</span></Label>
@@ -782,13 +923,41 @@ export function OrderItemsList({
             <Input type="number" min="1" value={itemQuantity} onChange={(e) => setItemQuantity(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Costo Acquisto</Label>
+            <Label>
+              Costo Acquisto
+              {itemStandardCost != null && itemStandardCost > 0 && (
+                <span className="text-xs text-muted-foreground font-normal"> (reale pagato)</span>
+              )}
+            </Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
               <Input type="number" min="0" step="0.01" value={itemPurchasePrice} onChange={(e) => setItemPurchasePrice(e.target.value)} className="pl-8" placeholder="0.00" />
             </div>
+            {itemStandardCost != null && itemStandardCost > 0 && (() => {
+              const reale = itemPurchasePrice.trim() ? Number(itemPurchasePrice) : 0;
+              if (!Number.isFinite(reale)) return null;
+              const delta = reale - itemStandardCost!;
+              const pct = (delta / itemStandardCost!) * 100;
+              const over = delta > 0.005, under = delta < -0.005;
+              return (
+                <p className={cn("text-[11px]", over ? "text-rose-600" : under ? "text-emerald-600" : "text-muted-foreground")}>
+                  Listino {formatCurrency(itemStandardCost!)} · {over ? "▲" : under ? "▼" : "="} {delta > 0 ? "+" : ""}{formatCurrency(delta)} ({pct > 0 ? "+" : ""}{pct.toFixed(0)}%)
+                </p>
+              );
+            })()}
           </div>
         </div>
+        {(() => {
+          const qty = Math.round(Number(itemQuantity)) || 0;
+          const price = itemPurchasePrice.trim() ? Number(itemPurchasePrice) : 0;
+          if (!Number.isFinite(qty) || !Number.isFinite(price) || qty <= 0 || price <= 0) return null;
+          return (
+            <p className="text-xs text-right text-muted-foreground">
+              Totale riga: <span className="font-semibold text-foreground">{formatCurrency(qty * price)}</span>
+              <span className="ml-1">({qty} × {formatCurrency(price)})</span>
+            </p>
+          );
+        })()}
         <div className="space-y-2">
           <Label>IVA Acquisto</Label>
           <Select value={itemVatRate.toString()} onValueChange={(v) => setItemVatRate(parseInt(v))}>
@@ -1011,12 +1180,24 @@ export function OrderItemsList({
                 <SelectItem value="none">
                   <span className="text-muted-foreground">Nessun ODA collegato</span>
                 </SelectItem>
-                {purchaseOrders.map((po: { id: string; oda_number?: string | null; status?: string | null; expected_delivery_date?: string | null }) => (
-                  <SelectItem key={po.id} value={po.id}>
-                    {po.oda_number || `ODA #${po.id.substring(0, 8)}`}
-                    {po.status && <span className="ml-2 text-xs text-muted-foreground">· {po.status}</span>}
-                  </SelectItem>
-                ))}
+                {purchaseOrders.map((po: { id: string; oda_number?: string | null; status?: string | null; total?: number | null; created_at?: string | null; suppliers?: { name?: string | null } | null }) => {
+                  const fornitore = po.suppliers?.name?.trim();
+                  const data = po.created_at ? new Date(po.created_at).toLocaleDateString("it-IT") : null;
+                  const meta = [fornitore, po.total != null ? formatCurrency(Number(po.total)) : null, data].filter(Boolean).join(" · ");
+                  return (
+                    <SelectItem key={po.id} value={po.id}>
+                      <div className="flex flex-col gap-0.5 py-0.5">
+                        <span className="flex items-center gap-1.5">
+                          <span className="font-medium">{po.oda_number || `ODA #${po.id.substring(0, 8)}`}</span>
+                          {po.status && (
+                            <span className="text-[10px] px-1.5 py-0 rounded-full bg-muted text-muted-foreground capitalize">{po.status}</span>
+                          )}
+                        </span>
+                        {meta && <span className="text-[11px] text-muted-foreground">{meta}</span>}
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
@@ -1239,6 +1420,29 @@ export function OrderItemsList({
                         variant="outline"
                         className="text-xs gap-1 cursor-pointer hover:bg-muted/50"
                         title="Allegato ODA disponibile — click per scaricare"
+                        onClick={async () => {
+                          const odaAtt = item.attachments?.find(
+                            (a) => a.file_name.startsWith("ODA") || a.file_name.toLowerCase().includes("oda")
+                          );
+                          if (!odaAtt) return;
+                          try {
+                            // file_url può essere un path relativo o un URL completo:
+                            // estrai il path dello storage dopo il nome del bucket.
+                            let filePath = odaAtt.file_url;
+                            if (filePath.startsWith("http")) {
+                              const parts = filePath.split("/order-attachments/");
+                              if (parts.length > 1) filePath = decodeURIComponent(parts[1]);
+                            }
+                            const { data, error } = await supabase.storage
+                              .from("order-attachments")
+                              .createSignedUrl(filePath, 3600);
+                            if (error || !data?.signedUrl) throw error ?? new Error("URL non disponibile");
+                            window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+                          } catch (err) {
+                            const msg = err instanceof Error ? err.message : String(err);
+                            toast({ variant: "destructive", title: "Apertura ODA fallita", description: msg });
+                          }
+                        }}
                       >
                         <Paperclip className="h-3 w-3" />
                         ODA allegato
@@ -1252,6 +1456,24 @@ export function OrderItemsList({
                     {item.purchase_price != null && item.purchase_price > 0 && (
                       <span>Costo: {formatCurrency(item.purchase_price * item.quantity)} <span className="text-xs">({item.vat_rate ?? 22}% IVA)</span></span>
                     )}
+                    {item.standard_cost != null && item.standard_cost > 0 && (() => {
+                      // Confronto costo STANDARD (da listino) vs REALE (pagato).
+                      const realeUnit = item.purchase_price ?? 0;
+                      const deltaLine = (realeUnit - item.standard_cost!) * item.quantity;
+                      const pct = (realeUnit - item.standard_cost!) / item.standard_cost! * 100;
+                      const over = deltaLine > 0.005;
+                      const under = deltaLine < -0.005;
+                      return (
+                        <span title="Costo da listino (standard) vs costo realmente pagato">
+                          Listino: {formatCurrency(item.standard_cost! * item.quantity)}
+                          {(over || under) && (
+                            <span className={`ml-1 font-medium ${over ? "text-red-600" : "text-emerald-600"}`}>
+                              {over ? "▲" : "▼"} {deltaLine > 0 ? "+" : ""}{formatCurrency(deltaLine)} ({pct > 0 ? "+" : ""}{pct.toFixed(0)}%)
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
                     {item.payment_method && (
                       <span>Mod.: {getPaymentMethodLabel(item.payment_method)}</span>
                     )}
@@ -1337,7 +1559,7 @@ export function OrderItemsList({
 
         {/* Add/Edit Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingIndex !== null ? "Modifica Articolo" : "Nuovo Articolo"}

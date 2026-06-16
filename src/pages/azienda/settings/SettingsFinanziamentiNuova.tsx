@@ -1143,6 +1143,9 @@ export default function SettingsFinanziamentiNuova() {
 type FinanceRowInput = RisultatoImportCsv["righe_valide"][number];
 
 function summarizeRows(rows: FinanceRowInput[]) {
+  // Senza righe valide, Math.min/max(...[]) darebbe Infinity/-Infinity negli SummaryMetric.
+  // Ritorniamo null: il render è già gated da `financeSummary && (...)`.
+  if (!rows.length) return null;
   const durate = Array.from(new Set(rows.map((r) => r.numero_rate))).sort((a, b) => a - b);
   return {
     importoMin: Math.min(...rows.map((r) => r.importo_erogato)),

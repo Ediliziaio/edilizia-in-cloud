@@ -267,8 +267,12 @@ export default function SettingsQuoteMaterials() {
   );
 
   const handlePreview = async (storagePath: string) => {
-    const { data } = await supabase.storage.from("quote-materials").createSignedUrl(storagePath, 300);
-    if (data?.signedUrl) setPreviewUrl(data.signedUrl);
+    const { data, error } = await supabase.storage.from("quote-materials").createSignedUrl(storagePath, 300);
+    if (error || !data?.signedUrl) {
+      toast.error("Impossibile aprire l'anteprima del file");
+      return;
+    }
+    setPreviewUrl(data.signedUrl);
   };
 
   // Search + tab filter (composti)

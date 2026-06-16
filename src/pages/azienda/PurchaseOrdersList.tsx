@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Popover, PopoverTrigger, PopoverContent,
 } from "@/components/ui/popover";
@@ -24,6 +25,7 @@ import { useOperationalSuppliers } from "@/hooks/useOperationalSuppliers";
 import { formatCurrency } from "@/lib/formatters";
 import { exportToCSV, exportToXLSX } from "@/lib/csvExport";
 import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
 import { cn } from "@/lib/utils";
 import { OperationalKpiCard } from "@/components/orders/OperationalKpiCard";
 import {
@@ -72,7 +74,7 @@ function VerificationBadge({ result }: { result: string | null | undefined }): J
 export default function PurchaseOrdersList() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { orders, isLoading, create } = usePurchaseOrders();
+  const { orders, isLoading, isError, create } = usePurchaseOrders();
   const { suppliers } = useOperationalSuppliers();
   const [tab, setTab] = useState("tutti");
   const [search, setSearch] = useState("");
@@ -293,6 +295,9 @@ export default function PurchaseOrdersList() {
           setNewWarehouseId(null);
           navigate(`/azienda/ordini-acquisto/${data.id}`);
         },
+        onError: () => {
+          sonnerToast.error("Errore nella creazione dell'ordine. Riprova.");
+        },
       }
     );
   };
@@ -505,6 +510,10 @@ export default function PurchaseOrdersList() {
       {/* Table */}
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+      ) : isError ? (
+        <Alert variant="destructive">
+          <AlertDescription>Errore nel caricamento degli ordini. Riprova.</AlertDescription>
+        </Alert>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 space-y-3">
           <Package className="h-12 w-12 mx-auto text-muted-foreground/40" />

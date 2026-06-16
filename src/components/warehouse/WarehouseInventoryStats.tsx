@@ -41,6 +41,10 @@ interface Props {
   stockItems?: StockItem[];
   orderItems?: WarehouseItem[];
   visibleCards?: WarehouseInventoryMetricKey[];
+  /** Se fornito, le card diventano cliccabili e invocano questo handler. */
+  onCardClick?: (key: WarehouseInventoryMetricKey) => void;
+  /** Card attualmente attiva (evidenziata). */
+  activeKey?: WarehouseInventoryMetricKey | null;
 }
 
 interface StockItem {
@@ -51,7 +55,7 @@ interface StockItem {
   min_stock_level?: number | null;
 }
 
-export default function WarehouseInventoryStats({ stockItems = [], orderItems = [], visibleCards }: Props) {
+export default function WarehouseInventoryStats({ stockItems = [], orderItems = [], visibleCards, onCardClick, activeKey }: Props) {
   const stats = useMemo(() => {
     const sottoscorta = stockItems.filter(
       (item) => Number(item.quantity ?? 0) < Number(item.min_stock_level ?? 0),
@@ -174,7 +178,12 @@ export default function WarehouseInventoryStats({ stockItems = [], orderItems = 
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {cards.filter((card) => visible.has(card.key)).map(({ key, ...card }) => (
-        <KpiCard key={key} {...card} />
+        <KpiCard
+          key={key}
+          {...card}
+          onClick={onCardClick ? () => onCardClick(key) : undefined}
+          active={activeKey === key}
+        />
       ))}
     </div>
   );
@@ -194,12 +203,16 @@ function KpiCard({
   hint,
   icon: Icon,
   accent,
+  onClick,
+  active,
 }: {
   label: string;
   value: string;
   hint: string;
   icon: LucideIcon;
   accent: keyof typeof accentMap;
+  onClick?: () => void;
+  active?: boolean;
 }) {
   return (
     <OperationalKpiCard
@@ -208,6 +221,8 @@ function KpiCard({
       value={value}
       hint={hint}
       tone={accentMap[accent]}
+      onClick={onClick}
+      active={active}
     />
   );
 }

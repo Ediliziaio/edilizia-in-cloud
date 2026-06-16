@@ -9,6 +9,7 @@ import {
   useUpdateContact, useUpsertContactFieldValues, useUpsertOpportunityFieldValues,
 } from "@/hooks/useOpportunityDetailData";
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from "@/components/ui/dialog";
+import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -521,6 +522,13 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   </button>
                 )}
                 <span className="mx-0.5 hidden sm:block h-5 w-px bg-border" aria-hidden />
+                {/* Crea preventivo direttamente dal deal — link contatto/opportunità preservato */}
+                <NewPreventivoMenu
+                  opportunityId={opportunity.id}
+                  contactId={opportunity.contact_id ?? null}
+                  size="sm"
+                  label="Preventivo"
+                />
               </div>
             )}
             {/* Simulatore ROI — apre lo strumento precompilato col cliente del deal. */}
@@ -1194,9 +1202,10 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         context={opportunity.name}
         defaultChannel={quickSend.channel}
         onSent={() => {
-          queryClient.invalidateQueries({ queryKey: ["comm-sms"] });
-          queryClient.invalidateQueries({ queryKey: ["comm-wa"] });
-          queryClient.invalidateQueries({ queryKey: ["comm-email"] });
+          // Aggiorna il Registro attività (timeline) dopo l'invio dal popup.
+          queryClient.invalidateQueries({ queryKey: ["reg-sms"] });
+          queryClient.invalidateQueries({ queryKey: ["reg-wa"] });
+          queryClient.invalidateQueries({ queryKey: ["reg-email-out"] });
         }}
       />
     )}

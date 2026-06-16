@@ -109,7 +109,7 @@ export default function ManutenzioneList() {
   // 2026-05-27 (Security audit): tecnico con only_assigned=true vede SOLO
   // impianti / contratti / piani col proprio tecnico_preferito. Senza filtro
   // server-side il tecnico scaricava tutto e vedeva su UI dati di colleghi.
-  const { data: impianti = [], isLoading: loadingImpianti } = useQuery({
+  const { data: impianti = [], isLoading: loadingImpianti, isError: impiantiError } = useQuery({
     queryKey: ["impianti", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -129,7 +129,7 @@ export default function ManutenzioneList() {
     enabled: !!effectiveCompany?.id,
   });
 
-  const { data: contratti = [], isLoading: loadingContratti } = useQuery({
+  const { data: contratti = [], isLoading: loadingContratti, isError: contrattiError } = useQuery({
     queryKey: ["contratti-manutenzione", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -148,7 +148,7 @@ export default function ManutenzioneList() {
     enabled: !!effectiveCompany?.id,
   });
 
-  const { data: pianiInScadenza = [], isLoading: loadingPiani } = useQuery({
+  const { data: pianiInScadenza = [], isLoading: loadingPiani, isError: pianiError } = useQuery({
     queryKey: ["piani-scadenza", effectiveCompany?.id, permissions.onlyAssigned, user?.id],
     queryFn: async () => {
       if (!effectiveCompany?.id) return [];
@@ -367,6 +367,14 @@ export default function ManutenzioneList() {
             <Button size="sm" onClick={() => setBulkOpen(true)}>Azioni manutenzione</Button>
           </div>
         </div>
+      )}
+
+      {/* Errore di caricamento — non mascherare con l'empty-state "Nessun impianto/contratto" */}
+      {(impiantiError || contrattiError || pianiError) && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>Errore nel caricamento. Riprova.</AlertDescription>
+        </Alert>
       )}
 
       <Tabs defaultValue="scadenza">

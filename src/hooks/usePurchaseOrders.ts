@@ -226,6 +226,7 @@ export function usePurchaseOrders() {
   return {
     orders: listQuery.data || [],
     isLoading: listQuery.isLoading,
+    isError: listQuery.isError,
     create: createMutation,
     updateStatus: updateStatusMutation,
     update: updateMutation,

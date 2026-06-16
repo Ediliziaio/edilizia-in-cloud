@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useSendSms } from "@/hooks/useSendSms";
+import { MessageTemplatePicker } from "@/components/templates/MessageTemplatePicker";
+import { buildTemplateVars } from "@/lib/messageTemplateVars";
 import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -43,6 +45,10 @@ interface QuickContactSendDialogProps {
   context?: string | null;
   defaultChannel?: QuickSendChannel;
   onSent?: () => void;
+  /** Testo precompilato per i canali (es. sollecito pagamento, invio stato). */
+  prefill?: { smsText?: string; emailSubject?: string; emailBody?: string; waText?: string };
+  /** Allegati già caricati nel bucket email-attachments (es. PDF della commessa). */
+  initialAttachments?: Array<{ name: string; size: number; mime: string; storage_path: string }>;
 }
 
 interface EmailAccount {
@@ -71,6 +77,7 @@ function parseEmails(raw: string): string[] {
 
 export function QuickContactSendDialog({
   open, onOpenChange, contactId, name, phone, email, context, defaultChannel = "sms", onSent,
+  prefill, initialAttachments,
 }: QuickContactSendDialogProps) {
   const { user, effectiveCompany } = useAuth();
   const qc = useQueryClient();
@@ -109,9 +116,14 @@ export function QuickContactSendDialog({
   useEffect(() => {
     if (open) {
       setChannel(initialChannel);
-      setSmsText(""); setEmailSubject(""); setEmailBody("");
+      setSmsText(prefill?.smsText ?? "");
+      setEmailSubject(prefill?.emailSubject ?? "");
+      setEmailBody(prefill?.emailBody ?? "");
       setAiInstruction(""); setAiTone(TONES[0]); setSigEdit(false);
-      setEmailCc(""); setEmailBcc(""); setCcBccVisible(false); setAttachments([]);
+      setEmailCc(""); setEmailBcc(""); setCcBccVisible(false);
+      setAttachments((initialAttachments ?? []).map((a) => ({ ...a, uploading: false })));
+      // Precompila il composer WhatsApp (usa il meccanismo seed esistente).
+      if (prefill?.waText) { setWaSeedText(prefill.waText); setWaSeedAt((n) => n + 1); }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -123,6 +135,17 @@ export function QuickContactSendDialog({
 
   // ── SMS ──
   const { sendSmsAsync, isPending: smsSending } = useSendSms();
+
+  // Variabili merge-field per i template (nome/email/azienda…)
+  const templateVars = useMemo(() => {
+    const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+    return buildTemplateVars({
+      firstName: parts[0] ?? "",
+      lastName: parts.slice(1).join(" "),
+      email, phone,
+      companyName: effectiveCompany?.name ?? null,
+    });
+  }, [name, email, phone, effectiveCompany?.name]);
   const handleSendSms = async () => {
     if (!smsText.trim()) return;
     try {
@@ -298,6 +321,9 @@ export function QuickContactSendDialog({
                   onGenerate={() => composeAi.mutate({ ch: "sms" })}
                   onRefine={(act) => composeAi.mutate({ ch: "sms", mode: "refine", currentText: smsText, instructionOverride: act })}
                 />
+                <div className="flex justify-end">
+                  <MessageTemplatePicker channel="sms" vars={templateVars} align="end" onInsert={({ body }) => setSmsText(body.slice(0, SMS_MAX))} />
+                </div>
                 <Textarea placeholder="Scrivi l'SMS…" value={smsText} onChange={(e) => setSmsText(e.target.value.slice(0, SMS_MAX))} rows={4} className="text-sm resize-y" />
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-muted-foreground">{smsText.length}/{SMS_MAX} · {Math.max(1, Math.ceil(smsText.length / 153))} segmento/i</span>
@@ -364,6 +390,15 @@ export function QuickContactSendDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="flex justify-end">
+                  <MessageTemplatePicker
+                    channel="email"
+                    vars={templateVars}
+                    align="end"
+                    onInsert={({ subject, body }) => { if (subject) setEmailSubject(subject.slice(0, 200)); setEmailBody(body.slice(0, 50_000)); }}
+                  />
                 </div>
 
                 <AiAssistRow

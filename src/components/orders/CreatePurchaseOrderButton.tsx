@@ -36,6 +36,14 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
   // Get unique supplier IDs from items
   const itemSupplierIds = [...new Set(items.filter(i => i.supplier_id).map(i => i.supplier_id!))];
 
+  // Articoli che finiranno effettivamente nell'OdA: quelli senza fornitore o
+  // che matchano il fornitore selezionato (stesso filtro usato in handleCreate).
+  // Se nessun fornitore è ancora selezionato mostriamo il totale articoli.
+  const relevantItems = supplierId
+    ? items.filter(i => !i.supplier_id || i.supplier_id === supplierId)
+    : items;
+  const relevantCount = relevantItems.length;
+
   const handleCreate = async () => {
     if (!supplierId || !effectiveCompany?.id) return;
     setLoading(true);
@@ -84,7 +92,9 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
       setOpen(false);
       navigate(`/azienda/ordini-acquisto/${po.id}`);
     } catch (e) {
-      toast.error("Errore nella creazione dell'OdA", { description: String(e) });
+      toast.error("Errore nella creazione dell'OdA", {
+        description: e instanceof Error ? e.message : String(e),
+      });
     } finally {
       setLoading(false);
     }
@@ -132,14 +142,21 @@ export function CreatePurchaseOrderButton({ orderId, orderCode, items }: CreateP
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {items.length} articol{items.length === 1 ? "o" : "i"} verranno aggiunti all'OdA.
-              {itemSupplierIds.length > 0 && " I fornitori degli articoli sono evidenziati con ★."}
-            </p>
+            {supplierId && relevantCount === 0 ? (
+              <p className="text-xs text-destructive">
+                Nessun articolo della commessa è collegato a questo fornitore.
+                Seleziona un fornitore diverso oppure aggiungi prima gli articoli.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {relevantCount} articol{relevantCount === 1 ? "o" : "i"} verrann{relevantCount === 1 ? "à" : "o"} aggiunt{relevantCount === 1 ? "o" : "i"} all'OdA.
+                {itemSupplierIds.length > 0 && " I fornitori degli articoli sono evidenziati con ★."}
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Annulla</Button>
-            <Button onClick={handleCreate} disabled={!supplierId || loading}>
+            <Button onClick={handleCreate} disabled={!supplierId || loading || relevantCount === 0}>
               {loading ? "Creazione..." : "Crea OdA"}
             </Button>
           </DialogFooter>

@@ -137,7 +137,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
         .select("*, external_team:external_teams(name)")
         .eq("order_id", orderId);
       if (error) throw error;
-      return data as OrderExternalTeam[];
+      return (data ?? []) as OrderExternalTeam[];
     },
     enabled: !!orderId,
     staleTime: 2 * 60 * 1000,
@@ -161,11 +161,12 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
   const { data: assegnazioni = [], isLoading: loadingAssegnazioni } = useQuery<CampoAssignment[]>({
     queryKey: ["order-campo-assignments", orderId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("order_campo_assignments")
         .select("*, profile:profiles(id, first_name, last_name, email)")
         .eq("order_id", orderId)
         .order("created_at", { ascending: true });
+      if (error) throw error;
       return (data ?? []) as CampoAssignment[];
     },
     enabled: !!orderId,
@@ -204,6 +205,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
       if (error) throw error;
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["order-external-teams", orderId] }); toast.success("Stato pagamento aggiornato"); },
+    onError: () => toast.error("Impossibile aggiornare lo stato pagamento"),
   });
 
   const assegnaCampoMutation = useMutation({
@@ -401,7 +403,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                           </div>
                           <div className="flex justify-between text-xs text-muted-foreground">
                             <span>{formatCurrency(lordo)} / {formatCurrency(contr)}</span>
-                            {sub.ritenute_in_corso > 0 && (
+                            {(sub.ritenute_in_corso ?? 0) > 0 && (
                               <span className="text-amber-600 font-medium">{formatCurrency(sub.ritenute_in_corso)} ritenuta</span>
                             )}
                           </div>

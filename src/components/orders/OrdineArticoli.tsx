@@ -1,5 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { OrderItemsList, type OrderItem } from "./OrderItemsList";
 import { OrderAttachments } from "./OrderAttachments";
 import { SupplierPaymentsCard } from "./SupplierPaymentsCard";
@@ -24,6 +27,31 @@ export function OrdineArticoli({
   onItemUpdate,
   onAttachmentsRefresh,
 }: OrdineArticoliProps) {
+  const queryClient = useQueryClient();
+
+  // Posa dal listino → voce Manodopera (order_external_teams). Materiale resta
+  // in order_items: il costo manodopera NON viene contato due volte.
+  const addLaborMutation = useMutation({
+    mutationFn: async (labor: { external_team_id: string; total_cost: number; notes: string }) => {
+      const { error } = await supabase.from("order_external_teams").insert({
+        order_id: orderId,
+        external_team_id: labor.external_team_id,
+        total_cost: labor.total_cost,
+        vat_rate: 22,
+        is_paid: false,
+        notes: labor.notes,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["order-external-teams", orderId] });
+      toast.success("Posa aggiunta alla Manodopera");
+    },
+    onError: (e) => {
+      toast.error(e instanceof Error ? e.message : "Errore aggiunta posa alla Manodopera");
+    },
+  });
+
   return (
     <div className="space-y-4">
       <Card>
@@ -44,6 +72,7 @@ export function OrdineArticoli({
             onAttachmentsRefresh={onAttachmentsRefresh}
             onItemUpdate={onItemUpdate}
             fallbackCompanyId={companyId}
+            onAddLabor={(labor) => addLaborMutation.mutate(labor)}
           />
         </CardContent>
       </Card>

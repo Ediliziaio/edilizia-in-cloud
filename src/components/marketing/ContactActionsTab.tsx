@@ -275,9 +275,8 @@ export const ContactActionsTab = forwardRef<HTMLDivElement, ContactActionsTabPro
         email={contact.email}
         defaultChannel={quickSend.channel}
         onSent={() => {
-          queryClient.invalidateQueries({ queryKey: ["comm-sms"] });
-          queryClient.invalidateQueries({ queryKey: ["comm-wa"] });
-          queryClient.invalidateQueries({ queryKey: ["comm-email"] });
+          // Aggiorna lo storico chiamate/comunicazioni mostrato nella scheda contatto.
+          queryClient.invalidateQueries({ queryKey: ["contact-call-history"] });
         }}
       />
     </div>

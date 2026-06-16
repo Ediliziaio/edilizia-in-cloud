@@ -31,7 +31,14 @@ interface Props {
 }
 
 interface SupplierOption { id: string; name: string }
-interface OrderOption { id: string; order_code: string | null; customers?: { company_name: string | null } | null }
+// orders.customer_id → profiles (FK orders_customer_id_fkey): profiles non ha
+// `company_name`, il nome cliente si compone da first_name + last_name.
+interface OrderOption { id: string; order_code: string | null; customer?: { first_name: string | null; last_name: string | null } | null }
+function orderCustName(o: OrderOption | null | undefined): string {
+  const c = o?.customer;
+  if (!c) return "";
+  return `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim();
+}
 
 export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPending }: Props) {
   const { effectiveCompany } = useAuth();
@@ -82,7 +89,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("id, order_code, customers(company_name)")
+        .select("id, order_code, customer:profiles!orders_customer_id_fkey(first_name, last_name)")
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -177,7 +184,7 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
               <Popover open={orderOpen} onOpenChange={setOrderOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
-                    {selectedOrder ? `${selectedOrder.order_code || "—"} - ${selectedOrder.customers?.company_name || ""}` : "Seleziona ordine..."}
+                    {selectedOrder ? `${selectedOrder.order_code || "—"}${orderCustName(selectedOrder) ? " - " + orderCustName(selectedOrder) : ""}` : "Seleziona ordine..."}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
@@ -188,10 +195,10 @@ export default function NewScadenzaDialog({ open, onOpenChange, onConfirm, isPen
                       <CommandEmpty>Nessun ordine trovato.</CommandEmpty>
                       <CommandGroup>
                         {orders.map((o) => (
-                          <CommandItem key={o.id} value={`${o.order_code || ""} ${o.customers?.company_name || ""}`} onSelect={() => { setOrderId(o.id); setOrderOpen(false); }}>
+                          <CommandItem key={o.id} value={`${o.order_code || ""} ${orderCustName(o)}`} onSelect={() => { setOrderId(o.id); setOrderOpen(false); }}>
                             <Check className={cn("mr-2 h-4 w-4", orderId === o.id ? "opacity-100" : "opacity-0")} />
                             <span className="font-mono text-xs mr-2">{o.order_code}</span>
-                            {o.customers?.company_name}
+                            {orderCustName(o)}
                           </CommandItem>
                         ))}
                       </CommandGroup>

@@ -89,7 +89,8 @@ export default function PurchaseOrderDetail() {
   const { data: ddtList = [] } = useQuery({
     queryKey: ["ddt-ricezione", odaId],
     queryFn: async () => {
-      const { data } = await supabase.from("ddt_ricezione").select("*").eq("purchase_order_id", odaId!).order("data_ricezione", { ascending: false });
+      const { data, error } = await supabase.from("ddt_ricezione").select("*").eq("purchase_order_id", odaId!).order("data_ricezione", { ascending: false });
+      if (error) throw error;
       return data || [];
     },
     enabled: !!odaId,
@@ -609,17 +610,27 @@ function ItemRow({
   const handleBlur = () => {
     const updates: Record<string, any> = {};
     if (desc !== item.description) updates.description = desc;
-    if (Number(qty) !== item.quantity) updates.quantity = Number(qty);
+    if ((Number(qty) || 0) !== item.quantity) updates.quantity = Number(qty) || 0;
     if (um !== (item.unit_of_measure || "pz")) updates.unit_of_measure = um;
-    if (Number(price) !== item.unit_price) updates.unit_price = Number(price);
-    if (Number(disc) !== item.discount_percent) updates.discount_percent = Number(disc);
-    if (Number(vat) !== item.vat_rate) updates.vat_rate = Number(vat);
+    if ((Number(price) || 0) !== item.unit_price) updates.unit_price = Number(price) || 0;
+    if ((Number(disc) || 0) !== item.discount_percent) updates.discount_percent = Number(disc) || 0;
+    if ((Number(vat) || 0) !== item.vat_rate) updates.vat_rate = Number(vat) || 0;
     if (Object.keys(updates).length > 0) onUpdate(updates);
   };
 
   const handleReceivedBlur = () => {
-    if (Number(received) !== item.quantity_received) {
-      onUpdate({ quantity_received: Number(received), received_date: format(new Date(), "yyyy-MM-dd") });
+    if (received.trim() === "" || isNaN(Number(received))) {
+      setReceived(String(item.quantity_received));
+      return;
+    }
+    const val = Number(received);
+    if (val < 0 || val > item.quantity) {
+      toast.error(`La quantità ricevuta deve essere compresa tra 0 e ${item.quantity}`);
+      setReceived(String(item.quantity_received));
+      return;
+    }
+    if (val !== item.quantity_received) {
+      onUpdate({ quantity_received: val, received_date: format(new Date(), "yyyy-MM-dd") });
     }
   };
 

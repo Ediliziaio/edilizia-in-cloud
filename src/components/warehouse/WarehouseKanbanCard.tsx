@@ -1,7 +1,7 @@
 import { useDraggable } from "@dnd-kit/core";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
-import { Building2, Calendar, FileText, GripVertical, Package, StickyNote, User } from "lucide-react";
+import { Calendar, FileText, GripVertical, Package, StickyNote, User } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -57,7 +57,7 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSe
         !isUrgent && !isCritical && config.color === "text-muted-foreground" && "border-l-muted-foreground/40",
       )}
     >
-      <CardContent className="space-y-2.5 p-3">
+      <CardContent className="space-y-2 p-2.5">
         <div className="flex items-start gap-2">
           {!readOnly && onToggleSelection && (
             <Checkbox
@@ -107,29 +107,27 @@ export default function WarehouseKanbanCard({ item, supplierName, onSelect, isSe
           </div>
         </div>
 
-        <div className="space-y-1.5 rounded-md bg-muted/35 p-2 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1 truncate">
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
             <User className="h-3 w-3 shrink-0" />
-            <span className="truncate">{customerName}</span>
+            <span className="truncate font-medium text-foreground/80">{customerName}</span>
           </span>
-          {item.order.order_code && (
-            <span className="flex items-center gap-1 truncate">
-              <FileText className="h-3 w-3" />
-              <span className="truncate">{item.order.order_code}</span>
-            </span>
-          )}
-          {supplierName && (
-            <span className="flex items-center gap-1 truncate">
-              <Building2 className="h-3 w-3 shrink-0" />
-              <span className="truncate">{supplierName}</span>
+          {(item.order.order_code || supplierName) && (
+            <span className="flex items-center gap-1.5">
+              <FileText className="h-3 w-3 shrink-0" />
+              <span className="truncate">
+                {item.order.order_code ?? ""}
+                {item.order.order_code && supplierName ? " · " : ""}
+                {supplierName ?? ""}
+              </span>
             </span>
           )}
         </div>
 
         {formattedDate && (
-          <div className="flex items-center justify-between gap-2 text-xs">
+          <div className="flex items-center justify-between gap-2 border-t pt-2 text-xs">
             <span className="text-muted-foreground">Lavori</span>
-            <span className="flex items-center gap-1 font-medium">
+            <span className={cn("flex items-center gap-1 font-medium", overdue && "text-destructive")}>
               <Calendar className="h-3 w-3" />
               {formattedDate}
             </span>

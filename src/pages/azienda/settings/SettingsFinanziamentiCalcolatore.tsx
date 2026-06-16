@@ -8,6 +8,7 @@
 
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,7 +37,7 @@ import { SimulatoreMultiDurata } from "./_finanziamenti/SimulatoreMultiDurata";
 export default function SettingsFinanziamentiCalcolatore() {
   const { role } = useAuth();
   const isAdmin = role === "company_admin" || role === "super_admin";
-  const { data: tabelle = [] } = useTabelle();
+  const { data: tabelle = [], isLoading: isLoadingTabelle, isError: isErrorTabelle } = useTabelle();
   const tabelleAttive = useMemo(
     () => tabelle.filter((t) => t.attiva),
     [tabelle]
@@ -97,7 +98,21 @@ export default function SettingsFinanziamentiCalcolatore() {
             <h2 className="font-semibold">Calcolatore finanziamento</h2>
           </div>
 
-          {tabelleAttive.length === 0 && (
+          {isLoadingTabelle && (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Caricamento…
+            </p>
+          )}
+
+          {!isLoadingTabelle && isErrorTabelle && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                Errore nel caricamento delle tabelle. Ricarica la pagina.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {!isLoadingTabelle && !isErrorTabelle && tabelleAttive.length === 0 && (
             <div className="rounded-md border bg-muted/30 p-6 text-center space-y-3">
               <Banknote className="h-10 w-10 mx-auto text-muted-foreground" />
               <p className="text-sm">
@@ -113,7 +128,7 @@ export default function SettingsFinanziamentiCalcolatore() {
             </div>
           )}
 
-          {tabelleAttive.length > 0 && (
+          {!isLoadingTabelle && !isErrorTabelle && tabelleAttive.length > 0 && (
             <>
               <div>
                 <Label htmlFor="tab-select">Tabella finanziamento</Label>

@@ -67,11 +67,12 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
   const { data: rapportini = [], isLoading } = useQuery({
     queryKey: ["order-campo-rapportini", orderId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("campo_rapportini")
         .select("*, autore:profiles(first_name, last_name)")
         .eq("order_id", orderId)
         .order("data_lavoro", { ascending: false });
+      if (error) throw error;
       return data ?? [];
     },
     enabled: !!orderId,
@@ -81,12 +82,13 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
   const approvaMutation = useMutation({
     mutationFn: async (rapportinoId: string) => {
       const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sessione scaduta, riaccedi");
       const { error } = await supabase
         .from("campo_rapportini")
         .update({
           stato: "approvato",
           approvato: true,
-          approvato_da: user!.id,
+          approvato_da: user.id,
           approvato_at: new Date().toISOString(),
           motivo_rifiuto: null,
         })
@@ -140,7 +142,8 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
         body: { rapportino_id: rapportino.id },
       });
       if (error) throw error;
-      if (data?.pdf_url) window.open(data.pdf_url, "_blank");
+      if (!data?.pdf_url) throw new Error("PDF non disponibile");
+      window.open(data.pdf_url, "_blank");
       qc.invalidateQueries({ queryKey: ["order-campo-rapportini", orderId] });
     },
     onError: () => toast.error("Errore generazione PDF"),
@@ -187,7 +190,9 @@ export function OrdineRapportiniCampo({ orderId }: Props) {
                               +{r.ore_straordinario}h str.
                             </Badge>
                           )}
-                          <Badge variant="outline" className="text-[10px] py-0">{r.percentuale_avanzamento}%</Badge>
+                          {r.percentuale_avanzamento != null && (
+                            <Badge variant="outline" className="text-[10px] py-0">{r.percentuale_avanzamento}%</Badge>
+                          )}
                           <StatoBadge stato={stato} />
                           <SourceBadge source={r.source} />
                           {r.firma_cliente_url && <PenLine className="h-3 w-3 text-blue-500" />}

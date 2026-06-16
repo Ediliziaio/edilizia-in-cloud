@@ -43,7 +43,7 @@ export default function SettingsFirmaElettronica() {
   const [testoRecessoB2c, setTestoRecessoB2c] = useState(DEFAULT_RECESSO_B2C);
   const [savedState, setSavedState] = useState<SettingsFormState | null>(null);
 
-  const { data: feaConfig, isLoading: isLoadingFea } = useQuery<FeaConfig | null>({
+  const { data: feaConfig, isLoading: isLoadingFea, isError: isErrorFea } = useQuery<FeaConfig | null>({
     queryKey: ["fea-configurazione", companyId],
     enabled: !!companyId,
     queryFn: async () => {
@@ -57,7 +57,7 @@ export default function SettingsFirmaElettronica() {
     },
   });
 
-  const { data: preventivoSettings, isLoading: isLoadingPreventivi } = useQuery<PreventivoImpostazioni | null>({
+  const { data: preventivoSettings, isLoading: isLoadingPreventivi, isError: isErrorPreventivi } = useQuery<PreventivoImpostazioni | null>({
     queryKey: ["preventivo-impostazioni-firma", companyId],
     enabled: !!companyId,
     queryFn: async () => {
@@ -149,6 +149,20 @@ export default function SettingsFirmaElettronica() {
   });
 
   const isLoading = isLoadingFea || isLoadingPreventivi;
+  const isErrorConfig = isErrorFea || isErrorPreventivi;
+
+  if (isErrorConfig) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-6">
+        <Alert variant="destructive">
+          <AlertTitle>Errore di caricamento</AlertTitle>
+          <AlertDescription>
+            Impossibile caricare la configurazione. Ricarica la pagina prima di modificare.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">

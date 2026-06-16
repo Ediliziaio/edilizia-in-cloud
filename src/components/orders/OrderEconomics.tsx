@@ -17,7 +17,6 @@ interface OrderItem {
 interface OrderEconomicsProps {
   orderId: string;
   totalAmount: number;
-  collectedAmount: number;
   vatRate: number;
   items: OrderItem[];
 }
@@ -138,7 +137,7 @@ export function OrderEconomics({
   const totalItemsVat = itemCostBreakdowns.reduce((sum, item) => sum + item.vatAmount, 0);
 
   // Calculate employee costs (internal labor - no VAT deductible typically)
-  const totalEmployeeCosts = orderEmployees.reduce((sum, e) => sum + e.total_cost, 0);
+  const totalEmployeeCosts = orderEmployees.reduce((sum, e) => sum + (e.total_cost ?? 0), 0);
 
   // Calculate external team costs with VAT breakdown
   const teamCostBreakdowns: CostBreakdown[] = orderExternalTeams.map((team) => {
@@ -171,7 +170,7 @@ export function OrderEconomics({
   const vatBalance = vatDebit - vatCredit;
 
   // Calculate errors/losses
-  const totalErrors = orderErrors.reduce((sum, e) => sum + e.amount, 0);
+  const totalErrors = orderErrors.reduce((sum, e) => sum + (e.amount ?? 0), 0);
 
   // Calculate margin based on net costs INCLUDING commissions AND errors
   const totalCostsNet = totalItemsNet + totalLaborNet + totalCommissions + totalErrors;

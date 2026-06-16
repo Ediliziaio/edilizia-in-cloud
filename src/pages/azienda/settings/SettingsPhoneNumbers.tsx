@@ -51,7 +51,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Phone, Plus, Search, Trash2, MessageSquare, PhoneCall, Info, Loader2, Download, Bot, ArrowRight, Link2, Headphones } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Phone, Plus, Search, Trash2, MessageSquare, PhoneCall, Info, Loader2, Download, Bot, ArrowRight, Link2, Headphones, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { TelephonyComplianceCard } from "@/components/telephony/TelephonyComplianceCard";
 
@@ -61,7 +62,7 @@ export default function SettingsPhoneNumbers() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id || null;
 
-  const { data: numbers, isLoading } = usePhoneNumbers(companyId);
+  const { data: numbers, isLoading, isError: isErrorNumbers } = usePhoneNumbers(companyId);
   const { data: profiles } = useCompanyProfiles(companyId);
   const { results, isSearching, search, setResults } = useSearchAvailableNumbers();
   const purchaseMutation = usePurchaseNumber(companyId);
@@ -389,6 +390,11 @@ export default function SettingsPhoneNumbers() {
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
+          ) : isErrorNumbers ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>Errore nel caricamento dei numeri. Riprova.</AlertDescription>
+            </Alert>
           ) : !numbers?.length ? (
             <p className="text-center text-muted-foreground py-8">
               Nessun numero virtuale attivo. Acquista il primo numero per iniziare.

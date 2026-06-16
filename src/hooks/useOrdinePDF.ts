@@ -55,25 +55,30 @@ export interface OrdinePDFProps {
 export function useOrdinePDF() {
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // Genera il Blob del PDF (code-split: la lib pesante è caricata on-demand qui).
+  const buildBlob = async (opts: OrdinePDFProps): Promise<Blob> => {
+    const [{ pdf }, { OrdinePDF }, React] = await Promise.all([
+      import("@react-pdf/renderer"),
+      import("@/components/orders/OrdinePDF"),
+      import("react"),
+    ]);
+    // Cast a any: OrdinePDF definisce i suoi props con `any` per compatibilità
+    // con tutti i tipi esistenti nel codebase; i tipi runtime sono validati dal
+    // componente stesso.
+    const element = React.createElement(OrdinePDF, opts as never);
+    return await pdf(element).toBlob();
+  };
+
+  const pdfFileName = (opts: OrdinePDFProps) => `Ordine-${opts.order?.order_code ?? "dettaglio"}.pdf`;
+
   const downloadPDF = async (opts: OrdinePDFProps) => {
     setIsGenerating(true);
     try {
-      // Dynamic imports — qui avviene il code-split
-      const [{ pdf }, { OrdinePDF }, React] = await Promise.all([
-        import("@react-pdf/renderer"),
-        import("@/components/orders/OrdinePDF"),
-        import("react"),
-      ]);
-
-      // Cast a any: OrdinePDF definisce i suoi props con `any` per
-      // compatibilità con tutti i tipi esistenti nel codebase.
-      // I tipi runtime sono validati dal componente stesso.
-      const element = React.createElement(OrdinePDF, opts as never);
-      const blob = await pdf(element).toBlob();
+      const blob = await buildBlob(opts);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Ordine-${opts.order?.order_code ?? "dettaglio"}.pdf`;
+      a.download = pdfFileName(opts);
       a.click();
       URL.revokeObjectURL(url);
       toast.success("PDF scaricato con successo");
@@ -85,5 +90,23 @@ export function useOrdinePDF() {
     }
   };
 
-  return { downloadPDF, isGenerating };
+  /**
+   * Genera il PDF e lo restituisce come { blob, filename } senza scaricarlo —
+   * usato per allegare il PDF all'email del cliente. Ritorna null in caso di errore.
+   */
+  const getPDFBlob = async (opts: OrdinePDFProps): Promise<{ blob: Blob; filename: string } | null> => {
+    setIsGenerating(true);
+    try {
+      const blob = await buildBlob(opts);
+      return { blob, filename: pdfFileName(opts) };
+    } catch (e) {
+      console.error("Errore generazione PDF:", e);
+      toast.error("Errore nella generazione del PDF");
+      return null;
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return { downloadPDF, getPDFBlob, isGenerating };
 }

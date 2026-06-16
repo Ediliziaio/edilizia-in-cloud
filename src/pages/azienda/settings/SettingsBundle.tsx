@@ -163,12 +163,13 @@ export default function SettingsBundle() {
     queryKey: ["bundle-editor-articoli", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("article_templates")
         .select("id, name, unit_of_measure, unit_price, prezzo_vendita")
         .eq("company_id", companyId!)
         .order("name")
         .limit(500);
+      if (error) throw error;
       return (data ?? []) as Array<{
         id: string;
         name: string;
@@ -184,11 +185,12 @@ export default function SettingsBundle() {
     queryKey: ["bundle-editor-tariffe", companyId],
     enabled: !!companyId,
     queryFn: async () => {
-      const { data } = await supabase.from("tariffe_aziendali" as never)
+      const { data, error } = await supabase.from("tariffe_aziendali" as never)
         .select("id, nome, prezzo_vendita, unita")
         .eq("company_id", companyId!)
         .eq("attivo", true)
         .order("nome");
+      if (error) throw error;
       return (data ?? []) as Array<{
         id: string;
         nome: string;

@@ -189,6 +189,10 @@ export default function SettingsFinanziamentiDetail() {
       toast.error("Errore download", { description: error.message });
       return;
     }
+    if (!data?.signedUrl) {
+      toast.error("Impossibile scaricare il file");
+      return;
+    }
     const a = document.createElement("a");
     a.href = data.signedUrl;
     a.download = filename ?? "allegato";

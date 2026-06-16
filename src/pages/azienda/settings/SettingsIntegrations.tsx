@@ -85,7 +85,12 @@ export default function SettingsIntegrations() {
   const queryClient = useQueryClient();
 
   // ── Query: integrations table ─────────────────────────────────────────────
-  const { data: integrations = [], refetch: refetchIntegrations } = useQuery({
+  const {
+    data: integrations = [],
+    refetch: refetchIntegrations,
+    isLoading: isLoadingIntegrations,
+    isError: isErrorIntegrations,
+  } = useQuery({
     queryKey: ["integrations", companyId],
     queryFn: async () => {
       if (!companyId) return [];
@@ -318,6 +323,26 @@ export default function SettingsIntegrations() {
           </div>
         </div>
       </div>
+
+      {/* Stato caricamento / errore della query principale integrations */}
+      {isErrorIntegrations ? (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle className="text-sm">Errore di caricamento</AlertTitle>
+          <AlertDescription className="text-xs">
+            Errore nel caricamento delle integrazioni. Riprova.
+          </AlertDescription>
+        </Alert>
+      ) : isLoadingIntegrations ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-28 rounded-xl border bg-muted/40 animate-pulse"
+            />
+          ))}
+        </div>
+      ) : null}
 
       {/* Alert sola lettura */}
       {!canManageIntegrations && (

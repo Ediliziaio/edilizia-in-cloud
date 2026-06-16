@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowLeft,
@@ -247,7 +248,7 @@ export default function StoricoImpianto() {
   const navigate = useNavigate();
 
   // ── Query impianto ────────────────────────────────────────────────────────
-  const { data: impianto, isLoading: impiantoLoading } = useQuery({
+  const { data: impianto, isLoading: impiantoLoading, isError: impiantoError } = useQuery({
     queryKey: ["impianto-storico-header", impiantoId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -264,36 +265,39 @@ export default function StoricoImpianto() {
   });
 
   // ── Query rapportini per impianto ─────────────────────────────────────────
-  const { data: rapportini = [], isLoading: rapportiniLoading } = useQuery({
+  const { data: rapportini = [], isLoading: rapportiniLoading, isError: rapportiniError } = useQuery({
     queryKey: ["storico-rapportini-impianto", impiantoId],
     queryFn: async () => {
       // Primary: rapportini with impianto_id
-      const { data: rapData } = await (supabase as any)
+      const { data: rapData, error: rapError } = await (supabase as any)
         .from("rapportini_intervento")
         .select(
           "id, ticket_id, created_at, stato, stato_chiusura, note_chiusura, ore_lavoro, ore_lavoro_effettive, firma_tecnico_url, foto_chiusura, foto_urls"
         )
         .eq("impianto_id", impiantoId!)
         .order("created_at", { ascending: false });
+      if (rapError) throw rapError;
 
       let items: RapportinoStorico[] = (rapData ?? []) as RapportinoStorico[];
 
       // If no rapportini found via impianto_id, try via tickets
       if (items.length === 0) {
-        const { data: ticketData } = await supabase
+        const { data: ticketData, error: ticketErr } = await supabase
           .from("tickets")
           .select("id, subject")
           .eq("impianto_id", impiantoId!);
+        if (ticketErr) throw ticketErr;
 
         if (ticketData && ticketData.length > 0) {
           const ticketIds = ticketData.map((t) => t.id);
-          const { data: rapFromTickets } = await (supabase as any)
+          const { data: rapFromTickets, error: rapFromTicketsErr } = await (supabase as any)
             .from("rapportini_intervento")
             .select(
               "id, ticket_id, created_at, stato, stato_chiusura, note_chiusura, ore_lavoro, ore_lavoro_effettive, firma_tecnico_url, foto_chiusura, foto_urls"
             )
             .in("ticket_id", ticketIds)
             .order("created_at", { ascending: false });
+          if (rapFromTicketsErr) throw rapFromTicketsErr;
 
           // Enrich with ticket subject
           const ticketMap = Object.fromEntries(ticketData.map((t) => [t.id, t]));
@@ -324,10 +328,11 @@ export default function StoricoImpianto() {
         // Enrich with ticket subject via join
         const ticketIds = [...new Set(items.map((r) => r.ticket_id).filter(Boolean))];
         if (ticketIds.length > 0) {
-          const { data: ticketData } = await supabase
+          const { data: ticketData, error: ticketEnrichErr } = await supabase
             .from("tickets")
             .select("id, subject")
             .in("id", ticketIds as string[]);
+          if (ticketEnrichErr) throw ticketEnrichErr;
           const ticketMap = Object.fromEntries((ticketData ?? []).map((t) => [t.id, t]));
           items = items.map((r) => ({
             ...r,
@@ -381,6 +386,20 @@ export default function StoricoImpianto() {
           ))}
         </div>
         <Skeleton className="h-40 w-full rounded-lg" />
+      </div>
+    );
+  }
+
+  if (impiantoError) {
+    return (
+      <div className="p-6 max-w-md mx-auto">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>Errore nel caricamento. Riprova.</AlertDescription>
+        </Alert>
+        <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>
+          Torna indietro
+        </Button>
       </div>
     );
   }
@@ -483,7 +502,12 @@ export default function StoricoImpianto() {
           <span className="text-xs text-gray-400">{totaleInterventi} record</span>
         </div>
 
-        {rapportini.length === 0 ? (
+        {rapportiniError ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>Errore nel caricamento. Riprova.</AlertDescription>
+          </Alert>
+        ) : rapportini.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <Wrench className="h-10 w-10 text-gray-200 mx-auto mb-3" />

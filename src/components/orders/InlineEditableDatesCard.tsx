@@ -41,10 +41,12 @@ function InlineDatePicker({
   label,
   value,
   onSelect,
+  disabled = false,
 }: {
   label: string;
   value: Date | undefined;
   onSelect: (d: Date | undefined) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="space-y-1.5">
@@ -54,6 +56,7 @@ function InlineDatePicker({
           <Button
             variant="outline"
             size="sm"
+            disabled={disabled}
             className={cn(
               "w-full justify-start text-left font-normal h-9 border-slate-200 hover:border-orange-300 hover:bg-orange-50/40",
               !value && "text-slate-400"
@@ -99,6 +102,7 @@ export function InlineEditableDatesCard({
   const [workPlanStart, setWorkPlanStart] = useState<Date | undefined>(parse(workStartDate));
   const [workPlanEnd, setWorkPlanEnd] = useState<Date | undefined>(parse(workEndDate));
   const [savingWorkPlan, setSavingWorkPlan] = useState(false);
+  const [savingDates, setSavingDates] = useState(false);
   const [appointmentOpen, setAppointmentOpen] = useState(false);
   const [appointmentPreset, setAppointmentPreset] = useState<{
     type: string;
@@ -178,26 +182,31 @@ export function InlineEditableDatesCard({
 
   const saveField = useCallback(
     async (field: string, date: Date | undefined) => {
-      const value = date ? format(date, "yyyy-MM-dd") : null;
-      const { error } = await supabase
-        .from("orders")
-        .update({ [field]: value })
-        .eq("id", orderId);
-      if (error) {
-        toast.error("Errore nel salvataggio della data");
-        logger.error("Error saving date:", error);
-      } else {
-        if (field === "work_start_date") {
-          await syncWorkAppointment("inizio_lavori", date);
+      setSavingDates(true);
+      try {
+        const value = date ? format(date, "yyyy-MM-dd") : null;
+        const { error } = await supabase
+          .from("orders")
+          .update({ [field]: value })
+          .eq("id", orderId);
+        if (error) {
+          toast.error("Errore nel salvataggio della data");
+          logger.error("Error saving date:", error);
+        } else {
+          if (field === "work_start_date") {
+            await syncWorkAppointment("inizio_lavori", date);
+          }
+          if (field === "work_end_date") {
+            await syncWorkAppointment("fine_lavori", date);
+          }
+          toast.success("Data aggiornata");
+          queryClient.invalidateQueries({ queryKey: ["order", orderId] });
+          queryClient.invalidateQueries({ queryKey: ["orders", "detail", orderId] });
+          queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
+          queryClient.invalidateQueries({ queryKey: ["appointments"] });
         }
-        if (field === "work_end_date") {
-          await syncWorkAppointment("fine_lavori", date);
-        }
-        toast.success("Data aggiornata");
-        queryClient.invalidateQueries({ queryKey: ["order", orderId] });
-        queryClient.invalidateQueries({ queryKey: ["orders", "detail", orderId] });
-        queryClient.invalidateQueries({ queryKey: ["calendar-orders"] });
-        queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      } finally {
+        setSavingDates(false);
       }
     },
     [orderId, queryClient, syncWorkAppointment]
@@ -339,21 +348,25 @@ export function InlineEditableDatesCard({
             label="Data Posa Prevista"
             value={expected}
             onSelect={(d) => handleChange("expected_date", setExpected, d)}
+            disabled={savingDates}
           />
           <InlineDatePicker
             label="Arrivo Merce"
             value={warehouse}
             onSelect={(d) => handleChange("warehouse_arrival_date", setWarehouse, d)}
+            disabled={savingDates}
           />
           <InlineDatePicker
             label="Inizio Lavori"
             value={workStart}
             onSelect={(d) => handleChange("work_start_date", setWorkStart, d)}
+            disabled={savingDates}
           />
           <InlineDatePicker
             label="Fine Lavori"
             value={workEnd}
             onSelect={(d) => handleChange("work_end_date", setWorkEnd, d)}
+            disabled={savingDates}
           />
         </div>
       </QuoteCard>

@@ -101,13 +101,14 @@ export default function SubappaltatoreDetail() {
   const { data: contratto } = useQuery({
     queryKey: ['contratto-sub', id],
     queryFn: async () => {
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from('contratti_subappalto')
         .select('*')
         .eq('subappaltatore_id', id!)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+      if (error) throw error;
       return data as ContrattoSubappalto | null;
     },
     enabled: !!id,
@@ -199,11 +200,12 @@ export default function SubappaltatoreDetail() {
   const { data: lavoroCollegato } = useQuery({
     queryKey: ['subappaltatore-lavoro', sub?.order_id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('orders')
         .select('id, order_code, description, client_name, client_company, total_amount, status, work_start_date, work_end_date, created_at')
         .eq('id', sub!.order_id)
         .maybeSingle();
+      if (error) throw error;
       return data as any;
     },
     enabled: !!sub?.order_id,
@@ -673,8 +675,8 @@ export default function SubappaltatoreDetail() {
   const totaleLordo = salList.reduce((a, s) => a + s.importo_lordo, 0);
   const totaleRitenute = salList.reduce((a, s) => a + s.ritenuta_importo, 0);
   const totaleNetto = salList.reduce((a, s) => a + s.importo_netto, 0);
-  const totalePagato = salList.filter((s) => s.stato === 'pagato').reduce((a, s) => a + s.importo_netto, 0);
-  const totaleDaPagare = salList.filter((s) => s.stato !== 'pagato' && s.stato !== 'contestato').reduce((a, s) => a + s.importo_netto, 0);
+  const totalePagato = salList.filter((s) => s.stato === 'pagato').reduce((a, s) => a + (Number(s.importo_netto) || 0), 0);
+  const totaleDaPagare = salList.filter((s) => s.stato !== 'pagato' && s.stato !== 'contestato').reduce((a, s) => a + (Number(s.importo_netto) || 0), 0);
   const ritenuteTrattenute = ritenute.filter(r => r.stato === 'trattenuta');
   const pct = contratto && contratto.importo_contrattuale > 0
     ? Math.min(100, Math.round((totaleLordo / contratto.importo_contrattuale) * 100))

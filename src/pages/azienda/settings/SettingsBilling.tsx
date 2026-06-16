@@ -300,6 +300,7 @@ export default function SettingsBilling() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["billing_integrations"] });
     },
+    onError: (e) => toast.error("Errore aggiornamento stato", { description: String(e) }),
   });
 
   const testConnection = async (integration: any) => {
@@ -510,7 +511,7 @@ export default function SettingsBilling() {
                         {addMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                         Salva
                       </Button>
-                      <Button variant="outline" onClick={() => { setShowAdd(false); setNewProvider(""); setNewApiKey(""); }}>
+                      <Button variant="outline" onClick={() => { setShowAdd(false); setNewProvider(""); setNewApiKey(""); setNewCompanyExternalId(""); }}>
                         Annulla
                       </Button>
                     </div>

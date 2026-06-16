@@ -14,6 +14,7 @@ import {
   ArrowUpRight,
   Calendar,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -47,6 +48,8 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -733,9 +736,18 @@ function CalendarioTab({
     ? posts.filter((p) => p.platforms.includes(filterPlatform))
     : posts;
 
-  // Group by date key "YYYY-MM-DD"
+  // Chiave data LOCALE "YYYY-MM-DD" — coerente con la griglia mese che usa
+  // currentYear/currentMonth/day locali. Prima usava toISOString() (UTC), che
+  // spostava i post nel giorno sbagliato vicino a mezzanotte (es. UTC+2).
+  const toLocalDateKey = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  // Group by date key "YYYY-MM-DD" (locale). Le date non valide/mancanti
+  // vengono saltate per non far crashare il reduce.
   const postsByDate = filteredPosts.reduce<Record<string, ScheduledPost[]>>((acc, p) => {
-    const key = new Date(p.scheduled_at).toISOString().split("T")[0];
+    const t = new Date(p.scheduled_at);
+    if (Number.isNaN(t.getTime())) return acc;
+    const key = toLocalDateKey(t);
     if (!acc[key]) acc[key] = [];
     acc[key].push(p);
     return acc;
@@ -760,7 +772,7 @@ function CalendarioTab({
   const TIME_SLOTS = ["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"];
 
   function postsForDateAndHour(date: Date, hour: string): ScheduledPost[] {
-    const dateKey = date.toISOString().split("T")[0];
+    const dateKey = toLocalDateKey(date);
     return (postsByDate[dateKey] ?? []).filter((p) => {
       const h = new Date(p.scheduled_at).toTimeString().slice(0, 5);
       return h >= hour && h < `${String(parseInt(hour) + 1).padStart(2, "0")}:00`;
@@ -842,7 +854,7 @@ function CalendarioTab({
                         </p>
                         {post.hashtags.length > 0 && (
                           <p className="truncate text-[11px] text-slate-400">
-                            {post.hashtags.slice(0, 5).map((h) => `#${h}`).join(" ")}
+                            {post.hashtags.slice(0, 5).join(" ")}
                             {post.hashtags.length > 5 && ` +${post.hashtags.length - 5}`}
                           </p>
                         )}
@@ -1110,7 +1122,7 @@ function CalendarioTab({
                   <div className="grid border-b" style={{ gridTemplateColumns: "56px repeat(7,1fr)" }}>
                     <div className="border-r" />
                     {weekDays.map((d, i) => {
-                      const dateKey = d.toISOString().split("T")[0];
+                      const dateKey = toLocalDateKey(d);
                       const dayPosts = postsByDate[dateKey] ?? [];
                       const isToday = d.toDateString() === today.toDateString();
                       return (
@@ -1592,12 +1604,15 @@ function ContentStudioTab({
     PLATFORMS,
   );
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const resetComposer = () => {
     setPostText("");
     setHashtags([]);
     setMediaUrl(null);
     setSelectedLibraryMedia(null);
     setScheduledDate("");
+    setScheduledTime("09:00");
     setPublishNow(false);
     setCopyVariants([]);
     setFirstComment("");
@@ -1605,19 +1620,22 @@ function ContentStudioTab({
     setPlatformTexts({});
     setCrossPlatformMode(false);
     setActivePillarId(null);
+    clearAutosave(); // evita che la bozza autosalvata risorga al mount successivo
   };
 
-  const saveLocalPost = (status: ScheduledPost["status"]) => {
+  const saveLocalPost = async (status: ScheduledPost["status"]) => {
+    if (isSubmitting) return; // anti doppio-submit
     if (!draftValidation.canSaveDraft) {
       toast.error(draftValidation.errors[0] ?? "Completa testo e piattaforme prima di salvare.");
       return;
     }
+    setIsSubmitting(true);
 
     const scheduledAt = scheduledDate
       ? new Date(`${scheduledDate}T${scheduledTime}`).toISOString()
       : new Date(Date.now() + 86400000).toISOString();
     const localPost: ScheduledPost = {
-      id: `local-${Date.now()}`,
+      id: `local-${crypto.randomUUID()}`,
       platforms: selectedPlatforms,
       contentType: contentTypeId,
       text: crossPlatformMode ? (platformTexts[selectedPlatforms[0]] ?? postText) : postText,
@@ -1632,14 +1650,19 @@ function ContentStudioTab({
       mediaItemId: selectedLibraryMedia?.id,
     };
 
-    void Promise.resolve(onPostScheduled(localPost));
-    toast.success(status === "review" ? "Post salvato in revisione locale" : "Bozza locale salvata", {
-      description: "Nessuna pubblicazione live è stata inviata alle piattaforme social.",
-    });
-    resetComposer();
+    try {
+      await Promise.resolve(onPostScheduled(localPost));
+      toast.success(status === "review" ? "Post salvato in revisione locale" : "Bozza locale salvata", {
+        description: "Nessuna pubblicazione live è stata inviata alle piattaforme social.",
+      });
+      resetComposer();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const onSchedulePost = () => {
+  const onSchedulePost = async () => {
+    if (isSubmitting) return; // anti doppio-submit
     // In cross-platform mode, valid if at least one platform has text
     const hasText = crossPlatformMode
       ? selectedPlatforms.some(id => (platformTexts[id] ?? postText).trim())
@@ -1668,12 +1691,13 @@ function ContentStudioTab({
       return;
     }
 
+    setIsSubmitting(true);
     const scheduledAt = publishNow
       ? new Date().toISOString()
       : new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
 
     const newPost: ScheduledPost = {
-      id: `post-${Date.now()}`,
+      id: `post-${crypto.randomUUID()}`,
       platforms: draftValidation.connectedSelectedPlatforms,
       contentType: contentTypeId,
       // In cross-platform mode, salva il testo della prima piattaforma come principale
@@ -1684,7 +1708,9 @@ function ContentStudioTab({
       hashtags: contentType.hashtagsAllowed ? hashtags : [],
       firstComment: firstComment || undefined,
       scheduled_at: scheduledAt,
-      status: publishNow ? "published" : "scheduled",
+      // Sempre 'scheduled': la pubblicazione reale (publishNow → subito,
+      // futura → cron) promuove a 'published' SOLO a invio riuscito su Meta.
+      status: "scheduled",
       created_at: new Date().toISOString(),
       mediaItemId: selectedLibraryMedia?.id,
       platformTexts: crossPlatformMode && Object.keys(platformTexts).length > 0
@@ -1692,13 +1718,17 @@ function ContentStudioTab({
         : undefined,
     };
 
-    onPostScheduled(newPost);
-    toast.success(publishNow ? "Richiesta di pubblicazione inviata" : "Post programmato", {
-      description: crossPlatformMode
-        ? `Testi diversi per ${selectedPlatforms.length} piattaforme — ottimizzato!`
-        : publishNow ? "Il publisher social prenderà in carico l'invio." : `Pubblicazione: ${new Date(scheduledAt).toLocaleString("it")}`,
-    });
-    resetComposer();
+    try {
+      await Promise.resolve(onPostScheduled(newPost));
+      toast.success(publishNow ? "Pubblicazione in corso…" : "Post programmato", {
+        description: publishNow
+          ? "Invio a Facebook/Instagram in corso — l'esito appare tra pochi secondi."
+          : `Pubblicazione: ${new Date(scheduledAt).toLocaleString("it")}`,
+      });
+      resetComposer();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const currentPlatform = PLATFORMS.find((p) => p.id === previewPlatform) ?? PLATFORMS[0];
@@ -2426,7 +2456,7 @@ function ContentStudioTab({
                 </div>
               )}
 
-              <Button onClick={onSchedulePost} disabled={!draftValidation.canPublishLive || (!publishNow && !scheduledDate)}
+              <Button onClick={onSchedulePost} disabled={!draftValidation.canPublishLive || (!publishNow && !scheduledDate) || isSubmitting}
                 className={cn("w-full text-white shadow-sm",
                   publishNow ? "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
                              : "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600")}>
@@ -2440,7 +2470,7 @@ function ContentStudioTab({
                 type="button"
                 variant="outline"
                 onClick={() => saveLocalPost("draft")}
-                disabled={!draftValidation.canSaveDraft}
+                disabled={!draftValidation.canSaveDraft || isSubmitting}
                 className="w-full border-slate-200 text-slate-700"
               >
                 <Pencil className="mr-2 h-4 w-4" />
@@ -2450,7 +2480,7 @@ function ContentStudioTab({
               {!publishNow && (
                 <button type="button"
                   onClick={() => saveLocalPost("review")}
-                  disabled={!draftValidation.canSaveDraft}
+                  disabled={!draftValidation.canSaveDraft || isSubmitting}
                   className="w-full rounded-xl border-2 border-dashed border-amber-300 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-50 disabled:opacity-40">
                   ⏳ Salva in revisione locale
                 </button>
@@ -3079,6 +3109,16 @@ function GalleriaTab({
               <div className={cn("relative flex items-center justify-center bg-gradient-to-br", item.gradient,
                 item.format === "9:16" ? "h-48" : item.format === "16:9" ? "h-28" : item.format === "4:5" ? "h-40" : "h-36"
               )}>
+                {/* Anteprima reale del media caricato (immagine/story); per i
+                    video resta il gradiente + icona Play. */}
+                {item.type !== "video" && getSocialMediaPreviewUrl(item) && (
+                  <img
+                    src={getSocialMediaPreviewUrl(item)}
+                    alt="Anteprima media"
+                    loading="lazy"
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                )}
                 {/* Type icon overlay */}
                 {item.type === "video" && (
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/40">
@@ -3090,7 +3130,7 @@ function GalleriaTab({
                     <Smartphone className="h-5 w-5 text-white" />
                   </div>
                 )}
-                {item.type === "image" && (
+                {item.type === "image" && !getSocialMediaPreviewUrl(item) && (
                   <ImageIcon className="h-8 w-8 text-white/40" />
                 )}
 
@@ -3527,7 +3567,7 @@ function InboxTab({ onUnreadChange }: { onUnreadChange?: (n: number) => void }) 
   const sendReply = (id: string) => {
     if (!replyText.trim()) return;
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: "replied" } : i)));
-    toast.success("Risposta inviata", { description: "Il messaggio è stato consegnato sulla piattaforma." });
+    toast.success("Risposta salvata", { description: "Salvata in locale — non ancora inviata alla piattaforma (publisher social non collegato)." });
     setReplyText("");
     setSelectedId(null);
   };
@@ -3800,9 +3840,11 @@ function BulkScheduleModal({
   onImport: (post: ScheduledPost) => void | Promise<unknown>;
   onClose: () => void;
 }) {
+  const MAX_BULK = 30;
   const [csvText, setCsvText] = useState("");
   const [parsed, setParsed] = useState<BulkPost[]>([]);
   const [step, setStep] = useState<"input" | "preview" | "done">("input");
+  const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const parseCsv = (raw: string): BulkPost[] => parseSocialBulkCsv(raw, PLATFORMS);
@@ -3813,9 +3855,12 @@ function BulkScheduleModal({
     setStep("preview");
   };
 
-  const handleImport = () => {
-    const validPosts: ScheduledPost[] = parsed
-      .filter((p) => p.status === "ok")
+  const handleImport = async () => {
+    if (importing) return; // anti doppio-submit
+    const okRows = parsed.filter((p) => p.status === "ok");
+    const droppedForCap = Math.max(0, okRows.length - MAX_BULK);
+    const validPosts: ScheduledPost[] = okRows
+      .slice(0, MAX_BULK) // cap dichiarato (max 30 post per import)
       .map((p, i) => ({
         id: `bulk-${Date.now()}-${i}`,
         platforms: p.platforms,
@@ -3827,8 +3872,16 @@ function BulkScheduleModal({
         status: "scheduled" as const,
         created_at: new Date().toISOString(),
       }));
-    validPosts.forEach((post) => { void onImport(post); });
-    setStep("done");
+    setImporting(true);
+    try {
+      await Promise.all(validPosts.map((post) => Promise.resolve(onImport(post))));
+      if (droppedForCap > 0) {
+        toast.warning(`Importati i primi ${MAX_BULK} post. ${droppedForCap} riga/e in eccesso non importate.`);
+      }
+      setStep("done");
+    } finally {
+      setImporting(false);
+    }
   };
 
   const loadFile = (file: File) => {
@@ -3988,9 +4041,9 @@ function BulkScheduleModal({
                 className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-50">
                 ← Modifica
               </button>
-              <button type="button" onClick={handleImport} disabled={okCount === 0}
+              <button type="button" onClick={handleImport} disabled={okCount === 0 || importing}
                 className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-2 text-sm font-bold text-white shadow-sm transition hover:from-emerald-600 hover:to-teal-600 disabled:opacity-40">
-                ✓ Importa {okCount} post
+                {importing ? "Importazione…" : `✓ Importa ${Math.min(okCount, 30)} post`}
               </button>
             </div>
           )}
@@ -4010,6 +4063,7 @@ export default function SocialManagerBeta() {
   const activeTab = searchParams.get("tab") ?? "crea-post";
   const { effectiveCompany } = useAuthCompany();
   const companyId = effectiveCompany?.id ?? DEMO_COMPANY_ID;
+  const queryClient = useQueryClient();
   const socialData = useSocialManagerData(companyId);
   const {
     connectedAccounts,
@@ -4029,11 +4083,32 @@ export default function SocialManagerBeta() {
   const setTab = useCallback((tab: string) => setSearchParams({ tab }, { replace: true }), [setSearchParams]);
   const goToIntegrations = useCallback(() => navigate("/azienda/impostazioni/integrazioni"), [navigate]);
 
-  const handlePostScheduled = useCallback((post: ScheduledPost) => {
-    // L'errore e' gia' notificato dall'onError della mutation: qui evitiamo
-    // solo la unhandled rejection di mutateAsync.
-    addPost(post).catch(() => {});
-  }, [addPost]);
+  const handlePostScheduled = useCallback(async (post: ScheduledPost) => {
+    try {
+      const saved = await addPost(post);
+      // Pubblicazione reale "adesso": i post con scheduled_at <= ora vengono
+      // inviati subito via edge `social-publish` (FB/IG). I post programmati nel
+      // futuro restano 'scheduled' e li pubblica il cron `social-publish-scheduler`.
+      const id = saved?.id;
+      const dueNow = saved?.scheduled_at ? new Date(saved.scheduled_at).getTime() <= Date.now() + 60_000 : false;
+      const isDbPost = typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
+      if (SOCIAL_LIVE_PUBLISHING_ENABLED && dueNow && isDbPost && saved?.status === "scheduled") {
+        const { data, error } = await supabase.functions.invoke("social-publish", { body: { post_id: id, company_id: companyId } });
+        if (error) {
+          toast.error("Pubblicazione non riuscita", { description: error.message });
+        } else {
+          const res = (data as { result?: Record<string, { ok: boolean; error?: string }> } | null)?.result ?? {};
+          const okCh = Object.entries(res).filter(([, v]) => v?.ok).map(([k]) => k);
+          const errCh = Object.entries(res).filter(([, v]) => v && !v.ok);
+          if (okCh.length) toast.success(`Pubblicato su ${okCh.join(", ")}`);
+          if (errCh.length) toast.error(`Non pubblicato su ${errCh.map(([k]) => k).join(", ")}`, { description: errCh[0]?.[1]?.error });
+        }
+        queryClient.invalidateQueries({ queryKey: ["social-manager", "posts", companyId] });
+      }
+    } catch {
+      // errore di salvataggio già notificato dall'onError della mutation
+    }
+  }, [addPost, companyId, queryClient]);
 
   const handleUpdatePost = useCallback((id: string, changes: Partial<ScheduledPost>) => {
     updatePost(id, changes).catch(() => {});

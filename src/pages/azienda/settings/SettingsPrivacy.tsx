@@ -165,6 +165,7 @@ export default function SettingsPrivacy() {
                   </div>
                   <Switch
                     checked={getConsentValue(ct.key)}
+                    disabled={updateConsent.isPending}
                     onCheckedChange={(granted) => updateConsent.mutate({ consent_type: ct.key, granted })}
                   />
                 </div>
@@ -240,9 +241,10 @@ export default function SettingsPrivacy() {
                           <AlertDialogCancel>Annulla</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() => requestDeletion.mutate()}
+                            disabled={requestDeletion.isPending}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                           >
-                            Conferma cancellazione
+                            {requestDeletion.isPending ? "Invio…" : "Conferma cancellazione"}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>

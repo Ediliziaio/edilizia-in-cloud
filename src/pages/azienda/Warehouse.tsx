@@ -36,6 +36,8 @@ import {
   Star,
   Trash2,
   ShoppingCart,
+  History,
+  TrendingDown,
 } from "lucide-react";
 import { BarcodeScanner } from "@/components/warehouse/BarcodeScanner";
 import { StockUnitsDrilldownSheet } from "@/components/warehouse/StockUnitsDrilldownSheet";
@@ -90,6 +92,8 @@ import WarehouseLottiTab from "@/components/warehouse/WarehouseLottiTab";
 import { WarehouseDDTTab } from "@/components/warehouse/WarehouseDDTTab";
 import WarehousePurchaseListTab from "@/components/warehouse/WarehousePurchaseListTab";
 import { WarehouseValorizzazionePanel } from "@/components/warehouse/WarehouseValorizzazionePanel";
+import WarehouseMovementsTab from "@/components/warehouse/WarehouseMovementsTab";
+import { LowStockReorderDialog } from "@/components/warehouse/LowStockReorderDialog";
 import { LottiScadenzaAlert } from "@/components/warehouse/LottiScadenzaAlert";
 import { ArticoliCSVImportDialog } from "@/components/warehouse/ArticoliCSVImportDialog";
 import { Calculator } from "lucide-react";
@@ -97,6 +101,7 @@ import { Calculator } from "lucide-react";
 import { STATUS_CONFIG } from "@/types/warehouse";
 import type { WarehouseItem } from "@/types/warehouse";
 import { useWarehouseData } from "@/hooks/useWarehouseData";
+import { useLowStockAlerts } from "@/hooks/useMagazzinoLive";
 import { useWarehouseSections } from "@/hooks/useWarehouseSections";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { WarehouseTransferPanel } from "@/components/warehouse/WarehouseTransferPanel";
@@ -246,6 +251,8 @@ export default function Warehouse() {
     isLoading: warehousesLoading,
   } = useWarehouses(true);
   const { isScopriPlan } = useSubscriptionLimits();
+  const { data: lowStockAlerts = [] } = useLowStockAlerts(effectiveCompany?.id ?? null);
+  const [reorderOpen, setReorderOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
@@ -426,6 +433,17 @@ export default function Warehouse() {
     setViewMode(nextViewMode);
     if (nextViewMode === "stock") {
       setStockActionRequest(null);
+    }
+  };
+
+  // KPI inventario cliccabili: le metriche di scorta aprono il riordino,
+  // le altre portano alla vista Inventario (lista articoli a stock).
+  const handleInventoryCardClick = (key: WarehouseInventoryMetricKey) => {
+    if (key === "low_stock" || key === "critical_materials" || key === "near_low_stock") {
+      if (isCommercialistaMode) setViewMode("stock");
+      else setReorderOpen(true);
+    } else {
+      setViewMode("stock");
     }
   };
 
@@ -816,6 +834,7 @@ export default function Warehouse() {
             stockItems={stockItems}
             orderItems={items}
             visibleCards={metricPreferences.inventory}
+            onCardClick={handleInventoryCardClick}
           />
           {materialMetricCards.length > 0 && (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -980,6 +999,27 @@ export default function Warehouse() {
       {/* Banner alert lotti scadenza (compatto, dismissible) */}
       <LottiScadenzaAlert compact />
 
+      {/* Banner sottoscorta azionabile → apre il riordino raggruppato per fornitore */}
+      {!isCommercialistaMode && lowStockAlerts.length > 0 && (
+        <Alert className="border-amber-300 bg-amber-50/70 print:hidden">
+          <TrendingDown className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-900">
+            {lowStockAlerts.length} material{lowStockAlerts.length === 1 ? "e" : "i"} sotto scorta
+          </AlertTitle>
+          <AlertDescription className="flex flex-col gap-2 text-amber-800 sm:flex-row sm:items-center sm:justify-between">
+            <span>Genera gli ordini ai fornitori per ripristinare le giacenze minime.</span>
+            <Button
+              size="sm"
+              className="w-fit gap-1.5 bg-amber-600 text-white hover:bg-amber-700"
+              onClick={() => setReorderOpen(true)}
+            >
+              <ShoppingCart className="h-3.5 w-3.5" />
+              Riordina
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card className="print:hidden">
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4">
@@ -1021,6 +1061,10 @@ export default function Warehouse() {
                   <TabsTrigger value="scadenze" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista scadenze lotti">
                     <Clock className="h-4 w-4" />
                     <span className="text-[11px] sm:text-sm">Scadenze</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="movements" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista registro movimenti">
+                    <History className="h-4 w-4" />
+                    <span className="text-[11px] sm:text-sm">Movimenti</span>
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -1323,6 +1367,8 @@ export default function Warehouse() {
         <WarehouseValorizzazionePanel warehouseId={warehouseFilter ?? null} />
       ) : viewMode === "scadenze" ? (
         <LottiScadenzaAlert />
+      ) : viewMode === "movements" ? (
+        <WarehouseMovementsTab companyId={effectiveCompany.id} warehouseFilter={warehouseFilter} />
       ) : viewMode === "stock" ? (
         <div className="space-y-3">
           <div className="flex justify-end">
@@ -1493,6 +1539,14 @@ export default function Warehouse() {
         open={serialsSheetOpen}
         onOpenChange={setSerialsSheetOpen}
         lotti={lotti}
+      />
+
+      {/* Riordino sottoscorta → genera ODA raggruppati per fornitore */}
+      <LowStockReorderDialog
+        open={reorderOpen}
+        onOpenChange={setReorderOpen}
+        companyId={effectiveCompany.id}
+        readOnly={isCommercialistaMode}
       />
     </div>
   );

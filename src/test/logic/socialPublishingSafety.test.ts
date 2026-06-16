@@ -123,8 +123,8 @@ describe("social publishing safety", () => {
     expect(row.scheduled_at).toBe("2026-05-24T08:00:00.000Z");
   });
 
-  it("keeps live publishing explicitly disabled until a backend publisher exists", () => {
-    expect(SOCIAL_LIVE_PUBLISHING_ENABLED).toBe(false);
+  it("has live publishing enabled (real Meta publisher wired via social-publish)", () => {
+    expect(SOCIAL_LIVE_PUBLISHING_ENABLED).toBe(true);
   });
 
   it("keeps the social manager honest about local/demo-only surfaces", () => {

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { FileWarning, Sparkles, Check, User, Loader2, Info } from "lucide-react";
 import {
   Dialog,
@@ -172,6 +173,14 @@ export function CreaNotaCreditoDialog({
   const linkMutation = useLinkFatturaOrdine();
 
   const handleCreaNotaCredito = () => {
+    // Blocca la creazione di una nota di credito senza righe.
+    if (previewRighe.length === 0) {
+      toast.error("Nessuna riga da fatturare", {
+        description: "Aggiungi almeno un articolo alla commessa prima di generare la nota di credito.",
+      });
+      return;
+    }
+
     const clienteSnapshot: ClienteSnapshot | undefined = matchedAnagrafica
       ? {
           ragione_sociale: matchedAnagrafica.ragione_sociale || customerName,
@@ -205,14 +214,25 @@ export function CreaNotaCreditoDialog({
         }),
       },
       {
-        onSuccess: (doc) => {
+        onSuccess: async (doc) => {
+          // Collegamento documento↔commessa atomico (stesso pattern di CreaDDTDialog).
           if (companyId) {
-            linkMutation.mutate({
-              fatturaId: doc.id,
-              ordineId: orderId,
-              importoAssociato: totaleLordo,
-              companyId,
-            });
+            try {
+              await linkMutation.mutateAsync({
+                fatturaId: doc.id,
+                ordineId: orderId,
+                importoAssociato: totaleLordo,
+                companyId,
+              });
+            } catch (err) {
+              toast.error("Nota di credito creata ma collegamento commessa fallito", {
+                description:
+                  err instanceof Error ? err.message : "Apri il documento e riprova dal dettaglio.",
+              });
+              onOpenChange(false);
+              navigate(`/azienda/documenti/${doc.id}?ordine_link=${orderId}`);
+              return;
+            }
           }
           onOpenChange(false);
           navigate(`/azienda/documenti/${doc.id}?ordine_link=${orderId}`);

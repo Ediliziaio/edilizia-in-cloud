@@ -9,28 +9,30 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bot, Copy, CheckCircle2, AlertCircle, Send, Users, Settings2, ArrowUpRight } from "lucide-react";
+import { Bot, Copy, CheckCircle2, AlertCircle, Send, Users, Settings2, ArrowUpRight, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 export default function SettingsWhatsAppBot() {
   const { effectiveCompany } = useAuth();
   const companyId = (effectiveCompany as any)?.id;
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [testNumber, setTestNumber] = useState("");
   const [welcomeMsg, setWelcomeMsg] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { data: config, isLoading } = useQuery({
+  const { data: config, isLoading, isError: isConfigError } = useQuery({
     queryKey: ["wa-bot-config", companyId],
     queryFn: async () => {
       if (!companyId) return null;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("messaging_whatsapp_config")
         .select("*")
         .eq("company_id", companyId)
         .maybeSingle();
+      if (error) throw error;
       return data;
     },
     enabled: !!companyId,
@@ -116,13 +118,36 @@ export default function SettingsWhatsAppBot() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Copiato!");
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Copiato!");
+    } catch {
+      toast.error("Impossibile copiare negli appunti");
+    }
   };
 
   if (isLoading) {
     return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>;
+  }
+
+  if (isConfigError) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Bot className="h-6 w-6" /> WhatsApp Bot AI</h1>
+          <p className="text-muted-foreground mt-1">
+            Configura il bot AI per ricevere rapportini, DDT e foto dai tuoi operai via WhatsApp.
+          </p>
+        </div>
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Errore di caricamento</AlertTitle>
+          <AlertDescription>Errore nel caricamento della configurazione.</AlertDescription>
+        </Alert>
+      </div>
+    );
   }
 
   if (!config?.is_connected) {
@@ -143,7 +168,7 @@ export default function SettingsWhatsAppBot() {
               Prima di abilitare il bot AI, connetti WhatsApp Business dalla pagina
               Integrazioni. Il bot utilizza la stessa connessione WhatsApp.
             </p>
-            <Button variant="outline" onClick={() => window.location.href = "/azienda/impostazioni/integrazioni"}>
+            <Button variant="outline" onClick={() => navigate("/azienda/impostazioni/integrazioni")}>
               Vai a Integrazioni
             </Button>
           </CardContent>

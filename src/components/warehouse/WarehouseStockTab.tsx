@@ -146,13 +146,25 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
     staleTime: 10 * 60 * 1000,
   });
 
+  // O(1) lookup map fornitori: evita una .find() lineare per ogni riga ad ogni
+  // render (fino a 50 righe paginate × desktop+mobile). Comportamento identico.
+  const supplierNameById = useMemo(
+    () => new Map(suppliers.map((s) => [s.id, s.name])),
+    [suppliers]
+  );
   const getSupplierName = (id: string | null) =>
-    !id ? "—" : (suppliers.find((s) => s.id === id)?.name || "—");
+    !id ? "—" : (supplierNameById.get(id) || "—");
 
   const { sections } = useWarehouseSections();
+  // O(1) lookup map sezioni (stesso motivo di supplierNameById). Restituisce
+  // l'intero oggetto sezione come prima (consumato per name + color).
+  const sectionById = useMemo(
+    () => new Map(sections.map((s) => [s.id, s])),
+    [sections]
+  );
   const getSectionName = (id: string | null) => {
     if (!id) return null;
-    return sections.find((s) => s.id === id) || null;
+    return sectionById.get(id) || null;
   };
 
   // Helper to insert a company_cost record

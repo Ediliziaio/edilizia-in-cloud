@@ -10,7 +10,7 @@ import { STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem, OrderWithItems } from "@/types/warehouse";
 import { useWarehouses } from "@/hooks/useWarehouses";
 
-export type ViewMode = "list" | "purchase_list" | "kanban" | "calendar" | "stock" | "lotti" | "ddt" | "valuation" | "scadenze";
+export type ViewMode = "list" | "purchase_list" | "kanban" | "calendar" | "stock" | "lotti" | "ddt" | "valuation" | "scadenze" | "movements";
 export type GroupBy = "order" | "date" | "status" | "supplier";
 export type QuickFilter = "all" | "active" | "urgent" | "overdue" | "thisWeek" | "nextWeek";
 
