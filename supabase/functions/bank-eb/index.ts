@@ -101,6 +101,17 @@ function mapTx(t: any, companyId: string, accountId: string) {
   };
 }
 
+// ── Autorizzazione: solo admin o utenti col permesso Tesoreria ──────────────
+// (allineato alla RLS: bank_* leggibili da admin o has_permission('can_view_tesoreria')).
+async function canManageBank(admin: any, userId: string, companyId: string): Promise<boolean> {
+  const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", userId);
+  const roleList = ((roles ?? []) as Array<{ role: string }>).map((r) => r.role);
+  if (roleList.includes("super_admin") || roleList.includes("company_admin")) return true;
+  const { data: perm } = await admin.from("staff_permissions")
+    .select("can_view_tesoreria").eq("user_id", userId).eq("company_id", companyId).maybeSingle();
+  return (perm as { can_view_tesoreria?: boolean } | null)?.can_view_tesoreria === true;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   try {
@@ -118,6 +129,12 @@ Deno.serve(async (req) => {
     const { data: profile } = await admin.from("profiles").select("company_id").eq("id", user.id).maybeSingle();
     const companyId = (profile as { company_id?: string } | null)?.company_id;
     if (!companyId) return json({ error: "Azienda non identificata" }, 403);
+
+    // Sicurezza: collegare conti / sincronizzare / elencare banche è riservato
+    // ad admin o utenti col permesso Tesoreria (can_view_tesoreria).
+    if (!(await canManageBank(admin, user.id, companyId))) {
+      return json({ error: "Permesso negato: serve l'autorizzazione Tesoreria per gestire i conti bancari." }, 403);
+    }
 
     const { action, ...p } = await req.json().catch(() => ({}));
 

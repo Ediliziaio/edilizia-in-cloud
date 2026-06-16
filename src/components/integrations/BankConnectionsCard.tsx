@@ -12,6 +12,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +62,7 @@ export default function BankConnectionsCard({
   onChanged,
 }: BankConnectionsCardProps = {}) {
   const companyId = useEffectiveCompanyId();
+  const { canViewTesoreria, isLoading: permsLoading } = usePermissions();
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [open, setOpen] = useState(false);
@@ -180,6 +182,12 @@ export default function BankConnectionsCard({
       setSyncingId(null);
     }
   };
+
+  // Sicurezza: solo admin o utenti col permesso Tesoreria possono vedere/gestire
+  // i conti bancari. La RLS + l'edge function bank-eb applicano lo stesso vincolo
+  // lato server; qui nascondiamo la card a chi non è autorizzato.
+  if (permsLoading) return null;
+  if (!canViewTesoreria) return null;
 
   return (
     <Card>
