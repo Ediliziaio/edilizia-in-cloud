@@ -7,6 +7,10 @@ verify_jwt = false
 [functions.bank-eb-cron]
 verify_jwt = false
 
+# Check giornaliero scadenze documenti personale (HR). Auth via x-cron-secret.
+[functions.hr-check-scadenze]
+verify_jwt = false
+
 # v8.6.58 — Widget chat pubblico embed sito (lead capture, no auth utente)
 [functions.public-chat-widget]
 verify_jwt = false
