@@ -675,6 +675,11 @@ function OrderDetailInner() {
         // Magazzino: persiste il legame con la giacenza, altrimenti un articolo
         // "Da Giacenza" salvato dalla commessa torna silenziosamente "Da Fornitore".
         stock_item_id: item.stock_item_id || null,
+        // Aggancio listino: link + categoria + baseline standard (€ listino) per
+        // il confronto con il costo reale nel controllo di gestione.
+        article_template_id: item.article_template_id || null,
+        categoria: item.categoria || null,
+        standard_cost: item.standard_cost ?? 0,
       }).eq("id", item.id);
       if (error) throw error;
     },
@@ -716,6 +721,10 @@ function OrderDetailInner() {
         delivery_date: item.delivery_date || null,
         // Magazzino: persiste il legame con la giacenza (vedi updateSingleItemMutation).
         stock_item_id: item.stock_item_id || null,
+        // Aggancio listino (vedi updateSingleItemMutation).
+        article_template_id: item.article_template_id || null,
+        categoria: item.categoria || null,
+        standard_cost: item.standard_cost ?? 0,
       });
       if (error) throw error;
     },

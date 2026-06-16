@@ -96,6 +96,11 @@ export interface OrderItem {
   unit_price?: number;
   discount_percent?: number;
   standard_cost?: number;
+  // ── Aggancio listino (controllo di gestione costo standard vs reale) ──
+  // article_template_id = link al listino; categoria = snapshot per analisi;
+  // standard_cost = baseline da listino (€ pianificato) vs purchase_price (€ reale).
+  article_template_id?: string | null;
+  categoria?: string | null;
   // ── Ciclo misure (prodotti su misura) — spina dorsale articolo ──
   // Copiati dal preventivo (famiglia + assi + misura iniziale), poi arricchiti
   // dal sopralluogo con la misura definitiva. Vedi migration order_items_measure_lifecycle.
@@ -189,6 +194,10 @@ export function OrderItemsList({
   const [itemSupplierId, setItemSupplierId] = useState<string | undefined>();
   const [itemPurchasePrice, setItemPurchasePrice] = useState("");
   const [itemVatRate, setItemVatRate] = useState<number>(22);
+  // Aggancio listino: baseline costo standard (€ da listino) + link + categoria
+  const [itemStandardCost, setItemStandardCost] = useState<number | undefined>();
+  const [itemArticleTemplateId, setItemArticleTemplateId] = useState<string | undefined>();
+  const [itemCategoria, setItemCategoria] = useState<string | undefined>();
   const [itemStatus, setItemStatus] = useState<OrderItemStatus>("da_ordinare");
   const [itemIsPaid, setItemIsPaid] = useState(false);
   const [itemPaidDate, setItemPaidDate] = useState<Date | undefined>();
@@ -418,6 +427,9 @@ export function OrderItemsList({
     setItemSupplierId(undefined);
     setItemPurchasePrice("");
     setItemVatRate(22);
+    setItemStandardCost(undefined);
+    setItemArticleTemplateId(undefined);
+    setItemCategoria(undefined);
     setItemStatus("da_ordinare");
     setItemIsPaid(false);
     setItemPaidDate(undefined);
@@ -454,6 +466,9 @@ export function OrderItemsList({
     setItemSupplierId(item.supplier_id);
     setItemPurchasePrice(item.purchase_price?.toString() || "");
     setItemVatRate(item.vat_rate ?? 22);
+    setItemStandardCost(item.standard_cost != null && item.standard_cost > 0 ? item.standard_cost : undefined);
+    setItemArticleTemplateId(item.article_template_id ?? undefined);
+    setItemCategoria(item.categoria ?? undefined);
     setItemStatus(item.status);
     setItemIsPaid(item.is_paid || false);
     setItemPaidDate(item.paid_date ? new Date(item.paid_date) : undefined);
@@ -533,10 +548,15 @@ export function OrderItemsList({
       // v8.6.35 — Tracking & ODA
       delivery_date: itemDeliveryDate ? itemDeliveryDate.toLocaleDateString("en-CA") : undefined,
       linked_purchase_order_id: itemLinkedPoId,
+      // Aggancio listino: baseline da listino (€ standard) + link + categoria.
+      // standard_cost NON è più hardcoded a 0 — porta il costo da listino così
+      // da poterlo confrontare con purchase_price (€ realmente pagato).
+      standard_cost: itemStandardCost ?? 0,
+      article_template_id: itemArticleTemplateId ?? null,
+      categoria: itemCategoria ?? null,
       // Legacy fields zeroed out
       unit_price: 0,
       discount_percent: 0,
-      standard_cost: 0,
     };
 
     if (editingIndex !== null) {
@@ -656,12 +676,25 @@ export function OrderItemsList({
   const handleArticleSelect = (name: string, templateData?: ArticleTemplateData) => {
     setItemName(name);
     if (templateData) {
+      // Aggancio listino: salviamo il link + la categoria (snapshot) e la
+      // BASELINE da listino in standard_cost (€ pianificato). Il purchase_price
+      // parte uguale ma resta editabile = € realmente pagato → scostamento.
+      setItemArticleTemplateId(templateData.id);
+      setItemCategoria(templateData.category ?? undefined);
       if (templateData.standard_cost > 0) {
+        setItemStandardCost(templateData.standard_cost);
         setItemPurchasePrice(templateData.standard_cost.toString());
+      } else {
+        setItemStandardCost(undefined);
       }
       if (templateData.vat_rate !== undefined) setItemVatRate(templateData.vat_rate);
       if (templateData.supplier_id) setItemSupplierId(templateData.supplier_id);
       if (templateData.description) setItemDescription(templateData.description);
+    } else {
+      // Nome digitato a mano (non dal listino) → nessuna baseline/link.
+      setItemArticleTemplateId(undefined);
+      setItemCategoria(undefined);
+      setItemStandardCost(undefined);
     }
   };
 
@@ -1280,6 +1313,24 @@ export function OrderItemsList({
                     {item.purchase_price != null && item.purchase_price > 0 && (
                       <span>Costo: {formatCurrency(item.purchase_price * item.quantity)} <span className="text-xs">({item.vat_rate ?? 22}% IVA)</span></span>
                     )}
+                    {item.standard_cost != null && item.standard_cost > 0 && (() => {
+                      // Confronto costo STANDARD (da listino) vs REALE (pagato).
+                      const realeUnit = item.purchase_price ?? 0;
+                      const deltaLine = (realeUnit - item.standard_cost!) * item.quantity;
+                      const pct = (realeUnit - item.standard_cost!) / item.standard_cost! * 100;
+                      const over = deltaLine > 0.005;
+                      const under = deltaLine < -0.005;
+                      return (
+                        <span title="Costo da listino (standard) vs costo realmente pagato">
+                          Listino: {formatCurrency(item.standard_cost! * item.quantity)}
+                          {(over || under) && (
+                            <span className={`ml-1 font-medium ${over ? "text-red-600" : "text-emerald-600"}`}>
+                              {over ? "▲" : "▼"} {deltaLine > 0 ? "+" : ""}{formatCurrency(deltaLine)} ({pct > 0 ? "+" : ""}{pct.toFixed(0)}%)
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
                     {item.payment_method && (
                       <span>Mod.: {getPaymentMethodLabel(item.payment_method)}</span>
                     )}
