@@ -168,7 +168,7 @@ function getProviderUrl(provider: string, supabaseUrl: string): string | null {
   switch (provider.toLowerCase()) {
     case "stripe":    return `${base}/stripe-webhook`;
     case "gocardless": return `${base}/billing-webhook`;
-    case "bank":      return `${base}/bank-webhook`;
+    // 'bank' (Open Banking via GoCardless) rimosso: edge bank-webhook eliminata.
     default:          return null;
   }
 }

@@ -112,11 +112,11 @@ export function useRetryWebhook() {
         .eq("id" as never, webhookId);
       if (updateError) throw new Error(updateError.message);
 
-      // Call the appropriate webhook handler via edge function
+      // Call the appropriate webhook handler via edge function.
+      // NB: 'gocardless'/'bank' (Open Banking via GoCardless) rimosso — provider dismesso,
+      // edge bank-webhook eliminata. I relativi log restano ma non sono più ritentabili.
       const functionName =
-        log.provider === "gocardless"
-          ? "bank-webhook"
-          : log.provider === "stripe"
+        log.provider === "stripe"
           ? "billing-webhook"
           : log.provider === "telnyx"
           ? "telnyx-webhook"
