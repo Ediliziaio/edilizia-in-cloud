@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Globe, Mailbox, Plus, Trash2, Flame, AlertTriangle, Copy, Pause, Play, RefreshCw, Plug, Check, ChevronRight, MailPlus } from "lucide-react";
+import { Loader2, Globe, Mailbox, Plus, Trash2, Flame, AlertTriangle, Copy, Pause, Play, RefreshCw, Plug, Check, ChevronRight, ChevronDown, MailPlus, Search, X, Pencil } from "lucide-react";
 import { isMissingTableError, MigrationGate } from "./_shared";
 import {
   FieldLabel, HeatBar, HealthPill, ProviderBadge, StatusDot, senderTone, type Health,
@@ -38,6 +38,22 @@ function healthLevel(bounce: number, complaint: number): Health {
   return "ok";
 }
 
+/** Filtro stato casella per la ricerca a scala. */
+type SenderFilter = "all" | "active" | "warming" | "paused" | "risk";
+
+/** La casella passa il filtro testo (email) + stato? Usato per la ricerca a scala. */
+function matchesFilter(s: Sender, query: string, filter: SenderFilter): boolean {
+  const q = query.trim().toLowerCase();
+  if (q && !s.email.toLowerCase().includes(q)) return false;
+  if (filter === "all") return true;
+  if (filter === "risk") return healthLevel(s.bounce_count ?? 0, s.complaint_count ?? 0) === "a rischio";
+  const tone = senderTone(s.status, s.connection_status);
+  if (filter === "active") return tone === "active";
+  if (filter === "warming") return tone === "warming";
+  if (filter === "paused") return tone === "paused" || tone === "error" || tone === "untested";
+  return true;
+}
+
 interface Domain {
   id: string; company_id: string; domain: string; status: string;
   spf_verified: boolean; dkim_verified: boolean; dmarc_verified: boolean; daily_cap: number; brand_id: string | null;
@@ -59,6 +75,8 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
   const [newDomain, setNewDomain] = useState("");
   const [newDomainCap, setNewDomainCap] = useState("200");
   const [domainBrandId, setDomainBrandId] = useState("");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<SenderFilter>("all");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
@@ -124,17 +142,28 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
   const totalCapacity = senders.filter((s) => s.status !== "disabled").reduce((sum, s) => sum + effectiveCap(s), 0);
   const activeCount = senders.filter((s) => senderTone(s.status, s.connection_status) === "active").length;
   const brandName = new Map((brands.data ?? []).map((b) => [b.id, b.name]));
+
+  // Ricerca/filtro a scala: con tante caselle, restringi per email + stato. Il
+  // raggruppamento per dominio opera sulle SOLE caselle che passano il filtro; i
+  // domini senza match spariscono mentre filtri (riappaiono a filtro azzerato).
+  const filtering = search.trim() !== "" || filter !== "all";
+  const filtered = filtering ? senders.filter((s) => matchesFilter(s, search, filter)) : senders;
+  const matchCount = filtered.length;
+
   const sendersByDomain = new Map<string, Sender[]>();
-  for (const s of senders) {
+  for (const s of filtered) {
     if (!s.sending_domain_id) continue;
     const arr = sendersByDomain.get(s.sending_domain_id) ?? [];
     arr.push(s); sendersByDomain.set(s.sending_domain_id, arr);
   }
-  const noDomain = senders.filter((s) => !s.sending_domain_id);
+  const noDomain = filtered.filter((s) => !s.sending_domain_id);
   // ordina i domini per brand (così sono raggruppati visivamente)
   domains.sort((a, b) => (brandName.get(a.brand_id ?? "") ?? "~").localeCompare(brandName.get(b.brand_id ?? "") ?? "~") || a.domain.localeCompare(b.domain));
+  // quando filtri, mostra solo i domini che hanno almeno una casella corrispondente
+  const visibleDomains = filtering ? domains.filter((d) => (sendersByDomain.get(d.id)?.length ?? 0) > 0) : domains;
 
-  const empty = domains.length === 0 && noDomain.length === 0;
+  const empty = domains.length === 0 && senders.filter((s) => !s.sending_domain_id).length === 0;
+  const noMatches = !empty && filtering && matchCount === 0;
 
   return (
     <section className="space-y-4 rounded-xl border border-border bg-muted/30 p-4 shadow-sm sm:p-5">
@@ -158,6 +187,45 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
         <Stat icon={Flame} label="Capacità/giorno" value={totalCapacity} hint="cap effettivo (warm-up)" tone="good" />
       </div>
 
+      {/* ricerca + filtro stato (a scala: trova rapidamente le caselle) */}
+      {senders.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cerca casella per email…"
+              className="h-8 pl-8 pr-8 text-sm"
+            />
+            {search && (
+              <button type="button" onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label="Pulisci ricerca">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            {([
+              ["all", "Tutte"], ["active", "Attive"], ["warming", "Warm-up"], ["paused", "In pausa"], ["risk", "A rischio"],
+            ] as [SenderFilter, string][]).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setFilter(key)}
+                className={`rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-inset transition-colors ${
+                  filter === key ? "bg-primary text-primary-foreground ring-primary" : "bg-card text-muted-foreground ring-border hover:bg-muted"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {filtering && (
+            <span className="text-[11px] text-muted-foreground">{matchCount} di {senders.length}</span>
+          )}
+        </div>
+      )}
+
       {/* form nuovo dominio */}
       {showDomain && (
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
@@ -179,10 +247,19 @@ export function OutreachSenderPool({ companyId }: { companyId: string }) {
       {/* contenuto */}
       {empty ? (
         <EmptyState onAdd={() => setShowDomain(true)} />
+      ) : noMatches ? (
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card px-6 py-8 text-center">
+          <Search className="mb-2 h-5 w-5 text-muted-foreground" />
+          <p className="text-sm font-medium text-foreground">Nessuna casella corrisponde</p>
+          <p className="mt-1 text-xs text-muted-foreground">Nessun risultato per i filtri attuali.</p>
+          <Button size="sm" variant="outline" className="mt-3 h-7 gap-1.5 text-xs" onClick={() => { setSearch(""); setFilter("all"); }}>
+            <X className="h-3.5 w-3.5" /> Azzera filtri
+          </Button>
+        </div>
       ) : (
         <div className="space-y-3">
-          {domains.map((d) => (
-            <DomainCard key={d.id} domain={d} caselle={sendersByDomain.get(d.id) ?? []} brandName={d.brand_id ? brandName.get(d.brand_id) : undefined} onChange={invalidate} />
+          {visibleDomains.map((d) => (
+            <DomainCard key={d.id} domain={d} caselle={sendersByDomain.get(d.id) ?? []} brandName={d.brand_id ? brandName.get(d.brand_id) : undefined} forceOpen={filtering} onChange={invalidate} />
           ))}
 
           {noDomain.length > 0 && (
@@ -214,15 +291,19 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-type CasellaKind = "ee" | "smtp";
+type CasellaKind = "ee" | "smtp" | "smtp_bulk";
 
-function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; caselle: Sender[]; brandName?: string; onChange: () => void }) {
+function DomainCard({ domain, caselle, brandName, forceOpen, onChange }: { domain: Domain; caselle: Sender[]; brandName?: string; forceOpen?: boolean; onChange: () => void }) {
   const [showDns, setShowDns] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [kind, setKind] = useState<CasellaKind>("ee");
   const [locals, setLocals] = useState("");
   const [cap, setCap] = useState("40");
   const [busy, setBusy] = useState(false);
+  // capacità del dominio = somma dei cap effettivi (warm-up) delle sue caselle attive
+  const domainCapacity = caselle.filter((s) => s.status !== "disabled" && s.status !== "paused").reduce((sum, s) => sum + effectiveCap(s), 0);
+  const open = forceOpen || !collapsed;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const [verifying, setVerifying] = useState(false);
@@ -317,9 +398,14 @@ function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; 
     }
   }
 
-  async function addCaselle() {
+  /** Parser condiviso EE/SMTP-bulk: una voce per riga, local-part → email@dominio. */
+  function parseLocals(): string[] {
     const parts = [...new Set(locals.split(/[\n,;\s]+/).map((p) => p.trim().toLowerCase()).filter(Boolean))];
-    const emails = parts.map((p) => (p.includes("@") ? p : `${p}@${domain.domain}`)).filter((e) => e.includes("@") && e.includes("."));
+    return parts.map((p) => (p.includes("@") ? p : `${p}@${domain.domain}`)).filter((e) => e.includes("@") && e.includes("."));
+  }
+
+  async function addCaselle() {
+    const emails = parseLocals();
     if (emails.length === 0) { toast.error("Inserisci almeno un indirizzo (es. marco)"); return; }
     setBusy(true);
     try {
@@ -330,6 +416,34 @@ function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; 
       const { error } = await db.from(T_SENDERS).upsert(rows, { onConflict: "company_id,email", ignoreDuplicates: true });
       if (error) throw error;
       toast.success(`${emails.length} ${emails.length === 1 ? "casella creata" : "caselle create"}`);
+      setLocals(""); setShowAdd(false); onChange();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Errore"); } finally { setBusy(false); }
+  }
+
+  /**
+   * Bulk-add di "slot" casella SMTP: crea molte caselle SMTP insieme (una email per
+   * riga) con host/porta del preset scelto, ma SENZA password — restano in pausa
+   * come slot da connettere/testare poi (la password va al Vault via la card singola
+   * "outreach-mailbox-connect", flusso invariato). Pensato per onboarding a scala:
+   * crei 50 caselle Google/Outlook in un colpo, poi le colleghi una a una.
+   */
+  async function addSmtpSlots() {
+    const emails = parseLocals();
+    if (emails.length === 0) { toast.error("Inserisci almeno un indirizzo (es. marco)"); return; }
+    if (!smtpHost.trim() || !smtpPort.trim()) { toast.error("Scegli un preset o inserisci host/porta SMTP"); return; }
+    setBusy(true);
+    try {
+      const rows = emails.map((email) => ({
+        company_id: domain.company_id, email, provider: "smtp",
+        sending_domain_id: domain.id, brand_id: domain.brand_id,
+        smtp_host: smtpHost.trim(), smtp_port: Number(smtpPort), smtp_secure: smtpSecure,
+        smtp_username: email,
+        imap_host: imapHost.trim() || null, imap_port: imapPort ? Number(imapPort) : null, imap_secure: true,
+        daily_cap_target: Number(cap) || 40, status: "paused",
+      }));
+      const { error } = await db.from(T_SENDERS).upsert(rows, { onConflict: "company_id,email", ignoreDuplicates: true });
+      if (error) throw error;
+      toast.success(`${emails.length} ${emails.length === 1 ? "slot SMTP creato" : "slot SMTP creati"} (in pausa). Collega la password e testa ciascuna casella per attivarla.`);
       setLocals(""); setShowAdd(false); onChange();
     } catch (e) { toast.error(e instanceof Error ? e.message : "Errore"); } finally { setBusy(false); }
   }
@@ -354,6 +468,16 @@ function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; 
       <div className="flex items-start justify-between gap-3 p-4">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCollapsed((v) => !v)}
+              disabled={forceOpen}
+              className="shrink-0 rounded text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+              aria-label={open ? "Comprimi dominio" : "Espandi dominio"}
+              title={open ? "Comprimi" : "Espandi"}
+            >
+              {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </button>
             <Globe className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="font-mono text-sm font-semibold text-foreground">{domain.domain}</span>
             <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset ${domain.status === "active" ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20" : "bg-muted text-muted-foreground ring-border"}`}>
@@ -364,7 +488,9 @@ function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; 
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
             <span className="inline-flex items-center gap-1"><Mailbox className="h-3 w-3" /> {caselle.length} {caselle.length === 1 ? "casella" : "caselle"}</span>
             <span className="text-border">·</span>
-            <span>cap {domain.daily_cap}/g</span>
+            <span className="inline-flex items-center gap-1 text-emerald-600"><Flame className="h-3 w-3" /> {domainCapacity}/g capacità</span>
+            <span className="text-border">·</span>
+            <span>tetto dominio {domain.daily_cap}/g</span>
           </div>
           {/* badge DNS */}
           <div className="flex flex-wrap items-center gap-1.5">
@@ -386,7 +512,7 @@ function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; 
         </div>
       </div>
 
-      {showDns && (
+      {open && showDns && (
         <div className="space-y-2 border-t border-border bg-muted/40 p-4 text-xs">
           <p className="text-muted-foreground">Inserisci questi record nel DNS del dominio, poi premi <strong className="font-medium text-foreground">Verifica DNS</strong> (legge lo stato reale da Elastic Email). I badge restano cliccabili come override manuale.</p>
           <DnsRow type="TXT" host="@" value="v=spf1 a mx include:_spf.elasticemail.com ~all" />
@@ -396,15 +522,16 @@ function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; 
         </div>
       )}
 
-      {showAdd && (
+      {open && showAdd && (
         <div className="space-y-3 border-t border-border bg-muted/40 p-4">
           <div className="flex items-center gap-2">
             <FieldLabel>Tipo casella</FieldLabel>
             <Select value={kind} onValueChange={(v) => setKind(v as CasellaKind)}>
-              <SelectTrigger className="h-9 w-[230px] bg-card"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-[260px] bg-card"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ee">Elastic Email (condivisa)</SelectItem>
                 <SelectItem value="smtp">SMTP reale (casella propria)</SelectItem>
+                <SelectItem value="smtp_bulk">SMTP in blocco (più caselle)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -418,6 +545,31 @@ function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; 
                 <Button size="sm" className="h-9" disabled={busy} onClick={addCaselle}>{busy ? "…" : "Crea caselle"}</Button>
               </div>
             </>
+          ) : kind === "smtp_bulk" ? (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <FieldLabel className="mr-1">Preset</FieldLabel>
+                <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("google")}>Google Workspace</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("outlook")}>Outlook/M365</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 bg-card px-2 text-xs" onClick={() => applyPreset("custom")}>Personalizzato</Button>
+              </div>
+              <Label className="text-xs">Crea molte caselle SMTP su <span className="font-mono font-medium text-foreground">@{domain.domain}</span> — un nome (o email completa) per riga. Restano <strong className="font-medium text-foreground">in pausa</strong>: colleghi la password e testi ciascuna dopo.</Label>
+              <Textarea value={locals} onChange={(e) => setLocals(e.target.value)} rows={3} placeholder={"marco\ninfo\nlucia.rossi"} className="bg-card text-sm" />
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="space-y-1.5"><FieldLabel>SMTP host</FieldLabel><Input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.gmail.com" className="h-9 bg-card font-mono" /></div>
+                <div className="space-y-1.5"><FieldLabel>SMTP porta</FieldLabel><Input type="number" value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} className="h-9 bg-card" /></div>
+                <div className="space-y-1.5"><FieldLabel>IMAP host</FieldLabel><Input value={imapHost} onChange={(e) => setImapHost(e.target.value)} placeholder="imap.gmail.com" className="h-9 bg-card font-mono" /></div>
+                <div className="space-y-1.5"><FieldLabel>Cap/g target</FieldLabel><Input type="number" value={cap} onChange={(e) => setCap(e.target.value)} className="h-9 bg-card" /></div>
+                <div className="col-span-2 flex items-end gap-1.5 pb-2 sm:col-span-4">
+                  <input id={`tls-bulk-${domain.id}`} type="checkbox" checked={smtpSecure} onChange={(e) => setSmtpSecure(e.target.checked)} className="h-4 w-4 accent-primary" />
+                  <Label htmlFor={`tls-bulk-${domain.id}`} className="text-xs">TLS implicito (SSL)</Label>
+                </div>
+              </div>
+              <p className="flex items-start gap-1.5 rounded-lg bg-card px-2.5 py-2 text-[10px] text-muted-foreground ring-1 ring-inset ring-border">
+                <ShieldHint /> Gli slot partono in pausa, senza password. Apri ogni casella per collegare la password (salvata cifrata nel Vault) e testarla, poi riattivala per la rotazione.
+              </p>
+              <Button size="sm" className="h-9" disabled={busy} onClick={addSmtpSlots}>{busy ? "Creo…" : "Crea slot SMTP"}</Button>
+            </div>
           ) : (
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-1.5">
@@ -449,7 +601,7 @@ function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; 
         </div>
       )}
 
-      {caselle.length > 0 && (
+      {open && caselle.length > 0 && (
         <div className="space-y-2 border-t border-border bg-muted/20 p-3">
           {caselle.map((s) => <SenderAccountCard key={s.id} casella={s} onChange={onChange} />)}
         </div>
@@ -466,6 +618,9 @@ function DomainCard({ domain, caselle, brandName, onChange }: { domain: Domain; 
 function SenderAccountCard({ casella, onChange }: { casella: Sender; onChange: () => void }) {
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [editingCap, setEditingCap] = useState(false);
+  const [capDraft, setCapDraft] = useState(String(casella.daily_cap_target));
+  const [savingCap, setSavingCap] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any;
   const paused = casella.status === "paused" || casella.status === "disabled";
@@ -506,6 +661,17 @@ function SenderAccountCard({ casella, onChange }: { casella: Sender; onChange: (
     if (error) { toast.error(error.message); return; }
     toast.success("Casella rimossa"); onChange();
   }
+  /** Salva il tetto invii/giorno (daily_cap_target) della casella. */
+  async function saveCap() {
+    const n = Math.max(0, Math.round(Number(capDraft)));
+    if (!Number.isFinite(n)) { toast.error("Valore cap non valido"); return; }
+    if (n === casella.daily_cap_target) { setEditingCap(false); return; }
+    setSavingCap(true);
+    const { error } = await db.from(T_SENDERS).update({ daily_cap_target: n }).eq("id", casella.id);
+    setSavingCap(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Cap aggiornato a ${n}/g`); setEditingCap(false); onChange();
+  }
 
   return (
     <div className="rounded-lg border border-border bg-card p-3 shadow-sm transition-colors hover:border-border/80">
@@ -542,11 +708,39 @@ function SenderAccountCard({ casella, onChange }: { casella: Sender; onChange: (
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1.4fr_1fr_auto] sm:items-end">
         {/* warm-up heat */}
         <div className="space-y-1">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <FieldLabel>Warm-up · g.{casella.warmup_day}</FieldLabel>
-            <span className="text-[10px] font-medium text-muted-foreground">
-              cap {cap}/{casella.daily_cap_target} {isFull ? "· a regime" : `· ETA ${remainingDays}g`}
-            </span>
+            {editingCap ? (
+              <span className="inline-flex items-center gap-1">
+                <span className="text-[10px] font-medium text-muted-foreground">cap {cap}/</span>
+                <Input
+                  type="number"
+                  min={0}
+                  value={capDraft}
+                  autoFocus
+                  onChange={(e) => setCapDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") saveCap(); if (e.key === "Escape") { setCapDraft(String(casella.daily_cap_target)); setEditingCap(false); } }}
+                  className="h-6 w-14 px-1.5 text-[11px]"
+                  aria-label="Tetto invii al giorno"
+                />
+                <button type="button" onClick={saveCap} disabled={savingCap} className="text-emerald-600 hover:text-emerald-700 disabled:opacity-50" title="Salva cap">
+                  {savingCap ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                </button>
+                <button type="button" onClick={() => { setCapDraft(String(casella.daily_cap_target)); setEditingCap(false); }} className="text-muted-foreground hover:text-foreground" title="Annulla">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setCapDraft(String(casella.daily_cap_target)); setEditingCap(true); }}
+                className="group inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+                title="Modifica il tetto invii/giorno"
+              >
+                cap {cap}/{casella.daily_cap_target} {isFull ? "· a regime" : `· ETA ${remainingDays}g`}
+                <Pencil className="h-2.5 w-2.5 opacity-0 transition-opacity group-hover:opacity-100" />
+              </button>
+            )}
           </div>
           <HeatBar pct={heatPct} indicatorClassName={isFull ? "bg-emerald-500" : "bg-amber-500"} />
         </div>
