@@ -23,7 +23,7 @@
  * path `{company_id}/ristrutturazione/template/{uuid}.{ext}` → URL pubblico
  * stabile salvato nel template (ideale per il PDF, niente signed URL scaduti).
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -43,6 +43,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { RichTextEditorSafe } from "@/components/ui/rich-text-editor-safe";
 import { useRistrutturazionePDF } from "@/hooks/useRistrutturazionePDF";
+import { RistrutturazioneTemplatePreviewDialog } from "@/components/ristrutturazione/RistrutturazioneTemplatePreviewDialog";
 import {
   useRstTemplatePdf,
   useUpsertRstTemplatePdf,
@@ -156,6 +157,12 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
 
   const [form, setForm] = useState<FormState | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [livePreviewOpen, setLivePreviewOpen] = useState(false);
+  // Template "vivo" per l'anteprima in dialog: ricalcolato solo quando il form cambia.
+  const previewTemplate = useMemo<RstTemplatePdf | null>(
+    () => (form ? ({ id: "preview", company_id: companyId ?? "", ...form } as RstTemplatePdf) : null),
+    [form, companyId],
+  );
   // Idratazione una-tantum: appena arriva il template lo riversiamo nel form,
   // ma NON sovrascriviamo se l'utente ha già iniziato a editare (dirty).
   const hydratedRef = useRef(false);
@@ -334,18 +341,27 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                 </div>
               </div>
             ))}
-            {/* Footer sidebar: scorciatoia Anteprima PDF */}
-            <div className="mt-3 pt-2 border-t">
+            {/* Footer sidebar: anteprima live + apri in scheda */}
+            <div className="mt-3 space-y-1.5 border-t pt-2">
+              <Button
+                type="button"
+                onClick={() => setLivePreviewOpen(true)}
+                size="sm"
+                className="h-8 w-full gap-1.5 bg-orange-500 hover:bg-orange-600"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Anteprima live
+              </Button>
               <Button
                 type="button"
                 onClick={() => void handlePreview()}
                 disabled={isPreviewing}
                 variant="outline"
                 size="sm"
-                className="w-full gap-1.5 border-orange-300 text-orange-600 hover:bg-orange-50 h-8"
+                className="h-8 w-full gap-1.5 border-orange-300 text-orange-600 hover:bg-orange-50"
               >
                 {isPreviewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
-                Anteprima PDF
+                Apri in scheda
               </Button>
             </div>
           </nav>
@@ -892,6 +908,13 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
           </div>
         </div>
       </div>
+      <RistrutturazioneTemplatePreviewDialog
+        open={livePreviewOpen}
+        onOpenChange={setLivePreviewOpen}
+        template={previewTemplate}
+        companyId={companyId}
+        onOpenInTab={() => void handlePreview()}
+      />
     </div>
   );
 }

@@ -232,6 +232,23 @@ async function enrichForPdf(opts: RstPdfPayload): Promise<RstPdfEnriched> {
   };
 }
 
+/**
+ * Renderizza il PDF e ritorna un blob URL — per l'ANTEPRIMA LIVE in dialog (iframe).
+ * Il chiamante è responsabile di revocare l'URL (URL.revokeObjectURL) quando cambia
+ * o al unmount. Non apre tab né scarica: serve solo la sorgente per l'iframe.
+ */
+export async function renderRstPreviewBlobUrl(opts: RstPdfPayload): Promise<string> {
+  const enriched = await enrichForPdf(opts);
+  const [{ pdf }, { RistrutturazionePDF }, React] = await Promise.all([
+    import("@react-pdf/renderer"),
+    import("@/components/ristrutturazione/RistrutturazionePDF"),
+    import("react"),
+  ]);
+  const element = React.createElement(RistrutturazionePDF, enriched);
+  const blob = await pdf(element).toBlob();
+  return URL.createObjectURL(blob);
+}
+
 // ─── Hook ──────────────────────────────────────────────────────────────────
 function buildFilename(progetto: RstProgetto): string {
   const cliente = [progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join("_") || "cliente";
