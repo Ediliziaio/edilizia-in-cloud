@@ -246,37 +246,22 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
     }
   }
 
-  // Fix 7: Auto-match works on snapshot, no reload during loop
+  // Auto-match server-side (edge bank-auto-reconcile): incassi→fatture e
+  // uscite→scadenze, con scoring importo/IBAN/nome. Auto solo score≥80; i match
+  // a media confidenza diventano proposte AI da confermare in chat.
   async function runAutoMatch() {
     if (autoMatching) return;
     setAutoMatching(true);
     try {
-      let matched = 0;
-      // Snapshot: work on current arrays, don't reload
-      const txSnapshot = [...transactions];
-      const invSnapshot = [...invoices];
-      const matchedTxIds = new Set<string>();
-      const matchedInvIds = new Set<string>();
-
-      for (const tx of txSnapshot) {
-        if (matchedTxIds.has(tx.id)) continue;
-        // Solo match forti e NON ambigui: se due fatture sono quasi pari,
-        // pickAutoMatch ritorna null e lascia decidere all'utente (no auto-link).
-        const best = pickAutoMatch(
-          tx,
-          invSnapshot.filter((inv) => !matchedInvIds.has(inv.id)),
-        );
-        if (best) {
-          const ok = await confirmMatchBatch(tx, best.invoice);
-          if (ok) {
-            matched++;
-            matchedTxIds.add(tx.id);
-            matchedInvIds.add(best.invoice.id);
-          }
-        }
-      }
-      toast.success(autoMatchSummary(matched, txSnapshot.length));
-      await loadData(); // Single reload at end
+      const { data, error } = await supabase.functions.invoke("bank-auto-reconcile", { body: { company_id: companyId } });
+      if (error || data?.success === false) throw new Error(data?.error || error?.message || "Errore");
+      const inc = data?.auto_matched ?? 0;
+      const cost = data?.costs_matched ?? 0;
+      const prop = data?.proposals_created ?? 0;
+      toast.success(`Riconciliati ${inc} incassi e ${cost} pagamenti${prop ? ` · ${prop} da confermare in chat` : ""}`);
+      await loadData();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore auto-match");
     } finally {
       setAutoMatching(false);
     }

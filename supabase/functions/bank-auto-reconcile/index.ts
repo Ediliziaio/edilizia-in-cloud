@@ -48,6 +48,29 @@ function computeMatchScore(
   return score;
 }
 
+// Scoring per le USCITE: transazione debit → scadenza fornitore (stesso schema).
+function computeScadenzaScore(
+  tx: { amount: number; creditor_iban: string | null; debtor_iban: string | null; creditor_name: string | null; debtor_name: string | null; description: string | null },
+  sc: { remaining: number; supplier_iban: string | null; supplier_name: string | null; description: string | null },
+): number {
+  let score = 0;
+  const txAmount = Math.abs(tx.amount);
+  const diff = Math.abs(txAmount - sc.remaining);
+  if (diff === 0) score += 50;
+  else if (diff <= Math.max(sc.remaining * 0.01, 5)) score += 35;
+
+  const normIban = (s: string | null) => (s || "").replace(/\s/g, "").toUpperCase();
+  const txIban = normIban(tx.creditor_iban) || normIban(tx.debtor_iban);
+  const scIban = normIban(sc.supplier_iban);
+  if (txIban && scIban && txIban === scIban) score += 30;
+
+  const txName = tx.creditor_name || tx.debtor_name || tx.description || "";
+  const scName = sc.supplier_name || sc.description || "";
+  if (txName && scName && fuzzyMatch(txName, scName)) score += 20;
+
+  return score;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(req) });
 
@@ -88,11 +111,12 @@ Deno.serve(async (req) => {
       const { data: companies } = await supabase
         .from("bank_connections")
         .select("company_id")
-        .eq("status", "active");
+        .in("status", ["active", "linked"]);
       companyIds = [...new Set((companies || []).map((c: any) => c.company_id))];
     }
 
     let totalAutoMatched = 0;
+    let totalCostsMatched = 0;
     let totalPendingReview = 0;
     let totalProposalsCreated = 0;
     const errors: string[] = [];
@@ -283,6 +307,56 @@ Deno.serve(async (req) => {
             }
           }
         }
+        // ── USCITE: transazioni debit → scadenze fornitori (uscita, da_pagare) ──
+        const ninetyDaysAgo2 = new Date(); ninetyDaysAgo2.setDate(ninetyDaysAgo2.getDate() - 90);
+        const { data: debitTxs } = await supabase
+          .from("bank_transactions")
+          .select("id, amount, creditor_iban, debtor_iban, creditor_name, debtor_name, description, external_transaction_id, booking_date")
+          .eq("company_id", cId)
+          .eq("transaction_type", "debit")
+          .eq("status", "booked")
+          .is("linked_scadenza_id", null)
+          .gte("booking_date", ninetyDaysAgo2.toISOString().split("T")[0]);
+
+        if (debitTxs && debitTxs.length > 0) {
+          const { data: openScadenze } = await supabase
+            .from("scadenze")
+            .select("id, amount, paid_amount, description, due_date, supplier_id, suppliers(name, iban)")
+            .eq("company_id", cId)
+            .eq("direction", "uscita")
+            .eq("status", "da_pagare");
+
+          for (const tx of debitTxs as any[]) {
+            let best: { sc: any; score: number } | null = null;
+            let second = 0;
+            for (const sc of (openScadenze || []) as any[]) {
+              const remaining = (sc.amount || 0) - (sc.paid_amount || 0);
+              if (remaining <= 0) continue;
+              const sup = (sc.suppliers || {}) as any;
+              const score = computeScadenzaScore(tx, { remaining, supplier_iban: sup.iban ?? null, supplier_name: sup.name ?? null, description: sc.description });
+              if (score < 50) continue;
+              if (!best || score > best.score) { if (best) second = Math.max(second, best.score); best = { sc, score }; }
+              else if (score > second) second = score;
+            }
+            const ambiguoSc = best != null && second >= best.score - 15;
+            if (best && best.score >= 80 && !ambiguoSc) {
+              const matchedAmount = Math.min(Math.abs(tx.amount), (best.sc.amount || 0) - (best.sc.paid_amount || 0));
+              await supabase.from("bank_reconciliations").insert({
+                company_id: cId, transaction_id: tx.id, scadenza_id: best.sc.id,
+                matched_amount: matchedAmount, match_type: "auto", match_score: best.score, matched_at: new Date().toISOString(),
+              });
+              await supabase.from("bank_transactions").update({ linked_scadenza_id: best.sc.id }).eq("id", tx.id);
+              const newPaid = (best.sc.paid_amount || 0) + matchedAmount;
+              await supabase.from("scadenze").update({
+                paid_amount: newPaid,
+                status: newPaid >= (best.sc.amount || 0) ? "pagata" : "da_pagare",
+                paid_date: tx.booking_date ?? new Date().toISOString().split("T")[0],
+              }).eq("id", best.sc.id);
+              best.sc.paid_amount = newPaid;
+              totalCostsMatched++;
+            }
+          }
+        }
       } catch (compErr: any) {
         console.error(`Auto-reconcile error for company ${cId}:`, compErr);
         errors.push(`${cId}: ${compErr.message}`);
@@ -292,6 +366,7 @@ Deno.serve(async (req) => {
     return jsonResponse({
       success: true,
       auto_matched: totalAutoMatched,
+      costs_matched: totalCostsMatched,
       pending_review: totalPendingReview,
       proposals_created: totalProposalsCreated,
       companies_processed: companyIds.length,
