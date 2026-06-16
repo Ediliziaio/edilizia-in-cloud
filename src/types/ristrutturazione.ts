@@ -34,6 +34,7 @@ export interface RstProgettoMedia { id: string; progetto_id: string; company_id:
 export interface RstListItem { titolo: string; descrizione?: string | null; }
 export interface RstTestimonianza { autore: string; ruolo?: string | null; testo: string; }
 export interface RstCronoFase { fase: string; durata?: string | null; descrizione?: string | null; }
+export interface RstFaqItem { domanda: string; risposta: string; }
 
 export interface RstTemplatePdf {
   id: string;
@@ -70,4 +71,14 @@ export interface RstTemplatePdf {
   cover_logo_position: "top_left" | "top_center" | "top_right" | "hidden" | null;
   cover_text_color: string | null;
   cover_overlay_opacity: number | null;
+  garanzie: RstListItem[];
+  faq: RstFaqItem[];
+  percorso: RstListItem[];
+  show_garanzie: boolean;
+  show_percorso: boolean;
+  cover_title_size: number | null;
+  cover_text_align: "left" | "center" | "right" | null;
+  default_iva_pct: number | null;
+  default_detrazione_pct: number | null;
+  default_validita_giorni: number | null;
 }

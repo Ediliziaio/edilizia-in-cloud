@@ -25,6 +25,7 @@ import type {
   RstProgettoMedia,
   RstTemplatePdf,
   RstListItem,
+  RstFaqItem,
   RstTestimonianza,
   RstCronoFase,
 } from "@/types/ristrutturazione";
@@ -441,6 +442,16 @@ function normalizeTemplate(row: Record<string, unknown> | null, companyId: strin
     cover_logo_position: (r.cover_logo_position as RstTemplatePdf["cover_logo_position"]) ?? "top_left",
     cover_text_color: (r.cover_text_color as string | null) ?? "#FFFFFF",
     cover_overlay_opacity: (r.cover_overlay_opacity as number | null) ?? 0.4,
+    garanzie: asArray<RstListItem>(r.garanzie),
+    faq: asArray<RstFaqItem>(r.faq),
+    percorso: asArray<RstListItem>(r.percorso),
+    show_garanzie: (r.show_garanzie as boolean | null) ?? true,
+    show_percorso: (r.show_percorso as boolean | null) ?? true,
+    cover_title_size: (r.cover_title_size as number | null) ?? 30,
+    cover_text_align: (r.cover_text_align as RstTemplatePdf["cover_text_align"]) ?? "left",
+    default_iva_pct: (r.default_iva_pct as number | null) ?? 10,
+    default_detrazione_pct: (r.default_detrazione_pct as number | null) ?? 50,
+    default_validita_giorni: (r.default_validita_giorni as number | null) ?? 30,
   };
 }
 

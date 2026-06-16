@@ -580,14 +580,20 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
   const usp = t.usp ?? [];
   const testimonianze = (t.testimonianze ?? []).filter((x) => (x.testo ?? "").trim());
   const crono = (t.cronoprogramma ?? []).filter((x) => (x.fase ?? "").trim());
+  const percorso = (t.percorso ?? []).filter((x) => (x.titolo ?? "").trim());
+  const garanzie = (t.garanzie ?? []).filter((x) => (x.titolo ?? "").trim());
+  const faq = (t.faq ?? []).filter((x) => (x.domanda ?? "").trim());
   const showChiSiamo = t.show_chi_siamo !== false;
   const showCrono = t.show_cronoprogramma !== false && crono.length > 0;
+  const showPercorso = t.show_percorso !== false && percorso.length > 0;
+  const showGaranzie = t.show_garanzie !== false && (garanzie.length > 0 || faq.length > 0);
   const showMargine = t.show_margine === true;
 
   const hasPresentazione = (showChiSiamo && Boolean((t.chi_siamo ?? "").trim()))
     || esigenze.some((e) => (e.titolo ?? "").trim())
     || soluzione.some((s) => (s.titolo ?? "").trim())
     || usp.some((u) => (u.titolo ?? "").trim())
+    || showPercorso
     || testimonianze.length > 0;
 
   const footer = (
@@ -705,6 +711,13 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
             </View>
           ) : null}
 
+          {showPercorso && (
+            <View style={{ marginTop: 14 }}>
+              <Text style={styles.sectionTitle}>Come lavoriamo</Text>
+              <BulletList styles={styles} items={percorso} />
+            </View>
+          )}
+
           {esigenze.some((e) => (e.titolo ?? "").trim()) && (
             <View style={{ marginTop: 14 }}>
               <Text style={styles.sectionTitle}>Le tue esigenze</Text>
@@ -820,6 +833,31 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
             </Text>
           </View>
         </View>
+
+        {showGaranzie && (
+          <View style={{ marginTop: 16 }}>
+            <Text style={styles.sectionTitle}>Garanzie & FAQ</Text>
+            {garanzie.length > 0 && (
+              <View style={styles.condBlock}>
+                <Text style={styles.condTitle}>Le nostre garanzie</Text>
+                <BulletList styles={styles} items={garanzie} />
+              </View>
+            )}
+            {faq.length > 0 && (
+              <View style={styles.condBlock}>
+                <Text style={styles.condTitle}>Domande frequenti</Text>
+                {faq.map((q, i) => (
+                  <View key={i} style={{ marginBottom: 7 }} wrap={false}>
+                    <Text style={styles.bulletTitle}>{q.domanda}</Text>
+                    {(q.risposta ?? "").trim()
+                      ? <Text style={[styles.condText, { marginTop: 1 }]}>{q.risposta}</Text>
+                      : null}
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.contactsBox} wrap={false}>
           <Text style={styles.condTitle}>I tuoi contatti</Text>

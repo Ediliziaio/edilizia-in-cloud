@@ -29,7 +29,7 @@ import { toast } from "sonner";
 import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
   Palette, FileText, Sparkles, ListChecks, Quote, Clock, Building2,
-  Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch,
+  Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, ShieldCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ import {
   type RstTemplatePatch,
 } from "@/hooks/useRistrutturazioneProgetto";
 import type {
-  RstTemplatePdf, RstListItem, RstTestimonianza, RstCronoFase,
+  RstTemplatePdf, RstListItem, RstFaqItem, RstTestimonianza, RstCronoFase,
   RstProgetto, RstComputoVoce,
 } from "@/types/ristrutturazione";
 
@@ -88,6 +88,9 @@ type FormState = Required<Pick<RstTemplatePdf,
   | "ragione_sociale" | "indirizzo_completo" | "telefono" | "email" | "partita_iva"
   | "font_family" | "show_footer_version" | "show_footer_legal"
   | "cover_logo_position" | "cover_text_color" | "cover_overlay_opacity"
+  | "garanzie" | "faq" | "percorso" | "show_garanzie" | "show_percorso"
+  | "cover_title_size" | "cover_text_align"
+  | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
 >>;
 
 function templateToForm(t: RstTemplatePdf): FormState {
@@ -124,6 +127,16 @@ function templateToForm(t: RstTemplatePdf): FormState {
     cover_logo_position: t.cover_logo_position ?? "top_left",
     cover_text_color: t.cover_text_color ?? "#FFFFFF",
     cover_overlay_opacity: t.cover_overlay_opacity ?? 0.4,
+    garanzie: t.garanzie ?? [],
+    faq: t.faq ?? [],
+    percorso: t.percorso ?? [],
+    show_garanzie: t.show_garanzie ?? true,
+    show_percorso: t.show_percorso ?? true,
+    cover_title_size: t.cover_title_size ?? 30,
+    cover_text_align: t.cover_text_align ?? "left",
+    default_iva_pct: t.default_iva_pct ?? 10,
+    default_detrazione_pct: t.default_detrazione_pct ?? 50,
+    default_validita_giorni: t.default_validita_giorni ?? 30,
   };
 }
 
@@ -215,8 +228,8 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
   // visibile alla volta — niente più scroll infinito. Deeplink via `?section=`.
   type RstSection =
     | "brand"
-    | "page_cover" | "page_chi_siamo" | "page_testimonianze" | "page_crono" | "page_condizioni"
-    | "contenuti" | "opzioni";
+    | "page_cover" | "page_chi_siamo" | "page_percorso" | "page_testimonianze" | "page_crono" | "page_condizioni"
+    | "garanzie" | "contenuti" | "opzioni";
   const RST_SECTION_GROUPS: Array<{
     label: string;
     items: Array<{ id: RstSection; label: string; emoji: string; descr?: string }>;
@@ -232,6 +245,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
       items: [
         { id: "page_cover",         label: "Copertina",     emoji: "🖼️", descr: "Prima pagina del preventivo" },
         { id: "page_chi_siamo",     label: "Chi siamo",     emoji: "👋", descr: "Presentazione impresa" },
+        { id: "page_percorso",      label: "Come lavoriamo", emoji: "🗺️", descr: "Le fasi del cantiere" },
         { id: "page_testimonianze", label: "Testimonianze", emoji: "⭐", descr: "Recensioni clienti" },
         { id: "page_crono",         label: "Cronoprogramma", emoji: "📅", descr: "Fasi del cantiere" },
         { id: "page_condizioni",    label: "Condizioni",    emoji: "📄", descr: "Pagamenti e validità" },
@@ -240,6 +254,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
     {
       label: "DATI & CONTENUTI",
       items: [
+        { id: "garanzie",  label: "Garanzie & FAQ", emoji: "🛡️", descr: "Garanzie e domande frequenti" },
         { id: "contenuti", label: "Contenuti",   emoji: "📝", descr: "Esigenze, soluzione, USP" },
         { id: "opzioni",   label: "Opzioni PDF", emoji: "⚙️", descr: "Visibilità documento" },
       ],
@@ -645,6 +660,51 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                   onChange={(url) => set("chi_siamo_foto_url", url)}
                   aspect="aspect-[4/3]"
                 />
+              </div>
+            </SectionCard>
+          )}
+
+          {/* Come lavoriamo (percorso) */}
+          {activeSection === "page_percorso" && (
+            <SectionCard
+              icon={Route}
+              title="Come lavoriamo"
+              description="Le fasi del cantiere mostrate nel PDF."
+              toggle={{ value: form.show_percorso, onChange: (v) => set("show_percorso", v), label: "Mostra nel PDF" }}
+            >
+              <ListItemsEditor
+                items={form.percorso}
+                onChange={(items) => set("percorso", items)}
+                addLabel="Aggiungi fase"
+                titlePlaceholder="Es. Sopralluogo e rilievo"
+                descPlaceholder="Cosa succede in questa fase (opzionale)"
+              />
+            </SectionCard>
+          )}
+
+          {/* Garanzie & FAQ */}
+          {activeSection === "garanzie" && (
+            <SectionCard
+              icon={ShieldCheck}
+              title="Garanzie & FAQ"
+              description="Garanzie e domande frequenti mostrate nel PDF."
+              toggle={{ value: form.show_garanzie, onChange: (v) => set("show_garanzie", v), label: "Mostra nel PDF" }}
+            >
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Garanzie</Label>
+                  <ListItemsEditor
+                    items={form.garanzie}
+                    onChange={(items) => set("garanzie", items)}
+                    addLabel="Aggiungi garanzia"
+                    titlePlaceholder="Es. Garanzia 10 anni sulle opere"
+                    descPlaceholder="Dettaglio (opzionale)"
+                  />
+                </div>
+                <div className="space-y-2 border-t pt-4">
+                  <Label className="text-xs font-medium">Domande frequenti</Label>
+                  <FaqEditor items={form.faq} onChange={(items) => set("faq", items)} />
+                </div>
               </div>
             </SectionCard>
           )}
@@ -1059,6 +1119,48 @@ function TestimonianzeEditor({ items, onChange }: { items: RstTestimonianza[]; o
       ))}
       <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => onChange([...items, { autore: "", ruolo: "", testo: "" }])}>
         <Plus className="h-3.5 w-3.5" /> Aggiungi testimonianza
+      </Button>
+    </div>
+  );
+}
+
+// ─── FAQ editor ({domanda, risposta}) ─────────────────────────────────────────
+function FaqEditor({ items, onChange }: { items: RstFaqItem[]; onChange: (items: RstFaqItem[]) => void }) {
+  const update = (idx: number, patch: Partial<RstFaqItem>) => {
+    onChange(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  };
+  const remove = (idx: number) => onChange(items.filter((_, i) => i !== idx));
+  return (
+    <div className="space-y-2">
+      {items.length === 0 && (
+        <p className="rounded-lg border border-dashed py-4 text-center text-[11px] text-muted-foreground">
+          Nessuna FAQ. Aggiungi le domande più frequenti dei tuoi clienti.
+        </p>
+      )}
+      {items.map((f, idx) => (
+        <div key={idx} className="space-y-2 rounded-lg border p-2.5">
+          <div className="flex items-center gap-2">
+            <Input
+              value={f.domanda}
+              onChange={(e) => update(idx, { domanda: e.target.value })}
+              placeholder="Domanda (es. Servono permessi per i lavori?)"
+              className="h-8 flex-1 text-sm font-medium"
+            />
+            <Button type="button" size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-rose-500 hover:bg-rose-50 hover:text-rose-600" onClick={() => remove(idx)}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <Textarea
+            value={f.risposta}
+            onChange={(e) => update(idx, { risposta: e.target.value })}
+            placeholder="Risposta"
+            rows={2}
+            className="text-xs"
+          />
+        </div>
+      ))}
+      <Button type="button" size="sm" variant="outline" className="gap-1.5" onClick={() => onChange([...items, { domanda: "", risposta: "" }])}>
+        <Plus className="h-3.5 w-3.5" /> Aggiungi FAQ
       </Button>
     </div>
   );
