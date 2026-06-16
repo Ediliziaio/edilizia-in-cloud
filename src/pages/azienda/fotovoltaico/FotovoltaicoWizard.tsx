@@ -14,7 +14,7 @@
  */
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -121,6 +121,11 @@ function describeError(e: unknown): string {
 export default function FotovoltaicoWizard() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Pre-link da CRM/Opportunità: ?contact_id=… (eventualmente con &opportunity_id=…).
+  // Permette il flow "Crea preventivo Fotovoltaico" dal dialog opportunità/contatto,
+  // precompilando l'anagrafica cliente (Step 1). Replica il pattern di SerramentiWizard.
+  const urlContactId = searchParams.get("contact_id");
 
   // Restore draft da localStorage al primo render (solo per progetti nuovi
   // o quando il browser è stato chiuso a metà). Se il progetto è già firmato,
@@ -183,6 +188,45 @@ export default function FotovoltaicoWizard() {
       mountedRef.current = false;
     };
   }, []);
+
+  // ─── Pre-popola anagrafica cliente da CRM (?contact_id=…) ──────────────────
+  // Quando il wizard è aperto da un'opportunità/contatto del CRM, precompila
+  // i campi cliente dello Step 1 con i dati del contatto. Replica il pattern
+  // di SerramentiWizard. Si esegue UNA SOLA VOLTA, solo per progetto NUOVO
+  // (senza id in URL) e solo se i campi cliente sono ancora vuoti — così non
+  // sovrascrive mai dati già inseriti dall'utente o ripristinati dal draft.
+  // Best-effort: in caso di errore fa console.warn e prosegue (no-op).
+  const didPrefillFromUrlRef = useRef(false);
+  useEffect(() => {
+    if (id) return; // solo progetto nuovo
+    if (didPrefillFromUrlRef.current) return;
+    if (!urlContactId) return;
+    // Non sovrascrivere se l'anagrafica è già popolata (utente o draft locale).
+    if (data.cliente_nome.trim() || data.cliente_cognome.trim() || data.cliente_id) return;
+    didPrefillFromUrlRef.current = true;
+    (async () => {
+      try {
+        const { data: c } = await supabase
+          .from("marketing_contacts")
+          .select("id, first_name, last_name, email, phone")
+          .eq("id", urlContactId)
+          .maybeSingle();
+        if (!c || !mountedRef.current) return;
+        setData((prev) => ({
+          ...prev,
+          // Non sovrascrivere eventuali valori già presenti (difesa extra).
+          cliente_id: prev.cliente_id ?? c.id,
+          cliente_nome: prev.cliente_nome || (c.first_name ?? ""),
+          cliente_cognome: prev.cliente_cognome || (c.last_name ?? ""),
+          cliente_email: prev.cliente_email || (c.email ?? ""),
+          cliente_telefono: prev.cliente_telefono || (c.phone ?? ""),
+        }));
+      } catch (e) {
+        console.warn("[fotovoltaico] prefill cliente da URL fallito", e);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, urlContactId]);
 
   // ─── Queries ──────────────────────────────────────────────────────────────
   const { data: profili = [] } = useProfiliAutoconsumo();
