@@ -38,6 +38,7 @@ import {
 import type { RstFormPatch } from "./RistrutturazioneWizard/types";
 import StepCliente from "./RistrutturazioneWizard/StepCliente";
 import StepImmobile from "./RistrutturazioneWizard/StepImmobile";
+import StepComputo from "./RistrutturazioneWizard/StepComputo";
 
 const STEP_ICONS: Record<RstWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -416,7 +417,19 @@ export default function RistrutturazioneWizard() {
             {currentStep === "immobile" && (
               <StepImmobile form={form} onChange={onChange} />
             )}
-            {currentStep !== "cliente" && currentStep !== "immobile" && (
+            {currentStep === "computo" && id && detail && (
+              // key = id stabile del progetto: monta una volta col computo iniziale
+              // dal server (seeding senza setState-in-effect); l'autosave del
+              // computo non rimonta lo step.
+              <StepComputo
+                key={detail.progetto.id}
+                progettoId={id}
+                initialComputo={detail.computo}
+                scontoPct={Number(form.sconto_pct ?? detail.progetto.sconto_pct ?? 0)}
+                ivaPct={Number(form.iva_pct ?? detail.progetto.iva_pct ?? 22)}
+              />
+            )}
+            {currentStep !== "cliente" && currentStep !== "immobile" && currentStep !== "computo" && (
               <StepComingSoon step={currentStep} />
             )}
 
