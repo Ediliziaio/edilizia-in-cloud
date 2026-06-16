@@ -137,6 +137,7 @@ Deno.serve(async (req) => {
     }
 
     const { action, ...p } = await req.json().catch(() => ({}));
+    console.log(`[bank-eb] action=${action} company=${companyId} user=${user.id} aspsp=${p.aspsp_name ?? ""} hasCode=${!!p.code}`);
 
     switch (action) {
       // ── elenco banche ─────────────────────────────────────────────────────
@@ -160,6 +161,7 @@ Deno.serve(async (req) => {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ access: { valid_until: validUntil }, aspsp: { name: p.aspsp_name, country: "IT" }, state, redirect_url: redirectUrl, psu_type: "business" }),
         });
+        console.log(`[bank-eb] start-auth EB /auth status=${status} hasUrl=${!!data?.url} redirect=${redirectUrl}`);
         if (status !== 200 || !data?.url) return json({ error: data }, 400);
         await admin.from("bank_connections").insert({
           company_id: companyId, provider_slug: "enablebanking",
@@ -177,6 +179,7 @@ Deno.serve(async (req) => {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code: p.code }),
         });
+        console.log(`[bank-eb] finalize /sessions status=${status} accounts=${Array.isArray(data?.accounts) ? data.accounts.length : "n/a"} state=${p.state ?? ""}`);
         if (status !== 200) return json({ error: data, debug: data }, 400);
 
         // Trova la connessione: per state se presente, altrimenti l'ultima 'created'.
@@ -206,6 +209,7 @@ Deno.serve(async (req) => {
             accounts_count: accountsInserted, last_sync_at: new Date().toISOString(),
           }).eq("id", connectionId);
         }
+        console.log(`[bank-eb] finalize done connection=${connectionId} accountsInserted=${accountsInserted}`);
         return json({ ok: true, connection_id: connectionId, accounts: accountsInserted, debug: data });
       }
 
