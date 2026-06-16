@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -131,6 +132,13 @@ interface OrderItemsListProps {
    * vede "Nessun articolo / Nessun fornitore" anche se ne esistono nel DB.
    */
   fallbackCompanyId?: string;
+  /**
+   * Se fornito, abilita "aggiungi la posa alla Manodopera" quando si sceglie un
+   * prodotto del listino con costo manodopera. La posa viene creata come voce
+   * order_external_teams (sezione Manodopera) — MAI come order_item: così il
+   * costo non viene contato due volte (materiale qui, posa nella Manodopera).
+   */
+  onAddLabor?: (labor: { external_team_id: string; total_cost: number; notes: string }) => void;
 }
 
 const STATUS_CONFIG: Record<OrderItemStatus, { label: string; badgeColor: string; borderColor: string }> = {
@@ -184,6 +192,7 @@ export function OrderItemsList({
   onItemUpdate,
   showOdaCoverage = false,
   fallbackCompanyId,
+  onAddLabor,
 }: OrderItemsListProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -202,6 +211,9 @@ export function OrderItemsList({
   const [itemImageUrl, setItemImageUrl] = useState<string | undefined>();
   const [itemPdfSchedaUrl, setItemPdfSchedaUrl] = useState<string | undefined>();
   const [itemManodoperaCosto, setItemManodoperaCosto] = useState<number | undefined>();
+  // Posa → Manodopera: opt-in (solo se onAddLabor fornito) + squadra scelta.
+  const [addPosa, setAddPosa] = useState(false);
+  const [posaTeamId, setPosaTeamId] = useState<string | undefined>();
   const [itemStatus, setItemStatus] = useState<OrderItemStatus>("da_ordinare");
   const [itemIsPaid, setItemIsPaid] = useState(false);
   const [itemPaidDate, setItemPaidDate] = useState<Date | undefined>();
@@ -337,6 +349,21 @@ export function OrderItemsList({
     enabled: !!companyId && dialogOpen,
   });
 
+  // Squadre/subappaltatori per assegnare la posa (solo se l'host abilita onAddLabor).
+  const { data: externalTeams = [] } = useQuery({
+    queryKey: ["external-teams-for-posa", companyId],
+    enabled: !!companyId && !!onAddLabor && dialogOpen,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("external_teams")
+        .select("id, name")
+        .eq("company_id", companyId!)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string | null }>;
+    },
+  });
+
   // v8.6.35 — Upload helper riusabile per pendingAttachment
   const uploadAttachmentForItem = async (orderItemId: string, file: File) => {
     if (!companyId) return;
@@ -437,6 +464,8 @@ export function OrderItemsList({
     setItemImageUrl(undefined);
     setItemPdfSchedaUrl(undefined);
     setItemManodoperaCosto(undefined);
+    setAddPosa(false);
+    setPosaTeamId(undefined);
     setItemStatus("da_ordinare");
     setItemIsPaid(false);
     setItemPaidDate(undefined);
@@ -605,6 +634,15 @@ export function OrderItemsList({
         });
       }
       onItemsChange([...items, newItem]);
+      // Posa dal listino → voce Manodopera (order_external_teams), MAI un order_item:
+      // così il costo manodopera è contato UNA sola volta, nella sezione giusta.
+      if (onAddLabor && addPosa && posaTeamId && itemManodoperaCosto && itemManodoperaCosto > 0) {
+        onAddLabor({
+          external_team_id: posaTeamId,
+          total_cost: Math.round(itemManodoperaCosto * quantity * 100) / 100,
+          notes: `Posa ${commonFields.name} (da listino)`,
+        });
+      }
     }
 
     setDialogOpen(false);
@@ -820,7 +858,31 @@ export function OrderItemsList({
                   <div>Costo base materiale: <strong>{formatCurrency(itemStandardCost)}</strong>/u</div>
                 )}
                 {itemManodoperaCosto != null && itemManodoperaCosto > 0 && (
-                  <div>Posa (manodopera): <strong>{formatCurrency(itemManodoperaCosto)}</strong>/u <span className="text-blue-600">— da aggiungere a parte</span></div>
+                  <div className="space-y-1.5">
+                    <div>Posa (manodopera): <strong>{formatCurrency(itemManodoperaCosto)}</strong>/u</div>
+                    {onAddLabor ? (
+                      <div className="space-y-1.5">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox checked={addPosa} onCheckedChange={(c) => setAddPosa(c === true)} />
+                          <span>Aggiungi la posa alla <strong>Manodopera</strong> ({formatCurrency(itemManodoperaCosto * (Math.round(Number(itemQuantity)) || 1))} tot.)</span>
+                        </label>
+                        {addPosa && (
+                          <Select value={posaTeamId} onValueChange={setPosaTeamId}>
+                            <SelectTrigger className="h-8 text-xs bg-white"><SelectValue placeholder="Scegli squadra/subappaltatore…" /></SelectTrigger>
+                            <SelectContent>
+                              {externalTeams.length === 0 ? (
+                                <div className="px-2 py-1.5 text-xs text-muted-foreground">Nessuna squadra — creane una in Subappaltatori</div>
+                              ) : externalTeams.map((t) => (
+                                <SelectItem key={t.id} value={t.id}>{t.name ?? "Squadra"}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-blue-600">— da aggiungere a parte nella sezione Manodopera</div>
+                    )}
+                  </div>
                 )}
                 {itemPdfSchedaUrl && (
                   <a href={itemPdfSchedaUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
