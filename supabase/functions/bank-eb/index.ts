@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code: p.code }),
         });
-        console.log(`[bank-eb] finalize /sessions status=${status} accounts=${Array.isArray(data?.accounts) ? data.accounts.length : "n/a"} state=${p.state ?? ""}`);
+        console.log(`[bank-eb] finalize /sessions status=${status} accounts=${Array.isArray(data?.accounts) ? data.accounts.length : "n/a"} accounts_data=${Array.isArray(data?.accounts_data) ? data.accounts_data.length : "n/a"} sessionStatus=${data?.status ?? ""} state=${p.state ?? ""}`);
         if (status !== 200) return json({ error: data, debug: data }, 400);
 
         // Trova la connessione: per state se presente, altrimenti l'ultima 'created'.
@@ -198,10 +198,14 @@ Deno.serve(async (req) => {
           return json({ error: "Connessione non trovata per questo consenso. Riprova il collegamento.", debug: data }, 400);
         }
 
-        const accounts = Array.isArray(data.accounts) ? data.accounts : [];
+        // Enable Banking mette gli account in `accounts_data` (oggetti con uid + dettagli)
+        // e/o in `accounts` (lista di uid stringa). Prendiamo il primo non vuoto.
+        const accounts = (Array.isArray(data.accounts_data) && data.accounts_data.length)
+          ? data.accounts_data
+          : (Array.isArray(data.accounts) ? data.accounts : []);
         let accountsInserted = 0;
         for (const a of accounts) {
-          const uid = typeof a === "string" ? a : (a.uid ?? a.account_uid ?? null);
+          const uid = typeof a === "string" ? a : (a.uid ?? a.account_uid ?? a.identification_hash ?? null);
           const accId = (a.account_id ?? a.identification ?? {}) as any;
           if (!uid) continue;
           const { error: accErr } = await admin.from("bank_accounts").upsert({
@@ -213,14 +217,19 @@ Deno.serve(async (req) => {
           if (accErr) { console.error("[bank-eb] finalize upsert bank_accounts fallita:", accErr.message); continue; }
           accountsInserted++;
         }
-        if (connectionId) {
-          await admin.from("bank_connections").update({
-            status: "linked", provider_session_id: data.session_id ?? null,
-            accounts_count: accountsInserted, last_sync_at: new Date().toISOString(),
-          }).eq("id", connectionId);
-        }
+        const noAccounts = accountsInserted === 0;
+        await admin.from("bank_connections").update({
+          status: noAccounts ? "error" : "linked",
+          error_message: noAccounts ? "Nessun conto accessibile: in restricted mode il conto va abilitato nel pannello Enable Banking (Link accounts)." : null,
+          provider_session_id: data.session_id ?? null,
+          accounts_count: accountsInserted, last_sync_at: new Date().toISOString(),
+        }).eq("id", connectionId);
         console.log(`[bank-eb] finalize done connection=${connectionId} accountsInserted=${accountsInserted}`);
-        return json({ ok: true, connection_id: connectionId, accounts: accountsInserted, debug: data });
+        return json({
+          ok: true, connection_id: connectionId, accounts: accountsInserted,
+          warning: noAccounts ? "Nessun conto accessibile per questo consenso. In restricted mode abilita prima il conto nel pannello Enable Banking." : undefined,
+          debug: data,
+        });
       }
 
       // ── sync movimenti ────────────────────────────────────────────────────
