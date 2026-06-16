@@ -57,6 +57,25 @@ export function mapSerramentiStato(s: string | null | undefined): UnifiedStato {
   }
 }
 
+/** rst_progetti.stato (CHECK constraint, stessi valori di sr_stato_progetto). */
+export function mapRistrutturazioneStato(s: string | null | undefined): UnifiedStato {
+  switch (s) {
+    case "bozza":
+      return "bozza";
+    case "da_consegnare":
+    case "consegnato":
+    case "in_valutazione":
+      return "in_corso";
+    case "accettato":
+      return "vinto";
+    case "rifiutato":
+    case "scaduto":
+      return "perso";
+    default:
+      return "altro";
+  }
+}
+
 /** fv_progetti.stato (enum). */
 export function mapFotovoltaicoStato(s: string | null | undefined): UnifiedStato {
   switch (s) {
