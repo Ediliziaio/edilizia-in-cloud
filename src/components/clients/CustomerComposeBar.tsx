@@ -398,7 +398,9 @@ export function CustomerComposeBar({
             {/* Mittente + Destinatario in una riga */}
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-0.5">
-                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Da</Label>
+                <div className="flex h-4 items-center">
+                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Da</Label>
+                </div>
                 <Select value={emailFrom} onValueChange={setEmailFrom} disabled={emailAccounts.length === 0}>
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder={
@@ -418,7 +420,7 @@ export function CustomerComposeBar({
                 </Select>
               </div>
               <div className="space-y-0.5">
-                <div className="flex items-center justify-between">
+                <div className="flex h-4 items-center justify-between">
                   <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">A</Label>
                   {/* Toggle CC / CCN stile Gmail — visibile inline */}
                   <div className="flex items-center gap-1 text-[10px]">
