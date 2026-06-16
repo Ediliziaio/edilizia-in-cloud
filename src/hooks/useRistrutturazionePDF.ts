@@ -1,0 +1,322 @@
+/**
+ * useRistrutturazionePDF — download/preview del PDF cliente del preventivo
+ * Ristrutturazione (Task 21).
+ *
+ * Pattern mutuato ESATTAMENTE da `useSerramentoPDF`:
+ *  - dynamic import per code-split del vendor @react-pdf/renderer (~740 KB):
+ *    caricato SOLO al click "Scarica/Anteprima PDF", non nel bundle del wizard.
+ *  - pre-fetch/arricchimento dati PRIMA della generazione (template fresco,
+ *    company, computo raggruppato per capitolo, immagini inlinate come data URL)
+ *    così il componente PDF non dipende da fetch interne né da signed URL
+ *    scaduti durante il render.
+ *  - try/catch con toast di errore + flag `isGenerating`. ⚠️ ANTI-FAIL-SILENZIOSO:
+ *    qualunque errore (dati vuoti, render fallito, popup bloccato) produce un
+ *    messaggio chiaro all'utente; non "non succede nulla".
+ *
+ * Le immagini provengono dal bucket PUBLIC `company-photo-library` (URL pubblici
+ * stabili), ma le inliniamo comunque a data URL via `toDataUrl` perché react-pdf
+ * supporta solo JPG/PNG e alcune foto possono essere WEBP: la conversione canvas
+ * le rende sicure per il renderer.
+ */
+import { useState } from "react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { getRstTemplatePdf } from "@/hooks/useRistrutturazioneProgetto";
+import { toDataUrl } from "@/lib/serramenti/pdfImageUtils";
+import { calcTotaliComputo, type ComputoRigaInput } from "@/lib/ristrutturazione/calcoli";
+import type {
+  RstProgetto, RstComputoVoce, RstProgettoMedia, RstTemplatePdf,
+} from "@/types/ristrutturazione";
+
+// ─── Tipi pre-fetch arricchimento ───────────────────────────────────────────
+
+export interface RstPdfCompany {
+  name?: string | null;
+  ragione_sociale?: string | null;
+  indirizzo?: string | null;
+  telefono?: string | null;
+  email?: string | null;
+  partita_iva?: string | null;
+  website?: string | null;
+  logo_url?: string | null;
+}
+
+/** Un capitolo del computo con le sue voci e il subtotale (LORDO, pre sconto globale). */
+export interface RstPdfCapitolo {
+  nome: string;
+  voci: RstComputoVoce[];
+  subtotale: number;
+  costo: number;
+}
+
+/** Totali economici complessivi pronti per la stampa. */
+export interface RstPdfTotali {
+  imponibileLordo: number;
+  scontoEur: number;
+  imponibile: number;
+  iva: number;
+  ivaPct: number;
+  totale: number;
+  scontoPct: number;
+  detrazionePct: number;
+  detrazioneEur: number;
+  costoTot: number;
+  margineEur: number;
+  marginePct: number;
+}
+
+export interface RstPdfEnriched {
+  progetto: RstProgetto;
+  template: RstTemplatePdf;
+  company: RstPdfCompany | null;
+  capitoli: RstPdfCapitolo[];
+  totali: RstPdfTotali;
+  media: RstProgettoMedia[];
+}
+
+export interface RstPdfPayload {
+  progetto: RstProgetto;
+  computo: RstComputoVoce[];
+  media: RstProgettoMedia[];
+  /** Se passato si riusa, altrimenti viene riletto fresco da Supabase. */
+  template?: RstTemplatePdf | null;
+  company?: RstPdfCompany | null;
+}
+
+// ─── Helper concurrency (clone leggero da useSerramentoPDF) ──────────────────
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let cursor = 0;
+  const workers = Array.from(
+    { length: Math.min(Math.max(concurrency, 1), Math.max(items.length, 1)) },
+    async () => {
+      while (cursor < items.length) {
+        const idx = cursor++;
+        out[idx] = await mapper(items[idx], idx);
+      }
+    },
+  );
+  await Promise.all(workers);
+  return out;
+}
+
+// ─── Enrich ──────────────────────────────────────────────────────────────────
+async function enrichForPdf(opts: RstPdfPayload): Promise<RstPdfEnriched> {
+  const { progetto, computo, media } = opts;
+  const companyId = progetto.company_id;
+
+  // 1) Template: fresco da DB se non passato (riflette l'ultimo salvataggio).
+  const template = opts.template ?? (await getRstTemplatePdf(companyId));
+
+  // 2) Company (anagrafica per intestazione/contatti). Best-effort.
+  let company: RstPdfCompany | null = opts.company ?? null;
+  if (!company && companyId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any)
+      .from("companies")
+      .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, website, logo_url")
+      .eq("id", companyId)
+      .maybeSingle();
+    if (data) {
+      const indirizzo = [
+        data.legal_address,
+        [data.legal_postal_code, data.legal_city].filter(Boolean).join(" "),
+        data.legal_province,
+      ].filter(Boolean).join(", ");
+      company = {
+        name: data.name,
+        ragione_sociale: data.business_name ?? data.name,
+        indirizzo: indirizzo || null,
+        telefono: data.phone,
+        email: data.email,
+        partita_iva: data.vat_number,
+        website: data.website,
+        logo_url: data.logo_url,
+      };
+    }
+  }
+
+  // 3) Raggruppa il computo per capitolo (ordine stabile: prima occorrenza).
+  const capMap = new Map<string, RstPdfCapitolo>();
+  const order: string[] = [];
+  for (const v of [...computo].sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0))) {
+    const nome = v.capitolo_nome?.trim() || "Generale";
+    if (!capMap.has(nome)) {
+      capMap.set(nome, { nome, voci: [], subtotale: 0, costo: 0 });
+      order.push(nome);
+    }
+    const cap = capMap.get(nome)!;
+    cap.voci.push(v);
+  }
+  // Subtotale + costo per capitolo via calcoli puri (coerente con StepEconomia).
+  const capitoli = order.map((nome) => {
+    const cap = capMap.get(nome)!;
+    const righe: ComputoRigaInput[] = cap.voci.map((v) => ({
+      capitolo_nome: nome,
+      quantita: v.quantita,
+      prezzo_unitario: v.prezzo_unitario,
+      sconto_pct: v.sconto_pct,
+      costo_materiali: v.costo_materiali,
+      costo_manodopera: v.costo_manodopera,
+    }));
+    const t = calcTotaliComputo(righe, { sconto_pct: 0, iva_pct: 0 });
+    return { ...cap, subtotale: t.imponibile, costo: t.costoTot };
+  });
+
+  // 4) Totali complessivi (single source of truth = calcTotaliComputo).
+  const scontoPct = Number(progetto.sconto_pct) || 0;
+  const ivaPct = Number(progetto.iva_pct ?? 22);
+  const detrazionePct = Number(progetto.detrazione_pct) || 0;
+  const allRows: ComputoRigaInput[] = computo.map((v) => ({
+    capitolo_nome: v.capitolo_nome,
+    quantita: v.quantita,
+    prezzo_unitario: v.prezzo_unitario,
+    sconto_pct: v.sconto_pct,
+    costo_materiali: v.costo_materiali,
+    costo_manodopera: v.costo_manodopera,
+  }));
+  const agg = calcTotaliComputo(allRows, { sconto_pct: scontoPct, iva_pct: ivaPct });
+  const imponibileLordo = capitoli.reduce((s, c) => s + c.subtotale, 0);
+  const totali: RstPdfTotali = {
+    imponibileLordo,
+    scontoEur: imponibileLordo - agg.imponibile,
+    imponibile: agg.imponibile,
+    iva: agg.iva,
+    ivaPct,
+    totale: agg.totale,
+    scontoPct,
+    detrazionePct,
+    detrazioneEur: agg.imponibile * (detrazionePct / 100),
+    costoTot: agg.costoTot,
+    margineEur: agg.margineEur,
+    marginePct: agg.marginePct,
+  };
+
+  // 5) Inline immagini critiche (logo template→company, cover, chi siamo) + media.
+  const [inlinedLogo, inlinedCover, inlinedChiSiamo] = await Promise.all([
+    toDataUrl(template.logo_url ?? company?.logo_url ?? null),
+    toDataUrl(template.cover_image_url ?? null),
+    toDataUrl(template.chi_siamo_foto_url ?? null),
+  ]);
+  const inlinedTemplate: RstTemplatePdf = {
+    ...template,
+    logo_url: inlinedLogo ?? template.logo_url,
+    cover_image_url: inlinedCover ?? template.cover_image_url,
+    chi_siamo_foto_url: inlinedChiSiamo ?? template.chi_siamo_foto_url,
+  };
+  const inlinedCompany: RstPdfCompany | null = company
+    ? { ...company, logo_url: inlinedLogo ?? company.logo_url }
+    : null;
+
+  // Inline le immagini media (escludi i PDF allegati: non vanno nel render).
+  const imageMedia = [...media]
+    .filter((m) => !/\.pdf($|\?)/i.test(m.url))
+    .sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
+  const inlinedUrls = await mapWithConcurrency(imageMedia, 4, async (m) => toDataUrl(m.url));
+  const inlinedMedia: RstProgettoMedia[] = imageMedia.map((m, i) => ({
+    ...m,
+    url: inlinedUrls[i] ?? m.url,
+  }));
+
+  return {
+    progetto,
+    template: inlinedTemplate,
+    company: inlinedCompany,
+    capitoli,
+    totali,
+    media: inlinedMedia,
+  };
+}
+
+// ─── Hook ──────────────────────────────────────────────────────────────────
+function buildFilename(progetto: RstProgetto): string {
+  const cliente = [progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join("_") || "cliente";
+  return `Preventivo-${progetto.code ?? "ristrutturazione"}-${cliente}.pdf`;
+}
+
+export function useRistrutturazionePDF() {
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const downloadPDF = async (opts: RstPdfPayload): Promise<{ ok: boolean }> => {
+    setIsGenerating(true);
+    try {
+      if (opts.computo.length === 0) {
+        toast.error("Computo vuoto", {
+          description: "Aggiungi almeno una voce nel computo prima di generare il PDF.",
+        });
+        return { ok: false };
+      }
+      const enriched = await enrichForPdf(opts);
+      const [{ pdf }, { RistrutturazionePDF }, React] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("@/components/ristrutturazione/RistrutturazionePDF"),
+        import("react"),
+      ]);
+      const element = React.createElement(RistrutturazionePDF, enriched);
+      const blob = await pdf(element).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const filename = buildFilename(opts.progetto);
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Revoca differita: alcuni browser leggono il blob dopo il click async →
+      // revoca immediata = download talvolta vuoto.
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      toast.success("PDF scaricato", { description: filename });
+      return { ok: true };
+    } catch (err) {
+      console.error("Errore generazione PDF ristrutturazione:", err);
+      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      toast.error("Errore nella generazione del PDF", { description: msg });
+      return { ok: false };
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const previewPDF = async (opts: RstPdfPayload): Promise<void> => {
+    setIsGenerating(true);
+    try {
+      if (opts.computo.length === 0) {
+        toast.error("Computo vuoto", {
+          description: "Aggiungi almeno una voce nel computo prima di generare il PDF.",
+        });
+        return;
+      }
+      const enriched = await enrichForPdf(opts);
+      const [{ pdf }, { RistrutturazionePDF }, React] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("@/components/ristrutturazione/RistrutturazionePDF"),
+        import("react"),
+      ]);
+      const element = React.createElement(RistrutturazionePDF, enriched);
+      const blob = await pdf(element).toBlob();
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, "_blank");
+      const revoke = () => { try { URL.revokeObjectURL(url); } catch { /* noop */ } };
+      window.setTimeout(revoke, 60_000);
+      if (!win) {
+        toast.success("PDF generato", {
+          description: "Apertura bloccata dal browser.",
+          action: { label: "Apri", onClick: () => window.open(url, "_blank") },
+          duration: 10000,
+        });
+      }
+    } catch (err) {
+      console.error("Errore preview PDF ristrutturazione:", err);
+      const msg = err instanceof Error ? err.message : "Errore sconosciuto";
+      toast.error("Errore nella generazione del PDF", { description: msg });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return { downloadPDF, previewPDF, isGenerating };
+}
