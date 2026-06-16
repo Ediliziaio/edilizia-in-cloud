@@ -36,6 +36,7 @@ import {
 import { useReplySnippets, type ReplySnippet } from "./useReplySnippets";
 import { avatarTint } from "./outreachAvatar";
 import { useQuery } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { supabase } from "@/integrations/supabase/client";
 import { isMissingColumnError } from "./_shared";
 
@@ -212,6 +213,23 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
     [conversations, selectedKey],
   );
 
+  // ── Virtualizzazione lista conversazioni (a scala: migliaia di thread) ──
+  // Solo le righe visibili sono montate. Altezza variabile (riga con/senza azienda,
+  // casella, badge) → measureElement; stima 84px ≈ riga media. Lo scaffold sotto
+  // (J/K, selezione, checkbox bulk, filtri) resta invariato: opera su `filtered`.
+  const convScrollRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => convScrollRef.current,
+    estimateSize: () => 84,
+    overscan: 10,
+    getItemKey: (index) => filtered[index]?.key ?? index,
+  });
+  // Ref sempre aggiornato al virtualizer corrente: permette a handler con dipendenze
+  // stabili (J/K) di chiamare scrollToIndex senza ri-registrarsi a ogni render.
+  const rowVirtualizerRef = useRef(rowVirtualizer);
+  rowVirtualizerRef.current = rowVirtualizer;
+
   // Contesto aperto di default solo quando c'è un lead vero collegato: per le email
   // verso indirizzi non in rubrica il pannello resterebbe vuoto ("Nessun contatto")
   // e schiaccerebbe il thread, quindi parte chiuso. Il toggle resta sempre disponibile.
@@ -344,6 +362,9 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
         setContextOverride(null); // cambio conversazione → default contesto
         if (next.unread && next.contact?.id) markRead.mutate(next.contact.id);
       }
+      // La lista è virtualizzata: porta la riga selezionata in viewport (potrebbe non
+      // essere montata). 'auto' = scrolla solo se fuori vista, niente salti inutili.
+      rowVirtualizerRef.current.scrollToIndex(nextIdx, { align: "auto" });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -733,21 +754,31 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
             )}
           </div>
         ) : (
-          <ScrollArea className="flex-1">
-            <ul className="space-y-0.5 p-2">
-              {filtered.map((conv) => (
-                <ConversationRow
-                  key={conv.key}
-                  conv={conv}
-                  active={conv.key === selectedKey}
-                  checked={selectedKeys.has(conv.key)}
-                  mailbox={conv.primarySenderId ? sendersById.get(conv.primarySenderId) ?? null : null}
-                  onSelect={() => handleSelect(conv)}
-                  onToggle={() => toggleSelected(conv.key)}
-                />
-              ))}
+          // Lista virtualizzata: scroll parent nativo + righe assolute misurate.
+          <div ref={convScrollRef} className="flex-1 overflow-y-auto p-2">
+            <ul
+              className="relative"
+              style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+            >
+              {rowVirtualizer.getVirtualItems().map((vRow) => {
+                const conv = filtered[vRow.index];
+                return (
+                  <ConversationRow
+                    key={vRow.key}
+                    conv={conv}
+                    active={conv.key === selectedKey}
+                    checked={selectedKeys.has(conv.key)}
+                    mailbox={conv.primarySenderId ? sendersById.get(conv.primarySenderId) ?? null : null}
+                    onSelect={() => handleSelect(conv)}
+                    onToggle={() => toggleSelected(conv.key)}
+                    dataIndex={vRow.index}
+                    measureRef={rowVirtualizer.measureElement}
+                    offsetTop={vRow.start}
+                  />
+                );
+              })}
             </ul>
-          </ScrollArea>
+          </div>
         )}
       </aside>
 
@@ -1085,7 +1116,7 @@ function FilterPills({
    <button> (HTML valido) e visibile su hover/selezione per non sporcare la riga.
    ────────────────────────────────────────────────────────────────────────── */
 function ConversationRow({
-  conv, active, checked, mailbox, onSelect, onToggle,
+  conv, active, checked, mailbox, onSelect, onToggle, dataIndex, measureRef, offsetTop,
 }: {
   conv: Conversation;
   active: boolean;
@@ -1093,18 +1124,32 @@ function ConversationRow({
   mailbox: SenderRow | null;
   onSelect: () => void;
   onToggle: () => void;
+  // Wiring virtualizer (assente nei test/usi non virtualizzati → riga statica).
+  dataIndex?: number;
+  measureRef?: (el: HTMLElement | null) => void;
+  offsetTop?: number;
 }) {
   const name = contactName(conv.contact, conv.email);
   const company = conv.contact?.company_name;
   const intentMeta = conv.lastIntent ? INTENT_META[conv.lastIntent] : null;
+  const virtualized = measureRef != null;
   return (
     <li
-      className={cn(
-        "group relative flex items-stretch overflow-hidden rounded-lg transition-colors",
-        active ? "bg-primary/[0.07]" : "hover:bg-muted/60",
-        checked && !active && "bg-primary/[0.05]",
-      )}
+      ref={measureRef}
+      data-index={dataIndex}
+      // Wrapper "nudo": quando virtualizzato è il blocco assoluto misurato dal
+      // virtualizer; pb-0.5 ricrea lo spazio tra righe (prima: space-y-0.5 sul <ul>).
+      // Lo styling della card sta sull'inner <div> così il gap resta trasparente.
+      style={virtualized ? { position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${offsetTop}px)`, paddingBottom: 2 } : undefined}
+      className={virtualized ? undefined : "pb-0.5"}
     >
+      <div
+        className={cn(
+          "group relative flex items-stretch overflow-hidden rounded-lg transition-colors",
+          active ? "bg-primary/[0.07]" : "hover:bg-muted/60",
+          checked && !active && "bg-primary/[0.05]",
+        )}
+      >
       {/* Barra accent della riga selezionata. */}
       {active && <span className="absolute inset-y-1.5 left-0 w-1 rounded-r-full bg-primary" aria-hidden />}
       {/* Checkbox di selezione multipla — fuori dal <button> (HTML valido). */}
@@ -1158,6 +1203,7 @@ function ConversationRow({
           )}
         </div>
       </button>
+      </div>
     </li>
   );
 }

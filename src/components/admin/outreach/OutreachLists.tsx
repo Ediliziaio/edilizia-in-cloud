@@ -1,4 +1,6 @@
+import { useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { ListChecks, Tag, Loader2, Layers, Hash } from "lucide-react";
@@ -81,26 +83,9 @@ export function OutreachLists({ companyId }: { companyId: string }) {
           </div>
         ) : (
           <div className="space-y-5">
-            {/* righe lista — stile tabella contatti */}
+            {/* righe lista — stile tabella contatti (virtualizzate a scala) */}
             <div className="overflow-hidden rounded-lg border border-border">
-              {d.lists.map((l, i) => (
-                <div
-                  key={l.tag}
-                  className={`group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50 ${i > 0 ? "border-t border-border" : ""}`}
-                >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                    <Tag className="h-3.5 w-3.5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium leading-tight">{l.tag}</div>
-                    <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-primary/60" style={{ width: `${Math.round((l.count / maxList) * 100)}%` }} />
-                    </div>
-                  </div>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">{fmt(l.count)}</span>
-                  <OutreachEnrollListDialog companyId={companyId} tag={l.tag} count={l.count} />
-                </div>
-              ))}
+              <ListRows lists={d.lists} maxList={maxList} companyId={companyId} fmt={fmt} />
               {d.untagged > 0 && (
                 <div className={`flex items-center gap-3 px-3 py-2.5 text-muted-foreground ${d.lists.length > 0 ? "border-t border-border" : ""}`}>
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
@@ -137,5 +122,95 @@ export function OutreachLists({ companyId }: { companyId: string }) {
         )}
       </div>
     </section>
+  );
+}
+
+interface ListItem { tag: string; count: number; }
+
+/**
+ * Righe delle liste (una per tag). A scala il numero di tag può essere alto:
+ * oltre VIRTUALIZE_AT virtualizziamo dentro un'area scrollabile capped, sotto
+ * soglia render piatto (niente scroll forzato sulle 2-3 liste tipiche). Stessa
+ * riga (`ListRow`) in entrambi i rami → nessuna divergenza visiva (DRY).
+ */
+const VIRTUALIZE_AT = 40;
+const LIST_ROW_H = 51; // altezza riga ≈ icona+titolo+barra+padding (stima virtualizer)
+
+function ListRows({
+  lists, maxList, companyId, fmt,
+}: {
+  lists: ListItem[];
+  maxList: number;
+  companyId: string;
+  fmt: (n: number) => string;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: lists.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => LIST_ROW_H,
+    overscan: 8,
+    getItemKey: (i) => lists[i]?.tag ?? i,
+  });
+
+  // Pochi tag → render piatto, identico a prima (nessuno scroll container).
+  if (lists.length <= VIRTUALIZE_AT) {
+    return (
+      <>
+        {lists.map((l, i) => (
+          <ListRow key={l.tag} l={l} maxList={maxList} companyId={companyId} fmt={fmt} bordered={i > 0} />
+        ))}
+      </>
+    );
+  }
+
+  // Molti tag → lista virtualizzata in un'area scrollabile (max ~10 righe visibili).
+  return (
+    <div ref={parentRef} className="overflow-y-auto" style={{ maxHeight: LIST_ROW_H * 10 }}>
+      <div className="relative" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+        {virtualizer.getVirtualItems().map((v) => {
+          const l = lists[v.index];
+          return (
+            <div
+              key={v.key}
+              data-index={v.index}
+              ref={virtualizer.measureElement}
+              className="absolute left-0 top-0 w-full"
+              style={{ transform: `translateY(${v.start}px)` }}
+            >
+              <ListRow l={l} maxList={maxList} companyId={companyId} fmt={fmt} bordered={v.index > 0} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ListRow({
+  l, maxList, companyId, fmt, bordered,
+}: {
+  l: ListItem;
+  maxList: number;
+  companyId: string;
+  fmt: (n: number) => string;
+  bordered: boolean;
+}) {
+  return (
+    <div
+      className={`group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/50 ${bordered ? "border-t border-border" : ""}`}
+    >
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+        <Tag className="h-3.5 w-3.5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium leading-tight">{l.tag}</div>
+        <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-primary/60" style={{ width: `${Math.round((l.count / maxList) * 100)}%` }} />
+        </div>
+      </div>
+      <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">{fmt(l.count)}</span>
+      <OutreachEnrollListDialog companyId={companyId} tag={l.tag} count={l.count} />
+    </div>
   );
 }
