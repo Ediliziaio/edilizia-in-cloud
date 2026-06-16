@@ -365,29 +365,37 @@ const cantiereOf = (p: RstProgetto) =>
 const dateStr = () => new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
 
 // ─── Footer (legale Domus Group) ─────────────────────────────────────────────
-function PageFooter({ styles, company, code, footerText }: {
+// Anagrafica: preferisce i dati del template (builder) e ripiega su `company.*`.
+// Toggle: `showVersion` gating la riga "Preventivo … · pagina" e `showLegal` la
+// riga estesa con indirizzo/P.IVA (B2B). Tutti i campi sono nullable/difensivi.
+function PageFooter({ styles, company, code, footerText, anagrafica, showVersion, showLegal }: {
   styles: Styles;
   company: RstPdfEnriched["company"];
   code: string | null;
   footerText: string | null;
+  anagrafica: { name: string; indirizzo: string | null; telefono: string | null; email: string | null; partitaIva: string | null };
+  showVersion: boolean;
+  showLegal: boolean;
 }) {
-  const line1 = [company?.indirizzo, company?.telefono, company?.email].filter(Boolean).join(" · ");
-  const line2 = [company?.partita_iva ? `P.IVA ${company.partita_iva}` : null, company?.website].filter(Boolean).join(" · ");
+  const line1 = [anagrafica.indirizzo, anagrafica.telefono, anagrafica.email].filter(Boolean).join(" · ");
+  const line2 = [anagrafica.partitaIva ? `P.IVA ${anagrafica.partitaIva}` : null, company?.website].filter(Boolean).join(" · ");
   return (
     <View style={styles.footer} fixed>
       <View style={styles.footerRow}>
-        <Text style={styles.footerName}>{company?.ragione_sociale || company?.name || DOMUS_LEGAL}</Text>
+        <Text style={styles.footerName}>{anagrafica.name || DOMUS_LEGAL}</Text>
         <Text render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
       </View>
-      {Boolean(line1) && <View style={styles.footerRow}><Text>{line1}</Text><Text /></View>}
-      {Boolean(line2) && <View style={styles.footerRow}><Text>{line2}</Text><Text /></View>}
+      {showLegal && Boolean(line1) && <View style={styles.footerRow}><Text>{line1}</Text><Text /></View>}
+      {showLegal && Boolean(line2) && <View style={styles.footerRow}><Text>{line2}</Text><Text /></View>}
       {Boolean(footerText) && <View style={styles.footerRow}><Text>{footerText}</Text><Text /></View>}
-      <View style={styles.footerRow}>
-        <Text>
-          {`Preventivo ${code ?? ""} · ${dateStr()} · Documento emesso tramite EdiliziaInCloud · ${DOMUS_LEGAL}`}
-        </Text>
-        <Text />
-      </View>
+      {showVersion && (
+        <View style={styles.footerRow}>
+          <Text>
+            {`Preventivo ${code ?? ""} · ${dateStr()} · Documento emesso tramite EdiliziaInCloud · ${DOMUS_LEGAL}`}
+          </Text>
+          <Text />
+        </View>
+      )}
     </View>
   );
 }
@@ -542,12 +550,30 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
   const C = makePalette(t);
   const styles = makeStyles(C);
 
-  const companyName = company?.ragione_sociale || company?.name || "EdiliziaInCloud";
+  // Anagrafica risolta: template (builder) → company (profilo) → fallback.
+  const companyName =
+    (t.ragione_sociale ?? "").trim() || company?.ragione_sociale || company?.name || "EdiliziaInCloud";
+  const anagrafica = {
+    name: companyName,
+    indirizzo: (t.indirizzo_completo ?? "").trim() || company?.indirizzo || null,
+    telefono: (t.telefono ?? "").trim() || company?.telefono || null,
+    email: (t.email ?? "").trim() || company?.email || null,
+    partitaIva: (t.partita_iva ?? "").trim() || company?.partita_iva || null,
+  };
+  const showFooterVersion = t.show_footer_version !== false;
+  const showFooterLegal = t.show_footer_legal === true;
   const logoUrl = t.logo_url ?? company?.logo_url ?? null;
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
   const coverTitle = (t.cover_title ?? "").trim() || "Preventivo di ristrutturazione";
   const coverSubtitle = (t.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano";
+  // Controlli copertina (builder): colore testo, posizione logo, opacità velo.
+  const coverTextColor = (t.cover_text_color ?? "").trim() || "#FFFFFF";
+  const coverLogoPosition = t.cover_logo_position ?? "top_left";
+  const coverLogoJustify =
+    coverLogoPosition === "top_right" ? "flex-end" :
+    coverLogoPosition === "top_center" ? "center" : "flex-start";
+  const coverOverlayOpacity = typeof t.cover_overlay_opacity === "number" ? t.cover_overlay_opacity : 0.4;
 
   const esigenze = t.esigenze ?? [];
   const soluzione = t.soluzione ?? [];
@@ -565,7 +591,15 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
     || testimonianze.length > 0;
 
   const footer = (
-    <PageFooter styles={styles} company={company} code={p.code} footerText={t.footer_text ?? null} />
+    <PageFooter
+      styles={styles}
+      company={company}
+      code={p.code}
+      footerText={t.footer_text ?? null}
+      anagrafica={anagrafica}
+      showVersion={showFooterVersion}
+      showLegal={showFooterLegal}
+    />
   );
   const header = (
     <PageHeader styles={styles} companyName={companyName} logoUrl={logoUrl} code={p.code} />
@@ -585,6 +619,10 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
             style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, objectFit: "cover" }}
           />
         )}
+        {/* Velo scuro configurabile sull'immagine (builder: cover_overlay_opacity) */}
+        {t.cover_image_url && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, backgroundColor: "#000", opacity: coverOverlayOpacity }} />
+        )}
         {/* Overlay scuro per leggibilità (gradiente verticale) */}
         <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
           <Svg width={595} height={841} viewBox="0 0 595 841">
@@ -599,23 +637,25 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
           </Svg>
         </View>
 
-        <View style={{ position: "absolute", top: 48, left: 44, right: 44 }}>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            {logoUrl ? (
-              <Image src={logoUrl} style={styles.coverLogo} />
-            ) : (
-              <View style={styles.coverLogoCircle}>
-                <Text style={{ color: C.white, fontSize: 24, fontWeight: 700 }}>
-                  {companyName.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
+        {coverLogoPosition !== "hidden" && (
+          <View style={{ position: "absolute", top: 48, left: 44, right: 44 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: coverLogoJustify }}>
+              {logoUrl ? (
+                <Image src={logoUrl} style={styles.coverLogo} />
+              ) : (
+                <View style={styles.coverLogoCircle}>
+                  <Text style={{ color: C.white, fontSize: 24, fontWeight: 700 }}>
+                    {companyName.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
-        </View>
+        )}
 
         <View style={{ position: "absolute", top: 300, left: 44, right: 44 }}>
-          <Text style={styles.coverTitle}>{coverTitle}</Text>
-          <Text style={styles.coverSubtitle}>{coverSubtitle}</Text>
+          <Text style={[styles.coverTitle, { color: coverTextColor }]}>{coverTitle}</Text>
+          <Text style={[styles.coverSubtitle, { color: coverTextColor }]}>{coverSubtitle}</Text>
         </View>
 
         <View style={{ position: "absolute", bottom: 70, left: 44, right: 44 }}>
@@ -787,22 +827,22 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
             <Text style={styles.contactLabel}>Azienda</Text>
             <Text style={styles.contactValue}>{companyName}</Text>
           </View>
-          {company?.telefono ? (
+          {anagrafica.telefono ? (
             <View style={styles.contactRow}>
               <Text style={styles.contactLabel}>Telefono</Text>
-              <Text style={styles.contactValue}>{company.telefono}</Text>
+              <Text style={styles.contactValue}>{anagrafica.telefono}</Text>
             </View>
           ) : null}
-          {company?.email ? (
+          {anagrafica.email ? (
             <View style={styles.contactRow}>
               <Text style={styles.contactLabel}>Email</Text>
-              <Text style={styles.contactValue}>{company.email}</Text>
+              <Text style={styles.contactValue}>{anagrafica.email}</Text>
             </View>
           ) : null}
-          {company?.indirizzo ? (
+          {anagrafica.indirizzo ? (
             <View style={styles.contactRow}>
               <Text style={styles.contactLabel}>Sede</Text>
-              <Text style={styles.contactValue}>{company.indirizzo}</Text>
+              <Text style={styles.contactValue}>{anagrafica.indirizzo}</Text>
             </View>
           ) : null}
         </View>

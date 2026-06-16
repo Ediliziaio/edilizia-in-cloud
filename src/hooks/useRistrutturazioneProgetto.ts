@@ -430,6 +430,17 @@ function normalizeTemplate(row: Record<string, unknown> | null, companyId: strin
     show_chi_siamo: (r.show_chi_siamo as boolean | null) ?? RST_TEMPLATE_DEFAULTS.show_chi_siamo,
     show_cronoprogramma: (r.show_cronoprogramma as boolean | null) ?? RST_TEMPLATE_DEFAULTS.show_cronoprogramma,
     show_margine: (r.show_margine as boolean | null) ?? RST_TEMPLATE_DEFAULTS.show_margine,
+    ragione_sociale: (r.ragione_sociale as string | null) ?? null,
+    indirizzo_completo: (r.indirizzo_completo as string | null) ?? null,
+    telefono: (r.telefono as string | null) ?? null,
+    email: (r.email as string | null) ?? null,
+    partita_iva: (r.partita_iva as string | null) ?? null,
+    font_family: (r.font_family as string | null) ?? "helvetica",
+    show_footer_version: (r.show_footer_version as boolean | null) ?? true,
+    show_footer_legal: (r.show_footer_legal as boolean | null) ?? false,
+    cover_logo_position: (r.cover_logo_position as RstTemplatePdf["cover_logo_position"]) ?? "top_left",
+    cover_text_color: (r.cover_text_color as string | null) ?? "#FFFFFF",
+    cover_overlay_opacity: (r.cover_overlay_opacity as number | null) ?? 0.4,
   };
 }
 

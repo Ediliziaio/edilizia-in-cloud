@@ -38,6 +38,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { RichTextEditorSafe } from "@/components/ui/rich-text-editor-safe";
@@ -65,6 +66,9 @@ type FormState = Required<Pick<RstTemplatePdf,
   | "testimonianze" | "cronoprogramma" | "cover_title" | "cover_subtitle"
   | "cover_image_url" | "payment_terms_text" | "validity_text" | "footer_text"
   | "show_chi_siamo" | "show_cronoprogramma" | "show_margine"
+  | "ragione_sociale" | "indirizzo_completo" | "telefono" | "email" | "partita_iva"
+  | "font_family" | "show_footer_version" | "show_footer_legal"
+  | "cover_logo_position" | "cover_text_color" | "cover_overlay_opacity"
 >>;
 
 function templateToForm(t: RstTemplatePdf): FormState {
@@ -90,6 +94,17 @@ function templateToForm(t: RstTemplatePdf): FormState {
     show_chi_siamo: t.show_chi_siamo ?? true,
     show_cronoprogramma: t.show_cronoprogramma ?? true,
     show_margine: t.show_margine ?? false,
+    ragione_sociale: t.ragione_sociale ?? null,
+    indirizzo_completo: t.indirizzo_completo ?? null,
+    telefono: t.telefono ?? null,
+    email: t.email ?? null,
+    partita_iva: t.partita_iva ?? null,
+    font_family: t.font_family ?? "helvetica",
+    show_footer_version: t.show_footer_version ?? true,
+    show_footer_legal: t.show_footer_legal ?? false,
+    cover_logo_position: t.cover_logo_position ?? "top_left",
+    cover_text_color: t.cover_text_color ?? "#FFFFFF",
+    cover_overlay_opacity: t.cover_overlay_opacity ?? 0.4,
   };
 }
 
@@ -306,6 +321,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
         <div className="col-span-12 md:col-span-9 space-y-4 min-w-0">
           {/* Branding */}
           {activeSection === "brand" && (
+            <>
             <SectionCard icon={Palette} title="Branding" description="Logo e colori usati nel PDF.">
               <div className="grid gap-4 sm:grid-cols-2">
                 <ImageUploadField
@@ -324,6 +340,93 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                 </div>
               </div>
             </SectionCard>
+
+            {/* Anagrafica azienda — dati che compaiono in header/footer del PDF */}
+            <SectionCard icon={Building2} title="Anagrafica azienda" description="Dati che compaiono nell'header e nel footer di ogni preventivo PDF.">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs">Ragione sociale</Label>
+                  <Input
+                    value={form.ragione_sociale ?? ""}
+                    onChange={(e) => set("ragione_sociale", e.target.value)}
+                    placeholder="Es. Edil Rossi S.r.l."
+                  />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs">Indirizzo completo</Label>
+                  <Input
+                    value={form.indirizzo_completo ?? ""}
+                    onChange={(e) => set("indirizzo_completo", e.target.value)}
+                    placeholder="Es. Via Roma 42 · 20121 Milano (MI)"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Telefono</Label>
+                  <Input
+                    value={form.telefono ?? ""}
+                    onChange={(e) => set("telefono", e.target.value)}
+                    placeholder="+39 02 1234 5678"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Email</Label>
+                  <Input
+                    type="email"
+                    value={form.email ?? ""}
+                    onChange={(e) => set("email", e.target.value)}
+                    placeholder="info@azienda.it"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">P.IVA</Label>
+                  <Input
+                    value={form.partita_iva ?? ""}
+                    onChange={(e) => set("partita_iva", e.target.value)}
+                    placeholder="IT12345670156"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Tipografia PDF</Label>
+                  <select
+                    value={form.font_family ?? "helvetica"}
+                    onChange={(e) => set("font_family", e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="helvetica">Helvetica · classico</option>
+                    <option value="inter">Inter</option>
+                    <option value="roboto">Roboto</option>
+                  </select>
+                  <p className="text-[10px] text-muted-foreground">
+                    Inter/Roboto richiedono font self-hosted: fallback Helvetica nel PDF.
+                  </p>
+                </div>
+              </div>
+            </SectionCard>
+
+            {/* Footer PDF — toggle informazioni in coda a ogni pagina */}
+            <SectionCard icon={FileText} title="Footer PDF" description="Cosa mostrare nel piè di pagina di ogni foglio del preventivo.">
+              <div className="space-y-2">
+                <label className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-medium">Mostra info versione nel footer</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Aggiunge codice preventivo, data e numero di pagina su ogni foglio.
+                    </p>
+                  </div>
+                  <Switch checked={form.show_footer_version} onCheckedChange={(v) => set("show_footer_version", v)} />
+                </label>
+                <label className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-medium">Mostra footer legale esteso (B2B)</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Aggiunge i dati legali dell'azienda (ragione sociale, indirizzo, P.IVA) in coda.
+                    </p>
+                  </div>
+                  <Switch checked={form.show_footer_legal} onCheckedChange={(v) => set("show_footer_legal", v)} />
+                </label>
+              </div>
+            </SectionCard>
+            </>
           )}
 
           {/* Copertina */}
@@ -356,6 +459,47 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                   onChange={(url) => set("cover_image_url", url)}
                   aspect="aspect-[16/9]"
                 />
+              </div>
+
+              {/* Controlli avanzati copertina: posizione logo, colore testo, velo */}
+              <div className="mt-4 grid gap-4 border-t pt-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Posizione logo</Label>
+                  <select
+                    value={form.cover_logo_position ?? "top_left"}
+                    onChange={(e) => set("cover_logo_position", e.target.value as FormState["cover_logo_position"])}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="top_left">In alto a sinistra</option>
+                    <option value="top_center">In alto al centro</option>
+                    <option value="top_right">In alto a destra</option>
+                    <option value="hidden">Nascosto</option>
+                  </select>
+                </div>
+                <ColorField
+                  label="Colore testo copertina"
+                  value={form.cover_text_color}
+                  onChange={(v) => set("cover_text_color", v)}
+                />
+                <div className="space-y-1.5 sm:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Opacità velo scuro sull'immagine</Label>
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {Math.round((form.cover_overlay_opacity ?? 0.4) * 100)}%
+                    </span>
+                  </div>
+                  <Slider
+                    value={[form.cover_overlay_opacity ?? 0.4]}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    onValueChange={(v) => set("cover_overlay_opacity", v[0])}
+                    className="mt-1"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Aumenta il velo per rendere il testo più leggibile su immagini chiare.
+                  </p>
+                </div>
               </div>
             </SectionCard>
           )}

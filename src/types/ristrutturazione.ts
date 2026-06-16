@@ -59,4 +59,15 @@ export interface RstTemplatePdf {
   show_chi_siamo: boolean;
   show_cronoprogramma: boolean;
   show_margine: boolean;
+  ragione_sociale: string | null;
+  indirizzo_completo: string | null;
+  telefono: string | null;
+  email: string | null;
+  partita_iva: string | null;
+  font_family: string | null;
+  show_footer_version: boolean;
+  show_footer_legal: boolean;
+  cover_logo_position: "top_left" | "top_center" | "top_right" | "hidden" | null;
+  cover_text_color: string | null;
+  cover_overlay_opacity: number | null;
 }
