@@ -83,6 +83,7 @@ const AdminCampaignSendSettings = lazy(() => import("@/pages/admin/marketing/Adm
 const AdminFacebookForms = lazy(() => import("@/pages/admin/marketing/AdminFacebookForms"));
 const AdminMarketingReportistica = lazy(() => import("@/pages/admin/marketing/AdminMarketingReportistica"));
 const AdminSalesOS = lazy(() => import("@/pages/admin/marketing/AdminSalesOS"));
+const AdminRoiSimulator = lazy(() => import("@/pages/admin/marketing/AdminRoiSimulator"));
 const AdminPreventivi = lazy(() => import("@/pages/admin/marketing/AdminPreventivi"));
 const AdminQuoteBuilder = lazy(() => import("@/pages/admin/marketing/AdminQuoteBuilder"));
 const AdminQuoteDetail = lazy(() => import("@/pages/admin/marketing/AdminQuoteDetail"));
@@ -314,6 +315,7 @@ export default function AdminRoutesContainer() {
         <Route path="marketing/lead-forms" element={<RequireAdminPermission permission="can_manage_marketing"><AdminFacebookForms /></RequireAdminPermission>} />
         <Route path="marketing/reportistica" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingReportistica /></RequireAdminPermission>} />
         <Route path="marketing/sales-os" element={<RequireAdminPermission permission="can_manage_marketing"><AdminSalesOS /></RequireAdminPermission>} />
+        <Route path="marketing/simulatore-roi" element={<RequireAdminPermission permission="can_manage_marketing"><AdminRoiSimulator /></RequireAdminPermission>} />
         <Route path="marketing/preventivi" element={<RequireAdminPermission permission="can_manage_marketing"><AdminPreventivi /></RequireAdminPermission>} />
         <Route path="marketing/preventivi/nuovo" element={<RequireAdminPermission permission="can_manage_marketing"><AdminQuoteBuilder /></RequireAdminPermission>} />
         <Route path="marketing/preventivi/:id" element={<RequireAdminPermission permission="can_manage_marketing"><AdminQuoteDetail /></RequireAdminPermission>} />

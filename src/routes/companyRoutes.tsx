@@ -358,6 +358,7 @@ const OnboardingPage = lazy(() => import("@/pages/azienda/OnboardingPage"));
 const OnboardingVertical = lazy(() => import("@/pages/azienda/onboarding/OnboardingVertical"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
 const SalesOSDashboard = lazy(() => import("@/pages/azienda/marketing/SalesOSDashboard"));
+const RoiSimulatorPage = lazy(() => import("@/pages/azienda/marketing/RoiSimulatorPage"));
 const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookFormsPage"));
 const AdsManagerBeta = lazy(() => import("@/pages/azienda/marketing/AdsManagerBeta"));
 const SocialManagerBeta = lazy(() => import("@/pages/azienda/marketing/SocialManagerBeta"));
@@ -758,6 +759,8 @@ export default function CompanyRoutesContainer() {
         <Route path="sms-marketing/template" element={<Navigate to="/azienda/sms?tab=template" replace />} />
         <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
         <Route path="marketing/sales-os" element={withCompanyPermission("canViewSalesOs", <FeatureRoute featureKey="sales_os"><SalesOSDashboard /></FeatureRoute>)} />
+        {/* Simulatore ROI di vendita — strumento da usare in trattativa. */}
+        <Route path="marketing/simulatore-roi" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><RoiSimulatorPage /></FeatureRoute>)} />
         {/* Modulo Fotovoltaico — gated da feature flag modulo_fotovoltaico_attivo */}
         <Route path="marketing/fotovoltaico" element={
           <FeatureRoute featureKey="modulo_fotovoltaico_attivo">

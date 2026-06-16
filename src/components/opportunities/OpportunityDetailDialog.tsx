@@ -27,7 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
   Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder,
-  Target, AlertTriangle, Trophy, MessageCircle, ExternalLink, History,
+  Target, AlertTriangle, Trophy, MessageCircle, ExternalLink, History, Calculator,
 } from "lucide-react";
 import { useUpdateOpportunityMutation } from "@/hooks/useSalesOS";
 import { format } from "date-fns";
@@ -45,6 +45,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { cleanPhone } from "@/lib/contactUtils";
 import { QuickContactSendDialog, type QuickSendChannel } from "@/components/contacts/QuickContactSendDialog";
 import { ContactActivityRegister } from "@/components/contacts/ContactActivityRegister";
+import { RoiSimulatorDialog } from "@/components/marketing/RoiSimulatorDialog";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 
@@ -98,6 +99,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
   const [tab, setTab] = useState<Tab>("details");
   const [hideEmpty, setHideEmpty] = useState(false);
+  const [roiOpen, setRoiOpen] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -521,6 +523,18 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 <span className="mx-0.5 hidden sm:block h-5 w-px bg-border" aria-hidden />
               </div>
             )}
+            {/* Simulatore ROI — apre lo strumento precompilato col cliente del deal. */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setRoiOpen(true)}
+              className="shrink-0 h-9 sm:h-8 gap-1.5 mt-0.5 sm:mt-0"
+              title="Apri il Simulatore ROI per questo cliente"
+            >
+              <Calculator className="h-4 w-4 text-primary" />
+              <span className="hidden sm:inline">Simulatore ROI</span>
+            </Button>
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -1184,6 +1198,16 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
           queryClient.invalidateQueries({ queryKey: ["comm-wa"] });
           queryClient.invalidateQueries({ queryKey: ["comm-email"] });
         }}
+      />
+    )}
+
+    {opportunity?.id && roiOpen && (
+      <RoiSimulatorDialog
+        open={roiOpen}
+        onOpenChange={setRoiOpen}
+        opportunityId={opportunity.id}
+        contactId={opportunity.contact_id ?? null}
+        defaultClientName={fullName || opportunity.name || ""}
       />
     )}
     </>
