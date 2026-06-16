@@ -34,6 +34,14 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { ResellerPlan } from "@/hooks/useResellerPlans";
+import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -195,6 +203,8 @@ interface RoiSimulatorProps {
   /** Agganci export PDF/email. Se passati, i bottoni si attivano. */
   onExportPdf?: (payload: { inputs: RoiInputs; results: RoiResults; clientName: string }) => void;
   onSendEmail?: (payload: { inputs: RoiInputs; results: RoiResults; clientName: string }) => void;
+  /** Piani disponibili per il selettore canone (da useResellerPlans). */
+  plans?: ResellerPlan[];
 }
 
 export function RoiSimulator({
@@ -208,6 +218,7 @@ export function RoiSimulator({
   showClientName = true,
   onExportPdf,
   onSendEmail,
+  plans = [],
 }: RoiSimulatorProps) {
   // Stato non-controllato (fallback) se il parent non passa value/onChange.
   // default-merge: tollera scenari salvati legacy/parziali (campi nuovi mancanti).
@@ -381,13 +392,41 @@ export function RoiSimulator({
               <SectionTitle icon={<Sparkles className="h-3.5 w-3.5 text-primary" />}>
                 Investimento
               </SectionTitle>
+              {plans.length > 0 && (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Piano EdiliziaInCloud</Label>
+                  <Select
+                    value={plans.find((pl) => pl.price_monthly === inputs.abbonamentoMensile)?.id ?? "custom"}
+                    onValueChange={(id) => {
+                      const plan = plans.find((pl) => pl.id === id);
+                      if (plan) setInputs((p) => ({ ...p, abbonamentoMensile: plan.price_monthly }));
+                    }}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Scegli un piano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {plans.map((plan) => (
+                        <SelectItem key={plan.id} value={plan.id}>
+                          {plan.name} · {formatCurrency(plan.price_monthly)}/mese
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">Importo personalizzato</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <NumberField
                 label="Canone EdiliziaInCloud"
                 value={inputs.abbonamentoMensile}
                 onChange={(v) => setInputs((p) => ({ ...p, abbonamentoMensile: v }))}
                 suffix="€/mese"
                 step={10}
-                hint="Pre-compilato col piano reale; modificabile in trattativa."
+                hint={
+                  plans.length > 0
+                    ? "Scegli un piano sopra oppure inserisci un importo personalizzato."
+                    : "Pre-compilato col piano reale; modificabile in trattativa."
+                }
               />
             </div>
 

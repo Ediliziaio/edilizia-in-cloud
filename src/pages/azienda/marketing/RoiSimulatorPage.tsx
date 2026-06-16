@@ -199,6 +199,7 @@ export default function RoiSimulatorPage() {
       <RoiSimulator
         value={inputs}
         onChange={setInputs}
+        plans={plans}
         clientName={clientName}
         onClientNameChange={setClientName}
         onSave={handleSave}
