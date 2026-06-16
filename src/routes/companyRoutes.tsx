@@ -155,6 +155,9 @@ const FotovoltaicoDettaglio = lazy(() => import("@/pages/azienda/fotovoltaico/Fo
 // Modulo Preventivatore Serramenti
 const SerramentiIndex = lazy(() => import("@/pages/azienda/serramenti/SerramentiIndex"));
 const SerramentiWizard = lazy(() => import("@/pages/azienda/serramenti/SerramentiWizard"));
+// Modulo Ristrutturazione (gating come Serramenti: permission-based, no feature flag DB)
+const RistrutturazioneIndex = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneIndex"));
+const RistrutturazioneWizard = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneWizard"));
 const ListiniFornitoriPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.ListiniFornitoriPage })),
 );
@@ -799,6 +802,26 @@ export default function CompanyRoutesContainer() {
           withCompanyPermission(
             "canEditMarketingOpportunities",
             <ErrorBoundary title="Errore wizard Serramenti"><SerramentiWizard /></ErrorBoundary>,
+          )
+        } />
+        {/* Modulo Ristrutturazione — stesso guard di Serramenti (permission-based,
+            nessun FeatureRoute/feature flag DB): visibile e usabile da subito. */}
+        <Route path="ristrutturazione" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore modulo Ristrutturazione"><RistrutturazioneIndex /></ErrorBoundary>,
+          )
+        } />
+        <Route path="ristrutturazione/nuovo" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Ristrutturazione"><RistrutturazioneWizard /></ErrorBoundary>,
+          )
+        } />
+        <Route path="ristrutturazione/:id/modifica" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Ristrutturazione"><RistrutturazioneWizard /></ErrorBoundary>,
           )
         } />
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />
