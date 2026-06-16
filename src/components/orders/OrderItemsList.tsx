@@ -792,6 +792,14 @@ export function OrderItemsList({
         <div className="space-y-2">
           <Label>Nome Articolo *</Label>
           <ArticleCombobox value={itemName} onValueChange={handleArticleSelect} placeholder="Cerca articolo dal listino o digita…" fallbackCompanyId={fallbackCompanyId} includeListino />
+          {itemStandardCost != null && itemStandardCost > 0 && (
+            <div className="flex items-center gap-2 text-xs rounded-md bg-blue-50 border border-blue-100 px-2.5 py-1.5">
+              <Tag className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+              <span className="text-blue-800">
+                Dal listino{itemCategoria ? <> · {itemCategoria}</> : null} — costo base <strong>{formatCurrency(itemStandardCost)}</strong>/u
+              </span>
+            </div>
+          )}
         </div>
         <div className="space-y-2">
           <Label>Descrizione <span className="text-xs text-muted-foreground font-normal">(opzionale)</span></Label>
@@ -823,11 +831,28 @@ export function OrderItemsList({
             <Input type="number" min="1" value={itemQuantity} onChange={(e) => setItemQuantity(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label>Costo Acquisto</Label>
+            <Label>
+              Costo Acquisto
+              {itemStandardCost != null && itemStandardCost > 0 && (
+                <span className="text-xs text-muted-foreground font-normal"> (reale pagato)</span>
+              )}
+            </Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">€</span>
               <Input type="number" min="0" step="0.01" value={itemPurchasePrice} onChange={(e) => setItemPurchasePrice(e.target.value)} className="pl-8" placeholder="0.00" />
             </div>
+            {itemStandardCost != null && itemStandardCost > 0 && (() => {
+              const reale = itemPurchasePrice.trim() ? Number(itemPurchasePrice) : 0;
+              if (!Number.isFinite(reale)) return null;
+              const delta = reale - itemStandardCost!;
+              const pct = (delta / itemStandardCost!) * 100;
+              const over = delta > 0.005, under = delta < -0.005;
+              return (
+                <p className={cn("text-[11px]", over ? "text-rose-600" : under ? "text-emerald-600" : "text-muted-foreground")}>
+                  Listino {formatCurrency(itemStandardCost!)} · {over ? "▲" : under ? "▼" : "="} {delta > 0 ? "+" : ""}{formatCurrency(delta)} ({pct > 0 ? "+" : ""}{pct.toFixed(0)}%)
+                </p>
+              );
+            })()}
           </div>
         </div>
         <div className="space-y-2">
@@ -1431,7 +1456,7 @@ export function OrderItemsList({
 
         {/* Add/Edit Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingIndex !== null ? "Modifica Articolo" : "Nuovo Articolo"}
