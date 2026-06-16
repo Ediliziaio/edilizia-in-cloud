@@ -7,6 +7,7 @@
 // (tabella notifications) + email best-effort. Anti-doppione: niente nuova
 // notifica per lo stesso documento/admin se già inviata negli ultimi 7 giorni.
 // Nessun JWT utente (verify_jwt=false): l'auth è il cron-secret.
+// v1.0.1 — config.toml verify_jwt=false.
 // ============================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadProviderSettings, sendViaProviderWithFailover } from "../_shared/emailProvider.ts";
