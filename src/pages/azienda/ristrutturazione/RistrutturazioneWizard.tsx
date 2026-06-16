@@ -40,6 +40,7 @@ import StepCliente from "./RistrutturazioneWizard/StepCliente";
 import StepImmobile from "./RistrutturazioneWizard/StepImmobile";
 import StepComputo from "./RistrutturazioneWizard/StepComputo";
 import StepMedia from "./RistrutturazioneWizard/StepMedia";
+import StepEconomia from "./RistrutturazioneWizard/StepEconomia";
 
 const STEP_ICONS: Record<RstWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -433,7 +434,10 @@ export default function RistrutturazioneWizard() {
             {currentStep === "media" && id && detail && (
               <StepMedia progettoId={id} media={detail.media} />
             )}
-            {currentStep !== "cliente" && currentStep !== "immobile" && currentStep !== "computo" && currentStep !== "media" && (
+            {currentStep === "economia" && detail && (
+              <StepEconomia form={form} onChange={onChange} computo={detail.computo} />
+            )}
+            {currentStep === "pdf" && (
               <StepComingSoon step={currentStep} />
             )}
 
