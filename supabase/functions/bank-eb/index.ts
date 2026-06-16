@@ -68,6 +68,14 @@ async function eb(path: string, init?: RequestInit): Promise<{ status: number; d
   return { status: r.status, data };
 }
 
+// Status Berlin Group → canonico ('booked'/'pending'). Le RPC tesoreria filtrano 'booked'.
+function normStatus(s: unknown): string {
+  const u = (s ?? "booked").toString().toUpperCase();
+  if (u === "BOOK" || u === "BOOKED") return "booked";
+  if (u === "PDNG" || u === "PENDING") return "pending";
+  return (s ?? "booked").toString().toLowerCase();
+}
+
 // ── Mappa una transaction Enable Banking → riga bank_transactions ────────────
 function mapTx(t: any, companyId: string, accountId: string) {
   const ind = t?.credit_debit_indicator;                  // "CRDT" | "DBIT"
@@ -93,7 +101,9 @@ function mapTx(t: any, companyId: string, accountId: string) {
     // I componenti Tesoreria classificano entrata/uscita con transaction_type = "credit"|"debit".
     // Il codice banca grezzo resta in metadata.bank_transaction_code.
     transaction_type: ind === "DBIT" ? "debit" : "credit",
-    status: (t?.status ?? "booked").toString().toLowerCase(),
+    // Normalizza lo status Berlin Group (BOOK→booked, PDNG→pending): le RPC
+    // (cash flow, tesoreria) filtrano su 'booked'. Qonto manda "BOOK".
+    status: normStatus(t?.status),
     // NB: counterparty_name / counterparty_iban sono colonne GENERATED ALWAYS
     // (COALESCE(creditor*, debtor*)) → NON vanno scritte qui o l'upsert fallisce.
     metadata: t,

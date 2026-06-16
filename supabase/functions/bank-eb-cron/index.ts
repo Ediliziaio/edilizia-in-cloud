@@ -43,6 +43,12 @@ async function eb(path: string, init?: RequestInit): Promise<{ status: number; d
   let data: any; try { data = JSON.parse(txt); } catch { data = txt; }
   return { status: r.status, data };
 }
+function normStatus(s: unknown): string {
+  const u = (s ?? "booked").toString().toUpperCase();
+  if (u === "BOOK" || u === "BOOKED") return "booked";
+  if (u === "PDNG" || u === "PENDING") return "pending";
+  return (s ?? "booked").toString().toLowerCase();
+}
 function mapTx(t: any, companyId: string, accountId: string) {
   const ind = t?.credit_debit_indicator;
   const rawAmt = Number(t?.transaction_amount?.amount ?? t?.amount ?? 0);
@@ -59,7 +65,7 @@ function mapTx(t: any, companyId: string, accountId: string) {
     creditor_iban: t?.creditor_account?.iban ?? null, debtor_iban: t?.debtor_account?.iban ?? null,
     reference: t?.reference_number ?? null,
     transaction_type: ind === "DBIT" ? "debit" : "credit",
-    status: (t?.status ?? "booked").toString().toLowerCase(),
+    status: normStatus(t?.status),
     // counterparty_name/_iban sono colonne GENERATED ALWAYS → non scriverle qui.
     metadata: t, synced_at: new Date().toISOString(),
   };
