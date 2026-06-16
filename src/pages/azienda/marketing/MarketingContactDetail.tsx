@@ -31,6 +31,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
+import { NewPreventivoMenu } from "@/components/marketing/preventivi/NewPreventivoMenu";
 import { MessageTemplatePicker } from "@/components/templates/MessageTemplatePicker";
 import { buildTemplateVars } from "@/lib/messageTemplateVars";
 import {
@@ -723,6 +724,8 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 </Button>
               )}
               <Button variant="outline" size="sm" className="gap-1.5 h-9" onClick={() => setRightTab("appointments")}><CalendarDays className="h-3.5 w-3.5" /> Appuntam.</Button>
+              {/* Crea preventivo dal contatto — link preservato (classico o modulo verticale) */}
+              <NewPreventivoMenu contactId={id ?? null} size="sm" label="Preventivo" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-9 w-9"><ChevronDown className="h-4 w-4" /></Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
