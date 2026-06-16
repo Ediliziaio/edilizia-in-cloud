@@ -76,7 +76,7 @@ const SELECT_TRIGGER_CLS =
 
 export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab, canEdit = true }: Props) {
   const navigate = useNavigate();
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, role } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
   const canEditOpportunity = canEdit && (permissions.canEditMarketingOpportunities || permissions.canEditMarketing);
@@ -531,18 +531,20 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                 />
               </div>
             )}
-            {/* Simulatore ROI — apre lo strumento precompilato col cliente del deal. */}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setRoiOpen(true)}
-              className="shrink-0 h-9 sm:h-8 gap-1.5 mt-0.5 sm:mt-0"
-              title="Apri il Simulatore ROI per questo cliente"
-            >
-              <Calculator className="h-4 w-4 text-primary" />
-              <span className="hidden sm:inline">Simulatore ROI</span>
-            </Button>
+            {/* Simulatore ROI — strumento di vendita EiC: solo super_admin, non a livello azienda. */}
+            {role === "super_admin" && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRoiOpen(true)}
+                className="shrink-0 h-9 sm:h-8 gap-1.5 mt-0.5 sm:mt-0"
+                title="Apri il Simulatore ROI per questo cliente"
+              >
+                <Calculator className="h-4 w-4 text-primary" />
+                <span className="hidden sm:inline">Simulatore ROI</span>
+              </Button>
+            )}
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -1210,7 +1212,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
       />
     )}
 
-    {opportunity?.id && roiOpen && (
+    {opportunity?.id && roiOpen && role === "super_admin" && (
       <RoiSimulatorDialog
         open={roiOpen}
         onOpenChange={setRoiOpen}
