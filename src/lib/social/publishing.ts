@@ -1,4 +1,4 @@
-export const SOCIAL_LIVE_PUBLISHING_ENABLED = false;
+export const SOCIAL_LIVE_PUBLISHING_ENABLED = true;
 
 export type SocialSchedulingSupport = "native" | "draft_only" | "video_only";
 

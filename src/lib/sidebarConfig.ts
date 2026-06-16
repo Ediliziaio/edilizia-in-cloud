@@ -187,7 +187,7 @@ export const macroAreas: MacroArea[] = [
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports", featureKey: "marketing_reporting" },
       // ─── Marketing ───
       { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", isBeta: true, groupLabel: "Marketing" },
-      { title: "Gestione Social", url: "/azienda/marketing/social", icon: Share2, permissionKey: "canViewMarketingDashboard", isBeta: true },
+      { title: "Gestione Social", url: "/azienda/marketing/social", icon: Share2, permissionKey: "canViewMarketingDashboard" },
       { title: "Reputazione", url: "/azienda/marketing/reputazione", icon: Star, permissionKey: "canViewReputazione" },
       // 2026-04-27: voce "Fotovoltaico" rimossa dalla sidebar.
       // L'accesso al modulo passa ora dall'Hub Preventivi → tab "Moduli Vendita"

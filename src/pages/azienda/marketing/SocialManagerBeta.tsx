@@ -48,6 +48,8 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -1706,7 +1708,9 @@ function ContentStudioTab({
       hashtags: contentType.hashtagsAllowed ? hashtags : [],
       firstComment: firstComment || undefined,
       scheduled_at: scheduledAt,
-      status: publishNow ? "published" : "scheduled",
+      // Sempre 'scheduled': la pubblicazione reale (publishNow → subito,
+      // futura → cron) promuove a 'published' SOLO a invio riuscito su Meta.
+      status: "scheduled",
       created_at: new Date().toISOString(),
       mediaItemId: selectedLibraryMedia?.id,
       platformTexts: crossPlatformMode && Object.keys(platformTexts).length > 0
@@ -1716,10 +1720,10 @@ function ContentStudioTab({
 
     try {
       await Promise.resolve(onPostScheduled(newPost));
-      toast.success(publishNow ? "Richiesta di pubblicazione inviata" : "Post programmato", {
-        description: crossPlatformMode
-          ? `Testi diversi per ${selectedPlatforms.length} piattaforme — ottimizzato!`
-          : publishNow ? "Il publisher social prenderà in carico l'invio." : `Pubblicazione: ${new Date(scheduledAt).toLocaleString("it")}`,
+      toast.success(publishNow ? "Pubblicazione in corso…" : "Post programmato", {
+        description: publishNow
+          ? "Invio a Facebook/Instagram in corso — l'esito appare tra pochi secondi."
+          : `Pubblicazione: ${new Date(scheduledAt).toLocaleString("it")}`,
       });
       resetComposer();
     } finally {
@@ -4059,6 +4063,7 @@ export default function SocialManagerBeta() {
   const activeTab = searchParams.get("tab") ?? "crea-post";
   const { effectiveCompany } = useAuthCompany();
   const companyId = effectiveCompany?.id ?? DEMO_COMPANY_ID;
+  const queryClient = useQueryClient();
   const socialData = useSocialManagerData(companyId);
   const {
     connectedAccounts,
@@ -4078,11 +4083,32 @@ export default function SocialManagerBeta() {
   const setTab = useCallback((tab: string) => setSearchParams({ tab }, { replace: true }), [setSearchParams]);
   const goToIntegrations = useCallback(() => navigate("/azienda/impostazioni/integrazioni"), [navigate]);
 
-  const handlePostScheduled = useCallback((post: ScheduledPost) => {
-    // L'errore e' gia' notificato dall'onError della mutation: qui evitiamo
-    // solo la unhandled rejection di mutateAsync.
-    addPost(post).catch(() => {});
-  }, [addPost]);
+  const handlePostScheduled = useCallback(async (post: ScheduledPost) => {
+    try {
+      const saved = await addPost(post);
+      // Pubblicazione reale "adesso": i post con scheduled_at <= ora vengono
+      // inviati subito via edge `social-publish` (FB/IG). I post programmati nel
+      // futuro restano 'scheduled' e li pubblica il cron `social-publish-scheduler`.
+      const id = saved?.id;
+      const dueNow = saved?.scheduled_at ? new Date(saved.scheduled_at).getTime() <= Date.now() + 60_000 : false;
+      const isDbPost = typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
+      if (SOCIAL_LIVE_PUBLISHING_ENABLED && dueNow && isDbPost && saved?.status === "scheduled") {
+        const { data, error } = await supabase.functions.invoke("social-publish", { body: { post_id: id, company_id: companyId } });
+        if (error) {
+          toast.error("Pubblicazione non riuscita", { description: error.message });
+        } else {
+          const res = (data as { result?: Record<string, { ok: boolean; error?: string }> } | null)?.result ?? {};
+          const okCh = Object.entries(res).filter(([, v]) => v?.ok).map(([k]) => k);
+          const errCh = Object.entries(res).filter(([, v]) => v && !v.ok);
+          if (okCh.length) toast.success(`Pubblicato su ${okCh.join(", ")}`);
+          if (errCh.length) toast.error(`Non pubblicato su ${errCh.map(([k]) => k).join(", ")}`, { description: errCh[0]?.[1]?.error });
+        }
+        queryClient.invalidateQueries({ queryKey: ["social-manager", "posts", companyId] });
+      }
+    } catch {
+      // errore di salvataggio già notificato dall'onError della mutation
+    }
+  }, [addPost, companyId, queryClient]);
 
   const handleUpdatePost = useCallback((id: string, changes: Partial<ScheduledPost>) => {
     updatePost(id, changes).catch(() => {});
