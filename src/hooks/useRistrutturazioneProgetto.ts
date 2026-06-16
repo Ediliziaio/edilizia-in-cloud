@@ -23,6 +23,10 @@ import type {
   RstProgetto,
   RstComputoVoce,
   RstProgettoMedia,
+  RstTemplatePdf,
+  RstListItem,
+  RstTestimonianza,
+  RstCronoFase,
 } from "@/types/ristrutturazione";
 
 // Tipi rst_* non rigenerati: cast unico, riusato in tutto il file.
@@ -33,6 +37,7 @@ const sb = () => supabase as any;
 const K = {
   progetti: (companyId: string | null) => ["rst-progetti", companyId] as const,
   progetto: (id: string | undefined) => ["rst-progetto", id ?? "none"] as const,
+  template: (companyId: string | null) => ["rst-template", companyId] as const,
 };
 
 /** Dettaglio progetto: hub + computo voci (ordinate) + media. */
@@ -346,6 +351,105 @@ export function useDeleteMedia(progettoId: string | undefined) {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: K.progetto(progettoId) });
+    },
+  });
+}
+
+// ─── Template PDF (un record/azienda) ────────────────────────────────────────
+// Default coerenti con la migrazione `rst_template_pdf` (color_* + show_*).
+// Le liste jsonb si normalizzano sempre ad array per non rompere `.map` in UI/PDF.
+const RST_TEMPLATE_DEFAULTS = {
+  color_primary: "#1E3A5F",
+  color_secondary: "#F97316",
+  color_accent: "#16A34A",
+  color_text: "#212529",
+  show_chi_siamo: true,
+  show_cronoprogramma: true,
+  show_margine: false,
+} as const;
+
+const asArray = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+
+/** Normalizza una riga grezza del DB nel tipo `RstTemplatePdf` (liste sempre array). */
+function normalizeTemplate(row: Record<string, unknown> | null, companyId: string): RstTemplatePdf {
+  const r = row ?? {};
+  return {
+    id: (r.id as string) ?? "",
+    company_id: (r.company_id as string) ?? companyId,
+    logo_url: (r.logo_url as string | null) ?? null,
+    color_primary: (r.color_primary as string | null) ?? RST_TEMPLATE_DEFAULTS.color_primary,
+    color_secondary: (r.color_secondary as string | null) ?? RST_TEMPLATE_DEFAULTS.color_secondary,
+    color_accent: (r.color_accent as string | null) ?? RST_TEMPLATE_DEFAULTS.color_accent,
+    color_text: (r.color_text as string | null) ?? RST_TEMPLATE_DEFAULTS.color_text,
+    chi_siamo: (r.chi_siamo as string | null) ?? null,
+    chi_siamo_foto_url: (r.chi_siamo_foto_url as string | null) ?? null,
+    esigenze: asArray<RstListItem>(r.esigenze),
+    soluzione: asArray<RstListItem>(r.soluzione),
+    usp: asArray<RstListItem>(r.usp),
+    testimonianze: asArray<RstTestimonianza>(r.testimonianze),
+    cronoprogramma: asArray<RstCronoFase>(r.cronoprogramma),
+    cover_title: (r.cover_title as string | null) ?? null,
+    cover_subtitle: (r.cover_subtitle as string | null) ?? null,
+    cover_image_url: (r.cover_image_url as string | null) ?? null,
+    payment_terms_text: (r.payment_terms_text as string | null) ?? null,
+    validity_text: (r.validity_text as string | null) ?? null,
+    footer_text: (r.footer_text as string | null) ?? null,
+    show_chi_siamo: (r.show_chi_siamo as boolean | null) ?? RST_TEMPLATE_DEFAULTS.show_chi_siamo,
+    show_cronoprogramma: (r.show_cronoprogramma as boolean | null) ?? RST_TEMPLATE_DEFAULTS.show_cronoprogramma,
+    show_margine: (r.show_margine as boolean | null) ?? RST_TEMPLATE_DEFAULTS.show_margine,
+  };
+}
+
+/**
+ * Legge il template PDF dell'azienda corrente (un record/azienda). Ritorna
+ * SEMPRE un template normalizzato (mai null): se la riga non esiste ancora,
+ * si restituisce un default in-memory (l'upsert la crea al primo salvataggio).
+ * Standalone (non-hook) per riuso dal generatore PDF (`useFreshTemplate`).
+ */
+export async function getRstTemplatePdf(companyId: string): Promise<RstTemplatePdf> {
+  const { data, error } = await sb()
+    .from("rst_template_pdf")
+    .select("*")
+    .eq("company_id", companyId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return normalizeTemplate(data as Record<string, unknown> | null, companyId);
+}
+
+export function useRstTemplatePdf() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery<RstTemplatePdf>({
+    queryKey: K.template(companyId),
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: () => getRstTemplatePdf(companyId!),
+  });
+}
+
+/** Patch upsert del template (un record/azienda, chiave unica `company_id`). */
+export type RstTemplatePatch = Partial<Omit<RstTemplatePdf, "id" | "company_id">>;
+
+export function useUpsertRstTemplatePdf() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (patch: RstTemplatePatch): Promise<RstTemplatePdf> => {
+      if (!companyId) throw new Error("Company non disponibile");
+      // upsert su company_id (UNIQUE): crea al primo salvataggio, aggiorna poi.
+      const { data, error } = await sb()
+        .from("rst_template_pdf")
+        .upsert(
+          { ...patch, company_id: companyId, updated_at: new Date().toISOString() },
+          { onConflict: "company_id" },
+        )
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
+      return normalizeTemplate(data as Record<string, unknown> | null, companyId);
+    },
+    onSuccess: (row) => {
+      qc.setQueryData(K.template(companyId), row);
+      void qc.invalidateQueries({ queryKey: K.template(companyId) });
     },
   });
 }

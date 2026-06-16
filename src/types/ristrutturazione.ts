@@ -25,3 +25,38 @@ export interface RstProgetto {
   totale_imponibile: number; totale: number; note: string | null;
 }
 export interface RstProgettoMedia { id: string; progetto_id: string; company_id: string; tipo: string; url: string; caption: string | null; ordine: number; }
+
+// ─── Template PDF (un record per azienda) ────────────────────────────────────
+// Le liste jsonb hanno shape uniforme {titolo, descrizione} (esigenze/soluzione/
+// usp) e {autore, ruolo, testo} (testimonianze), {fase, durata, descrizione}
+// (cronoprogramma). Esposte come tipi dedicati così editor e PDF condividono
+// la stessa forma.
+export interface RstListItem { titolo: string; descrizione?: string | null; }
+export interface RstTestimonianza { autore: string; ruolo?: string | null; testo: string; }
+export interface RstCronoFase { fase: string; durata?: string | null; descrizione?: string | null; }
+
+export interface RstTemplatePdf {
+  id: string;
+  company_id: string;
+  logo_url: string | null;
+  color_primary: string | null;
+  color_secondary: string | null;
+  color_accent: string | null;
+  color_text: string | null;
+  chi_siamo: string | null;
+  chi_siamo_foto_url: string | null;
+  esigenze: RstListItem[];
+  soluzione: RstListItem[];
+  usp: RstListItem[];
+  testimonianze: RstTestimonianza[];
+  cronoprogramma: RstCronoFase[];
+  cover_title: string | null;
+  cover_subtitle: string | null;
+  cover_image_url: string | null;
+  payment_terms_text: string | null;
+  validity_text: string | null;
+  footer_text: string | null;
+  show_chi_siamo: boolean;
+  show_cronoprogramma: boolean;
+  show_margine: boolean;
+}

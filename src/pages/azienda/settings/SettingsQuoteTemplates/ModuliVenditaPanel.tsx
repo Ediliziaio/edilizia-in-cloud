@@ -6,10 +6,10 @@
  * Mostra una landing card-grid per scegliere il modulo (serramenti, fotovoltaico,
  * tetti...) e poi mostra l'editor del modulo selezionato (lazy).
  */
-import React, { lazy, Suspense, useEffect, useState } from "react";
+import React, { lazy, Suspense, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft, FileText, Loader2, RectangleVertical, ShoppingBag, Sun,
+  ArrowLeft, FileText, Hammer, Loader2, RectangleVertical, ShoppingBag, Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +22,9 @@ const SerramentiTemplateEditor = lazy(() =>
 );
 const FotovoltaicoTemplateEditor = lazy(() =>
   import("@/components/fotovoltaico/FotovoltaicoTemplateEditor").then((m) => ({ default: m.FotovoltaicoTemplateEditor })),
+);
+const RistrutturazioneTemplateEditor = lazy(() =>
+  import("@/components/ristrutturazione/RistrutturazioneTemplateEditor").then((m) => ({ default: m.RistrutturazioneTemplateEditor })),
 );
 
 interface ModuloVendita {
@@ -59,6 +62,18 @@ const MODULI_VENDITA: ModuloVendita[] = [
     ),
   },
   {
+    slug: "ristrutturazione",
+    nome: "Ristrutturazione",
+    icon: Hammer,
+    description: "Template del PDF Preventivatore Ristrutturazione: branding, copertina, chi siamo, esigenze, USP, testimonianze, cronoprogramma, condizioni.",
+    available: true,
+    render: () => (
+      <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-orange-600" /></div>}>
+        <RistrutturazioneTemplateEditor embedded />
+      </Suspense>
+    ),
+  },
+  {
     slug: "tetti",
     nome: "Tetti",
     icon: FileText,
@@ -76,11 +91,16 @@ export function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }
     ? initialModulo
     : null;
   const [activeSlug, setActiveSlug] = useState<string | null>(initialFromUrl);
-  const active = activeSlug ? MODULI_VENDITA.find((m) => m.slug === activeSlug) : null;
-
-  useEffect(() => {
+  // Sync col deeplink SENZA effetto (no setState-in-effect): pattern React
+  // "adjust state during render". Quando `initialFromUrl` cambia (navigazione
+  // verso ?modulo=…), riconciliamo `activeSlug` durante il render confrontando
+  // l'ultimo valore visto; la selezione locale dell'utente resta altrimenti.
+  const [lastInitial, setLastInitial] = useState<string | null>(initialFromUrl);
+  if (initialFromUrl !== lastInitial) {
+    setLastInitial(initialFromUrl);
     setActiveSlug(initialFromUrl);
-  }, [initialFromUrl]);
+  }
+  const active = activeSlug ? MODULI_VENDITA.find((m) => m.slug === activeSlug) : null;
 
   // Sincronizzo l'URL quando l'utente cambia modulo (così back/forward + share funzionano)
   const handleSelectModulo = (slug: string | null) => {
