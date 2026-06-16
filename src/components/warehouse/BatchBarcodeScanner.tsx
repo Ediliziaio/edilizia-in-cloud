@@ -96,9 +96,18 @@ export interface BatchScanEntry {
   odaItemId?: string | null;
   /** Timestamp client per ordinamento UI. */
   scannedAt: number;
+  /**
+   * v8.6.121 — Match incerto (azione 'confirm_ambiguous'): è stato preso il 1°
+   * candidato in automatico per non bloccare lo scan continuo. Solo hint UI
+   * (badge "da verificare" in revisione), NON blocca la conferma.
+   */
+  ambiguous?: boolean;
 }
 
 export type BatchScanMode = "carico" | "oda_receive" | "lookup";
+
+/** v8.6.121 — Tetto difensivo alla coda scansioni (in pratica resta ~0-1). */
+const MAX_SCAN_QUEUE = 25;
 
 interface BatchBarcodeScannerProps {
   open: boolean;
@@ -209,6 +218,13 @@ export function BatchBarcodeScanner({
 
   const manualInputRef = useRef<HTMLInputElement>(null);
   const lookupInFlightRef = useRef(false);
+  // v8.6.121 — Coda FIFO: se un lookup è già in corso, le nuove scansioni
+  // vengono accodate (non scartate) e drenate quando il lookup finisce. Gli
+  // articoli restano risolti UNO alla volta (nessuna race), ma niente scan persi.
+  const scanQueueRef = useRef<Array<{ code: string; scanFormat?: string }>>([]);
+  const handleScanRef = useRef<(code: string, scanFormat?: string, fromQueue?: boolean) => void>(
+    () => {},
+  );
 
   const lookup = useBarcodeLookup();
   const {
@@ -257,17 +273,35 @@ export function BatchBarcodeScanner({
     }
   }, [manualMode, open]);
 
+  // v8.6.121 — Drena la prossima scansione accodata (FIFO). Chiamata sia nel
+  // finally del lookup sia sul ramo multi-seriale (che esce prima del try).
+  const drainQueue = useCallback(() => {
+    const queued = scanQueueRef.current.shift();
+    if (queued) void handleScanRef.current(queued.code, queued.scanFormat, true);
+  }, []);
+
   // ─── Handler scansione ───────────────────────────────────
   const handleScan = useCallback(
-    async (rawCode: string, scanFormat?: string) => {
+    async (rawCode: string, scanFormat?: string, fromQueue = false) => {
       const code = rawCode.trim();
       if (!code) return;
       if (mode === "lookup" && lookupResult) return;
-      if (lookupInFlightRef.current) return;
 
       // Throttle duplicati: stesso codice in <2s viene ignorato silenziosamente.
+      // Saltato per le scansioni drenate dalla coda (già passate dal throttle).
       const now = Date.now();
-      if (trackDuplicate(code, now)) return;
+      if (!fromQueue && trackDuplicate(code, now)) return;
+
+      // Se un lookup è già in corso: ACCODA invece di scartare (no scan persi).
+      // La coda viene drenata uno-alla-volta → i lookup restano serializzati.
+      if (lookupInFlightRef.current) {
+        if (scanQueueRef.current.length < MAX_SCAN_QUEUE) {
+          scanQueueRef.current.push({ code, scanFormat });
+        } else {
+          console.warn("[scanner] coda scansioni piena (>", MAX_SCAN_QUEUE, "), scarto", code);
+        }
+        return;
+      }
 
       // v8.6.106 — MULTI-SERIAL: rileva QR/barcode che contengono LISTA di
       // seriali (es. QR pallet fotovoltaico con 30 seriali dentro). In quel
@@ -300,6 +334,7 @@ export function BatchBarcodeScanner({
               : `Formato ${multi.format}. Usa "Crea articolo unico" per collegarli a un prodotto.`,
             duration: 4000,
           });
+          drainQueue();
           return;
         }
       }
@@ -357,6 +392,7 @@ export function BatchBarcodeScanner({
         let resolvedItemName: string | null = null;
         let resolvedTracking: "fungible" | "serialized" | null = null;
         let resolvedSerial: string | null = null;
+        let resolvedAmbiguous = false;
 
         if (action.kind === "accept_unit") {
           resolvedItemId = action.itemId;
@@ -372,6 +408,8 @@ export function BatchBarcodeScanner({
             return;
           }
           resolvedItemId = itemId;
+          // v8.6.121 — match incerto: marca la riga per la revisione.
+          resolvedAmbiguous = action.kind === "confirm_ambiguous";
           const row = result.rows.find((r) => r.stock_item_id === itemId);
           resolvedItemName = row?.item_name ?? null;
           resolvedTracking = row?.item_tracking_mode ?? "fungible";
@@ -395,6 +433,7 @@ export function BatchBarcodeScanner({
           serialNumbers: resolvedSerial ? [resolvedSerial] : [],
           odaItemId: null,
           scannedAt: now,
+          ambiguous: resolvedAmbiguous || undefined,
         };
 
         if (mode === "lookup") {
@@ -464,12 +503,15 @@ export function BatchBarcodeScanner({
         });
       } finally {
         lookupInFlightRef.current = false;
+        // v8.6.121 — processa la prossima scansione accodata (se presente).
+        drainQueue();
       }
     },
     [
       allowedOdaItems,
       allowedOrderItems,
       appendEntry,
+      drainQueue,
       entries,
       lookup,
       lookupResult,
@@ -481,6 +523,12 @@ export function BatchBarcodeScanner({
       triggerFlash,
     ],
   );
+
+  // v8.6.121 — Tiene `handleScanRef` allineato all'ultima closure di handleScan,
+  // così `drainQueue` può re-invocarlo senza creare una dipendenza ciclica.
+  useEffect(() => {
+    handleScanRef.current = handleScan;
+  }, [handleScan]);
 
   const {
     videoRef,
@@ -591,6 +639,12 @@ export function BatchBarcodeScanner({
     }
   }, [entries, onRequestCreateItem, promoteNoMatch, triggerFlash]);
 
+  // v8.6.121 — A coda vuota la camera prende quasi tutto lo schermo (prima era
+  // 50/50 con un grande placeholder vuoto sotto, vedi screenshot device). Con
+  // righe in coda resta prominente ma lascia spazio alla revisione. Lookup: 50/50.
+  const cameraSizeClass =
+    mode === "lookup" ? "flex-1" : entries.length === 0 ? "flex-[4]" : "flex-[2]";
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {/* v8.6.118 — Sheet full-screen su mobile (h-[100svh]) per dare massimo
@@ -630,7 +684,7 @@ export function BatchBarcodeScanner({
 
         {/* v8.6.119 — Camera area FULL-VIEWPORT su mobile (flex-1) per
             massimizzare lo spazio scanner. Su desktop torna ad aspect-video. */}
-        <div className="flex-1 sm:shrink-0 relative bg-black overflow-hidden">
+        <div className={`${cameraSizeClass} sm:flex-1 sm:shrink-0 relative bg-black overflow-hidden`}>
           {!manualMode ? (
             <div className="relative h-full">
               <video
@@ -1154,6 +1208,15 @@ function EntryRow({
         <p className="text-[11px] text-muted-foreground font-mono truncate">
           {entry.rawCode}
         </p>
+        {entry.ambiguous && !noMatch && (
+          <Badge
+            variant="outline"
+            className="mt-1 gap-1 border-amber-300 bg-amber-50 text-amber-700 text-[10px] dark:bg-amber-950/30 dark:text-amber-300"
+          >
+            <AlertCircle className="h-3 w-3" />
+            Da verificare
+          </Badge>
+        )}
         {entry.trackingMode === "serialized" && entry.serialNumbers.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
             {entry.serialNumbers.slice(0, 4).map((sn) => (

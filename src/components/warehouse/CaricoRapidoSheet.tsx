@@ -413,40 +413,10 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
 
   async function handleConfirm() {
     if (!warehouseId || !supplierId) return;
-    let uploadedPhotoPaths: string[] = [];
-    if (productPhotos.length > 0 && effectiveCompany?.id && user?.id) {
-      const targets = relatedOrderIds.length > 0 ? relatedOrderIds : [null];
-      for (const targetOrderId of targets) {
-        const uploadResult = await uploadWarehousePhotos({
-          files: productPhotos,
-          companyId: effectiveCompany.id,
-          userId: user.id,
-          orderId: targetOrderId,
-          context: "arrival_product",
-          description: `Foto prodotti ricevuti da ${supplierObj?.name ?? "fornitore"} per ${warehouseObj?.name ?? "magazzino"}`,
-        });
-        uploadedPhotoPaths = [...uploadedPhotoPaths, ...uploadResult.uploaded];
-        if (uploadResult.failed.length > 0) {
-          toast.warning("Alcune foto prodotto non sono state salvate", {
-            description: uploadResult.failed.join(", "),
-          });
-        }
-      }
-    }
-    if (ddtFile && relatedOrderIds.length > 0 && user?.id) {
-      const ddtUpload = await uploadWarehouseDDTToOrders({
-        file: ddtFile,
-        orderIds: relatedOrderIds,
-        userId: user.id,
-        supplierName: supplierObj?.name,
-        insertedAt: insertedAt.toISOString(),
-      });
-      if (ddtUpload.failed.length > 0) {
-        toast.warning("DDT non collegato a tutti gli ordini", {
-          description: `${ddtUpload.failed.length} collegamenti falliti.`,
-        });
-      }
-    }
+
+    // v8.6.121 — Note costruite SENZA esito upload: foto e DDT si caricano DOPO
+    // il commit dello stock, in background, così la conferma non resta appesa
+    // sugli upload (prima era il collo di bottiglia con foto pesanti).
     const linkedOrdersNote =
       relatedOrderIds.length > 0
         ? `Ordini collegati al DDT: ${relatedOrders
@@ -459,9 +429,21 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       : "";
     const photoNote =
       productPhotos.length > 0
-        ? `Foto prodotti arrivo: ${productPhotos.map((file) => file.name).join(", ")}${uploadedPhotoPaths.length > 0 ? ` (${uploadedPhotoPaths.length} salvate)` : ""}`
+        ? `Foto prodotti arrivo: ${productPhotos.map((file) => file.name).join(", ")}`
         : "";
     const mergedNotes = [notes.trim(), ddtNote, linkedOrdersNote, photoNote].filter(Boolean).join("\n");
+
+    // Cattura media + contesto PRIMA del commit: lo sheet si chiude subito dopo e
+    // questi valori servono all'upload in background (lo state verrà resettato).
+    const photosToUpload = productPhotos;
+    const ddtToUpload = ddtFile;
+    const linkedOrderIds = relatedOrderIds;
+    const companyIdForUpload = effectiveCompany?.id;
+    const userIdForUpload = user?.id;
+    const supplierNameForUpload = supplierObj?.name;
+    const warehouseNameForUpload = warehouseObj?.name;
+    const insertedAtIso = insertedAt.toISOString();
+
     try {
       const result = await batchCarico.mutateAsync({
         warehouseId,
@@ -548,8 +530,53 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
         }
       }
 
-      // success → close sheet (tutto in sequenza già gestito dal hook con toast)
+      // success → chiudi subito: lo stock è committato, l'utente è libero.
       onOpenChange(false);
+
+      // v8.6.121 — Upload allegati in BACKGROUND (best-effort). Non bloccano più
+      // la conferma; gli errori sono solo informativi (lo stock è già salvo).
+      if ((photosToUpload.length > 0 || ddtToUpload) && companyIdForUpload && userIdForUpload) {
+        void (async () => {
+          try {
+            if (photosToUpload.length > 0) {
+              const targets = linkedOrderIds.length > 0 ? linkedOrderIds : [null];
+              for (const targetOrderId of targets) {
+                const uploadResult = await uploadWarehousePhotos({
+                  files: photosToUpload,
+                  companyId: companyIdForUpload,
+                  userId: userIdForUpload,
+                  orderId: targetOrderId,
+                  context: "arrival_product",
+                  description: `Foto prodotti ricevuti da ${supplierNameForUpload ?? "fornitore"} per ${warehouseNameForUpload ?? "magazzino"}`,
+                });
+                if (uploadResult.failed.length > 0) {
+                  toast.warning("Alcune foto prodotto non sono state salvate", {
+                    description: uploadResult.failed.join(", "),
+                  });
+                }
+              }
+            }
+            if (ddtToUpload && linkedOrderIds.length > 0) {
+              const ddtUpload = await uploadWarehouseDDTToOrders({
+                file: ddtToUpload,
+                orderIds: linkedOrderIds,
+                userId: userIdForUpload,
+                supplierName: supplierNameForUpload,
+                insertedAt: insertedAtIso,
+              });
+              if (ddtUpload.failed.length > 0) {
+                toast.warning("DDT non collegato a tutti gli ordini", {
+                  description: `${ddtUpload.failed.length} collegamenti falliti.`,
+                });
+              }
+            }
+          } catch (uploadErr) {
+            toast.warning("Allegati non caricati in automatico", {
+              description: (uploadErr as Error)?.message ?? "Riallegali dal dettaglio commessa",
+            });
+          }
+        })();
+      }
     } catch {
       // error toast già emesso dal hook
     }
