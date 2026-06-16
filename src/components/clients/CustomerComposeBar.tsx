@@ -16,6 +16,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSendSms } from "@/hooks/useSendSms";
+import { MessageTemplatePicker } from "@/components/templates/MessageTemplatePicker";
+import { buildTemplateVars } from "@/lib/messageTemplateVars";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,6 +119,10 @@ export function CustomerComposeBar({
   const [emailBcc, setEmailBcc] = useState("");
   const [emailCcVisible, setEmailCcVisible] = useState(false);
   const [emailBccVisible, setEmailBccVisible] = useState(false);
+  // SMS reale (telnyx-send-sms) + seed WhatsApp da template
+  const [smsText, setSmsText] = useState("");
+  const [waSeed, setWaSeed] = useState<{ text: string; at: number } | null>(null);
+  const { sendSmsAsync, isPending: smsSending } = useSendSms();
 
   const cleanPhone = (customerPhone ?? "").replace(/\D/g, "");
   const waHref = cleanPhone
@@ -126,7 +133,7 @@ export function CustomerComposeBar({
   // Degrada in modo morbido: se il profilo non è leggibile, restano email/telefono.
   const { data: customerProfile } = useQuery({
     queryKey: ["customer-wa-fields", customerId],
-    enabled: !!customerId && channel === "whatsapp",
+    enabled: !!customerId && channel !== "note",
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -150,6 +157,32 @@ export function CustomerComposeBar({
       email: customerEmail ?? "",
     };
   }, [customerProfile, customerPhone, customerEmail]);
+
+  // Variabili merge-field per i template (nome, email, azienda, …)
+  const templateVars = useMemo(
+    () => buildTemplateVars({
+      firstName: customerProfile?.first_name,
+      lastName: customerProfile?.last_name,
+      email: customerEmail,
+      phone: customerPhone,
+      companyName: effectiveCompany?.name ?? null,
+    }),
+    [customerProfile, customerEmail, customerPhone, effectiveCompany?.name],
+  );
+
+  // Invio SMS reale (useSendSms gestisce già i toast success/error)
+  const handleSendSms = async () => {
+    if (!smsText.trim() || !customerPhone) return;
+    try {
+      await sendSmsAsync({ to_number: customerPhone, body: smsText.trim(), trigger_entity: "contact", trigger_ref: customerId });
+      setSmsText("");
+      qc.invalidateQueries({ queryKey: ["customer-diary-timeline", customerId] });
+      qc.invalidateQueries({ queryKey: ["customer-messages", customerId] });
+      onSent?.();
+    } catch {
+      // toast già mostrato da useSendSms
+    }
+  };
 
   // Fetch account email connessi (solo quando channel=email)
   const { data: emailAccounts = [] } = useQuery({
@@ -359,16 +392,27 @@ export function CustomerComposeBar({
             <span className="text-xs font-semibold text-violet-700">Nuova email</span>
           </div>
           {emailExpanded && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => { setEmailExpanded(false); setEmailSubject(""); setEmailBody(""); }}
-              aria-label="Chiudi compose email"
-            >
-              <XIcon className="h-3.5 w-3.5" />
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <MessageTemplatePicker
+                channel="email"
+                vars={templateVars}
+                align="end"
+                onInsert={({ subject, body }) => {
+                  if (subject) setEmailSubject(subject.slice(0, 200));
+                  setEmailBody(body.slice(0, 50_000));
+                }}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => { setEmailExpanded(false); setEmailSubject(""); setEmailBody(""); }}
+                aria-label="Chiudi compose email"
+              >
+                <XIcon className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           )}
         </div>
 
@@ -602,12 +646,19 @@ export function CustomerComposeBar({
     return (
       <div className="border-t shrink-0 bg-card">
         <div className="px-3 py-2 space-y-2">
-          <ChannelDropdown channel={channel} onChange={setChannel} hasEmail={!!customerEmail} hasPhone={!!cleanPhone} />
+          <div className="flex items-center justify-between gap-2">
+            <ChannelDropdown channel={channel} onChange={setChannel} hasEmail={!!customerEmail} hasPhone={!!cleanPhone} />
+            {cleanPhone && (
+              <MessageTemplatePicker channel="whatsapp" vars={templateVars} align="end" onInsert={({ body }) => setWaSeed({ text: body, at: Date.now() })} />
+            )}
+          </div>
           {cleanPhone ? (
             <WhatsAppComposer
               phone={cleanPhone}
               isSending={waSending}
               contactFields={waContactFields}
+              seedText={waSeed?.text}
+              seedAt={waSeed?.at}
               onSend={async ({ waNumberId, content, template }) => {
                 if (!effectiveCompany?.id) {
                   toast.error("Azienda non disponibile");
@@ -653,16 +704,39 @@ export function CustomerComposeBar({
     );
   }
 
-  // SMS → placeholder (link al modulo SMS dedicato)
+  // SMS → invio reale via telnyx-send-sms (+ template)
   if (channel === "sms") {
+    const hasPhone = !!cleanPhone;
     return (
       <div className="border-t shrink-0 bg-card">
-        <div className="px-3 py-2 flex items-center gap-2">
-          <ChannelDropdown channel={channel} onChange={setChannel} hasEmail={!!customerEmail} hasPhone={!!waHref} />
-          <div className="flex-1 text-xs text-muted-foreground italic">
-            Invio SMS singolo disponibile presto.{" "}
-            <a href="/azienda/sms" className="underline">Apri modulo SMS</a> per invio manuale.
+        <div className="px-3 py-2.5 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <ChannelDropdown channel={channel} onChange={setChannel} hasEmail={!!customerEmail} hasPhone={hasPhone} />
+            {hasPhone && (
+              <MessageTemplatePicker channel="sms" vars={templateVars} align="end" onInsert={({ body }) => setSmsText(body.slice(0, 459))} />
+            )}
           </div>
+          {hasPhone ? (
+            <>
+              <Textarea
+                placeholder="Scrivi l'SMS…"
+                value={smsText}
+                onChange={(e) => setSmsText(e.target.value.slice(0, 459))}
+                rows={3}
+                className="text-sm resize-y"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground">
+                  {smsText.length}/459 · {Math.max(1, Math.ceil(smsText.length / 153))} segmento/i
+                </span>
+                <Button size="sm" className="h-8 gap-1.5" onClick={handleSendSms} disabled={!smsText.trim() || smsSending}>
+                  {smsSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Invia SMS
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">Cliente senza numero di telefono.</p>
+          )}
         </div>
       </div>
     );

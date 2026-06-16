@@ -31,6 +31,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
+import { MessageTemplatePicker } from "@/components/templates/MessageTemplatePicker";
+import { buildTemplateVars } from "@/lib/messageTemplateVars";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -103,6 +105,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
   const [messageText, setMessageText] = useState("");
   const [messageChannel, setMessageChannel] = useState<"whatsapp" | "email" | "sms">("whatsapp");
   const [emailSubject, setEmailSubject] = useState("");
+  // Seed per il composer WhatsApp (precompila il testo dai template, stesso
+  // meccanismo seedText/seedAt usato in QuickContactSendDialog).
+  const [waSeedText, setWaSeedText] = useState("");
+  const [waSeedAt, setWaSeedAt] = useState(0);
   // 2026-05-27 (richiesta utente): CC + BCC (CCN) per channel=email.
   // Toggle stile Gmail. Stringa CSV/space parsata in submit.
   const [emailCc, setEmailCc] = useState("");
@@ -1262,12 +1268,41 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
+            {/* Template picker — applica già le variabili; per email imposta
+                oggetto+testo, per sms imposta il testo, per whatsapp fa il
+                seed del composer. */}
+            <MessageTemplatePicker
+              channel={messageChannel}
+              vars={buildTemplateVars({
+                firstName: contact.first_name,
+                lastName: contact.last_name,
+                email: contact.email,
+                phone: contact.phone,
+                city: contact.city,
+                address: contact.address,
+                companyName: effectiveCompany?.name,
+                custom: waContactFields,
+              })}
+              onInsert={({ subject, body }) => {
+                if (messageChannel === "whatsapp") {
+                  setWaSeedText(body);
+                  setWaSeedAt((n) => n + 1);
+                } else {
+                  if (messageChannel === "email" && subject != null) setEmailSubject(subject.slice(0, 200));
+                  setMessageText(body.slice(0, 5000));
+                }
+              }}
+              align="start"
+              triggerClassName="h-9 md:h-7 gap-1.5 text-xs shrink-0"
+            />
             {messageChannel === "whatsapp" ? (
               <WhatsAppComposer
                 phone={contact.phone}
                 isSending={sendMessage.isPending}
                 className="flex-1"
                 contactFields={waContactFields}
+                seedText={waSeedText}
+                seedAt={waSeedAt}
                 onSend={async ({ waNumberId, content, template }) => {
                   await sendMessage.mutateAsync({
                     channel: "whatsapp",

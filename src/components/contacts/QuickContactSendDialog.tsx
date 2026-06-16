@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useSendSms } from "@/hooks/useSendSms";
+import { MessageTemplatePicker } from "@/components/templates/MessageTemplatePicker";
+import { buildTemplateVars } from "@/lib/messageTemplateVars";
 import { WhatsAppComposer } from "@/components/whatsapp/WhatsAppComposer";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
@@ -133,6 +135,17 @@ export function QuickContactSendDialog({
 
   // ── SMS ──
   const { sendSmsAsync, isPending: smsSending } = useSendSms();
+
+  // Variabili merge-field per i template (nome/email/azienda…)
+  const templateVars = useMemo(() => {
+    const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+    return buildTemplateVars({
+      firstName: parts[0] ?? "",
+      lastName: parts.slice(1).join(" "),
+      email, phone,
+      companyName: effectiveCompany?.name ?? null,
+    });
+  }, [name, email, phone, effectiveCompany?.name]);
   const handleSendSms = async () => {
     if (!smsText.trim()) return;
     try {
@@ -308,6 +321,9 @@ export function QuickContactSendDialog({
                   onGenerate={() => composeAi.mutate({ ch: "sms" })}
                   onRefine={(act) => composeAi.mutate({ ch: "sms", mode: "refine", currentText: smsText, instructionOverride: act })}
                 />
+                <div className="flex justify-end">
+                  <MessageTemplatePicker channel="sms" vars={templateVars} align="end" onInsert={({ body }) => setSmsText(body.slice(0, SMS_MAX))} />
+                </div>
                 <Textarea placeholder="Scrivi l'SMS…" value={smsText} onChange={(e) => setSmsText(e.target.value.slice(0, SMS_MAX))} rows={4} className="text-sm resize-y" />
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-muted-foreground">{smsText.length}/{SMS_MAX} · {Math.max(1, Math.ceil(smsText.length / 153))} segmento/i</span>
@@ -374,6 +390,15 @@ export function QuickContactSendDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="flex justify-end">
+                  <MessageTemplatePicker
+                    channel="email"
+                    vars={templateVars}
+                    align="end"
+                    onInsert={({ subject, body }) => { if (subject) setEmailSubject(subject.slice(0, 200)); setEmailBody(body.slice(0, 50_000)); }}
+                  />
                 </div>
 
                 <AiAssistRow
