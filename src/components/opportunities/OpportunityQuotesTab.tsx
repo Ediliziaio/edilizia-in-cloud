@@ -33,6 +33,7 @@ import {
   Zap,
   ExternalLink,
   RectangleVertical,
+  Sun,
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -65,6 +66,14 @@ const SR_STATO_LABELS: Record<string, string> = {
   archiviato: "Archiviato",
 };
 
+const FV_STATO_LABELS: Record<string, string> = {
+  bozza: "Bozza",
+  configurato: "Configurato",
+  emesso: "Emesso",
+  firmato: "Firmato",
+  annullato: "Annullato",
+};
+
 interface QuoteItemRow {
   name: string;
   description: string;
@@ -95,6 +104,9 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
   // Modulo Preventivatore Serramenti: se attivo, mostriamo CTA dedicata +
   // lista preventivi sr_progetti collegati a questa opportunità.
   const { isEnabled: serramentiEnabled } = useFeatureAccess("modulo_serramenti_attivo");
+  // Modulo Fotovoltaico: stessa logica per i preventivi fv_progetti
+  // (collegati tramite opportunita_crm_id, fallback cliente_id).
+  const { isEnabled: fotovoltaicoEnabled } = useFeatureAccess("modulo_fotovoltaico_attivo");
 
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -147,6 +159,35 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
         cliente_nome: string | null; cliente_cognome: string | null;
         totale_min: number | null; totale_max: number | null;
         created_at: string; opportunita_id: string | null; cliente_id: string | null;
+      }>;
+    },
+  });
+
+  // Preventivi Fotovoltaico: stessa logica dei serramenti. Filtra per
+  // opportunità (fv_progetti.opportunita_crm_id) se presente, altrimenti per
+  // contatto (cliente_id). Esclude i progetti annullati.
+  const { data: fvProgetti = [], isLoading: fvLoading } = useQuery({
+    queryKey: ["fv-progetti-by-opportunity", opportunityId, contactId, companyId],
+    enabled: !!companyId && fotovoltaicoEnabled && (!!opportunityId || !!contactId),
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q = (supabase as any)
+        .from("fv_progetti")
+        .select("id, numero, stato, prezzo_vendita_iva_inclusa, created_at, opportunita_crm_id, cliente_id")
+        .eq("company_id", companyId!)
+        .eq("annullato", false)
+        .order("created_at", { ascending: false });
+      if (opportunityId) {
+        q = q.eq("opportunita_crm_id", opportunityId);
+      } else if (contactId) {
+        q = q.eq("cliente_id", contactId);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; numero: string | null; stato: string;
+        prezzo_vendita_iva_inclusa: number | null;
+        created_at: string; opportunita_crm_id: string | null; cliente_id: string | null;
       }>;
     },
   });
@@ -355,6 +396,10 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
   if (contactId) serramentiQs.set("contact_id", contactId);
   if (opportunityId) serramentiQs.set("opportunity_id", opportunityId);
 
+  const fvQs = new URLSearchParams();
+  if (contactId) fvQs.set("contact_id", contactId);
+  if (opportunityId) fvQs.set("opportunity_id", opportunityId);
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -370,6 +415,17 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
             >
               <RectangleVertical className="h-3.5 w-3.5 mr-1 text-orange-600" />
               Preventivo Serramenti
+            </Button>
+          )}
+          {fotovoltaicoEnabled && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+              onClick={() => navigate(`/azienda/marketing/fotovoltaico/nuovo?${fvQs.toString()}`)}
+            >
+              <Sun className="h-3.5 w-3.5 mr-1 text-amber-500" />
+              Preventivo Fotovoltaico
             </Button>
           )}
           <Button
@@ -427,6 +483,60 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
                     <p className="text-sm font-medium tabular-nums">
                       {p.totale_min && p.totale_max
                         ? `${formatCurrency(Number(p.totale_min))} – ${formatCurrency(Number(p.totale_max))}`
+                        : "—"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {format(new Date(p.created_at), "dd MMM yyyy", { locale: it })}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lista Preventivi Fotovoltaico collegati (se modulo attivo) */}
+      {fotovoltaicoEnabled && (fvProgetti.length > 0 || fvLoading) && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Sun className="h-3.5 w-3.5 text-amber-500" />
+            <h4 className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
+              Preventivi Fotovoltaico
+            </h4>
+            <span className="text-[10px] text-muted-foreground">
+              ({fvLoading ? "…" : fvProgetti.length})
+            </span>
+          </div>
+          {fvLoading ? (
+            <div className="flex justify-center py-3">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {fvProgetti.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => navigate(`/azienda/marketing/fotovoltaico/${p.id}`)}
+                  className="w-full flex items-center justify-between gap-3 rounded-lg border border-amber-100 bg-amber-50/30 p-3 text-left hover:bg-amber-50 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-semibold text-amber-700">{p.numero ?? "—"}</span>
+                      <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 border-0">
+                        {FV_STATO_LABELS[p.stato] ?? p.stato}
+                      </Badge>
+                      {!p.opportunita_crm_id && opportunityId && (
+                        <span className="text-[9px] text-muted-foreground" title="Collegato solo per contatto, non a questa opportunità">
+                          via contatto
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-medium tabular-nums">
+                      {p.prezzo_vendita_iva_inclusa != null
+                        ? formatCurrency(Number(p.prezzo_vendita_iva_inclusa))
                         : "—"}
                     </p>
                     <p className="text-[10px] text-muted-foreground">

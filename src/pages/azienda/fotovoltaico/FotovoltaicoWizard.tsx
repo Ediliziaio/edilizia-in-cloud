@@ -126,6 +126,9 @@ export default function FotovoltaicoWizard() {
   // Permette il flow "Crea preventivo Fotovoltaico" dal dialog opportunità/contatto,
   // precompilando l'anagrafica cliente (Step 1). Replica il pattern di SerramentiWizard.
   const urlContactId = searchParams.get("contact_id");
+  // Opportunità CRM di provenienza: aggancia il progetto FV all'opportunità
+  // (fv_progetti.opportunita_crm_id) alla creazione, in parità con SerramentiWizard.
+  const urlOpportunityId = searchParams.get("opportunity_id");
 
   // Restore draft da localStorage al primo render (solo per progetti nuovi
   // o quando il browser è stato chiuso a metà). Se il progetto è già firmato,
@@ -468,6 +471,11 @@ export default function FotovoltaicoWizard() {
           {
             body: {
               titolo,
+              // Link CRM: aggancia il contatto e l'opportunità di provenienza
+              // alla creazione del progetto (parità con SerramentiWizard). Senza
+              // questi due campi il preventivo FV non risultava collegato.
+              cliente_id: data.cliente_id ?? null,
+              opportunita_crm_id: urlOpportunityId ?? null,
               archetipo: data.archetipo,
               indirizzo: data.indirizzo,
               comune: data.comune || undefined,

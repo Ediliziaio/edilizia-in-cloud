@@ -17,6 +17,8 @@ import { requireAuth } from "../_shared/auth.ts";
 
 interface FvSolarLeadInput {
   cliente_id?: string | null;
+  /** Opportunità CRM di provenienza — collega il progetto al deal (parità serramenti). */
+  opportunita_crm_id?: string | null;
   archetipo: "privato_prima" | "privato_seconda" | "privato_isee" | "pmi";
   titolo: string;
   indirizzo: string;
@@ -157,6 +159,7 @@ Deno.serve(async (req: Request) => {
       .insert({
         company_id,
         cliente_id: payload.cliente_id ?? null,
+        opportunita_crm_id: payload.opportunita_crm_id ?? null,
         numero,
         titolo: payload.titolo,
         archetipo: payload.archetipo,
