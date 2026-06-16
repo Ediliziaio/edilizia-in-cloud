@@ -64,9 +64,20 @@ const eur = (n: number) =>
     style: "currency",
     currency: "EUR",
     maximumFractionDigits: 0,
-  }).format(Number.isFinite(n) ? n : 0);
+    // Forza il separatore delle migliaia anche dove l'ICU è ridotto
+    // (minimumGroupingDigits=2): è un documento per il cliente → "2.044 €".
+    useGrouping: "always",
+  })
+    .format(Number.isFinite(n) ? n : 0)
+    // jsPDF (WinAnsi) non rende gli spazi stretti/insecabili che Intl inserisce
+    // tra numero e simbolo: normalizziamo ogni carattere non-ASCII (tranne euro)
+    // a spazio semplice.
+    .replace(/[^\x20-\x7E\u20AC]/g, " ");
 
-const num = (n: number) => (Number.isFinite(n) ? n : 0).toLocaleString("it-IT");
+const num = (n: number) =>
+  new Intl.NumberFormat("it-IT", { maximumFractionDigits: 0, useGrouping: "always" }).format(
+    Number.isFinite(n) ? n : 0,
+  );
 
 const giorni = (n: number) => `${num(n)} ${n === 1 ? "giorno" : "giorni"}`;
 
@@ -398,11 +409,13 @@ function inactionSection(p: PdfDoc, results: RoiResults) {
   doc.setTextColor(...BRAND.red);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(30);
-  doc.text(eur(results.costoInazioneAnnuo), MARGIN + 6, p.y + 25);
+  const costoStr = eur(results.costoInazioneAnnuo);
+  doc.text(costoStr, MARGIN + 6, p.y + 25);
+  const costoW = doc.getTextWidth(costoStr); // a 30pt, prima di rimpicciolire
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   doc.setTextColor(...BRAND.grey);
-  doc.text(" / anno", MARGIN + 6 + doc.getTextWidth(eur(results.costoInazioneAnnuo)) + 1, p.y + 25);
+  doc.text(" / anno", MARGIN + 6 + costoW + 1.5, p.y + 25);
 
   // Equivalenti mese / giorno a destra-basso
   const perMese = results.costoInazioneAnnuo / 12;
@@ -437,7 +450,7 @@ function leveSection(p: PdfDoc, results: RoiResults) {
   // Header tabella
   const headH = 8;
   const colLeva = MARGIN + 2;
-  const colFun = MARGIN + 62;
+  const colFun = MARGIN + 74;
   const colVal = A4.w - MARGIN - 2;
   p.ensure(headH + 10);
   doc.setFillColor(...BRAND.navy);
@@ -454,7 +467,7 @@ function leveSection(p: PdfDoc, results: RoiResults) {
   let zebra = false;
   for (const leva of results.leve) {
     const principale = leva.key === "margine";
-    const funLines = doc.splitTextToSize(leva.funzione, colVal - colFun - 18);
+    const funLines = doc.splitTextToSize(leva.funzione, colVal - colFun - 22);
     const rowH = Math.max(9, 4 + funLines.length * 4);
     p.ensure(rowH);
     if (principale) {
@@ -469,16 +482,20 @@ function leveSection(p: PdfDoc, results: RoiResults) {
     const midY = p.y + rowH / 2 + 1.4;
     doc.setTextColor(...(principale ? BRAND.green : BRAND.ink));
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9.2);
+    doc.setFontSize(9);
     doc.text(leva.label, colLeva, midY);
     if (principale) {
-      const lw = doc.getTextWidth(leva.label);
-      doc.setFillColor(...BRAND.green);
-      doc.setTextColor(255, 255, 255);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(6.2);
-      doc.rect(colLeva + lw + 2, midY - 3, 17, 4, "F");
-      doc.text("PRINCIPALE", colLeva + lw + 3, midY);
+      const lw = doc.getTextWidth(leva.label); // a 9pt
+      const badgeX = colLeva + lw + 2.5;
+      // Badge solo se sta tutto prima della colonna funzione (niente sovrapposizioni).
+      if (badgeX + 16 <= colFun - 2) {
+        doc.setFillColor(...BRAND.green);
+        doc.rect(badgeX, midY - 3.2, 16, 4.4, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6);
+        doc.text("PRINCIPALE", badgeX + 1.5, midY);
+      }
     }
     doc.setTextColor(...BRAND.grey);
     doc.setFont("helvetica", "normal");
@@ -577,14 +594,15 @@ function comparisonSection(p: PdfDoc, results: RoiResults) {
   doc.setFontSize(28);
   const guad = eur(Math.max(0, results.guadagnoNettoAnnuo));
   doc.text(guad, MARGIN + 6, p.y + 24);
+  const guadW = doc.getTextWidth(guad); // a 28pt, prima di rimpicciolire
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  doc.text(" / anno", MARGIN + 6 + doc.getTextWidth(guad) + 1, p.y + 24);
+  doc.text(" / anno", MARGIN + 6 + guadW + 1.5, p.y + 24);
   if (guadagna) {
     doc.setTextColor(157, 180, 214);
     doc.setFontSize(8.5);
     doc.text(
-      `≈ ${eur(results.guadagnoNettoMensile)}/mese · ${eur(results.guadagnoNettoGiornaliero)}/giorno che tornano in cassa.`,
+      `circa ${eur(results.guadagnoNettoMensile)}/mese · ${eur(results.guadagnoNettoGiornaliero)}/giorno che tornano in cassa.`,
       MARGIN + 6,
       p.y + 31,
     );
@@ -604,11 +622,13 @@ function comparisonSection(p: PdfDoc, results: RoiResults) {
     doc.setTextColor(...BRAND.green);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
-    doc.text(results.roiMultiplo > 0 ? `${results.roiMultiplo.toFixed(1)}×` : "—", MARGIN + 6, p.y + 11);
+    const roiTxt = results.roiMultiplo > 0 ? `${results.roiMultiplo.toFixed(1)}×` : "—";
+    doc.text(roiTxt, MARGIN + 6, p.y + 11);
+    const roiW = doc.getTextWidth(roiTxt); // a 16pt, prima di rimpicciolire
     doc.setTextColor(...BRAND.grey);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.5);
-    doc.text("di ROI su ogni euro investito", MARGIN + 6 + (results.roiMultiplo > 0 ? 16 : 8), p.y + 11);
+    doc.text("di ROI su ogni euro investito", MARGIN + 6 + roiW + 2.5, p.y + 11);
     // Payback
     const bx = MARGIN + badgeW + 6;
     doc.setFillColor(...BRAND.panel);
@@ -619,12 +639,13 @@ function comparisonSection(p: PdfDoc, results: RoiResults) {
     doc.setFontSize(16);
     const pb = results.paybackGiorni > 0 ? num(results.paybackGiorni) : "—";
     doc.text(pb, bx + 6, p.y + 11);
+    const pbW = doc.getTextWidth(pb); // a 16pt, prima di rimpicciolire
     doc.setTextColor(...BRAND.grey);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.5);
     doc.text(
       results.paybackGiorni > 0 ? "giorni per ripagarsi" : "si ripaga col tempo",
-      bx + 6 + doc.getTextWidth(pb) + 2,
+      bx + 6 + pbW + 2.5,
       p.y + 11,
     );
     p.y += badgeH + 6;
