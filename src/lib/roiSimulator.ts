@@ -4,172 +4,315 @@
  * Strumento che il venditore usa DURANTE la trattativa per mostrare al cliente
  * quanto gli costa NON cambiare e che EdiliziaInCloud "non costa, fa guadagnare".
  *
+ * EVOLUZIONE (round controllo di gestione): il modello non è più un generico
+ * calcolatore di "ore perse". La proposta di valore è ancorata alle FUNZIONI
+ * reali di EdiliziaInCloud e la leva dominante è il **margine recuperato** grazie
+ * al controllo di gestione in tempo reale (commesse, conto economico, bilanci) —
+ * tipicamente l'1–3% del fatturato. Le altre leve (tempo amministrativo, rischi
+ * evitati, software eliminato, eventuale crescita) si sommano sopra.
+ *
  * Tutto il calcolo vive qui (nessuna logica nel componente) così è condiviso fra
- * la pagina standalone, il dialog dal deal e — round 2 — la generazione PDF/email.
+ * la pagina standalone, il dialog dal deal e la generazione PDF/email.
  * `RoiInputs` → persistito in `crm_roi_simulations.inputs`,
- * `RoiResults` → persistito in `crm_roi_simulations.results`.
+ * `RoiResults` → persistito in `crm_roi_simulations.results` (schema jsonb
+ * flessibile: i campi nuovi non richiedono migrazioni).
+ *
+ * COMPAT: `RoiResults` continua a esporre gli alias legacy
+ * (`softwareAnnuo`, `oreSettimanaTotali`, `costoErroriAnnuo`, `costoAttualeAnnuo`,
+ * `costoConEicAnnuo`, `risparmioAnnuo`, `risparmioMensile`, `paybackGiorni`) così
+ * il generatore PDF/email del round precedente continua a funzionare senza
+ * modifiche. Il round PDF potrà passare ad enumerare `leve[]`.
  */
 
-/** Voci di tempo perso/settimana, spacchettate per attività. */
-export interface RoiHoursBreakdown {
-  /** Fatturazione & DDT */
-  fatturazione: number;
-  /** Preventivi */
-  preventivi: number;
-  /** Gestione cantieri */
-  cantieri: number;
-  /** Ricerca documenti */
-  ricercaDocumenti: number;
-  /** Doppie immissioni dati */
-  doppieImmissioni: number;
-}
-
-/** Assunzioni regolabili del modello (pannello "avanzate"). */
-export interface RoiAssumptions {
-  /** % di tempo recuperato con EdiliziaInCloud (0..1). Default 0.70 */
-  risparmioTempo: number;
-  /** % di errori/ritardi evitati con EdiliziaInCloud (0..1). Default 0.80 */
-  risparmioErrori: number;
-  /** Settimane lavorative/anno usate per annualizzare le ore. Default 47 */
-  settimaneAnno: number;
+/** Una leva di valore del breakdown "Da dove arriva il valore". */
+export interface RoiLeva {
+  /** Chiave stabile (margine | tempo | rischio | software | crescita). */
+  key: "margine" | "tempo" | "rischio" | "software" | "crescita";
+  /** Titolo leggibile della leva. */
+  label: string;
+  /** Funzione reale di EdiliziaInCloud che genera questo valore. */
+  funzione: string;
+  /** Valore annuo €. */
+  valore: number;
 }
 
 /** Input grezzi dello scenario (ciò che il venditore inserisce/regola). */
 export interface RoiInputs {
-  /** Costo dei software/gestionali attuali, €/mese. */
+  // ── La tua azienda ──
+  /** Fatturato annuo €. Base della leva "margine recuperato". */
+  fatturatoAnnuo: number;
+  /** Margine medio attuale % (solo contesto, non entra nel calcolo). */
+  marginePct: number;
+  /** Costo dei software/gestionali attuali, €/mese (eliminati con EiC). */
   softwareMensile: number;
-  /** Ore/settimana perse, spacchettate per attività. */
-  hours: RoiHoursBreakdown;
+
+  // ── Tempo perso ogni settimana (ore) ──
+  oreFatturazione: number;
+  orePreventivi: number;
+  oreCantieri: number;
+  oreRicercaDocumenti: number;
+  oreDoppieImmissioni: number;
+
+  // ── Costi / rischi ──
   /** Costo orario medio del personale, €. */
   costoOrario: number;
-  /** Costo annuo stimato di errori e ritardi, €/anno. */
+  /** Costo annuo stimato di errori, sanzioni e ritardi, €/anno. */
   erroriAnnui: number;
+
+  // ── Investimento ──
   /** Canone EdiliziaInCloud, €/mese (default = piano reale). */
   abbonamentoMensile: number;
-  /** Assunzioni regolabili. */
-  assumptions: RoiAssumptions;
+
+  // ── Crescita (opzionale, dietro toggle) ──
+  /** Abilita la leva crescita (più lavori vinti). */
+  abilitaCrescita: boolean;
+  /** Preventivi emessi al mese. */
+  preventiviMese: number;
+  /** Valore medio di un preventivo, €. */
+  valoreMedioPreventivo: number;
+  /** Tasso di chiusura attuale, %. */
+  tassoChiusuraPct: number;
+  /** Incremento % di preventivi grazie a velocità/professionalità. */
+  upliftPreventiviPct: number;
+
+  // ── Assunzioni regolabili (pannello avanzate) ──
+  /** Settimane lavorative/anno usate per annualizzare le ore. */
+  settimaneAnno: number;
+  /** % di tempo amministrativo recuperato con EiC (0..100). */
+  pctTempoRecuperato: number;
+  /** % di errori/sanzioni/ritardi evitati con EiC (0..100). */
+  pctRischioEvitato: number;
+  /** % del fatturato recuperata come margine col controllo di gestione (0..10). */
+  pctMargineRecuperato: number;
 }
 
 /** Output calcolato dello scenario. */
 export interface RoiResults {
-  // ── Costo attuale (senza EdiliziaInCloud) ──
-  softwareAnnuo: number;
-  oreSettimanaTotali: number;
-  costoTempoAnnuo: number;
-  costoErroriAnnuo: number;
-  costoAttualeAnnuo: number;
-  // ── Con EdiliziaInCloud ──
-  abbonamentoAnnuo: number;
-  costoTempoConEic: number;
-  costoErroriConEic: number;
-  costoConEicAnnuo: number;
+  // ── Tempo / leve base ──
+  /** Somma delle 5 voci di tempo perso, h/settimana. */
+  oreSettimana: number;
+  /** Valore del tempo amministrativo recuperato, €/anno. */
+  valoreTempo: number;
+  /** Margine recuperato col controllo di gestione, €/anno (leva principale). */
+  valoreMargine: number;
+  /** Errori/sanzioni/ritardi evitati, €/anno. */
+  valoreRischio: number;
+  /** Più lavori vinti (0 se la crescita è disattivata), €/anno. */
+  valoreCrescita: number;
+  /** Software/gestionali eliminati, €/anno. */
+  softwareEliminato: number;
+
+  // ── Aggregati ──
+  /** Canone EiC annuo, €. */
+  canoneAnno: number;
+  /** Valore generato = tempo + margine + rischio + crescita, €/anno. */
+  valoreGeneratoAnnuo: number;
+  /** "Quanto ti costa restare com'è" = valore generato + software, €/anno. */
+  costoInazioneAnnuo: number;
+
   // ── Guadagno ──
-  /** Risparmio netto/anno = costoAttuale − costoConEic (può essere negativo). */
-  risparmioAnnuo: number;
-  /** Risparmio mensile equivalente. */
-  risparmioMensile: number;
-  /** Giorni per ripagare il canone annuo col risparmio. 0 se non ripaga. */
+  /** Guadagno netto = costo dell'inazione − canone, €/anno. */
+  guadagnoNettoAnnuo: number;
+  /** Guadagno netto mensile equivalente. */
+  guadagnoNettoMensile: number;
+  /** Guadagno netto giornaliero equivalente. */
+  guadagnoNettoGiornaliero: number;
+  /** ROI: ogni 1€ investito ne genera X. 0 se canone = 0. */
+  roiMultiplo: number;
+  /** Giorni per ripagare il canone annuo. 0 se non si ripaga. */
   paybackGiorni: number;
-  /** ROI % = risparmioNetto / costoAnnuoEiC. 0 se costo EiC = 0. */
-  roiPercent: number;
+
+  /** Breakdown ordinato per valore decrescente (cuore della UI/PDF). */
+  leve: RoiLeva[];
+
+  // ── Alias legacy (compat PDF/email round 1) ──
+  /** = softwareEliminato */
+  softwareAnnuo: number;
+  /** = oreSettimana */
+  oreSettimanaTotali: number;
+  /** = valoreRischio */
+  costoErroriAnnuo: number;
+  /** = costoInazioneAnnuo */
+  costoAttualeAnnuo: number;
+  /** = canoneAnno (con EiC paghi solo il canone, tutto il resto è recuperato) */
+  costoConEicAnnuo: number;
+  /** = guadagnoNettoAnnuo */
+  risparmioAnnuo: number;
+  /** = guadagnoNettoMensile */
+  risparmioMensile: number;
 }
 
-export const DEFAULT_ASSUMPTIONS: RoiAssumptions = {
-  risparmioTempo: 0.7,
-  risparmioErrori: 0.8,
+/** Valori di default delle assunzioni regolabili. */
+export const DEFAULT_ASSUMPTIONS = {
   settimaneAnno: 47,
-};
+  pctTempoRecuperato: 65,
+  pctRischioEvitato: 80,
+  pctMargineRecuperato: 2.0,
+} as const;
 
 /**
  * Input di default ragionevoli per una piccola impresa edile italiana.
  * `abbonamentoMensile` viene tipicamente sovrascritto dal prezzo del piano reale.
  */
 export const DEFAULT_INPUTS: RoiInputs = {
+  // Azienda
+  fatturatoAnnuo: 400000,
+  marginePct: 12,
   softwareMensile: 80,
-  hours: {
-    fatturazione: 3,
-    preventivi: 3,
-    cantieri: 2,
-    ricercaDocumenti: 2,
-    doppieImmissioni: 2,
-  },
+  // Tempo perso (h/sett)
+  oreFatturazione: 3,
+  orePreventivi: 3,
+  oreCantieri: 2,
+  oreRicercaDocumenti: 2,
+  oreDoppieImmissioni: 2,
+  // Costi / rischi
   costoOrario: 25,
   erroriAnnui: 3000,
+  // Investimento
   abbonamentoMensile: 149,
-  assumptions: { ...DEFAULT_ASSUMPTIONS },
+  // Crescita (opzionale)
+  abilitaCrescita: false,
+  preventiviMese: 8,
+  valoreMedioPreventivo: 15000,
+  tassoChiusuraPct: 25,
+  upliftPreventiviPct: 20,
+  // Assunzioni
+  settimaneAnno: DEFAULT_ASSUMPTIONS.settimaneAnno,
+  pctTempoRecuperato: DEFAULT_ASSUMPTIONS.pctTempoRecuperato,
+  pctRischioEvitato: DEFAULT_ASSUMPTIONS.pctRischioEvitato,
+  pctMargineRecuperato: DEFAULT_ASSUMPTIONS.pctMargineRecuperato,
 };
 
 /** Fallback usato quando il prezzo del piano reale non è disponibile. */
 export const DEFAULT_PLAN_PRICE_MONTHLY = DEFAULT_INPUTS.abbonamentoMensile;
 
-/** Clamp difensivo: nessun NaN/negativo entra nel calcolo. */
-function num(value: number): number {
-  return Number.isFinite(value) && value > 0 ? value : 0;
+/** Clamp difensivo: nessun NaN/negativo/Infinity entra nel calcolo. */
+function num(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-/** Clamp 0..1 per le percentuali di risparmio. */
-function pct(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  if (value < 0) return 0;
-  if (value > 1) return 1;
-  return value;
+/** Clamp percentuale in [0, max]. Default max 100. */
+function pct(value: unknown, max = 100): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return n > max ? max : n;
 }
 
-export function sumHours(hours: RoiHoursBreakdown): number {
+/** Somma le 5 voci di tempo perso (h/settimana), con clamp difensivo. */
+export function sumHours(inputs: Partial<RoiInputs>): number {
   return (
-    num(hours.fatturazione) +
-    num(hours.preventivi) +
-    num(hours.cantieri) +
-    num(hours.ricercaDocumenti) +
-    num(hours.doppieImmissioni)
+    num(inputs.oreFatturazione) +
+    num(inputs.orePreventivi) +
+    num(inputs.oreCantieri) +
+    num(inputs.oreRicercaDocumenti) +
+    num(inputs.oreDoppieImmissioni)
   );
 }
 
 /**
  * Calcola lo scenario ROI. Funzione PURA, nessun side-effect, mai NaN né
- * divisione per zero (il payback è 0 quando il risparmio è ≤ 0).
+ * divisione per zero. Tutti gli input sono clampati difensivamente, così
+ * tollera anche simulazioni salvate legacy/parziali (campi mancanti → default).
  */
-export function computeRoi(inputs: RoiInputs): RoiResults {
-  const settimane = num(inputs.assumptions?.settimaneAnno) || DEFAULT_ASSUMPTIONS.settimaneAnno;
-  const risparmioTempo = pct(inputs.assumptions?.risparmioTempo ?? DEFAULT_ASSUMPTIONS.risparmioTempo);
-  const risparmioErrori = pct(inputs.assumptions?.risparmioErrori ?? DEFAULT_ASSUMPTIONS.risparmioErrori);
+export function computeRoi(inputs: Partial<RoiInputs>): RoiResults {
+  // ── Assunzioni (con fallback ai default se mancanti) ──
+  const settimaneAnno = num(inputs.settimaneAnno) || DEFAULT_ASSUMPTIONS.settimaneAnno;
+  const pctTempoRecuperato = pct(inputs.pctTempoRecuperato ?? DEFAULT_ASSUMPTIONS.pctTempoRecuperato);
+  const pctRischioEvitato = pct(inputs.pctRischioEvitato ?? DEFAULT_ASSUMPTIONS.pctRischioEvitato);
+  const pctMargineRecuperato = pct(
+    inputs.pctMargineRecuperato ?? DEFAULT_ASSUMPTIONS.pctMargineRecuperato,
+    10, // il margine recuperato è 0..10% del fatturato, non 0..100
+  );
 
-  // ── Costo attuale ──
-  const softwareAnnuo = num(inputs.softwareMensile) * 12;
-  const oreSettimanaTotali = sumHours(inputs.hours);
-  const costoTempoAnnuo = oreSettimanaTotali * settimane * num(inputs.costoOrario);
-  const costoErroriAnnuo = num(inputs.erroriAnnui);
-  const costoAttualeAnnuo = softwareAnnuo + costoTempoAnnuo + costoErroriAnnuo;
+  // ── Leve di valore ──
+  const oreSettimana = sumHours(inputs);
+  const valoreTempo = oreSettimana * settimaneAnno * num(inputs.costoOrario) * (pctTempoRecuperato / 100);
+  // Leva principale: margine recuperato col controllo di gestione (% del fatturato).
+  const valoreMargine = num(inputs.fatturatoAnnuo) * (pctMargineRecuperato / 100);
+  const valoreRischio = num(inputs.erroriAnnui) * (pctRischioEvitato / 100);
+  const valoreCrescita = inputs.abilitaCrescita
+    ? num(inputs.preventiviMese) * 12 * (pct(inputs.upliftPreventiviPct) / 100) *
+      num(inputs.valoreMedioPreventivo) * (pct(inputs.tassoChiusuraPct) / 100)
+    : 0;
 
-  // ── Con EdiliziaInCloud ──
-  // Il vecchio software viene sostituito → costo software residuo = 0.
-  const abbonamentoAnnuo = num(inputs.abbonamentoMensile) * 12;
-  const costoTempoConEic = costoTempoAnnuo * (1 - risparmioTempo);
-  const costoErroriConEic = costoErroriAnnuo * (1 - risparmioErrori);
-  const costoConEicAnnuo = abbonamentoAnnuo + costoTempoConEic + costoErroriConEic;
+  const softwareEliminato = num(inputs.softwareMensile) * 12;
+  const canoneAnno = num(inputs.abbonamentoMensile) * 12;
+
+  // ── Aggregati ──
+  const valoreGeneratoAnnuo = valoreTempo + valoreMargine + valoreRischio + valoreCrescita;
+  const costoInazioneAnnuo = valoreGeneratoAnnuo + softwareEliminato;
 
   // ── Guadagno ──
-  const risparmioAnnuo = costoAttualeAnnuo - costoConEicAnnuo;
-  const risparmioMensile = risparmioAnnuo / 12;
-  // Payback: quanti giorni di risparmio servono a coprire il canone annuo.
-  // Definito solo se c'è un risparmio positivo (altrimenti non si ripaga mai).
+  const guadagnoNettoAnnuo = costoInazioneAnnuo - canoneAnno;
+  const guadagnoNettoMensile = guadagnoNettoAnnuo / 12;
+  const guadagnoNettoGiornaliero = guadagnoNettoAnnuo / 365;
+  const roiMultiplo = canoneAnno > 0 ? guadagnoNettoAnnuo / canoneAnno : 0;
   const paybackGiorni =
-    risparmioAnnuo > 0 ? Math.round((365 * abbonamentoAnnuo) / risparmioAnnuo) : 0;
-  const roiPercent = costoConEicAnnuo > 0 ? (risparmioAnnuo / costoConEicAnnuo) * 100 : 0;
+    canoneAnno > 0 && guadagnoNettoAnnuo > 0
+      ? Math.round((365 * canoneAnno) / guadagnoNettoAnnuo)
+      : 0;
+
+  // ── Breakdown "Da dove arriva il valore" (ordinato per valore decrescente) ──
+  const leve: RoiLeva[] = [
+    {
+      key: "margine",
+      label: "Controllo di gestione e margini",
+      funzione: "Commesse, conto economico, bilanci in tempo reale",
+      valore: valoreMargine,
+    },
+    {
+      key: "tempo",
+      label: "Tempo amministrativo recuperato",
+      funzione: "Fatturazione elettronica, DDT, preventivi, prima nota",
+      valore: valoreTempo,
+    },
+    {
+      key: "rischio",
+      label: "Errori, sanzioni e ritardi evitati",
+      funzione: "Scadenzario, compliance SDI",
+      valore: valoreRischio,
+    },
+    {
+      key: "software",
+      label: "Software e gestionali eliminati",
+      funzione: "Un'unica piattaforma al posto di più strumenti",
+      valore: softwareEliminato,
+    },
+  ];
+  if (valoreCrescita > 0) {
+    leve.push({
+      key: "crescita",
+      label: "Più lavori vinti",
+      funzione: "Preventivi più rapidi e professionali",
+      valore: valoreCrescita,
+    });
+  }
+  leve.sort((a, b) => b.valore - a.valore);
 
   return {
-    softwareAnnuo,
-    oreSettimanaTotali,
-    costoTempoAnnuo,
-    costoErroriAnnuo,
-    costoAttualeAnnuo,
-    abbonamentoAnnuo,
-    costoTempoConEic,
-    costoErroriConEic,
-    costoConEicAnnuo,
-    risparmioAnnuo,
-    risparmioMensile,
+    oreSettimana,
+    valoreTempo,
+    valoreMargine,
+    valoreRischio,
+    valoreCrescita,
+    softwareEliminato,
+    canoneAnno,
+    valoreGeneratoAnnuo,
+    costoInazioneAnnuo,
+    guadagnoNettoAnnuo,
+    guadagnoNettoMensile,
+    guadagnoNettoGiornaliero,
+    roiMultiplo,
     paybackGiorni,
-    roiPercent,
+    leve,
+    // ── Alias legacy ──
+    softwareAnnuo: softwareEliminato,
+    oreSettimanaTotali: oreSettimana,
+    costoErroriAnnuo: valoreRischio,
+    costoAttualeAnnuo: costoInazioneAnnuo,
+    costoConEicAnnuo: canoneAnno,
+    risparmioAnnuo: guadagnoNettoAnnuo,
+    risparmioMensile: guadagnoNettoMensile,
   };
 }
