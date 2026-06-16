@@ -59,6 +59,25 @@ const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
 const ALLOWED_MIMES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
+// Stili rapidi: applicano in un click i 4 colori del brand. Pura UI (nessun nuovo
+// campo/colonna): ogni preset scrive sui colori esistenti via `set(...)`.
+const PALETTE_PRESETS: Array<{ nome: string; color_primary: string; color_secondary: string; color_accent: string; color_text: string }> = [
+  { nome: "Blu professionale", color_primary: "#1E3A5F", color_secondary: "#F97316", color_accent: "#16A34A", color_text: "#212529" },
+  { nome: "Verde natura",      color_primary: "#14532D", color_secondary: "#65A30D", color_accent: "#0EA5E9", color_text: "#1C1917" },
+  { nome: "Grafite elegante",  color_primary: "#1F2937", color_secondary: "#D97706", color_accent: "#0891B2", color_text: "#111827" },
+  { nome: "Bordeaux caldo",    color_primary: "#7F1D1D", color_secondary: "#B45309", color_accent: "#15803D", color_text: "#1C1917" },
+  { nome: "Indaco moderno",    color_primary: "#3730A3", color_secondary: "#EC4899", color_accent: "#10B981", color_text: "#1E1B4B" },
+];
+
+// Stili copertina: combinano colore testo + opacità velo + posizione logo
+// (campi già esistenti della copertina). Pura UI, nessun nuovo campo.
+const COVER_PRESETS: Array<{ nome: string; cover_text_color: string; cover_overlay_opacity: number; cover_logo_position: "top_left" | "top_center" | "top_right" | "hidden" }> = [
+  { nome: "Scuro elegante",  cover_text_color: "#FFFFFF", cover_overlay_opacity: 0.55, cover_logo_position: "top_left" },
+  { nome: "Minimale chiaro", cover_text_color: "#FFFFFF", cover_overlay_opacity: 0.30, cover_logo_position: "top_center" },
+  { nome: "Brand forte",     cover_text_color: "#FFFFFF", cover_overlay_opacity: 0.70, cover_logo_position: "top_left" },
+  { nome: "Senza velo",      cover_text_color: "#0F172A", cover_overlay_opacity: 0.00, cover_logo_position: "top_right" },
+];
+
 // Forma del form locale: stesso shape del patch persistito.
 type FormState = Required<Pick<RstTemplatePdf,
   | "logo_url" | "color_primary" | "color_secondary" | "color_accent" | "color_text"
@@ -339,6 +358,56 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                   <ColorField label="Testo" value={form.color_text} onChange={(v) => set("color_text", v)} />
                 </div>
               </div>
+
+              {/* Stili rapidi: palette pronte che impostano i 4 colori in un click */}
+              <div className="mt-4 border-t pt-4">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-orange-500" />
+                  <Label className="text-xs font-medium">Palette pronte</Label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {PALETTE_PRESETS.map((p) => {
+                    const isActive =
+                      form.color_primary === p.color_primary &&
+                      form.color_secondary === p.color_secondary &&
+                      form.color_accent === p.color_accent &&
+                      form.color_text === p.color_text;
+                    return (
+                      <button
+                        key={p.nome}
+                        type="button"
+                        onClick={() => {
+                          set("color_primary", p.color_primary);
+                          set("color_secondary", p.color_secondary);
+                          set("color_accent", p.color_accent);
+                          set("color_text", p.color_text);
+                        }}
+                        aria-pressed={isActive}
+                        className={cn(
+                          "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-all hover:border-orange-300 hover:bg-orange-50",
+                          isActive
+                            ? "border-orange-400 bg-orange-50 ring-2 ring-orange-300"
+                            : "border-input bg-background",
+                        )}
+                      >
+                        <span className="flex shrink-0 items-center gap-0.5">
+                          {[p.color_primary, p.color_secondary, p.color_accent, p.color_text].map((c, ci) => (
+                            <span
+                              key={ci}
+                              className="h-3.5 w-3.5 rounded-full border border-black/10"
+                              style={{ backgroundColor: c }}
+                            />
+                          ))}
+                        </span>
+                        <span className="text-[11px] font-medium text-foreground">{p.nome}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1.5 text-[10px] text-muted-foreground">
+                  Applica una combinazione coordinata ai 4 colori del brand. Puoi sempre ritoccarli dopo.
+                </p>
+              </div>
             </SectionCard>
 
             {/* Anagrafica azienda — dati che compaiono in header/footer del PDF */}
@@ -459,6 +528,53 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                   onChange={(url) => set("cover_image_url", url)}
                   aspect="aspect-[16/9]"
                 />
+              </div>
+
+              {/* Stili copertina: preset che impostano testo + velo + logo in un click */}
+              <div className="mt-4 border-t pt-4">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-orange-500" />
+                  <Label className="text-xs font-medium">Stili copertina</Label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {COVER_PRESETS.map((c) => {
+                    const isActive =
+                      form.cover_text_color === c.cover_text_color &&
+                      form.cover_overlay_opacity === c.cover_overlay_opacity &&
+                      form.cover_logo_position === c.cover_logo_position;
+                    return (
+                      <button
+                        key={c.nome}
+                        type="button"
+                        onClick={() => {
+                          set("cover_text_color", c.cover_text_color);
+                          set("cover_overlay_opacity", c.cover_overlay_opacity);
+                          set("cover_logo_position", c.cover_logo_position);
+                        }}
+                        aria-pressed={isActive}
+                        className={cn(
+                          "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-all hover:border-orange-300 hover:bg-orange-50",
+                          isActive
+                            ? "border-orange-400 bg-orange-50 ring-2 ring-orange-300"
+                            : "border-input bg-background",
+                        )}
+                      >
+                        {/* Mini-anteprima: rettangolo con velo + pallino colore testo */}
+                        <span className="relative flex h-6 w-9 shrink-0 items-center justify-center overflow-hidden rounded border border-black/10 bg-gradient-to-br from-slate-300 to-slate-500">
+                          <span className="absolute inset-0 bg-black" style={{ opacity: c.cover_overlay_opacity }} />
+                          <span
+                            className="relative h-2.5 w-2.5 rounded-full border border-black/20"
+                            style={{ backgroundColor: c.cover_text_color }}
+                          />
+                        </span>
+                        <span className="text-[11px] font-medium text-foreground">{c.nome}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1.5 text-[10px] text-muted-foreground">
+                  Imposta colore testo, velo e posizione logo in modo coordinato.
+                </p>
               </div>
 
               {/* Controlli avanzati copertina: posizione logo, colore testo, velo */}
