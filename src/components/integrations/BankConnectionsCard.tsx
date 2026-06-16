@@ -22,9 +22,13 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
-import { Landmark, Plus, RefreshCw, Loader2, CheckCircle2 } from "lucide-react";
+import { Landmark, Plus, RefreshCw, Loader2, CheckCircle2, Unlink, AlertTriangle } from "lucide-react";
 
 interface BankConnection {
   id: string;
@@ -33,6 +37,7 @@ interface BankConnection {
   accounts_count: number | null;
   last_sync_at: string | null;
   expires_at: string | null;
+  error_message: string | null;
 }
 interface BankAccount {
   id: string;
@@ -47,7 +52,8 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   created: { label: "In attesa di consenso", cls: "bg-amber-100 text-amber-700" },
   linked: { label: "Collegato", cls: "bg-emerald-100 text-emerald-700" },
   expired: { label: "Scaduto — ricollega", cls: "bg-rose-100 text-rose-700" },
-  error: { label: "Errore", cls: "bg-rose-100 text-rose-700" },
+  error: { label: "Da verificare", cls: "bg-rose-100 text-rose-700" },
+  disconnected: { label: "Disconnesso", cls: "bg-muted text-muted-foreground" },
 };
 
 interface BankConnectionsCardProps {
@@ -71,6 +77,8 @@ export default function BankConnectionsCard({
   const [selectedBank, setSelectedBank] = useState<string>("");
   const [connecting, setConnecting] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [disconnectId, setDisconnectId] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
   const finalizingRef = useRef(false);
 
   const { data: connections = [] } = useQuery({
@@ -79,8 +87,9 @@ export default function BankConnectionsCard({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bank_connections")
-        .select("id, institution_name, status, accounts_count, last_sync_at, expires_at")
+        .select("id, institution_name, status, accounts_count, last_sync_at, expires_at, error_message")
         .eq("company_id", companyId!)
+        .neq("status", "disconnected")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as BankConnection[];
@@ -121,10 +130,16 @@ export default function BankConnectionsCard({
         const { data, error } = await supabase.functions.invoke("bank-eb", { body: { action: "finalize", code, state } });
         if (error || (data && data.error)) throw new Error((data && data.error) || error?.message || "Errore");
         // sync movimenti subito dopo
+        let imported = 0;
         if (data?.connection_id) {
-          await supabase.functions.invoke("bank-eb", { body: { action: "sync", connection_id: data.connection_id } });
+          const { data: sres } = await supabase.functions.invoke("bank-eb", { body: { action: "sync", connection_id: data.connection_id } });
+          imported = sres?.imported ?? 0;
         }
-        toast.success("Conto collegato e movimenti importati", { id: t });
+        if (data?.warning) {
+          toast.warning(data.warning, { id: t, duration: 9000 });
+        } else {
+          toast.success(`Conto collegato · ${imported} movimenti importati`, { id: t });
+        }
         qc.invalidateQueries({ queryKey: ["bank-connections", companyId] });
         qc.invalidateQueries({ queryKey: ["bank-accounts", companyId] });
         onChanged?.();
@@ -183,6 +198,24 @@ export default function BankConnectionsCard({
     }
   };
 
+  const disconnectConnection = async () => {
+    if (!disconnectId) return;
+    setDisconnecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("bank-eb", { body: { action: "disconnect", connection_id: disconnectId } });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      toast.success("Conto disconnesso");
+      qc.invalidateQueries({ queryKey: ["bank-connections", companyId] });
+      qc.invalidateQueries({ queryKey: ["bank-accounts", companyId] });
+      onChanged?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore disconnessione");
+    } finally {
+      setDisconnecting(false);
+      setDisconnectId(null);
+    }
+  };
+
   // Sicurezza: solo admin o utenti col permesso Tesoreria possono vedere/gestire
   // i conti bancari. La RLS + l'edge function bank-eb applicano lo stesso vincolo
   // lato server; qui nascondiamo la card a chi non è autorizzato.
@@ -216,13 +249,29 @@ export default function BankConnectionsCard({
                     <span className="font-medium text-sm">{c.institution_name ?? "Banca"}</span>
                     <Badge className={`text-[10px] px-1.5 py-0 border-0 ${st.cls}`}>{st.label}</Badge>
                   </div>
-                  {c.status === "linked" && (
-                    <Button size="sm" variant="outline" onClick={() => syncNow(c.id)} disabled={syncingId === c.id}>
-                      {syncingId === c.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
-                      Sincronizza
+                  <div className="flex items-center gap-1.5">
+                    {c.status === "linked" && (
+                      <Button size="sm" variant="outline" onClick={() => syncNow(c.id)} disabled={syncingId === c.id}>
+                        {syncingId === c.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+                        Sincronizza
+                      </Button>
+                    )}
+                    {(c.status === "expired" || c.status === "error") && (
+                      <Button size="sm" variant="outline" onClick={openConnect}>
+                        <RefreshCw className="h-3.5 w-3.5 mr-1" /> Ricollega
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-rose-600" onClick={() => setDisconnectId(c.id)} aria-label="Disconnetti conto">
+                      <Unlink className="h-3.5 w-3.5" />
                     </Button>
-                  )}
+                  </div>
                 </div>
+                {c.error_message && (
+                  <p className="flex items-start gap-1.5 text-[11px] text-rose-600">
+                    <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                    {c.error_message}
+                  </p>
+                )}
                 {accs.length > 0 && (
                   <div className="space-y-1">
                     {accs.map((a) => (
@@ -276,6 +325,23 @@ export default function BankConnectionsCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!disconnectId} onOpenChange={(o) => { if (!o && !disconnecting) setDisconnectId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disconnettere il conto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Il consenso PSD2 viene revocato e il conto disattivato. I movimenti già importati restano salvati. Potrai ricollegarlo quando vuoi.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={disconnecting}>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); disconnectConnection(); }} disabled={disconnecting}>
+              {disconnecting ? "Disconnessione…" : "Disconnetti"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

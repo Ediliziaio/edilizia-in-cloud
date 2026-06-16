@@ -236,12 +236,21 @@ Deno.serve(async (req) => {
       case "sync": {
         const connId = p.connection_id;
         const { data: accounts } = await admin.from("bank_accounts")
-          .select("id, external_account_id").eq("company_id", companyId)
+          .select("id, external_account_id, connection_id").eq("company_id", companyId)
           .eq(connId ? "connection_id" : "company_id", connId ?? companyId);
-        let imported = 0; const debug: any[] = [];
+        let imported = 0; const debug: any[] = []; let expiredAny = false;
         const dateFrom = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
-        for (const acc of (accounts ?? []) as Array<{ id: string; external_account_id: string }>) {
+        for (const acc of (accounts ?? []) as Array<{ id: string; external_account_id: string; connection_id: string }>) {
           const { status, data } = await eb(`/accounts/${acc.external_account_id}/transactions?date_from=${dateFrom}`);
+          // 401/403 = consenso scaduto o revocato (PSD2 max 90gg) → segna la connessione da ricollegare.
+          if (status === 401 || status === 403) {
+            expiredAny = true;
+            await admin.from("bank_connections").update({
+              status: "expired", error_message: "Consenso scaduto o revocato. Ricollega il conto.",
+            }).eq("id", acc.connection_id);
+            debug.push({ account: acc.external_account_id, status, expired: true });
+            continue;
+          }
           if (status !== 200) { debug.push({ account: acc.external_account_id, status, data }); continue; }
           const txs = data.transactions || [];
           if (txs.length) {
@@ -264,7 +273,21 @@ Deno.serve(async (req) => {
         }
         const connUpd = admin.from("bank_connections").update({ last_sync_at: new Date().toISOString() }).eq("company_id", companyId);
         await (connId ? connUpd.eq("id", connId) : connUpd);
-        return json({ ok: true, imported, debug: debug.length ? debug : undefined });
+        return json({ ok: true, imported, expired: expiredAny || undefined, debug: debug.length ? debug : undefined });
+      }
+
+      // ── disconnetti / revoca consenso ─────────────────────────────────────
+      case "disconnect": {
+        if (!p.connection_id) return json({ error: "connection_id mancante" }, 400);
+        const { data: c } = await admin.from("bank_connections")
+          .select("provider_session_id").eq("company_id", companyId).eq("id", p.connection_id).maybeSingle();
+        const sid = (c as { provider_session_id?: string } | null)?.provider_session_id;
+        if (sid) { try { await eb(`/sessions/${sid}`, { method: "DELETE" }); } catch { /* revoca best-effort */ } }
+        await admin.from("bank_connections").update({ status: "disconnected", error_message: null })
+          .eq("company_id", companyId).eq("id", p.connection_id);
+        await admin.from("bank_accounts").update({ is_active: false })
+          .eq("company_id", companyId).eq("connection_id", p.connection_id);
+        return json({ ok: true });
       }
 
       default:
