@@ -14,6 +14,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { RoiSimulator } from "@/components/marketing/RoiSimulator";
+import { RoiSendEmailDialog } from "@/components/marketing/RoiSendEmailDialog";
+import { generateRoiPdf } from "@/lib/roiSimulatorPdf";
 import { DEFAULT_INPUTS, type RoiInputs, type RoiResults } from "@/lib/roiSimulator";
 import { useResellerPlans } from "@/hooks/useResellerPlans";
 import { useSaveRoiSimulation, useLatestRoiSimulation } from "@/hooks/useRoiSimulations";
@@ -27,6 +29,8 @@ interface RoiSimulatorDialogProps {
   contactId?: string | null;
   /** Nome cliente da precompilare (es. nome contatto o opportunità). */
   defaultClientName?: string;
+  /** Email del contatto, per precompilare il destinatario dell'invio (round 2). */
+  defaultContactEmail?: string | null;
 }
 
 export function RoiSimulatorDialog({
@@ -35,6 +39,7 @@ export function RoiSimulatorDialog({
   opportunityId,
   contactId,
   defaultClientName,
+  defaultContactEmail,
 }: RoiSimulatorDialogProps) {
   const { data: plans = [] } = useResellerPlans();
   const defaultMonthly = useMemo(() => {
@@ -62,6 +67,13 @@ export function RoiSimulatorDialog({
   if (!open && hydratedFor !== null) setHydratedFor(null);
 
   const saveSim = useSaveRoiSimulation();
+
+  // Round 2 — invio email: payload del riepilogo da spedire al cliente.
+  const [emailPayload, setEmailPayload] = useState<{
+    inputs: RoiInputs;
+    results: RoiResults;
+    clientName: string;
+  } | null>(null);
 
   const handleSave = async (payload: {
     inputs: RoiInputs;
@@ -102,7 +114,23 @@ export function RoiSimulatorDialog({
           onClientNameChange={setClientName}
           onSave={handleSave}
           saving={saveSim.isPending}
+          onExportPdf={({ inputs, results, clientName }) =>
+            generateRoiPdf(inputs, results, clientName)
+          }
+          onSendEmail={(payload) => setEmailPayload(payload)}
         />
+
+        {emailPayload && (
+          <RoiSendEmailDialog
+            open={!!emailPayload}
+            onOpenChange={(v) => !v && setEmailPayload(null)}
+            inputs={emailPayload.inputs}
+            results={emailPayload.results}
+            clientName={emailPayload.clientName}
+            defaultEmail={defaultContactEmail ?? null}
+            metadata={{ opportunity_id: opportunityId, contact_id: contactId ?? null }}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

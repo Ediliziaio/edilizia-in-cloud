@@ -1208,6 +1208,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
         opportunityId={opportunity.id}
         contactId={opportunity.contact_id ?? null}
         defaultClientName={fullName || opportunity.name || ""}
+        defaultContactEmail={contact?.email ?? null}
       />
     )}
     </>

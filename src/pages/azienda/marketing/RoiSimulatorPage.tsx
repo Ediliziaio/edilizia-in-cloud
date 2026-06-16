@@ -10,7 +10,9 @@
  */
 import { useMemo, useState } from "react";
 import { RoiSimulator } from "@/components/marketing/RoiSimulator";
-import { DEFAULT_INPUTS, type RoiInputs } from "@/lib/roiSimulator";
+import { RoiSendEmailDialog } from "@/components/marketing/RoiSendEmailDialog";
+import { generateRoiPdf } from "@/lib/roiSimulatorPdf";
+import { DEFAULT_INPUTS, type RoiInputs, type RoiResults } from "@/lib/roiSimulator";
 import { useResellerPlans } from "@/hooks/useResellerPlans";
 import { useSaveRoiSimulation } from "@/hooks/useRoiSimulations";
 import { useAuth } from "@/contexts/AuthContext";
@@ -74,6 +76,13 @@ export default function RoiSimulatorPage() {
   }
 
   const saveSim = useSaveRoiSimulation();
+
+  // Round 2 — invio email: payload + apertura dialog.
+  const [emailPayload, setEmailPayload] = useState<{
+    inputs: RoiInputs;
+    results: RoiResults;
+    clientName: string;
+  } | null>(null);
 
   const { data: contacts = [] } = useQuery({
     queryKey: ["roi-contact-picker", companyId, search],
@@ -194,7 +203,22 @@ export default function RoiSimulatorPage() {
         onClientNameChange={setClientName}
         onSave={handleSave}
         saving={saveSim.isPending}
+        onExportPdf={({ inputs, results, clientName }) =>
+          generateRoiPdf(inputs, results, clientName)
+        }
+        onSendEmail={(payload) => setEmailPayload(payload)}
       />
+
+      {emailPayload && (
+        <RoiSendEmailDialog
+          open={!!emailPayload}
+          onOpenChange={(v) => !v && setEmailPayload(null)}
+          inputs={emailPayload.inputs}
+          results={emailPayload.results}
+          clientName={emailPayload.clientName}
+          defaultEmail={linkedContact?.email ?? null}
+        />
+      )}
     </div>
   );
 }
