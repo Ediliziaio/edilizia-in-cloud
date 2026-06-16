@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, ChevronsUpDown, Plus } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Package, FileText } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,6 +31,8 @@ export interface ArticleTemplateData {
   vat_rate: number;
   supplier_id: string | null;
   description: string | null;
+  immagine_url: string | null;
+  pdf_scheda_url: string | null;
 }
 
 interface ArticleComboboxProps {
@@ -62,7 +64,7 @@ export function ArticleCombobox({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("article_templates")
-        .select("id, name, sku, category, unit_price, standard_cost, unit_of_measure, vat_rate, supplier_id, description")
+        .select("id, name, sku, category, unit_price, standard_cost, unit_of_measure, vat_rate, supplier_id, description, immagine_url, pdf_scheda_url")
         .eq("company_id", companyId!)
         .order("name");
       if (error) throw error;
@@ -146,7 +148,9 @@ export function ArticleCombobox({
             <CommandEmpty className="py-3 px-4 text-sm text-muted-foreground">
               {searchValue.trim()
                 ? <>Nessun articolo "{searchValue}" — premi <kbd className="px-1 py-0.5 mx-0.5 rounded border bg-muted text-[10px]">↩</kbd> o clicca sotto per crearne uno nuovo</>
-                : "Digita per cercare un articolo esistente o crearne uno nuovo"}
+                : templates.length === 0
+                  ? "Il catalogo articoli è vuoto. Digita un nome per aggiungerlo al volo (verrà salvato a catalogo), oppure popolalo in Impostazioni → Catalogo articoli con foto, scheda e prezzi."
+                  : "Digita per cercare, oppure scegli un articolo del catalogo qui sotto."}
             </CommandEmpty>
             <CommandGroup>
               {filteredTemplates.map((template) => (
@@ -154,24 +158,52 @@ export function ArticleCombobox({
                   key={template.id}
                   value={template.name}
                   onSelect={() => handleSelect(template)}
+                  className="items-start gap-2"
                 >
                   <Check
                     className={cn(
-                      "mr-2 h-4 w-4",
+                      "mt-1.5 h-4 w-4 shrink-0",
                       value === template.name ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  <div className="flex-1 min-w-0">
-                    <span>{template.name}</span>
-                    {template.sku && (
-                      <span className="ml-2 text-xs text-muted-foreground">({template.sku})</span>
-                    )}
-                  </div>
-                  {template.unit_price > 0 && (
-                    <span className="text-xs text-muted-foreground ml-2">
-                      €{template.unit_price.toFixed(2)}
-                    </span>
+                  {template.immagine_url ? (
+                    <img
+                      src={template.immagine_url}
+                      alt=""
+                      loading="lazy"
+                      className="h-9 w-9 rounded object-cover border shrink-0"
+                    />
+                  ) : (
+                    <div className="h-9 w-9 rounded bg-muted flex items-center justify-center shrink-0">
+                      <Package className="h-4 w-4 text-muted-foreground" />
+                    </div>
                   )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-medium truncate">{template.name}</span>
+                      {template.sku && (
+                        <span className="text-[10px] text-muted-foreground">({template.sku})</span>
+                      )}
+                      {template.category && (
+                        <span className="text-[10px] px-1.5 py-0 rounded-full bg-muted text-muted-foreground">
+                          {template.category}
+                        </span>
+                      )}
+                    </div>
+                    {template.description && (
+                      <p className="text-[11px] text-muted-foreground truncate">{template.description}</p>
+                    )}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {template.unit_price > 0 && (
+                        <span className="text-[11px] text-muted-foreground">€{template.unit_price.toFixed(2)}</span>
+                      )}
+                      {template.pdf_scheda_url && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-600">
+                          <FileText className="h-3 w-3" /> scheda
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </CommandItem>
               ))}
               {searchValue.trim() && !exactMatch && (

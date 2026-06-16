@@ -318,7 +318,7 @@ export function OrderItemsList({
     queryFn: async () => {
       let q = supabase
         .from("purchase_orders")
-        .select("id, oda_number, supplier_id, status, expected_delivery_date")
+        .select("id, oda_number, supplier_id, status, expected_delivery_date, total, created_at, suppliers:supplier_id(name)")
         .eq("company_id", companyId!)
         .neq("status", "annullato")
         .order("created_at", { ascending: false })
@@ -1049,12 +1049,24 @@ export function OrderItemsList({
                 <SelectItem value="none">
                   <span className="text-muted-foreground">Nessun ODA collegato</span>
                 </SelectItem>
-                {purchaseOrders.map((po: { id: string; oda_number?: string | null; status?: string | null; expected_delivery_date?: string | null }) => (
-                  <SelectItem key={po.id} value={po.id}>
-                    {po.oda_number || `ODA #${po.id.substring(0, 8)}`}
-                    {po.status && <span className="ml-2 text-xs text-muted-foreground">· {po.status}</span>}
-                  </SelectItem>
-                ))}
+                {purchaseOrders.map((po: { id: string; oda_number?: string | null; status?: string | null; total?: number | null; created_at?: string | null; suppliers?: { name?: string | null } | null }) => {
+                  const fornitore = po.suppliers?.name?.trim();
+                  const data = po.created_at ? new Date(po.created_at).toLocaleDateString("it-IT") : null;
+                  const meta = [fornitore, po.total != null ? formatCurrency(Number(po.total)) : null, data].filter(Boolean).join(" · ");
+                  return (
+                    <SelectItem key={po.id} value={po.id}>
+                      <div className="flex flex-col gap-0.5 py-0.5">
+                        <span className="flex items-center gap-1.5">
+                          <span className="font-medium">{po.oda_number || `ODA #${po.id.substring(0, 8)}`}</span>
+                          {po.status && (
+                            <span className="text-[10px] px-1.5 py-0 rounded-full bg-muted text-muted-foreground capitalize">{po.status}</span>
+                          )}
+                        </span>
+                        {meta && <span className="text-[11px] text-muted-foreground">{meta}</span>}
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
