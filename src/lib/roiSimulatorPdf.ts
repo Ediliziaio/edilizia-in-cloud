@@ -730,7 +730,7 @@ function investmentSection(p: PdfDoc, inputs: RoiInputs, results: RoiResults) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   const ctaHeadline = guadagna
-    ? `Smetti di perdere ${eur(results.guadagnoNettoAnnuo)} l'anno: attiva EdiliziaInCloud oggi.`
+    ? `Smetti di perdere ${eur(results.guadagnoNettoAnnuo)} ogni anno: attiva EdiliziaInCloud oggi.`
     : "Attiva EdiliziaInCloud e inizia a recuperare margine da subito.";
   doc.text(ctaHeadline, MARGIN + 6, p.y + 13, {
     maxWidth: CONTENT_W - 12,
