@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,7 @@ function getErrorMessage(error: unknown) {
 export default function Tesoreria() {
   const { effectiveCompany } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [syncing, setSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState(() => getSafeTab(searchParams));
   const [refreshKey, setRefreshKey] = useState(0);
@@ -109,14 +110,6 @@ export default function Tesoreria() {
     handleTabChange("connessioni");
     void handleConnectionChanged();
   }, [bankCallback, handleConnectionChanged, handleTabChange]);
-
-  // Callback Open Banking (Enable Banking): il consenso torna su
-  // /azienda/tesoreria?code=&state= → forziamo la tab "connessioni" così
-  // BankConnectionsCard viene montata e completa finalize + sync.
-  const hasBankCode = !!searchParams.get("code");
-  useEffect(() => {
-    if (hasBankCode) handleTabChange("connessioni");
-  }, [hasBankCode, handleTabChange]);
 
   async function handleSync() {
     if (!effectiveCompany?.id) {
@@ -186,36 +179,26 @@ export default function Tesoreria() {
             </div>
           </div>
         </div>
-        {activeTab !== "connessioni" && (
-          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/30 bg-muted/20 py-20 gap-5 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-              <Landmark className="h-8 w-8 text-primary" />
-            </div>
-            <div className="space-y-2 max-w-md">
-              <h2 className="text-xl font-semibold">Collega il tuo conto bancario</h2>
-              <p className="text-muted-foreground text-sm">
-                Connetti il tuo conto tramite Open Banking (PSD2) per visualizzare saldi, transazioni e riconciliare automaticamente i movimenti.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 justify-center text-xs text-muted-foreground">
-              <Badge variant="outline">Open Banking · PSD2</Badge>
-              <Badge variant="outline">Sicuro e crittografato</Badge>
-              <Badge variant="outline">Aggiornamento automatico</Badge>
-            </div>
-            <Button onClick={() => handleTabChange("connessioni")} className="mt-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
-              <Link className="h-4 w-4 mr-2" />
-              Collega primo conto
-            </Button>
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-muted-foreground/30 bg-muted/20 py-20 gap-5 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+            <Landmark className="h-8 w-8 text-primary" />
           </div>
-        )}
-        {activeTab === "connessioni" && (
-          <div className="space-y-4">
-            <Button variant="ghost" size="sm" onClick={() => handleTabChange("overview")}>
-              Torna alla panoramica
-            </Button>
-            <BankConnectionsCard redirectPath="/azienda/tesoreria" onChanged={handleConnectionChanged} />
+          <div className="space-y-2 max-w-md">
+            <h2 className="text-xl font-semibold">Collega il tuo conto bancario</h2>
+            <p className="text-muted-foreground text-sm">
+              Connetti il tuo conto tramite Open Banking (PSD2) per visualizzare saldi, transazioni e riconciliare automaticamente i movimenti. Il collegamento si gestisce in Impostazioni → Integrazioni.
+            </p>
           </div>
-        )}
+          <div className="flex flex-wrap gap-2 justify-center text-xs text-muted-foreground">
+            <Badge variant="outline">Open Banking · PSD2</Badge>
+            <Badge variant="outline">Sicuro e crittografato</Badge>
+            <Badge variant="outline">Aggiornamento automatico</Badge>
+          </div>
+          <Button onClick={() => navigate("/azienda/impostazioni/integrazioni")} className="mt-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm hover:from-orange-600 hover:to-amber-600">
+            <Link className="h-4 w-4 mr-2" />
+            Collega primo conto
+          </Button>
+        </div>
       </div>
     );
   }
@@ -283,7 +266,7 @@ export default function Tesoreria() {
           <TransactionsFeed companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
         </TabsContent>
         <TabsContent value="connessioni">
-          <BankConnectionsCard redirectPath="/azienda/tesoreria" onChanged={handleConnectionChanged} />
+          <BankConnectionsCard onChanged={handleConnectionChanged} />
         </TabsContent>
         <TabsContent value="riconciliazione">
           <BankReconciliation companyId={effectiveCompany?.id || ""} refreshKey={refreshKey} />
