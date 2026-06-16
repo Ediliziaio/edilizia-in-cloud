@@ -235,7 +235,11 @@ function OutreachCockpit() {
           </TabsContent>
 
         {/* ── POSTA ── */}
-        <TabsContent value="posta" className="mt-4">
+        {/* Full-bleed: la Posta è un vero client email e va a tutta larghezza/altezza.
+            Annulliamo il padding orizzontale del container di pagina (-mx-4 sm:-mx-6)
+            così le 3 colonne toccano i bordi dell'area contenuto invece di lasciare
+            margini vuoti ai lati. Solo questa TabsContent — le altre restano nel max-w. */}
+        <TabsContent value="posta" className="mt-3 -mx-4 sm:-mx-6">
           <OutreachMailClient companyId={companyId} />
         </TabsContent>
 

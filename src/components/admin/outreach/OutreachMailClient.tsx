@@ -14,7 +14,7 @@ import {
   Send, Loader2, Wand2, CheckCheck, Archive, Layers, PanelRightOpen, PanelRightClose,
   User, Phone, Tag, ShieldBan, Pause, Play, ThumbsUp, ThumbsDown, Clock, Briefcase,
   Activity, ShieldCheck, Check, XCircle, Ban, MessageSquareReply, X, CalendarClock, GitBranch, Sparkles,
-  AlarmClock, AlarmClockOff, Eye, PenSquare,
+  AlarmClock, AlarmClockOff, Eye, PenSquare, ChevronDown, ChevronRight, Gauge, Globe, Flame,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -35,6 +35,9 @@ import {
 } from "./useOutreachConversations";
 import { useReplySnippets, type ReplySnippet } from "./useReplySnippets";
 import { avatarTint } from "./outreachAvatar";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { isMissingColumnError } from "./_shared";
 
 /**
  * OutreachMailClient — client email a 3 pannelli dedicato al COLD outreach.
@@ -59,7 +62,118 @@ import { avatarTint } from "./outreachAvatar";
  * viewport corti. Le colonne (lista, thread, contesto) scrollano internamente; il
  * box risposta resta ancorato in fondo. Usata sia in loading sia a regime.
  */
-const MAIL_CLIENT_HEIGHT = "h-[calc(100vh-15rem)] min-h-[520px]";
+const MAIL_CLIENT_HEIGHT = "h-[calc(100vh-13rem)] min-h-[560px]";
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Pannello Caselle A SCALA — helper di presentazione (puri) + capacità pool.
+   Pensato per 100+ caselle su più domini: raggruppamento per dominio,
+   ricerca, riepilogo pool con capacità giornaliera stimata ONESTA.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/** Dominio di una casella (parte dopo la @, minuscola). "—" se non parsabile. */
+function senderDomain(email: string): string {
+  const at = email.lastIndexOf("@");
+  return at >= 0 ? email.slice(at + 1).toLowerCase() : "—";
+}
+
+/** Un dominio con le sue caselle, per il raggruppamento collassabile. */
+interface DomainGroup {
+  domain: string;
+  senders: SenderRow[];
+  /** Caselle non lette (somma) del gruppo, per il badge sull'header dominio. */
+  unread: number;
+}
+
+/**
+ * Raggruppa le caselle per dominio (dopo il filtro di ricerca). Ordina i domini
+ * per nome; dentro ogni dominio le caselle restano nell'ordine sorgente (email).
+ * Logica pura → testabile e niente lavoro in render oltre il memo del chiamante.
+ */
+function groupSendersByDomain(
+  senders: SenderRow[],
+  unreadBySender: Map<string, number>,
+): DomainGroup[] {
+  const map = new Map<string, DomainGroup>();
+  for (const s of senders) {
+    const domain = senderDomain(s.email);
+    let g = map.get(domain);
+    if (!g) { g = { domain, senders: [], unread: 0 }; map.set(domain, g); }
+    g.senders.push(s);
+    g.unread += unreadBySender.get(s.id) ?? 0;
+  }
+  return [...map.values()].sort((a, b) => a.domain.localeCompare(b.domain, "it"));
+}
+
+/** Etichetta di stato casella per il riepilogo (attiva/warming/in pausa/spenta). */
+const SENDER_STATE_BUCKET = (status: string): "active" | "warming" | "other" =>
+  status === "active" ? "active" : status === "warming" ? "warming" : "other";
+
+/** Capacità giornaliera (warmup-aware) di una casella, identica al Pool mittenti. */
+const CAP_BASE = 5;
+const CAP_STEP = 5;
+function senderDailyCap(row: { daily_cap_target: number | null; warmup_day: number | null }): number {
+  const target = row.daily_cap_target ?? 0;
+  const warm = CAP_BASE + (row.warmup_day ?? 0) * CAP_STEP;
+  return Math.max(0, Math.min(target || warm, warm));
+}
+
+interface SenderCapacityRow {
+  id: string;
+  daily_cap_target: number | null;
+  warmup_day: number | null;
+  daily_sent: number | null;
+}
+
+export interface PoolCapacity {
+  /** Capacità giornaliera stimata = somma dei cap warmup-aware delle caselle attive/warming. */
+  dailyCap: number;
+  /** Email già spedite oggi (somma daily_sent), per il residuo. */
+  sentToday: number;
+  /** Capacità residua oggi = max(0, dailyCap - sentToday). */
+  remaining: number;
+  /** True finché i dati cap non sono disponibili (loading o colonne assenti). */
+  unavailable: boolean;
+}
+
+/**
+ * useSenderCapacity — capacità giornaliera ONESTA del pool, in una query mirata
+ * e SELF-CONTAINED (non tocca useOutreachConversations): legge solo i campi cap
+ * di outreach_sender_accounts e somma il cap warmup-aware delle caselle che
+ * spediscono (active/warming). Best-effort: se le colonne non esistono (migrazione
+ * pool non applicata) torna `unavailable` e il riepilogo mostra solo i conteggi.
+ */
+function useSenderCapacity(companyId: string): PoolCapacity {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const q = useQuery({
+    queryKey: ["outreach-inbox-sender-capacity", companyId],
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("outreach_sender_accounts")
+        .select("id,status,daily_cap_target,warmup_day,daily_sent")
+        .eq("company_id", companyId);
+      if (error) {
+        if (isMissingColumnError(error)) return null; // colonne cap assenti → degrado soft
+        throw error;
+      }
+      return (data ?? []) as Array<SenderCapacityRow & { status: string }>;
+    },
+  });
+
+  return useMemo<PoolCapacity>(() => {
+    const rows = q.data;
+    if (!rows) return { dailyCap: 0, sentToday: 0, remaining: 0, unavailable: true };
+    let dailyCap = 0;
+    let sentToday = 0;
+    for (const r of rows) {
+      // Solo le caselle che spediscono concorrono alla capacità (le spente no).
+      if (r.status === "active" || r.status === "warming") dailyCap += senderDailyCap(r);
+      sentToday += r.daily_sent ?? 0;
+    }
+    return { dailyCap, sentToday, remaining: Math.max(0, dailyCap - sentToday), unavailable: false };
+  }, [q.data]);
+}
 
 export function OutreachMailClient({ companyId }: { companyId: string }) {
   const {
@@ -73,6 +187,7 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
 
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [search, setSearch] = useState("");
+  const [mailboxSearch, setMailboxSearch] = useState(""); // filtro caselle per email/dominio
   const [senderId, setSenderId] = useState<string | null>(null); // null = tutte le caselle
   const [sequenceId, setSequenceId] = useState<string | null>(null); // null = tutte le sequenze
   const [dateFilter, setDateFilter] = useState<DateFilter>("all"); // finestra ultima attività
@@ -119,6 +234,32 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
     }
     return m;
   }, [conversations]);
+
+  // ── Caselle a scala: capacità pool + ricerca + raggruppamento per dominio ──
+  // Capacità giornaliera stimata (query mirata, non tocca il hook conversazioni).
+  const capacity = useSenderCapacity(companyId);
+  // Filtro caselle per email/dominio (case-insensitive), poi raggruppo per dominio.
+  const mailboxQuery = mailboxSearch.trim().toLowerCase();
+  const filteredSenders = useMemo(
+    () => (mailboxQuery
+      ? senders.filter((s) => s.email.toLowerCase().includes(mailboxQuery))
+      : senders),
+    [senders, mailboxQuery],
+  );
+  const domainGroups = useMemo(
+    () => groupSendersByDomain(filteredSenders, unreadBySender),
+    [filteredSenders, unreadBySender],
+  );
+  // Riepilogo conteggi pool (sul totale caselle, non filtrato): attive/warming/totale.
+  const poolSummary = useMemo(() => {
+    let active = 0, warming = 0;
+    for (const s of senders) {
+      const b = SENDER_STATE_BUCKET(s.status);
+      if (b === "active") active++;
+      else if (b === "warming") warming++;
+    }
+    return { total: senders.length, active, warming, domains: new Set(senders.map((s) => senderDomain(s.email))).size };
+  }, [senders]);
 
   // ── Selezione multipla (derivata sulla lista FILTRATA corrente) ──
   // Conta solo le righe selezionate ancora presenti nel filtro, così la barra
@@ -237,8 +378,9 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
   if (isLoading) {
     return (
       <div className={cn(MAIL_CLIENT_HEIGHT, "flex overflow-hidden rounded-xl border border-border bg-muted/30 shadow-sm")}>
-        <div className="hidden w-[244px] shrink-0 space-y-2 border-r border-border bg-background p-3 lg:block">
+        <div className="hidden w-[268px] shrink-0 space-y-2 border-r border-border bg-background p-3 lg:block">
           <Skeleton className="h-4 w-24 rounded" />
+          <Skeleton className="h-8 w-full rounded-lg" />
           {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full rounded-lg" />)}
         </div>
         <div className="w-full space-y-1 border-r border-border bg-background p-3 md:w-[360px]">
@@ -276,20 +418,52 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
       {/* A ≥lg si mostra solo quando il contesto lead è chiuso: con il contesto aperto
           collassa nel selettore compatto in cima alla lista, lasciando spazio al thread. */}
       <aside className={cn(
-        "hidden w-[244px] shrink-0 flex-col border-r border-border bg-background",
+        "hidden w-[268px] shrink-0 flex-col border-r border-border bg-background",
         mailboxColumnVisible && "lg:flex",
       )}>
-        <div className="flex items-center gap-2 px-4 py-3.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <div className="flex items-center gap-2 px-3 py-3">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <Mailbox className="h-4 w-4" />
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h2 className="text-sm font-semibold leading-tight">Caselle</h2>
-            <p className="truncate text-[11px] text-muted-foreground">Filtra per mittente</p>
+            <p className="truncate text-[11px] text-muted-foreground">
+              {poolSummary.total > 0
+                ? `${poolSummary.total} ${poolSummary.total === 1 ? "casella" : "caselle"} · ${poolSummary.domains} domin${poolSummary.domains === 1 ? "io" : "i"}`
+                : "Filtra per mittente"}
+            </p>
           </div>
         </div>
+
+        {/* Ricerca caselle (email/dominio) — pensata per liste lunghe (100+). */}
+        {senders.length > 0 && (
+          <div className="px-3 pb-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={mailboxSearch}
+                onChange={(e) => setMailboxSearch(e.target.value)}
+                placeholder="Cerca casella o dominio…"
+                aria-label="Cerca casella"
+                className="h-8 rounded-lg border-border bg-muted/40 pl-8 pr-7 text-[12px] shadow-none focus-visible:bg-background"
+              />
+              {mailboxSearch && (
+                <button
+                  type="button"
+                  onClick={() => setMailboxSearch("")}
+                  className="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Pulisci ricerca caselle"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         <ScrollArea className="flex-1">
           <div className="space-y-0.5 px-2 pb-2">
+            {/* "Tutte le caselle" resta in cima come selezione globale. */}
             <MailboxButton
               active={senderId === null}
               onClick={() => selectSender(null)}
@@ -299,25 +473,43 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
               countTone="primary"
             />
             {senders.length === 0 ? (
-              <p className="px-2.5 py-3 text-[11px] leading-relaxed text-muted-foreground">
-                Nessuna casella configurata. Aggiungile in Deliverability → Pool mittenti.
+              <div className="flex flex-col items-center px-4 py-10 text-center">
+                <span className="mb-2.5 flex h-9 w-9 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <Mailbox className="h-4 w-4" />
+                </span>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Nessuna casella configurata. Aggiungile in <span className="font-medium text-foreground">Deliverability → Pool mittenti</span>.
+                </p>
+              </div>
+            ) : domainGroups.length === 0 ? (
+              <p className="px-2.5 py-6 text-center text-[11px] text-muted-foreground">
+                Nessuna casella corrisponde a “{mailboxSearch}”.
               </p>
             ) : (
-              senders.map((s) => (
-                <MailboxButton
-                  key={s.id}
-                  active={senderId === s.id}
-                  onClick={() => selectSender(s.id)}
-                  icon={<span className={cn("h-2 w-2 rounded-full", senderStatusColor(s.status))} title={s.status} />}
-                  title={s.email}
-                  badge={providerLabel(s.provider)}
-                  count={convCountBySender.get(s.id) || undefined}
-                  unread={unreadBySender.get(s.id) || undefined}
-                />
-              ))
+              <div className="mt-1 space-y-0.5">
+                {domainGroups.map((g) => (
+                  <DomainGroupBlock
+                    key={g.domain}
+                    group={g}
+                    activeSenderId={senderId}
+                    convCountBySender={convCountBySender}
+                    unreadBySender={unreadBySender}
+                    onSelect={selectSender}
+                    /* Con una ricerca attiva tutti i gruppi partono espansi (l'utente
+                       sta filtrando, vuole vedere i match). */
+                    defaultOpen={!!mailboxQuery || domainGroups.length <= 4}
+                  />
+                ))}
+              </div>
             )}
           </div>
         </ScrollArea>
+
+        {/* Riepilogo pool: riempie utilmente il fondo colonna anche con poche caselle. */}
+        {senders.length > 0 && (
+          <PoolSummaryCard summary={poolSummary} capacity={capacity} unreadTotal={counts.unread} />
+        )}
+
         <div className="space-y-2.5 border-t border-border bg-muted/30 p-3">
           <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Filtri</div>
           <FilterPills filter={filter} counts={counts} onChange={changeFilter} />
@@ -398,18 +590,36 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
               <span className="text-muted-foreground">cambia</span>
             </button>
             {showListMobile && (
-              <div className="mt-1 max-h-48 space-y-0.5 overflow-y-auto rounded-lg border border-border bg-background p-1.5 shadow-sm">
-                <MailboxButton active={senderId === null} onClick={() => selectSender(null)} icon={<Layers className="h-4 w-4" />} title="Tutte le caselle" />
-                {senders.map((s) => (
-                  <MailboxButton
-                    key={s.id}
-                    active={senderId === s.id}
-                    onClick={() => selectSender(s.id)}
-                    icon={<span className={cn("h-2 w-2 rounded-full", senderStatusColor(s.status))} />}
-                    title={s.email}
-                    badge={providerLabel(s.provider)}
-                  />
-                ))}
+              <div className="mt-1 rounded-lg border border-border bg-background p-1.5 shadow-sm">
+                {senders.length > 5 && (
+                  <div className="relative px-0.5 pb-1.5">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={mailboxSearch}
+                      onChange={(e) => setMailboxSearch(e.target.value)}
+                      placeholder="Cerca casella o dominio…"
+                      aria-label="Cerca casella"
+                      className="h-8 rounded-md border-border bg-muted/40 pl-8 text-[12px] shadow-none"
+                    />
+                  </div>
+                )}
+                <div className="max-h-64 space-y-0.5 overflow-y-auto">
+                  <MailboxButton active={senderId === null} onClick={() => selectSender(null)} icon={<Layers className="h-4 w-4" />} title="Tutte le caselle" count={counts.unread || undefined} countTone="primary" />
+                  {domainGroups.map((g) => (
+                    <DomainGroupBlock
+                      key={g.domain}
+                      group={g}
+                      activeSenderId={senderId}
+                      convCountBySender={convCountBySender}
+                      unreadBySender={unreadBySender}
+                      onSelect={selectSender}
+                      defaultOpen
+                    />
+                  ))}
+                  {domainGroups.length === 0 && (
+                    <p className="px-2 py-3 text-center text-[11px] text-muted-foreground">Nessuna casella trovata.</p>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -499,21 +709,31 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
           )}
         </div>
 
-        <ScrollArea className="flex-1">
-          {filtered.length === 0 ? (
-            <div className="flex flex-col items-center px-8 py-16 text-center">
-              <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                <Inbox className="h-5 w-5" />
-              </span>
-              <p className="max-w-[230px] text-sm text-muted-foreground">
-                {conversations.length === 0
-                  ? "Nessuna conversazione ancora. Le email inviate e le risposte compaiono qui."
-                  : activeSender
-                    ? "Nessuna conversazione per questa casella e questo filtro."
-                    : "Nessuna conversazione per questo filtro."}
-              </p>
-            </div>
-          ) : (
+        {filtered.length === 0 ? (
+          // Empty-state centrato verticalmente (riempie la colonna, niente metà bianca).
+          <div className="flex flex-1 flex-col items-center justify-center px-8 py-12 text-center">
+            <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <Inbox className="h-5 w-5" />
+            </span>
+            <p className="max-w-[230px] text-sm text-muted-foreground">
+              {conversations.length === 0
+                ? "Nessuna conversazione ancora. Le email inviate e le risposte compaiono qui."
+                : activeSender
+                  ? "Nessuna conversazione per questa casella e questo filtro."
+                  : "Nessuna conversazione per questo filtro."}
+            </p>
+            {conversations.length > 0 && (filter !== "all" || !!search || !!senderId) && (
+              <Button
+                variant="ghost" size="sm"
+                className="mt-3 h-7 gap-1.5 text-[11px] text-muted-foreground"
+                onClick={() => { changeFilter("all"); setSearch(""); selectSender(null); }}
+              >
+                <X className="h-3 w-3" /> Azzera filtri
+              </Button>
+            )}
+          </div>
+        ) : (
+          <ScrollArea className="flex-1">
             <ul className="space-y-0.5 p-2">
               {filtered.map((conv) => (
                 <ConversationRow
@@ -527,8 +747,8 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
                 />
               ))}
             </ul>
-          )}
-        </ScrollArea>
+          </ScrollArea>
+        )}
       </aside>
 
       {/* ═══ Thread + risposta (destra) ═══ */}
@@ -664,6 +884,153 @@ function MailboxButton({
         )}>{count}</span>
       ) : null}
     </button>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   DomainGroupBlock — header di dominio collassabile + caselle indentate.
+   Scala a molti domini/caselle: l'header mostra dominio, n° caselle e un badge
+   non-lette aggregato; cliccando si espande/collassa. Ogni casella è una riga
+   compatta con dot stato + provider + non-lette (riusa MailboxButton, indentato).
+   Stato open LOCALE (niente setState-in-effect): defaultOpen lo decide il parent.
+   ────────────────────────────────────────────────────────────────────────── */
+function DomainGroupBlock({
+  group, activeSenderId, convCountBySender, unreadBySender, onSelect, defaultOpen,
+}: {
+  group: DomainGroup;
+  activeSenderId: string | null;
+  convCountBySender: Map<string, number>;
+  unreadBySender: Map<string, number>;
+  onSelect: (id: string | null) => void;
+  defaultOpen: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  // La casella selezionata è in questo dominio → evidenzia l'header anche da chiuso.
+  const hasActive = group.senders.some((s) => s.id === activeSenderId);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "group/dom flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted/60",
+          hasActive && !open && "bg-primary/[0.06]",
+        )}
+        aria-expanded={open}
+        title={`${group.domain} · ${group.senders.length} ${group.senders.length === 1 ? "casella" : "caselle"}`}
+      >
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground">
+          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        </span>
+        <Globe className="h-3 w-3 shrink-0 text-muted-foreground/70" />
+        <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {group.domain}
+        </span>
+        <span className="shrink-0 rounded-full bg-muted px-1.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+          {group.senders.length}
+        </span>
+        {group.unread > 0 && (
+          <span
+            className="shrink-0 rounded-full bg-primary px-1.5 text-[10px] font-semibold tabular-nums text-primary-foreground"
+            title={`${group.unread} non lette in questo dominio`}
+          >
+            {group.unread}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="space-y-0.5 pl-3">
+          {group.senders.map((s) => (
+            <MailboxButton
+              key={s.id}
+              active={activeSenderId === s.id}
+              onClick={() => onSelect(s.id)}
+              icon={<span className={cn("h-2 w-2 rounded-full", senderStatusColor(s.status))} title={s.status} />}
+              title={s.email}
+              badge={providerLabel(s.provider)}
+              count={convCountBySender.get(s.id) || undefined}
+              unread={unreadBySender.get(s.id) || undefined}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   PoolSummaryCard — riepilogo compatto del pool in fondo alla colonna Caselle.
+   Riempie utilmente lo spazio anche con poche caselle: capacità giornaliera
+   stimata (warmup-aware, ONESTA), caselle attive/in warming, non-lette totali.
+   La capacità degrada con grazia se le colonne cap non sono disponibili.
+   ────────────────────────────────────────────────────────────────────────── */
+function PoolSummaryCard({
+  summary, capacity, unreadTotal,
+}: {
+  summary: { total: number; active: number; warming: number; domains: number };
+  capacity: PoolCapacity;
+  unreadTotal: number;
+}) {
+  const capPct = capacity.dailyCap > 0
+    ? Math.min(100, Math.round((capacity.sentToday / capacity.dailyCap) * 100))
+    : 0;
+  return (
+    <div className="space-y-2 border-t border-border bg-background px-3 py-2.5">
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <Gauge className="h-3.5 w-3.5" /> Pool
+      </div>
+      {/* Stato caselle: attive · warming · non-lette. */}
+      <div className="grid grid-cols-3 gap-1.5">
+        <PoolStat icon={<ShieldCheck className="h-3 w-3 text-emerald-600" />} value={summary.active} label="Attive" />
+        <PoolStat icon={<Flame className="h-3 w-3 text-amber-600" />} value={summary.warming} label="Warming" />
+        <PoolStat icon={<Mail className="h-3 w-3 text-primary" />} value={unreadTotal} label="Da leggere" tone={unreadTotal > 0 ? "primary" : "muted"} />
+      </div>
+      {/* Capacità giornaliera stimata (somma cap warmup-aware) + uso odierno. */}
+      {!capacity.unavailable && capacity.dailyCap > 0 ? (
+        <div className="rounded-lg border border-border bg-muted/30 px-2.5 py-2">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Capacità/giorno</span>
+            <span className="text-[11px] font-semibold tabular-nums text-foreground">
+              {capacity.remaining}<span className="font-normal text-muted-foreground">/{capacity.dailyCap}</span>
+            </span>
+          </div>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn("h-full rounded-full transition-all", capPct >= 100 ? "bg-amber-500" : "bg-primary")}
+              style={{ width: `${capPct}%` }}
+            />
+          </div>
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            {capacity.sentToday > 0 ? `${capacity.sentToday} inviate oggi · ` : ""}
+            {capacity.remaining} email residue
+          </p>
+        </div>
+      ) : (
+        <p className="text-[10px] leading-relaxed text-muted-foreground">
+          {summary.total} {summary.total === 1 ? "casella" : "caselle"} su {summary.domains} domin{summary.domains === 1 ? "io" : "i"}.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Mini-stat del riepilogo pool (icona + numero + etichetta). */
+function PoolStat({
+  icon, value, label, tone = "muted",
+}: {
+  icon: React.ReactNode;
+  value: number;
+  label: string;
+  tone?: "muted" | "primary";
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 px-1 py-1.5 text-center">
+      <div className="flex items-center justify-center gap-1">
+        {icon}
+        <span className={cn("text-sm font-semibold tabular-nums", tone === "primary" ? "text-primary" : "text-foreground")}>{value}</span>
+      </div>
+      <div className="mt-0.5 text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
+    </div>
   );
 }
 
