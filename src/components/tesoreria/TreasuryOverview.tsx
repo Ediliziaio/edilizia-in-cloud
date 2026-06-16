@@ -4,12 +4,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Wallet, TrendingUp, TrendingDown, ArrowUpDown, AlertTriangle, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Line, ComposedChart } from "recharts";
+import { Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Line, ComposedChart, PieChart, Pie, Cell } from "recharts";
 import { formatCurrencyCompact, formatDateIt } from "@/lib/formatters";
 import { toast } from "sonner";
 import { formatTreasuryCurrency, toFiniteAmount } from "@/lib/treasury";
 
 const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
+
+// Colori categoria (coerenti con le pill in Transazioni), per il donut delle uscite.
+const CATEGORY_COLORS: Record<string, string> = {
+  Stipendi: "#6366f1", Affitti: "#f59e0b", Fornitori: "#f97316", "Tasse & Tributi": "#ef4444",
+  Utenze: "#eab308", Assicurazioni: "#3b82f6", Ristorazione: "#ec4899", Trasferte: "#06b6d4",
+  Bancario: "#64748b", Clienti: "#22c55e", Entrata: "#10b981", "Non categorizzata": "#cbd5e1",
+};
+const categoryColor = (c: string) => CATEGORY_COLORS[c] ?? "#94a3b8";
 
 const monthLabels: Record<string, string> = {
   "01": "Gen", "02": "Feb", "03": "Mar", "04": "Apr", "05": "Mag", "06": "Giu",
@@ -25,6 +33,7 @@ interface Props {
 export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigateToTransactions }: Props) {
   const [summary, setSummary] = useState<any>(null);
   const [cashFlow, setCashFlow] = useState<any[]>([]);
+  const [byCategory, setByCategory] = useState<{ category: string; total: number }[]>([]);
   const [recentTxs, setRecentTxs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,9 +58,10 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
     setLoading(true);
     setError(null);
     try {
-      const [summaryRes, cashFlowRes, txRes] = await Promise.all([
+      const [summaryRes, cashFlowRes, catRes, txRes] = await Promise.all([
         supabase.rpc("get_treasury_summary", { p_company_id: companyId }),
         supabase.rpc("get_cash_flow_by_month", { p_company_id: companyId, p_months: 6 }),
+        supabase.rpc("get_expenses_by_category", { p_company_id: companyId, p_months: 3 }),
         supabase
           .from("bank_transactions")
           .select("id, booking_date, description, amount, transaction_type, category")
@@ -81,6 +91,12 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
             label: monthLabels[row.month?.split("-")[1]] || row.month,
           }))
         );
+      }
+
+      if (catRes.error) {
+        console.error("[TreasuryOverview] Errore spese per categoria:", catRes.error.message);
+      } else {
+        setByCategory((catRes.data || []).map((r: any) => ({ category: r.category, total: toFiniteAmount(r.total) })));
       }
 
       if (txRes.error) {
@@ -188,6 +204,41 @@ export default function TreasuryOverview({ companyId, refreshKey = 0, onNavigate
                 <Line type="monotone" dataKey="net" name="Netto" stroke="#3b82f6" strokeWidth={2} dot />
               </ComposedChart>
             </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Spese per categoria */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Spese per Categoria — Ultimi 3 Mesi</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {byCategory.length === 0 ? (
+            <p className="text-muted-foreground text-center py-12">
+              Nessuna uscita nel periodo. Categorizza i movimenti dalla scheda Transazioni per vedere la ripartizione.
+            </p>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 items-center">
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie data={byCategory} dataKey="total" nameKey="category" innerRadius={60} outerRadius={95} paddingAngle={2}>
+                    {byCategory.map((c) => <Cell key={c.category} fill={categoryColor(c.category)} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => formatEur(v)} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-2">
+                {(() => { const tot = byCategory.reduce((s, c) => s + c.total, 0); return byCategory.slice(0, 8).map((c) => (
+                  <div key={c.category} className="flex items-center gap-2 text-sm">
+                    <span className="h-3 w-3 rounded-sm shrink-0" style={{ backgroundColor: categoryColor(c.category) }} />
+                    <span className="flex-1 truncate">{c.category}</span>
+                    <span className="text-muted-foreground tabular-nums w-10 text-right">{tot ? Math.round((c.total / tot) * 100) : 0}%</span>
+                    <span className="font-medium tabular-nums w-24 text-right">{formatEur(c.total)}</span>
+                  </div>
+                )); })()}
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
