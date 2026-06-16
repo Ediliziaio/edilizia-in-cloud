@@ -37,7 +37,7 @@ import {
 import {
   Search, ChevronRight, ChevronLeft, FileText, RectangleVertical, Sun,
   Inbox, X, Target, TrendingUp, Clock, FileCheck2, Euro,
-  SlidersHorizontal, Download, Loader2,
+  SlidersHorizontal, Download, Loader2, Hammer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, isSameMonth } from "date-fns";
@@ -52,10 +52,11 @@ import {
   mapClassicoStato,
   mapSerramentiStato,
   mapFotovoltaicoStato,
+  mapRistrutturazioneStato,
   type UnifiedStato,
 } from "@/lib/preventivi/statoUnificato";
 
-export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico";
+export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione";
 export type { UnifiedStato };
 
 export interface UnifiedRow {
@@ -73,9 +74,10 @@ export interface UnifiedRow {
 }
 
 export const TIPO_LABEL: Record<PreventivoTipo, { label: string; className: string; color: string; Icon: React.ComponentType<{ className?: string }> }> = {
-  classico:     { label: "Classico",     className: "bg-slate-100 text-slate-700 border-slate-200",     color: "#64748b", Icon: FileText },
-  serramenti:   { label: "Serramenti",   className: "bg-orange-100 text-orange-700 border-orange-200", color: "#f97316", Icon: RectangleVertical },
-  fotovoltaico: { label: "Fotovoltaico", className: "bg-amber-100 text-amber-800 border-amber-200",    color: "#f59e0b", Icon: Sun },
+  classico:         { label: "Classico",         className: "bg-slate-100 text-slate-700 border-slate-200",   color: "#64748b", Icon: FileText },
+  serramenti:       { label: "Serramenti",       className: "bg-orange-100 text-orange-700 border-orange-200", color: "#f97316", Icon: RectangleVertical },
+  fotovoltaico:     { label: "Fotovoltaico",     className: "bg-amber-100 text-amber-800 border-amber-200",    color: "#f59e0b", Icon: Sun },
+  ristrutturazione: { label: "Ristrutturazione", className: "bg-teal-100 text-teal-700 border-teal-200",       color: "#0d9488", Icon: Hammer },
 };
 
 export const STATO_UNIF_LABEL: Record<UnifiedStato, { label: string; className: string }> = {
@@ -139,6 +141,10 @@ export function UnifiedPreventiviList() {
   );
   const fotovoltaicoEnabled = useMemo(
     () => moduli.find((m) => m.modulo.slug === "fotovoltaico")?.isEnabled ?? false,
+    [moduli],
+  );
+  const ristrutturazioneEnabled = useMemo(
+    () => moduli.find((m) => m.modulo.slug === "ristrutturazione")?.isEnabled ?? false,
     [moduli],
   );
 
@@ -222,6 +228,29 @@ export function UnifiedPreventiviList() {
           ? [r.cliente.first_name, r.cliente.last_name].filter(Boolean).join(" ") || null
           : null,
       }));
+    },
+  });
+
+  const { data: ristrutturazioneData = [], isLoading: loadingRistrutturazione } = useQuery({
+    queryKey: ["unified-prev-ristrutturazione", companyId],
+    enabled: !!companyId && ristrutturazioneEnabled,
+    queryFn: async () => {
+      // Tabella rst_* non ancora nei tipi generati → query via (supabase as any),
+      // stesso pattern di sr_progetti. La vista DB v_preventivi_unificati
+      // (migration locale 20271001010000) rispecchia questo merge lato server.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("rst_progetti")
+        .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
+        .eq("company_id", companyId!)
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .limit(1000);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null;
+        stato: string; totale: number | null;
+        created_by: string | null; created_at: string; updated_at: string | null;
+      }>;
     },
   });
 
@@ -311,8 +340,22 @@ export function UnifiedPreventiviList() {
         href: `/azienda/marketing/fotovoltaico/${f.id}`,
       });
     }
+    for (const r of ristrutturazioneData) {
+      rows.push({
+        id: r.id, tipo: "ristrutturazione",
+        numero: r.code ?? "—",
+        cliente: [r.cliente_nome, r.cliente_cognome].filter(Boolean).join(" ") || "—",
+        commerciale_id: r.created_by,
+        commerciale_nome: r.created_by ? commercialeNameById.get(r.created_by) ?? null : null,
+        stato_unif: mapRistrutturazioneStato(r.stato),
+        stato_raw: r.stato,
+        totale: r.totale != null ? Number(r.totale) : null,
+        data: r.updated_at ?? r.created_at,
+        href: `/azienda/ristrutturazione/${r.id}/modifica`,
+      });
+    }
     return rows;
-  }, [quotesData, serramentiData, fvData, commercialeNameById]);
+  }, [quotesData, serramentiData, fvData, ristrutturazioneData, commercialeNameById]);
 
   // ─── KPI globali (su dataset completo) ───────────────────────────────────
   const kpi = useMemo(() => {
@@ -363,12 +406,13 @@ export function UnifiedPreventiviList() {
 
   // ─── Chart data: distribuzione per tipo ─────────────────────────────────
   const tipoDist = useMemo(() => {
-    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0 };
+    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0, ristrutturazione: 0 };
     allRows.forEach((r) => { counts[r.tipo]++; });
     return [
-      { name: "Classico",     value: counts.classico,     color: TIPO_LABEL.classico.color },
-      { name: "Serramenti",   value: counts.serramenti,   color: TIPO_LABEL.serramenti.color },
-      { name: "Fotovoltaico", value: counts.fotovoltaico, color: TIPO_LABEL.fotovoltaico.color },
+      { name: "Classico",         value: counts.classico,         color: TIPO_LABEL.classico.color },
+      { name: "Serramenti",       value: counts.serramenti,       color: TIPO_LABEL.serramenti.color },
+      { name: "Fotovoltaico",     value: counts.fotovoltaico,     color: TIPO_LABEL.fotovoltaico.color },
+      { name: "Ristrutturazione", value: counts.ristrutturazione, color: TIPO_LABEL.ristrutturazione.color },
     ].filter((d) => d.value > 0);
   }, [allRows]);
 
@@ -440,7 +484,8 @@ export function UnifiedPreventiviList() {
     return out;
   }, [allRows, search, statoTab, filters]);
 
-  // Reset pagina su cambio filtri
+  // Reset pagina su cambio filtri (reset intenzionale di stato derivato).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setPage(1); }, [search, statoTab, filters]);
 
   // ─── Paginazione ─────────────────────────────────────────────────────────
@@ -530,7 +575,7 @@ export function UnifiedPreventiviList() {
     }
   };
 
-  const isLoading = loadingQuotes || loadingSerramenti || loadingFv;
+  const isLoading = loadingQuotes || loadingSerramenti || loadingFv || loadingRistrutturazione;
 
   const tabCounts = {
     all: allRows.length,
@@ -560,6 +605,7 @@ export function UnifiedPreventiviList() {
             quotesData.length > 0 ? `${quotesData.length} classici` : null,
             serramentiData.length > 0 ? `${serramentiData.length} serramenti` : null,
             fvData.length > 0 ? `${fvData.length} fotovoltaico` : null,
+            ristrutturazioneData.length > 0 ? `${ristrutturazioneData.length} ristrutturazione` : null,
           ].filter(Boolean).join(" · ") || "totale preventivi"} />
         </div>
       </div>
@@ -861,6 +907,7 @@ export function UnifiedPreventiviList() {
         commerciali={commercialiOptions}
         serramentiEnabled={serramentiEnabled}
         fotovoltaicoEnabled={fotovoltaicoEnabled}
+        ristrutturazioneEnabled={ristrutturazioneEnabled}
         totalResults={filtered.length}
       />
     </div>

@@ -155,6 +155,9 @@ const FotovoltaicoDettaglio = lazy(() => import("@/pages/azienda/fotovoltaico/Fo
 // Modulo Preventivatore Serramenti
 const SerramentiIndex = lazy(() => import("@/pages/azienda/serramenti/SerramentiIndex"));
 const SerramentiWizard = lazy(() => import("@/pages/azienda/serramenti/SerramentiWizard"));
+// Modulo Ristrutturazione (gating come Serramenti: permission-based, no feature flag DB)
+const RistrutturazioneIndex = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneIndex"));
+const RistrutturazioneWizard = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneWizard"));
 const ListiniFornitoriPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.ListiniFornitoriPage })),
 );
@@ -358,7 +361,6 @@ const OnboardingPage = lazy(() => import("@/pages/azienda/OnboardingPage"));
 const OnboardingVertical = lazy(() => import("@/pages/azienda/onboarding/OnboardingVertical"));
 const ReportisticaPage = lazy(() => import("@/pages/azienda/ReportisticaPage"));
 const SalesOSDashboard = lazy(() => import("@/pages/azienda/marketing/SalesOSDashboard"));
-const RoiSimulatorPage = lazy(() => import("@/pages/azienda/marketing/RoiSimulatorPage"));
 const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookFormsPage"));
 const AdsManagerBeta = lazy(() => import("@/pages/azienda/marketing/AdsManagerBeta"));
 const SocialManagerBeta = lazy(() => import("@/pages/azienda/marketing/SocialManagerBeta"));
@@ -759,8 +761,6 @@ export default function CompanyRoutesContainer() {
         <Route path="sms-marketing/template" element={<Navigate to="/azienda/sms?tab=template" replace />} />
         <Route path="marketing/analisi-preventivi" element={<Navigate to="/azienda/marketing/preventivi?tab=analisi" replace />} />
         <Route path="marketing/sales-os" element={withCompanyPermission("canViewSalesOs", <FeatureRoute featureKey="sales_os"><SalesOSDashboard /></FeatureRoute>)} />
-        {/* Simulatore ROI di vendita — strumento da usare in trattativa. */}
-        <Route path="marketing/simulatore-roi" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><RoiSimulatorPage /></FeatureRoute>)} />
         {/* Modulo Fotovoltaico — gated da feature flag modulo_fotovoltaico_attivo */}
         <Route path="marketing/fotovoltaico" element={
           <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
@@ -799,6 +799,26 @@ export default function CompanyRoutesContainer() {
           withCompanyPermission(
             "canEditMarketingOpportunities",
             <ErrorBoundary title="Errore wizard Serramenti"><SerramentiWizard /></ErrorBoundary>,
+          )
+        } />
+        {/* Modulo Ristrutturazione — stesso guard di Serramenti (permission-based,
+            nessun FeatureRoute/feature flag DB): visibile e usabile da subito. */}
+        <Route path="ristrutturazione" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore modulo Ristrutturazione"><RistrutturazioneIndex /></ErrorBoundary>,
+          )
+        } />
+        <Route path="ristrutturazione/nuovo" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Ristrutturazione"><RistrutturazioneWizard /></ErrorBoundary>,
+          )
+        } />
+        <Route path="ristrutturazione/:id/modifica" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Ristrutturazione"><RistrutturazioneWizard /></ErrorBoundary>,
           )
         } />
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />

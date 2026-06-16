@@ -364,7 +364,13 @@ html { scroll-behavior: smooth; }
 
 /* ── Capacitor native app safe-area padding ────────────────── */
 /* Applied when running inside iOS/Android native shell.
-   The app bootstrap adds the `capacitor` class on <html>. */
+   The app bootstrap adds the `capacitor` class on <html>.
+   Il body riserva GLOBALMENTE le safe-area via padding (rete di sicurezza per i
+   layout che non gestiscono il top da soli). ATTENZIONE: i layout a piena altezza
+   NON devono usare `h-[100dvh]` secco (verrebbe spostato sotto dal padding-top →
+   bottom-nav tagliata) né riaggiungere `pt-safe` in testa (raddoppia l'inset →
+   spazio bianco). Usare `h-[calc(100dvh - env(safe-area-inset-top))]` per il root e
+   lasciare che il padding-top del body posizioni l'header sotto la status bar. */
 html.capacitor body {
   min-height: 100dvh;
   padding-top: env(safe-area-inset-top, 0px);

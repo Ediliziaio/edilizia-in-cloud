@@ -11,11 +11,12 @@
  */
 
 import type { LucideIcon } from "lucide-react";
-import { Sun, PanelTop, Home, Bath, Layers, Thermometer } from "lucide-react";
+import { Sun, PanelTop, Home, Bath, Layers, Thermometer, Hammer } from "lucide-react";
 
 export type ModuloVendutaSlug =
   | "fotovoltaico"
   | "serramenti"
+  | "ristrutturazione"
   | "tetti"
   | "bagni"
   | "cappotto"
@@ -24,6 +25,7 @@ export type ModuloVendutaSlug =
 export type ModuloFeatureKey =
   | "modulo_fotovoltaico_attivo"
   | "modulo_serramenti_attivo"
+  | "modulo_ristrutturazione_attivo"
   | "modulo_tetti_attivo"
   | "modulo_bagni_attivo"
   | "modulo_cappotto_attivo"
@@ -98,6 +100,25 @@ export const MODULI_VENDITA: readonly ModuloVendutaConfig[] = [
       "Ecobonus 50/65% + cashflow 10 anni",
       "Cronoprogramma lavori automatico",
       "Import diretto dal sopralluogo Infissi",
+    ],
+    prezzoMensile: 149,
+  },
+  {
+    slug: "ristrutturazione",
+    nome: "Ristrutturazione",
+    tagline: "Computo metrico + preventivo ristrutturazioni",
+    descrizione:
+      "Preventivatore ristrutturazioni chiavi in mano: computo metrico premium dai listini aziendali (prodotti + manodopera), capitoli e voci con margini live, gestione cantiere/immobile e preventivo PDF brandizzato pronto per il cliente, integrato col CRM EiC.",
+    icon: Hammer,
+    flag: "modulo_ristrutturazione_attivo",
+    href: "/azienda/ristrutturazione",
+    availability: "available",
+    benefici: [
+      "Computo metrico per capitoli con ricalcolo live",
+      "Listini prodotti e manodopera aziendali integrati",
+      "Margini per voce/capitolo sotto controllo",
+      "Gestione cantiere, immobile e media",
+      "Preventivo PDF brandizzato a più pagine",
     ],
     prezzoMensile: 149,
   },

@@ -1659,13 +1659,16 @@ export function CompanyLayout() {
   return (
     <>
     <SidebarProvider>
-      <div className="min-h-screen md:min-h-screen flex w-full md:h-auto h-[100dvh] overflow-hidden">
+      <div className="md:min-h-screen flex w-full md:h-auto h-[calc(100dvh-env(safe-area-inset-top))] overflow-hidden">
         <CompanySidebar />
-        {/* pt-safe: in PWA standalone iOS (status-bar translucent + viewport-fit=cover) l'header
-            finiva sotto notch/orologio. In browser e su nativo Capacitor env()=0 → no-op. */}
+        {/* NIENTE pt-safe qui: il top safe-area è già riservato UNA volta dal
+            padding-top del body (html.capacitor body). Aggiungerlo qui lo
+            raddoppierebbe → grande spazio bianco in alto su notch/Dynamic Island.
+            Il root sopra usa h-[calc(100dvh - env(top))] così non straborda sotto
+            (la bottom-nav resta visibile sopra l'home indicator). */}
         {/* relative: ancora la bottom-nav pillola (absolute) al fondo del
             container — overlay sul contenuto, niente fascia di layout. */}
-        <div className="relative flex-1 flex flex-col min-w-0 overflow-hidden pt-safe">
+        <div className="relative flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Skip to main content — keyboard / screen-reader accessibility */}
           <a
             href="#main-content"

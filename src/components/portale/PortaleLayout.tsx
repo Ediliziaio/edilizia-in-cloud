@@ -31,8 +31,11 @@ export function PortaleLayout({ children, cliente, token }: PortaleLayoutProps) 
   return (
     <div className="flex flex-col min-h-[100dvh] bg-gray-50">
       {/* Header */}
+      {/* NIENTE env(safe-area-inset-top) qui: in app nativa il padding-top del body
+          (html.capacitor body) riserva già il notch UNA volta; sommarlo qui lo
+          raddoppiava → spazio bianco. In web env()=0, resta solo 0.75rem. */}
       <header className="flex-none bg-[#1E3A5F] px-4 pb-3 flex items-center justify-between"
-        style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}
+        style={{ paddingTop: "0.75rem" }}
       >
         <div className="flex items-center gap-3">
           <div>

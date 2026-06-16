@@ -308,7 +308,8 @@ export function MobileBottomNav() {
       // padding-bottom equivalente per la raggiungibilità dell'ultimo elemento.
       className="pointer-events-none absolute inset-x-0 bottom-0 z-40 bg-transparent px-3 md:hidden"
       style={{
-        paddingBottom: "calc(env(safe-area-inset-bottom) + 8px)",
+        // +16px: la pillola sta leggermente più in alto, staccata dall'home indicator.
+        paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)",
       }}
       aria-label="Navigazione principale"
     >

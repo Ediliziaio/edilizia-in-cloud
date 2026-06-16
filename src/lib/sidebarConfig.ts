@@ -37,7 +37,6 @@ import {
   MessagesSquare,
   Sparkles,
   PieChart,
-  Calculator,
   Workflow,
   LayoutGrid,
   ShieldAlert,
@@ -186,7 +185,6 @@ export const macroAreas: MacroArea[] = [
       { title: "Calendario CRM", url: "/azienda/marketing/calendario", icon: CalendarDays, permissionKey: "canViewMarketingAppointments", featureKey: "crm_modulo" },
       { title: "Sales OS", url: "/azienda/marketing/sales-os", icon: Gauge, permissionKey: "canViewSalesOs", featureKey: "sales_os" },
       { title: "Reportistica", url: "/azienda/marketing/reportistica", icon: PieChart, permissionKey: "canViewMarketingReports", featureKey: "marketing_reporting" },
-      { title: "Simulatore ROI", url: "/azienda/marketing/simulatore-roi", icon: Calculator, permissionKey: "canViewMarketingOpportunities", featureKey: "crm_modulo" },
       // ─── Marketing ───
       { title: "Pubblicità", url: "/azienda/marketing/pubblicita", icon: Megaphone, permissionKey: "canViewMarketingDashboard", isBeta: true, groupLabel: "Marketing" },
       { title: "Gestione Social", url: "/azienda/marketing/social", icon: Share2, permissionKey: "canViewMarketingDashboard" },

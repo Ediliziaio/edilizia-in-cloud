@@ -30,11 +30,11 @@ export interface UseModuliVenditaResult {
 }
 
 /**
- * Hook che risolve in parallelo i 6 feature flag dei moduli di vendita
+ * Hook che risolve in parallelo i 7 feature flag dei moduli di vendita
  * verticali per la company corrente e produce le view-model pronte da
  * renderizzare nel grid del tab "Moduli Vendita".
  *
- * Implementazione: chiama 6 useFeatureAccess in ordine fisso (regola degli
+ * Implementazione: chiama 7 useFeatureAccess in ordine fisso (regola degli
  * hook React rispettata grazie alla lista statica MODULI_VENDITA readonly).
  *
  * Performance: ogni useFeatureAccess è cached da React Query con la stessa
@@ -46,14 +46,15 @@ export function useModuliVendita(): UseModuliVenditaResult {
   // tra render. Questo garantisce la stability della chiamata hooks.
   const fotovoltaico = useFeatureAccess(MODULI_VENDITA[0].flag);
   const serramenti = useFeatureAccess(MODULI_VENDITA[1].flag);
-  const tetti = useFeatureAccess(MODULI_VENDITA[2].flag);
-  const bagni = useFeatureAccess(MODULI_VENDITA[3].flag);
-  const cappotto = useFeatureAccess(MODULI_VENDITA[4].flag);
-  const pompeCalore = useFeatureAccess(MODULI_VENDITA[5].flag);
+  const ristrutturazione = useFeatureAccess(MODULI_VENDITA[2].flag);
+  const tetti = useFeatureAccess(MODULI_VENDITA[3].flag);
+  const bagni = useFeatureAccess(MODULI_VENDITA[4].flag);
+  const cappotto = useFeatureAccess(MODULI_VENDITA[5].flag);
+  const pompeCalore = useFeatureAccess(MODULI_VENDITA[6].flag);
 
   const accessByIndex = useMemo(
-    () => [fotovoltaico, serramenti, tetti, bagni, cappotto, pompeCalore],
-    [fotovoltaico, serramenti, tetti, bagni, cappotto, pompeCalore],
+    () => [fotovoltaico, serramenti, ristrutturazione, tetti, bagni, cappotto, pompeCalore],
+    [fotovoltaico, serramenti, ristrutturazione, tetti, bagni, cappotto, pompeCalore],
   );
 
   return useMemo<UseModuliVenditaResult>(() => {

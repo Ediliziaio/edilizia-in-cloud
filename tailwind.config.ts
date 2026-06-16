@@ -180,7 +180,7 @@ export default {
         "marquee": "marquee 25s linear infinite",
         "sidebar-slide-down": "sidebar-slide-down 200ms ease-out forwards",
         "sidebar-slide-up": "sidebar-slide-up 200ms ease-out forwards",
-        "scan": "scan 2s ease-in-out infinite",
+        "scan": "scan 1.4s linear infinite",
         "silvio-breathe": "silvio-breathe 3.5s ease-in-out infinite",
         "silvio-bob": "silvio-bob 1.4s ease-in-out infinite",
         "silvio-ring": "silvio-ring 1.8s ease-out infinite",
