@@ -28,7 +28,7 @@ import { toast } from "sonner";
 import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
   Palette, FileText, Sparkles, ListChecks, Quote, Clock, Building2,
-  Eye, EyeOff, BadgeEuro, AlertTriangle,
+  Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { RichTextEditorSafe } from "@/components/ui/rich-text-editor-safe";
+import { useRistrutturazionePDF } from "@/hooks/useRistrutturazionePDF";
 import {
   useRstTemplatePdf,
   useUpsertRstTemplatePdf,
@@ -48,6 +50,7 @@ import {
 } from "@/hooks/useRistrutturazioneProgetto";
 import type {
   RstTemplatePdf, RstListItem, RstTestimonianza, RstCronoFase,
+  RstProgetto, RstComputoVoce,
 } from "@/types/ristrutturazione";
 
 const BUCKET = "company-photo-library";
@@ -101,6 +104,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
   // Probe: il modulo è pubblicato sul DB? Se no, l'editor mostra comunque i default
   // (vedi getRstTemplatePdf) + un banner, e il salvataggio segnala che serve pubblicare.
   const { data: backendReady } = useRstBackendReady();
+  const { previewPDF, isGenerating: isPreviewing } = useRistrutturazionePDF();
 
   const [form, setForm] = useState<FormState | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -133,6 +137,42 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
         description: e instanceof Error ? e.message : "Errore sconosciuto",
       });
     }
+  };
+
+  // Anteprima dal vivo del PDF cliente: usa il template in editing + dati di
+  // esempio. `previewPDF` non rilegge le tabelle rst_* (passiamo il template) →
+  // funziona anche con il modulo non ancora pubblicato sul DB.
+  const handlePreview = async () => {
+    if (!form || !companyId) return;
+    const template: RstTemplatePdf = { id: "preview", company_id: companyId, ...form };
+    const row = (
+      i: number, cap: string, descrizione: string,
+      um: RstComputoVoce["unita_misura"], q: number, p: number, cm: number, cl: number,
+    ): RstComputoVoce => ({
+      id: String(i), progetto_id: "preview", company_id: companyId, capitolo_nome: cap, descrizione,
+      unita_misura: um, quantita: q, prezzo_unitario: p, costo_materiali: cm, costo_manodopera: cl,
+      sconto_pct: 0, importo: q * p, margine_eur: q * (p - cm - cl),
+      margine_pct: p > 0 ? ((p - cm - cl) / p) * 100 : 0, listino_voce_id: null, ordine: i,
+    });
+    const progetto: RstProgetto = {
+      id: "preview", company_id: companyId, code: "ANTEPRIMA", stato: "bozza",
+      tipo_intervento: "Ristrutturazione completa",
+      cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,
+      cantiere_indirizzo: "Via Roma 1", cantiere_citta: "Milano", cantiere_provincia: "MI", cantiere_cap: "20100",
+      immobile_tipo: "Appartamento", immobile_superficie_mq: 90, immobile_anno: 1975, immobile_piani: 1,
+      opportunita_id: null, cliente_id: null, template_id: null,
+      sconto_pct: 0, iva_pct: 10, detrazione_pct: 50,
+      totale_imponibile: 0, totale: 0, note: null,
+    };
+    const computo: RstComputoVoce[] = [
+      row(0, "Demolizioni e rimozioni", "Demolizione tramezzi interni", "mq", 25, 18, 2, 10),
+      row(1, "Demolizioni e rimozioni", "Rimozione pavimenti esistenti", "mq", 90, 12, 1, 6),
+      row(2, "Opere edili", "Nuove pareti divisorie in cartongesso", "mq", 40, 28, 8, 12),
+      row(3, "Impianti", "Rifacimento impianto elettrico certificato", "corpo", 1, 6500, 2000, 2500),
+      row(4, "Impianti", "Rifacimento impianto idraulico", "corpo", 1, 4200, 1500, 1500),
+      row(5, "Finiture", "Posa pavimento gres porcellanato", "mq", 90, 42, 22, 14),
+    ];
+    await previewPDF({ progetto, computo, media: [], template });
   };
 
   if (isLoading || !form) {
@@ -222,11 +262,11 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label className="text-xs">Testo presentazione</Label>
-            <Textarea
+            <RichTextEditorSafe
               value={form.chi_siamo ?? ""}
-              onChange={(e) => set("chi_siamo", e.target.value)}
+              onChange={(html) => set("chi_siamo", html)}
               placeholder="Da oltre 20 anni realizziamo ristrutturazioni complete..."
-              rows={6}
+              minHeight={160}
             />
           </div>
           <ImageUploadField
@@ -296,11 +336,11 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label className="text-xs">Modalità di pagamento</Label>
-            <Textarea
+            <RichTextEditorSafe
               value={form.payment_terms_text ?? ""}
-              onChange={(e) => set("payment_terms_text", e.target.value)}
+              onChange={(html) => set("payment_terms_text", html)}
               placeholder="30% all'accettazione, 40% a metà lavori, 30% a fine lavori..."
-              rows={3}
+              minHeight={100}
             />
           </div>
           <div className="space-y-1.5">
@@ -341,14 +381,26 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
         <span className={cn("text-[11px]", dirty ? "text-amber-600" : "text-muted-foreground")}>
           {dirty ? "Modifiche non salvate" : "Tutto salvato"}
         </span>
-        <Button
-          onClick={() => void handleSave()}
-          disabled={!dirty || upsert.isPending}
-          className="gap-1.5 bg-orange-500 hover:bg-orange-600"
-        >
-          {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Salva template
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void handlePreview()}
+            disabled={isPreviewing}
+            className="gap-1.5"
+          >
+            {isPreviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSearch className="h-4 w-4" />}
+            Anteprima PDF
+          </Button>
+          <Button
+            onClick={() => void handleSave()}
+            disabled={!dirty || upsert.isPending}
+            className="gap-1.5 bg-orange-500 hover:bg-orange-600"
+          >
+            {upsert.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Salva template
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -28,6 +28,41 @@ import {
 import { formatCurrency } from "@/lib/formatters";
 import type { RstPdfEnriched, RstPdfCapitolo, RstPdfTotali } from "@/hooks/useRistrutturazionePDF";
 import type { RstProgetto, RstTemplatePdf } from "@/types/ristrutturazione";
+import { htmlToRichBlocks, type RstRichRun } from "@/lib/ristrutturazione/richTextPdf";
+
+// ─── Rich text → @react-pdf ──────────────────────────────────────────────────
+// Impagina l'HTML prodotto dall'editor WYSIWYG (o il testo semplice "legacy") in
+// paragrafi + elenchi puntati, con grassetto/corsivo inline. Logica pura e testata
+// in `richTextPdf.ts`; qui solo il rendering in primitive @react-pdf.
+function richRunStyle(r: RstRichRun): Record<string, unknown> {
+  return { ...(r.bold ? { fontWeight: 700 } : {}), ...(r.italic ? { fontStyle: "italic" } : {}) };
+}
+function RichText({ html, style }: { html: string | null | undefined; style?: Record<string, unknown> }) {
+  const blocks = htmlToRichBlocks(html);
+  if (!blocks.length) return null;
+  return (
+    <View>
+      {blocks.map((b, i) =>
+        b.type === "bullet" ? (
+          <View key={i} style={{ flexDirection: "row", marginBottom: 2, paddingRight: 4 }}>
+            <Text style={[style ?? {}, { width: 11 }]}>•</Text>
+            <Text style={[style ?? {}, { flex: 1 }]}>
+              {b.runs.map((r, j) => (
+                <Text key={j} style={richRunStyle(r)}>{r.text}</Text>
+              ))}
+            </Text>
+          </View>
+        ) : (
+          <Text key={i} style={[style ?? {}, { marginBottom: 3 }]}>
+            {b.runs.map((r, j) => (
+              <Text key={j} style={richRunStyle(r)}>{r.text}</Text>
+            ))}
+          </Text>
+        ),
+      )}
+    </View>
+  );
+}
 
 // Helvetica built-in: nessuna registrazione di rete (no CORS/network failure).
 const FF = "Helvetica";
@@ -616,7 +651,7 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
               <Text style={styles.sectionTitle}>Chi siamo</Text>
               <View style={{ flexDirection: "row" }}>
                 <View style={{ flex: t.chi_siamo_foto_url ? 1.6 : 1 }}>
-                  <Text style={styles.condText}>{t.chi_siamo}</Text>
+                  <RichText html={t.chi_siamo} style={styles.condText} />
                 </View>
                 {t.chi_siamo_foto_url ? (
                   <View style={{ flex: 1, paddingLeft: 12 }}>
@@ -735,7 +770,7 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
           {(t.payment_terms_text ?? "").trim() ? (
             <View style={styles.condBlock}>
               <Text style={styles.condTitle}>Modalità di pagamento</Text>
-              <Text style={styles.condText}>{t.payment_terms_text}</Text>
+              <RichText html={t.payment_terms_text} style={styles.condText} />
             </View>
           ) : null}
           <View style={styles.condBlock}>
