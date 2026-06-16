@@ -33,6 +33,7 @@ import {
   Percent,
   Settings,
   Sparkles,
+  CalendarClock,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,7 @@ const typeConfig: Record<string, { icon: typeof Bell; bg: string; fg: string }> 
   quote_approval_approved: { icon: Percent, bg: "bg-emerald-50 ring-emerald-200", fg: "text-emerald-600" },
   quote_approval_rejected: { icon: Percent, bg: "bg-rose-50 ring-rose-200", fg: "text-rose-600" },
   quote_approval_counter_proposed: { icon: Percent, bg: "bg-blue-50 ring-blue-200", fg: "text-blue-600" },
+  hr_scadenza: { icon: CalendarClock, bg: "bg-amber-50 ring-amber-200", fg: "text-amber-600" },
   generic: { icon: Bell, bg: "bg-slate-50 ring-slate-200", fg: "text-slate-600" },
 };
 

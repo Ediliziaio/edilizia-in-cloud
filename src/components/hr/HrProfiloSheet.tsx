@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUpdateHrProfilo } from "@/hooks/useOrganigramma";
 import { useCreateHrProfilo } from "@/hooks/useCreateHrProfilo";
 import { useHrSedi } from "@/hooks/useHrSedi";
 import type { HrProfilo } from "@/types/hr";
-import { Save, Loader2 } from "lucide-react";
+import { HrDocumentiSection } from "@/components/hr/HrDocumentiSection";
+import { HrAssenzeSection } from "@/components/hr/HrAssenzeSection";
+import { Save, Loader2, Info } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
@@ -62,10 +65,14 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
   const createMutation = useCreateHrProfilo();
   const { data: sedi = [] } = useHrSedi();
   const isEditing = !!profilo;
+  const [tab, setTab] = useState("anagrafica");
 
   const { register, handleSubmit, reset, setValue, watch } = useForm<Partial<HrProfilo>>({
     defaultValues: profilo || {},
   });
+
+  // Torna sempre alla scheda anagrafica quando si apre un profilo diverso.
+  useEffect(() => { if (open) setTab("anagrafica"); }, [open, profilo?.id]);
 
   const descendantIds = useMemo(() => {
     if (!profilo?.id) return new Set<string>();
@@ -181,277 +188,215 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-lg p-0">
+      <SheetContent className="w-full sm:max-w-2xl p-0 flex flex-col">
         <SheetHeader className="px-6 pt-6 pb-2">
-          <SheetTitle>{isEditing ? "Modifica Profilo HR" : "Nuovo Profilo HR"}</SheetTitle>
+          <SheetTitle>{isEditing ? `${profilo?.nome} ${profilo?.cognome}` : "Nuovo Profilo HR"}</SheetTitle>
         </SheetHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-[calc(100%-80px)]">
-          <ScrollArea className="flex-1 px-6">
-            <div className="space-y-6 pb-6">
-              {/* Dati Personali */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3">DATI PERSONALI</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Nome *</Label>
-                    <Input {...register("nome")} required />
-                  </div>
-                  <div>
-                    <Label>Cognome *</Label>
-                    <Input {...register("cognome")} required />
-                  </div>
-                  <div>
-                    <Label>Codice Fiscale</Label>
-                    <Input {...register("codice_fiscale")} />
-                  </div>
-                  <div>
-                    <Label>Data Nascita</Label>
-                    <Input type="date" {...register("data_nascita")} />
-                  </div>
-                  <div>
-                    <Label>Luogo Nascita</Label>
-                    <Input {...register("luogo_nascita")} />
-                  </div>
-                  <div>
-                    <Label>Nazionalità</Label>
-                    <Input {...register("nazionalita")} />
-                  </div>
-                  <div>
-                    <Label>Email</Label>
-                    <Input type="email" {...register("email")} />
-                  </div>
-                  <div>
-                    <Label>Telefono</Label>
-                    <Input {...register("telefono")} />
-                  </div>
-                </div>
-              </div>
 
-              <Separator />
+        <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col min-h-0">
+          <TabsList className="mx-6 self-start">
+            <TabsTrigger value="anagrafica">Anagrafica</TabsTrigger>
+            <TabsTrigger value="documenti" disabled={!isEditing}>Documenti & Scadenze</TabsTrigger>
+            <TabsTrigger value="assenze" disabled={!isEditing}>Assenze</TabsTrigger>
+          </TabsList>
 
-              {/* Organigramma */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3">ORGANIGRAMMA</h4>
-                <div className="grid grid-cols-2 gap-3">
+          {/* ── ANAGRAFICA ──────────────────────────────────────────────── */}
+          <TabsContent value="anagrafica" className="flex-1 min-h-0 m-0">
+            <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full">
+              <ScrollArea className="flex-1 px-6">
+                <div className="space-y-6 py-4">
+                  {/* Dati Personali */}
                   <div>
-                    <Label>Mansione</Label>
-                    <Input {...register("mansione")} />
-                  </div>
-                  <div>
-                    <Label>Reparto</Label>
-                    <Input {...register("reparto")} />
-                  </div>
-                  <div className="col-span-2">
-                    <Label>Responsabile</Label>
-                    <select
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      {...register("responsabile_id")}
-                    >
-                      <option value="">Nessuno (root)</option>
-                      {allProfili
-                        .filter((p) => p.id !== profilo?.id && !descendantIds.has(p.id))
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.nome} {p.cognome} {p.mansione ? `(${p.mansione})` : ""}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <div>
-                    <Label>Sede HR</Label>
-                    <select
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      {...register("sede_id")}
-                    >
-                      <option value="">Nessuna sede</option>
-                      {sedi.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.nome}{!s.attiva ? " (inattiva)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <Label>Colore Avatar</Label>
-                    <Input type="color" {...register("colore_avatar")} className="h-10 p-1" />
-                  </div>
-                  <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2">
-                    <div>
-                      <Label>Profilo attivo</Label>
-                      <p className="text-xs text-muted-foreground">I profili inattivi restano nello storico ma non compaiono nei flussi operativi.</p>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">DATI PERSONALI</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label>Nome *</Label><Input {...register("nome")} required /></div>
+                      <div><Label>Cognome *</Label><Input {...register("cognome")} required /></div>
+                      <div><Label>Codice Fiscale</Label><Input {...register("codice_fiscale")} /></div>
+                      <div>
+                        <Label>Sesso</Label>
+                        <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("sesso")}>
+                          <option value="">—</option><option value="M">M</option><option value="F">F</option><option value="Altro">Altro</option>
+                        </select>
+                      </div>
+                      <div><Label>Data Nascita</Label><Input type="date" {...register("data_nascita")} /></div>
+                      <div><Label>Luogo Nascita</Label><Input {...register("luogo_nascita")} /></div>
+                      <div><Label>Nazionalità</Label><Input {...register("nazionalita")} /></div>
+                      <div><Label>Stato civile</Label><Input {...register("stato_civile")} /></div>
                     </div>
-                    <Switch checked={watch("attivo") ?? true} onCheckedChange={(checked) => setValue("attivo", checked)} />
+                  </div>
+
+                  <Separator />
+
+                  {/* Residenza & Recapiti */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">RESIDENZA & RECAPITI</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2"><Label>Indirizzo</Label><Input {...register("indirizzo")} /></div>
+                      <div><Label>Città</Label><Input {...register("citta_residenza")} /></div>
+                      <div><Label>CAP</Label><Input {...register("cap_residenza")} /></div>
+                      <div><Label>Email</Label><Input type="email" {...register("email")} /></div>
+                      <div><Label>Telefono</Label><Input {...register("telefono")} /></div>
+                      <div><Label>Email privata</Label><Input type="email" {...register("email_privata")} /></div>
+                      <div><Label>Telefono privato</Label><Input {...register("telefono_privato")} /></div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Organigramma */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">ORGANIGRAMMA</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label>Mansione</Label><Input {...register("mansione")} /></div>
+                      <div><Label>Reparto</Label><Input {...register("reparto")} /></div>
+                      <div className="col-span-2">
+                        <Label>Responsabile</Label>
+                        <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("responsabile_id")}>
+                          <option value="">Nessuno (root)</option>
+                          {allProfili.filter((p) => p.id !== profilo?.id && !descendantIds.has(p.id)).map((p) => (
+                            <option key={p.id} value={p.id}>{p.nome} {p.cognome} {p.mansione ? `(${p.mansione})` : ""}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <Label>Sede HR</Label>
+                        <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("sede_id")}>
+                          <option value="">Nessuna sede</option>
+                          {sedi.map((s) => (<option key={s.id} value={s.id}>{s.nome}{!s.attiva ? " (inattiva)" : ""}</option>))}
+                        </select>
+                      </div>
+                      <div><Label>Colore Avatar</Label><Input type="color" {...register("colore_avatar")} className="h-10 p-1" /></div>
+                      <div className="col-span-2 flex items-center justify-between rounded-md border px-3 py-2">
+                        <div>
+                          <Label>Profilo attivo</Label>
+                          <p className="text-xs text-muted-foreground">I profili inattivi restano nello storico ma non compaiono nei flussi operativi.</p>
+                        </div>
+                        <Switch checked={watch("attivo") ?? true} onCheckedChange={(checked) => setValue("attivo", checked)} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Contratto */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">CONTRATTO</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Tipo Contratto</Label>
+                        <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("tipo_contratto")}>
+                          {TIPO_CONTRATTO_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                        </select>
+                      </div>
+                      <div><Label>CCNL</Label><Input {...register("ccnl")} /></div>
+                      <div><Label>Livello</Label><Input {...register("livello_ccnl")} /></div>
+                      <div><Label>Matricola</Label><Input {...register("matricola")} /></div>
+                      <div><Label>Data Assunzione</Label><Input type="date" {...register("data_assunzione")} /></div>
+                      <div><Label>Data Cessazione</Label><Input type="date" {...register("data_cessazione")} /></div>
+                      <div className="col-span-2"><Label>IBAN</Label><Input {...register("iban")} /></div>
+                    </div>
+                    {isEditing && (
+                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                        <Info className="h-3 w-3" /> Carica il contratto firmato nella scheda <b>Documenti &amp; Scadenze</b>.
+                      </p>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Orario */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">ORARIO DI LAVORO</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Tipo Orario</Label>
+                        <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("orario_tipo")}>
+                          {ORARIO_TIPO_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                        </select>
+                      </div>
+                      <div><Label>Ore Settimanali</Label><Input type="number" step="0.5" {...register("ore_settimanali", { valueAsNumber: true })} /></div>
+                      <div><Label>Ore Giornaliere</Label><Input type="number" step="0.5" {...register("ore_giornaliere", { valueAsNumber: true })} /></div>
+                      <div><Label>Pausa Pranzo (min)</Label><Input type="number" {...register("pausa_pranzo_minuti", { valueAsNumber: true })} /></div>
+                      <div><Label>Orario Inizio</Label><Input type="time" {...register("orario_inizio")} /></div>
+                      <div><Label>Orario Fine</Label><Input type="time" {...register("orario_fine")} /></div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Ferie */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">FERIE & PERMESSI</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label>Ferie Annuali (gg)</Label><Input type="number" step="0.5" {...register("ferie_anno_giorni", { valueAsNumber: true })} /></div>
+                      <div><Label>Ferie Residue (gg)</Label><Input type="number" step="0.5" {...register("ferie_residue", { valueAsNumber: true })} /></div>
+                      <div><Label>Permessi Annuali (ore)</Label><Input type="number" step="0.5" {...register("permessi_anno_ore", { valueAsNumber: true })} /></div>
+                      <div><Label>Permessi Residui (ore)</Label><Input type="number" step="0.5" {...register("permessi_residui_ore", { valueAsNumber: true })} /></div>
+                      <div><Label>ROL Annuali (ore)</Label><Input type="number" step="0.5" {...register("rol_anno_ore", { valueAsNumber: true })} /></div>
+                      <div><Label>ROL Residui (ore)</Label><Input type="number" step="0.5" {...register("rol_residuo_ore", { valueAsNumber: true })} /></div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Contatto Emergenza */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">CONTATTO EMERGENZA</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label>Nome</Label><Input {...register("contatto_emergenza_nome")} /></div>
+                      <div><Label>Telefono</Label><Input {...register("contatto_emergenza_telefono")} /></div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Badge */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-3">BADGE & ACCESSI</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div><Label>Badge ID</Label><Input {...register("badge_id")} /></div>
+                      <div><Label>PIN Timbratura</Label><Input {...register("pin_timbratura")} type="password" /></div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Note */}
+                  <div>
+                    <Label>Note Interne</Label>
+                    <Textarea {...register("note_interne")} rows={3} />
                   </div>
                 </div>
+              </ScrollArea>
+
+              <div className="border-t px-6 py-4 flex gap-2 justify-end">
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Annulla</Button>
+                <Button type="submit" disabled={isPending}>
+                  {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                  {isEditing ? "Salva" : "Crea Profilo"}
+                </Button>
               </div>
+            </form>
+          </TabsContent>
 
-              <Separator />
+          {/* ── DOCUMENTI & SCADENZE ────────────────────────────────────── */}
+          <TabsContent value="documenti" className="flex-1 min-h-0 m-0">
+            <ScrollArea className="h-full px-6"><div className="py-4">
+              {isEditing && profilo
+                ? <HrDocumentiSection profiloId={profilo.id} companyId={profilo.company_id} />
+                : <p className="text-sm text-muted-foreground py-8 text-center">Salva prima il profilo per gestire i documenti.</p>}
+            </div></ScrollArea>
+          </TabsContent>
 
-              {/* Contratto */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3">CONTRATTO</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Tipo Contratto</Label>
-                    <select
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      {...register("tipo_contratto")}
-                    >
-                      {TIPO_CONTRATTO_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <Label>CCNL</Label>
-                    <Input {...register("ccnl")} />
-                  </div>
-                  <div>
-                    <Label>Livello</Label>
-                    <Input {...register("livello_ccnl")} />
-                  </div>
-                  <div>
-                    <Label>Matricola</Label>
-                    <Input {...register("matricola")} />
-                  </div>
-                  <div>
-                    <Label>Data Assunzione</Label>
-                    <Input type="date" {...register("data_assunzione")} />
-                  </div>
-                  <div>
-                    <Label>Data Cessazione</Label>
-                    <Input type="date" {...register("data_cessazione")} />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Orario */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3">ORARIO DI LAVORO</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Tipo Orario</Label>
-                    <select
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      {...register("orario_tipo")}
-                    >
-                      {ORARIO_TIPO_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <Label>Ore Settimanali</Label>
-                    <Input type="number" step="0.5" {...register("ore_settimanali", { valueAsNumber: true })} />
-                  </div>
-                  <div>
-                    <Label>Ore Giornaliere</Label>
-                    <Input type="number" step="0.5" {...register("ore_giornaliere", { valueAsNumber: true })} />
-                  </div>
-                  <div>
-                    <Label>Pausa Pranzo (min)</Label>
-                    <Input type="number" {...register("pausa_pranzo_minuti", { valueAsNumber: true })} />
-                  </div>
-                  <div>
-                    <Label>Orario Inizio</Label>
-                    <Input type="time" {...register("orario_inizio")} />
-                  </div>
-                  <div>
-                    <Label>Orario Fine</Label>
-                    <Input type="time" {...register("orario_fine")} />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Ferie */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3">FERIE & PERMESSI</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Ferie Annuali (gg)</Label>
-                    <Input type="number" step="0.5" {...register("ferie_anno_giorni", { valueAsNumber: true })} />
-                  </div>
-                  <div>
-                    <Label>Ferie Residue (gg)</Label>
-                    <Input type="number" step="0.5" {...register("ferie_residue", { valueAsNumber: true })} />
-                  </div>
-                  <div>
-                    <Label>Permessi Annuali (ore)</Label>
-                    <Input type="number" step="0.5" {...register("permessi_anno_ore", { valueAsNumber: true })} />
-                  </div>
-                  <div>
-                    <Label>Permessi Residui (ore)</Label>
-                    <Input type="number" step="0.5" {...register("permessi_residui_ore", { valueAsNumber: true })} />
-                  </div>
-                  <div>
-                    <Label>ROL Annuali (ore)</Label>
-                    <Input type="number" step="0.5" {...register("rol_anno_ore", { valueAsNumber: true })} />
-                  </div>
-                  <div>
-                    <Label>ROL Residui (ore)</Label>
-                    <Input type="number" step="0.5" {...register("rol_residuo_ore", { valueAsNumber: true })} />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Contatto Emergenza */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3">CONTATTO EMERGENZA</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Nome</Label>
-                    <Input {...register("contatto_emergenza_nome")} />
-                  </div>
-                  <div>
-                    <Label>Telefono</Label>
-                    <Input {...register("contatto_emergenza_telefono")} />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Badge */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3">BADGE & ACCESSI</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Badge ID</Label>
-                    <Input {...register("badge_id")} />
-                  </div>
-                  <div>
-                    <Label>PIN Timbratura</Label>
-                    <Input {...register("pin_timbratura")} type="password" />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Note */}
-              <div>
-                <Label>Note Interne</Label>
-                <Textarea {...register("note_interne")} rows={3} />
-              </div>
-            </div>
-          </ScrollArea>
-
-          <div className="border-t px-6 py-4 flex gap-2 justify-end">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Annulla
-            </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-              {isEditing ? "Salva" : "Crea Profilo"}
-            </Button>
-          </div>
-        </form>
+          {/* ── ASSENZE & MALATTIE ──────────────────────────────────────── */}
+          <TabsContent value="assenze" className="flex-1 min-h-0 m-0">
+            <ScrollArea className="h-full px-6"><div className="py-4">
+              {isEditing && profilo
+                ? <HrAssenzeSection profiloId={profilo.id} companyId={profilo.company_id} />
+                : <p className="text-sm text-muted-foreground py-8 text-center">Salva prima il profilo per registrare le assenze.</p>}
+            </div></ScrollArea>
+          </TabsContent>
+        </Tabs>
       </SheetContent>
     </Sheet>
   );

@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useAllHrProfili } from "@/hooks/useOrganigramma";
+import { useHrScadenzeCounts } from "@/hooks/useHrDocumenti";
 import type { HrProfilo } from "@/types/hr";
 import { HrProfiloSheet } from "@/components/hr/HrProfiloSheet";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Users, UserCheck, UserX, Briefcase, Mail, Phone } from "lucide-react";
+import { Plus, Search, Users, UserCheck, UserX, Briefcase, Mail, Phone, AlertTriangle } from "lucide-react";
+
+type ScadCount = { scaduti: number; inScadenza: number };
 
 const CONTRATTO_LABELS: Record<string, string> = {
   indeterminato: "Indeterminato",
@@ -24,6 +27,7 @@ const CONTRATTO_LABELS: Record<string, string> = {
 
 export function TabProfili() {
   const { data: profili = [], isLoading } = useAllHrProfili();
+  const { data: scadCounts } = useHrScadenzeCounts();
   const [search, setSearch] = useState("");
   const [filterStato, setFilterStato] = useState<"tutti" | "attivi" | "cessati">("tutti");
   const [filterReparto, setFilterReparto] = useState<string>("tutti");
@@ -124,7 +128,7 @@ export function TabProfili() {
       ) : (
         <div className="space-y-2">
           {filtered.map((p) => (
-            <ProfiloRow key={p.id} profilo={p} onClick={() => handleEdit(p)} />
+            <ProfiloRow key={p.id} profilo={p} scad={scadCounts?.get(p.id)} onClick={() => handleEdit(p)} />
           ))}
         </div>
       )}
@@ -134,7 +138,7 @@ export function TabProfili() {
   );
 }
 
-function ProfiloRow({ profilo: p, onClick }: { profilo: HrProfilo; onClick: () => void }) {
+function ProfiloRow({ profilo: p, scad, onClick }: { profilo: HrProfilo; scad?: ScadCount; onClick: () => void }) {
   return (
     <Card className={`cursor-pointer hover:shadow-md transition-shadow ${!p.attivo ? "opacity-60" : ""}`} onClick={onClick}>
       <CardContent className="p-3 flex items-center gap-3">
@@ -152,6 +156,16 @@ function ProfiloRow({ profilo: p, onClick }: { profilo: HrProfilo; onClick: () =
             <span className="font-medium text-sm">{p.nome} {p.cognome}</span>
             {p.matricola && <Badge variant="outline" className="text-xs font-mono">{p.matricola}</Badge>}
             {!p.attivo && <Badge variant="secondary" className="text-xs">Cessato</Badge>}
+            {scad && scad.scaduti > 0 && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-red-100 text-red-700 border-red-200 gap-1">
+                <AlertTriangle className="h-3 w-3" />{scad.scaduti} scadut{scad.scaduti === 1 ? "o" : "i"}
+              </Badge>
+            )}
+            {scad && scad.inScadenza > 0 && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 border-amber-200">
+                {scad.inScadenza} in scadenza
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5 flex-wrap">
             {p.mansione && <span className="flex items-center gap-1"><Briefcase className="h-3 w-3" />{p.mansione}</span>}
