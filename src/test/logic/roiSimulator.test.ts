@@ -70,7 +70,7 @@ describe("computeRoi — scenario di default", () => {
   });
 
   it("softwareEliminato = softwareMensile * 12", () => {
-    expect(r.softwareEliminato).toBe(80 * 12); // 960
+    expect(r.softwareEliminato).toBe(180 * 12); // 2160
   });
 
   it("canoneAnno = abbonamentoMensile * 12", () => {
@@ -82,24 +82,24 @@ describe("computeRoi — scenario di default", () => {
   });
 
   it("costoInazioneAnnuo = valoreGenerato + softwareEliminato", () => {
-    expect(r.costoInazioneAnnuo).toBeCloseTo(19565 + 960, 5); // 20525
+    expect(r.costoInazioneAnnuo).toBeCloseTo(19565 + 2160, 5); // 21725
   });
 
   it("guadagnoNettoAnnuo = costoInazione - canone", () => {
-    expect(r.guadagnoNettoAnnuo).toBeCloseTo(20525 - 1788, 5); // 18737
+    expect(r.guadagnoNettoAnnuo).toBeCloseTo(21725 - 1788, 5); // 19937
   });
 
   it("guadagnoNettoMensile = annuo/12, giornaliero = annuo/365", () => {
-    expect(r.guadagnoNettoMensile).toBeCloseTo(18737 / 12, 5);
-    expect(r.guadagnoNettoGiornaliero).toBeCloseTo(18737 / 365, 5);
+    expect(r.guadagnoNettoMensile).toBeCloseTo(19937 / 12, 5);
+    expect(r.guadagnoNettoGiornaliero).toBeCloseTo(19937 / 365, 5);
   });
 
   it("roiMultiplo = guadagnoNetto / canone (ogni 1€ → X€)", () => {
-    expect(r.roiMultiplo).toBeCloseTo(18737 / 1788, 5); // ~10.48
+    expect(r.roiMultiplo).toBeCloseTo(19937 / 1788, 5); // ~11.15
   });
 
   it("paybackGiorni = round(365 * canone / guadagnoNetto)", () => {
-    expect(r.paybackGiorni).toBe(Math.round((365 * 1788) / 18737)); // 35
+    expect(r.paybackGiorni).toBe(Math.round((365 * 1788) / 19937)); // 33
   });
 });
 
@@ -122,6 +122,14 @@ describe("computeRoi — array leve (breakdown)", () => {
     const margine = computeRoi(build()).leve.find((l) => l.key === "margine");
     expect(margine?.label).toBe("Controllo di gestione e margini");
     expect(margine?.funzione).toContain("conto economico");
+  });
+
+  it("la leva software riflette l'intero stack sostituito (label + funzione)", () => {
+    const software = computeRoi(build()).leve.find((l) => l.key === "software");
+    expect(software?.label).toBe("Strumenti e abbonamenti eliminati");
+    // La funzione nomina la breadth della piattaforma, non solo "il gestionale".
+    expect(software?.funzione).toContain("marketing");
+    expect(software?.funzione).toContain("call center");
   });
 
   it("la leva crescita compare SOLO quando > 0", () => {
@@ -280,6 +288,8 @@ describe("DEFAULT — costanti coerenti con la spec", () => {
     expect(DEFAULT_INPUTS.fatturatoAnnuo).toBe(400000);
     expect(DEFAULT_INPUTS.abbonamentoMensile).toBe(149);
     expect(DEFAULT_INPUTS.abilitaCrescita).toBe(false);
+    // Stack realistico (gestionale + marketing + email/SMS/WhatsApp + CRM + …).
+    expect(DEFAULT_INPUTS.softwareMensile).toBe(180);
   });
 
   it("DEFAULT_ASSUMPTIONS coerenti (settimane 47, margine 2%)", () => {

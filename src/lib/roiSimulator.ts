@@ -43,7 +43,9 @@ export interface RoiInputs {
   fatturatoAnnuo: number;
   /** Margine medio attuale % (solo contesto, non entra nel calcolo). */
   marginePct: number;
-  /** Costo dei software/gestionali attuali, €/mese (eliminati con EiC). */
+  /** Costo dell'intero stack di strumenti/abbonamenti attuali, €/mese
+   * (gestionale, marketing, email/SMS/WhatsApp, CRM, timbrature, call center…),
+   * tutti eliminati con EiC. */
   softwareMensile: number;
 
   // ── Tempo perso ogni settimana (ore) ──
@@ -158,7 +160,9 @@ export const DEFAULT_INPUTS: RoiInputs = {
   // Azienda
   fatturatoAnnuo: 400000,
   marginePct: 12,
-  softwareMensile: 80,
+  // Stack realistico oggi: gestionale + marketing + email/SMS/WhatsApp + CRM +
+  // timbrature + call center → tutti sostituiti da EdiliziaInCloud.
+  softwareMensile: 180,
   // Tempo perso (h/sett)
   oreFatturazione: 3,
   orePreventivi: 3,
@@ -258,25 +262,25 @@ export function computeRoi(inputs: Partial<RoiInputs>): RoiResults {
     {
       key: "margine",
       label: "Controllo di gestione e margini",
-      funzione: "Commesse, conto economico, bilanci in tempo reale",
+      funzione: "Commesse, conto economico, bilanci e controllo di gestione in tempo reale",
       valore: valoreMargine,
     },
     {
       key: "tempo",
       label: "Tempo amministrativo recuperato",
-      funzione: "Fatturazione elettronica, DDT, preventivi, prima nota",
+      funzione: "Fatturazione, DDT, preventivi, rapportini di cantiere, timbrature, magazzino, prima nota",
       valore: valoreTempo,
     },
     {
       key: "rischio",
       label: "Errori, sanzioni e ritardi evitati",
-      funzione: "Scadenzario, compliance SDI",
+      funzione: "Scadenzario, compliance SDI, gestione permessi e documenti",
       valore: valoreRischio,
     },
     {
       key: "software",
-      label: "Software e gestionali eliminati",
-      funzione: "Un'unica piattaforma al posto di più strumenti",
+      label: "Strumenti e abbonamenti eliminati",
+      funzione: "Un'unica piattaforma al posto di gestionale, marketing, email/SMS/WhatsApp, CRM, timbrature, call center",
       valore: softwareEliminato,
     },
   ];
@@ -284,7 +288,7 @@ export function computeRoi(inputs: Partial<RoiInputs>): RoiResults {
     leve.push({
       key: "crescita",
       label: "Più lavori vinti",
-      funzione: "Preventivi più rapidi e professionali",
+      funzione: "Marketing, pubblicità AI, social, email/SMS/WhatsApp e call center che portano nuovi clienti",
       valore: valoreCrescita,
     });
   }

@@ -126,6 +126,48 @@ function NumberField({ label, value, onChange, icon, suffix, step = 1, hint }: N
   );
 }
 
+interface IntegerFieldProps {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  icon?: React.ReactNode;
+  suffix?: string;
+  hint?: string;
+}
+
+/**
+ * Campo per interi "grandi" (fatturato, errori, valore preventivo, abbonamenti)
+ * con separatore delle migliaia it-IT mentre si digita ("100.000"), per una
+ * percezione visiva migliore in trattativa. Input testuale (inputMode numeric):
+ * mostra il valore formattato, salva solo le cifre. Placeholder quando = 0.
+ */
+function IntegerField({ label, value, onChange, icon, suffix, hint }: IntegerFieldProps) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+        {icon}
+        {label}
+      </Label>
+      <div className="relative">
+        <Input
+          type="text"
+          inputMode="numeric"
+          value={value > 0 ? new Intl.NumberFormat("it-IT").format(value) : ""}
+          placeholder="0"
+          onChange={(e) => onChange(Number(e.target.value.replace(/\D/g, "")) || 0)}
+          className="h-9 pr-16 tabular-nums"
+        />
+        {suffix && (
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+            {suffix}
+          </span>
+        )}
+      </div>
+      {hint && <p className="text-[11px] text-muted-foreground/80">{hint}</p>}
+    </div>
+  );
+}
+
 /** Titoletto di sezione del pannello input. */
 function SectionTitle({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -236,12 +278,11 @@ export function RoiSimulator({
             {/* 1 ── La tua azienda ── */}
             <div className="space-y-3">
               <SectionTitle icon={<Building2 className="h-3.5 w-3.5" />}>La tua azienda</SectionTitle>
-              <NumberField
+              <IntegerField
                 label="Fatturato annuo"
                 value={inputs.fatturatoAnnuo}
                 onChange={(v) => setInputs((p) => ({ ...p, fatturatoAnnuo: v }))}
                 suffix="€/anno"
-                step={10000}
                 hint="Base del margine recuperato col controllo di gestione."
               />
               <div className="grid grid-cols-2 gap-3">
@@ -252,12 +293,12 @@ export function RoiSimulator({
                   suffix="%"
                   step={1}
                 />
-                <NumberField
-                  label="Software / gestionali oggi"
+                <IntegerField
+                  label="Strumenti e abbonamenti oggi"
                   value={inputs.softwareMensile}
                   onChange={(v) => setInputs((p) => ({ ...p, softwareMensile: v }))}
                   suffix="€/mese"
-                  step={10}
+                  hint="Gestionale, marketing, email/SMS/WhatsApp, CRM, timbrature, call center…"
                 />
               </div>
             </div>
@@ -324,12 +365,11 @@ export function RoiSimulator({
                   suffix="€/h"
                   step={1}
                 />
-                <NumberField
+                <IntegerField
                   label="Errori, sanzioni, ritardi"
                   value={inputs.erroriAnnui}
                   onChange={(v) => setInputs((p) => ({ ...p, erroriAnnui: v }))}
                   suffix="€/anno"
-                  step={100}
                 />
               </div>
             </div>
@@ -374,12 +414,11 @@ export function RoiSimulator({
                     suffix="n."
                     step={1}
                   />
-                  <NumberField
+                  <IntegerField
                     label="Valore medio preventivo"
                     value={inputs.valoreMedioPreventivo}
                     onChange={(v) => setInputs((p) => ({ ...p, valoreMedioPreventivo: v }))}
                     suffix="€"
-                    step={1000}
                   />
                   <NumberField
                     label="Tasso di chiusura"
@@ -484,8 +523,9 @@ export function RoiSimulator({
               <p className="mt-1 text-sm text-muted-foreground">
                 {guadagna ? (
                   <>
-                    ≈ <strong>{formatCurrency(results.guadagnoNettoMensile)}/mese</strong> che tornano
-                    in cassa. EdiliziaInCloud non è un costo: si ripaga da solo.
+                    Sono <strong>{formatCurrency(results.guadagnoNettoMensile)} al mese</strong> che
+                    oggi escono dalla tua cassa senza che te ne accorgi. EdiliziaInCloud non è un
+                    costo: te li restituisce.
                   </>
                 ) : (
                   "Aumenta fatturato, ore perse o costi attuali per vedere il guadagno reale."
@@ -532,7 +572,18 @@ export function RoiSimulator({
                 <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
                   {formatCurrency(results.costoInazioneAnnuo)}
                 </p>
-                <p className="text-[11px] text-muted-foreground">restare com'è ti costa /anno</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {guadagna ? (
+                    <>
+                      ogni giorno che rimandi butti{" "}
+                      <strong className="text-amber-600">
+                        {formatCurrency(results.guadagnoNettoGiornaliero)}
+                      </strong>
+                    </>
+                  ) : (
+                    "restare com'è ti costa /anno"
+                  )}
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -626,6 +677,15 @@ export function RoiSimulator({
                   {formatCurrency(results.valoreGeneratoAnnuo + results.softwareEliminato)}
                 </span>
               </div>
+              {guadagna && (
+                <p className="px-2.5 pt-1 text-xs leading-snug text-muted-foreground">
+                  Non stai comprando un software: stai smettendo di perdere{" "}
+                  <strong className="text-foreground">
+                    {formatCurrency(results.guadagnoNettoAnnuo)}
+                  </strong>{" "}
+                  ogni anno.
+                </p>
+              )}
             </CardContent>
           </Card>
 

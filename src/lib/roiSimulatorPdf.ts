@@ -102,9 +102,15 @@ const MODULES: ReadonlyArray<readonly [string, string]> = [
   ["Fatturazione elettronica", "Attiva e passiva, FatturaPA e SDI"],
   ["DDT e bolle", "Documenti di trasporto digitali"],
   ["Preventivi e offerte", "Computi rapidi e professionali"],
+  ["Rapportini di cantiere", "Giornale lavori e avanzamento dal campo"],
   ["Magazzino", "Scorte e movimenti di cantiere"],
-  ["Prima nota e scadenzario", "Incassi, pagamenti e scadenze sotto controllo"],
   ["Ordini fornitori", "Acquisti tracciati e listini storici"],
+  ["Prima nota e scadenzario", "Incassi, pagamenti e scadenze sotto controllo"],
+  ["Permessi e timbrature", "Presenze GPS, ferie e permessi del personale"],
+  ["Marketing e pubblicità AI", "Campagne e Meta Lead Ads che portano clienti"],
+  ["Email, SMS e WhatsApp", "Comunicazioni e follow-up automatici ai clienti"],
+  ["CRM e gestione contatti", "Pipeline, ticket e relazioni sempre tracciate"],
+  ["Portale commercialista", "Contabilità e cassetto SDI condivisi in 1 click"],
   ["App mobile da cantiere", "Foto, rapportini e materiali dal campo"],
   ["Assistente AI", "Risposte e automazioni sui tuoi dati"],
   ["Compliance e conservazione", "Cassetto SDI e conservazione digitale a norma"],
@@ -374,7 +380,7 @@ function situationSection(p: PdfDoc, inputs: RoiInputs, results: RoiResults) {
 
   p.kvRow("Fatturato annuo", `${eur(inputs.fatturatoAnnuo)} / anno`, { zebra: true });
   p.kvRow(
-    "Software e gestionali oggi",
+    "Strumenti e abbonamenti oggi",
     `${eur(inputs.softwareMensile)}/mese · ${eur(results.softwareEliminato)}/anno`,
   );
   let zebra = true;
@@ -427,7 +433,7 @@ function inactionSection(p: PdfDoc, results: RoiResults) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(
-    `Sono ${eur(perMese)} al mese, ${eur(perGiorno)} al giorno.`,
+    `Sono ${eur(perMese)} al mese. Ogni giorno che rimandi butti ${eur(perGiorno)}.`,
     MARGIN + 6,
     p.y + 34,
   );
@@ -723,7 +729,10 @@ function investmentSection(p: PdfDoc, inputs: RoiInputs, results: RoiResults) {
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  doc.text("Attiva EdiliziaInCloud e inizia a recuperare margine da subito.", MARGIN + 6, p.y + 13, {
+  const ctaHeadline = guadagna
+    ? `Smetti di perdere ${eur(results.guadagnoNettoAnnuo)} l'anno: attiva EdiliziaInCloud oggi.`
+    : "Attiva EdiliziaInCloud e inizia a recuperare margine da subito.";
+  doc.text(ctaHeadline, MARGIN + 6, p.y + 13, {
     maxWidth: CONTENT_W - 12,
   });
   doc.setFont("helvetica", "normal");
