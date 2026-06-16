@@ -1,10 +1,20 @@
 import { useDroppable } from "@dnd-kit/core";
-import { Badge } from "@/components/ui/badge";
+import { AlertTriangle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import WarehouseKanbanCard from "./WarehouseKanbanCard";
 import { isItemCritical, isItemOverdue, isItemUrgent, STATUS_CONFIG } from "@/types/warehouse";
 import type { OrderItemStatus, WarehouseItem } from "@/types/warehouse";
+
+/** Accento colore (barra superiore) derivato dal colore di stato. */
+const ACCENT_BG: Record<string, string> = {
+  "text-amber-600": "bg-amber-400",
+  "text-blue-600": "bg-blue-400",
+  "text-indigo-600": "bg-indigo-400",
+  "text-green-600": "bg-green-500",
+  "text-purple-600": "bg-purple-400",
+  "text-muted-foreground": "bg-slate-300",
+};
 
 interface WarehouseKanbanColumnProps {
   status: OrderItemStatus;
@@ -29,29 +39,42 @@ export default function WarehouseKanbanColumn({
   const config = STATUS_CONFIG[status];
   const Icon = config.icon;
   const attentionCount = items.filter((item) => isItemCritical(item) || isItemUrgent(item) || isItemOverdue(item)).length;
+  const accent = ACCENT_BG[config.color] ?? "bg-slate-300";
 
   return (
-    <div 
+    <div
       className={cn(
-        "flex h-[calc(100vh-350px)] min-h-[520px] flex-col overflow-hidden rounded-md border bg-background shadow-sm",
-        isOver && "ring-2 ring-primary",
+        "flex h-[calc(100vh-330px)] min-h-[520px] flex-col overflow-hidden rounded-lg border bg-background shadow-sm transition-shadow",
+        isOver && "ring-2 ring-primary shadow-md",
       )}
     >
-      <div className={cn("border-b px-3 py-3", config.bgColor)}>
-        <div className="flex items-start justify-between gap-3">
+      <div className={cn("h-1 shrink-0", accent)} />
+      <div className={cn("border-b px-3 py-2.5", config.bgColor)}>
+        <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <Icon className={cn("h-4 w-4 shrink-0", config.color)} />
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/70 ring-1 ring-black/5">
+                <Icon className={cn("h-3.5 w-3.5", config.color)} />
+              </span>
               <span className="truncate text-sm font-semibold">{config.label}</span>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {attentionCount > 0 ? `${attentionCount} da presidiare` : "flusso regolare"}
-            </p>
+            <div className="mt-1.5">
+              {attentionCount > 0 ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                  <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                  {attentionCount} da presidiare
+                </span>
+              ) : (
+                <span className="text-[11px] text-muted-foreground">flusso regolare</span>
+              )}
+            </div>
           </div>
-          <Badge variant="secondary" className="shrink-0 text-xs">{items.length}</Badge>
+          <span className="flex h-7 min-w-[28px] shrink-0 items-center justify-center rounded-full bg-foreground/80 px-2 text-xs font-bold text-background tabular-nums">
+            {items.length}
+          </span>
         </div>
       </div>
-      
+
       <div ref={setNodeRef} className="flex-1 p-3 overflow-hidden">
         <ScrollArea className="h-full">
           <div className="space-y-3 pr-2">
