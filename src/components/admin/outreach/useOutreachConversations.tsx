@@ -1163,18 +1163,31 @@ export function useReplyComposer(companyId: string) {
   const [summarizing, setSummarizing] = useState(false);
 
   // Invia la risposta DALLA stessa casella che ha contattato il prospect
-  // (edge outreach-reply-send). Richiede il contact_id.
-  const sendReply = async (contactId: string) => {
+  // (edge outreach-reply-send). Funziona in due modalità:
+  //  - con contatto collegato → { contactId }
+  //  - senza contatto (conversazione sciolta) → { toEmail, senderId? }
+  // L'edge risolve la casella dall'ultima inviata a quell'indirizzo (o dal pool)
+  // e mantiene il threading In-Reply-To col message-id dell'ultima risposta.
+  const sendReply = async (
+    target: string | { contactId?: string | null; toEmail?: string | null; senderId?: string | null },
+  ) => {
+    const opts = typeof target === "string" ? { contactId: target } : target;
     const text = replyText.trim();
     if (!text) {
       toast.error("Scrivi una risposta prima di inviare");
       return;
     }
+    if (!opts.contactId && !opts.toEmail) {
+      toast.error("Destinatario non determinato");
+      return;
+    }
     setSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke("outreach-reply-send", {
-        body: { contact_id: contactId, body: text.replace(/\n/g, "<br>") },
-      });
+      const reqBody: Record<string, unknown> = { body: text.replace(/\n/g, "<br>") };
+      if (opts.contactId) reqBody.contact_id = opts.contactId;
+      else reqBody.to_email = opts.toEmail;
+      if (opts.senderId) reqBody.sender_account_id = opts.senderId;
+      const { data, error } = await supabase.functions.invoke("outreach-reply-send", { body: reqBody });
       if (error) throw error;
       if (data && (data as { error?: string }).error) throw new Error((data as { error?: string }).error);
       toast.success("Risposta inviata");
@@ -1188,14 +1201,26 @@ export function useReplyComposer(companyId: string) {
     }
   };
 
-  // Genera una bozza con l'AI (edge outreach-ai-reply): ricostruisce il thread
-  // lato server e mette il testo nella textarea, pronto da editare e inviare.
-  const draftWithAi = async (contactId: string) => {
+  // Genera una bozza con l'AI (edge outreach-ai-reply). Con contatto collegato
+  // l'edge ricostruisce il thread server-side; senza contatto passiamo i messaggi
+  // già pronti (come il riepilogo AI). In entrambi i casi il testo finisce nella
+  // textarea, pronto da editare e inviare. Degrada con grazia (toast) se l'edge
+  // non è deployata.
+  const draftWithAi = async (
+    target: string | { contactId?: string | null; messages?: ThreadMsg[] },
+  ) => {
+    const opts = typeof target === "string" ? { contactId: target } : target;
     setAiDrafting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("outreach-ai-reply", {
-        body: { contact_id: contactId },
-      });
+      const reqBody: Record<string, unknown> = {};
+      if (opts.contactId) {
+        reqBody.contact_id = opts.contactId;
+      } else if (opts.messages) {
+        reqBody.messages = opts.messages.map((m) => ({
+          direction: m.direction, subject: m.subject, body: m.body, intent: m.intent,
+        }));
+      }
+      const { data, error } = await supabase.functions.invoke("outreach-ai-reply", { body: reqBody });
       if (error) throw error;
       if (data && (data as { error?: string }).error) throw new Error((data as { error?: string }).error);
       const draft = (data as { draft?: string })?.draft?.trim();
@@ -1253,4 +1278,158 @@ export function useReplyComposer(companyId: string) {
   };
 
   return { replyText, setReplyText, sending, aiDrafting, sendReply, draftWithAi, summarizing, summarizeWithAi };
+}
+
+/** Casella del pool (attiva/warming) per i selettori del compositore. */
+export interface ComposeSender {
+  id: string;
+  email: string;
+  display_name: string | null;
+  status: string;
+}
+
+/** Contatto minimale per la ricerca destinatario nel compositore. */
+export interface ComposeContact {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  company_name: string | null;
+  email: string | null;
+}
+
+/**
+ * useComposeEmail — stato + azioni del compositore "Nuova email" (cold manuale).
+ *
+ * Carica le caselle attive/warming del pool e i contatti del CRM admin (per la
+ * ricerca destinatario), genera oggetto+corpo con l'AI (edge outreach-ai-email,
+ * best-effort) e invia una NUOVA email a freddo via outreach-send-single. Al
+ * successo invalida le query conversazioni così l'inviata compare nell'inbox.
+ *
+ * DRY con OutreachComposeDialog (stesso edge), ma vive nel hook condiviso così il
+ * compositore della Posta riusa caselle/contatti già caricati e resta coerente.
+ * `enabled` carica le liste solo quando il compositore è aperto.
+ */
+export function useComposeEmail(companyId: string, enabled: boolean) {
+  const qc = useQueryClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any;
+  const [sending, setSending] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+
+  const sendersQ = useQuery({
+    queryKey: ["outreach-compose-senders", companyId],
+    enabled,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from(T_SENDERS)
+        .select("id,email,display_name,status")
+        .eq("company_id", companyId)
+        .in("status", ["active", "warming"])
+        .order("email");
+      if (error) throw error;
+      return (data ?? []) as ComposeSender[];
+    },
+  });
+
+  const contactsQ = useQuery({
+    queryKey: ["outreach-compose-contacts", companyId],
+    enabled,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from(T_CONTACTS)
+        .select("id,first_name,last_name,company_name,email")
+        .eq("company_id", companyId)
+        .order("last_activity_at", { ascending: false, nullsFirst: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as ComposeContact[];
+    },
+  });
+
+  /**
+   * Genera oggetto + corpo con l'AI. Se è scelto un contatto passa contact_id
+   * (l'edge legge i dati del lead per personalizzare); altrimenti, con una sola
+   * email libera, passa contact:{ email }. Best-effort: degrada con toast e non
+   * rompe il compositore se l'edge non è deployata.
+   */
+  const generateWithAi = async (
+    opts: { contactId?: string | null; email?: string | null },
+  ): Promise<{ subject: string; body: string } | null> => {
+    setAiBusy(true);
+    try {
+      const payload: Record<string, unknown> = {};
+      if (opts.contactId) payload.contact_id = opts.contactId;
+      else if (opts.email?.trim()) payload.contact = { email: opts.email.trim() };
+      const { data, error } = await supabase.functions.invoke("outreach-ai-email", { body: payload });
+      if (error) throw error;
+      if (data && (data as { error?: string }).error) throw new Error((data as { error?: string }).error);
+      const d = (data ?? {}) as { subject?: string; body?: string };
+      const body = (d.body ?? "").trim();
+      if (!body) throw new Error("Nessuna email generata");
+      toast.success("Email generata con AI");
+      return { subject: (d.subject ?? "").trim(), body };
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "AI non disponibile");
+      return null;
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  /**
+   * Invia una NUOVA email a freddo via outreach-send-single. `contactId`
+   * opzionale (personalizzazione/registro storico). Al successo invalida le
+   * query conversazioni così l'inviata compare nell'inbox. Ritorna true/false.
+   */
+  const send = async (opts: {
+    senderId: string;
+    to: string;
+    subject: string;
+    html: string;
+    contactId?: string | null;
+  }): Promise<boolean> => {
+    const to = opts.to.trim().toLowerCase();
+    if (!opts.senderId || !to || !opts.html.trim()) {
+      toast.error("Compila casella, destinatario e testo");
+      return false;
+    }
+    setSending(true);
+    try {
+      const reqBody: Record<string, unknown> = {
+        sender_account_id: opts.senderId,
+        to,
+        subject: opts.subject,
+        html: opts.html.replace(/\n/g, "<br>"),
+      };
+      if (opts.contactId) reqBody.contact_id = opts.contactId;
+      const { data, error } = await supabase.functions.invoke("outreach-send-single", { body: reqBody });
+      if (error) throw error;
+      if (data && (data as { error?: string }).error) throw new Error((data as { error?: string }).error);
+      toast.success("Email inviata");
+      qc.invalidateQueries({ queryKey: ["outreach-inbox-sent", companyId] });
+      qc.invalidateQueries({ queryKey: ["outreach-inbox-replies", companyId] });
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Invio non riuscito");
+      return false;
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Gate identico a OutreachComposeDialog: migrazione assente → tabella mancante.
+  const gated = !!sendersQ.error && isMissingTableError(sendersQ.error);
+
+  return {
+    senders: sendersQ.data ?? [],
+    contacts: contactsQ.data ?? [],
+    sendersLoading: sendersQ.isLoading,
+    gated,
+    sending,
+    aiBusy,
+    generateWithAi,
+    send,
+  };
 }

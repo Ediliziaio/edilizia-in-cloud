@@ -14,7 +14,7 @@ import {
   Send, Loader2, Wand2, CheckCheck, Archive, Layers, PanelRightOpen, PanelRightClose,
   User, Phone, Tag, ShieldBan, Pause, Play, ThumbsUp, ThumbsDown, Clock, Briefcase,
   Activity, ShieldCheck, Check, XCircle, Ban, MessageSquareReply, X, CalendarClock, GitBranch, Sparkles,
-  AlarmClock, AlarmClockOff, Eye,
+  AlarmClock, AlarmClockOff, Eye, PenSquare,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -25,6 +25,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { MigrationGate } from "./_shared";
 import { OutreachConvertContactDialog } from "./OutreachConvertContactDialog";
+import { OutreachNewMailDialog } from "./OutreachNewMailDialog";
 import {
   INTENT_META, ENROLLMENT_STATUS_META, type Conversation, type StatusFilter, type DateFilter,
   type SequenceOption, type LeadContext, type LeadSequence, type MsgDelivery, type AiSummary,
@@ -351,6 +352,15 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
               className="ml-auto hidden cursor-help select-none rounded-md border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground lg:inline"
               title="Scorciatoie · J/K: conversazione successiva/precedente · ⌘/Ctrl+Invio: invia la risposta"
             >J / K</span>
+            {/* Compositore "Nuova email" a freddo (manuale). ml-auto se l'hint J/K è nascosto. */}
+            <OutreachNewMailDialog
+              companyId={companyId}
+              trigger={
+                <Button size="sm" className="ml-auto h-7 gap-1.5 rounded-lg text-[11px] lg:ml-1.5">
+                  <PenSquare className="h-3.5 w-3.5" /> Nuova email
+                </Button>
+              }
+            />
           </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -557,8 +567,16 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
                 setReplyText={setReplyText}
                 sending={sending}
                 aiDrafting={aiDrafting}
-                onSend={sendReply}
-                onDraft={draftWithAi}
+                onSend={() => sendReply(
+                  selected.contact?.id
+                    ? { contactId: selected.contact.id }
+                    : { toEmail: selected.email, senderId: selected.primarySenderId },
+                )}
+                onDraft={() => draftWithAi(
+                  selected.contact?.id
+                    ? { contactId: selected.contact.id }
+                    : { messages: selected.messages },
+                )}
                 onBack={() => setSelectedKey(null)}
                 showContext={showContext}
                 onToggleContext={() => setContextOverride(!showContext)}
@@ -847,15 +865,19 @@ function ThreadPane({
   setReplyText: (v: string) => void;
   sending: boolean;
   aiDrafting: boolean;
-  onSend: (contactId: string) => void | Promise<void>;
-  onDraft: (contactId: string) => void | Promise<void>;
+  /** Invia la risposta. Il parent sceglie il target (contatto o email sciolta). */
+  onSend: () => void | Promise<void>;
+  /** Genera la bozza AI. Il parent sceglie la modalità (contact_id o messaggi). */
+  onDraft: () => void | Promise<void>;
   onBack: () => void;
   showContext: boolean;
   onToggleContext: () => void;
 }) {
   const name = contactName(selected.contact, selected.email);
   const counterpart = selected.contact?.email || selected.email;
-  const contactId = selected.contact?.id ?? null;
+  // Si può rispondere se c'è un contatto collegato OPPURE un indirizzo (email
+  // sciolta): l'edge outreach-reply-send accetta entrambe le modalità.
+  const canReply = !!(selected.contact?.id || selected.email);
   // Ref alla textarea per l'inserimento snippet/firma al cursore.
   const replyRef = useRef<HTMLTextAreaElement>(null);
 
@@ -956,9 +978,17 @@ function ThreadPane({
         </div>
       </ScrollArea>
 
-      {/* ═══ Box risposta 2-vie ═══ */}
-      {contactId ? (
+      {/* ═══ Box risposta 2-vie (universale: con o senza contatto collegato) ═══ */}
+      {canReply ? (
         <div className="shrink-0 border-t border-border bg-background p-3 sm:px-4">
+          {/* Avviso quando manca sia il contatto sia una casella tracciata: l'edge
+              ripiegherà su una casella del pool, lo segnaliamo per trasparenza. */}
+          {!selected.contact?.id && !mailbox && (
+            <div className="mb-2 flex items-center gap-1.5 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground">
+              <Mailbox className="h-3.5 w-3.5 shrink-0" />
+              Email non in rubrica e casella non tracciata: la risposta partirà da una casella attiva del pool.
+            </div>
+          )}
           <div className="rounded-xl border border-border bg-muted/30 shadow-sm transition-colors focus-within:border-primary/40 focus-within:bg-background">
             {/* Toolbar: risposte rapide + firma (inserimento 1-click al cursore). */}
             <div className="flex items-center gap-1 border-b border-border px-2 py-1.5">
@@ -993,7 +1023,7 @@ function ThreadPane({
               onKeyDown={(e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !sending && replyText.trim()) {
                   e.preventDefault();
-                  void onSend(contactId);
+                  void onSend();
                 }
               }}
             />
@@ -1005,7 +1035,7 @@ function ThreadPane({
               <div className="ml-auto flex items-center gap-2">
                 <Button
                   size="sm" variant="outline"
-                  onClick={() => void onDraft(contactId)}
+                  onClick={() => void onDraft()}
                   disabled={sending || aiDrafting}
                   className="h-8 gap-1.5 border-primary/30 text-primary hover:bg-primary/5 hover:text-primary"
                   title="L'AI legge la conversazione e propone una risposta da rivedere"
@@ -1015,7 +1045,7 @@ function ThreadPane({
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => void onSend(contactId)}
+                  onClick={() => void onSend()}
                   disabled={sending || aiDrafting || !replyText.trim()}
                   className="h-8 gap-1.5"
                 >
@@ -1027,10 +1057,11 @@ function ThreadPane({
           </div>
         </div>
       ) : (
+        // Caso residuo: conversazione senza contatto NÉ email (es. message-id orfano).
         <div className="shrink-0 border-t border-border bg-background px-4 py-3">
           <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-[11px] text-muted-foreground">
             <Mail className="h-3.5 w-3.5 shrink-0" />
-            Conversazione senza contatto collegato — rispondi dal tuo client email.
+            Conversazione senza destinatario determinabile — rispondi dal tuo client email.
           </div>
         </div>
       )}
