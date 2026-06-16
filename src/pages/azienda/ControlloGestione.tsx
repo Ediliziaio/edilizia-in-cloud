@@ -37,13 +37,14 @@ import { TabConfigurazione } from "@/components/controllo-gestione/tabs/TabConfi
 import { TabCashFlow } from "@/components/controllo-gestione/tabs/TabCashFlow";
 import { TabPFNDebiti } from "@/components/controllo-gestione/tabs/TabPFNDebiti";
 import { TabCommesse } from "@/components/controllo-gestione/tabs/TabCommesse";
+import { TabProdotti } from "@/components/controllo-gestione/tabs/TabProdotti";
 import { TabBudget } from "@/components/controllo-gestione/tabs/TabBudget";
 import { TabIndiciAvanzati } from "@/components/controllo-gestione/tabs/TabIndiciAvanzati";
 import { TabDashboard } from "@/components/controllo-gestione/tabs/TabDashboard";
 import { TabHealthCheck } from "@/components/controllo-gestione/tabs/TabHealthCheck";
 
 type CGTab =
-  | "dash" | "ce" | "sp" | "cashflow" | "pfn" | "commesse"
+  | "dash" | "ce" | "sp" | "cashflow" | "pfn" | "commesse" | "prodotti"
   | "budget" | "indici" | "health" | "piano" | "rating" | "pdf" | "config";
 
 // Mappa segmento URL → tab. Usata per il deep-link dalla sidebar
@@ -55,6 +56,7 @@ const URL_TO_TAB: Record<string, CGTab> = {
   "cash-flow": "cashflow",
   "pfn-debiti": "pfn",
   commesse: "commesse",
+  prodotti: "prodotti",
   budget: "budget",
   indici: "indici",
   health: "health",
@@ -70,6 +72,7 @@ const TAB_TO_URL: Record<CGTab, string> = {
   cashflow: "cash-flow",
   pfn: "pfn-debiti",
   commesse: "commesse",
+  prodotti: "prodotti",
   budget: "budget",
   indici: "indici",
   health: "health",
@@ -160,6 +163,7 @@ export default function ControlloGestione() {
             <TabsTrigger value="cashflow">Cash Flow</TabsTrigger>
             <TabsTrigger value="pfn">PFN & Debiti</TabsTrigger>
             <TabsTrigger value="commesse">Commesse</TabsTrigger>
+            <TabsTrigger value="prodotti">Prodotti & Categorie</TabsTrigger>
             <TabsTrigger value="budget">Budget</TabsTrigger>
             <TabsTrigger value="indici">Indici avanzati</TabsTrigger>
             <TabsTrigger value="health">Health-check</TabsTrigger>
@@ -192,6 +196,9 @@ export default function ControlloGestione() {
           </TabsContent>
           <TabsContent value="commesse" className="mt-0">
             <TabCommesse anno={filters.anno} />
+          </TabsContent>
+          <TabsContent value="prodotti" className="mt-0">
+            <TabProdotti anno={filters.anno} />
           </TabsContent>
           <TabsContent value="budget" className="mt-0">
             <TabBudget anno={filters.anno} />
