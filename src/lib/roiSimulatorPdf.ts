@@ -32,6 +32,7 @@ import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import type { RoiInputs, RoiResults } from "@/lib/roiSimulator";
+import { ROI_LOGO_PNG, ROI_LOGO_W, ROI_LOGO_H } from "@/lib/roiLogo";
 
 const BRAND = {
   name: "EdiliziaInCloud",
@@ -297,35 +298,37 @@ class PdfDoc {
 /** 1 — Copertina: banda brand, titolo, destinatario, data. */
 function coverPage(p: PdfDoc, cliente: string) {
   const doc = p.jsdoc;
-  // Banda superiore piena navy
-  doc.setFillColor(...BRAND.navy);
-  doc.rect(0, 0, A4.w, 92, "F");
-  // Accenti orange (riga sottile + blocco)
-  doc.setFillColor(...BRAND.orange);
-  doc.rect(0, 92, A4.w, 2.5, "F");
+  // Fascia bianca in alto con il LOGO vero (a colori, su bianco)
+  const logoH = 15;
+  const logoW = logoH * (ROI_LOGO_W / ROI_LOGO_H);
+  doc.addImage(ROI_LOGO_PNG, "PNG", MARGIN, 16, logoW, logoH);
+  doc.setTextColor(...BRAND.grey);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.text(BRAND.tagline, MARGIN, 39);
 
+  // Banda navy col titolo della proposta
+  const bandTop = 48;
+  const bandH = 80;
+  doc.setFillColor(...BRAND.navy);
+  doc.rect(0, bandTop, A4.w, bandH, "F");
+  // Accento orange sotto la banda
+  doc.setFillColor(...BRAND.orange);
+  doc.rect(0, bandTop + bandH, A4.w, 2.5, "F");
+  // tick orange + titolo
+  doc.setFillColor(...BRAND.orange);
+  doc.rect(MARGIN, bandTop + 24, 30, 1.4, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(30);
-  doc.text(BRAND.name, MARGIN, 38);
+  doc.setFontSize(26);
+  doc.text("Proposta di valore", MARGIN, bandTop + 42);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  doc.setTextColor(157, 180, 214);
-  doc.text(BRAND.tagline, MARGIN, 47);
-
-  doc.setFillColor(...BRAND.orange);
-  doc.rect(MARGIN, 60, 30, 1.4, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.text("Proposta di valore", MARGIN, 74);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
   doc.setTextColor(190, 205, 228);
-  doc.text("Analisi del ritorno sull'investimento", MARGIN, 83);
+  doc.text("Analisi del ritorno sull'investimento", MARGIN, bandTop + 52);
 
   // Blocco destinatario + data sotto la banda
-  let y = 116;
+  let y = 158;
   doc.setTextColor(...BRAND.orange);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
