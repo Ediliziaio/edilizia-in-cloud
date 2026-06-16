@@ -95,25 +95,16 @@ const HOUR_LABELS: ReadonlyArray<readonly [keyof RoiInputs, string]> = [
  * Moduli EdiliziaInCloud citati nella proposta. Sottoinsieme curato di funzioni
  * realmente presenti nel prodotto (vedi src/pages/funzionalita/*): mai inventati.
  */
-const MODULES: ReadonlyArray<readonly [string, string]> = [
-  ["Controllo di gestione", "Cruscotto, margini e KPI sempre aggiornati"],
-  ["Bilanci e conto economico", "Situazione economica in tempo reale"],
-  ["Commesse e cantieri", "Costi, ricavi e marginalità per cantiere"],
-  ["Fatturazione elettronica", "Attiva e passiva, FatturaPA e SDI"],
-  ["DDT e bolle", "Documenti di trasporto digitali"],
-  ["Preventivi e offerte", "Computi rapidi e professionali"],
-  ["Rapportini di cantiere", "Giornale lavori e avanzamento dal campo"],
-  ["Magazzino", "Scorte e movimenti di cantiere"],
-  ["Ordini fornitori", "Acquisti tracciati e listini storici"],
-  ["Prima nota e scadenzario", "Incassi, pagamenti e scadenze sotto controllo"],
-  ["Permessi e timbrature", "Presenze GPS, ferie e permessi del personale"],
-  ["Marketing e pubblicità AI", "Campagne e Meta Lead Ads che portano clienti"],
-  ["Email, SMS e WhatsApp", "Comunicazioni e follow-up automatici ai clienti"],
-  ["CRM e gestione contatti", "Pipeline, ticket e relazioni sempre tracciate"],
-  ["Portale commercialista", "Contabilità e cassetto SDI condivisi in 1 click"],
-  ["App mobile da cantiere", "Foto, rapportini e materiali dal campo"],
-  ["Assistente AI", "Risposte e automazioni sui tuoi dati"],
-  ["Compliance e conservazione", "Cassetto SDI e conservazione digitale a norma"],
+const MODULE_GROUPS: ReadonlyArray<readonly [string, string]> = [
+  ["Cantieri e commesse", "Gestione cantieri · Avanzamento e margini · Giornale lavori · Calendario e squadre · Foto e rapportini · App mobile da cantiere · Sicurezza (POS/DVR) · Subappalti e DURC · Manutenzione impianti"],
+  ["Controllo di gestione", "Cruscotto aziendale · KPI e scostamenti · Margini per commessa · Bilanci e conto economico in tempo reale"],
+  ["Preventivi e vendite", "Preventivi e computi · Quote Builder AI · Pipeline vendite · CRM edilizia · Portale clienti · Ticket e assistenza"],
+  ["Fatturazione e documenti", "Fatturazione elettronica SDI · DDT digitali · Cassetto fiscale · Firma elettronica · Conservazione a norma · Report fatturazione"],
+  ["Contabilità e finanza", "Contabilità e fiscale · Prima nota · Registro IVA · Scadenzario · Tesoreria e cassa cantiere · Ritenute a garanzia · Finanziamenti"],
+  ["Personale (HR)", "Anagrafica HR · Timbrature GPS · Ferie e permessi · Cedolini e paghe"],
+  ["Marketing e comunicazione", "Email marketing · SMS · WhatsApp · Lead form Facebook · Chat interna"],
+  ["AI e automazione", "Agenti AI 24/7 · Automazioni e flussi · AI computo e prezzi"],
+  ["Soluzioni dedicate", "Fotovoltaico e GSE · Render infissi"],
 ];
 
 export interface GenerateRoiPdfOptions {
@@ -185,7 +176,7 @@ class PdfDoc {
     doc.text(BRAND.name, MARGIN, 10.5);
     this.ink(BRAND.greyLight);
     this.font("normal", 7.5);
-    doc.text("Proposta di valore", A4.w - MARGIN, 7.5, { align: "right" });
+    doc.text("Proposta", A4.w - MARGIN, 7.5, { align: "right" });
     doc.text(`per ${this.cliente}`, A4.w - MARGIN, 11.5, { align: "right" });
   }
 
@@ -302,7 +293,7 @@ class PdfDoc {
 /* ────────────────────────────── SEZIONI ────────────────────────────── */
 
 /** 1 — Copertina: banda brand, titolo, destinatario, data. */
-function coverPage(p: PdfDoc, cliente: string) {
+function coverPage(p: PdfDoc, cliente: string, results: RoiResults) {
   const doc = p.jsdoc;
   // Fascia bianca in alto con il LOGO vero (a colori, su bianco)
   const logoH = 15;
@@ -313,43 +304,65 @@ function coverPage(p: PdfDoc, cliente: string) {
   doc.setFontSize(9.5);
   doc.text(BRAND.tagline, MARGIN, 39);
 
-  // Banda navy col titolo della proposta
+  // Banda navy: "PROPOSTA PER" + nome azienda/contatto
   const bandTop = 48;
   const bandH = 80;
   doc.setFillColor(...BRAND.navy);
   doc.rect(0, bandTop, A4.w, bandH, "F");
-  // Accento orange sotto la banda
   doc.setFillColor(...BRAND.orange);
   doc.rect(0, bandTop + bandH, A4.w, 2.5, "F");
-  // tick orange + titolo
   doc.setFillColor(...BRAND.orange);
-  doc.rect(MARGIN, bandTop + 24, 30, 1.4, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(26);
-  doc.text("Proposta di valore", MARGIN, bandTop + 42);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  doc.setTextColor(190, 205, 228);
-  doc.text("Analisi del ritorno sull'investimento", MARGIN, bandTop + 52);
-
-  // Blocco destinatario + data sotto la banda
-  let y = 158;
+  doc.rect(MARGIN, bandTop + 22, 30, 1.4, "F");
   doc.setTextColor(...BRAND.orange);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.text("PREPARATA PER", MARGIN, y);
-  y += 9;
-  doc.setTextColor(...BRAND.navy);
+  doc.setFontSize(11);
+  doc.text("PROPOSTA PER", MARGIN, bandTop + 32);
+  // Nome destinatario, grande (scala se lungo)
+  doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(22);
+  const nameSize = cliente.length > 26 ? 19 : 25;
+  doc.setFontSize(nameSize);
   const nameLines = doc.splitTextToSize(cliente, CONTENT_W);
-  doc.text(nameLines, MARGIN, y);
-  y += nameLines.length * 9 + 4;
-  doc.setTextColor(...BRAND.grey);
+  doc.text(nameLines, MARGIN, bandTop + 45);
+  const afterName = bandTop + 45 + nameLines.length * (nameSize * 0.42) + 5;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.text(`Documento del ${format(new Date(), "d MMMM yyyy", { locale: it })}`, MARGIN, y);
+  doc.setFontSize(10.5);
+  doc.setTextColor(190, 205, 228);
+  doc.text(
+    `Analisi del ritorno sull'investimento · ${format(new Date(), "d MMMM yyyy", { locale: it })}`,
+    MARGIN,
+    Math.min(afterName, bandTop + bandH - 9),
+  );
+
+  // Teaser del risultato (aggancia subito + riempie la zona bianca)
+  if (results.guadagnoNettoAnnuo > 0) {
+    let y = 152;
+    doc.setTextColor(...BRAND.orange);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.text("IL TUO POTENZIALE CON EDILIZIAINCLOUD", MARGIN, y);
+    y += 14;
+    doc.setTextColor(...BRAND.green);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(32);
+    const teaser = eur(results.guadagnoNettoAnnuo);
+    doc.text(teaser, MARGIN, y);
+    const tW = doc.getTextWidth(teaser);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.setTextColor(...BRAND.grey);
+    doc.text(" / anno di guadagno netto", MARGIN + tW + 2, y);
+    y += 9;
+    doc.setTextColor(...BRAND.grey);
+    doc.setFontSize(10);
+    doc.text(
+      results.paybackGiorni > 0
+        ? `Si ripaga in ${giorni(results.paybackGiorni)}. Il dettaglio nelle pagine seguenti.`
+        : "Il dettaglio completo nelle pagine seguenti.",
+      MARGIN,
+      y,
+    );
+  }
 
   // Frase guida in basso
   doc.setDrawColor(...BRAND.hair);
@@ -667,40 +680,28 @@ function modulesSection(p: PdfDoc) {
   p.sectionTitle(
     "05 · Tutto in un'unica piattaforma",
     "Le funzioni incluse",
-    "Un solo strumento al posto di fogli, gestionali separati e doppie immissioni. Tutto parla con tutto.",
+    "Un solo strumento al posto di fogli e gestionali separati: oltre 40 funzioni che parlano tra loro.",
   );
 
-  const colGap = 8;
-  const colW = (CONTENT_W - colGap) / 2;
-  const rowH = 11;
-  const rows = Math.ceil(MODULES.length / 2);
-  p.ensure(rows * rowH + 2);
-  const startY = p.y;
-
-  MODULES.forEach(([name, desc], i) => {
-    const col = i % 2;
-    const row = Math.floor(i / 2);
-    const x = MARGIN + col * (colW + colGap);
-    const y = startY + row * rowH;
-    // checkmark accento
+  for (const [area, items] of MODULE_GROUPS) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    const itemLines = doc.splitTextToSize(items, CONTENT_W - 6);
+    p.ensure(5 + itemLines.length * 4.2 + 4);
     doc.setFillColor(...BRAND.green);
-    doc.circle(x + 2, y + 2.3, 1.8, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(6.5);
-    doc.text("✓", x + 1.05, y + 3.15);
-    // testo
+    doc.circle(MARGIN + 1.5, p.y - 1.1, 1.5, "F");
     doc.setTextColor(...BRAND.navy);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9.2);
-    doc.text(name, x + 6, y + 2.3);
+    doc.setFontSize(9.5);
+    doc.text(area, MARGIN + 6, p.y);
+    p.y += 5;
     doc.setTextColor(...BRAND.grey);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.6);
-    const dl = doc.splitTextToSize(desc, colW - 6);
-    doc.text(dl[0] ?? "", x + 6, y + 6.6);
-  });
-  p.y = startY + rows * rowH + 4;
+    doc.setFontSize(8);
+    doc.text(itemLines, MARGIN + 6, p.y);
+    p.y += itemLines.length * 4.2 + 4;
+  }
+  p.y += 2;
 }
 
 /** 7 — L'investimento + CTA. */
@@ -768,7 +769,7 @@ export function generateRoiPdf(
   const p = new PdfDoc(cliente);
 
   // 1 — Copertina (pagina 1, senza running header)
-  coverPage(p, cliente);
+  coverPage(p, cliente, results);
 
   // 2..7 — Sezioni contenuto (header+footer ripetuti)
   p.newContentPage();
