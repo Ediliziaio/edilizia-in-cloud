@@ -48,9 +48,15 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { UnifiedFiltersSheet, type UnifiedFilters, DEFAULT_FILTERS } from "./UnifiedFiltersSheet";
+import {
+  mapClassicoStato,
+  mapSerramentiStato,
+  mapFotovoltaicoStato,
+  type UnifiedStato,
+} from "@/lib/preventivi/statoUnificato";
 
 export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico";
-export type UnifiedStato = "bozza" | "in_corso" | "vinto" | "perso" | "altro";
+export type { UnifiedStato };
 
 export interface UnifiedRow {
   id: string;
@@ -80,55 +86,9 @@ export const STATO_UNIF_LABEL: Record<UnifiedStato, { label: string; className: 
   altro:    { label: "Altro",    className: "bg-slate-100 text-slate-500 border-slate-200" },
 };
 
-function mapClassicoStato(s: string | null | undefined): UnifiedStato {
-  // quotes.status usa principalmente valori italiani (vedi QUOTE_STATUS_CONFIG):
-  // bozza | inviata | accettata | rifiutata | scaduta | convertita.
-  // Storicamente in DB esistono anche valori legacy in inglese o misti
-  // (vedi mp08_preventivi_intelligence: 'accepted'/'firmata'/'accettata').
-  // Copriamo entrambi per robustezza, con fallback "altro".
-  switch (s) {
-    case "bozza":
-    case "draft":
-      return "bozza";
-    case "inviata":
-    case "sent":
-    case "viewed":
-    case "visualizzata":
-    case "pending":
-      return "in_corso";
-    case "accettata":
-    case "accepted":
-    case "firmata":
-    case "signed":
-    case "convertita":
-      return "vinto";
-    case "rifiutata":
-    case "rejected":
-    case "scaduta":
-    case "expired":
-      return "perso";
-    default:
-      return "altro";
-  }
-}
-function mapSerramentiStato(s: string | null | undefined): UnifiedStato {
-  switch (s) {
-    case "bozza": return "bozza";
-    case "da_consegnare": case "consegnato": case "in_valutazione": return "in_corso";
-    case "accettato": return "vinto";
-    case "rifiutato": case "scaduto": return "perso";
-    default: return "altro";
-  }
-}
-function mapFotovoltaicoStato(s: string | null | undefined): UnifiedStato {
-  switch (s) {
-    case "bozza": return "bozza";
-    case "configurato": case "emesso": return "in_corso";
-    case "firmato": return "vinto";
-    case "annullato": return "perso";
-    default: return "altro";
-  }
-}
+// Le mappature di stato cross-modulo (mapClassicoStato/mapSerramentiStato/
+// mapFotovoltaicoStato) vivono in @/lib/preventivi/statoUnificato — single
+// source rispecchiata dalla vista DB v_preventivi_unificati.
 
 const PAGE_SIZE = 50;
 
