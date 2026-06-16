@@ -655,7 +655,7 @@ export function BatchBarcodeScanner({
                   Mostra al magazziniere cosa ha appena scansionato senza
                   guardare la lista in basso. */}
               {mode !== "lookup" && totalScans > 0 && (
-                <div className="absolute top-3 left-3 right-3 sm:right-auto bg-emerald-600/95 text-white rounded-xl px-4 py-2.5 sm:px-3 sm:py-1.5 shadow-xl pointer-events-none backdrop-blur-sm">
+                <div className="absolute top-3 left-3 right-auto max-w-[58%] sm:max-w-none bg-emerald-600/95 text-white rounded-xl px-4 py-2.5 sm:px-3 sm:py-1.5 shadow-xl pointer-events-none backdrop-blur-sm">
                   <div className="flex items-center gap-3 sm:block">
                     <div>
                       <div className="text-3xl sm:text-2xl font-bold tabular-nums leading-none">{totalScans}</div>
@@ -698,33 +698,41 @@ export function BatchBarcodeScanner({
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-white text-xs bg-black/60 px-3 py-1.5 rounded-full pointer-events-none font-medium">
                 Tocca per mettere a fuoco
               </div>
-              {/* v8.6.118 — Toolbar overlay con icone PIU grosse su mobile (h-11 vs h-9) */}
-              <div className="absolute top-3 right-3 flex gap-2">
+              {/* v8.6.120 — Controlli con ETICHETTA: il magazziniere capisce a
+                  colpo d'occhio cosa fanno (prima erano sole icone bianche).
+                  Stack verticale stretto in alto a destra → non collide col
+                  contatore verde in alto a sinistra. */}
+              <div className="absolute top-3 right-3 flex flex-col items-end gap-2">
                 {torchSupported && (
                   <Button
                     type="button"
                     variant="secondary"
-                    size="icon"
                     onClick={toggleTorch}
                     aria-label={torchOn ? "Spegni torcia" : "Accendi torcia"}
-                    className="h-12 w-12 sm:h-9 sm:w-9 bg-white/95 hover:bg-white shadow-lg"
+                    aria-pressed={torchOn}
+                    className={`h-11 sm:h-9 gap-2 px-3 shadow-lg ${
+                      torchOn
+                        ? "bg-amber-400 hover:bg-amber-400 text-amber-950"
+                        : "bg-white/95 hover:bg-white text-slate-700"
+                    }`}
                   >
                     {torchOn ? (
                       <FlashlightOff className="h-5 w-5 sm:h-4 sm:w-4" />
                     ) : (
                       <Flashlight className="h-5 w-5 sm:h-4 sm:w-4" />
                     )}
+                    <span className="text-sm font-medium">{torchOn ? "Luce accesa" : "Luce"}</span>
                   </Button>
                 )}
                 <Button
                   type="button"
                   variant="secondary"
-                  size="icon"
                   onClick={() => setManualMode(true)}
                   aria-label="Inserimento manuale"
-                  className="h-12 w-12 sm:h-9 sm:w-9 bg-white/95 hover:bg-white shadow-lg"
+                  className="h-11 sm:h-9 gap-2 px-3 bg-white/95 hover:bg-white text-slate-700 shadow-lg"
                 >
                   <Keyboard className="h-5 w-5 sm:h-4 sm:w-4" />
+                  <span className="text-sm font-medium">Digita codice</span>
                 </Button>
               </div>
               {lookup.isPending && (
