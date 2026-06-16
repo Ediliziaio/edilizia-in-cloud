@@ -39,6 +39,7 @@ import type { RstFormPatch } from "./RistrutturazioneWizard/types";
 import StepCliente from "./RistrutturazioneWizard/StepCliente";
 import StepImmobile from "./RistrutturazioneWizard/StepImmobile";
 import StepComputo from "./RistrutturazioneWizard/StepComputo";
+import StepMedia from "./RistrutturazioneWizard/StepMedia";
 
 const STEP_ICONS: Record<RstWizardStepKey, React.FC<React.SVGProps<SVGSVGElement>>> = {
   cliente: User,
@@ -429,7 +430,10 @@ export default function RistrutturazioneWizard() {
                 ivaPct={Number(form.iva_pct ?? detail.progetto.iva_pct ?? 22)}
               />
             )}
-            {currentStep !== "cliente" && currentStep !== "immobile" && currentStep !== "computo" && (
+            {currentStep === "media" && id && detail && (
+              <StepMedia progettoId={id} media={detail.media} />
+            )}
+            {currentStep !== "cliente" && currentStep !== "immobile" && currentStep !== "computo" && currentStep !== "media" && (
               <StepComingSoon step={currentStep} />
             )}
 
