@@ -38,6 +38,8 @@ const K = {
     ["rst-prefill-articoli", companyId, term] as const,
   tariffeSearch: (companyId: string | null, term: string) =>
     ["rst-prefill-tariffe", companyId, term] as const,
+  vociSearch: (companyId: string | null, term: string) =>
+    ["rst-listino-voci-search", companyId, term] as const,
 };
 
 // ─── Payloads ──────────────────────────────────────────────────────────────
@@ -377,6 +379,59 @@ export function usePrefillFromTariffa(term: string) {
           0,
         prezzo_vendita: (d.prezzo_vendita as number | null) ?? 0,
       }));
+    },
+  });
+}
+
+// ─── Ricerca voci di listino (per AddVocePicker del computo) ──────────────────
+
+/** Voce di listino lavorazioni arricchita col nome del capitolo (per il picker). */
+export interface ListinoVoceSearchOption {
+  id: string;
+  descrizione: string;
+  codice: string | null;
+  unita_misura: RstUnitaMisura;
+  prezzo_unitario: number;
+  costo_materiali: number;
+  costo_manodopera: number;
+  capitolo_nome: string | null;
+}
+
+/**
+ * Ricerca typeahead nel listino lavorazioni aziendale (`rst_listino_voci`) per
+ * il picker del computo. Joina `rst_listino_capitoli` per esporre il nome del
+ * capitolo (così la voce può essere pre-assegnata al capitolo giusto).
+ */
+export function useListinoVociSearch(term: string) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery<ListinoVoceSearchOption[]>({
+    queryKey: K.vociSearch(companyId, term),
+    enabled: !!companyId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      let q = sb()
+        .from("rst_listino_voci")
+        .select(
+          "id, descrizione, codice, unita_misura, prezzo_unitario, costo_materiali, costo_manodopera, capitolo:rst_listino_capitoli(nome)",
+        )
+        .eq("company_id", companyId!);
+      const t = term.trim();
+      if (t) q = q.or(`descrizione.ilike.%${t}%,codice.ilike.%${t}%`);
+      const { data, error } = await q.order("ordine").limit(40);
+      if (error) throw new Error(error.message);
+      return ((data ?? []) as Record<string, unknown>[]).map((d) => {
+        const cap = d.capitolo as { nome?: string } | null;
+        return {
+          id: String(d.id),
+          descrizione: (d.descrizione as string) ?? "Voce",
+          codice: (d.codice as string | null) ?? null,
+          unita_misura: ((d.unita_misura as string) ?? "cad") as RstUnitaMisura,
+          prezzo_unitario: (d.prezzo_unitario as number | null) ?? 0,
+          costo_materiali: (d.costo_materiali as number | null) ?? 0,
+          costo_manodopera: (d.costo_manodopera as number | null) ?? 0,
+          capitolo_nome: cap?.nome ?? null,
+        };
+      });
     },
   });
 }
