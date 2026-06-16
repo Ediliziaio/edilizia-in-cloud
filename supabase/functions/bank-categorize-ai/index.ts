@@ -39,13 +39,12 @@ Deno.serve(async (req) => {
     // claude_api_key non più richiesta — aiRouter usa OPENROUTER_API_KEY
     // (mantenuto check soft per backward-compat)
 
-    // Transazioni da categorizzare
+    // Transazioni da categorizzare: senza categoria (NULL) o generiche.
     const { data: transactions } = await supabaseAdmin
       .from("bank_transactions")
       .select("id, description, creditor_name, debtor_name, amount, transaction_type, category")
       .eq("company_id", companyId)
-      .in("category", ["Non categorizzata", "Entrata"])
-      .eq("status", "booked")
+      .or("category.is.null,category.eq.Non categorizzata,category.eq.Entrata")
       .order("booking_date", { ascending: false })
       .limit(limit);
 
@@ -56,9 +55,9 @@ Deno.serve(async (req) => {
     // Regole custom esistenti (per contesto)
     const { data: customRules } = await supabaseAdmin
       .from("bank_categorization_rules")
-      .select("pattern, category")
+      .select("match_value, category")
       .eq("company_id", companyId)
-      .eq("is_active", true)
+      .eq("auto_apply", true)
       .limit(50);
 
     // Prepara il prompt
@@ -67,7 +66,7 @@ Deno.serve(async (req) => {
     )).join("\n");
 
     const rulesContext = (customRules || []).length > 0
-      ? `\nRegole personalizzate dell'azienda:\n${customRules!.map((r: any) => `- "${r.pattern}" → ${r.category}`).join("\n")}\n`
+      ? `\nRegole personalizzate dell'azienda:\n${customRules!.map((r: any) => `- "${r.match_value}" → ${r.category}`).join("\n")}\n`
       : "";
 
     const prompt = `Sei un esperto contabile italiano. Categorizza queste transazioni bancarie.
@@ -147,22 +146,24 @@ Esempio: {"items":[{"index":1,"category":"Utenze","confidence":95,"pattern":"ENE
 
       // Crea regola se confidence alta e learn_rules attivo
       if (learnRules && result.confidence >= 85 && result.pattern) {
-        const pattern = result.pattern.trim().toUpperCase();
-        // Controlla se esiste già
+        const matchValue = result.pattern.trim().toUpperCase();
+        // Controlla se esiste già (stesso testo da cercare)
         const { count } = await supabaseAdmin
           .from("bank_categorization_rules")
           .select("id", { count: "exact", head: true })
           .eq("company_id", companyId)
-          .ilike("pattern", pattern);
+          .ilike("match_value", matchValue);
 
         if ((count ?? 0) === 0) {
           await supabaseAdmin.from("bank_categorization_rules").insert({
             company_id: companyId,
-            pattern,
+            match_value: matchValue,
+            match_field: "any",
+            match_type: "contains",
             category: result.category,
             category_icon: getCategoryIcon(result.category),
             priority: 50, // priorità media per regole AI
-            is_active: true,
+            auto_apply: true,
             is_case_sensitive: false,
           });
           rulesCreated++;

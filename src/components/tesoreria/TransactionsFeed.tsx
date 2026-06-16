@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Search, X, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Link2, Loader2 } from "lucide-react";
+import { Download, Search, X, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Link2, Loader2, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { buildBankTransactionSearchFilter, formatTreasuryCurrency, isChronologicalDateRange, toFiniteAmount } from "@/lib/treasury";
@@ -48,6 +48,7 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
   const requestSeqRef = useRef(0);
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [categorizing, setCategorizing] = useState(false);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -225,6 +226,36 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
     }));
   }
 
+  // Categorizza i movimenti: prima le regole salvate (gratis, immediato),
+  // poi l'AI sui rimanenti (che impara nuove regole per il futuro).
+  async function categorizeAll() {
+    if (!companyId) return;
+    setCategorizing(true);
+    try {
+      let byRules = 0;
+      const { data: ruleCount, error: ruleErr } = await supabase.rpc("apply_bank_categorization_rules", { p_company_id: companyId });
+      if (!ruleErr) byRules = (ruleCount as number) ?? 0;
+
+      let byAi = 0;
+      const { data: aiData, error: aiErr } = await supabase.functions.invoke("bank-categorize-ai", { body: { limit: 40 } });
+      if (aiErr || aiData?.error) {
+        if (byRules === 0) throw new Error(aiData?.error || aiErr?.message || "Errore categorizzazione AI");
+      } else {
+        byAi = aiData?.categorized ?? 0;
+      }
+
+      const tot = byRules + byAi;
+      toast.success(tot > 0
+        ? `Categorizzate ${tot} transazioni${byAi ? ` (${byRules} da regole, ${byAi} con AI)` : ""}`
+        : "Tutte le transazioni sono già categorizzate");
+      await loadTransactions();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore categorizzazione");
+    } finally {
+      setCategorizing(false);
+    }
+  }
+
   function exportCSV() {
     const rows = getExportRows();
     if (rows.length === 0) {
@@ -334,6 +365,9 @@ export default function TransactionsFeed({ companyId, refreshKey = 0 }: Props) {
             <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0); }} className="w-[150px]" />
             <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0); }} className="w-[150px]" />
             <Button variant="ghost" size="sm" onClick={resetFilters}><X className="h-4 w-4 mr-1" /> Reset</Button>
+            <Button variant="outline" size="sm" onClick={categorizeAll} disabled={categorizing} title="Applica le regole e categorizza con AI i movimenti senza categoria">
+              {categorizing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />} Categorizza
+            </Button>
             <Button variant="outline" size="sm" onClick={exportCSV}><Download className="h-4 w-4 mr-1" /> CSV</Button>
             <Button variant="outline" size="sm" onClick={exportXLSX}><Download className="h-4 w-4 mr-1" /> XLSX</Button>
           </div>

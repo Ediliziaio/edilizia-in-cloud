@@ -307,6 +307,8 @@ Deno.serve(async (req) => {
         }
         const connUpd = admin.from("bank_connections").update({ last_sync_at: new Date().toISOString() }).eq("company_id", companyId);
         await (connId ? connUpd.eq("id", connId) : connUpd);
+        // Applica le regole di categorizzazione ai nuovi movimenti (best-effort, mai bloccante).
+        try { await admin.rpc("apply_bank_categorization_rules", { p_company_id: companyId }); } catch { /* categorizzazione non bloccante */ }
         return json({ ok: true, imported, expired: expiredAny || undefined, debug: debug.length ? debug : undefined });
       }
 
