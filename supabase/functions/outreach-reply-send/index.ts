@@ -8,15 +8,24 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
  * che l'ha contattato (SMTP reale del pool o EE legacy), con threading
  * best-effort (In-Reply-To/References dal message_id dell'ultima risposta).
  *
+ * Supporta DUE modalità:
+ *   A) conversazione con contatto collegato → body: { contact_id, body }
+ *   B) conversazione SENZA contatto (email sciolta in inbox) →
+ *      body: { to_email, body, sender_account_id? }
+ *   In entrambi i casi il threading e la risoluzione casella si basano
+ *   sull'indirizzo del prospect (per contact_id si ricava dal contatto).
+ *
  * Flusso:
- *   1. carica il contatto (marketing_contacts) → email obbligatoria
- *   2. risolve la casella mittente: l'ultima che ha spedito a questo contatto
- *      (outreach_send_queue status='sent'), altrimenti una qualunque del pool
- *      (active/warming). Niente caselle → 409.
+ *   1. risolve il destinatario: dal contatto (marketing_contacts) se c'è
+ *      contact_id, altrimenti dall'email passata (to_email) → email obbligatoria
+ *   2. risolve la casella mittente: quella esplicita (sender_account_id) se
+ *      passata, altrimenti l'ultima che ha spedito a quell'indirizzo
+ *      (outreach_send_queue status='sent', per contact_id o per to_email),
+ *      altrimenti una qualunque del pool (active/warming). Niente caselle → 409.
  *   3. costruisce from/replyTo dal brand (outreach_brands) + casella
  *   4. invia via sendEmailUnified (SMTP override per provider='smtp', altrimenti EE)
  *   5. registra l'invio in outreach_send_queue (storico → appare nel thread)
- *   6. marca 'handled' le risposte del contatto ancora aperte
+ *   6. marca 'handled' le risposte ancora aperte (del contatto o di quell'email)
  *
  * Richiede le tabelle outreach_* (migrazione 20270815000000).
  */
@@ -34,30 +43,39 @@ Deno.serve(async (req) => {
     const payload = await req.json().catch(() => ({}));
     const contactId = String(payload?.contact_id || "").trim();
     const body = String(payload?.body || "").trim();
-    if (!contactId) return errorResponse("contact_id mancante", 400, corsH);
+    // Casella esplicita opzionale (compositore "Nuova email" o risposta sciolta).
+    const explicitSenderId = String(payload?.sender_account_id || "").trim();
     if (!body) return errorResponse("Corpo della risposta mancante", 400, corsH);
 
-    // 1. contatto
-    const { data: contact, error: cErr } = await admin
-      .from("marketing_contacts")
-      .select("id,email,first_name,last_name,company_name")
-      .eq("id", contactId).maybeSingle();
-    if (cErr) throw cErr;
-    if (!contact) return errorResponse("Contatto non trovato", 404, corsH);
-    const to = String(contact.email || "").trim().toLowerCase();
-    if (!to) return errorResponse("Il contatto non ha un'email", 400, corsH);
+    // 1. destinatario: dal contatto (se contact_id) oppure dall'email passata.
+    //    Per le conversazioni senza contatto collegato il client invia to_email.
+    let to = "";
+    if (contactId) {
+      const { data: contact, error: cErr } = await admin
+        .from("marketing_contacts")
+        .select("id,email,first_name,last_name,company_name")
+        .eq("id", contactId).maybeSingle();
+      if (cErr) throw cErr;
+      if (!contact) return errorResponse("Contatto non trovato", 404, corsH);
+      to = String(contact.email || "").trim().toLowerCase();
+      if (!to) return errorResponse("Il contatto non ha un'email", 400, corsH);
+    } else {
+      to = String(payload?.to_email || "").trim().toLowerCase();
+      if (!to) return errorResponse("Destinatario mancante (contact_id o to_email)", 400, corsH);
+    }
 
-    // 2. casella che ha contattato il prospect (ultima inviata) → fallback pool
-    const { data: lastSent } = await admin
+    // 2. casella mittente: esplicita → ultima che ha spedito a quell'indirizzo
+    //    (per contact_id o, in mancanza, per to_email) → fallback pool.
+    let lastSentQ = admin
       .from("outreach_send_queue")
       .select("sender_account_id,subject")
-      .eq("contact_id", contactId)
       .eq("status", "sent")
       .order("sent_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+    lastSentQ = contactId ? lastSentQ.eq("contact_id", contactId) : lastSentQ.eq("to_email", to);
+    const { data: lastSent } = await lastSentQ.maybeSingle();
 
-    let senderId = lastSent?.sender_account_id ?? null;
+    let senderId = explicitSenderId || lastSent?.sender_account_id || null;
     const lastSubject = lastSent?.subject ?? null;
     if (!senderId) {
       const { data: anySender } = await admin
@@ -98,16 +116,17 @@ Deno.serve(async (req) => {
       ? (/^re:/i.test(baseSubject) ? baseSubject : `Re: ${baseSubject}`)
       : "Re:";
 
-    // 7. threading best-effort: message_id dall'ultima risposta del contatto.
+    // 7. threading best-effort: message_id dall'ultima risposta del prospect
+    // (per contact_id se collegato, altrimenti per from_email = indirizzo prospect).
     // Il reply-handler salva raw.message_id (snake_case); proviamo anche messageId.
     const inReplyToHeaders: Record<string, string> = {};
-    const { data: lastReply } = await admin
+    let lastReplyQ = admin
       .from("outreach_replies")
       .select("raw")
-      .eq("contact_id", contactId)
       .order("received_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+    lastReplyQ = contactId ? lastReplyQ.eq("contact_id", contactId) : lastReplyQ.eq("from_email", to);
+    const { data: lastReply } = await lastReplyQ.maybeSingle();
     const rawObj = (lastReply?.raw ?? {}) as Record<string, unknown>;
     const priorMsgId =
       (typeof rawObj.message_id === "string" && rawObj.message_id) ||
@@ -145,7 +164,7 @@ Deno.serve(async (req) => {
       mailboxOverride,
       headers: Object.keys(inReplyToHeaders).length ? inReplyToHeaders : undefined,
       adminClient: admin,
-      metadata: { outreach_reply: true, contact_id: contactId, sender_account_id: sender.id, by: userId },
+      metadata: { outreach_reply: true, contact_id: contactId || null, to_email: to, sender_account_id: sender.id, by: userId },
     });
     if (res && res.ok === false) {
       return errorResponse(
@@ -157,10 +176,11 @@ Deno.serve(async (req) => {
 
     const now = new Date();
 
-    // 10. storico nel thread (stessa coda usata dall'inbox per le inviate)
+    // 10. storico nel thread (stessa coda usata dall'inbox per le inviate).
+    // contact_id può essere null (conversazione sciolta): si raggruppa per to_email.
     await admin.from("outreach_send_queue").insert({
       company_id: PLATFORM_COMPANY,
-      contact_id: contactId,
+      contact_id: contactId || null,
       sender_account_id: sender.id,
       channel: "email",
       to_email: to,
@@ -183,11 +203,14 @@ Deno.serve(async (req) => {
         .eq("id", sender.id);
     }
 
-    // 11. segna gestite le risposte ancora aperte del contatto
-    await admin.from("outreach_replies")
-      .update({ status: "handled" })
-      .eq("contact_id", contactId)
-      .in("status", ["unread", "read"]);
+    // 11. segna gestite le risposte ancora aperte (del contatto o di quell'email)
+    {
+      let handledQ = admin.from("outreach_replies")
+        .update({ status: "handled" })
+        .in("status", ["unread", "read"]);
+      handledQ = contactId ? handledQ.eq("contact_id", contactId) : handledQ.eq("from_email", to);
+      await handledQ;
+    }
 
     // 12. ok
     return jsonResponse({ ok: true }, 200, corsH);

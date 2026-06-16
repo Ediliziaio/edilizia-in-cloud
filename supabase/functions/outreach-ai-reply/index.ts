@@ -13,7 +13,11 @@ import { aiRouterComplete } from "../_shared/aiRouter.ts";
  * (la "Platform Admin CRM" non ha metodo di pagamento → il gate carta darebbe
  * 500). Stesso pattern di outreach-ai-email.
  *
- * Body: { contact_id }
+ * Body (due modalità):
+ *   A) { contact_id } → ricostruisce il thread server-side per contact_id.
+ *   B) { messages } → conversazione SENZA contatto collegato: il client passa
+ *      il thread già pronto (come outreach-ai-summary). Ogni voce:
+ *      { direction: 'out'|'in', subject, body, intent }.
  *
  * Colonne reali (migrazioni 20270815000000 / 20270816000000):
  *   marketing_contacts:  first_name, last_name, company_name, email, tags, notes
@@ -92,6 +96,33 @@ function buildThread(sent: SentMsg[], replies: ReplyMsg[]): { text: string; last
   return { text, lastIntent: lastReply?.intent ?? null };
 }
 
+/**
+ * Ricostruisce il thread da messaggi già pronti passati dal client (modalità B,
+ * conversazioni senza contatto collegato). Mappa direction→chi e linearizza il
+ * corpo (le inviate sono HTML nostro, le risposte testo grezzo).
+ */
+interface ClientMsg { direction?: string | null; subject?: string | null; body?: string | null; intent?: string | null }
+function buildThreadFromClient(messages: ClientMsg[]): { text: string; lastIntent: string | null } {
+  type Line = { who: "Noi" | "Prospect"; subject: string | null; text: string; intent: string | null };
+  const lines: Line[] = messages.map((m) => {
+    const out = m.direction === "out";
+    return {
+      who: out ? "Noi" : "Prospect",
+      subject: m.subject ?? null,
+      text: m.body ? stripHtml(m.body) : "",
+      intent: out ? null : (m.intent ?? null),
+    };
+  });
+  const lastReply = [...lines].reverse().find((l) => l.who === "Prospect");
+  const text = lines
+    .map((l) => {
+      const subj = l.subject ? ` (oggetto: ${l.subject})` : "";
+      return `${l.who}${subj}:\n${l.text || "—"}`;
+    })
+    .join("\n\n---\n\n");
+  return { text, lastIntent: lastReply?.intent ?? null };
+}
+
 function buildUserPrompt(c: ContactCtx, thread: { text: string; lastIntent: string | null }): string {
   const name = [c.first_name, c.last_name].filter(Boolean).join(" ");
   return [
@@ -131,44 +162,55 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const contactId = body?.contact_id ? String(body.contact_id) : "";
-    if (!contactId) return errorResponse("contact_id mancante", 400, corsH);
+    const clientMessages = Array.isArray(body?.messages) ? (body.messages as ClientMsg[]) : null;
+    if (!contactId && !clientMessages) {
+      return errorResponse("contact_id o messages mancanti", 400, corsH);
+    }
 
-    // Contatto
-    const { data: contact } = await admin
-      .from("marketing_contacts")
-      .select("first_name,last_name,company_name,email,tags,notes")
-      .eq("id", contactId)
-      .maybeSingle();
-    if (!contact) return errorResponse("Contatto non trovato", 404, corsH);
+    let contact: ContactCtx;
+    let thread: { text: string; lastIntent: string | null };
 
-    // Thread: ultime email inviate + ultime risposte ricevute
-    const [{ data: sentRows }, { data: replyRows }] = await Promise.all([
-      admin
-        .from("outreach_send_queue")
-        .select("subject,body,sent_at")
-        .eq("contact_id", contactId)
-        .eq("status", "sent")
-        .order("sent_at", { ascending: false })
-        .limit(5),
-      admin
-        .from("outreach_replies")
-        .select("from_email,subject,snippet,intent,received_at")
-        .eq("contact_id", contactId)
-        .order("received_at", { ascending: false })
-        .limit(5),
-    ]);
+    if (contactId) {
+      // Modalità A: contatto collegato → thread ricostruito server-side.
+      const { data: c } = await admin
+        .from("marketing_contacts")
+        .select("first_name,last_name,company_name,email,tags,notes")
+        .eq("id", contactId)
+        .maybeSingle();
+      if (!c) return errorResponse("Contatto non trovato", 404, corsH);
+      contact = c as ContactCtx;
 
-    const thread = buildThread(
-      (sentRows ?? []) as SentMsg[],
-      (replyRows ?? []) as ReplyMsg[],
-    );
+      const [{ data: sentRows }, { data: replyRows }] = await Promise.all([
+        admin
+          .from("outreach_send_queue")
+          .select("subject,body,sent_at")
+          .eq("contact_id", contactId)
+          .eq("status", "sent")
+          .order("sent_at", { ascending: false })
+          .limit(5),
+        admin
+          .from("outreach_replies")
+          .select("from_email,subject,snippet,intent,received_at")
+          .eq("contact_id", contactId)
+          .order("received_at", { ascending: false })
+          .limit(5),
+      ]);
+      thread = buildThread(
+        (sentRows ?? []) as SentMsg[],
+        (replyRows ?? []) as ReplyMsg[],
+      );
+    } else {
+      // Modalità B: conversazione sciolta → thread dal client, nessun contatto noto.
+      contact = {};
+      thread = buildThreadFromClient(clientMessages ?? []);
+    }
 
     const result = await aiRouterComplete({
       supabase: admin,
       taskKey: "outreach_ai_reply",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: buildUserPrompt(contact as ContactCtx, thread) },
+        { role: "user", content: buildUserPrompt(contact, thread) },
       ],
       params: { temperature: 0.7, max_tokens: 500 },
       companyId: PLATFORM_COMPANY,
