@@ -660,8 +660,8 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
         )}
 
         <View style={{ position: "absolute", top: 300, left: 44, right: 44 }}>
-          <Text style={[styles.coverTitle, { color: coverTextColor }]}>{coverTitle}</Text>
-          <Text style={[styles.coverSubtitle, { color: coverTextColor }]}>{coverSubtitle}</Text>
+          <Text style={[styles.coverTitle, { color: coverTextColor, fontSize: t.cover_title_size ?? 30, textAlign: t.cover_text_align ?? "left" }]}>{coverTitle}</Text>
+          <Text style={[styles.coverSubtitle, { color: coverTextColor, textAlign: t.cover_text_align ?? "left" }]}>{coverSubtitle}</Text>
         </View>
 
         <View style={{ position: "absolute", bottom: 70, left: 44, right: 44 }}>

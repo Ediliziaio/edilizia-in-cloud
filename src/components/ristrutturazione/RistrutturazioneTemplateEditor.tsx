@@ -29,7 +29,7 @@ import { toast } from "sonner";
 import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
   Palette, FileText, Sparkles, ListChecks, Quote, Clock, Building2,
-  Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, ShieldCheck,
+  Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, ShieldCheck, Percent,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -631,6 +631,34 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                     Aumenta il velo per rendere il testo più leggibile su immagini chiare.
                   </p>
                 </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Dimensione titolo copertina</Label>
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {form.cover_title_size ?? 30} pt
+                    </span>
+                  </div>
+                  <Slider
+                    value={[form.cover_title_size ?? 30]}
+                    min={20}
+                    max={44}
+                    step={1}
+                    onValueChange={(v) => set("cover_title_size", v[0])}
+                    className="mt-1"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Allineamento titolo</Label>
+                  <select
+                    value={form.cover_text_align ?? "left"}
+                    onChange={(e) => set("cover_text_align", e.target.value as FormState["cover_text_align"])}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="left">Sinistra</option>
+                    <option value="center">Centro</option>
+                    <option value="right">Destra</option>
+                  </select>
+                </div>
               </div>
             </SectionCard>
           )}
@@ -804,18 +832,36 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
 
           {/* Opzioni PDF */}
           {activeSection === "opzioni" && (
-            <SectionCard icon={BadgeEuro} title="Opzioni PDF" description="Impostazioni di visibilità del documento.">
-              <label className="flex items-center justify-between gap-3 rounded-lg border p-3">
-                <div>
-                  <p className="text-sm font-medium">Mostra i margini nel PDF</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    Visibile solo a te: stampa la marginalità per voce e capitolo. Tienilo
-                    SPENTO per i PDF da consegnare al cliente.
-                  </p>
+            <>
+              <SectionCard icon={BadgeEuro} title="Opzioni PDF" description="Impostazioni di visibilità del documento.">
+                <label className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-medium">Mostra i margini nel PDF</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Visibile solo a te: stampa la marginalità per voce e capitolo. Tienilo
+                      SPENTO per i PDF da consegnare al cliente.
+                    </p>
+                  </div>
+                  <Switch checked={form.show_margine} onCheckedChange={(v) => set("show_margine", v)} />
+                </label>
+              </SectionCard>
+              <SectionCard icon={Percent} title="Default economici" description="Valori precompilati sui nuovi preventivi ristrutturazione.">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">IVA predefinita (%)</Label>
+                    <Input type="number" min={0} max={99} value={form.default_iva_pct ?? 10} onChange={(e) => set("default_iva_pct", Number(e.target.value))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Detrazione fiscale (%)</Label>
+                    <Input type="number" min={0} max={100} value={form.default_detrazione_pct ?? 50} onChange={(e) => set("default_detrazione_pct", Number(e.target.value))} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Validità offerta (giorni)</Label>
+                    <Input type="number" min={1} value={form.default_validita_giorni ?? 30} onChange={(e) => set("default_validita_giorni", Number(e.target.value))} />
+                  </div>
                 </div>
-                <Switch checked={form.show_margine} onCheckedChange={(v) => set("show_margine", v)} />
-              </label>
-            </SectionCard>
+              </SectionCard>
+            </>
           )}
 
           {/* Barra salvataggio sticky */}
