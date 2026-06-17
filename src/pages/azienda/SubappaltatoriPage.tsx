@@ -12,6 +12,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+} from '@/components/ui/table';
+import {
+  Tooltip, TooltipTrigger, TooltipContent,
+} from '@/components/ui/tooltip';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -44,6 +51,12 @@ function StatoBadge({ stato }: { stato: StatoContratto | null }) {
   if (!stato) return null;
   const cfg = map[stato] ?? { label: stato, className: 'bg-slate-400 text-white' };
   return <Badge className={`text-xs ${cfg.className}`}>{cfg.label}</Badge>;
+}
+
+function AttivoBadge({ attivo }: { attivo: boolean | null }) {
+  return attivo
+    ? <Badge className="text-xs bg-green-600 text-white">Attivo</Badge>
+    : <Badge variant="secondary" className="text-xs">Non attivo</Badge>;
 }
 
 function isMissingCampoLinkColumn(error: unknown) {
@@ -160,7 +173,7 @@ export default function SubappaltatoriPage() {
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const attivi = subappaltatori.filter(s => s.stato_contratto === 'attivo').length;
+    const attivi = subappaltatori.filter(s => s.campo_is_active).length;
     const importoContratti = subappaltatori.reduce((a, s) => a + (s.importo_contrattuale ?? 0), 0);
     const ritenuteTotali = subappaltatori.reduce((a, s) => a + (s.ritenute_in_corso ?? 0), 0);
     const durcScaduti = subappaltatori.filter(s => {
@@ -179,7 +192,10 @@ export default function SubappaltatoriPage() {
           !(s.piva ?? '').toLowerCase().includes(term) &&
           !(s.email ?? '').toLowerCase().includes(term)) return false;
       if (filtroOrdine !== '__all__' && s.order_id !== filtroOrdine) return false;
-      if (filtroStato !== '__all__' && s.stato_contratto !== filtroStato) return false;
+      if (filtroStato === '__active__' && !s.campo_is_active) return false;
+      if (filtroStato === '__inactive__' && s.campo_is_active) return false;
+      if (filtroStato !== '__all__' && filtroStato !== '__active__' && filtroStato !== '__inactive__'
+          && s.stato_contratto !== filtroStato) return false;
       return true;
     });
   }, [subappaltatori, search, filtroOrdine, filtroStato]);
@@ -240,6 +256,51 @@ export default function SubappaltatoriPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  // ── Mutation toggle Attivo/Inattivo (anagrafica app cantiere) ─────────────
+  const toggleAttivoMutation = useMutation({
+    mutationFn: async ({ subappaltatoreId, attivo }: { subappaltatoreId: string; attivo: boolean }) => {
+      const { error } = await (supabase as any)
+        .from('subappaltatori')
+        .update({ is_active: attivo })
+        .eq('id', subappaltatoreId);
+      if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
+    },
+    onSuccess: (_data, vars) => {
+      toast.success(vars.attivo ? 'Subappaltatore attivato' : 'Subappaltatore disattivato');
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // Toggle riutilizzabile (tabella desktop + card mobile).
+  function AttivoToggle({ sub }: { sub: SubappaltatoreConDashboard }) {
+    const linkId = sub.campo_subappaltatore_id;
+    const pending = toggleAttivoMutation.isPending
+      && toggleAttivoMutation.variables?.subappaltatoreId === linkId;
+    const sw = (
+      <Switch
+        checked={!!sub.campo_is_active}
+        disabled={!linkId || pending}
+        onCheckedChange={(v) => {
+          if (!linkId) return;
+          toggleAttivoMutation.mutate({ subappaltatoreId: linkId, attivo: v });
+        }}
+        aria-label={sub.campo_is_active ? 'Disattiva subappaltatore' : 'Attiva subappaltatore'}
+      />
+    );
+    if (linkId) return sw;
+    // Anagrafica non collegata: switch disabilitato + spiegazione.
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {/* span wrapper: un elemento disabled non emette eventi hover */}
+          <span className="inline-flex cursor-not-allowed">{sw}</span>
+        </TooltipTrigger>
+        <TooltipContent>Collega prima l'anagrafica</TooltipContent>
+      </Tooltip>
+    );
+  }
+
   if (isScopriPlan) return <UpgradeScopriWall type="generic" inline />;
 
   return (
@@ -270,7 +331,7 @@ export default function SubappaltatoriPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <OperationalKpiCard icon={HardHat} label="Attivi" value={stats.attivi} hint="contratti operativi" tone="green" />
+        <OperationalKpiCard icon={HardHat} label="Attivi" value={stats.attivi} hint="collaboratori attivi" tone="green" />
         <OperationalKpiCard icon={Euro} label="Valore contratti" value={`€${stats.importoContratti.toLocaleString('it-IT')}`} hint="importo complessivo" tone="blue" />
         <OperationalKpiCard icon={ShieldCheck} label="Ritenute in corso" value={`€${stats.ritenuteTotali.toLocaleString('it-IT')}`} hint="da monitorare" tone="amber" />
         <OperationalKpiCard icon={AlertTriangle} label="DURC in scadenza" value={stats.durcScaduti} hint={stats.durcScaduti > 0 ? "richiede controllo" : "documenti ok"} tone={stats.durcScaduti > 0 ? "red" : "green"} />
@@ -306,8 +367,10 @@ export default function SubappaltatoriPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">Tutti gli stati</SelectItem>
+            <SelectItem value="__active__">Solo attivi</SelectItem>
+            <SelectItem value="__inactive__">Solo non attivi</SelectItem>
             <SelectItem value="bozza">Bozza</SelectItem>
-            <SelectItem value="attivo">Attivo</SelectItem>
+            <SelectItem value="attivo">Contratto attivo</SelectItem>
             <SelectItem value="completato">Completato</SelectItem>
             <SelectItem value="risolto">Risolto</SelectItem>
             <SelectItem value="sospeso">Sospeso</SelectItem>
@@ -335,7 +398,104 @@ export default function SubappaltatoriPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <>
+        {/* ── Tabella desktop (md+) ─────────────────────────────────────── */}
+        <Card className="hidden md:block">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Ditta</TableHead>
+                    <TableHead>P.IVA / C.F.</TableHead>
+                    <TableHead>Sede</TableHead>
+                    <TableHead>Contatti</TableHead>
+                    <TableHead>DURC</TableHead>
+                    <TableHead>Stato</TableHead>
+                    <TableHead className="text-right">Azioni</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((sub) => (
+                    <TableRow key={sub.id} className="align-top">
+                      {/* Ditta */}
+                      <TableCell className="max-w-[220px]">
+                        <p className="font-semibold leading-tight truncate">{sub.ragione_sociale}</p>
+                        {sub.responsabile && (
+                          <p className="text-xs text-muted-foreground truncate">{sub.responsabile}</p>
+                        )}
+                        {sub.tipo_lavori && (
+                          <p className="text-xs text-muted-foreground truncate">{sub.tipo_lavori}</p>
+                        )}
+                      </TableCell>
+                      {/* P.IVA / C.F. */}
+                      <TableCell className="text-sm">
+                        {sub.piva && <div>P.IVA {sub.piva}</div>}
+                        {sub.codice_fiscale && (
+                          <div className="text-xs text-muted-foreground">C.F. {sub.codice_fiscale}</div>
+                        )}
+                        {!sub.piva && !sub.codice_fiscale && <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      {/* Sede */}
+                      <TableCell className="max-w-[180px] text-sm">
+                        {sub.indirizzo
+                          ? <span className="block truncate" title={sub.indirizzo}>{sub.indirizzo}</span>
+                          : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      {/* Contatti */}
+                      <TableCell>
+                        <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+                          {(sub as any).telefono && (
+                            <a href={`tel:${(sub as any).telefono}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                              <Phone className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{(sub as any).telefono}</span>
+                            </a>
+                          )}
+                          {sub.email && (
+                            <a href={`mailto:${sub.email}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                              <Mail className="h-3 w-3 shrink-0" />
+                              <span className="truncate max-w-[160px]">{sub.email}</span>
+                            </a>
+                          )}
+                          {sub.pec && (
+                            <a href={`mailto:${sub.pec}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                              <ShieldCheck className="h-3 w-3 shrink-0" />
+                              <span className="truncate max-w-[160px]">{sub.pec}</span>
+                            </a>
+                          )}
+                          {!(sub as any).telefono && !sub.email && !sub.pec && (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      {/* DURC */}
+                      <TableCell><DurcBadge scadenza={sub.durc_scadenza} /></TableCell>
+                      {/* Stato */}
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <AttivoToggle sub={sub} />
+                          <AttivoBadge attivo={sub.campo_is_active} />
+                        </div>
+                      </TableCell>
+                      {/* Azioni */}
+                      <TableCell className="text-right">
+                        <Button asChild variant="outline" size="sm">
+                          <Link to={`/azienda/subappaltatori/${sub.id}`}>
+                            <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                            Dettaglio
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Card mobile (< md) ────────────────────────────────────────── */}
+        <div className="space-y-3 md:hidden">
           {filtered.map((sub) => {
             const lordo = sub.totale_sal_lordo ?? 0;
             const contratto = sub.importo_contrattuale ?? 0;
@@ -371,6 +531,7 @@ export default function SubappaltatoriPage() {
                           )}
                           <DurcBadge scadenza={sub.durc_scadenza} />
                           <StatoBadge stato={sub.stato_contratto} />
+                          <AttivoBadge attivo={sub.campo_is_active} />
                         </div>
                       </div>
 
@@ -428,7 +589,11 @@ export default function SubappaltatoriPage() {
                         </div>
                       )}
 
-                      <div className="mt-3 flex justify-end">
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <AttivoToggle sub={sub} />
+                          {sub.campo_is_active ? 'Attivo' : 'Non attivo'}
+                        </label>
                         <Button asChild variant="outline" size="sm">
                           <Link to={`/azienda/subappaltatori/${sub.id}`}>
                             <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
@@ -443,6 +608,7 @@ export default function SubappaltatoriPage() {
             );
           })}
         </div>
+        </>
       )}
 
       {/* Dialog nuovo subappaltatore */}

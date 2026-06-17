@@ -159,6 +159,47 @@ export default function SubappaltatoreDetail() {
     enabled: !!id,
   });
 
+  // ── Fetch documenti "fascicolo" (tabella subappaltatori_documenti) ─────────
+  // Archivio DIVERSO da documenti_subappaltatore (sopra): qui finiscono i doc
+  // caricati in massa / dal modulo Sicurezza, legati all'ANAGRAFICA
+  // (campo_subappaltatore_id). Li mostriamo in sola lettura sulla scheda così
+  // sono accessibili da qui. Stesso bucket (subappaltatori-documenti).
+  const COMPLIANCE_TIPO_LABELS: Record<string, string> = {
+    durc: 'DURC', visura: 'Visura camerale', dvr: 'DVR', pos: 'POS',
+    soa: 'Attestazione SOA', polizza_rc: 'Polizza RC', cassa_edile: 'Cassa Edile',
+    antimafia: 'Antimafia', iscrizione_albo: 'Iscrizione Albo',
+    formazione_operai: 'Formazione operai', altro: 'Altro',
+  };
+  const { data: documentiCompliance = [] } = useQuery({
+    queryKey: ['sub-doc-compliance', sub?.campo_subappaltatore_id],
+    enabled: !!sub?.campo_subappaltatore_id,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('subappaltatori_documenti')
+        .select('id, tipo, status, storage_path, scadenza, created_at')
+        .eq('subappaltatore_id', sub!.campo_subappaltatore_id)
+        .neq('status', 'superseded')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; tipo: string; status: string;
+        storage_path: string | null; scadenza: string | null; created_at: string;
+      }>;
+    },
+  });
+
+  const openComplianceDoc = async (path: string | null) => {
+    if (!path) return;
+    const { data, error } = await supabase.storage
+      .from(DOCUMENT_BUCKET)
+      .createSignedUrl(path, 60 * 5);
+    if (error || !data?.signedUrl) {
+      toast.error('Impossibile aprire il documento');
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
   const { data: campoAccess } = useQuery({
     queryKey: ['subappaltatore-campo-access', sub?.campo_subappaltatore_id],
     queryFn: async () => {
@@ -891,6 +932,52 @@ export default function SubappaltatoreDetail() {
               )}
             </CardContent>
           </Card>
+
+          {/* Documenti fascicolo (sola lettura) — da subappaltatori_documenti,
+              legati all'anagrafica. Visure/DURC/accordi caricati in massa o dal
+              modulo Sicurezza, resi accessibili anche da qui. */}
+          {sub.campo_subappaltatore_id && documentiCompliance.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileText className="h-4 w-4" /> Documenti caricati
+                  <Badge variant="secondary" className="ml-1">{documentiCompliance.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {documentiCompliance.map((doc) => {
+                    const daysLeft = doc.scadenza
+                      ? differenceInDays(parseISO(doc.scadenza), new Date())
+                      : null;
+                    return (
+                      <div key={doc.id} className="flex items-center justify-between border rounded-lg p-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">
+                            {COMPLIANCE_TIPO_LABELS[doc.tipo] ?? doc.tipo}
+                          </p>
+                          {doc.scadenza && (
+                            <p className={`text-xs mt-0.5 ${daysLeft === null ? 'text-muted-foreground' : daysLeft < 0 ? 'text-red-600' : daysLeft <= 30 ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                              Scade: {format(parseISO(doc.scadenza), 'dd/MM/yyyy')}
+                              {daysLeft !== null && (daysLeft < 0 ? ' (scaduto)' : daysLeft <= 30 ? ` (${daysLeft}gg)` : '')}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void openComplianceDoc(doc.storage_path)}
+                          aria-label="Apri documento"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* ─── Tab 2: Lavori svolti ──────────────────────────────────────────── */}
