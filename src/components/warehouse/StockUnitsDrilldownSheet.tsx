@@ -10,7 +10,7 @@
  *
  * Layout snello: tabella scorribile con colonne essenziali + badge status.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Sheet,
   SheetContent,
@@ -42,6 +42,8 @@ interface StockUnitsDrilldownSheetProps {
   onOpenChange: (open: boolean) => void;
   /** Se passato, il drill-down è ristretto a quell'articolo. */
   stockItemId?: string;
+  /** Se passato, all'apertura il filtro lotto è pre-impostato su questo lotto. */
+  lottoId?: string;
   /** Lista lotti per popolare il dropdown filtro. */
   lotti?: Array<{ id: string; codice_lotto: string }>;
   /** Titolo override (es. nome articolo quando si arriva da una riga). */
@@ -73,6 +75,7 @@ export function StockUnitsDrilldownSheet({
   open,
   onOpenChange,
   stockItemId,
+  lottoId,
   lotti = [],
   title,
 }: StockUnitsDrilldownSheetProps) {
@@ -80,6 +83,12 @@ export function StockUnitsDrilldownSheet({
   const [statusFilter, setStatusFilter] = useState<StockUnitStatus | "all">("all");
   const [lottoFilter, setLottoFilter] = useState<string>("all");
   const [exportOpen, setExportOpen] = useState(false);
+
+  // Aprendo il drill-down da un lotto specifico, pre-filtra su quel lotto
+  // (l'utente può comunque allargare a "Tutti i lotti" dal dropdown).
+  useEffect(() => {
+    if (open) setLottoFilter(lottoId ?? "all");
+  }, [open, lottoId]);
 
   const filters = useMemo(
     () => ({

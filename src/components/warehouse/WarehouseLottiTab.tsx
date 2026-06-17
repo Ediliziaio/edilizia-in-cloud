@@ -696,8 +696,10 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
         onOpenChange={(o) => !o && setDrilldownLottoId(null)}
         title={drilldownLotto ? `Seriali del lotto ${drilldownLotto.codice_lotto}` : undefined}
         lotti={lotti.map((l) => ({ id: l.id, codice_lotto: l.codice_lotto }))}
-        // Pre-filter via stockItemId del lotto (se collegato) — nella Sheet
-        // l'utente può poi aggiungere ulteriori filtri.
+        // Pre-filtra sul lotto aperto → mostra esattamente i suoi seriali
+        // (l'utente può allargare a "Tutti i lotti" dal dropdown). stockItemId
+        // resta per dare contesto articolo quando il lotto vi è collegato.
+        lottoId={drilldownLottoId ?? undefined}
         stockItemId={drilldownLotto?.stock_item_id ?? undefined}
       />
 
