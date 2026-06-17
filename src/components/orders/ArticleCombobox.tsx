@@ -127,7 +127,7 @@ export function ArticleCombobox({
         // asse (es. "Potenza"/"Modello") nelle loro varianti, ognuna col suo
         // codice + prezzo. Famiglie multi-asse → restano una voce (configuratore).
         sb.from("article_family_axes")
-          .select("id, family_id, values:article_family_axis_values(id, label, codice, prezzo_vendita, maggiorazione_tipo, maggiorazione_valore, attivo, sort_order)")
+          .select("id, family_id, values:article_family_axis_values(id, label, codice, prezzo_vendita, immagine_url, maggiorazione_tipo, maggiorazione_valore, attivo, sort_order)")
           .eq("company_id", companyId!),
       ]);
       if (famRes.error) throw famRes.error;
@@ -137,7 +137,7 @@ export function ArticleCombobox({
       });
 
       type VariantRow = {
-        id: string; label: string; codice: string | null; prezzo_vendita: number | null;
+        id: string; label: string; codice: string | null; prezzo_vendita: number | null; immagine_url: string | null;
         maggiorazione_tipo: string | null; maggiorazione_valore: number | null; attivo: boolean; sort_order: number;
       };
       const axisCount = new Map<string, number>();
@@ -177,7 +177,8 @@ export function ArticleCombobox({
             vat_rate: 22,
             supplier_id: null,
             description: f.descrizione,
-            immagine_url: f.immagine_url,
+            // Immagine propria della variante, fallback a quella della famiglia.
+            immagine_url: v.immagine_url ?? f.immagine_url,
             pdf_scheda_url: null,
             source: "listino",
             manodopera_costo: Number(f.manodopera_costo_acquisto ?? 0) || null,

@@ -208,6 +208,11 @@ export interface AxisValue {
   prezzo_vendita: number | null;
   /** Prezzo di acquisto assoluto della variante. */
   prezzo_acquisto: number | null;
+  /**
+   * Immagine propria della variante (migration 20271017000000). Se valorizzata
+   * è usata nel preventivatore/scheda al posto di quella della famiglia.
+   */
+  immagine_url: string | null;
   sort_order: number;
   attivo: boolean;
   created_at: string;

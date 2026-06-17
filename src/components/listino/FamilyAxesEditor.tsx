@@ -13,7 +13,7 @@
  *  - Ordinamento via pulsanti freccia (up/down)
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef, type ChangeEvent } from "react";
 import {
   Plus,
   Trash2,
@@ -26,6 +26,7 @@ import {
   Copy,
   ChevronsUpDown,
   FileText,
+  Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
@@ -173,6 +174,19 @@ function slugifyCodice(s: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
+/** Upload immagine propria della variante sul bucket pubblico article-images
+ *  (path {company}/variant-{valueId}.ext), ritorna URL pubblico con cache-bust. */
+async function uploadVariantImage(companyId: string, valueId: string, file: File): Promise<string> {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${companyId}/variant-${valueId}.${ext}`;
+  const { error } = await supabase.storage
+    .from("article-images")
+    .upload(path, file, { upsert: true, cacheControl: "3600" });
+  if (error) throw error;
+  const { data } = supabase.storage.from("article-images").getPublicUrl(path);
+  return `${data.publicUrl}?t=${Date.now()}`;
+}
+
 interface Props {
   family: FamilyWithAxes;
 }
@@ -210,6 +224,36 @@ export function FamilyAxesEditor({ family }: Props) {
       return m;
     },
   });
+
+  // Immagine propria della variante: input file riusabile (pattern come foto lotto).
+  const imgInputRef = useRef<HTMLInputElement | null>(null);
+  const imgTargetIdRef = useRef<string | null>(null);
+  const [uploadingImgId, setUploadingImgId] = useState<string | null>(null);
+  const handlePickImageFor = (valueId: string) => {
+    imgTargetIdRef.current = valueId;
+    imgInputRef.current?.click();
+  };
+  const handleImgInputChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const valueId = imgTargetIdRef.current;
+    e.target.value = "";
+    imgTargetIdRef.current = null;
+    if (!file || !valueId || !companyId) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Seleziona un'immagine");
+      return;
+    }
+    setUploadingImgId(valueId);
+    try {
+      const url = await uploadVariantImage(companyId, valueId, file);
+      await updateAxisValue.mutateAsync({ id: valueId, familyId: family.id, patch: { immagine_url: url } });
+      toast.success("Immagine variante aggiornata");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Errore caricamento immagine");
+    } finally {
+      setUploadingImgId(null);
+    }
+  };
 
   const [newAxisOpen, setNewAxisOpen] = useState(false);
   // Multi-open: più assi possono essere espansi insieme (era single prima).
@@ -750,6 +794,22 @@ export function FamilyAxesEditor({ family }: Props) {
                                 className="mt-1 shrink-0"
                                 aria-label={`Seleziona ${v.label}`}
                               />
+                              {/* Immagine propria della variante — click per caricare/cambiare */}
+                              <button
+                                type="button"
+                                onClick={() => handlePickImageFor(v.id)}
+                                className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded border bg-muted"
+                                title={v.immagine_url ? "Cambia immagine variante" : "Aggiungi immagine variante"}
+                                aria-label={`Immagine variante ${v.label}`}
+                              >
+                                {uploadingImgId === v.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                                ) : v.immagine_url ? (
+                                  <img src={v.immagine_url} alt="" className="h-full w-full object-cover" />
+                                ) : (
+                                  <ImageIcon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                                )}
+                              </button>
                               <div className="flex-1 min-w-0">
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   <span className="font-medium break-words">
@@ -1131,6 +1191,15 @@ export function FamilyAxesEditor({ family }: Props) {
         existingCodici={family.axes.map((a) => a.codice)}
         onApply={handleApplyPresets}
         saving={bulkInsertAxesWithValues.isPending}
+      />
+
+      {/* Input file riusabile per l'immagine della variante */}
+      <input
+        ref={imgInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleImgInputChange}
       />
 
       {/* Schede PDF per singola variante */}

@@ -298,6 +298,7 @@ export function useFamilyMutations() {
             codice: v.codice,
             prezzo_vendita: v.prezzo_vendita,
             prezzo_acquisto: v.prezzo_acquisto,
+            immagine_url: v.immagine_url,
             sort_order: v.sort_order,
             attivo: v.attivo,
           }));
