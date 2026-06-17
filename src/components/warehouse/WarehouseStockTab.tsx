@@ -75,6 +75,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
 
   const [searchQuery, setSearchQuery] = useState("");
   const [sectionFilter, setSectionFilter] = useState<string>("all");
+  const [lottoFilter, setLottoFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<StockItem | null>(null);
   const [movementDialog, setMovementDialog] = useState<{
@@ -180,6 +181,33 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
     () => serialCount > 0 || stockItems.some((i) => i.tracking_mode === "serialized"),
     [serialCount, stockItems],
   );
+
+  // Lotti della company → filtro "per lotto" in Inventario (mostra la merce
+  // collegata al lotto scelto). stock_lotti non è nei tipi generati.
+  const { data: lotti = [] } = useQuery({
+    queryKey: ["warehouse-stock-lotti-filter", companyId],
+    enabled: !!companyId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const { data, error } = await sb
+        .from("stock_lotti")
+        .select("id, codice_lotto, articolo, stock_item_id")
+        .eq("company_id", companyId!)
+        .order("codice_lotto")
+        .limit(1000);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; codice_lotto: string; articolo: string | null; stock_item_id: string | null;
+      }>;
+    },
+  });
+  const lottoStockItemId = useMemo(
+    () => (lottoFilter === "all" ? null : lotti.find((l) => l.id === lottoFilter)?.stock_item_id ?? null),
+    [lotti, lottoFilter],
+  );
+  const hasLotti = lotti.length > 0;
 
   const { sections } = useWarehouseSections();
   // O(1) lookup map sezioni (stesso motivo di supplierNameById). Restituisce
@@ -380,6 +408,10 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
         items = items.filter((i) => i.section_id === sectionFilter);
       }
     }
+    // Filtro lotto: mostra solo l'articolo collegato al lotto scelto.
+    if (lottoFilter !== "all") {
+      items = lottoStockItemId ? items.filter((i) => i.id === lottoStockItemId) : [];
+    }
     if (!searchQuery) return items;
     const q = searchQuery.toLowerCase();
     return items.filter(
@@ -389,7 +421,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
         (item.internal_code && item.internal_code.toLowerCase().includes(q)) ||
         (item.barcode && item.barcode.toLowerCase().includes(q))
     );
-  }, [stockItems, searchQuery, sectionFilter]);
+  }, [stockItems, searchQuery, sectionFilter, lottoFilter, lottoStockItemId]);
 
   // Pagination for stock items
   const STOCK_PAGE_SIZE = 50;
@@ -403,6 +435,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   // Reset page when search/filter changes
   const setSearchQueryWithReset = useCallback((q: string) => { setSearchQuery(q); setStockPage(0); }, []);
   const setSectionFilterWithReset = useCallback((v: string) => { setSectionFilter(v); setStockPage(0); }, []);
+  const setLottoFilterWithReset = useCallback((v: string) => { setLottoFilter(v); setStockPage(0); }, []);
 
   const lowStockItems = useMemo(
     () => stockItems.filter((i) => i.min_stock_level > 0 && i.quantity <= i.min_stock_level),
@@ -565,6 +598,25 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                       <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />
                       {s.name}
                     </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {hasLotti && (
+            <Select value={lottoFilter} onValueChange={setLottoFilterWithReset}>
+              <SelectTrigger className="w-full sm:w-[230px]">
+                <Package className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="Filtra lotto" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                <SelectItem value="all">Tutti i lotti</SelectItem>
+                {lotti.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    <span className="font-mono text-xs">{l.codice_lotto}</span>
+                    {l.articolo && (
+                      <span className="text-muted-foreground"> · {l.articolo.slice(0, 26)}</span>
+                    )}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -16,7 +16,7 @@
  *  - Data scadenza
  *  - Note
  */
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, type ChangeEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -40,7 +40,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Package, Loader2, AlertTriangle, Clock, ListPlus, Eye, ScanLine } from "lucide-react";
+import { Plus, Trash2, Package, Loader2, AlertTriangle, Clock, ListPlus, Eye, ScanLine, Camera } from "lucide-react";
 import { differenceInDays, parseISO, format } from "date-fns";
 import { StockUnitsDrilldownSheet } from "@/components/warehouse/StockUnitsDrilldownSheet";
 import { AssignSerialsToLottoDialog } from "@/components/warehouse/AssignSerialsToLottoDialog";
@@ -59,7 +59,21 @@ interface Lotto {
   data_scadenza: string | null;
   posizione: string | null;
   note: string | null;
+  foto_url: string | null;
   created_at: string;
+}
+
+/** Upload foto bancale/lotto sul bucket pubblico article-images (RLS per company
+ *  via primo segmento del path), ritorna l'URL pubblico con cache-bust. */
+async function uploadLottoFoto(companyId: string, lottoId: string, file: File): Promise<string> {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${companyId}/lotto-${lottoId}.${ext}`;
+  const { error } = await supabase.storage
+    .from("article-images")
+    .upload(path, file, { upsert: true, cacheControl: "3600" });
+  if (error) throw error;
+  const { data } = supabase.storage.from("article-images").getPublicUrl(path);
+  return `${data.publicUrl}?t=${Date.now()}`;
 }
 
 interface LottoForm {
@@ -121,6 +135,13 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
   const creatingRef = useRef(false); // guard atomico anti double-submit (lo stato React è async)
   const [drilldownLottoId, setDrilldownLottoId] = useState<string | null>(null);
   const [assignLottoId, setAssignLottoId] = useState<string | null>(null);
+  // Foto bancale: file selezionato nel dialog "Nuovo lotto" + lightbox + input
+  // riusabile per aggiungere/cambiare foto a un lotto esistente dalla tabella.
+  const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [fotoZoom, setFotoZoom] = useState<string | null>(null);
+  const fotoInputRef = useRef<HTMLInputElement | null>(null);
+  const fotoTargetIdRef = useRef<string | null>(null);
 
   // ── Lista lotti ─────────────────────────────────────────────────────────
   const { data: lotti = [], isLoading } = useQuery({
@@ -130,7 +151,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
       const { data, error } = await supabase
         .from("stock_lotti")
         .select(
-          "id, codice_lotto, articolo, descrizione, fornitore, supplier_id, stock_item_id, warehouse_id, quantita, unita_misura, data_scadenza, posizione, note, created_at",
+          "id, codice_lotto, articolo, descrizione, fornitore, supplier_id, stock_item_id, warehouse_id, quantita, unita_misura, data_scadenza, posizione, note, foto_url, created_at",
         )
         .eq("company_id", companyId!)
         .order("created_at", { ascending: false })
@@ -222,6 +243,38 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
     },
   });
 
+  // Aggiunge/cambia la foto a un lotto ESISTENTE (dalla tabella).
+  const setFotoMutation = useMutation({
+    mutationFn: async ({ lottoId, file }: { lottoId: string; file: File }) => {
+      if (!companyId) throw new Error("Azienda non identificata");
+      if (!file.type.startsWith("image/")) throw new Error("Seleziona un'immagine");
+      const url = await uploadLottoFoto(companyId, lottoId, file);
+      const { error } = await supabase
+        .from("stock_lotti")
+        .update({ foto_url: url } as never)
+        .eq("id", lottoId);
+      if (error) throw error;
+      return url;
+    },
+    onSuccess: () => {
+      toast.success("Foto del lotto aggiornata");
+      queryClient.invalidateQueries({ queryKey: ["warehouse-lotti-list-full", companyId] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Errore caricamento foto"),
+  });
+
+  const handlePickFotoFor = (lottoId: string) => {
+    fotoTargetIdRef.current = lottoId;
+    fotoInputRef.current?.click();
+  };
+  const handleFotoInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const lottoId = fotoTargetIdRef.current;
+    e.target.value = ""; // permette di ri-selezionare lo stesso file
+    fotoTargetIdRef.current = null;
+    if (file && lottoId) setFotoMutation.mutate({ lottoId, file });
+  };
+
   const handleCreate = async () => {
     if (readOnly) return;
     // Guard ATOMICO contro double-submit: il button è `disabled={isSaving}`, ma lo
@@ -253,7 +306,7 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
         form.fornitore_libero.trim() ||
         null;
 
-      const { error } = await supabase.from("stock_lotti").insert({
+      const { data: createdRaw, error } = await supabase.from("stock_lotti").insert({
         company_id: companyId!,
         codice_lotto: form.codice_lotto.trim(),
         articolo: articoloName,
@@ -267,14 +320,26 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
         data_scadenza: form.data_scadenza || null,
         posizione: form.posizione.trim() || null,
         note: form.note.trim() || null,
-      } as never);
+      } as never).select("id").single();
       if (error) {
         toast.error(error.message);
         return;
       }
+      // Foto opzionale del bancale: caricata dopo l'insert (serve l'id nel path).
+      const createdId = (createdRaw as { id: string } | null)?.id;
+      if (fotoFile && createdId && companyId) {
+        try {
+          const url = await uploadLottoFoto(companyId, createdId, fotoFile);
+          await supabase.from("stock_lotti").update({ foto_url: url } as never).eq("id", createdId);
+        } catch {
+          toast.error("Lotto creato, ma foto non caricata");
+        }
+      }
       toast.success("Lotto creato");
       setDialogOpen(false);
       setForm(emptyForm);
+      setFotoFile(null);
+      setFotoPreview(null);
       queryClient.invalidateQueries({ queryKey: ["warehouse-lotti-list-full", companyId] });
       queryClient.invalidateQueries({ queryKey: ["warehouse-lotti-list", companyId] });
     } finally {
@@ -387,7 +452,20 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
               <TableBody>
                 {lotti.map((lotto) => (
                   <TableRow key={lotto.id}>
-                    <TableCell className="font-mono text-sm font-medium">{lotto.codice_lotto}</TableCell>
+                    <TableCell className="font-mono text-sm font-medium">
+                      <div className="flex items-center gap-2">
+                        {lotto.foto_url && (
+                          <img
+                            src={lotto.foto_url}
+                            alt=""
+                            loading="lazy"
+                            className="h-8 w-8 shrink-0 rounded border object-cover cursor-zoom-in"
+                            onClick={() => setFotoZoom(lotto.foto_url)}
+                          />
+                        )}
+                        <span>{lotto.codice_lotto}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>{lotto.articolo || "—"}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{lotto.fornitore || "—"}</TableCell>
                     <TableCell className="text-right font-medium">
@@ -398,6 +476,18 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
+                        {!readOnly && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => handlePickFotoFor(lotto.id)}
+                            aria-label="Foto del lotto"
+                            title={lotto.foto_url ? "Cambia foto del lotto" : "Aggiungi foto del lotto"}
+                          >
+                            <Camera className={`h-3.5 w-3.5 ${lotto.foto_url ? "text-emerald-600" : "text-muted-foreground"}`} />
+                          </Button>
+                        )}
                         {!readOnly && (
                           <Button
                             variant="ghost"
@@ -652,6 +742,42 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
                 placeholder="Opzionali..."
               />
             </div>
+
+            {/* Foto bancale/lotto (opzionale) — su mobile apre la fotocamera */}
+            <div className="space-y-1">
+              <Label>Foto bancale (opzionale)</Label>
+              {fotoPreview ? (
+                <div className="relative w-fit">
+                  <img src={fotoPreview} alt="Anteprima foto lotto" className="h-24 w-24 rounded border object-cover" />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    className="absolute -right-2 -top-2 h-6 w-6"
+                    onClick={() => { setFotoFile(null); setFotoPreview(null); }}
+                    aria-label="Rimuovi foto"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed p-3 text-sm text-muted-foreground hover:bg-muted/40">
+                  <Camera className="h-4 w-4" />
+                  Scatta o carica una foto del bancale
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      if (f) { setFotoFile(f); setFotoPreview(URL.createObjectURL(f)); }
+                    }}
+                  />
+                </label>
+              )}
+            </div>
           </div>
 
           <DialogFooter>
@@ -713,6 +839,27 @@ export default function WarehouseLottiTab({ readOnly = false }: WarehouseLottiTa
           articolo={assignLotto?.articolo}
         />
       )}
+
+      {/* Input file riusabile: aggiungi/cambia foto di un lotto esistente */}
+      <input
+        ref={fotoInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFotoInputChange}
+      />
+
+      {/* Lightbox foto lotto */}
+      <Dialog open={!!fotoZoom} onOpenChange={(o) => !o && setFotoZoom(null)}>
+        <DialogContent className="max-w-2xl p-2">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Foto lotto</DialogTitle>
+            <DialogDescription>Anteprima ingrandita della foto del lotto</DialogDescription>
+          </DialogHeader>
+          {fotoZoom && <img src={fotoZoom} alt="Foto lotto" className="w-full rounded" />}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
