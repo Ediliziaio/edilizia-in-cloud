@@ -118,6 +118,7 @@ export function ArticleCombobox({
           .select("id, nome, codice, descrizione, immagine_url, prezzo_base_acquisto, prezzo_base_vendita, categoria_id, manodopera_costo_acquisto")
           .eq("company_id", companyId!)
           .eq("attivo", true)
+          .eq("mostra_preventivo", true)
           .is("deleted_at", null)
           .order("nome")
           .limit(2000),

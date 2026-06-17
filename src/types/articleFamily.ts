@@ -153,6 +153,12 @@ export interface ArticleFamily {
   griglia_asse_y_label: string;
   griglia_unita: string;
   attivo: boolean;
+  /**
+   * Visibilità nel selettore articoli del preventivatore. Indipendente da
+   * `attivo`: un prodotto può restare a listino/magazzino (attivo=true) ma non
+   * essere proposto nei preventivi (mostra_preventivo=false). Default true.
+   */
+  mostra_preventivo: boolean;
   sort_order: number;
   custom_field_values: Record<string, unknown>;
   /**
