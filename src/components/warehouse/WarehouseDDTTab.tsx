@@ -1,14 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { FileText, AlertTriangle, RefreshCw, ArrowDownToLine, Truck } from "lucide-react";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import { FileText, AlertTriangle, RefreshCw, ArrowDownToLine, Truck, Download, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { useDocumentiFiscali } from "@/hooks/useDocumentiFiscali";
+import { useShipmentDDTPDF } from "@/hooks/useShipmentDDTPDF";
+import { useBillingMode } from "@/contexts/BillingModeContext";
 import { formatCurrency } from "@/lib/formatters";
 
 interface Props {
@@ -43,19 +49,36 @@ const STATO_USCITA_BADGE: Record<string, "default" | "secondary" | "outline" | "
   annullata: "destructive",
 };
 
+function fmtDate(d: string | null | undefined) {
+  if (!d) return "—";
+  const parsed = new Date(d);
+  return isNaN(parsed.getTime()) ? "—" : format(parsed, "dd MMM yyyy", { locale: it });
+}
+
 /**
- * Tab "DDT" dentro la pagina Warehouse.tsx, con due sezioni:
+ * Tab "DDT" dentro la pagina Warehouse.tsx, con due sezioni a tabella:
  *  - In entrata: DDT di ricezione (ddt_ricezione, da ordini di acquisto).
  *  - In uscita:  DDT emessi verso cantiere/cliente (documenti_fiscali tipo='ddt',
  *                generati da "Spedisci a cantiere" / Uscita merce).
  *
- * RLS applica già i filtri di visibilità su entrambe le sorgenti. Il filtro
- * `warehouseFilter` è solo UI e si applica ai soli DDT in entrata (i DDT in
- * uscita non sono legati a un magazzino nella tabella documenti_fiscali).
+ * RLS applica già i filtri di visibilità. Il filtro `warehouseFilter` è solo UI
+ * e si applica ai soli DDT in entrata (i DDT in uscita non sono legati a un
+ * magazzino nella tabella documenti_fiscali).
+ *
+ * "Apri" usa la navigazione SPA (useNavigate) per evitare reload completi:
+ *  - entrata → ordine di acquisto collegato
+ *  - uscita  → editor documento (/azienda/documenti/:id), stessa rotta usata
+ *              dal flusso "Spedisci a cantiere" alla generazione del DDT.
  */
 export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const navigate = useNavigate();
+  // DDT in uscita: il PDF si genera dal record documenti_fiscali e funziona in
+  // QUALSIASI modalità fatturazione (l'editor /azienda/documenti/:id è invece
+  // riservato alla modalità "native" — su aziende "external" redirige).
+  const { generate: generateDDT, isGenerating } = useShipmentDDTPDF();
+  const { isNative } = useBillingMode();
 
   // ── DDT in entrata (ricezione) ──────────────────────────────────────────
   const {
@@ -120,7 +143,7 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
       </TabsList>
 
       {/* ───────────────── In entrata ───────────────── */}
-      <TabsContent value="entrata" className="space-y-3">
+      <TabsContent value="entrata">
         {isLoading ? (
           <p className="text-muted-foreground text-center py-8" role="status" aria-live="polite">
             Caricamento DDT…
@@ -152,48 +175,62 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
             </CardContent>
           </Card>
         ) : (
-          ddts.map((d) => {
-            const badgeVariant = STATO_BADGE[d.stato] ?? "outline";
-            const qta = typeof d.quantita_ricevuta === "number" ? d.quantita_ricevuta : 0;
-            return (
-              <Card key={d.id}>
-                <CardContent className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="font-medium">DDT {d.numero_ddt}</span>
-                      <Badge variant={badgeVariant}>{d.stato}</Badge>
-                      {d.warehouse?.name && (
-                        <span className="text-xs text-muted-foreground">· {d.warehouse.name}</span>
-                      )}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {format(new Date(d.data_ricezione), "dd MMM yyyy", { locale: it })}
-                      {d.purchase_order?.oda_number && ` · ODA ${d.purchase_order.oda_number}`}
-                      {qta > 0 && ` · Qtà ${qta}`}
-                    </div>
-                    {d.note && (
-                      <p className="text-xs mt-1 text-muted-foreground line-clamp-1">{d.note}</p>
-                    )}
-                  </div>
-                  <div className="flex w-full shrink-0 gap-1 sm:w-auto">
-                    <Button variant="outline" size="sm" className="w-full sm:w-auto" asChild>
-                      <a
-                        href={`/azienda/ordini-acquisto/${d.purchase_order_id}`}
-                        aria-label={`Apri ordine di acquisto collegato al DDT ${d.numero_ddt}`}
-                      >
-                        Apri ODA
-                      </a>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
+          <Card>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>N° DDT</TableHead>
+                    <TableHead>Stato</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>ODA</TableHead>
+                    <TableHead>Magazzino</TableHead>
+                    <TableHead className="text-center">Qtà</TableHead>
+                    <TableHead className="text-right">Azioni</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ddts.map((d) => {
+                    const qta = typeof d.quantita_ricevuta === "number" ? d.quantita_ricevuta : 0;
+                    return (
+                      <TableRow key={d.id}>
+                        <TableCell className="font-medium">
+                          {d.numero_ddt}
+                          {d.note && (
+                            <p className="text-xs text-muted-foreground line-clamp-1 max-w-[220px]">{d.note}</p>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={STATO_BADGE[d.stato] ?? "outline"}>{d.stato}</Badge>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                          {fmtDate(d.data_ricezione)}
+                        </TableCell>
+                        <TableCell className="text-sm">{d.purchase_order?.oda_number ?? "—"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{d.warehouse?.name ?? "—"}</TableCell>
+                        <TableCell className="text-center">{qta > 0 ? qta : "—"}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate(`/azienda/ordini-acquisto/${d.purchase_order_id}`)}
+                            aria-label={`Apri ordine di acquisto collegato al DDT ${d.numero_ddt}`}
+                          >
+                            Apri ODA
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
         )}
       </TabsContent>
 
       {/* ───────────────── In uscita ───────────────── */}
-      <TabsContent value="uscita" className="space-y-3">
+      <TabsContent value="uscita">
         {isLoadingUscite ? (
           <p className="text-muted-foreground text-center py-8" role="status" aria-live="polite">
             Caricamento DDT…
@@ -221,43 +258,72 @@ export function WarehouseDDTTab({ warehouseFilter, onRegisterArrival }: Props) {
             </CardContent>
           </Card>
         ) : (
-          uscite.map((d) => {
-            const badgeVariant = STATO_USCITA_BADGE[d.stato] ?? "outline";
-            const dest = d.cliente_snapshot?.ragione_sociale;
-            return (
-              <Card key={d.id}>
-                <CardContent className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="font-medium">DDT {d.numero}</span>
-                      <Badge variant={badgeVariant}>{d.stato}</Badge>
-                      {d.totale_documento > 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          · {formatCurrency(d.totale_documento)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {d.data_emissione &&
-                        format(new Date(d.data_emissione), "dd MMM yyyy", { locale: it })}
-                      {dest && ` · ${dest}`}
-                      {d.codice_commessa_convenzione && ` · ${d.codice_commessa_convenzione}`}
-                    </div>
-                    {d.note_documento && (
-                      <p className="text-xs mt-1 text-muted-foreground line-clamp-1">{d.note_documento}</p>
-                    )}
-                  </div>
-                  <div className="flex w-full shrink-0 gap-1 sm:w-auto">
-                    <Button variant="outline" size="sm" className="w-full sm:w-auto" asChild>
-                      <a href={`/azienda/documenti/${d.id}`} aria-label={`Apri DDT ${d.numero}`}>
-                        Apri DDT
-                      </a>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
+          <Card>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>N° DDT</TableHead>
+                    <TableHead>Stato</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Destinatario</TableHead>
+                    <TableHead>Commessa</TableHead>
+                    <TableHead className="text-right">Totale</TableHead>
+                    <TableHead className="text-right">Azioni</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {uscite.map((d) => (
+                    <TableRow key={d.id}>
+                      <TableCell className="font-medium">
+                        {d.numero}
+                        {d.note_documento && (
+                          <p className="text-xs text-muted-foreground line-clamp-1 max-w-[220px]">{d.note_documento}</p>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={STATO_USCITA_BADGE[d.stato] ?? "outline"}>{d.stato}</Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                        {fmtDate(d.data_emissione)}
+                      </TableCell>
+                      <TableCell className="text-sm">{d.cliente_snapshot?.ragione_sociale ?? "—"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{d.codice_commessa_convenzione ?? "—"}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(d.totale_documento)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => generateDDT(d.id)}
+                            disabled={isGenerating}
+                            aria-label={`Scarica PDF del DDT ${d.numero}`}
+                          >
+                            {isGenerating ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1.5" />
+                            ) : (
+                              <Download className="h-3.5 w-3.5 sm:mr-1.5" />
+                            )}
+                            <span className="hidden sm:inline">Scarica DDT</span>
+                          </Button>
+                          {isNative && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => navigate(`/azienda/documenti/${d.id}`)}
+                              aria-label={`Apri DDT ${d.numero} nell'editor`}
+                            >
+                              Apri
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
         )}
       </TabsContent>
     </Tabs>
