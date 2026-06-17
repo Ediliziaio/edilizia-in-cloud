@@ -26,7 +26,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  HardHat, Plus, Search, Euro, AlertTriangle, Phone, ExternalLink, Loader2, Mail, MapPin, Link2, Link2Off, ShieldCheck,
+  HardHat, Plus, Search, FileText, FileX2, AlertTriangle, Phone, ExternalLink, Loader2, Mail, MapPin, Link2, Link2Off, ShieldCheck,
 } from 'lucide-react';
 import { differenceInDays, parseISO } from 'date-fns';
 import type { SubappaltatoreConDashboard, StatoContratto } from '@/types/subappaltatori';
@@ -75,7 +75,7 @@ export default function SubappaltatoriPage() {
   const { isScopriPlan } = useSubscriptionLimits();
 
   const [search, setSearch] = useState('');
-  const [filtroOrdine, setFiltroOrdine] = useState('__all__');
+  const [filtroDoc, setFiltroDoc] = useState('__all__');
   const [filtroStato, setFiltroStato] = useState('__all__');
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -154,11 +154,33 @@ export default function SubappaltatoriPage() {
     staleTime: 3 * 60 * 1000,
   });
 
-  // ── Fetch ordini per filtro ───────────────────────────────────────────────
+  // ── Conteggio documenti (fascicolo) per subappaltatore ─────────────────────
+  // Mappa anagrafica_id → n. documenti attivi (subappaltatori_documenti). Serve
+  // a mostrare/filtrare chi ha i documenti collegati e chi no.
+  const { data: docCountMap = {} } = useQuery({
+    queryKey: ['sub-doc-counts', companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('subappaltatori_documenti')
+        .select('subappaltatore_id')
+        .eq('company_id', companyId)
+        .neq('status', 'superseded');
+      if (error) throw error;
+      const m: Record<string, number> = {};
+      for (const r of (data ?? []) as Array<{ subappaltatore_id: string | null }>) {
+        if (r.subappaltatore_id) m[r.subappaltatore_id] = (m[r.subappaltatore_id] ?? 0) + 1;
+      }
+      return m;
+    },
+  });
+  const docCountFor = (s: SubappaltatoreConDashboard) =>
+    s.campo_subappaltatore_id ? (docCountMap[s.campo_subappaltatore_id] ?? 0) : 0;
+
+  // Ordini per il selettore "Cantiere / Ordine" nel dialog di creazione.
   const { data: ordini = [] } = useQuery({
     queryKey: ['ordini-select', companyId],
     queryFn: async () => {
-      // 2026-05-27 (UX audit): .limit(50) → 500 — vedi nota in GiornaleLavori
       const { data, error } = await supabase
         .from('orders')
         .select('id, order_code, description')
@@ -174,14 +196,16 @@ export default function SubappaltatoriPage() {
   // ── Stats ─────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
     const attivi = subappaltatori.filter(s => s.campo_is_active).length;
-    const importoContratti = subappaltatori.reduce((a, s) => a + (s.importo_contrattuale ?? 0), 0);
-    const ritenuteTotali = subappaltatori.reduce((a, s) => a + (s.ritenute_in_corso ?? 0), 0);
+    const conDocumenti = subappaltatori.filter(s =>
+      s.campo_subappaltatore_id ? (docCountMap[s.campo_subappaltatore_id] ?? 0) > 0 : false,
+    ).length;
+    const senzaDocumenti = subappaltatori.length - conDocumenti;
     const durcScaduti = subappaltatori.filter(s => {
       if (!s.durc_scadenza) return false;
       return differenceInDays(parseISO(s.durc_scadenza), new Date()) <= 30;
     }).length;
-    return { attivi, importoContratti, ritenuteTotali, durcScaduti };
-  }, [subappaltatori]);
+    return { attivi, conDocumenti, senzaDocumenti, durcScaduti };
+  }, [subappaltatori, docCountMap]);
 
   // ── Filtro locale ─────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -191,14 +215,15 @@ export default function SubappaltatoriPage() {
           !(s.tipo_lavori ?? '').toLowerCase().includes(term) &&
           !(s.piva ?? '').toLowerCase().includes(term) &&
           !(s.email ?? '').toLowerCase().includes(term)) return false;
-      if (filtroOrdine !== '__all__' && s.order_id !== filtroOrdine) return false;
+      if (filtroDoc === '__con__' && docCountFor(s) === 0) return false;
+      if (filtroDoc === '__senza__' && docCountFor(s) > 0) return false;
       if (filtroStato === '__active__' && !s.campo_is_active) return false;
       if (filtroStato === '__inactive__' && s.campo_is_active) return false;
       if (filtroStato !== '__all__' && filtroStato !== '__active__' && filtroStato !== '__inactive__'
           && s.stato_contratto !== filtroStato) return false;
       return true;
     });
-  }, [subappaltatori, search, filtroOrdine, filtroStato]);
+  }, [subappaltatori, search, filtroDoc, filtroStato, docCountMap]);
 
   // ── Mutation nuovo subappaltatore ────────────────────────────────────────
   const createMutation = useMutation({
@@ -332,8 +357,8 @@ export default function SubappaltatoriPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <OperationalKpiCard icon={HardHat} label="Attivi" value={stats.attivi} hint="collaboratori attivi" tone="green" />
-        <OperationalKpiCard icon={Euro} label="Valore contratti" value={`€${stats.importoContratti.toLocaleString('it-IT')}`} hint="importo complessivo" tone="blue" />
-        <OperationalKpiCard icon={ShieldCheck} label="Ritenute in corso" value={`€${stats.ritenuteTotali.toLocaleString('it-IT')}`} hint="da monitorare" tone="amber" />
+        <OperationalKpiCard icon={FileText} label="Con documenti" value={stats.conDocumenti} hint="fascicolo presente" tone="blue" />
+        <OperationalKpiCard icon={FileX2} label="Senza documenti" value={stats.senzaDocumenti} hint={stats.senzaDocumenti > 0 ? "da completare" : "tutti ok"} tone={stats.senzaDocumenti > 0 ? "amber" : "green"} />
         <OperationalKpiCard icon={AlertTriangle} label="DURC in scadenza" value={stats.durcScaduti} hint={stats.durcScaduti > 0 ? "richiede controllo" : "documenti ok"} tone={stats.durcScaduti > 0 ? "red" : "green"} />
       </div>
 
@@ -348,17 +373,14 @@ export default function SubappaltatoriPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Select value={filtroOrdine} onValueChange={setFiltroOrdine}>
+        <Select value={filtroDoc} onValueChange={setFiltroDoc}>
           <SelectTrigger className="sm:w-48">
-            <SelectValue placeholder="Tutti i cantieri" />
+            <SelectValue placeholder="Documenti" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">Tutti i cantieri</SelectItem>
-            {ordini.map((o: any) => (
-              <SelectItem key={o.id} value={o.id}>
-                {o.order_code ? `#${o.order_code}` : o.description?.substring(0, 30)}
-              </SelectItem>
-            ))}
+            <SelectItem value="__all__">Tutti i documenti</SelectItem>
+            <SelectItem value="__con__">Con documenti</SelectItem>
+            <SelectItem value="__senza__">Senza documenti</SelectItem>
           </SelectContent>
         </Select>
         <Select value={filtroStato} onValueChange={setFiltroStato}>
@@ -390,7 +412,7 @@ export default function SubappaltatoriPage() {
             <div>
               <p className="font-semibold text-lg">Nessun subappaltatore</p>
               <p className="text-sm text-muted-foreground mt-1">
-                {search || filtroOrdine !== '__all__' || filtroStato !== '__all__'
+                {search || filtroDoc !== '__all__' || filtroStato !== '__all__'
                   ? 'Nessun risultato per i filtri selezionati.'
                   : 'Aggiungi il primo subappaltatore con il pulsante in alto.'}
               </p>
@@ -411,6 +433,7 @@ export default function SubappaltatoriPage() {
                     <TableHead>Sede</TableHead>
                     <TableHead>Contatti</TableHead>
                     <TableHead>DURC</TableHead>
+                    <TableHead>Documenti</TableHead>
                     <TableHead>Stato</TableHead>
                     <TableHead className="text-right">Azioni</TableHead>
                   </TableRow>
@@ -470,6 +493,18 @@ export default function SubappaltatoriPage() {
                       </TableCell>
                       {/* DURC */}
                       <TableCell><DurcBadge scadenza={sub.durc_scadenza} /></TableCell>
+                      {/* Documenti */}
+                      <TableCell>
+                        {docCountFor(sub) > 0 ? (
+                          <Badge className="text-xs bg-green-600 text-white">
+                            <FileText className="h-3 w-3 mr-1" />{docCountFor(sub)}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-amber-700 border-amber-200">
+                            <FileX2 className="h-3 w-3 mr-1" />Nessuno
+                          </Badge>
+                        )}
+                      </TableCell>
                       {/* Stato */}
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -497,11 +532,6 @@ export default function SubappaltatoriPage() {
         {/* ── Card mobile (< md) ────────────────────────────────────────── */}
         <div className="space-y-3 md:hidden">
           {filtered.map((sub) => {
-            const lordo = sub.totale_sal_lordo ?? 0;
-            const contratto = sub.importo_contrattuale ?? 0;
-            const pct = contratto > 0
-              ? Math.min(100, Math.round((lordo / contratto) * 100))
-              : 0;
             return (
               <Card key={sub.id} className="hover:border-primary/50 transition-colors">
                 <CardContent className="p-4">
@@ -530,6 +560,15 @@ export default function SubappaltatoriPage() {
                             </Badge>
                           )}
                           <DurcBadge scadenza={sub.durc_scadenza} />
+                          {docCountFor(sub) > 0 ? (
+                            <Badge className="text-xs bg-green-600 text-white">
+                              <FileText className="h-3 w-3 mr-1" />{docCountFor(sub)} doc
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs text-amber-700 border-amber-200">
+                              <FileX2 className="h-3 w-3 mr-1" />No doc
+                            </Badge>
+                          )}
                           <StatoBadge stato={sub.stato_contratto} />
                           <AttivoBadge attivo={sub.campo_is_active} />
                         </div>
@@ -562,32 +601,8 @@ export default function SubappaltatoriPage() {
                             {sub.indirizzo}
                           </span>
                         )}
-                        {(sub.ritenute_in_corso ?? 0) > 0 && (
-                          <span className="text-amber-600 font-medium">
-                            <Euro className="inline h-3 w-3 mr-0.5" />
-                            {(sub.ritenute_in_corso ?? 0).toLocaleString('it-IT')} in garanzia
-                          </span>
-                        )}
                       </div>
 
-                      {contratto > 0 && (
-                        <div className="mt-3 space-y-1">
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Contratto eseguito</span>
-                            <span className="font-medium">{pct}%</span>
-                          </div>
-                          <div className="h-2 bg-muted rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-orange-500 rounded-full transition-all"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>€{lordo.toLocaleString('it-IT')} eseguiti</span>
-                            <span>€{contratto.toLocaleString('it-IT')} totale</span>
-                          </div>
-                        </div>
-                      )}
 
                       <div className="mt-3 flex items-center justify-between gap-2">
                         <label className="flex items-center gap-2 text-xs text-muted-foreground">
