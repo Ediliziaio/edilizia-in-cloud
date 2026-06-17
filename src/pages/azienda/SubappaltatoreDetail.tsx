@@ -221,6 +221,7 @@ export default function SubappaltatoreDetail() {
     indirizzo: '',
     email: '',
     pec: '',
+    codice_fiscale: '',
     responsabile: '',
     telefono: '',
     tipo_lavori: '',
@@ -235,6 +236,7 @@ export default function SubappaltatoreDetail() {
       indirizzo: sub?.indirizzo ?? '',
       email: sub?.email ?? '',
       pec: sub?.pec ?? '',
+      codice_fiscale: sub?.codice_fiscale ?? '',
       responsabile: sub?.responsabile ?? '',
       telefono: sub?.telefono ?? '',
       tipo_lavori: sub?.tipo_lavori ?? '',
@@ -318,6 +320,7 @@ export default function SubappaltatoreDetail() {
         indirizzo: anagraficaForm.indirizzo.trim() || null,
         email: anagraficaForm.email.trim() || null,
         pec: anagraficaForm.pec.trim() || null,
+        codice_fiscale: anagraficaForm.codice_fiscale.trim() || null,
         responsabile: anagraficaForm.responsabile.trim() || null,
         telefono: anagraficaForm.telefono.trim() || null,
         tipo_lavori: anagraficaForm.tipo_lavori.trim() || null,
@@ -791,7 +794,8 @@ export default function SubappaltatoreDetail() {
               </div>
               {[
                 { label: 'Ragione sociale', value: sub.ragione_sociale },
-                { label: 'P.IVA / C.F.', value: sub.piva },
+                { label: 'P.IVA', value: sub.piva },
+                { label: 'Codice Fiscale', value: sub.codice_fiscale },
                 { label: 'Indirizzo', value: sub.indirizzo },
                 { label: 'Responsabile', value: sub.responsabile },
                 { label: 'Telefono', value: sub.telefono },
@@ -1322,6 +1326,10 @@ export default function SubappaltatoreDetail() {
               <div className="space-y-1.5">
                 <Label>PEC</Label>
                 <Input type="email" value={anagraficaForm.pec} onChange={(e) => setAnagraficaForm(f => ({ ...f, pec: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Codice Fiscale</Label>
+                <Input value={anagraficaForm.codice_fiscale} onChange={(e) => setAnagraficaForm(f => ({ ...f, codice_fiscale: e.target.value }))} placeholder="Es. RSSMRA80A01H501U" />
               </div>
               <div className="space-y-1.5">
                 <Label>Scadenza DURC</Label>

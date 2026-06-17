@@ -75,6 +75,7 @@ export default function SubappaltatoriPage() {
     piva: '',
     email: '',
     pec: '',
+    codice_fiscale: '',
     indirizzo: '',
     durc_scadenza: '',
     ordine_id: '',
@@ -199,6 +200,7 @@ export default function SubappaltatoriPage() {
           piva: form.piva.trim() || null,
           email: form.email.trim() || null,
           pec: form.pec.trim() || null,
+          codice_fiscale: form.codice_fiscale.trim() || null,
           indirizzo: form.indirizzo.trim() || null,
           durc_scadenza: form.durc_scadenza || null,
           note: form.note.trim() || null,
@@ -228,6 +230,7 @@ export default function SubappaltatoriPage() {
         piva: '',
         email: '',
         pec: '',
+        codice_fiscale: '',
         indirizzo: '',
         durc_scadenza: '',
         ordine_id: '',
@@ -516,6 +519,14 @@ export default function SubappaltatoriPage() {
                   placeholder="azienda@pec.it"
                 />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Codice Fiscale</Label>
+              <Input
+                value={form.codice_fiscale}
+                onChange={(e) => setForm(f => ({ ...f, codice_fiscale: e.target.value }))}
+                placeholder="Es. RSSMRA80A01H501U (utile per ditte individuali)"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Indirizzo sede</Label>
