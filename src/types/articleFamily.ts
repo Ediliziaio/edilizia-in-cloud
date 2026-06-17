@@ -195,6 +195,19 @@ export interface AxisValue {
   maggiorazione_tipo: MaggiorazioneTipo;
   maggiorazione_valore: number;
   maggiorazione_acquisto: number;
+  /**
+   * Codice/SKU proprio della variante (migration 20271016000000). Se valorizzato
+   * collega alla giacenza via warehouse_stock.internal_code. NULL = nessun codice.
+   */
+  codice: string | null;
+  /**
+   * Prezzo di vendita ASSOLUTO della variante. Se valorizzato (> 0) prevale sulla
+   * maggiorazione sul prezzo base famiglia — usato quando ogni variante è un
+   * prodotto distinto col suo prezzo (es. moduli/inverter a potenze diverse).
+   */
+  prezzo_vendita: number | null;
+  /** Prezzo di acquisto assoluto della variante. */
+  prezzo_acquisto: number | null;
   sort_order: number;
   attivo: boolean;
   created_at: string;

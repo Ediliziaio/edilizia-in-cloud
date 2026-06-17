@@ -758,6 +758,11 @@ export function FamilyAxesEditor({ family }: Props) {
                                   <span className="text-xs font-mono text-muted-foreground">
                                     {v.valore}
                                   </span>
+                                  {v.prezzo_vendita != null && v.prezzo_vendita > 0 ? (
+                                    <Badge variant="outline" className="text-[10px] sm:text-xs border-emerald-300 text-emerald-700">
+                                      €{Number(v.prezzo_vendita).toLocaleString("it-IT")}
+                                    </Badge>
+                                  ) : null}
                                   {v.is_default ? (
                                     // Badge "standard" piu' esplicito di "default":
                                     // comunica all'admin che il PREZZO BASE dell'articolo
@@ -1003,6 +1008,9 @@ export function FamilyAxesEditor({ family }: Props) {
                 maggiorazione_tipo: values.maggiorazione_tipo,
                 maggiorazione_valore: values.maggiorazione_valore,
                 maggiorazione_acquisto: values.maggiorazione_acquisto,
+                codice: values.codice,
+                prezzo_vendita: values.prezzo_vendita,
+                prezzo_acquisto: values.prezzo_acquisto,
                 sort_order: values.sort_order,
                 attivo: values.attivo ?? true,
               });
@@ -1434,6 +1442,9 @@ interface ValueFormValues {
   maggiorazione_tipo: MaggiorazioneTipo;
   maggiorazione_valore: number;
   maggiorazione_acquisto: number;
+  codice: string | null;
+  prezzo_vendita: number | null;
+  prezzo_acquisto: number | null;
   sort_order: number;
   attivo: boolean;
 }
@@ -1471,6 +1482,9 @@ function ValueFormDialog({
   const [magTipo, setMagTipo] = useState<MaggiorazioneTipo>(() => value?.maggiorazione_tipo ?? "none");
   const [magValore, setMagValore] = useState<string>(() => (value ? String(value.maggiorazione_valore) : "0"));
   const [magAcquisto, setMagAcquisto] = useState<string>(() => (value ? String(value.maggiorazione_acquisto) : "0"));
+  const [codiceArt, setCodiceArt] = useState<string>(() => value?.codice ?? "");
+  const [prezzoV, setPrezzoV] = useState<string>(() => (value?.prezzo_vendita != null ? String(value.prezzo_vendita) : ""));
+  const [prezzoA, setPrezzoA] = useState<string>(() => (value?.prezzo_acquisto != null ? String(value.prezzo_acquisto) : ""));
   const [valoreManuallyEdited, setValoreManuallyEdited] = useState<boolean>(() => value !== null);
 
   // Sincronizza il form ogni volta che cambia il record selezionato (open→close→
@@ -1487,6 +1501,9 @@ function ValueFormDialog({
       setMagTipo(value.maggiorazione_tipo);
       setMagValore(String(value.maggiorazione_valore));
       setMagAcquisto(String(value.maggiorazione_acquisto));
+      setCodiceArt(value.codice ?? "");
+      setPrezzoV(value.prezzo_vendita != null ? String(value.prezzo_vendita) : "");
+      setPrezzoA(value.prezzo_acquisto != null ? String(value.prezzo_acquisto) : "");
       setValoreManuallyEdited(true);
     } else {
       setValore("");
@@ -1497,6 +1514,9 @@ function ValueFormDialog({
       setMagTipo("none");
       setMagValore("0");
       setMagAcquisto("0");
+      setCodiceArt("");
+      setPrezzoV("");
+      setPrezzoA("");
       setValoreManuallyEdited(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1574,6 +1594,40 @@ function ValueFormDialog({
               className="resize-none"
             />
           </div>
+
+          {/* P3 — Codice + prezzo propri della variante (entità completa) */}
+          <div className="rounded-md border p-3 space-y-2.5">
+            <div className="text-sm font-medium">Codice e prezzo variante</div>
+            <div className="space-y-1">
+              <label htmlFor="val-codice-art" className="text-xs text-muted-foreground">
+                Codice articolo / SKU <span className="text-[10px]">(collega alla giacenza di magazzino)</span>
+              </label>
+              <Input
+                id="val-codice-art"
+                value={codiceArt}
+                onChange={(e) => setCodiceArt(e.target.value)}
+                placeholder="es. 0541"
+                className="h-10 font-mono"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label htmlFor="val-prezzo-v" className="text-xs text-muted-foreground">Prezzo vendita €</label>
+                <Input id="val-prezzo-v" type="number" inputMode="decimal" step="0.01" value={prezzoV}
+                  onChange={(e) => setPrezzoV(e.target.value)} placeholder="0,00" className="h-10 font-mono" />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="val-prezzo-a" className="text-xs text-muted-foreground">Prezzo acquisto €</label>
+                <Input id="val-prezzo-a" type="number" inputMode="decimal" step="0.01" value={prezzoA}
+                  onChange={(e) => setPrezzoA(e.target.value)} placeholder="0,00" className="h-10 font-mono" />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Se imposti un <strong>prezzo di vendita</strong>, la variante usa quello (prodotto con prezzo proprio)
+              e la maggiorazione qui sotto viene ignorata.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div className="flex items-center gap-2 py-1">
               <Checkbox
@@ -1763,6 +1817,9 @@ function ValueFormDialog({
                   maggiorazione_tipo: magTipo,
                   maggiorazione_valore: parseFloat(magValore) || 0,
                   maggiorazione_acquisto: parseFloat(magAcquisto) || 0,
+                  codice: codiceArt.trim() || null,
+                  prezzo_vendita: prezzoV.trim() ? (parseFloat(prezzoV) || 0) : null,
+                  prezzo_acquisto: prezzoA.trim() ? (parseFloat(prezzoA) || 0) : null,
                   sort_order: value?.sort_order ?? nextSortOrder,
                 },
                 isDefault ? otherDefaultIds : [],
