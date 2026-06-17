@@ -237,6 +237,8 @@ export function FamilyEditor() {
   // Codice articolo / SKU opzionale (migration 20271010000000). Ricercabile in
   // listino, picker commesse e magazzino. Trim → null in salvataggio.
   const [codice, setCodice] = useState("");
+  // Fornitore associato (article_families.supplier_id). "none" = nessuno.
+  const [supplierId, setSupplierId] = useState<string | "none">("none");
   const [macrocategoriaId, setMacrocategoriaId] = useState<string | "none">("none");
   const [descrizione, setDescrizione] = useState("");
   /**
@@ -319,12 +321,26 @@ export function FamilyEditor() {
   // ── Query: macrocategorie + categorie + tariffe ────────────────────────
   const { macrocategorie } = useListinoMacrocategorie();
   const { categorie } = useListinoCategorie();
+  // Fornitori dell'azienda per associare il prodotto (article_families.supplier_id).
+  const { data: fornitori = [] } = useQuery({
+    queryKey: ["suppliers-select", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("suppliers").select("id, name")
+        .eq("company_id", companyId).eq("is_active", true).order("name");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string }>;
+    },
+  });
 
   // Bootstrap da family caricata
   useEffect(() => {
     if (family) {
       setNome(family.nome);
       setCodice(family.codice ?? "");
+      setSupplierId((family as { supplier_id?: string | null }).supplier_id ?? "none");
       // Preferenza al FK diretto (post-refactor 20270513200000). Fallback al
       // vecchio path via categoria.macrocategoria_id per articoli pre-refactor.
       const macroFromCat = family.categoria_id
@@ -718,6 +734,8 @@ export function FamilyEditor() {
       nome: nome.trim(),
       // Codice articolo / SKU (opzionale, user-managed). Trim → null.
       codice: codice.trim() || null,
+      // Fornitore associato (correlazione listino↔fornitori).
+      supplier_id: supplierId === "none" ? null : supplierId,
       // Refactor 20270513200000: scriviamo direttamente macrocategoria_id;
       // categoria_id resta esposto sui tipi ma settato a NULL su tutte le
       // nuove creazioni (la colonna DB verrà droppata in migration futura).
@@ -929,6 +947,25 @@ export function FamilyEditor() {
                     <p className="text-xs text-muted-foreground mt-1">
                       Codice interno o fornitore. Ricercabile in listino, commesse e
                       magazzino oltre al nome.
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="f-fornitore">Fornitore</Label>
+                    <Select value={supplierId} onValueChange={(v) => setSupplierId(v as string | "none")}>
+                      <SelectTrigger id="f-fornitore">
+                        <SelectValue placeholder="Nessun fornitore" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nessun fornitore</SelectItem>
+                        {fornitori.map((f) => (
+                          <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Da chi acquisti questo prodotto. Lo ritrovi nel fornitore tra i
+                      prodotti collegati e nel preventivo/commessa.
                     </p>
                   </div>
 

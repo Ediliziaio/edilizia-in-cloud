@@ -84,6 +84,8 @@ export interface ArticleFamily {
   descrizione: string | null;
   immagine_url: string | null;
   pdf_scheda_url: string | null;
+  /** FK a suppliers.id — fornitore associato al prodotto (correlazione listino↔fornitori). */
+  supplier_id: string | null;
   modalita_prezzo_base: ModalitaPrezzoBase;
   /**
    * Strategia gestione prezzo: "vendita" diretto o "acquisto_markup" con
