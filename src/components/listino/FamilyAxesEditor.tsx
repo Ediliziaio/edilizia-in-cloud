@@ -25,6 +25,7 @@ import {
   Sparkles,
   Copy,
   ChevronsUpDown,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
@@ -67,6 +68,10 @@ import type {
   MaggiorazioneTipo,
 } from "@/types/articleFamily";
 import { AxisPresetsDialog } from "./AxisPresetsDialog";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { ArticlePdfDocumentsSection } from "./ArticlePdfDocumentsSection";
 
 /**
  * Label compatto per il tipo maggiorazione (usato nei badge valore).
@@ -182,6 +187,29 @@ export function FamilyAxesEditor({ family }: Props) {
     deleteAxisValue,
     bulkInsertAxesWithValues,
   } = useFamilyMutations();
+
+  const companyId = useEffectiveCompanyId();
+  // Variante di cui gestire le schede PDF (Dialog dedicato).
+  const [docsForValue, setDocsForValue] = useState<AxisValue | null>(null);
+  // Conteggio schede per variante → badge sul pulsante 📄 (1 query, no N+1).
+  const { data: variantDocCounts = {}, refetch: refetchDocCounts } = useQuery({
+    queryKey: ["family-variant-doc-counts", family.id],
+    enabled: !!family.id,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("article_family_documents")
+        .select("axis_value_id")
+        .eq("family_id", family.id)
+        .not("axis_value_id", "is", null);
+      if (error) throw error;
+      const m: Record<string, number> = {};
+      for (const r of (data ?? []) as Array<{ axis_value_id: string | null }>) {
+        if (r.axis_value_id) m[r.axis_value_id] = (m[r.axis_value_id] ?? 0) + 1;
+      }
+      return m;
+    },
+  });
 
   const [newAxisOpen, setNewAxisOpen] = useState(false);
   // Multi-open: più assi possono essere espansi insieme (era single prima).
@@ -813,6 +841,24 @@ export function FamilyAxesEditor({ family }: Props) {
                                 <Button
                                   size="icon"
                                   variant="ghost"
+                                  onClick={() => setDocsForValue(v)}
+                                  aria-label={`Schede della variante ${v.label}`}
+                                  title="Scheda / PDF della variante"
+                                  className="relative h-9 w-9"
+                                >
+                                  <FileText
+                                    className={`h-4 w-4 ${variantDocCounts[v.id] ? "text-primary" : ""}`}
+                                    aria-hidden="true"
+                                  />
+                                  {variantDocCounts[v.id] ? (
+                                    <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-0.5 text-[9px] text-primary-foreground">
+                                      {variantDocCounts[v.id]}
+                                    </span>
+                                  ) : null}
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
                                   onClick={() => setEditingValue(v)}
                                   aria-label="Modifica valore"
                                   className="h-9 w-9"
@@ -1078,6 +1124,36 @@ export function FamilyAxesEditor({ family }: Props) {
         onApply={handleApplyPresets}
         saving={bulkInsertAxesWithValues.isPending}
       />
+
+      {/* Schede PDF per singola variante */}
+      <Dialog
+        open={!!docsForValue}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDocsForValue(null);
+            refetchDocCounts();
+          }
+        }}
+      >
+        <DialogContent className="w-[96vw] sm:w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base sm:text-lg">Schede della variante</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              {docsForValue?.label} — carica la scheda tecnica/PDF specifica di questa variante.
+            </DialogDescription>
+          </DialogHeader>
+          {docsForValue ? (
+            <ArticlePdfDocumentsSection
+              companyId={companyId}
+              familyId={family.id}
+              axisValueId={docsForValue.id}
+              ensureFamilyId={async () => family.id}
+              title="Schede della variante (PDF)"
+              hint="Documenti specifici di questa variante (scheda tecnica, certificazioni). Più file, max 15 MB ciascuno."
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

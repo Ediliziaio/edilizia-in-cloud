@@ -34,31 +34,39 @@ interface Props {
   familyId: string | null | undefined;
   /** Salva la base e restituisce l'id (per articoli non ancora persistiti). */
   ensureFamilyId: () => Promise<string | null>;
+  /** Se valorizzato, i documenti sono legati a questa VARIANTE (axis_value_id),
+   *  non alla famiglia. La lista famiglia esclude i documenti di variante e viceversa. */
+  axisValueId?: string | null;
+  /** Override del titolo/hint per il contesto variante. */
+  title?: string;
+  hint?: string;
 }
 
-export function ArticlePdfDocumentsSection({ companyId, familyId, ensureFamilyId }: Props) {
+export function ArticlePdfDocumentsSection({ companyId, familyId, ensureFamilyId, axisValueId, title, hint }: Props) {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
   const { data: docs = [], isLoading } = useQuery<ArticlePdfDocument[]>({
-    queryKey: ["article-family-documents", familyId],
+    queryKey: ["article-family-documents", familyId, axisValueId ?? null],
     enabled: !!familyId,
     queryFn: async () => {
       // (supabase as any): tabella non ancora nei types generati
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      let q = (supabase as any)
         .from("article_family_documents")
         .select("id, nome, url, tipo, file_size")
-        .eq("family_id", familyId)
-        .order("created_at", { ascending: true });
+        .eq("family_id", familyId);
+      // Scope: variante → solo i suoi doc; famiglia → solo doc senza variante.
+      q = axisValueId ? q.eq("axis_value_id", axisValueId) : q.is("axis_value_id", null);
+      const { data, error } = await q.order("created_at", { ascending: true });
       if (error) throw error;
       return (data ?? []) as ArticlePdfDocument[];
     },
   });
 
   const refresh = (fid: string) =>
-    queryClient.invalidateQueries({ queryKey: ["article-family-documents", fid] });
+    queryClient.invalidateQueries({ queryKey: ["article-family-documents", fid, axisValueId ?? null] });
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -106,6 +114,7 @@ export function ArticlePdfDocumentsSection({ companyId, familyId, ensureFamilyId
         const { error: insErr } = await (supabase as any).from("article_family_documents").insert({
           company_id: companyId,
           family_id: fid,
+          axis_value_id: axisValueId ?? null,
           nome: file.name.replace(/\.pdf$/i, ""),
           url: urlData.publicUrl,
           tipo: "scheda_tecnica",
@@ -153,10 +162,9 @@ export function ArticlePdfDocumentsSection({ companyId, familyId, ensureFamilyId
 
   return (
     <div>
-      <Label>Schede tecniche / Documenti (PDF)</Label>
+      <Label>{title ?? "Schede tecniche / Documenti (PDF)"}</Label>
       <p className="text-xs text-muted-foreground mt-1 mb-2">
-        Carica scheda tecnica, certificazioni, garanzia. Appaiono nella scheda articolo e
-        nel preventivo. Più file, max 15 MB ciascuno.
+        {hint ?? "Carica scheda tecnica, certificazioni, garanzia. Appaiono nella scheda articolo e nel preventivo. Più file, max 15 MB ciascuno."}
       </p>
 
       {familyId && docs.length > 0 && (
