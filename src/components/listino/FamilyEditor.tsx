@@ -27,6 +27,7 @@ import {
   FolderTree,
   Upload,
   ImageIcon,
+  ZoomIn,
   X,
   Wrench,
   Banknote,
@@ -247,6 +248,8 @@ export function FamilyEditor() {
    */
   const [immagineUrl, setImmagineUrl] = useState<string | null>(null);
   const [photoTemplatePickerOpen, setPhotoTemplatePickerOpen] = useState(false);
+  // Lightbox: click sulla miniatura → immagine ingrandita.
+  const [imageZoomOpen, setImageZoomOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { upload: uploadImage, remove: removeImage, isUploading, isRemoving } =
     useArticleImageUpload();
@@ -984,11 +987,22 @@ export function FamilyEditor() {
                       {/* Preview */}
                       <div className="h-28 w-28 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center overflow-hidden bg-muted/50 shrink-0">
                         {immagineUrl ? (
-                          <img loading="lazy"
-                            src={immagineUrl}
-                            alt={`Preview ${nome || "articolo"}`}
-                            className="h-full w-full object-cover"
-                          />
+                          <button
+                            type="button"
+                            onClick={() => setImageZoomOpen(true)}
+                            className="group relative h-full w-full cursor-zoom-in"
+                            title="Ingrandisci immagine"
+                            aria-label="Ingrandisci immagine articolo"
+                          >
+                            <img loading="lazy"
+                              src={immagineUrl}
+                              alt={`Preview ${nome || "articolo"}`}
+                              className="h-full w-full object-cover"
+                            />
+                            <span className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100">
+                              <ZoomIn className="h-6 w-6 text-white" aria-hidden="true" />
+                            </span>
+                          </button>
                         ) : (
                           <div className="flex flex-col items-center gap-1 text-muted-foreground">
                             <ImageIcon className="h-7 w-7" aria-hidden="true" />
@@ -1870,6 +1884,23 @@ export function FamilyEditor() {
           )}
         </div>
       </div>
+
+      {/* Lightbox: immagine articolo ingrandita (click sulla miniatura) */}
+      <Dialog open={imageZoomOpen} onOpenChange={setImageZoomOpen}>
+        <DialogContent className="max-w-3xl p-2 sm:p-4">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Immagine articolo</DialogTitle>
+            <DialogDescription>{nome || "Anteprima immagine articolo"}</DialogDescription>
+          </DialogHeader>
+          {immagineUrl && (
+            <img
+              src={immagineUrl}
+              alt={`Immagine ${nome || "articolo"}`}
+              className="w-full max-h-[80vh] rounded-md object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog gestione macrocategorie/categorie (aperto da sezione Step 1) */}
       <Dialog open={showCategorieManager} onOpenChange={setShowCategorieManager}>
