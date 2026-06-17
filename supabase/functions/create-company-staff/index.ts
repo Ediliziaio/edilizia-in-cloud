@@ -6,6 +6,23 @@ import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
 type ValidRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 
+// Trova l'id auth di un'email scorrendo le pagine (supabase-js non espone una
+// getUserByEmail). Serve a recuperare gli ORFANI: auth user creati da un
+// tentativo precedente fallito a metà (profilo/ruolo mancanti) che lasciano
+// l'email "occupata" e impediscono di ricrearla.
+// deno-lint-ignore no-explicit-any
+async function findAuthUserIdByEmail(admin: any, email: string): Promise<string | null> {
+  const target = email.trim().toLowerCase();
+  for (let page = 1; page <= 30; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (error || !data?.users?.length) return null;
+    const found = data.users.find((u: { email?: string }) => (u.email ?? "").toLowerCase() === target);
+    if (found) return found.id;
+    if (data.users.length < 200) return null; // ultima pagina
+  }
+  return null;
+}
+
 function resolveRoles(roleType: ValidRoleType): string[] {
   switch (roleType) {
     case "company_admin":
@@ -110,24 +127,56 @@ Deno.serve(async (req) => {
       email_confirm: true,
     });
 
+    let userId: string;
     if (createError) {
-      if (createError.message?.toLowerCase().includes("already") || createError.message?.toLowerCase().includes("exists")) {
+      const msg = createError.message?.toLowerCase() ?? "";
+      const alreadyExists = msg.includes("already") || msg.includes("exists") || msg.includes("registered");
+      if (!alreadyExists) {
+        console.error("Error creating user:", createError);
+        return errorResponse(createError.message || "Errore durante la creazione dell'utente", 500);
+      }
+      // RECUPERO ORFANO: l'email è "occupata". Se l'auth user esiste ma NON ha
+      // un profilo collegato, è il residuo di una creazione fallita a metà →
+      // lo eliminiamo e ricreiamo. Se invece ha già un profilo, è un utente
+      // reale → errore legittimo.
+      const existingId = await findAuthUserIdByEmail(supabaseAdmin, email);
+      if (!existingId) {
         return errorResponse("Un utente con questa email esiste già");
       }
-      console.error("Error creating user:", createError);
-      return errorResponse(createError.message || "Errore durante la creazione dell'utente", 500);
-    }
-
-    if (!newUser.user) {
+      const { data: existingProfile } = await supabaseAdmin
+        .from("profiles").select("id").eq("id", existingId).maybeSingle();
+      if (existingProfile) {
+        return errorResponse("Un utente con questa email esiste già");
+      }
+      // Orfano confermato: pulizia + retry
+      await supabaseAdmin.from("user_roles").delete().eq("user_id", existingId);
+      const { error: delOrphanErr } = await supabaseAdmin.auth.admin.deleteUser(existingId);
+      if (delOrphanErr) {
+        console.error("Cleanup orfano fallito:", delOrphanErr);
+        return errorResponse("Un utente con questa email esiste già");
+      }
+      const retry = await supabaseAdmin.auth.admin.createUser({
+        email, password: temporaryPassword, email_confirm: true,
+      });
+      if (retry.error || !retry.data?.user) {
+        console.error("Retry createUser dopo recupero orfano fallito:", retry.error);
+        return errorResponse("Un utente con questa email esiste già");
+      }
+      userId = retry.data.user.id;
+    } else if (!newUser?.user) {
       return errorResponse("Errore durante la creazione dell'utente", 500);
+    } else {
+      userId = newUser.user.id;
     }
 
-    const userId = newUser.user.id;
-
+    // Rollback robusto: se il deleteUser fallisce, l'auth user resta ORFANO
+    // (email "occupata"). Logghiamo l'errore così è diagnosticabile; il nuovo
+    // recupero-orfano a inizio funzione lo risolverà al tentativo successivo.
     const cleanup = async () => {
       await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
       await supabaseAdmin.from("profiles").delete().eq("id", userId);
-      await supabaseAdmin.auth.admin.deleteUser(userId);
+      const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
+      if (delErr) console.error("[ORFANO] deleteUser fallito nel cleanup per", userId, delErr);
     };
 
     const { error: profileError } = await supabaseAdmin.from("profiles").insert({
@@ -140,7 +189,8 @@ Deno.serve(async (req) => {
 
     if (profileError) {
       console.error("Error creating profile:", profileError);
-      await supabaseAdmin.auth.admin.deleteUser(userId);
+      const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
+      if (delErr) console.error("[ORFANO] deleteUser fallito dopo profileError per", userId, delErr);
       return errorResponse("Errore durante la creazione del profilo", 500);
     }
 

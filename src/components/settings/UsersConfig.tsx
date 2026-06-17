@@ -594,7 +594,15 @@ export function UsersConfig() {
           active_sessions: sessionsByUser[uid] || 0,
           is_blocked: blockedByUser[uid] ?? false,
         }];
-      }).flat() as CompanyUser[];
+      }).flat()
+        // BUGFIX: questa pagina (Persone & Accessi) deve mostrare SOLO gli
+        // utenti-piattaforma (admin/staff/venditori/operai/call-center/
+        // subappaltatori), NON i clienti col portale commesse (ruolo
+        // `customer`). L'RPC get_internal_chat_profiles già li esclude, ma la
+        // query profiles di fallback (per resilienza) li ri-aggiungeva tutti
+        // → 382 righe coi clienti mischiati. Teniamo solo chi ha ALMENO un
+        // ruolo diverso da `customer` (i clienti hanno solo ['customer']).
+        .filter((u) => u.allRoles.some((r) => r !== "customer")) as CompanyUser[];
 
       return { users, warnings };
     },
