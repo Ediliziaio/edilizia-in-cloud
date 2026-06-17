@@ -115,7 +115,7 @@ export function ArticleCombobox({
       const sb = supabase as any;
       const [famRes, catRes] = await Promise.all([
         sb.from("article_families")
-          .select("id, nome, descrizione, immagine_url, prezzo_base_acquisto, prezzo_base_vendita, categoria_id, manodopera_costo_acquisto")
+          .select("id, nome, codice, descrizione, immagine_url, prezzo_base_acquisto, prezzo_base_vendita, categoria_id, manodopera_costo_acquisto")
           .eq("company_id", companyId!)
           .eq("attivo", true)
           .is("deleted_at", null)
@@ -129,13 +129,14 @@ export function ArticleCombobox({
         if (c.nome) catName.set(c.id, c.nome);
       });
       return ((famRes.data ?? []) as Array<{
-        id: string; nome: string; descrizione: string | null; immagine_url: string | null;
+        id: string; nome: string; codice: string | null; descrizione: string | null; immagine_url: string | null;
         prezzo_base_acquisto: number | null; prezzo_base_vendita: number | null; categoria_id: string | null;
         manodopera_costo_acquisto: number | null;
       }>).map((f): ArticleTemplateData => ({
         id: f.id,
         name: f.nome,
-        sku: null,
+        // Codice listino → sku: il combobox filtra e mostra già sku.
+        sku: f.codice,
         category: f.categoria_id ? (catName.get(f.categoria_id) ?? null) : null,
         unit_price: Number(f.prezzo_base_vendita ?? 0),
         standard_cost: Number(f.prezzo_base_acquisto ?? 0),

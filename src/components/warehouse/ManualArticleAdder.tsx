@@ -93,11 +93,12 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let afQ = (supabase as any)
         .from("article_families")
-        .select("id, nome, descrizione, prezzo_base_acquisto, vat_rate")
+        .select("id, nome, codice, descrizione, prezzo_base_acquisto, vat_rate")
         .eq("company_id", companyId!)
         .eq("attivo", true);
       if (filter) {
-        afQ = afQ.ilike("nome", filter);
+        // Cerca per nome OR codice (come la query warehouse_stock sopra).
+        afQ = afQ.or(`nome.ilike.${filter},codice.ilike.${filter}`);
       }
       afQ = afQ.order("nome", { ascending: true }).limit(50);
 
@@ -127,14 +128,15 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
       );
 
       const listinoItems: StockItem[] = (afRes.data as Array<{
-        id: string; nome: string; descrizione: string | null;
+        id: string; nome: string; codice: string | null; descrizione: string | null;
         prezzo_base_acquisto: number | null; vat_rate: number | null;
       }>)
         .filter((r) => !warehouseNamesLower.has(r.nome.toLowerCase().trim()))
         .map((r) => ({
           id: `listino:${r.id}`, // prefix per distinguere al pick
           name: r.nome,
-          internal_code: null,
+          // Codice listino → internal_code: persiste come codice magazzino al pick.
+          internal_code: r.codice,
           quantity: 0,
           tracking_mode: "fungible" as const,
           source: "listino" as const,

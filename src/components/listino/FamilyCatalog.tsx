@@ -357,6 +357,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
       const matchesSearch =
         q === "" ||
         f.nome.toLowerCase().includes(q) ||
+        (f.codice ?? "").toLowerCase().includes(q) ||
         (f.descrizione ?? "").toLowerCase().includes(q);
       if (!matchesSearch) return false;
 
@@ -870,6 +871,14 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                                   {MODALITA_LABEL[f.modalita_prezzo_base]}
                                 </Badge>
                               </div>
+                              {f.codice ? (
+                                <p
+                                  className="font-mono text-[11px] text-muted-foreground truncate"
+                                  title={`Codice: ${f.codice}`}
+                                >
+                                  {f.codice}
+                                </p>
+                              ) : null}
                               {f.descrizione ? (
                                 <CardDescription
                                   className="line-clamp-1"

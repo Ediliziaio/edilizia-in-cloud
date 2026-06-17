@@ -290,6 +290,7 @@ export interface OrderItemData {
   discount_percent: number | null;
   standard_cost: number | null;
   article_template_id: string | null;
+  product_code: string | null;
   categoria: string | null;
   deposit_amount: number | null;
   deposit_paid: boolean | null;
@@ -316,6 +317,7 @@ export function mapDbItemToOrderItem(item: OrderItemData): OrderItem {
     // Aggancio listino: round-trip in modifica (baseline standard + link + categoria)
     standard_cost: item.standard_cost ?? undefined,
     article_template_id: item.article_template_id ?? undefined,
+    product_code: item.product_code ?? undefined,
     categoria: item.categoria ?? undefined,
     is_paid: item.is_paid || false,
     paid_date: item.paid_date || undefined,

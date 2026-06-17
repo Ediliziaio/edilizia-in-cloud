@@ -233,6 +233,9 @@ export function FamilyEditor() {
 
   // ── Form state Step 1 ────────────────────────────────────────────────────
   const [nome, setNome] = useState("");
+  // Codice articolo / SKU opzionale (migration 20271010000000). Ricercabile in
+  // listino, picker commesse e magazzino. Trim → null in salvataggio.
+  const [codice, setCodice] = useState("");
   const [macrocategoriaId, setMacrocategoriaId] = useState<string | "none">("none");
   const [descrizione, setDescrizione] = useState("");
   /**
@@ -298,11 +301,11 @@ export function FamilyEditor() {
   const initialSnapshotRef = useRef<string | null>(null);
   const currentSnapshot = useMemo(
     () => JSON.stringify({
-      nome, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
+      nome, codice, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
       macrocategoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
     }),
     [
-      nome, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
+      nome, codice, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
       macrocategoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
     ],
   );
@@ -318,6 +321,7 @@ export function FamilyEditor() {
   useEffect(() => {
     if (family) {
       setNome(family.nome);
+      setCodice(family.codice ?? "");
       // Preferenza al FK diretto (post-refactor 20270513200000). Fallback al
       // vecchio path via categoria.macrocategoria_id per articoli pre-refactor.
       const macroFromCat = family.categoria_id
@@ -709,6 +713,8 @@ export function FamilyEditor() {
 
     const payload = {
       nome: nome.trim(),
+      // Codice articolo / SKU (opzionale, user-managed). Trim → null.
+      codice: codice.trim() || null,
       // Refactor 20270513200000: scriviamo direttamente macrocategoria_id;
       // categoria_id resta esposto sui tipi ma settato a NULL su tutte le
       // nuove creazioni (la colonna DB verrà droppata in migration futura).
@@ -907,6 +913,20 @@ export function FamilyEditor() {
                       onChange={(e) => setNome(e.target.value)}
                       placeholder="es. Finestra PVC 2 ante"
                     />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="f-codice">Codice articolo (SKU)</Label>
+                    <Input
+                      id="f-codice"
+                      value={codice}
+                      onChange={(e) => setCodice(e.target.value)}
+                      placeholder="es. TIGO-TS4-700 (opzionale)"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Codice interno o fornitore. Ricercabile in listino, commesse e
+                      magazzino oltre al nome.
+                    </p>
                   </div>
 
                   <div>

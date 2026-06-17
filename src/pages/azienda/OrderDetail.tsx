@@ -678,6 +678,7 @@ function OrderDetailInner() {
         // Aggancio listino: link + categoria + baseline standard (€ listino) per
         // il confronto con il costo reale nel controllo di gestione.
         article_template_id: item.article_template_id || null,
+        product_code: item.product_code || null,
         categoria: item.categoria || null,
         standard_cost: item.standard_cost ?? 0,
       }).eq("id", item.id);
@@ -723,6 +724,7 @@ function OrderDetailInner() {
         stock_item_id: item.stock_item_id || null,
         // Aggancio listino (vedi updateSingleItemMutation).
         article_template_id: item.article_template_id || null,
+        product_code: item.product_code || null,
         categoria: item.categoria || null,
         standard_cost: item.standard_cost ?? 0,
       });

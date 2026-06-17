@@ -385,6 +385,7 @@ function CreateOrderInner() {
         unit_price: item.unit_price ?? 0,
         discount_percent: item.discount_percent ?? 0,
         standard_cost: item.standard_cost ?? 0,
+        product_code: item.product_code || null,
         is_paid: item.is_paid || false,
         paid_date: item.paid_date || null,
         payment_method: item.payment_method || null,

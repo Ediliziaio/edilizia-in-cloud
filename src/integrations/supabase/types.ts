@@ -8311,6 +8311,7 @@ export type Database = {
           manodopera_unita: string
           markup_tipo: string
           markup_valore: number
+          codice: string | null
           modalita_prezzo_base: string
           nome: string
           pdf_scheda_url: string | null
@@ -8352,6 +8353,7 @@ export type Database = {
           manodopera_unita?: string
           markup_tipo?: string
           markup_valore?: number
+          codice?: string | null
           modalita_prezzo_base?: string
           nome: string
           pdf_scheda_url?: string | null
@@ -8393,6 +8395,7 @@ export type Database = {
           manodopera_unita?: string
           markup_tipo?: string
           markup_valore?: number
+          codice?: string | null
           modalita_prezzo_base?: string
           nome?: string
           pdf_scheda_url?: string | null

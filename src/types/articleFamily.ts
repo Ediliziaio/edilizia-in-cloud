@@ -75,6 +75,12 @@ export interface ArticleFamily {
    */
   categoria_id: string | null;
   nome: string;
+  /**
+   * Codice articolo / SKU opzionale (migration 20271010000000). User-managed,
+   * nessun vincolo di unicità. Ricercabile in listino, picker commesse e
+   * magazzino oltre al nome. NULL = nessun codice assegnato.
+   */
+  codice: string | null;
   descrizione: string | null;
   immagine_url: string | null;
   pdf_scheda_url: string | null;
