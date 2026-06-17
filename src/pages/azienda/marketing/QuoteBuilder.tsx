@@ -31,7 +31,6 @@ import {
   calcolaScontoQuantita,
 } from "@/hooks/usePreventivoCosti";
 import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventivoCosti";
-import QuoteWizardSerramenti from "@/components/marketing/preventivi/QuoteWizardSerramenti";
 import ApplyBundleDialog from "@/components/marketing/preventivi/ApplyBundleDialog";
 import { AddItemDialog } from "@/components/marketing/preventivi/AddItemDialog";
 // Refactor 2026-05-10: ProductSearchDialog estratto in file separato (-316 righe)
@@ -372,8 +371,6 @@ export default function QuoteBuilder() {
 
   // IMP09: Bundle dialog
   const [bundleOpen, setBundleOpen] = useState(false);
-  // FASE 9: Wizard Serramentista dialog
-  const [wizardSerramentiOpen, setWizardSerramentiOpen] = useState(false);
   // Sprint A — Preventivatore Unificato: dialog a 3 stadi dietro feature flag
   // `PREVENTIVATORE_UNIFIED_V1`. Quando ON sostituisce il cluster di 5 bottoni
   // (Listino / Bundle / Serramento / Riga libera / Altro) con un unico
@@ -435,9 +432,8 @@ export default function QuoteBuilder() {
   const { data: bundles = [] } = useBundleProdotti(companyId);
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
 
-  // FASE 9: families disponibili → abilita bottone Wizard Serramentista solo se configurate
+  // Listino prodotti: usato per le mappe lookup immagini/thumbnail riga (sotto).
   const { families: articleFamilies } = useFamilies();
-  const _hasSerramentiFamilies = articleFamilies.length > 0;
 
   // MP-preventivi-v2: mappe lookup immagini prodotto (thumbnail riga).
   // Le foto vengono lette dinamicamente dal listino, cosi` se aggiorni
@@ -1053,21 +1049,26 @@ export default function QuoteBuilder() {
     // corrente: `newChild = oldChild × (newParent / oldParent)`. Così la
     // posa resta coerente anche dopo modifiche manuali del figlio.
     const current = items[index];
+    // Identifica il parent sia per riga non ancora persistita (client_temp_id)
+    // sia per riga riletta dal DB (id). Prima la cascade scattava solo con
+    // client_temp_id → modificando la quantità di un parent caricato da un
+    // preventivo esistente, i figli posa restavano con la quantità vecchia
+    // (incoerente con removeItem, che già gestiva entrambi).
+    const parentTempId = current?.client_temp_id ?? null;
+    const parentDbId = current?.id ?? null;
     if (
       field === "quantity" &&
       current &&
-      current.client_temp_id &&
+      (parentTempId || parentDbId) &&
       typeof value === "number" &&
       current.quantity > 0 &&
       value !== current.quantity
     ) {
       const ratio = value / current.quantity;
-      const parentTempId = current.client_temp_id;
-      const parentDbId = current.id ?? null;
       setItems(
         items.map((it, i) => {
           if (i === index) return { ...it, [field]: value };
-          const isChildByTemp = it.parent_temp_id === parentTempId;
+          const isChildByTemp = !!parentTempId && it.parent_temp_id === parentTempId;
           const isChildByDb = !!parentDbId && it.parent_item_id === parentDbId;
           if (isChildByTemp || isChildByDb) {
             return { ...it, quantity: Math.max(0, it.quantity * ratio) };
@@ -3372,22 +3373,6 @@ export default function QuoteBuilder() {
         }}
       />
 
-      {/* FASE 9: Wizard Serramentista */}
-      <QuoteWizardSerramenti
-        open={wizardSerramentiOpen}
-        onClose={() => setWizardSerramentiOpen(false)}
-        currentSortOrder={items.length}
-        tariffe={tariffe}
-        onAddItems={(newItems) => {
-          setItems((prev) => {
-            const base = [...prev];
-            newItems.forEach((item, idx) => {
-              base.push({ ...item, sort_order: base.length + idx });
-            });
-            return base;
-          });
-        }}
-      />
 
       {/* Sprint A — Preventivatore Unificato: dialog 3-stadi dietro feature flag. */}
       {preventivatoreUnifiedOn && (

@@ -476,6 +476,8 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
     macroFilter,
     modalitaFilter,
     marginFilter,
+    attivoFilter,
+    preventivoFilter,
     categoriaById,
     macroById,
     macrocategorie,
@@ -999,7 +1001,11 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                               <Switch
                                 checked={f.attivo}
                                 onCheckedChange={() => void toggleAttivo(f)}
-                                disabled={!isAdmin || updateFamily.isPending}
+                                disabled={
+                                  !isAdmin ||
+                                  (updateFamily.isPending &&
+                                    updateFamily.variables?.id === f.id)
+                                }
                                 aria-label={`Articolo attivo: ${f.nome}`}
                               />
                             </TableCell>
@@ -1010,7 +1016,11 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                               <Switch
                                 checked={f.mostra_preventivo !== false}
                                 onCheckedChange={() => void togglePreventivo(f)}
-                                disabled={!isAdmin || updateFamily.isPending}
+                                disabled={
+                                  !isAdmin ||
+                                  (updateFamily.isPending &&
+                                    updateFamily.variables?.id === f.id)
+                                }
                                 aria-label={`Mostra nel preventivatore: ${f.nome}`}
                               />
                             </TableCell>
@@ -1772,7 +1782,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
           <DialogHeader>
             <DialogTitle>Sposta articolo</DialogTitle>
             <DialogDescription>
-              Scegli macrocategoria e categoria di destinazione per{" "}
+              Scegli la macrocategoria di destinazione per{" "}
               &quot;{toMove?.nome}&quot;.
             </DialogDescription>
           </DialogHeader>
