@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from '@/components/ui/table';
@@ -26,7 +27,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  HardHat, Plus, Search, FileText, FileX2, AlertTriangle, Phone, ExternalLink, Loader2, Mail, MapPin, Link2, Link2Off, ShieldCheck,
+  HardHat, Plus, Search, FileText, FileX2, AlertTriangle, Phone, ExternalLink, Loader2, Mail, MapPin, Link2, Link2Off, ShieldCheck, Trash2, CheckCircle2, XCircle, X,
 } from 'lucide-react';
 import { differenceInDays, parseISO } from 'date-fns';
 import type { SubappaltatoreConDashboard, StatoContratto } from '@/types/subappaltatori';
@@ -78,6 +79,9 @@ export default function SubappaltatoriPage() {
   const [filtroDoc, setFiltroDoc] = useState('__all__');
   const [filtroStato, setFiltroStato] = useState('__all__');
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Selezione multipla (id = id scheda sicurezza, come le righe del view).
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confermaEliminaBulk, setConfermaEliminaBulk] = useState(false);
 
   // Form nuovo subappaltatore
   const [form, setForm] = useState({
@@ -297,6 +301,63 @@ export default function SubappaltatoriPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  // ── Selezione multipla + azioni in blocco ────────────────────────────────
+  const visibleIds = filtered.map(s => s.id);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selected.has(id));
+  const toggleOne = (id: string) => setSelected(prev => {
+    const n = new Set(prev);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
+  const toggleAllVisible = () => setSelected(prev => {
+    const n = new Set(prev);
+    if (allVisibleSelected) visibleIds.forEach(id => n.delete(id));
+    else visibleIds.forEach(id => n.add(id));
+    return n;
+  });
+  const clearSelezione = () => setSelected(new Set());
+  // id scheda selezionati → id anagrafica (campo) per le azioni su `subappaltatori`.
+  const campoIdsForSelected = () => subappaltatori
+    .filter(s => selected.has(s.id) && s.campo_subappaltatore_id)
+    .map(s => s.campo_subappaltatore_id as string);
+
+  const bulkAttivoMutation = useMutation({
+    mutationFn: async (attivo: boolean) => {
+      const campoIds = campoIdsForSelected();
+      if (campoIds.length === 0) return 0;
+      const { error } = await (supabase as any)
+        .from('subappaltatori').update({ is_active: attivo }).in('id', campoIds);
+      if (error) throw new Error(error.message || 'Errore');
+      return campoIds.length;
+    },
+    onSuccess: (n, attivo) => {
+      toast.success(`${n} ${n === 1 ? 'subappaltatore' : 'subappaltatori'} ${attivo ? 'attivati' : 'disattivati'}`);
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
+      clearSelezione();
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const bulkDeleteMutation = useMutation({
+    // Elimina solo la SCHEDA (subappaltatori_sicurezza): rimuove la riga dalla
+    // lista senza toccare l'anagrafica né i documenti collegati (no cascade).
+    mutationFn: async () => {
+      const schedaIds = Array.from(selected);
+      if (schedaIds.length === 0) return 0;
+      const { error } = await (supabase as any)
+        .from('subappaltatori_sicurezza').delete().in('id', schedaIds);
+      if (error) throw new Error(error.message || 'Errore');
+      return schedaIds.length;
+    },
+    onSuccess: (n) => {
+      toast.success(`${n} ${n === 1 ? 'subappaltatore rimosso' : 'subappaltatori rimossi'} dalla lista`);
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
+      clearSelezione();
+      setConfermaEliminaBulk(false);
+    },
+    onError: (err: Error) => { toast.error(err.message); setConfermaEliminaBulk(false); },
+  });
+
   // Toggle riutilizzabile (tabella desktop + card mobile).
   function AttivoToggle({ sub }: { sub: SubappaltatoreConDashboard }) {
     const linkId = sub.campo_subappaltatore_id;
@@ -400,6 +461,26 @@ export default function SubappaltatoriPage() {
         </Select>
       </div>
 
+      {/* Barra azioni in blocco */}
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-orange-300 bg-orange-50 px-3 py-2">
+          <span className="text-sm font-semibold text-orange-800">{selected.size} selezionati</span>
+          <div className="flex-1" />
+          <Button size="sm" variant="outline" onClick={() => bulkAttivoMutation.mutate(true)} disabled={bulkAttivoMutation.isPending}>
+            <CheckCircle2 className="h-4 w-4 mr-1.5" />Attiva
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => bulkAttivoMutation.mutate(false)} disabled={bulkAttivoMutation.isPending}>
+            <XCircle className="h-4 w-4 mr-1.5" />Disattiva
+          </Button>
+          <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setConfermaEliminaBulk(true)} disabled={bulkDeleteMutation.isPending}>
+            <Trash2 className="h-4 w-4 mr-1.5" />Elimina
+          </Button>
+          <Button size="sm" variant="ghost" onClick={clearSelezione}>
+            <X className="h-4 w-4 mr-1.5" />Deseleziona
+          </Button>
+        </div>
+      )}
+
       {/* Lista */}
       {isLoading ? (
         <div className="space-y-3">
@@ -428,6 +509,13 @@ export default function SubappaltatoriPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={allVisibleSelected}
+                        onCheckedChange={toggleAllVisible}
+                        aria-label="Seleziona tutti"
+                      />
+                    </TableHead>
                     <TableHead>Ditta</TableHead>
                     <TableHead>P.IVA / C.F.</TableHead>
                     <TableHead>Sede</TableHead>
@@ -440,7 +528,14 @@ export default function SubappaltatoriPage() {
                 </TableHeader>
                 <TableBody>
                   {filtered.map((sub) => (
-                    <TableRow key={sub.id} className="align-top">
+                    <TableRow key={sub.id} className="align-top" data-state={selected.has(sub.id) ? 'selected' : undefined}>
+                      <TableCell className="w-10">
+                        <Checkbox
+                          checked={selected.has(sub.id)}
+                          onCheckedChange={() => toggleOne(sub.id)}
+                          aria-label={`Seleziona ${sub.ragione_sociale}`}
+                        />
+                      </TableCell>
                       {/* Ditta */}
                       <TableCell className="max-w-[220px]">
                         <p className="font-semibold leading-tight truncate">{sub.ragione_sociale}</p>
@@ -762,6 +857,29 @@ export default function SubappaltatoriPage() {
             >
               {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Aggiungi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Conferma eliminazione in blocco */}
+      <Dialog open={confermaEliminaBulk} onOpenChange={setConfermaEliminaBulk}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eliminare {selected.size} subappaltatori?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Verranno rimossi dalla lista subappaltatori. L'anagrafica e i documenti
+            collegati restano salvati. L'azione non è annullabile.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfermaEliminaBulk(false)}>Annulla</Button>
+            <Button
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => bulkDeleteMutation.mutate()}
+              disabled={bulkDeleteMutation.isPending}
+            >
+              {bulkDeleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Trash2 className="h-4 w-4 mr-1.5" />Elimina</>}
             </Button>
           </DialogFooter>
         </DialogContent>
