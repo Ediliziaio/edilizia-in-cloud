@@ -84,6 +84,7 @@ import { PhotoTemplatePicker } from "./PhotoTemplatePicker";
 import { firstGallerySlugFor } from "@/lib/verticalMapping";
 import { FamilyPricePreview } from "./FamilyPricePreview";
 import { MacroCategorieManager } from "./MacroCategorieManager";
+import { ArticlePdfDocumentsSection } from "./ArticlePdfDocumentsSection";
 import { DynamicFieldsRenderer, type DynamicFieldValues } from "./DynamicFieldsRenderer";
 import type {
   ModalitaPrezzoBase,
@@ -1062,6 +1063,15 @@ export function FamilyEditor() {
                       className="hidden"
                     />
                   </div>
+
+                  {/* Schede tecniche / documenti PDF — la colonna pdf_scheda_url
+                      esisteva ma non era esposta; ora multi-documento via tabella
+                      dedicata (article_family_documents). */}
+                  <ArticlePdfDocumentsSection
+                    companyId={companyId}
+                    familyId={family?.id ?? null}
+                    ensureFamilyId={saveBase}
+                  />
 
                   <div>
                     <Label>Modalità prezzo base</Label>
