@@ -4,6 +4,21 @@ import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { getBrandingForCompany } from "../_shared/getBranding.ts";
 
+// Esegue un task in background DOPO la risposta, senza bloccarla. Evita che un
+// invio email lento/bloccato faccia terminare la funzione per wall-clock PRIMA
+// del return → causa di "Failed to send a request to the Edge Function" lato
+// client anche se l'utente era già stato creato.
+function runInBackground(p: Promise<unknown>): void {
+  try {
+    // deno-lint-ignore no-explicit-any
+    const er = (globalThis as any).EdgeRuntime;
+    if (er && typeof er.waitUntil === "function") er.waitUntil(p);
+    else void p.catch(() => {});
+  } catch {
+    void p.catch(() => {});
+  }
+}
+
 type ValidRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 
 // Trova l'id auth di un'email scorrendo le pagine (supabase-js non espone una
@@ -300,7 +315,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Item 9: Send branded welcome email with credentials
+    // Item 9: Welcome email con credenziali — NON BLOCCANTE (background).
+    // Eseguita dopo la risposta: se il provider email è lento/non configurato
+    // non deve più far fallire (per wall-clock) la creazione utente già avvenuta.
+    runInBackground((async () => {
     try {
       const branding = await getBrandingForCompany(supabaseAdmin, targetCompanyId);
 
@@ -362,6 +380,7 @@ Deno.serve(async (req) => {
       // Email failure is non-blocking — user was already created successfully
       console.error("Failed to send welcome email:", emailErr);
     }
+    })());
 
     return jsonResponse({
       success: true,

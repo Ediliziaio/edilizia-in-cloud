@@ -3,6 +3,20 @@ import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
 import { generateSecurePassword } from "../_shared/securePassword.ts";
 import { getCorsHeaders, secureHeaders, jsonResponse } from "../_shared/headers.ts";
 
+// Esegue un task in background DOPO la risposta: un invio email lento/bloccato non
+// deve far terminare la funzione per wall-clock prima del return (causa di
+// "Failed to send a request to the Edge Function" pur con password già impostata).
+function runInBackground(p: Promise<unknown>): void {
+  try {
+    // deno-lint-ignore no-explicit-any
+    const er = (globalThis as any).EdgeRuntime;
+    if (er && typeof er.waitUntil === "function") er.waitUntil(p);
+    else void p.catch(() => {});
+  } catch {
+    void p.catch(() => {});
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: getCorsHeaders(req) });
@@ -79,7 +93,8 @@ Deno.serve(async (req) => {
     );
     if (updateError) throw new Error(`Failed to update password: ${updateError.message}`);
 
-    // Send password reset email via unified pipeline
+    // Send password reset email via unified pipeline — NON BLOCCANTE (background).
+    runInBackground((async () => {
     if (targetProfile.email) {
       try {
         const subject = "Password reimpostata";
@@ -119,6 +134,7 @@ Deno.serve(async (req) => {
         console.error("Failed to send password reset email:", emailErr);
       }
     }
+    })());
 
     // 2026-05-27 SECURITY FIX: prima la password generata veniva ritornata in
     // chiaro nel body JSON → loggata in DevTools/HAR, leak via extension
