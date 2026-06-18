@@ -44,6 +44,9 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_settings_customization: false, can_edit_settings_customization: false,
   can_view_settings_people: false, can_edit_settings_people: false,
   can_view_settings_security: false,
+  can_view_settings_pricing: false, can_edit_settings_pricing: false,
+  can_view_settings_suppliers: false, can_edit_settings_suppliers: false,
+  can_view_settings_integrations: false, can_edit_settings_integrations: false,
   // Speciali
   only_assigned: false,
   visible_areas: [],
@@ -125,11 +128,14 @@ export const AUTOMAZIONI_SECTIONS: PermissionSectionDef[] = [
 ];
 
 export const IMPOSTAZIONI_SECTIONS: PermissionSectionDef[] = [
-  { label: "Profilo Aziendale",    viewKey: "can_view_settings_profile",       editKey: "can_edit_settings_profile" },
-  { label: "Gestione Ordini",      viewKey: "can_view_settings_orders",         editKey: "can_edit_settings_orders" },
-  { label: "Personalizzazione",    viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization" },
-  { label: "Team & Persone",       viewKey: "can_view_settings_people",         editKey: "can_edit_settings_people" },
-  { label: "Sicurezza & Privacy",  viewKey: "can_view_settings_security",       editKey: null },
+  { label: "Profilo Aziendale",      viewKey: "can_view_settings_profile",        editKey: "can_edit_settings_profile" },
+  { label: "Listino & Prezzi",       viewKey: "can_view_settings_pricing",        editKey: "can_edit_settings_pricing" },
+  { label: "Branding & Template",    viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization" },
+  { label: "Configurazione Ordini",  viewKey: "can_view_settings_orders",         editKey: "can_edit_settings_orders" },
+  { label: "Fornitori",              viewKey: "can_view_settings_suppliers",      editKey: "can_edit_settings_suppliers" },
+  { label: "Team & Utenti",          viewKey: "can_view_settings_people",         editKey: "can_edit_settings_people" },
+  { label: "Integrazioni & Canali",  viewKey: "can_view_settings_integrations",   editKey: "can_edit_settings_integrations" },
+  { label: "Sicurezza & Privacy",    viewKey: "can_view_settings_security",       editKey: null },
 ];
 
 export const ALL_PERMISSION_SECTIONS: PermissionSectionDef[] = [
@@ -238,10 +244,13 @@ export function syncLegacySettingsFlags(perms: StaffPermissions): StaffPermissio
   const hasAnyView =
     perms.can_view_settings_profile || perms.can_view_settings_orders ||
     perms.can_view_settings_customization || perms.can_view_settings_people ||
-    perms.can_view_settings_security;
+    perms.can_view_settings_security || perms.can_view_settings_pricing ||
+    perms.can_view_settings_suppliers || perms.can_view_settings_integrations;
   const hasAnyEdit =
     perms.can_edit_settings_profile || perms.can_edit_settings_orders ||
-    perms.can_edit_settings_customization || perms.can_edit_settings_people;
+    perms.can_edit_settings_customization || perms.can_edit_settings_people ||
+    perms.can_edit_settings_pricing || perms.can_edit_settings_suppliers ||
+    perms.can_edit_settings_integrations;
   return {
     ...perms,
     can_view_settings: hasAnyView,

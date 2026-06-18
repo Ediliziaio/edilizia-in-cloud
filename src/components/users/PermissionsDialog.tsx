@@ -98,6 +98,12 @@ export interface StaffPermissions {
   can_view_settings_people: boolean;
   can_edit_settings_people: boolean;
   can_view_settings_security: boolean;
+  can_view_settings_pricing: boolean;
+  can_edit_settings_pricing: boolean;
+  can_view_settings_suppliers: boolean;
+  can_edit_settings_suppliers: boolean;
+  can_view_settings_integrations: boolean;
+  can_edit_settings_integrations: boolean;
   // ── Speciali ───────────────────────────────────────────
   only_assigned: boolean;
   /** Aree visibili: se vuoto = tutte le aree. Valori: cantiere, commerciale, amministrazione, tecnico */

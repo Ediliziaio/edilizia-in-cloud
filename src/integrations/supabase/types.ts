@@ -60124,6 +60124,12 @@ export type Database = {
           can_view_settings_people: boolean
           can_view_settings_profile: boolean
           can_view_settings_security: boolean
+          can_view_settings_pricing: boolean
+          can_edit_settings_pricing: boolean
+          can_view_settings_suppliers: boolean
+          can_edit_settings_suppliers: boolean
+          can_view_settings_integrations: boolean
+          can_edit_settings_integrations: boolean
           can_view_sicurezza_cantiere: boolean | null
           can_view_sms_marketing: boolean | null
           can_view_subappaltatori: boolean | null
@@ -60203,6 +60209,12 @@ export type Database = {
           can_view_settings_people?: boolean
           can_view_settings_profile?: boolean
           can_view_settings_security?: boolean
+          can_view_settings_pricing?: boolean
+          can_edit_settings_pricing?: boolean
+          can_view_settings_suppliers?: boolean
+          can_edit_settings_suppliers?: boolean
+          can_view_settings_integrations?: boolean
+          can_edit_settings_integrations?: boolean
           can_view_sicurezza_cantiere?: boolean | null
           can_view_sms_marketing?: boolean | null
           can_view_subappaltatori?: boolean | null
@@ -60282,6 +60294,12 @@ export type Database = {
           can_view_settings_people?: boolean
           can_view_settings_profile?: boolean
           can_view_settings_security?: boolean
+          can_view_settings_pricing?: boolean
+          can_edit_settings_pricing?: boolean
+          can_view_settings_suppliers?: boolean
+          can_edit_settings_suppliers?: boolean
+          can_view_settings_integrations?: boolean
+          can_edit_settings_integrations?: boolean
           can_view_sicurezza_cantiere?: boolean | null
           can_view_sms_marketing?: boolean | null
           can_view_subappaltatori?: boolean | null

@@ -32,6 +32,13 @@ export interface Permissions {
   canViewSettingsPeople: boolean;
   canEditSettingsPeople: boolean;
   canViewSettingsSecurity: boolean;
+  // Granular settings: Listino & Prezzi / Fornitori / Integrazioni & Canali
+  canViewSettingsPricing: boolean;
+  canEditSettingsPricing: boolean;
+  canViewSettingsSuppliers: boolean;
+  canEditSettingsSuppliers: boolean;
+  canViewSettingsIntegrations: boolean;
+  canEditSettingsIntegrations: boolean;
   canViewMarketing: boolean;
   canEditMarketing: boolean;
   canViewCruscotto: boolean;
@@ -106,6 +113,12 @@ const STAFF_PERMISSIONS_SELECT = [
   "can_view_settings_people",
   "can_edit_settings_people",
   "can_view_settings_security",
+  "can_view_settings_pricing",
+  "can_edit_settings_pricing",
+  "can_view_settings_suppliers",
+  "can_edit_settings_suppliers",
+  "can_view_settings_integrations",
+  "can_edit_settings_integrations",
   "can_view_marketing",
   "can_edit_marketing",
   "can_view_marketing_dashboard",
@@ -156,6 +169,9 @@ const ALL_PERMISSIONS: Permissions = {
   canViewSettingsCustomization: true, canEditSettingsCustomization: true,
   canViewSettingsPeople: true, canEditSettingsPeople: true,
   canViewSettingsSecurity: true,
+  canViewSettingsPricing: true, canEditSettingsPricing: true,
+  canViewSettingsSuppliers: true, canEditSettingsSuppliers: true,
+  canViewSettingsIntegrations: true, canEditSettingsIntegrations: true,
   canViewMarketing: true, canEditMarketing: true,
   canViewCruscotto: true,
   canViewBilling: true, canViewScadenzario: true,
@@ -190,6 +206,9 @@ const NO_PERMISSIONS: Permissions = {
   canViewSettingsCustomization: false, canEditSettingsCustomization: false,
   canViewSettingsPeople: false, canEditSettingsPeople: false,
   canViewSettingsSecurity: false,
+  canViewSettingsPricing: false, canEditSettingsPricing: false,
+  canViewSettingsSuppliers: false, canEditSettingsSuppliers: false,
+  canViewSettingsIntegrations: false, canEditSettingsIntegrations: false,
   canViewMarketing: false, canEditMarketing: false,
   canViewCruscotto: false,
   canViewBilling: false, canViewScadenzario: false,
@@ -275,6 +294,10 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewSettingsCustomization: false, canEditSettingsCustomization: false,
   canViewSettingsPeople: false, canEditSettingsPeople: false,
   canViewSettingsSecurity: false,
+  // Commercialista esterno: nessun accesso alla configurazione azienda
+  canViewSettingsPricing: false, canEditSettingsPricing: false,
+  canViewSettingsSuppliers: false, canEditSettingsSuppliers: false,
+  canViewSettingsIntegrations: false, canEditSettingsIntegrations: false,
   isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
 };
 
@@ -310,6 +333,12 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewSettingsPeople:        g("can_view_settings_people"),
     canEditSettingsPeople:        g("can_edit_settings_people"),
     canViewSettingsSecurity:      g("can_view_settings_security"),
+    canViewSettingsPricing:       g("can_view_settings_pricing"),
+    canEditSettingsPricing:       g("can_edit_settings_pricing"),
+    canViewSettingsSuppliers:     g("can_view_settings_suppliers"),
+    canEditSettingsSuppliers:     g("can_edit_settings_suppliers"),
+    canViewSettingsIntegrations:  g("can_view_settings_integrations"),
+    canEditSettingsIntegrations:  g("can_edit_settings_integrations"),
     canViewSettings:
       g("can_view_settings") || g("can_view_settings_profile") || g("can_view_settings_orders") ||
       g("can_view_settings_customization") || g("can_view_settings_people") || g("can_view_settings_security"),
