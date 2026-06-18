@@ -40,8 +40,15 @@ import BulkDocumentiUploadDialog from './subappaltatore/BulkDocumentiUploadDialo
 
 // ── Badge helpers ────────────────────────────────────────────────────────────
 
-function DurcBadge({ scadenza }: { scadenza: string | null }) {
-  if (!scadenza) return <Badge variant="outline">DURC mancante</Badge>;
+function DurcBadge({ scadenza, hasDoc }: { scadenza: string | null; hasDoc?: boolean }) {
+  if (!scadenza) {
+    // Distinzione: DURC caricato ma SENZA data di scadenza (da inserire) vs DURC
+    // del tutto assente. Prima mostrava sempre "DURC mancante" → confondeva quando
+    // il file DURC c'era (es. import massivo) ma la scadenza non era stata salvata.
+    return hasDoc
+      ? <Badge className="bg-amber-500 text-white">DURC · scadenza mancante</Badge>
+      : <Badge variant="outline">DURC assente</Badge>;
+  }
   const daysLeft = differenceInDays(parseISO(scadenza), new Date());
   if (daysLeft < 0) return <Badge className="bg-red-600 text-white">DURC scaduto</Badge>;
   if (daysLeft <= 30) return <Badge className="bg-yellow-500 text-white">DURC {daysLeft}gg</Badge>;
@@ -438,6 +445,9 @@ export default function SubappaltatoreDetail() {
     data_scadenza: '',
     note: '',
   });
+  // Setter inline rapido per la scadenza DURC (quando il DURC è caricato ma la
+  // data non è stata registrata — es. import massivo).
+  const [durcDateInput, setDurcDateInput] = useState('');
 
   const uploadDocumentMutation = useMutation({
     mutationFn: async () => {
@@ -507,6 +517,24 @@ export default function SubappaltatoreDetail() {
     onSuccess: () => {
       toast.success('Documento eliminato');
       queryClient.invalidateQueries({ queryKey: ['documenti-sub', id] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // Imposta/aggiorna SOLO la scadenza DURC sulla scheda (badge in alto si aggiorna).
+  const setDurcMutation = useMutation({
+    mutationFn: async (date: string) => {
+      const { error } = await (supabase as any)
+        .from('subappaltatori_sicurezza')
+        .update({ durc_scadenza: date || null })
+        .eq('id', id!);
+      if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
+    },
+    onSuccess: () => {
+      toast.success('Scadenza DURC aggiornata');
+      setDurcDateInput('');
+      queryClient.invalidateQueries({ queryKey: ['subappaltatore', id] });
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -746,6 +774,11 @@ export default function SubappaltatoreDetail() {
     ...documentiCompliance.filter((d) => d.tipo === 'durc' && d.scadenza).map((d) => d.scadenza as string),
   ].sort();
   const effectiveDurc = sub.durc_scadenza ?? (durcDocScadenze.length ? durcDocScadenze[durcDocScadenze.length - 1] : null);
+  // Esiste un documento DURC caricato (anche senza scadenza)? Distingue
+  // "DURC presente · scadenza mancante" da "DURC assente".
+  const hasDurcDoc =
+    documenti.some((d) => d.tipo === 'durc') ||
+    documentiCompliance.some((d) => d.tipo === 'durc');
 
   return (
     <div className="space-y-6">
@@ -778,7 +811,7 @@ export default function SubappaltatoreDetail() {
                 App cantiere non collegata
               </Badge>
             )}
-            <DurcBadge scadenza={effectiveDurc} />
+            <DurcBadge scadenza={effectiveDurc} hasDoc={hasDurcDoc} />
             {!hasAppCantiere && (
               <Button
                 variant="outline"
@@ -869,9 +902,29 @@ export default function SubappaltatoreDetail() {
                   <span className="text-sm font-medium">{value}</span>
                 </div>
               ) : null)}
-              <div className="flex gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="text-sm text-muted-foreground w-32 shrink-0">Scadenza DURC</span>
-                <DurcBadge scadenza={effectiveDurc} />
+                <DurcBadge scadenza={effectiveDurc} hasDoc={hasDurcDoc} />
+                {!effectiveDurc && (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="date"
+                      value={durcDateInput}
+                      onChange={(e) => setDurcDateInput(e.target.value)}
+                      className="h-8 w-auto text-xs"
+                      aria-label="Data scadenza DURC"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      disabled={!durcDateInput || setDurcMutation.isPending}
+                      onClick={() => setDurcMutation.mutate(durcDateInput)}
+                    >
+                      {setDurcMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Salva scadenza'}
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
