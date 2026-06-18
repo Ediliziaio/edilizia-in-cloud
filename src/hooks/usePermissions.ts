@@ -71,6 +71,13 @@ export interface Permissions {
   canViewSicurezzaCantiere: boolean;
   canViewSubappaltatori: boolean;
   canViewGiornaleLavori: boolean;
+  /** Modifica/compila il Giornale Lavori (rapportini) */
+  canEditGiornaleLavori: boolean;
+  /** Sopralluoghi tecnici (prima ereditavano da CRM contatti) */
+  canViewSopralluoghi: boolean;
+  /** Preventivi (prima ereditavano da CRM opportunità) */
+  canViewPreventivi: boolean;
+  canEditPreventivi: boolean;
   canViewAutomazioni: boolean;
   canViewRenderAi: boolean;
   canViewSalesOs: boolean;
@@ -148,6 +155,10 @@ const STAFF_PERMISSIONS_SELECT = [
   "can_view_sicurezza_cantiere",
   "can_view_subappaltatori",
   "can_view_giornale_lavori",
+  "can_edit_giornale_lavori",
+  "can_view_sopralluoghi",
+  "can_view_preventivi",
+  "can_edit_preventivi",
   "can_view_automazioni",
   "can_view_render_ai",
   "can_view_sales_os",
@@ -188,6 +199,9 @@ const ALL_PERMISSIONS: Permissions = {
   canViewInterventi: true, canViewManutenzione: true,
   canViewSicurezzaCantiere: true, canViewSubappaltatori: true,
   canViewGiornaleLavori: true,
+  canEditGiornaleLavori: true,
+  canViewSopralluoghi: true,
+  canViewPreventivi: true, canEditPreventivi: true,
   canViewAutomazioni: true, canViewRenderAi: true,
   canViewSalesOs: true, canViewSmsMarketing: true,
   canViewFirmaElettronica: true, canViewReputazione: true,
@@ -225,6 +239,9 @@ const NO_PERMISSIONS: Permissions = {
   canViewInterventi: false, canViewManutenzione: false,
   canViewSicurezzaCantiere: false, canViewSubappaltatori: false,
   canViewGiornaleLavori: false,
+  canEditGiornaleLavori: false,
+  canViewSopralluoghi: false,
+  canViewPreventivi: false, canEditPreventivi: false,
   canViewAutomazioni: false, canViewRenderAi: false,
   canViewSalesOs: false, canViewSmsMarketing: false,
   canViewFirmaElettronica: false, canViewReputazione: false,
@@ -250,6 +267,9 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewSubappaltatori: true,
   canViewSicurezzaCantiere: true,
   canViewGiornaleLavori: true,
+  canEditGiornaleLavori: false,
+  canViewSopralluoghi: false,
+  canViewPreventivi: false, canEditPreventivi: false,
   canViewInterventi: true,
   canViewManutenzione: true,
   canViewTickets: true, canEditTickets: false,
@@ -377,6 +397,10 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewSicurezzaCantiere: g("can_view_sicurezza_cantiere"),
     canViewSubappaltatori:    g("can_view_subappaltatori"),
     canViewGiornaleLavori:    g("can_view_giornale_lavori"),
+    canEditGiornaleLavori:    g("can_edit_giornale_lavori"),
+    canViewSopralluoghi:      g("can_view_sopralluoghi"),
+    canViewPreventivi:        g("can_view_preventivi"),
+    canEditPreventivi:        g("can_edit_preventivi"),
     canViewAutomazioni:       g("can_view_automazioni"),
     canViewRenderAi:          g("can_view_render_ai"),
     canViewSalesOs:           g("can_view_sales_os"),

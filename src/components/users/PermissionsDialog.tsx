@@ -59,6 +59,10 @@ export interface StaffPermissions {
   can_view_employees: boolean;
   can_view_users: boolean;
   can_view_giornale_lavori: boolean;
+  can_edit_giornale_lavori: boolean;
+  can_view_sopralluoghi: boolean;
+  can_view_preventivi: boolean;
+  can_edit_preventivi: boolean;
   can_view_messaggi_esterni: boolean;
   /** Fruizione area Formazione */
   can_view_formazione: boolean;

@@ -22,6 +22,8 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   // Persone
   can_view_persone: false, can_view_employees: false, can_view_users: false,
   can_view_giornale_lavori: false, can_view_messaggi_esterni: false,
+  can_edit_giornale_lavori: false,
+  can_view_sopralluoghi: false, can_view_preventivi: false, can_edit_preventivi: false,
   can_view_formazione: false, can_manage_portal: false,
   // Marketing & Vendita
   can_view_marketing: false, can_edit_marketing: false,
@@ -102,7 +104,7 @@ export const PERSONE_SECTIONS: PermissionSectionDef[] = [
   { label: "Personale, Chat e Messaggistica", viewKey: "can_view_persone",          editKey: null },
   { label: "Gestione Dipendenti",             viewKey: "can_view_employees",         editKey: null },
   { label: "Utenti & Team",                   viewKey: "can_view_users",             editKey: null },
-  { label: "Giornale Lavori",                 viewKey: "can_view_giornale_lavori",   editKey: null },
+  { label: "Giornale Lavori",                 viewKey: "can_view_giornale_lavori",   editKey: "can_edit_giornale_lavori" },
   { label: "Formazione (fruizione corsi)",    viewKey: "can_view_formazione",        editKey: null },
   { label: "Portale corsi (gestione)",        viewKey: "can_manage_portal",          editKey: null },
 ];
@@ -111,6 +113,8 @@ export const MARKETING_SECTIONS: PermissionSectionDef[] = [
   { label: "Dashboard Marketing",     viewKey: "can_view_marketing_dashboard",      editKey: null },
   { label: "Contatti CRM",            viewKey: "can_view_marketing_contacts",       editKey: "can_edit_marketing_contacts" },
   { label: "Opportunità",             viewKey: "can_view_marketing_opportunities",  editKey: "can_edit_marketing_opportunities" },
+  { label: "Preventivi",              viewKey: "can_view_preventivi",               editKey: "can_edit_preventivi" },
+  { label: "Sopralluoghi",            viewKey: "can_view_sopralluoghi",             editKey: null },
   { label: "Attività",                viewKey: "can_view_marketing_activities",     editKey: null },
   { label: "Appuntamenti",            viewKey: "can_view_marketing_appointments",   editKey: null },
   { label: "Email Marketing",         viewKey: "can_view_marketing_email",          editKey: null },
@@ -176,7 +180,7 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_interventi: true,
     can_view_manutenzione: true,
     can_view_employees: true, can_view_persone: true, can_view_users: true,
-    can_view_giornale_lavori: true,
+    can_view_giornale_lavori: true, can_edit_giornale_lavori: true,
     can_view_formazione: true,
     can_view_firma_elettronica: true,
     can_view_billing: true, can_view_prima_nota: true,
@@ -195,6 +199,8 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_marketing_dashboard: true,
     can_view_marketing_contacts: true, can_edit_marketing_contacts: true,
     can_view_marketing_opportunities: true, can_edit_marketing_opportunities: true,
+    can_view_preventivi: true, can_edit_preventivi: true,
+    can_view_sopralluoghi: true,
     can_view_marketing_activities: true,
     can_view_marketing_appointments: true,
     can_view_marketing_reports: true,
@@ -212,6 +218,8 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_users: true,
     can_view_marketing_contacts: true, can_edit_marketing_contacts: true,
     can_view_marketing_opportunities: true,
+    can_view_preventivi: true,
+    can_view_sopralluoghi: true,
     can_view_marketing_activities: true,
     can_view_marketing_appointments: true,
     can_view_marketing: true,
@@ -221,7 +229,7 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
 
   employee: {
     can_view_calendar: true,
-    can_view_giornale_lavori: true,
+    can_view_giornale_lavori: true, can_edit_giornale_lavori: true,
     can_view_formazione: true,
     only_assigned: true,
     visible_areas: ["cantiere"],

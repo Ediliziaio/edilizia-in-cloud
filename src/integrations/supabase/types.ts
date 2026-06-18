@@ -60096,6 +60096,10 @@ export type Database = {
           can_view_formazione: boolean
           can_view_forecast: boolean | null
           can_view_giornale_lavori: boolean | null
+          can_edit_giornale_lavori: boolean
+          can_view_sopralluoghi: boolean
+          can_view_preventivi: boolean
+          can_edit_preventivi: boolean
           can_view_interventi: boolean | null
           can_view_manutenzione: boolean | null
           can_view_margins: boolean
@@ -60181,6 +60185,10 @@ export type Database = {
           can_view_formazione?: boolean
           can_view_forecast?: boolean | null
           can_view_giornale_lavori?: boolean | null
+          can_edit_giornale_lavori?: boolean
+          can_view_sopralluoghi?: boolean
+          can_view_preventivi?: boolean
+          can_edit_preventivi?: boolean
           can_view_interventi?: boolean | null
           can_view_manutenzione?: boolean | null
           can_view_margins?: boolean
@@ -60266,6 +60274,10 @@ export type Database = {
           can_view_formazione?: boolean
           can_view_forecast?: boolean | null
           can_view_giornale_lavori?: boolean | null
+          can_edit_giornale_lavori?: boolean
+          can_view_sopralluoghi?: boolean
+          can_view_preventivi?: boolean
+          can_edit_preventivi?: boolean
           can_view_interventi?: boolean | null
           can_view_manutenzione?: boolean | null
           can_view_margins?: boolean

@@ -561,10 +561,10 @@ export default function CompanyRoutesContainer() {
         {/* 🆕 MP-EMAIL-AI: impostazioni AI casella (apprendimento + regole) */}
         <Route path="email/ai" element={withCompanyPermission("canViewMarketingEmail", <EmailAiSettingsPage />)} />
         {/* 🆕 Sprint S1-S3: Modulo Sopralluoghi (Beta) */}
-        <Route path="sopralluoghi" element={withCompanyPermission("canViewMarketingContacts", <SopralluoghiList />)} />
-        <Route path="sopralluoghi/nuovo" element={withCompanyPermission("canViewMarketingContacts", <NuovoSopralluogo />)} />
-        <Route path="sopralluoghi/:id" element={withCompanyPermission("canViewMarketingContacts", <SopralluogoEditor />)} />
-        <Route path="sopralluoghi/:id/firma" element={withCompanyPermission("canViewMarketingContacts", <FirmaCliente />)} />
+        <Route path="sopralluoghi" element={withCompanyPermission("canViewSopralluoghi", <SopralluoghiList />)} />
+        <Route path="sopralluoghi/nuovo" element={withCompanyPermission("canViewSopralluoghi", <NuovoSopralluogo />)} />
+        <Route path="sopralluoghi/:id" element={withCompanyPermission("canViewSopralluoghi", <SopralluogoEditor />)} />
+        <Route path="sopralluoghi/:id/firma" element={withCompanyPermission("canViewSopralluoghi", <FirmaCliente />)} />
         {/* v8.6.71 — RIMOSSO: impostazioni/sopralluoghi era qui (fuori dal
             SettingsLayout) → niente back arrow/header settings su mobile.
             Spostato dentro <Route path="impostazioni"> più sotto. */}
@@ -821,11 +821,11 @@ export default function CompanyRoutesContainer() {
             <ErrorBoundary title="Errore wizard Ristrutturazione"><RistrutturazioneWizard /></ErrorBoundary>,
           )
         } />
-        <Route path="marketing/preventivi" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />
+        <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />
         <Route path="marketing/preventivi/approvazioni" element={<Navigate to="/azienda/marketing/preventivi?tab=approvazioni" replace />} />
-        <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
-        <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><QuoteDetail /></FeatureRoute>)} />
-        <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
+        <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
+        <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="crm_modulo"><QuoteDetail /></FeatureRoute>)} />
+        <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
         <Route path="marketing/firma-elettronica" element={withCompanyPermission("canViewFirmaElettronica", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
         {/* Sprint B — Varianti Costo Manodopera: vista admin-only gated da can_view_margins */}
         <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <QuoteMargini />)} />
