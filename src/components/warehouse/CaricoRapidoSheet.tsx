@@ -58,6 +58,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBatchCarico } from "@/hooks/warehouse/useBatchCarico";
 import { uploadWarehouseDDTToOrders, uploadWarehousePhotos } from "@/lib/warehousePhotoUpload";
+import { deriveLottoFromSerials } from "@/lib/barcode/multiSerialParser";
 import type { BatchScanEntry } from "./BatchBarcodeScanner";
 
 const BatchBarcodeScanner = lazy(() =>
@@ -457,15 +458,16 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       // vengono raggruppati sotto un nuovo stock_lotti. Best-effort: se la
       // creazione del lotto fallisce, il carico è già committato → non perdiamo
       // i seriali, l'utente può creare il lotto manualmente dopo.
-      const trimmedLottoCode = lottoCode.trim();
+      // Seriali appena inseriti dall'RPC in stock_units (entries serializzate).
+      const scannedSerials = entries
+        .filter((e) => e.trackingMode === "serialized")
+        .flatMap((e) => e.serialNumbers ?? []);
+      // Codice lotto: quello digitato OPPURE, se vuoto, derivato dal prefisso
+      // comune dei seriali → scansionando il QR di un bancale (es. 36 pannelli)
+      // il lotto si crea da solo, senza inserimento manuale.
+      const trimmedLottoCode = lottoCode.trim() || deriveLottoFromSerials(scannedSerials) || "";
       if (trimmedLottoCode && result.created_units > 0 && effectiveCompany?.id) {
         try {
-          // Raccolgo i seriali appena scansionati dalle entries (sono quelli
-          // che l'RPC ha appena inserito in stock_units).
-          const scannedSerials = entries
-            .filter((e) => e.trackingMode === "serialized")
-            .flatMap((e) => e.serialNumbers ?? []);
-
           if (scannedSerials.length > 0) {
             // Articolo: se tutte le entry serialized hanno lo stesso stockItemId,
             // useremo quello come stock_item_id del lotto (drill-down preciso).
@@ -938,8 +940,9 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
               maxLength={80}
             />
             <p className="text-[10px] text-muted-foreground">
-              Se compilato, tutti i seriali scansionati verranno raggruppati sotto questo lotto
-              (utile per garanzie individuali su bancali di pannelli o componenti).
+              Se compilato, tutti i seriali scansionati verranno raggruppati sotto questo lotto.
+              Se lo lasci vuoto e scansioni il QR "SERIALS" di un bancale, il codice lotto viene
+              rilevato in automatico dal prefisso comune dei seriali (es. 36 pannelli → 1 lotto).
             </p>
           </div>
 
