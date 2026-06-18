@@ -227,7 +227,15 @@ function CalendarInner() {
         const { data, error } = await withClientTimeout(query, "Caricamento calendario lavori", 10_000);
 
         if (error) throw error;
-        return (data || []) as CalendarOrder[];
+        // Guardia: customer è un LEFT join (profiles via customer_id) → può
+        // essere null (cliente cancellato/assente). Le viste calendario lo
+        // leggono come order.customer.last_name → crash "reading 'last_name'"
+        // (incidente prod 06-18). Normalizziamo alla fonte: un solo punto
+        // protegge tutte le viste (Month/Gantt/Heatmap/Day/DraggableOrderBar).
+        return ((data || []) as CalendarOrder[]).map((o) => ({
+          ...o,
+          customer: o.customer ?? { first_name: "", last_name: "Cliente non associato" },
+        }));
       } finally {
         timeout.dispose();
       }

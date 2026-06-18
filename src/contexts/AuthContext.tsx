@@ -1338,8 +1338,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (!effCompanyId || !state.user) return;
 
-    const channel = supabase
-      .channel(`feature-overrides-${effCompanyId}`)
+    // Topic UNIVOCO per istanza: le deps includono oggetti volatili
+    // (state.user, multiCompanyState.selectedCompany, queryClient) che cambiano
+    // senza cambiare effCompanyId → l'effect ri-gira e, con topic fisso, Supabase
+    // riusava il canale già subscribed → ".on() after subscribe()" → crash app
+    // globale. + try/catch: la realtime invalidation è best-effort.
+    const chId = (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : String(Math.random());
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+      .channel(`feature-overrides-${effCompanyId}-${chId}`)
       .on(
         "postgres_changes",
         {
@@ -1368,9 +1376,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       )
       .subscribe();
+    } catch (e) {
+      console.error("[AuthContext] realtime subscribe non riuscito (non-bloccante):", e);
+    }
 
     return () => {
-      void supabase.removeChannel(channel);
+      if (channel) {
+        try { void supabase.removeChannel(channel); } catch { /* canale già rimosso */ }
+      }
     };
   }, [
     state.user?.id,
@@ -1405,8 +1418,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (!effCompanyId || !state.user) return;
 
-    const channel = supabase
-      .channel(`company-subscriptions-${effCompanyId}`)
+    // Topic UNIVOCO per istanza (vedi nota sul channel feature-overrides sopra).
+    const chId = (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : String(Math.random());
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+      .channel(`company-subscriptions-${effCompanyId}-${chId}`)
       .on(
         "postgres_changes",
         {
@@ -1441,9 +1458,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       )
       .subscribe();
+    } catch (e) {
+      console.error("[AuthContext] realtime subscribe non riuscito (non-bloccante):", e);
+    }
 
     return () => {
-      void supabase.removeChannel(channel);
+      if (channel) {
+        try { void supabase.removeChannel(channel); } catch { /* canale già rimosso */ }
+      }
     };
   }, [
     state.user?.id,
