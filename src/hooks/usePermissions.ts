@@ -473,48 +473,45 @@ export function usePermissions(): Permissions {
   useEffect(() => {
     if (!needsStaffPermsFetch || !user?.id) return;
 
-    const channel = supabase
-      .channel(`staff-permissions-${user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "staff_permissions",
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["staff-permissions", user.id, effectiveCompanyId] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "staff_permissions",
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["staff-permissions", user.id, effectiveCompanyId] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "staff_permissions",
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["staff-permissions", user.id, effectiveCompanyId] });
-        }
-      )
-      .subscribe();
+    // Topic canale UNIVOCO per istanza dell'effect. Con un nome fisso
+    // (`staff-permissions-<uid>`) il riuso del topic — quando l'effect ri-gira
+    // durante il caricamento company (effectiveCompanyId null→valore) — faceva
+    // sì che supabase.channel() restituisse un canale GIÀ subscribed: il
+    // successivo .on() lanciava "cannot add postgres_changes after subscribe()"
+    // e l'eccezione buttava giù l'INTERA area azienda (ErrorBoundary) per gli
+    // utenti company_staff. Nome univoco → canale sempre nuovo, .on() valido.
+    const channelUid =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${user.id}-${Math.round(Math.random() * 1e9)}`;
+
+    const invalidate = () => {
+      queryClient.invalidateQueries({ queryKey: ["staff-permissions", user.id, effectiveCompanyId] });
+    };
+
+    // La realtime invalidation è best-effort: un suo errore NON deve mai
+    // crashare l'area azienda. Wrap difensivo in try/catch.
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      const filter = `user_id=eq.${user.id}`;
+      channel = supabase
+        .channel(`staff-permissions-${channelUid}`)
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "staff_permissions", filter }, invalidate)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "staff_permissions", filter }, invalidate)
+        .on("postgres_changes", { event: "DELETE", schema: "public", table: "staff_permissions", filter }, invalidate)
+        .subscribe();
+    } catch (e) {
+      logger.error("staff-permissions realtime subscribe failed (non-bloccante):", e);
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch {
+          /* canale già rimosso — silenzioso */
+        }
+      }
     };
   }, [user?.id, effectiveCompanyId, needsStaffPermsFetch, queryClient]);
 
