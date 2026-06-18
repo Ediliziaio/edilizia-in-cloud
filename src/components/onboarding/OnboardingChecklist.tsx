@@ -8,6 +8,7 @@
  *   - Progress bar visiva con %
  *   - Si nasconde automaticamente quando 100% completato
  */
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Circle, ListChecks, ArrowRight, Sparkles } from "lucide-react";
+import { CheckCircle2, Circle, ListChecks, ArrowRight, Sparkles, X } from "lucide-react";
 import { useOnboardingAutoComplete } from "@/hooks/useOnboardingAutoComplete";
 
 interface OnboardingStep {
@@ -38,6 +39,20 @@ export function OnboardingChecklist() {
   const { user, effectiveCompany } = useAuth();
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
+
+  // Dismiss persistito per-azienda (localStorage): se l'utente chiude la card
+  // resta nascosta su questo browser. Riappare se cambia azienda/onboarding.
+  const dismissKey = companyId ? `eic-onboarding-dismissed-${companyId}` : null;
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    setDismissed(dismissKey ? localStorage.getItem(dismissKey) === "1" : false);
+  }, [dismissKey]);
+  const handleDismiss = () => {
+    if (dismissKey) {
+      try { localStorage.setItem(dismissKey, "1"); } catch { /* storage non disponibile */ }
+    }
+    setDismissed(true);
+  };
 
   // Get company onboarding assignment
   const { data: onboarding } = useQuery({
@@ -132,6 +147,7 @@ export function OnboardingChecklist() {
   });
 
   if (!onboarding || steps.length === 0) return null;
+  if (dismissed) return null;
 
   // Quando tutti gli step sono completati, mostriamo banner di successo
   // per 1 sessione poi la card si nasconde definitivamente
@@ -151,12 +167,24 @@ export function OnboardingChecklist() {
             </div>
             <span>{isAllDone ? "Sei pronto!" : "Inizia in 5 minuti"}</span>
           </CardTitle>
-          <Badge
-            variant={isAllDone ? "default" : "secondary"}
-            className={isAllDone ? "bg-emerald-600 hover:bg-emerald-700" : ""}
-          >
-            {pct}% completato
-          </Badge>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Badge
+              variant={isAllDone ? "default" : "secondary"}
+              className={isAllDone ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+            >
+              {pct}% completato
+            </Badge>
+            <button
+              type="button"
+              onClick={handleDismiss}
+              aria-label="Chiudi"
+              title="Nascondi questa scheda"
+              className="rounded-md p-1 text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors"
+              data-allow-in-preview="true"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
         {!isAllDone && nextStep && (
           <p className="text-xs text-muted-foreground mt-1">
