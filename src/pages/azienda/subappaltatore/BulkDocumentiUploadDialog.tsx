@@ -42,6 +42,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { TipoDocumentoSub } from "@/types/subappaltatori";
+import { extractDurcExpiryFromPdf } from "@/lib/sicurezza/durcExpiry";
 import {
   classifyTipoDocumento,
   extractZipEntries,
@@ -115,17 +116,29 @@ export default function BulkDocumentiUploadDialog({
         setRows([]);
         return;
       }
-      setRows(
-        entries.map((e, i) => ({
-          key: `${Date.now()}-${i}-${e.name}`,
-          name: e.name,
-          blob: e.blob,
-          tipo: classifyTipoDocumento(e.name),
-          data_scadenza: guessScadenzaFromName(e.name) ?? "",
-          include: true,
-          status: "pending" as RowStatus,
-        })),
-      );
+      const built = entries.map((e, i) => ({
+        key: `${Date.now()}-${i}-${e.name}`,
+        name: e.name,
+        blob: e.blob,
+        tipo: classifyTipoDocumento(e.name),
+        data_scadenza: guessScadenzaFromName(e.name) ?? "",
+        include: true,
+        status: "pending" as RowStatus,
+      }));
+      setRows(built);
+      // Per i DURC senza data dedotta dal nome, leggi la "Scadenza validità" dal
+      // CONTENUTO del PDF (DURC On Line) e precompila la riga (l'utente rivede).
+      void (async () => {
+        let filled = 0;
+        for (const row of built) {
+          if (row.tipo !== "durc" || row.data_scadenza) continue;
+          const iso = await extractDurcExpiryFromPdf(row.blob);
+          if (iso) { patchRow(row.key, { data_scadenza: iso }); filled++; }
+        }
+        if (filled > 0) {
+          toast.success(`Scadenza DURC rilevata dal PDF per ${filled} document${filled === 1 ? "o" : "i"}`);
+        }
+      })();
     } catch (err) {
       toast.error(`Lettura archivio fallita: ${(err as Error).message}`);
       setRows([]);

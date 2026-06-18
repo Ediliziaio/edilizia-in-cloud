@@ -36,6 +36,7 @@ import {
   TIPO_DOC_LABELS,
   SUBAPPALTATORI_DOCUMENTI_BUCKET as DOCUMENT_BUCKET,
 } from '@/lib/sicurezza/bulkDocumenti';
+import { extractDurcExpiryFromPdf } from '@/lib/sicurezza/durcExpiry';
 import BulkDocumentiUploadDialog from './subappaltatore/BulkDocumentiUploadDialog';
 
 // ── Badge helpers ────────────────────────────────────────────────────────────
@@ -1542,7 +1543,20 @@ export default function SubappaltatoreDetail() {
             </div>
             <div className="space-y-1.5">
               <Label>File *</Label>
-              <Input type="file" onChange={(e) => setDocFile(e.target.files?.[0] ?? null)} />
+              <Input type="file" onChange={async (e) => {
+                const f = e.target.files?.[0] ?? null;
+                setDocFile(f);
+                // DURC PDF: prova a leggere la "Scadenza validità" dal contenuto e
+                // precompila la data (il parser matcha solo testo DURC → nessun
+                // falso positivo su altri PDF).
+                if (f && /pdf/i.test(f.type)) {
+                  const iso = await extractDurcExpiryFromPdf(f);
+                  if (iso) {
+                    setDocForm((prev) => ({ ...prev, data_scadenza: prev.data_scadenza || iso }));
+                    toast.success(`Scadenza DURC rilevata dal PDF: ${iso.split('-').reverse().join('/')}`);
+                  }
+                }
+              }} />
               {docFile && <p className="text-xs text-muted-foreground">{docFile.name}</p>}
             </div>
             <div className="grid grid-cols-2 gap-3">
