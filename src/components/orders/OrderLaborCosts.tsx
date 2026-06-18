@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   HardHat, Users, Building2, Plus, Trash2, Check, Clock,
-  ExternalLink, Crown, UserPlus, Loader2, ShieldCheck,
+  ExternalLink, Crown, UserPlus, Loader2, ShieldCheck, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -157,6 +157,22 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
     enabled: !!orderId && !!effectiveCompanyId,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Alert DURC aggregato: subappaltatori di QUESTA commessa con DURC
+  // scaduto / in scadenza (≤30gg) / mancante — per non lavorare con DURC irregolare.
+  const durcAlerts = subappaltatori
+    .map((s) => {
+      const sc = s.durc_scadenza ?? null;
+      const days = sc ? differenceInDays(parseISO(sc), new Date()) : null;
+      const level: "scaduto" | "scadenza" | "mancante" | null =
+        !sc ? "mancante" : days! < 0 ? "scaduto" : days! <= 30 ? "scadenza" : null;
+      return level ? { id: s.id, nome: s.ragione_sociale, level, days } : null;
+    })
+    .filter(
+      (x): x is { id: string; nome: string; level: "scaduto" | "scadenza" | "mancante"; days: number | null } =>
+        x !== null,
+    )
+    .sort((a, b) => ({ scaduto: 0, scadenza: 1, mancante: 2 })[a.level] - ({ scaduto: 0, scadenza: 1, mancante: 2 })[b.level]);
 
   const { data: assegnazioni = [], isLoading: loadingAssegnazioni } = useQuery<CampoAssignment[]>({
     queryKey: ["order-campo-assignments", orderId],
@@ -377,6 +393,26 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
 
           {/* ── Subappaltatori ──────────────────────────────────── */}
           <TabsContent value="teams" className="space-y-3 mt-4">
+            {durcAlerts.length > 0 && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-1.5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  Attenzione DURC subappaltatori in commessa
+                </div>
+                <ul className="space-y-0.5 text-xs text-amber-800">
+                  {durcAlerts.map((a) => (
+                    <li key={a.id}>
+                      <span className="font-medium">{a.nome}</span>:{" "}
+                      {a.level === "scaduto"
+                        ? `DURC SCADUTO${a.days != null ? ` da ${Math.abs(a.days)}gg` : ""}`
+                        : a.level === "scadenza"
+                          ? `DURC in scadenza tra ${a.days}gg`
+                          : "DURC non presente in scheda"}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {subappaltatori.length > 0 && (
               <div className="space-y-2">
                 {subappaltatori.map((sub) => {

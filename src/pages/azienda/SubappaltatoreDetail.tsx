@@ -459,10 +459,20 @@ export default function SubappaltatoreDetail() {
         note: docForm.note.trim() || null,
       });
       if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
+      // Se carico un DURC con scadenza, allineo durc_scadenza della scheda così il
+      // badge smette di dire "DURC mancante" (prima i due dati restavano scollegati).
+      if (docForm.tipo === 'durc' && docForm.data_scadenza) {
+        await (supabase as any)
+          .from('subappaltatori_sicurezza')
+          .update({ durc_scadenza: docForm.data_scadenza })
+          .eq('id', id!);
+      }
     },
     onSuccess: () => {
       toast.success('Documento caricato');
       queryClient.invalidateQueries({ queryKey: ['documenti-sub', id] });
+      queryClient.invalidateQueries({ queryKey: ['subappaltatore', id] });
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
       setDocDialog(false);
       setDocFile(null);
       setDocForm({ tipo: 'durc', data_rilascio: '', data_scadenza: '', note: '' });
@@ -728,6 +738,15 @@ export default function SubappaltatoreDetail() {
   const appCantiere = campoAccess ?? inferredCampoAccess ?? null;
   const hasAppCantiere = Boolean(sub.campo_subappaltatore_id || appCantiere?.id);
 
+  // DURC "effettivo": il campo durc_scadenza della scheda OPPURE, se vuoto, la
+  // scadenza del DURC caricato più recente (tra documenti idoneità e fascicolo).
+  // Così il badge non dice "mancante" quando un DURC con scadenza c'è davvero.
+  const durcDocScadenze = [
+    ...documenti.filter((d) => d.tipo === 'durc' && d.data_scadenza).map((d) => d.data_scadenza as string),
+    ...documentiCompliance.filter((d) => d.tipo === 'durc' && d.scadenza).map((d) => d.scadenza as string),
+  ].sort();
+  const effectiveDurc = sub.durc_scadenza ?? (durcDocScadenze.length ? durcDocScadenze[durcDocScadenze.length - 1] : null);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -759,7 +778,7 @@ export default function SubappaltatoreDetail() {
                 App cantiere non collegata
               </Badge>
             )}
-            <DurcBadge scadenza={sub.durc_scadenza} />
+            <DurcBadge scadenza={effectiveDurc} />
             {!hasAppCantiere && (
               <Button
                 variant="outline"
@@ -852,7 +871,7 @@ export default function SubappaltatoreDetail() {
               ) : null)}
               <div className="flex gap-3">
                 <span className="text-sm text-muted-foreground w-32 shrink-0">Scadenza DURC</span>
-                <DurcBadge scadenza={sub.durc_scadenza} />
+                <DurcBadge scadenza={effectiveDurc} />
               </div>
             </CardContent>
           </Card>
@@ -877,6 +896,10 @@ export default function SubappaltatoreDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">
+                Carica qui <strong>DURC</strong>, visura camerale, POS, polizze e altri documenti di idoneità.
+                Per il DURC indica la <strong>data di scadenza</strong>: aggiorna in automatico il badge in alto.
+              </p>
               {documenti.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nessun documento caricato.</p>
               ) : (
@@ -945,6 +968,9 @@ export default function SubappaltatoreDetail() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Documenti importati dall'anagrafica o dall'import massivo (modulo Sicurezza), in sola lettura.
+                </p>
                 <div className="space-y-2">
                   {documentiCompliance.map((doc) => {
                     const daysLeft = doc.scadenza
