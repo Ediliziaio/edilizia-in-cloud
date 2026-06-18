@@ -60115,6 +60115,7 @@ export type Database = {
           can_view_marketing_reports: boolean | null
           can_view_marketing_whatsapp: boolean | null
           can_view_messaggi_esterni: boolean | null
+          can_view_order_amounts: boolean
           can_view_orders: boolean | null
           can_view_persone: boolean
           can_view_prima_nota: boolean
@@ -60204,6 +60205,7 @@ export type Database = {
           can_view_marketing_reports?: boolean | null
           can_view_marketing_whatsapp?: boolean | null
           can_view_messaggi_esterni?: boolean | null
+          can_view_order_amounts?: boolean
           can_view_orders?: boolean | null
           can_view_persone?: boolean
           can_view_prima_nota?: boolean
@@ -60293,6 +60295,7 @@ export type Database = {
           can_view_marketing_reports?: boolean | null
           can_view_marketing_whatsapp?: boolean | null
           can_view_messaggi_esterni?: boolean | null
+          can_view_order_amounts?: boolean
           can_view_orders?: boolean | null
           can_view_persone?: boolean
           can_view_prima_nota?: boolean

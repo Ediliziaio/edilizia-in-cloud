@@ -1063,6 +1063,8 @@ function OrderDetailInner() {
         {/* ── Card commessa: ognuna isolata in ErrorBoundary (fallback vuoto) così
                un errore in una NON può buttare giù il dettaglio commessa. ── */}
         {/* Conto economico: riepilogo a colpo d'occhio, sempre in cima */}
+        {/* Conto economico = costi + margine → solo a chi può vederli. */}
+        {(permissions.canViewCosts || permissions.canViewMargins) && (
         <ErrorBoundary fallback={<></>}>
           <OrderEconomicsSummary
             orderId={id!}
@@ -1073,6 +1075,7 @@ function OrderDetailInner() {
             itemsLoading={orderItemsPending}
           />
         </ErrorBoundary>
+        )}
 
         {/* Sopralluoghi collegati (rilievo misure) */}
         <ErrorBoundary fallback={<></>}>
@@ -1177,6 +1180,8 @@ function OrderDetailInner() {
 
             {/* Tab 3: Finanza */}
             <TabsContent value="finanza" className="space-y-4 mt-4">
+              {/* Importi/acconti = lato vendita → solo a chi può vedere gli importi. */}
+              {permissions.canViewOrderAmounts && (
               <OrdineEconomico
                 orderId={id!}
                 totalAmount={order.total_amount}
@@ -1189,6 +1194,7 @@ function OrderDetailInner() {
                 onInstallmentPaidToggle={handleInstallmentPaidToggle}
                 onInstallmentDateChange={handleInstallmentDateChange}
               />
+              )}
               {/* Fatturazione e documenti */}
               <QuoteCard
                 title={
@@ -1467,6 +1473,7 @@ function OrderDetailInner() {
                 L'id è il target del bottone "+ SAL" in testata (desktop): il
                 Riepilogo Finanziario col piano rate è il primo blocco. */}
             <div id="section-pagamenti" className="scroll-mt-24">
+              {permissions.canViewOrderAmounts && (
               <OrdineEconomico
                 orderId={id!}
                 totalAmount={order.total_amount}
@@ -1479,6 +1486,7 @@ function OrderDetailInner() {
                 onInstallmentPaidToggle={handleInstallmentPaidToggle}
                 onInstallmentDateChange={handleInstallmentDateChange}
               />
+              )}
             </div>
 
             {/* Articoli */}

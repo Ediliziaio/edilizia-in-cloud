@@ -5,6 +5,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_cruscotto: false, can_view_controllo_gestione: false,
   // Cantieri & Lavori
   can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
+  can_view_order_amounts: true,
   can_approve_orders: false, can_delete_orders: false,
   can_view_warehouse: false, can_edit_warehouse: false, can_manage_warehouse_items: false,
   can_view_calendar: false, can_view_all_team_calendar: false,
@@ -71,6 +72,7 @@ export const CRUSCOTTO_SECTIONS: PermissionSectionDef[] = [
 export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
   { label: "Dashboard",              viewKey: "can_view_dashboard",          editKey: null },
   { label: "Ordini e Commesse",      viewKey: "can_view_orders",             editKey: "can_edit_orders" },
+  { label: "Importi di vendita",     viewKey: "can_view_order_amounts",      editKey: null },
   { label: "Approva Ordini",         viewKey: "can_approve_orders",          editKey: null },
   { label: "Elimina Ordini",         viewKey: "can_delete_orders",           editKey: null },
   { label: "Magazzino",              viewKey: "can_view_warehouse",          editKey: "can_edit_warehouse" },

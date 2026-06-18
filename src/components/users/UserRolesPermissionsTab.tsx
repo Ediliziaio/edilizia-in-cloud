@@ -81,6 +81,7 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
     modules: [
       { id: "dashboard",        label: "Dashboard",              description: "Visualizza la dashboard principale",       viewKey: "can_view_dashboard" },
       { id: "orders",           label: "Ordini e Commesse",      description: "Gestisci ordini e commesse",               viewKey: "can_view_orders",               editKey: "can_edit_orders" },
+      { id: "order-amounts",    label: "Importi di vendita",     description: "Vede importi e prezzi di vendita in commesse e preventivi", viewKey: "can_view_order_amounts" },
       { id: "approve-orders",   label: "Approva Ordini",         description: "Può approvare ordini e commesse",          viewKey: "can_approve_orders" },
       { id: "delete-orders",    label: "Elimina Ordini",         description: "Può eliminare ordini e commesse",          viewKey: "can_delete_orders" },
       { id: "warehouse",        label: "Magazzino",              description: "Gestisci inventario e movimenti",          viewKey: "can_view_warehouse",            editKey: "can_edit_warehouse" },

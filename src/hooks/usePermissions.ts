@@ -11,6 +11,8 @@ export interface Permissions {
   canViewDashboard: boolean;
   canViewOrders: boolean;
   canEditOrders: boolean;
+  /** Vede gli importi di VENDITA in commesse/preventivi (importo, prezzi, acconti). Default true. */
+  canViewOrderAmounts: boolean;
   canViewWarehouse: boolean;
   canEditWarehouse: boolean;
   canViewCalendar: boolean;
@@ -100,6 +102,7 @@ const STAFF_PERMISSIONS_SELECT = [
   "can_view_dashboard",
   "can_view_orders",
   "can_edit_orders",
+  "can_view_order_amounts",
   "can_view_warehouse",
   "can_edit_warehouse",
   "can_view_calendar",
@@ -171,6 +174,7 @@ const STAFF_PERMISSIONS_SELECT = [
 
 const ALL_PERMISSIONS: Permissions = {
   canViewDashboard: true, canViewOrders: true, canEditOrders: true,
+  canViewOrderAmounts: true,
   canViewWarehouse: true, canEditWarehouse: true, canViewCalendar: true,
   canViewCustomers: true, canEditCustomers: true, canViewEmployees: true,
   canViewTickets: true, canEditTickets: true, canViewForecast: true,
@@ -211,6 +215,7 @@ const ALL_PERMISSIONS: Permissions = {
 
 const NO_PERMISSIONS: Permissions = {
   canViewDashboard: false, canViewOrders: false, canEditOrders: false,
+  canViewOrderAmounts: false,
   canViewWarehouse: false, canEditWarehouse: false, canViewCalendar: false,
   canViewCustomers: false, canEditCustomers: false, canViewEmployees: false,
   canViewTickets: false, canEditTickets: false, canViewForecast: false,
@@ -261,6 +266,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewControlloGestione: true,
   // Cantieri & Lavori
   canViewOrders: true, canEditOrders: false,
+  canViewOrderAmounts: true,
   canViewWarehouse: true, canEditWarehouse: false,
   canViewCalendar: true,
   canViewCustomers: true, canEditCustomers: false,
@@ -334,6 +340,8 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewDashboard:  g("can_view_dashboard"),
     canViewOrders:     g("can_view_orders"),
     canEditOrders:     g("can_edit_orders"),
+    // Default VISIBILE: importi mostrati salvo esplicito false (retrocompat).
+    canViewOrderAmounts: r["can_view_order_amounts"] !== false,
     canViewWarehouse:  g("can_view_warehouse"),
     canEditWarehouse:  g("can_edit_warehouse"),
     canViewCalendar:   g("can_view_calendar"),
