@@ -31,7 +31,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
-import { DEFAULT_PERMISSIONS } from "@/components/users/permissionsDefaults";
+import { DEFAULT_PERMISSIONS, ROLE_PRESETS } from "@/components/users/permissionsDefaults";
 
 /**
  * Each PermissionModule maps 1:1 to a unique DB column.
@@ -173,6 +173,40 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
   },
 ];
 
+// ─── Visibilità dati economici — modello a 3 livelli su 3 toggle ──────────
+// Operativo (niente soldi) · Commerciale (importi sì, costi/margini no) · Pieno.
+const ECONOMIC_KEYS: (keyof StaffPermissions)[] = [
+  "can_view_order_amounts",
+  "can_view_costs",
+  "can_view_margins",
+];
+const ECONOMIC_KEY_SET = new Set<keyof StaffPermissions>(ECONOMIC_KEYS);
+
+type EconomicLevelId = "operativo" | "commerciale" | "pieno";
+const ECONOMIC_LEVELS: {
+  id: EconomicLevelId;
+  label: string;
+  desc: string;
+  values: Record<"can_view_order_amounts" | "can_view_costs" | "can_view_margins", boolean>;
+}[] = [
+  { id: "operativo",   label: "Operativo",   desc: "Conteggi, date, articoli e stati. Nessun importo, costo o margine.", values: { can_view_order_amounts: false, can_view_costs: false, can_view_margins: false } },
+  { id: "commerciale", label: "Commerciale", desc: "Vede importi di vendita e incassi, ma NON costi né margini.",        values: { can_view_order_amounts: true,  can_view_costs: false, can_view_margins: false } },
+  { id: "pieno",       label: "Pieno",       desc: "Vede importi, costi e margini su commesse, lista e PDF.",             values: { can_view_order_amounts: true,  can_view_costs: true,  can_view_margins: true } },
+];
+function detectEconomicLevel(p: StaffPermissions): EconomicLevelId | "custom" {
+  for (const lvl of ECONOMIC_LEVELS) {
+    const keys = Object.keys(lvl.values) as (keyof typeof lvl.values)[];
+    if (keys.every((k) => !!p[k] === lvl.values[k])) return lvl.id;
+  }
+  return "custom";
+}
+// Le 3 chiavi economiche hanno un blocco dedicato → escludile dalle categorie
+// generiche per non avere doppi controlli (né doppio conteggio).
+const VISIBLE_CATEGORIES: PermissionCategory[] = PERMISSION_CATEGORIES.map((c) => ({
+  ...c,
+  modules: c.modules.filter((m) => !ECONOMIC_KEY_SET.has(m.viewKey)),
+})).filter((c) => c.modules.length > 0);
+
 export type CompanyRole = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
 export type AdditionalRole = "salesperson" | "call_center";
 
@@ -196,59 +230,10 @@ interface UserRolesPermissionsTabProps {
 }
 
 // ─── Preset permessi per ruolo ────────────────────────────────────────
-// Quando si cambia ruolo, si può applicare un preset sensato.
-const ROLE_PRESETS: Record<CompanyRole, Partial<StaffPermissions>> = {
-  company_admin: {}, // admin ha accesso totale, non serve preset
-  company_staff: {
-    can_view_dashboard: true,
-    can_view_orders: true,
-    can_view_calendar: true,
-    can_view_customers: true,
-    can_view_marketing_contacts: true,
-    can_view_formazione: true,
-    can_view_firma_elettronica: true,
-  },
-  salesperson: {
-    can_view_dashboard: true,
-    can_view_marketing_dashboard: true,
-    can_view_marketing_contacts: true,
-    can_edit_marketing_contacts: true,
-    can_view_marketing_opportunities: true,
-    can_edit_marketing_opportunities: true,
-    can_view_preventivi: true,
-    can_edit_preventivi: true,
-    can_view_sopralluoghi: true,
-    can_view_marketing_appointments: true,
-    can_view_marketing_activities: true,
-    can_view_sales_os: true,
-    can_view_calendar: true,
-    can_view_customers: true,
-    can_view_formazione: true,
-    can_view_firma_elettronica: true,
-    can_view_reputazione: true,
-  },
-  call_center: {
-    can_view_marketing_contacts: true,
-    can_view_marketing_appointments: true,
-    can_view_marketing_activities: true,
-    can_view_sopralluoghi: true,
-    can_view_calendar: true,
-    can_view_formazione: true,
-  },
-  employee: {
-    can_view_dashboard: true,
-    can_view_orders: true,
-    can_view_calendar: true,
-    can_view_giornale_lavori: true, can_edit_giornale_lavori: true,
-    can_view_formazione: true,
-  },
-  subcontractor: {
-    can_view_orders: true,
-    can_view_giornale_lavori: true, can_edit_giornale_lavori: true,
-    can_view_formazione: true,
-    can_view_firma_elettronica: true,
-  },
-};
+// FONTE UNICA: ROLE_PRESETS è importato da permissionsDefaults (lo stesso usato
+// da CreateUserWizard). Prima qui esisteva una copia LOCALE divergente → lo
+// stesso ruolo dava permessi diversi se creato dal wizard vs applicato dal
+// dettaglio. Ora c'è un solo preset per ruolo, coerente col modello 3-livelli.
 
 const ROLE_CONFIG: Record<CompanyRole, { label: string; icon: React.ComponentType<{ className?: string }>; color: string; description: string }> = {
   company_admin: {
@@ -378,9 +363,9 @@ export function UserRolesPermissionsTab({
   };
 
   const filteredCategories = useMemo(() => {
-    if (!searchQuery) return PERMISSION_CATEGORIES;
+    if (!searchQuery) return VISIBLE_CATEGORIES;
     const q = searchQuery.toLowerCase();
-    return PERMISSION_CATEGORIES.map((cat) => ({
+    return VISIBLE_CATEGORIES.map((cat) => ({
       ...cat,
       modules: cat.modules.filter(
         (m) =>
@@ -401,7 +386,7 @@ export function UserRolesPermissionsTab({
 
   const totalPermissionsCount = useMemo(() => {
     const allKeys = new Set<keyof StaffPermissions>();
-    PERMISSION_CATEGORIES.forEach((c) =>
+    VISIBLE_CATEGORIES.forEach((c) =>
       c.modules.forEach((m) => {
         allKeys.add(m.viewKey);
       })
@@ -442,6 +427,7 @@ export function UserRolesPermissionsTab({
     }));
   };
 
+  const economicLevel = detectEconomicLevel(permissions);
   const isAdmin = selectedRole === "company_admin";
   const roleMeta = ROLE_CONFIG[selectedRole];
   const PrimaryIcon = roleMeta.icon;
@@ -718,6 +704,60 @@ export function UserRolesPermissionsTab({
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* ── Visibilità dati economici (modello a 3 livelli) ─────────── */}
+              <div className="rounded-lg border bg-gradient-to-br from-emerald-50/60 to-transparent dark:from-emerald-950/20 p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Euro className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold leading-tight">Visibilità dati economici</p>
+                    <p className="text-xs text-muted-foreground">Cosa vede su commesse, lista, preventivi e PDF.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {ECONOMIC_LEVELS.map((lvl) => {
+                    const active = economicLevel === lvl.id;
+                    return (
+                      <button
+                        key={lvl.id}
+                        type="button"
+                        onClick={() => setPermissions((prev) => ({ ...prev, ...lvl.values }))}
+                        className={cn(
+                          "text-left rounded-lg border p-2.5 transition-all",
+                          active
+                            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-500/40"
+                            : "hover:bg-muted/50 border-border"
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          {active && <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
+                          <span className="text-sm font-medium">{lvl.label}</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{lvl.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                {economicLevel === "custom" && (
+                  <p className="text-[11px] text-amber-600 flex items-center gap-1">
+                    <Info className="h-3 w-3 shrink-0" /> Combinazione personalizzata — regola i singoli interruttori qui sotto.
+                  </p>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {([
+                    { key: "can_view_order_amounts" as const, label: "Importi di vendita" },
+                    { key: "can_view_costs" as const, label: "Costi" },
+                    { key: "can_view_margins" as const, label: "Margini" },
+                  ]).map((t) => (
+                    <label key={t.key} className="flex items-center gap-2 rounded-md border bg-background/60 px-2.5 py-2 cursor-pointer">
+                      <Switch checked={!!permissions[t.key]} onCheckedChange={(c) => handleToggle(t.key, c)} />
+                      <span className="text-xs font-medium">{t.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <Separator />
+
               {/* Limitazione visibilità */}
               <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
                 <div className="space-y-0.5 min-w-0">

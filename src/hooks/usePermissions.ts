@@ -48,6 +48,9 @@ export interface Permissions {
   canViewScadenzario: boolean;
   canViewPrimaNota: boolean;
   canViewCosts: boolean;
+  /** Visibilità MARGINI (margine €/%, provvigioni). Distinto da canViewCosts:
+   *  un commerciale può vedere costi senza margini o viceversa. */
+  canViewMargins: boolean;
   canViewPrevisionale: boolean;
   canViewTesoreria: boolean;
   canViewPersone: boolean;
@@ -148,6 +151,7 @@ const STAFF_PERMISSIONS_SELECT = [
   "can_view_scadenzario",
   "can_view_prima_nota",
   "can_view_costs",
+  "can_view_margins",
   "can_view_tesoreria",
   "can_view_persone",
   "can_view_formazione",
@@ -190,7 +194,7 @@ const ALL_PERMISSIONS: Permissions = {
   canViewMarketing: true, canEditMarketing: true,
   canViewCruscotto: true,
   canViewBilling: true, canViewScadenzario: true,
-  canViewPrimaNota: true, canViewCosts: true,
+  canViewPrimaNota: true, canViewCosts: true, canViewMargins: true,
   canViewPrevisionale: true, canViewTesoreria: true,
   canViewPersone: true,
   canViewFormazione: true, canManagePortal: true,
@@ -231,7 +235,7 @@ const NO_PERMISSIONS: Permissions = {
   canViewMarketing: false, canEditMarketing: false,
   canViewCruscotto: false,
   canViewBilling: false, canViewScadenzario: false,
-  canViewPrimaNota: false, canViewCosts: false,
+  canViewPrimaNota: false, canViewCosts: false, canViewMargins: false,
   canViewPrevisionale: false, canViewTesoreria: false,
   canViewPersone: false,
   canViewFormazione: false, canManagePortal: false,
@@ -284,6 +288,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewScadenzario: true,
   canViewPrimaNota: true,
   canViewCosts: true,
+  canViewMargins: true,
   canViewPrevisionale: true,
   canViewTesoreria: true,
   canViewForecast: true,
@@ -383,6 +388,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewScadenzario: g("can_view_scadenzario"),
     canViewPrimaNota:   g("can_view_prima_nota"),
     canViewCosts:       g("can_view_costs"),
+    canViewMargins:     g("can_view_margins"),
     canViewPrevisionale: g("can_view_forecast"),
     canViewTesoreria:   g("can_view_tesoreria"),
     canViewPersone:     g("can_view_persone"),

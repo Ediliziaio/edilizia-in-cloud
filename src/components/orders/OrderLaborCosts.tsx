@@ -8,6 +8,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { differenceInDays, parseISO } from "date-fns";
@@ -90,6 +91,9 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
   const effectiveCompanyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const canEdit = editable && (role === "company_admin" || role === "company_staff" || role === "super_admin");
+  // Visibilità costi: chi non ha canViewCosts vede l'operativo (chi è assegnato,
+  // DURC, stato pagamenti) ma NON i valori € di manodopera/subappalto.
+  const { canViewCosts } = usePermissions();
 
   const [assignEmployeeOpen, setAssignEmployeeOpen] = useState(false);
   const [assignTeamOpen, setAssignTeamOpen] = useState(false);
@@ -354,10 +358,10 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                   <div key={oe.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
                     <div className="space-y-1">
                       <p className="font-medium text-sm">{oe.employee?.first_name ?? "—"} {oe.employee?.last_name ?? ""}</p>
-                      <p className="text-xs text-muted-foreground">{oe.hours_worked}h × {formatCurrency(oe.hourly_rate)}/h</p>
+                      <p className="text-xs text-muted-foreground">{oe.hours_worked}h{canViewCosts ? ` × ${formatCurrency(oe.hourly_rate)}/h` : ""}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">{formatCurrency(oe.total_cost)}</span>
+                      {canViewCosts && <span className="font-semibold text-sm">{formatCurrency(oe.total_cost)}</span>}
                       {canEdit && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
@@ -378,10 +382,12 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                     </div>
                   </div>
                 ))}
+                {canViewCosts && (
                 <div className="flex justify-between pt-2 border-t">
                   <span className="font-medium text-sm">Totale Dipendenti</span>
                   <span className="font-semibold text-sm">{formatCurrency(totalEmployeeCost)}</span>
                 </div>
+                )}
               </div>
             )}
             {canEdit && (
@@ -437,12 +443,14 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                           <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                             <div className="h-full bg-orange-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
                           </div>
+                          {canViewCosts && (
                           <div className="flex justify-between text-xs text-muted-foreground">
                             <span>{formatCurrency(lordo)} / {formatCurrency(contr)}</span>
                             {(sub.ritenute_in_corso ?? 0) > 0 && (
                               <span className="text-amber-600 font-medium">{formatCurrency(sub.ritenute_in_corso)} ritenuta</span>
                             )}
                           </div>
+                          )}
                         </div>
                       )}
                       <Button asChild variant="ghost" size="sm" className="h-7 text-xs w-full">
@@ -472,7 +480,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">{formatCurrency(ot.total_cost)}</span>
+                      {canViewCosts && <span className="font-semibold text-sm">{formatCurrency(ot.total_cost)}</span>}
                       {canEdit && (
                         <>
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => togglePaidMutation.mutate({ id: ot.id, isPaid: !ot.is_paid })}>
@@ -498,10 +506,12 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                     </div>
                   </div>
                 ))}
+                {canViewCosts && (
                 <div className="flex justify-between pt-2 border-t">
                   <span className="font-medium text-sm">Totale Squadre Esterne</span>
                   <span className="font-semibold text-sm">{formatCurrency(totalTeamCost)}</span>
                 </div>
+                )}
               </div>
             )}
 
@@ -599,11 +609,15 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
         </Tabs>
 
         {/* ── Totale ───────────────────────────────────────────── */}
+        {canViewCosts && (
+        <>
         <Separator />
         <div className="flex justify-between items-center pt-1">
           <span className="font-semibold text-sm">TOTALE MANODOPERA</span>
           <span className="text-lg font-bold text-primary">{formatCurrency(totalLaborCost)}</span>
         </div>
+        </>
+        )}
 
         {/* ── Dialogs ──────────────────────────────────────────── */}
         <AssignEmployeeDialog

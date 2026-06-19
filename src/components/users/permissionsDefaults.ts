@@ -196,7 +196,8 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_calendar: true,
     can_view_customers: true, can_edit_customers: true,
     can_view_users: true,
-    can_view_margins: true,
+    // Livello finanziario "Commerciale": vede importi (default) ma NON margini.
+    // (prima qui c'era can_view_margins: true → incoerente col modello 3-livelli)
     can_view_formazione: true,
     can_view_marketing_dashboard: true,
     can_view_marketing_contacts: true, can_edit_marketing_contacts: true,
@@ -233,6 +234,8 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_calendar: true,
     can_view_giornale_lavori: true, can_edit_giornale_lavori: true,
     can_view_formazione: true,
+    // Livello finanziario "Operativo": niente importi/costi/margini.
+    can_view_order_amounts: false,
     only_assigned: true,
     visible_areas: ["cantiere"],
   },
@@ -244,6 +247,9 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_subappaltatori: true,
     can_view_formazione: true,
     can_view_firma_elettronica: true,
+    // Operativo: il subappaltatore vede le sue commesse ma NON gli importi di
+    // vendita al cliente (né costi/margini).
+    can_view_order_amounts: false,
     only_assigned: true,
     visible_areas: ["cantiere"],
   },

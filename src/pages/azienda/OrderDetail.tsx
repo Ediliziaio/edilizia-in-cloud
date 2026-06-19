@@ -881,11 +881,19 @@ function OrderDetailInner() {
       diaryMessages: diaryMessages.data ?? [],
       statuses,
       companyName: effectiveCompany?.name,
+      // Il PDF rispetta la visibilità finanziaria di chi lo genera: costi e
+      // margini/provvigioni vengono omessi a chi non è autorizzato.
+      showCosts: permissions.canViewCosts,
+      showMargins: permissions.canViewMargins,
     };
-  }, [order, id, orderItems, displayInstallments, statuses, effectiveCompany]);
+  }, [order, id, orderItems, displayInstallments, statuses, effectiveCompany, permissions]);
 
   const handleDownloadPDF = useCallback(async () => {
     if (!order || pdfPreparing) return;
+    if (!permissions.canViewOrderAmounts) {
+      toast.error("Non hai i permessi per esportare il PDF economico della commessa.");
+      return;
+    }
     setPdfPreparing(true);
     try {
       const opts = await gatherPdfOpts();
@@ -896,10 +904,14 @@ function OrderDetailInner() {
     } finally {
       setPdfPreparing(false);
     }
-  }, [order, pdfPreparing, gatherPdfOpts, downloadPDF]);
+  }, [order, pdfPreparing, gatherPdfOpts, downloadPDF, permissions.canViewOrderAmounts]);
 
   // Genera il PDF come blob (per allegarlo all'email del cliente).
   const getPdfBlobForOrder = useCallback(async () => {
+    if (!permissions.canViewOrderAmounts) {
+      toast.error("Non hai i permessi per esportare il PDF economico della commessa.");
+      return null;
+    }
     try {
       const opts = await gatherPdfOpts();
       if (!opts) return null;
@@ -909,7 +921,7 @@ function OrderDetailInner() {
       toast.error("Impossibile generare il PDF. Riprova.");
       return null;
     }
-  }, [gatherPdfOpts, getPDFBlob]);
+  }, [gatherPdfOpts, getPDFBlob, permissions.canViewOrderAmounts]);
 
   if (orderLoading) {
     return (

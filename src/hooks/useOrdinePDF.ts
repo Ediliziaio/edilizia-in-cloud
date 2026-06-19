@@ -37,6 +37,8 @@ export interface OrdinePDFProps {
   diaryMessages?: unknown[];
   companyName?: string;
   statuses?: unknown[];
+  showCosts?: boolean;
+  showMargins?: boolean;
 }
 
 /**
