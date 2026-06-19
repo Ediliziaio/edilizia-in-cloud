@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { OrderItemsList, type OrderItem } from "./OrderItemsList";
 import { OrderAttachments } from "./OrderAttachments";
 import { SupplierPaymentsCard } from "./SupplierPaymentsCard";
+import { usePermissions } from "@/hooks/usePermissions";
 import type { OrderItemData } from "@/lib/orderUtils";
 
 interface OrdineArticoliProps {
@@ -28,6 +29,8 @@ export function OrdineArticoli({
   onAttachmentsRefresh,
 }: OrdineArticoliProps) {
   const queryClient = useQueryClient();
+  // Pagamenti fornitori = costi → visibili solo a chi ha canViewCosts.
+  const { canViewCosts } = usePermissions();
 
   // Posa dal listino → voce Manodopera (order_external_teams). Materiale resta
   // in order_items: il costo manodopera NON viene contato due volte.
@@ -79,7 +82,7 @@ export function OrdineArticoli({
 
       <OrderAttachments orderId={orderId} editable={true} />
 
-      <SupplierPaymentsCard items={orderItems} companyId={companyId} />
+      {canViewCosts && <SupplierPaymentsCard items={orderItems} companyId={companyId} />}
     </div>
   );
 }

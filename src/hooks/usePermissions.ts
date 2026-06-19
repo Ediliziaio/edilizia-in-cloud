@@ -11,6 +11,8 @@ export interface Permissions {
   canViewDashboard: boolean;
   canViewOrders: boolean;
   canEditOrders: boolean;
+  /** Vede gli importi di VENDITA in commesse/preventivi (importo, prezzi, acconti). Default true. */
+  canViewOrderAmounts: boolean;
   canViewWarehouse: boolean;
   canEditWarehouse: boolean;
   canViewCalendar: boolean;
@@ -32,6 +34,13 @@ export interface Permissions {
   canViewSettingsPeople: boolean;
   canEditSettingsPeople: boolean;
   canViewSettingsSecurity: boolean;
+  // Granular settings: Listino & Prezzi / Fornitori / Integrazioni & Canali
+  canViewSettingsPricing: boolean;
+  canEditSettingsPricing: boolean;
+  canViewSettingsSuppliers: boolean;
+  canEditSettingsSuppliers: boolean;
+  canViewSettingsIntegrations: boolean;
+  canEditSettingsIntegrations: boolean;
   canViewMarketing: boolean;
   canEditMarketing: boolean;
   canViewCruscotto: boolean;
@@ -39,6 +48,9 @@ export interface Permissions {
   canViewScadenzario: boolean;
   canViewPrimaNota: boolean;
   canViewCosts: boolean;
+  /** Visibilità MARGINI (margine €/%, provvigioni). Distinto da canViewCosts:
+   *  un commerciale può vedere costi senza margini o viceversa. */
+  canViewMargins: boolean;
   canViewPrevisionale: boolean;
   canViewTesoreria: boolean;
   canViewPersone: boolean;
@@ -64,6 +76,13 @@ export interface Permissions {
   canViewSicurezzaCantiere: boolean;
   canViewSubappaltatori: boolean;
   canViewGiornaleLavori: boolean;
+  /** Modifica/compila il Giornale Lavori (rapportini) */
+  canEditGiornaleLavori: boolean;
+  /** Sopralluoghi tecnici (prima ereditavano da CRM contatti) */
+  canViewSopralluoghi: boolean;
+  /** Preventivi (prima ereditavano da CRM opportunità) */
+  canViewPreventivi: boolean;
+  canEditPreventivi: boolean;
   canViewAutomazioni: boolean;
   canViewRenderAi: boolean;
   canViewSalesOs: boolean;
@@ -86,6 +105,7 @@ const STAFF_PERMISSIONS_SELECT = [
   "can_view_dashboard",
   "can_view_orders",
   "can_edit_orders",
+  "can_view_order_amounts",
   "can_view_warehouse",
   "can_edit_warehouse",
   "can_view_calendar",
@@ -106,6 +126,12 @@ const STAFF_PERMISSIONS_SELECT = [
   "can_view_settings_people",
   "can_edit_settings_people",
   "can_view_settings_security",
+  "can_view_settings_pricing",
+  "can_edit_settings_pricing",
+  "can_view_settings_suppliers",
+  "can_edit_settings_suppliers",
+  "can_view_settings_integrations",
+  "can_edit_settings_integrations",
   "can_view_marketing",
   "can_edit_marketing",
   "can_view_marketing_dashboard",
@@ -125,6 +151,7 @@ const STAFF_PERMISSIONS_SELECT = [
   "can_view_scadenzario",
   "can_view_prima_nota",
   "can_view_costs",
+  "can_view_margins",
   "can_view_tesoreria",
   "can_view_persone",
   "can_view_formazione",
@@ -135,6 +162,10 @@ const STAFF_PERMISSIONS_SELECT = [
   "can_view_sicurezza_cantiere",
   "can_view_subappaltatori",
   "can_view_giornale_lavori",
+  "can_edit_giornale_lavori",
+  "can_view_sopralluoghi",
+  "can_view_preventivi",
+  "can_edit_preventivi",
   "can_view_automazioni",
   "can_view_render_ai",
   "can_view_sales_os",
@@ -147,6 +178,7 @@ const STAFF_PERMISSIONS_SELECT = [
 
 const ALL_PERMISSIONS: Permissions = {
   canViewDashboard: true, canViewOrders: true, canEditOrders: true,
+  canViewOrderAmounts: true,
   canViewWarehouse: true, canEditWarehouse: true, canViewCalendar: true,
   canViewCustomers: true, canEditCustomers: true, canViewEmployees: true,
   canViewTickets: true, canEditTickets: true, canViewForecast: true,
@@ -156,10 +188,13 @@ const ALL_PERMISSIONS: Permissions = {
   canViewSettingsCustomization: true, canEditSettingsCustomization: true,
   canViewSettingsPeople: true, canEditSettingsPeople: true,
   canViewSettingsSecurity: true,
+  canViewSettingsPricing: true, canEditSettingsPricing: true,
+  canViewSettingsSuppliers: true, canEditSettingsSuppliers: true,
+  canViewSettingsIntegrations: true, canEditSettingsIntegrations: true,
   canViewMarketing: true, canEditMarketing: true,
   canViewCruscotto: true,
   canViewBilling: true, canViewScadenzario: true,
-  canViewPrimaNota: true, canViewCosts: true,
+  canViewPrimaNota: true, canViewCosts: true, canViewMargins: true,
   canViewPrevisionale: true, canViewTesoreria: true,
   canViewPersone: true,
   canViewFormazione: true, canManagePortal: true,
@@ -172,6 +207,9 @@ const ALL_PERMISSIONS: Permissions = {
   canViewInterventi: true, canViewManutenzione: true,
   canViewSicurezzaCantiere: true, canViewSubappaltatori: true,
   canViewGiornaleLavori: true,
+  canEditGiornaleLavori: true,
+  canViewSopralluoghi: true,
+  canViewPreventivi: true, canEditPreventivi: true,
   canViewAutomazioni: true, canViewRenderAi: true,
   canViewSalesOs: true, canViewSmsMarketing: true,
   canViewFirmaElettronica: true, canViewReputazione: true,
@@ -181,6 +219,7 @@ const ALL_PERMISSIONS: Permissions = {
 
 const NO_PERMISSIONS: Permissions = {
   canViewDashboard: false, canViewOrders: false, canEditOrders: false,
+  canViewOrderAmounts: false,
   canViewWarehouse: false, canEditWarehouse: false, canViewCalendar: false,
   canViewCustomers: false, canEditCustomers: false, canViewEmployees: false,
   canViewTickets: false, canEditTickets: false, canViewForecast: false,
@@ -190,10 +229,13 @@ const NO_PERMISSIONS: Permissions = {
   canViewSettingsCustomization: false, canEditSettingsCustomization: false,
   canViewSettingsPeople: false, canEditSettingsPeople: false,
   canViewSettingsSecurity: false,
+  canViewSettingsPricing: false, canEditSettingsPricing: false,
+  canViewSettingsSuppliers: false, canEditSettingsSuppliers: false,
+  canViewSettingsIntegrations: false, canEditSettingsIntegrations: false,
   canViewMarketing: false, canEditMarketing: false,
   canViewCruscotto: false,
   canViewBilling: false, canViewScadenzario: false,
-  canViewPrimaNota: false, canViewCosts: false,
+  canViewPrimaNota: false, canViewCosts: false, canViewMargins: false,
   canViewPrevisionale: false, canViewTesoreria: false,
   canViewPersone: false,
   canViewFormazione: false, canManagePortal: false,
@@ -206,6 +248,9 @@ const NO_PERMISSIONS: Permissions = {
   canViewInterventi: false, canViewManutenzione: false,
   canViewSicurezzaCantiere: false, canViewSubappaltatori: false,
   canViewGiornaleLavori: false,
+  canEditGiornaleLavori: false,
+  canViewSopralluoghi: false,
+  canViewPreventivi: false, canEditPreventivi: false,
   canViewAutomazioni: false, canViewRenderAi: false,
   canViewSalesOs: false, canViewSmsMarketing: false,
   canViewFirmaElettronica: false, canViewReputazione: false,
@@ -225,12 +270,16 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewControlloGestione: true,
   // Cantieri & Lavori
   canViewOrders: true, canEditOrders: false,
+  canViewOrderAmounts: true,
   canViewWarehouse: true, canEditWarehouse: false,
   canViewCalendar: true,
   canViewCustomers: true, canEditCustomers: false,
   canViewSubappaltatori: true,
   canViewSicurezzaCantiere: true,
   canViewGiornaleLavori: true,
+  canEditGiornaleLavori: false,
+  canViewSopralluoghi: false,
+  canViewPreventivi: false, canEditPreventivi: false,
   canViewInterventi: true,
   canViewManutenzione: true,
   canViewTickets: true, canEditTickets: false,
@@ -239,6 +288,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewScadenzario: true,
   canViewPrimaNota: true,
   canViewCosts: true,
+  canViewMargins: true,
   canViewPrevisionale: true,
   canViewTesoreria: true,
   canViewForecast: true,
@@ -275,6 +325,10 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canViewSettingsCustomization: false, canEditSettingsCustomization: false,
   canViewSettingsPeople: false, canEditSettingsPeople: false,
   canViewSettingsSecurity: false,
+  // Commercialista esterno: nessun accesso alla configurazione azienda
+  canViewSettingsPricing: false, canEditSettingsPricing: false,
+  canViewSettingsSuppliers: false, canEditSettingsSuppliers: false,
+  canViewSettingsIntegrations: false, canEditSettingsIntegrations: false,
   isAdmin: false, isLoading: false, loadError: null, onlyAssigned: false, visibleAreas: [],
 };
 
@@ -291,6 +345,8 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewDashboard:  g("can_view_dashboard"),
     canViewOrders:     g("can_view_orders"),
     canEditOrders:     g("can_edit_orders"),
+    // Default VISIBILE: importi mostrati salvo esplicito false (retrocompat).
+    canViewOrderAmounts: r["can_view_order_amounts"] !== false,
     canViewWarehouse:  g("can_view_warehouse"),
     canEditWarehouse:  g("can_edit_warehouse"),
     canViewCalendar:   g("can_view_calendar"),
@@ -310,6 +366,12 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewSettingsPeople:        g("can_view_settings_people"),
     canEditSettingsPeople:        g("can_edit_settings_people"),
     canViewSettingsSecurity:      g("can_view_settings_security"),
+    canViewSettingsPricing:       g("can_view_settings_pricing"),
+    canEditSettingsPricing:       g("can_edit_settings_pricing"),
+    canViewSettingsSuppliers:     g("can_view_settings_suppliers"),
+    canEditSettingsSuppliers:     g("can_edit_settings_suppliers"),
+    canViewSettingsIntegrations:  g("can_view_settings_integrations"),
+    canEditSettingsIntegrations:  g("can_edit_settings_integrations"),
     canViewSettings:
       g("can_view_settings") || g("can_view_settings_profile") || g("can_view_settings_orders") ||
       g("can_view_settings_customization") || g("can_view_settings_people") || g("can_view_settings_security"),
@@ -326,6 +388,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewScadenzario: g("can_view_scadenzario"),
     canViewPrimaNota:   g("can_view_prima_nota"),
     canViewCosts:       g("can_view_costs"),
+    canViewMargins:     g("can_view_margins"),
     canViewPrevisionale: g("can_view_forecast"),
     canViewTesoreria:   g("can_view_tesoreria"),
     canViewPersone:     g("can_view_persone"),
@@ -348,6 +411,10 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewSicurezzaCantiere: g("can_view_sicurezza_cantiere"),
     canViewSubappaltatori:    g("can_view_subappaltatori"),
     canViewGiornaleLavori:    g("can_view_giornale_lavori"),
+    canEditGiornaleLavori:    g("can_edit_giornale_lavori"),
+    canViewSopralluoghi:      g("can_view_sopralluoghi"),
+    canViewPreventivi:        g("can_view_preventivi"),
+    canEditPreventivi:        g("can_edit_preventivi"),
     canViewAutomazioni:       g("can_view_automazioni"),
     canViewRenderAi:          g("can_view_render_ai"),
     canViewSalesOs:           g("can_view_sales_os"),
@@ -473,48 +540,45 @@ export function usePermissions(): Permissions {
   useEffect(() => {
     if (!needsStaffPermsFetch || !user?.id) return;
 
-    const channel = supabase
-      .channel(`staff-permissions-${user.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "staff_permissions",
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["staff-permissions", user.id, effectiveCompanyId] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "staff_permissions",
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["staff-permissions", user.id, effectiveCompanyId] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: "staff_permissions",
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["staff-permissions", user.id, effectiveCompanyId] });
-        }
-      )
-      .subscribe();
+    // Topic canale UNIVOCO per istanza dell'effect. Con un nome fisso
+    // (`staff-permissions-<uid>`) il riuso del topic — quando l'effect ri-gira
+    // durante il caricamento company (effectiveCompanyId null→valore) — faceva
+    // sì che supabase.channel() restituisse un canale GIÀ subscribed: il
+    // successivo .on() lanciava "cannot add postgres_changes after subscribe()"
+    // e l'eccezione buttava giù l'INTERA area azienda (ErrorBoundary) per gli
+    // utenti company_staff. Nome univoco → canale sempre nuovo, .on() valido.
+    const channelUid =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${user.id}-${Math.round(Math.random() * 1e9)}`;
+
+    const invalidate = () => {
+      queryClient.invalidateQueries({ queryKey: ["staff-permissions", user.id, effectiveCompanyId] });
+    };
+
+    // La realtime invalidation è best-effort: un suo errore NON deve mai
+    // crashare l'area azienda. Wrap difensivo in try/catch.
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      const filter = `user_id=eq.${user.id}`;
+      channel = supabase
+        .channel(`staff-permissions-${channelUid}`)
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "staff_permissions", filter }, invalidate)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "staff_permissions", filter }, invalidate)
+        .on("postgres_changes", { event: "DELETE", schema: "public", table: "staff_permissions", filter }, invalidate)
+        .subscribe();
+    } catch (e) {
+      logger.error("staff-permissions realtime subscribe failed (non-bloccante):", e);
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        try {
+          supabase.removeChannel(channel);
+        } catch {
+          /* canale già rimosso — silenzioso */
+        }
+      }
     };
   }, [user?.id, effectiveCompanyId, needsStaffPermsFetch, queryClient]);
 

@@ -13,10 +13,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Copy, Check, ShieldCheck, User, TrendingUp, Phone, HardHat, Building2 } from "lucide-react";
+import { Loader2, Copy, Check, ShieldCheck, User, TrendingUp, Phone, HardHat, Building2, LayoutDashboard, Euro, Users2, Megaphone, Zap, Settings, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
-import { DEFAULT_PERMISSIONS, ALL_PERMISSION_SECTIONS } from "@/components/users/permissionsDefaults";
+import {
+  DEFAULT_PERMISSIONS, ALL_PERMISSION_SECTIONS,
+  CRUSCOTTO_SECTIONS, CANTIERI_SECTIONS, FINANZA_SECTIONS, PERSONE_SECTIONS,
+  MARKETING_SECTIONS, AUTOMAZIONI_SECTIONS, IMPOSTAZIONI_SECTIONS,
+} from "@/components/users/permissionsDefaults";
 
 interface StaffUserDialogProps {
   open: boolean;
@@ -36,17 +42,17 @@ export interface StaffUserFormData {
 }
 
 
-const MARKETING_SECTION_KEYS = [
-  "can_view_marketing_dashboard", "can_view_marketing_contacts", "can_view_marketing_opportunities",
-  "can_view_marketing_activities", "can_view_marketing_appointments", "can_view_marketing_automations",
-  "can_view_marketing_ai_agent", "can_view_marketing_email", "can_view_marketing_whatsapp", "can_view_marketing_reports",
+// 7 macro-aree allineate al dialog permessi (niente lista piatta + niente
+// "Cruscotto Aziendale" duplicato: il Cruscotto vive dentro CRUSCOTTO_SECTIONS).
+const PERM_GROUPS: { label: string; icon: React.ElementType; sections: typeof ALL_PERMISSION_SECTIONS }[] = [
+  { label: "Cruscotto", icon: LayoutDashboard, sections: CRUSCOTTO_SECTIONS },
+  { label: "Cantieri & Lavori", icon: HardHat, sections: CANTIERI_SECTIONS },
+  { label: "Finanza", icon: Euro, sections: FINANZA_SECTIONS },
+  { label: "Persone", icon: Users2, sections: PERSONE_SECTIONS },
+  { label: "Marketing & Vendita", icon: Megaphone, sections: MARKETING_SECTIONS },
+  { label: "Automazioni & AI", icon: Zap, sections: AUTOMAZIONI_SECTIONS },
+  { label: "Impostazioni", icon: Settings, sections: IMPOSTAZIONI_SECTIONS },
 ];
-const INTERNAL_SECTIONS_LOCAL = ALL_PERMISSION_SECTIONS.filter(s =>
-  !MARKETING_SECTION_KEYS.includes(s.viewKey as string)
-);
-const MARKETING_SECTIONS_LOCAL = ALL_PERMISSION_SECTIONS.filter(s =>
-  MARKETING_SECTION_KEYS.includes(s.viewKey as string)
-);
 
 const ROLE_OPTIONS: { value: StaffRoleType; label: string; description: string; icon: React.ElementType }[] = [
   { value: "company_admin", label: "Amministratore", description: "Accesso completo", icon: ShieldCheck },
@@ -274,32 +280,32 @@ export function StaffUserDialog({
                   </div>
                 </div>
 
-                <div className="space-y-3 max-h-[280px] overflow-y-auto pr-2">
-                  {/* Cruscotto Aziendale */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="create-can_view_cruscotto"
-                        checked={permissions.can_view_cruscotto || false}
-                        onCheckedChange={(checked) => setPermissions(prev => ({ ...prev, can_view_cruscotto: checked as boolean }))}
-                        disabled={isLoading}
-                      />
-                      <Label htmlFor="create-can_view_cruscotto" className="font-medium text-sm">
-                        Cruscotto Aziendale
-                      </Label>
-                    </div>
-                    <p className="text-xs text-muted-foreground ml-6">Accesso ai dati finanziari e performance</p>
-                  </div>
-
-                  <Separator />
-
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Gestione Interna</p>
-                  {INTERNAL_SECTIONS_LOCAL.map(renderSection)}
-
-                  <Separator />
-
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Marketing e Vendita</p>
-                  {MARKETING_SECTIONS_LOCAL.map(renderSection)}
+                <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+                  {PERM_GROUPS.map((g) => {
+                    const active = g.sections.filter((s) => permissions[s.viewKey]).length;
+                    return (
+                      <Collapsible key={g.label} defaultOpen>
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className="w-full flex items-center justify-between p-2.5 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                          >
+                            <span className="flex items-center gap-2">
+                              <g.icon className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm font-medium">{g.label}</span>
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                {active}/{g.sections.length}
+                              </Badge>
+                            </span>
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="px-2.5 pt-2 pb-1 space-y-2">
+                          {g.sections.map(renderSection)}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    );
+                  })}
 
                   <Separator />
 

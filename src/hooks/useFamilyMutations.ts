@@ -295,6 +295,10 @@ export function useFamilyMutations() {
             maggiorazione_tipo: v.maggiorazione_tipo,
             maggiorazione_valore: v.maggiorazione_valore,
             maggiorazione_acquisto: v.maggiorazione_acquisto,
+            codice: v.codice,
+            prezzo_vendita: v.prezzo_vendita,
+            prezzo_acquisto: v.prezzo_acquisto,
+            immagine_url: v.immagine_url,
             sort_order: v.sort_order,
             attivo: v.attivo,
           }));

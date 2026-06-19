@@ -26,6 +26,7 @@ export interface StaffPermissions {
   can_view_dashboard: boolean;
   can_view_orders: boolean;
   can_edit_orders: boolean;
+  can_view_order_amounts: boolean;
   can_approve_orders: boolean;
   can_delete_orders: boolean;
   can_view_warehouse: boolean;
@@ -59,6 +60,10 @@ export interface StaffPermissions {
   can_view_employees: boolean;
   can_view_users: boolean;
   can_view_giornale_lavori: boolean;
+  can_edit_giornale_lavori: boolean;
+  can_view_sopralluoghi: boolean;
+  can_view_preventivi: boolean;
+  can_edit_preventivi: boolean;
   can_view_messaggi_esterni: boolean;
   /** Fruizione area Formazione */
   can_view_formazione: boolean;
@@ -98,6 +103,12 @@ export interface StaffPermissions {
   can_view_settings_people: boolean;
   can_edit_settings_people: boolean;
   can_view_settings_security: boolean;
+  can_view_settings_pricing: boolean;
+  can_edit_settings_pricing: boolean;
+  can_view_settings_suppliers: boolean;
+  can_edit_settings_suppliers: boolean;
+  can_view_settings_integrations: boolean;
+  can_edit_settings_integrations: boolean;
   // ── Speciali ───────────────────────────────────────────
   only_assigned: boolean;
   /** Aree visibili: se vuoto = tutte le aree. Valori: cantiere, commerciale, amministrazione, tecnico */

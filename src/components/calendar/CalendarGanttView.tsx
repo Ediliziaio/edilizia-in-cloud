@@ -430,7 +430,7 @@ export function CalendarGanttView({
               {sortedOrders.map((order, idx) => {
                 const leadTime = calculateLeadTime(order);
                 const initials = order.order_employees
-                  ?.map((ae) => `${ae.employee.first_name[0]}${ae.employee.last_name[0]}`)
+                  ?.map((ae) => `${ae.employee?.first_name?.[0] ?? ""}${ae.employee?.last_name?.[0] ?? ""}`)
                   .join(", ");
                 const extTeam = order.order_external_teams
                   ?.map((aet) => aet.external_team.name)

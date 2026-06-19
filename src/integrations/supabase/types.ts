@@ -8311,6 +8311,7 @@ export type Database = {
           manodopera_unita: string
           markup_tipo: string
           markup_valore: number
+          codice: string | null
           modalita_prezzo_base: string
           nome: string
           pdf_scheda_url: string | null
@@ -8352,6 +8353,7 @@ export type Database = {
           manodopera_unita?: string
           markup_tipo?: string
           markup_valore?: number
+          codice?: string | null
           modalita_prezzo_base?: string
           nome: string
           pdf_scheda_url?: string | null
@@ -8393,6 +8395,7 @@ export type Database = {
           manodopera_unita?: string
           markup_tipo?: string
           markup_valore?: number
+          codice?: string | null
           modalita_prezzo_base?: string
           nome?: string
           pdf_scheda_url?: string | null
@@ -60093,6 +60096,10 @@ export type Database = {
           can_view_formazione: boolean
           can_view_forecast: boolean | null
           can_view_giornale_lavori: boolean | null
+          can_edit_giornale_lavori: boolean
+          can_view_sopralluoghi: boolean
+          can_view_preventivi: boolean
+          can_edit_preventivi: boolean
           can_view_interventi: boolean | null
           can_view_manutenzione: boolean | null
           can_view_margins: boolean
@@ -60108,6 +60115,7 @@ export type Database = {
           can_view_marketing_reports: boolean | null
           can_view_marketing_whatsapp: boolean | null
           can_view_messaggi_esterni: boolean | null
+          can_view_order_amounts: boolean
           can_view_orders: boolean | null
           can_view_persone: boolean
           can_view_prima_nota: boolean
@@ -60121,6 +60129,12 @@ export type Database = {
           can_view_settings_people: boolean
           can_view_settings_profile: boolean
           can_view_settings_security: boolean
+          can_view_settings_pricing: boolean
+          can_edit_settings_pricing: boolean
+          can_view_settings_suppliers: boolean
+          can_edit_settings_suppliers: boolean
+          can_view_settings_integrations: boolean
+          can_edit_settings_integrations: boolean
           can_view_sicurezza_cantiere: boolean | null
           can_view_sms_marketing: boolean | null
           can_view_subappaltatori: boolean | null
@@ -60172,6 +60186,10 @@ export type Database = {
           can_view_formazione?: boolean
           can_view_forecast?: boolean | null
           can_view_giornale_lavori?: boolean | null
+          can_edit_giornale_lavori?: boolean
+          can_view_sopralluoghi?: boolean
+          can_view_preventivi?: boolean
+          can_edit_preventivi?: boolean
           can_view_interventi?: boolean | null
           can_view_manutenzione?: boolean | null
           can_view_margins?: boolean
@@ -60187,6 +60205,7 @@ export type Database = {
           can_view_marketing_reports?: boolean | null
           can_view_marketing_whatsapp?: boolean | null
           can_view_messaggi_esterni?: boolean | null
+          can_view_order_amounts?: boolean
           can_view_orders?: boolean | null
           can_view_persone?: boolean
           can_view_prima_nota?: boolean
@@ -60200,6 +60219,12 @@ export type Database = {
           can_view_settings_people?: boolean
           can_view_settings_profile?: boolean
           can_view_settings_security?: boolean
+          can_view_settings_pricing?: boolean
+          can_edit_settings_pricing?: boolean
+          can_view_settings_suppliers?: boolean
+          can_edit_settings_suppliers?: boolean
+          can_view_settings_integrations?: boolean
+          can_edit_settings_integrations?: boolean
           can_view_sicurezza_cantiere?: boolean | null
           can_view_sms_marketing?: boolean | null
           can_view_subappaltatori?: boolean | null
@@ -60251,6 +60276,10 @@ export type Database = {
           can_view_formazione?: boolean
           can_view_forecast?: boolean | null
           can_view_giornale_lavori?: boolean | null
+          can_edit_giornale_lavori?: boolean
+          can_view_sopralluoghi?: boolean
+          can_view_preventivi?: boolean
+          can_edit_preventivi?: boolean
           can_view_interventi?: boolean | null
           can_view_manutenzione?: boolean | null
           can_view_margins?: boolean
@@ -60266,6 +60295,7 @@ export type Database = {
           can_view_marketing_reports?: boolean | null
           can_view_marketing_whatsapp?: boolean | null
           can_view_messaggi_esterni?: boolean | null
+          can_view_order_amounts?: boolean
           can_view_orders?: boolean | null
           can_view_persone?: boolean
           can_view_prima_nota?: boolean
@@ -60279,6 +60309,12 @@ export type Database = {
           can_view_settings_people?: boolean
           can_view_settings_profile?: boolean
           can_view_settings_security?: boolean
+          can_view_settings_pricing?: boolean
+          can_edit_settings_pricing?: boolean
+          can_view_settings_suppliers?: boolean
+          can_edit_settings_suppliers?: boolean
+          can_view_settings_integrations?: boolean
+          can_edit_settings_integrations?: boolean
           can_view_sicurezza_cantiere?: boolean | null
           can_view_sms_marketing?: boolean | null
           can_view_subappaltatori?: boolean | null

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useGPS } from "@/hooks/useGPS";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,6 +40,8 @@ interface FotoPreview {
 export default function GiornaleLavori() {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const permissions = usePermissions();
+  const canEditGiornale = permissions.isAdmin || permissions.canEditGiornaleLavori;
   const queryClient = useQueryClient();
   const { isScopriPlan } = useSubscriptionLimits();
   const [searchParams] = useSearchParams();
@@ -211,6 +214,7 @@ export default function GiornaleLavori() {
   // Save mutation
   const saveEntry = useMutation({
     mutationFn: async () => {
+      if (!canEditGiornale) throw new Error("Permesso di modifica del Giornale non attivo");
       if (!selectedOrderId) throw new Error("Seleziona un ordine");
       if (!formData.lavorazioni_eseguite.trim()) throw new Error("Le lavorazioni eseguite sono obbligatorie");
 
@@ -328,10 +332,12 @@ export default function GiornaleLavori() {
               )}
               <span className="hidden sm:inline ml-1">{isExporting ? "Generazione..." : "Esporta PDF"}</span>
             </Button>
-            <Button size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={openNew}>
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline ml-1">Report</span>
-            </Button>
+            {canEditGiornale && (
+              <Button size="sm" className="bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-200 hover:from-orange-600 hover:to-amber-600" onClick={openNew}>
+                <Plus className="h-4 w-4" />
+                <span className="hidden sm:inline ml-1">Report</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -386,9 +392,11 @@ export default function GiornaleLavori() {
                 {selectedOrderId ? "Nessun report per questo ordine." : "Seleziona un ordine e aggiungi il primo report."}
               </p>
             </div>
-            <Button onClick={openNew}>
-              <Plus className="h-4 w-4 mr-2" /> Aggiungi report
-            </Button>
+            {canEditGiornale && (
+              <Button onClick={openNew}>
+                <Plus className="h-4 w-4 mr-2" /> Aggiungi report
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (

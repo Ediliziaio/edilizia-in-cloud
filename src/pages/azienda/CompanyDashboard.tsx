@@ -1185,13 +1185,17 @@ export default function CompanyDashboard() {
   // (Venduto/Incassato/Da incassare/Costi/Pagato/Saldo) ai ruoli che NON
   // hanno can_view_billing/costs/cruscotto. Prima erano visibili a chiunque
   // potesse aprire la dashboard, anche commerciali e operai.
+  // Due assi distinti (3 livelli su 2 leve):
+  //  • Importi venduto/incassato/da-incassare → canViewOrderAmounts
+  //  • Costi (CostControlCard: costi/saldo dopo costi) → canViewCosts
+  // Admin/billing/cruscotto vedono comunque tutto (retrocompatibile: chi prima
+  // vedeva la finanza continua a vederla). I conteggi (n° commesse/cantieri/
+  // anomalie/pose) restano SEMPRE visibili a tutti.
   const permissions = usePermissions();
-  const canSeeFinance =
-    permissions.isAdmin ||
-    permissions.canViewBilling ||
-    permissions.canViewCosts ||
-    permissions.canViewCruscotto;
-  const hideFinance = !canSeeFinance;
+  const seesEverything =
+    permissions.isAdmin || permissions.canViewBilling || permissions.canViewCruscotto;
+  const hideAmounts = !(seesEverything || permissions.canViewOrderAmounts);
+  const hideCosts = !(seesEverything || permissions.canViewCosts);
 
   const {
     companyId, filters, updateFilters,
@@ -1350,7 +1354,7 @@ export default function CompanyDashboard() {
         financialAlerts={financialAlerts}
         cashFlow={cashFlow}
         monthlyBalance={monthlyBalance}
-        hideFinance={hideFinance}
+        hideFinance={hideAmounts}
       />
 
       <OperationalBoard
@@ -1361,7 +1365,7 @@ export default function CompanyDashboard() {
         weeklyDeadlines={weeklyDeadlines}
         urgentItems={urgentItems}
         financialAlerts={financialAlerts}
-        hideFinance={hideFinance}
+        hideFinance={hideCosts}
       />
 
     </div>

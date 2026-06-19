@@ -7,7 +7,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWarehouses } from "@/hooks/useWarehouses";
 import { toast } from "sonner";
-import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, ChevronDown, MoreVertical, Truck, MapPin } from "lucide-react";
+import { Plus, Pencil, ArrowUpCircle, ArrowDownCircle, Search, AlertTriangle, History, CheckSquare, Filter, MoveRight, X, GripVertical, ClipboardCheck, ChevronLeft, ChevronRight, ScanLine, Package, ChevronDown, MoreVertical, Truck, MapPin, Barcode } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +34,7 @@ import { StockMovementDialog } from "./StockMovementDialog";
 import { StockMovementHistoryDialog } from "./StockMovementHistoryDialog";
 import { WarehouseSectionsManager } from "./WarehouseSectionsManager";
 import { WarehouseMapView } from "./WarehouseMapView";
+import { StockUnitsDrilldownSheet } from "./StockUnitsDrilldownSheet";
 
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -74,6 +75,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
 
   const [searchQuery, setSearchQuery] = useState("");
   const [sectionFilter, setSectionFilter] = useState<string>("all");
+  const [lottoFilter, setLottoFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<StockItem | null>(null);
   const [movementDialog, setMovementDialog] = useState<{
@@ -87,6 +89,11 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   const [batchTargetSection, setBatchTargetSection] = useState<string>("");
   const [draggingItem, setDraggingItem] = useState<StockItem | null>(null);
   const [auditItem, setAuditItem] = useState<StockItem | null>(null);
+  // Seriali (stock_units): drill-down per singolo articolo serializzato oppure
+  // su tutto il magazzino. `null` = Sheet chiuso.
+  const [serialsView, setSerialsView] = useState<
+    { mode: "all" } | { mode: "item"; item: StockItem } | null
+  >(null);
   // Quick scan integration: filter+toast invece di highlight visivo
   // (più semplice e già feedback chiaro tramite searchQuery + toast).
   const [quickScanOpen, setQuickScanOpen] = useState(false);
@@ -154,6 +161,53 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   );
   const getSupplierName = (id: string | null) =>
     !id ? "—" : (supplierNameById.get(id) || "—");
+
+  // Conteggio seriali (stock_units) della company — alimenta il bottone "Seriali".
+  // Coerente con StockUnitsDrilldownSheet, che filtra per company (non per magazzino).
+  const { data: serialCount = 0 } = useQuery({
+    queryKey: ["warehouse-stock-serial-count", companyId],
+    enabled: !!companyId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("stock_units")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId!);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+  const hasSerialized = useMemo(
+    () => serialCount > 0 || stockItems.some((i) => i.tracking_mode === "serialized"),
+    [serialCount, stockItems],
+  );
+
+  // Lotti della company → filtro "per lotto" in Inventario (mostra la merce
+  // collegata al lotto scelto). stock_lotti non è nei tipi generati.
+  const { data: lotti = [] } = useQuery({
+    queryKey: ["warehouse-stock-lotti-filter", companyId],
+    enabled: !!companyId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const { data, error } = await sb
+        .from("stock_lotti")
+        .select("id, codice_lotto, articolo, stock_item_id")
+        .eq("company_id", companyId!)
+        .order("codice_lotto")
+        .limit(1000);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; codice_lotto: string; articolo: string | null; stock_item_id: string | null;
+      }>;
+    },
+  });
+  const lottoStockItemId = useMemo(
+    () => (lottoFilter === "all" ? null : lotti.find((l) => l.id === lottoFilter)?.stock_item_id ?? null),
+    [lotti, lottoFilter],
+  );
+  const hasLotti = lotti.length > 0;
 
   const { sections } = useWarehouseSections();
   // O(1) lookup map sezioni (stesso motivo di supplierNameById). Restituisce
@@ -354,14 +408,20 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
         items = items.filter((i) => i.section_id === sectionFilter);
       }
     }
+    // Filtro lotto: mostra solo l'articolo collegato al lotto scelto.
+    if (lottoFilter !== "all") {
+      items = lottoStockItemId ? items.filter((i) => i.id === lottoStockItemId) : [];
+    }
     if (!searchQuery) return items;
     const q = searchQuery.toLowerCase();
     return items.filter(
       (item) =>
         item.name.toLowerCase().includes(q) ||
-        (item.description && item.description.toLowerCase().includes(q))
+        (item.description && item.description.toLowerCase().includes(q)) ||
+        (item.internal_code && item.internal_code.toLowerCase().includes(q)) ||
+        (item.barcode && item.barcode.toLowerCase().includes(q))
     );
-  }, [stockItems, searchQuery, sectionFilter]);
+  }, [stockItems, searchQuery, sectionFilter, lottoFilter, lottoStockItemId]);
 
   // Pagination for stock items
   const STOCK_PAGE_SIZE = 50;
@@ -375,6 +435,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   // Reset page when search/filter changes
   const setSearchQueryWithReset = useCallback((q: string) => { setSearchQuery(q); setStockPage(0); }, []);
   const setSectionFilterWithReset = useCallback((v: string) => { setSectionFilter(v); setStockPage(0); }, []);
+  const setLottoFilterWithReset = useCallback((v: string) => { setLottoFilter(v); setStockPage(0); }, []);
 
   const lowStockItems = useMemo(
     () => stockItems.filter((i) => i.min_stock_level > 0 && i.quantity <= i.min_stock_level),
@@ -516,7 +577,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           <div className="relative flex-1 sm:max-w-sm w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Cerca articolo..."
+              placeholder="Cerca per nome o codice..."
               value={searchQuery}
               onChange={(e) => setSearchQueryWithReset(e.target.value)}
               className="pl-9"
@@ -541,6 +602,36 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                 ))}
               </SelectContent>
             </Select>
+          )}
+          {hasLotti && (
+            <Select value={lottoFilter} onValueChange={setLottoFilterWithReset}>
+              <SelectTrigger className="w-full sm:w-[230px]">
+                <Package className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                <SelectValue placeholder="Filtra lotto" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                <SelectItem value="all">Tutti i lotti</SelectItem>
+                {lotti.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    <span className="font-mono text-xs">{l.codice_lotto}</span>
+                    {l.articolo && (
+                      <span className="text-muted-foreground"> · {l.articolo.slice(0, 26)}</span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {hasSerialized && (
+            <Button
+              variant="outline"
+              onClick={() => setSerialsView({ mode: "all" })}
+              aria-label="Vedi tutti i seriali in magazzino"
+              className="w-full gap-2 sm:w-auto"
+            >
+              <Barcode className="h-4 w-4" />
+              <span>Seriali{serialCount > 0 ? ` (${serialCount})` : ""}</span>
+            </Button>
           )}
           <div className="w-full sm:w-auto">
             {!readOnly && <div className="sm:hidden space-y-2">
@@ -745,6 +836,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                         />
                       </TableHead>
                       <TableHead>Articolo</TableHead>
+                      <TableHead>Codice</TableHead>
                       {sections.length > 0 && <TableHead>Zona</TableHead>}
                       <TableHead className="text-center">Qtà</TableHead>
                       <TableHead className="text-right">Costo Unit.</TableHead>
@@ -771,6 +863,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                         onHistory={() => setHistoryItem(item)}
                         onTask={() => setTaskItem(item)}
                         onAudit={() => setAuditItem(item)}
+                        onSerials={() => setSerialsView({ mode: "item", item })}
                         readOnly={readOnly}
                       />
                     ))}
@@ -796,6 +889,7 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                   onHistory={() => setHistoryItem(item)}
                   onTask={() => setTaskItem(item)}
                   onAudit={() => setAuditItem(item)}
+                  onSerials={() => setSerialsView({ mode: "item", item })}
                   readOnly={readOnly}
                 />
               ))}
@@ -895,6 +989,18 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           companyId={companyId!}
         />
 
+        {/* Drill-down seriali (stock_units): per articolo serializzato o intero magazzino. */}
+        <StockUnitsDrilldownSheet
+          open={serialsView !== null}
+          onOpenChange={(o) => { if (!o) setSerialsView(null); }}
+          stockItemId={serialsView && serialsView.mode === "item" ? serialsView.item.id : undefined}
+          title={
+            serialsView && serialsView.mode === "item"
+              ? `Seriali · ${serialsView.item.name}`
+              : "Tutti i seriali in magazzino"
+          }
+        />
+
         {/* Quick Scan — lookup single-shot tramite BatchBarcodeScanner mode='lookup'. */}
         <Suspense fallback={null}>
           {quickScanOpen && (
@@ -977,12 +1083,13 @@ interface DraggableStockRowProps {
   onHistory: () => void;
   onTask: () => void;
   onAudit: () => void;
+  onSerials: () => void;
   readOnly?: boolean;
 }
 
 const DraggableStockRow = memo(function DraggableStockRow({
   item, isLow, section, isSelected, hasSections, supplierName,
-  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit,
+  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit, onSerials,
   readOnly = false,
 }: DraggableStockRowProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -1016,6 +1123,13 @@ const DraggableStockRow = memo(function DraggableStockRow({
           )}
         </div>
       </TableCell>
+      <TableCell>
+        {item.internal_code ? (
+          <span className="font-mono text-xs text-muted-foreground">{item.internal_code}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </TableCell>
       {hasSections && (
         <TableCell>
           {section ? (
@@ -1029,9 +1143,14 @@ const DraggableStockRow = memo(function DraggableStockRow({
         </TableCell>
       )}
       <TableCell className="text-center">
-        <Badge variant={isLow ? "destructive" : "secondary"}>
-          {item.quantity}
-        </Badge>
+        <div className="flex items-center justify-center gap-1.5">
+          <Badge variant={isLow ? "destructive" : "secondary"}>
+            {item.quantity}
+          </Badge>
+          {item.tracking_mode === "serialized" && (
+            <Badge variant="outline" className="px-1 py-0 text-[9px] font-mono">SER</Badge>
+          )}
+        </div>
       </TableCell>
       <TableCell className="text-right">{formatCurrency(item.unit_cost)}</TableCell>
       <TableCell className="text-right">{formatCurrency(item.unit_cost * item.quantity)}</TableCell>
@@ -1039,6 +1158,11 @@ const DraggableStockRow = memo(function DraggableStockRow({
       <TableCell className="text-center">{item.min_stock_level || "—"}</TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-1">
+          {item.tracking_mode === "serialized" && (
+            <Button variant="ghost" size="icon" title="Vedi seriali" onClick={onSerials}>
+              <Barcode className="h-4 w-4 text-orange-600" />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" title="Storico" onClick={onHistory}>
             <History className="h-4 w-4 text-muted-foreground" />
           </Button>
@@ -1086,12 +1210,13 @@ interface StockItemMobileCardProps {
   onHistory: () => void;
   onTask: () => void;
   onAudit: () => void;
+  onSerials: () => void;
   readOnly?: boolean;
 }
 
 const StockItemMobileCard = memo(function StockItemMobileCard({
   item, isLow, section, isSelected, supplierName,
-  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit,
+  onToggleSelect, onEdit, onCarico, onScarico, onHistory, onTask, onAudit, onSerials,
   readOnly = false,
 }: StockItemMobileCardProps) {
   return (
@@ -1110,6 +1235,11 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
           )}
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm leading-tight truncate">{item.name}</p>
+            {item.internal_code && (
+              <p className="text-[10px] font-mono text-muted-foreground truncate mt-0.5">
+                {item.internal_code}
+              </p>
+            )}
             {item.description && (
               <p className="text-[11px] text-muted-foreground truncate mt-0.5">
                 {item.description}
@@ -1119,6 +1249,9 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
               <Badge variant={isLow ? "destructive" : "secondary"} className="text-[10px]">
                 {item.quantity} pz
               </Badge>
+              {item.tracking_mode === "serialized" && (
+                <Badge variant="outline" className="px-1 py-0 text-[9px] font-mono">SER</Badge>
+              )}
               {item.min_stock_level > 0 && (
                 <span className="text-[10px] text-muted-foreground">
                   min {item.min_stock_level}
@@ -1164,6 +1297,12 @@ const StockItemMobileCard = memo(function StockItemMobileCard({
                 <ClipboardCheck className="h-4 w-4 mr-2 text-muted-foreground" />
                 Inventario
               </DropdownMenuItem>
+              {item.tracking_mode === "serialized" && (
+                <DropdownMenuItem onClick={onSerials}>
+                  <Barcode className="h-4 w-4 mr-2 text-orange-600" />
+                  Vedi seriali
+                </DropdownMenuItem>
+              )}
               {!readOnly && (
                 <DropdownMenuItem onClick={onTask}>
                   <CheckSquare className="h-4 w-4 mr-2 text-primary" />

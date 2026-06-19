@@ -28,11 +28,18 @@ import type {
  * IMPORTANT: filtra `deleted_at IS NULL` per escludere gli elementi nel
  * cestino (soft-delete). Per la lista cestino usare `useFamiliesCestino`.
  */
-export function useFamilies() {
+export function useFamilies(options?: { includeInactive?: boolean }) {
+  // Di default carica solo gli articoli attivi: è la fonte del preventivatore/
+  // QuoteBuilder, che NON deve mai vedere articoli disattivati. La pagina di
+  // gestione Listino passa includeInactive per poterli vedere/riattivare e usa
+  // una queryKey distinta, così le due cache non si calpestano.
+  const includeInactive = options?.includeInactive ?? false;
   const companyId = useEffectiveCompanyId();
 
   const query = useQuery({
-    queryKey: queryKeys.articleFamilies.list(companyId ?? undefined),
+    queryKey: includeInactive
+      ? ([...queryKeys.articleFamilies.list(companyId ?? undefined), "with-inactive"] as const)
+      : queryKeys.articleFamilies.list(companyId ?? undefined),
     enabled: !!companyId,
     queryFn: async (): Promise<FamilyWithAxes[]> => {
       const { data, error } = await supabase
@@ -45,7 +52,7 @@ export function useFamilies() {
            )`,
         )
         .eq("company_id", companyId!)
-        .eq("attivo", true)
+        .in("attivo", includeInactive ? [true, false] : [true])
         .is("deleted_at", null)
         .order("sort_order", { ascending: true });
       if (error) throw new Error(error.message);

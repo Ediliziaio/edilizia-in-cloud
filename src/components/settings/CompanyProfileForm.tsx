@@ -23,7 +23,7 @@ const sectorLabels: Record<string, string> = {
   altro: "Altro",
 };
 
-export function CompanyProfileForm() {
+export function CompanyProfileForm({ canEdit = true }: { canEdit?: boolean } = {}) {
   const { effectiveCompany, refreshAuth } = useAuth();
   
   const company = effectiveCompany;
@@ -87,7 +87,7 @@ export function CompanyProfileForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!company) return;
+    if (!company || !canEdit) return;
 
     setIsSaving(true);
     try {
@@ -148,6 +148,8 @@ export function CompanyProfileForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* canEdit=false → fieldset disabilita nativamente tutti i campi e il submit (permesso "Modifica" non attivo) */}
+      <fieldset disabled={!canEdit} className="contents">
       {/* Dati Generali */}
       <div className="space-y-4">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
@@ -302,6 +304,7 @@ export function CompanyProfileForm() {
           )}
         </Button>
       </div>
+      </fieldset>
     </form>
   );
 }

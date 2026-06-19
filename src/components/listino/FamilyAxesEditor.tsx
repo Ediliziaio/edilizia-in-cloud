@@ -13,7 +13,7 @@
  *  - Ordinamento via pulsanti freccia (up/down)
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef, type ChangeEvent } from "react";
 import {
   Plus,
   Trash2,
@@ -25,6 +25,8 @@ import {
   Sparkles,
   Copy,
   ChevronsUpDown,
+  FileText,
+  Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useFamilyMutations } from "@/hooks/useFamilyMutations";
@@ -67,6 +69,10 @@ import type {
   MaggiorazioneTipo,
 } from "@/types/articleFamily";
 import { AxisPresetsDialog } from "./AxisPresetsDialog";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { ArticlePdfDocumentsSection } from "./ArticlePdfDocumentsSection";
 
 /**
  * Label compatto per il tipo maggiorazione (usato nei badge valore).
@@ -168,6 +174,19 @@ function slugifyCodice(s: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
+/** Upload immagine propria della variante sul bucket pubblico article-images
+ *  (path {company}/variant-{valueId}.ext), ritorna URL pubblico con cache-bust. */
+async function uploadVariantImage(companyId: string, valueId: string, file: File): Promise<string> {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${companyId}/variant-${valueId}.${ext}`;
+  const { error } = await supabase.storage
+    .from("article-images")
+    .upload(path, file, { upsert: true, cacheControl: "3600" });
+  if (error) throw error;
+  const { data } = supabase.storage.from("article-images").getPublicUrl(path);
+  return `${data.publicUrl}?t=${Date.now()}`;
+}
+
 interface Props {
   family: FamilyWithAxes;
 }
@@ -182,6 +201,59 @@ export function FamilyAxesEditor({ family }: Props) {
     deleteAxisValue,
     bulkInsertAxesWithValues,
   } = useFamilyMutations();
+
+  const companyId = useEffectiveCompanyId();
+  // Variante di cui gestire le schede PDF (Dialog dedicato).
+  const [docsForValue, setDocsForValue] = useState<AxisValue | null>(null);
+  // Conteggio schede per variante → badge sul pulsante 📄 (1 query, no N+1).
+  const { data: variantDocCounts = {}, refetch: refetchDocCounts } = useQuery({
+    queryKey: ["family-variant-doc-counts", family.id],
+    enabled: !!family.id,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("article_family_documents")
+        .select("axis_value_id")
+        .eq("family_id", family.id)
+        .not("axis_value_id", "is", null);
+      if (error) throw error;
+      const m: Record<string, number> = {};
+      for (const r of (data ?? []) as Array<{ axis_value_id: string | null }>) {
+        if (r.axis_value_id) m[r.axis_value_id] = (m[r.axis_value_id] ?? 0) + 1;
+      }
+      return m;
+    },
+  });
+
+  // Immagine propria della variante: input file riusabile (pattern come foto lotto).
+  const imgInputRef = useRef<HTMLInputElement | null>(null);
+  const imgTargetIdRef = useRef<string | null>(null);
+  const [uploadingImgId, setUploadingImgId] = useState<string | null>(null);
+  const handlePickImageFor = (valueId: string) => {
+    imgTargetIdRef.current = valueId;
+    imgInputRef.current?.click();
+  };
+  const handleImgInputChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const valueId = imgTargetIdRef.current;
+    e.target.value = "";
+    imgTargetIdRef.current = null;
+    if (!file || !valueId || !companyId) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Seleziona un'immagine");
+      return;
+    }
+    setUploadingImgId(valueId);
+    try {
+      const url = await uploadVariantImage(companyId, valueId, file);
+      await updateAxisValue.mutateAsync({ id: valueId, familyId: family.id, patch: { immagine_url: url } });
+      toast.success("Immagine variante aggiornata");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Errore caricamento immagine");
+    } finally {
+      setUploadingImgId(null);
+    }
+  };
 
   const [newAxisOpen, setNewAxisOpen] = useState(false);
   // Multi-open: più assi possono essere espansi insieme (era single prima).
@@ -722,6 +794,22 @@ export function FamilyAxesEditor({ family }: Props) {
                                 className="mt-1 shrink-0"
                                 aria-label={`Seleziona ${v.label}`}
                               />
+                              {/* Immagine propria della variante — click per caricare/cambiare */}
+                              <button
+                                type="button"
+                                onClick={() => handlePickImageFor(v.id)}
+                                className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded border bg-muted"
+                                title={v.immagine_url ? "Cambia immagine variante" : "Aggiungi immagine variante"}
+                                aria-label={`Immagine variante ${v.label}`}
+                              >
+                                {uploadingImgId === v.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                                ) : v.immagine_url ? (
+                                  <img src={v.immagine_url} alt="" className="h-full w-full object-cover" />
+                                ) : (
+                                  <ImageIcon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                                )}
+                              </button>
                               <div className="flex-1 min-w-0">
                                 <div className="flex flex-wrap items-center gap-1.5">
                                   <span className="font-medium break-words">
@@ -730,6 +818,11 @@ export function FamilyAxesEditor({ family }: Props) {
                                   <span className="text-xs font-mono text-muted-foreground">
                                     {v.valore}
                                   </span>
+                                  {v.prezzo_vendita != null && v.prezzo_vendita > 0 ? (
+                                    <Badge variant="outline" className="text-[10px] sm:text-xs border-emerald-300 text-emerald-700">
+                                      €{Number(v.prezzo_vendita).toLocaleString("it-IT")}
+                                    </Badge>
+                                  ) : null}
                                   {v.is_default ? (
                                     // Badge "standard" piu' esplicito di "default":
                                     // comunica all'admin che il PREZZO BASE dell'articolo
@@ -809,6 +902,24 @@ export function FamilyAxesEditor({ family }: Props) {
                                   className="h-9 w-9"
                                 >
                                   <Copy className="h-4 w-4" aria-hidden="true" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => setDocsForValue(v)}
+                                  aria-label={`Schede della variante ${v.label}`}
+                                  title="Scheda / PDF della variante"
+                                  className="relative h-9 w-9"
+                                >
+                                  <FileText
+                                    className={`h-4 w-4 ${variantDocCounts[v.id] ? "text-primary" : ""}`}
+                                    aria-hidden="true"
+                                  />
+                                  {variantDocCounts[v.id] ? (
+                                    <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-0.5 text-[9px] text-primary-foreground">
+                                      {variantDocCounts[v.id]}
+                                    </span>
+                                  ) : null}
                                 </Button>
                                 <Button
                                   size="icon"
@@ -957,6 +1068,9 @@ export function FamilyAxesEditor({ family }: Props) {
                 maggiorazione_tipo: values.maggiorazione_tipo,
                 maggiorazione_valore: values.maggiorazione_valore,
                 maggiorazione_acquisto: values.maggiorazione_acquisto,
+                codice: values.codice,
+                prezzo_vendita: values.prezzo_vendita,
+                prezzo_acquisto: values.prezzo_acquisto,
                 sort_order: values.sort_order,
                 attivo: values.attivo ?? true,
               });
@@ -1078,6 +1192,45 @@ export function FamilyAxesEditor({ family }: Props) {
         onApply={handleApplyPresets}
         saving={bulkInsertAxesWithValues.isPending}
       />
+
+      {/* Input file riusabile per l'immagine della variante */}
+      <input
+        ref={imgInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleImgInputChange}
+      />
+
+      {/* Schede PDF per singola variante */}
+      <Dialog
+        open={!!docsForValue}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDocsForValue(null);
+            refetchDocCounts();
+          }
+        }}
+      >
+        <DialogContent className="w-[96vw] sm:w-full sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base sm:text-lg">Schede della variante</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
+              {docsForValue?.label} — carica la scheda tecnica/PDF specifica di questa variante.
+            </DialogDescription>
+          </DialogHeader>
+          {docsForValue ? (
+            <ArticlePdfDocumentsSection
+              companyId={companyId}
+              familyId={family.id}
+              axisValueId={docsForValue.id}
+              ensureFamilyId={async () => family.id}
+              title="Schede della variante (PDF)"
+              hint="Documenti specifici di questa variante (scheda tecnica, certificazioni). Più file, max 15 MB ciascuno."
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1358,6 +1511,9 @@ interface ValueFormValues {
   maggiorazione_tipo: MaggiorazioneTipo;
   maggiorazione_valore: number;
   maggiorazione_acquisto: number;
+  codice: string | null;
+  prezzo_vendita: number | null;
+  prezzo_acquisto: number | null;
   sort_order: number;
   attivo: boolean;
 }
@@ -1395,6 +1551,9 @@ function ValueFormDialog({
   const [magTipo, setMagTipo] = useState<MaggiorazioneTipo>(() => value?.maggiorazione_tipo ?? "none");
   const [magValore, setMagValore] = useState<string>(() => (value ? String(value.maggiorazione_valore) : "0"));
   const [magAcquisto, setMagAcquisto] = useState<string>(() => (value ? String(value.maggiorazione_acquisto) : "0"));
+  const [codiceArt, setCodiceArt] = useState<string>(() => value?.codice ?? "");
+  const [prezzoV, setPrezzoV] = useState<string>(() => (value?.prezzo_vendita != null ? String(value.prezzo_vendita) : ""));
+  const [prezzoA, setPrezzoA] = useState<string>(() => (value?.prezzo_acquisto != null ? String(value.prezzo_acquisto) : ""));
   const [valoreManuallyEdited, setValoreManuallyEdited] = useState<boolean>(() => value !== null);
 
   // Sincronizza il form ogni volta che cambia il record selezionato (open→close→
@@ -1411,6 +1570,9 @@ function ValueFormDialog({
       setMagTipo(value.maggiorazione_tipo);
       setMagValore(String(value.maggiorazione_valore));
       setMagAcquisto(String(value.maggiorazione_acquisto));
+      setCodiceArt(value.codice ?? "");
+      setPrezzoV(value.prezzo_vendita != null ? String(value.prezzo_vendita) : "");
+      setPrezzoA(value.prezzo_acquisto != null ? String(value.prezzo_acquisto) : "");
       setValoreManuallyEdited(true);
     } else {
       setValore("");
@@ -1421,6 +1583,9 @@ function ValueFormDialog({
       setMagTipo("none");
       setMagValore("0");
       setMagAcquisto("0");
+      setCodiceArt("");
+      setPrezzoV("");
+      setPrezzoA("");
       setValoreManuallyEdited(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1498,6 +1663,40 @@ function ValueFormDialog({
               className="resize-none"
             />
           </div>
+
+          {/* P3 — Codice + prezzo propri della variante (entità completa) */}
+          <div className="rounded-md border p-3 space-y-2.5">
+            <div className="text-sm font-medium">Codice e prezzo variante</div>
+            <div className="space-y-1">
+              <label htmlFor="val-codice-art" className="text-xs text-muted-foreground">
+                Codice articolo / SKU <span className="text-[10px]">(collega alla giacenza di magazzino)</span>
+              </label>
+              <Input
+                id="val-codice-art"
+                value={codiceArt}
+                onChange={(e) => setCodiceArt(e.target.value)}
+                placeholder="es. 0541"
+                className="h-10 font-mono"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label htmlFor="val-prezzo-v" className="text-xs text-muted-foreground">Prezzo vendita €</label>
+                <Input id="val-prezzo-v" type="number" inputMode="decimal" step="0.01" value={prezzoV}
+                  onChange={(e) => setPrezzoV(e.target.value)} placeholder="0,00" className="h-10 font-mono" />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="val-prezzo-a" className="text-xs text-muted-foreground">Prezzo acquisto €</label>
+                <Input id="val-prezzo-a" type="number" inputMode="decimal" step="0.01" value={prezzoA}
+                  onChange={(e) => setPrezzoA(e.target.value)} placeholder="0,00" className="h-10 font-mono" />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Se imposti un <strong>prezzo di vendita</strong>, la variante usa quello (prodotto con prezzo proprio)
+              e la maggiorazione qui sotto viene ignorata.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div className="flex items-center gap-2 py-1">
               <Checkbox
@@ -1687,6 +1886,9 @@ function ValueFormDialog({
                   maggiorazione_tipo: magTipo,
                   maggiorazione_valore: parseFloat(magValore) || 0,
                   maggiorazione_acquisto: parseFloat(magAcquisto) || 0,
+                  codice: codiceArt.trim() || null,
+                  prezzo_vendita: prezzoV.trim() ? (parseFloat(prezzoV) || 0) : null,
+                  prezzo_acquisto: prezzoA.trim() ? (parseFloat(prezzoA) || 0) : null,
                   sort_order: value?.sort_order ?? nextSortOrder,
                 },
                 isDefault ? otherDefaultIds : [],

@@ -92,7 +92,16 @@ import { inputBaseDaContesto, type ContestoVariantiVicine } from "@/lib/fotovolt
 import { derivaSpecModuloDaPotenza } from "@/lib/fotovoltaico/catalogoProdotti";
 
 // MP-MKT-001: TOTAL_STEPS + TABS estratti in ./FotovoltaicoWizard/constants.ts
-import { TOTAL_STEPS, TABS } from "./FotovoltaicoWizard/constants";
+// Bugfix: i range coordinate Italia (ITALIA_LAT/LNG_*) sono usati in
+// stepValidation (case 2) e in Step2Immobile (aria-invalid + callout) ma dopo
+// l'estrazione in constants.ts non erano più importati → ReferenceError a
+// runtime (crash navigando allo Step 2, soprattutto in modifica con coordinate
+// valorizzate, dove gli short-circuit `lat != null && lat < ITALIA_LAT_MIN`
+// arrivano a leggere la costante inesistente).
+import {
+  TOTAL_STEPS, TABS,
+  ITALIA_LAT_MIN, ITALIA_LAT_MAX, ITALIA_LNG_MIN, ITALIA_LNG_MAX,
+} from "./FotovoltaicoWizard/constants";
 
 // MP-MKT-001: WizardData/PersistedDraft → ./FotovoltaicoWizard/types.ts
 //   coordinate Italia + helpers di validazione + persistenza locale draft
@@ -192,6 +201,13 @@ export default function FotovoltaicoWizard() {
     };
   }, []);
 
+  // Guardia hydration: id del progetto già caricato dal DB nel form. Evita che
+  // i refetch di useProgetto (nessuno staleTime + invalidate dopo ogni
+  // aggiornaProgetto) re-idratino il form sovrascrivendo le modifiche live
+  // dell'utente ("i dati inseriti non vengono riportati"). Si idrata UNA volta
+  // per ogni progetto aperto in modifica.
+  const hydratedProjectIdRef = useRef<string | null>(null);
+
   // ─── Pre-popola anagrafica cliente da CRM (?contact_id=…) ──────────────────
   // Quando il wizard è aperto da un'opportunità/contatto del CRM, precompila
   // i campi cliente dello Step 1 con i dati del contatto. Replica il pattern
@@ -278,57 +294,68 @@ export default function FotovoltaicoWizard() {
     return null;
   }, [progettoEsistente]);
 
-  // Carica progetto esistente nello state. Se esiste, sovrascrive sempre il
-  // draft locale (la verità è il DB). Se è un nuovo progetto, lasciamo il
-  // draft (gestito al primo render via initialDraft).
+  // Carica progetto esistente nello state in MODIFICA. La verità è il DB:
+  // sovrascrive sempre il draft locale (eventualmente stale/vuoto) al primo
+  // arrivo della riga. Vincoli importanti:
+  //  - SOLO per progetti aperti in modifica (URL :id == riga caricata): in
+  //    creazione il form è la fonte autorevole, non va idratato dalla riga
+  //    appena creata (che contiene solo i dati dello Step 1).
+  //  - UNA SOLA VOLTA per id: useProgetto non ha staleTime e viene invalidata
+  //    dopo ogni aggiornaProgetto → senza la guardia ogni refetch re-idraterebbe
+  //    il form annullando le modifiche in corso dell'utente.
   useEffect(() => {
-    if (progettoEsistente && progettoId) {
-      setData((d) => ({
-        ...d,
-        archetipo: progettoEsistente.archetipo,
-        indirizzo: progettoEsistente.indirizzo,
-        comune: progettoEsistente.comune ?? "",
-        provincia: progettoEsistente.provincia ?? "",
-        cap: progettoEsistente.cap ?? "",
-        regione: progettoEsistente.regione ?? "",
-        popolazione_comune: progettoEsistente.popolazione_comune,
-        latitudine: progettoEsistente.latitudine,
-        longitudine: progettoEsistente.longitudine,
-        tipologia_immobile: progettoEsistente.tipologia_immobile ?? "residenziale",
-        superficie_immobile_mq: progettoEsistente.superficie_immobile_mq,
-        prima_casa: progettoEsistente.prima_casa ?? true,
-        consumo_annuo_kwh: progettoEsistente.consumo_annuo_kwh,
-        costo_kwh_attuale: progettoEsistente.costo_kwh_attuale ?? 0.32,
-        tariffa_tipo: progettoEsistente.tariffa_tipo ?? "monoraria",
-        profilo_consumo: (progettoEsistente.profilo_consumo as FvProfiloAutoconsumoCodice) ?? "misto",
-        isee: progettoEsistente.isee,
-        numero_figli: progettoEsistente.numero_figli ?? 0,
-        reddito_annuo_dichiarato: progettoEsistente.reddito_annuo_dichiarato,
-        fonte_dati_tetto: (progettoEsistente.fonte_dati_tetto as never) ?? "solar_api",
-        qualita_dati_tetto: progettoEsistente.qualita_dati_tetto,
-        imagery_date: progettoEsistente.imagery_date,
-        tetto_mock: progettoEsistente.qualita_dati_tetto === "mock",
-        ore_sole_annue: progettoEsistente.ore_sole_annue,
-        superficie_tetto_disponibile_mq: progettoEsistente.superficie_tetto_disponibile_mq,
-        numero_pannelli_max: progettoEsistente.numero_pannelli_max,
-        potenza_max_kwp: progettoEsistente.potenza_max_kwp,
-        numero_pannelli_scelti: progettoEsistente.numero_pannelli_scelti ?? 16,
-        potenza_kwp: progettoEsistente.potenza_kwp ?? 8.64,
-        con_accumulo: progettoEsistente.con_accumulo ?? false,
-        capacita_accumulo_kwh: progettoEsistente.capacita_accumulo_kwh ?? 0,
-        con_wallbox: progettoEsistente.con_wallbox ?? false,
-        con_ottimizzatori: progettoEsistente.con_ottimizzatori ?? false,
-      }));
-      // Marca tutti gli step "passati" del progetto come completati.
-      // Un progetto già emesso ha tutti gli 8 step completati.
-      const stato = (progettoEsistente as { stato?: string }).stato;
-      if (stato && stato !== "bozza") {
-        setCompletedSteps(new Set([1, 2, 3, 4, 5, 6, 7, 8]));
-      } else if (progettoEsistente.consumo_annuo_kwh != null) {
-        setCompletedSteps(new Set([1, 2, 3]));
-      }
+    if (!progettoEsistente || !progettoId) return;
+    // Idrata solo la riga corrispondente all'id aperto in modifica (non una
+    // riga creata a runtime durante il flow "nuovo").
+    if (id == null || progettoEsistente.id !== id) return;
+    // Già idratato questo progetto: non sovrascrivere le modifiche live.
+    if (hydratedProjectIdRef.current === progettoEsistente.id) return;
+    hydratedProjectIdRef.current = progettoEsistente.id;
+    setData((d) => ({
+      ...d,
+      archetipo: progettoEsistente.archetipo,
+      indirizzo: progettoEsistente.indirizzo,
+      comune: progettoEsistente.comune ?? "",
+      provincia: progettoEsistente.provincia ?? "",
+      cap: progettoEsistente.cap ?? "",
+      regione: progettoEsistente.regione ?? "",
+      popolazione_comune: progettoEsistente.popolazione_comune,
+      latitudine: progettoEsistente.latitudine,
+      longitudine: progettoEsistente.longitudine,
+      tipologia_immobile: progettoEsistente.tipologia_immobile ?? "residenziale",
+      superficie_immobile_mq: progettoEsistente.superficie_immobile_mq,
+      prima_casa: progettoEsistente.prima_casa ?? true,
+      consumo_annuo_kwh: progettoEsistente.consumo_annuo_kwh,
+      costo_kwh_attuale: progettoEsistente.costo_kwh_attuale ?? 0.32,
+      tariffa_tipo: progettoEsistente.tariffa_tipo ?? "monoraria",
+      profilo_consumo: (progettoEsistente.profilo_consumo as FvProfiloAutoconsumoCodice) ?? "misto",
+      isee: progettoEsistente.isee,
+      numero_figli: progettoEsistente.numero_figli ?? 0,
+      reddito_annuo_dichiarato: progettoEsistente.reddito_annuo_dichiarato,
+      fonte_dati_tetto: (progettoEsistente.fonte_dati_tetto as never) ?? "solar_api",
+      qualita_dati_tetto: progettoEsistente.qualita_dati_tetto,
+      imagery_date: progettoEsistente.imagery_date,
+      tetto_mock: progettoEsistente.qualita_dati_tetto === "mock",
+      ore_sole_annue: progettoEsistente.ore_sole_annue,
+      superficie_tetto_disponibile_mq: progettoEsistente.superficie_tetto_disponibile_mq,
+      numero_pannelli_max: progettoEsistente.numero_pannelli_max,
+      potenza_max_kwp: progettoEsistente.potenza_max_kwp,
+      numero_pannelli_scelti: progettoEsistente.numero_pannelli_scelti ?? 16,
+      potenza_kwp: progettoEsistente.potenza_kwp ?? 8.64,
+      con_accumulo: progettoEsistente.con_accumulo ?? false,
+      capacita_accumulo_kwh: progettoEsistente.capacita_accumulo_kwh ?? 0,
+      con_wallbox: progettoEsistente.con_wallbox ?? false,
+      con_ottimizzatori: progettoEsistente.con_ottimizzatori ?? false,
+    }));
+    // Marca tutti gli step "passati" del progetto come completati.
+    // Un progetto già emesso ha tutti gli 8 step completati.
+    const stato = (progettoEsistente as { stato?: string }).stato;
+    if (stato && stato !== "bozza") {
+      setCompletedSteps(new Set([1, 2, 3, 4, 5, 6, 7, 8]));
+    } else if (progettoEsistente.consumo_annuo_kwh != null) {
+      setCompletedSteps(new Set([1, 2, 3]));
     }
-  }, [progettoEsistente, progettoId]);
+  }, [progettoEsistente, progettoId, id]);
 
   // Pre-popola tariffa_installazione_id leggendo dalla manodopera esistente
   // (il dato non è in fv_progetti ma in fv_manodopera_progetto.tariffa_id).
@@ -996,6 +1023,14 @@ export default function FotovoltaicoWizard() {
   // Tecnico/Mobile saranno template differenziati in W2.
   const handleGeneraEdEmetti = async () => {
     if (!progettoId) return;
+    // Guard sola-lettura: un progetto firmato/emesso/annullato ha tutti gli step
+    // "completati" → la tab bar consente di arrivare allo Step 8. Senza questo
+    // guard, "Genera ed emetti" riscriverebbe stato="emesso" (regredendo un
+    // firmato) e rigenererebbe il PDF.
+    if (readOnlyMode) {
+      toast.info("Progetto in sola lettura: clonalo per generare una nuova versione.");
+      return;
+    }
     setSalvando(true);
     try {
       const { data: result, error } = await supabase.functions.invoke(
@@ -1045,15 +1080,21 @@ export default function FotovoltaicoWizard() {
    */
   const goTo = useCallback(
     (target: number, opts?: { markCompleted?: boolean }) => {
+      const nextCompleted = opts?.markCompleted ? new Set(completedSteps).add(step) : completedSteps;
       if (opts?.markCompleted) {
-        setCompletedSteps((s) => new Set(s).add(step));
+        setCompletedSteps(nextCompleted);
       }
       const safe = Math.max(1, Math.min(TOTAL_STEPS, target));
+      // Flush SINCRONO della bozza: senza, un refresh entro ~800ms dal click su
+      // "Avanti" cadrebbe nella finestra del debounce e perderebbe l'ultimo input.
+      if (!readOnlyMode) {
+        savePersistedDraft(progettoId, { step: safe, data, completedSteps: Array.from(nextCompleted) });
+      }
       setStep(safe);
       // scroll to top of content
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [step],
+    [step, completedSteps, readOnlyMode, progettoId, data],
   );
 
   const goPrev = useCallback(() => goTo(step - 1), [step, goTo]);
@@ -1314,6 +1355,7 @@ export default function FotovoltaicoWizard() {
             <Step5Configurazione
               data={data}
               update={update}
+              readOnlyMode={readOnlyMode}
               pannelli={pannelli as never}
               inverter={inverter as never}
               accumuli={accumuli as never}
@@ -1341,7 +1383,11 @@ export default function FotovoltaicoWizard() {
             <Step7VistaImpresa progettoId={progettoId} scenario={scenarioFin} />
           )}
           {step === 8 && (
-            <Step8Genera onEmetti={handleGeneraEdEmetti} salvando={salvando} />
+            <Step8Genera
+              onEmetti={handleGeneraEdEmetti}
+              salvando={salvando}
+              readOnly={readOnlyMode}
+            />
           )}
         </FvTabPane>
       </div>
@@ -1829,7 +1875,9 @@ function Step3Consumi({
           </div>
         </FvCard>
 
-        {(data.archetipo === "privato_prima" || data.archetipo === "privato_isee") && (
+        {(data.archetipo === "privato_prima" ||
+          data.archetipo === "privato_seconda" ||
+          data.archetipo === "privato_isee") && (
           <FvCard title="Dati fiscali (per incentivi)">
             <div className="grid sm:grid-cols-3 gap-3">
               <div>
@@ -2114,6 +2162,7 @@ function SourceTile({
 function Step5Configurazione({
   data,
   update,
+  readOnlyMode,
   pannelli,
   inverter,
   accumuli,
@@ -2122,14 +2171,18 @@ function Step5Configurazione({
 }: {
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
+  readOnlyMode: boolean;
   pannelli: Array<Record<string, unknown>>;
   inverter: Array<Record<string, unknown>>;
   accumuli: Array<Record<string, unknown>>;
   tariffeFv: FvTariffaAziendale[];
   serviziCatalogoCount: number;
 }) {
-  // Auto-calcolo potenza_kwp da numero pannelli
+  // Auto-calcolo potenza_kwp da numero pannelli. In sola lettura NON scrive:
+  // update() in read-only mostra un toast d'errore, che da un useEffect
+  // partirebbe spurio al mount dello step.
   useEffect(() => {
+    if (readOnlyMode) return;
     if (data.pannello_id) {
       const p = pannelli.find((x) => (x as { id: string }).id === data.pannello_id);
       const w = (p?.potenza_w as number) ?? 540;
@@ -3598,9 +3651,11 @@ function Step7VistaImpresa({
 function Step8Genera({
   onEmetti,
   salvando,
+  readOnly = false,
 }: {
   onEmetti: () => void;
   salvando: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <>
@@ -3632,7 +3687,7 @@ function Step8Genera({
           <button
             type="button"
             onClick={onEmetti}
-            disabled={salvando}
+            disabled={salvando || readOnly}
             className="px-6 py-3 text-sm font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-amber-400 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
           >
             {salvando ? (
@@ -3647,6 +3702,12 @@ function Step8Genera({
               </>
             )}
           </button>
+          {readOnly && (
+            <p className="text-xs text-amber-700 max-w-md mx-auto">
+              🔒 Progetto in sola lettura: già emesso/firmato. Clona il progetto
+              per generare una nuova versione del preventivo.
+            </p>
+          )}
         </div>
       </FvCard>
 

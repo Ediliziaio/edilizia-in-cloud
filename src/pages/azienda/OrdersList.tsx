@@ -767,6 +767,16 @@ function OrdersListInner() {
     return new Set(DEFAULT_COLUMNS);
   });
 
+  // ── Visibilità finanziaria: nasconde colonne/KPI monetari per chi non è
+  // autorizzato. Importi→canViewOrderAmounts, costi→canViewCosts, margine→canViewMargins.
+  const orderPerms = usePermissions();
+  const AMOUNT_COL_KEYS = new Set(["totalIvato", "imponibile", "collected", "due", "deposit", "balance", "payments"]);
+  const COST_COL_KEYS = new Set(["variableCosts", "labor"]);
+  const isColumnAllowed = (key: string) =>
+    (!AMOUNT_COL_KEYS.has(key) || orderPerms.canViewOrderAmounts) &&
+    (!COST_COL_KEYS.has(key) || orderPerms.canViewCosts) &&
+    (key !== "margin" || orderPerms.canViewMargins);
+
   const toggleColumn = (key: string) => {
     setVisibleColumns(prev => {
       const next = new Set(prev);
@@ -1705,7 +1715,7 @@ function OrdersListInner() {
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-1 max-h-[320px] overflow-y-auto">
-                  {OPTIONAL_COLUMNS.map(col => (
+                  {OPTIONAL_COLUMNS.filter(col => isColumnAllowed(col.key)).map(col => (
                     <label
                       key={col.key}
                       className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer transition-colors"
@@ -1852,6 +1862,7 @@ function OrdersListInner() {
                 </div>
               </div>
 
+              {orderPerms.canViewOrderAmounts && (<>
               <div className="rounded-xl border border-white/12 bg-white/9 p-2.5 sm:p-4">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-blue-100">
@@ -1929,9 +1940,11 @@ function OrdersListInner() {
                   </span>
                 </div>
               </div>
+              </>)}
             </div>
           </div>
 
+          {orderPerms.canViewOrderAmounts && (
           <aside className="border-t border-slate-200 bg-gradient-to-br from-white to-orange-50/50 p-3 sm:p-5 xl:border-l xl:border-t-0">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -2043,6 +2056,7 @@ function OrdersListInner() {
               )}
             </div>
           </aside>
+          )}
         </div>
       </section>
 
@@ -2320,7 +2334,7 @@ function OrdersListInner() {
                 onBulkStatusChange={handleBulkStatusChange}
                 onBulkDelete={handleBulkDelete}
                 isBulkUpdating={isBulkUpdating}
-                visibleColumns={visibleColumns}
+                visibleColumns={new Set([...visibleColumns].filter(isColumnAllowed))}
                 salespeopleMap={salespeopleMap}
                 laborMap={laborMap}
                 supplierMap={supplierMap}

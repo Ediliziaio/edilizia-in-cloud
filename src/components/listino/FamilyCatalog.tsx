@@ -47,6 +47,12 @@ import {
   MoreVertical,
   AlertTriangle,
   Sparkles,
+  Eye,
+  EyeOff,
+  LayoutGrid,
+  Rows3,
+  Power,
+  PowerOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -98,6 +104,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import type {
   ArticleFamily,
   FamilyWithAxes,
@@ -248,7 +270,10 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
   const { role, effectiveCompany } = useAuth();
   const isAdmin = role === "company_admin" || role === "super_admin";
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
-  const { families, isLoading: loadingFamilies } = useFamilies();
+  // includeInactive: la pagina di gestione mostra anche i disattivati (per
+  // poterli vedere/riattivare). Il preventivatore continua a usare useFamilies()
+  // di default → solo attivi.
+  const { families, isLoading: loadingFamilies } = useFamilies({ includeInactive: true });
   const {
     deleteFamily,
     restoreFamily,
@@ -267,6 +292,25 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
   const [macroFilter, setMacroFilter] = useState(ALL_FILTER);
   const [modalitaFilter, setModalitaFilter] = useState<string>(ALL_FILTER);
   const [marginFilter, setMarginFilter] = useState<MarginFilter>("all");
+  // Vista: schede (default, com'era) oppure tabella riga/colonna.
+  const [viewMode, setViewMode] = useState<"cards" | "table">(() => {
+    try {
+      return localStorage.getItem("listino:view") === "table" ? "table" : "cards";
+    } catch {
+      return "cards";
+    }
+  });
+  const setView = (v: "cards" | "table") => {
+    setViewMode(v);
+    try {
+      localStorage.setItem("listino:view", v);
+    } catch {
+      // ls non disponibile
+    }
+  };
+  // Filtro stato attivo/disattivo e visibilità nel preventivatore.
+  const [attivoFilter, setAttivoFilter] = useState<"all" | "attivi" | "disattivi">("all");
+  const [preventivoFilter, setPreventivoFilter] = useState<"all" | "mostrati" | "nascosti">("all");
   const [toDelete, setToDelete] = useState<FamilyWithAxes | null>(null);
   const [toDuplicate, setToDuplicate] = useState<FamilyWithAxes | null>(null);
   const [dupName, setDupName] = useState("");
@@ -328,13 +372,17 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
     search.trim() !== "" ||
     macroFilter !== ALL_FILTER ||
     modalitaFilter !== ALL_FILTER ||
-    marginFilter !== "all";
+    marginFilter !== "all" ||
+    attivoFilter !== "all" ||
+    preventivoFilter !== "all";
 
   const resetFilters = () => {
     setSearch("");
     setMacroFilter(ALL_FILTER);
     setModalitaFilter(ALL_FILTER);
     setMarginFilter("all");
+    setAttivoFilter("all");
+    setPreventivoFilter("all");
   };
 
   // Grouping macrocat → articoli (livello categoria deprecato dal refactor 20270513200000)
@@ -357,6 +405,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
       const matchesSearch =
         q === "" ||
         f.nome.toLowerCase().includes(q) ||
+        (f.codice ?? "").toLowerCase().includes(q) ||
         (f.descrizione ?? "").toLowerCase().includes(q);
       if (!matchesSearch) return false;
 
@@ -364,6 +413,12 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
       if (modalitaFilter !== ALL_FILTER && f.modalita_prezzo_base !== modalitaFilter) {
         return false;
       }
+      if (attivoFilter === "attivi" && !f.attivo) return false;
+      if (attivoFilter === "disattivi" && f.attivo) return false;
+      // mostra_preventivo può essere undefined su righe vecchie (default DB true).
+      const inPreventivo = f.mostra_preventivo !== false;
+      if (preventivoFilter === "mostrati" && !inPreventivo) return false;
+      if (preventivoFilter === "nascosti" && inPreventivo) return false;
       if (marginFilter !== "all") {
         const econ = computeEconomics(f);
         if (getMarginState(econ.marginePct) !== marginFilter) return false;
@@ -421,6 +476,8 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
     macroFilter,
     modalitaFilter,
     marginFilter,
+    attivoFilter,
+    preventivoFilter,
     categoriaById,
     macroById,
     macrocategorie,
@@ -534,6 +591,33 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
 
   const isLoading = loadingFamilies;
 
+  // Toggle attivo/disattivo. Un articolo disattivato resta a listino/magazzino
+  // ma sparisce dal preventivatore (useFamilies di default filtra attivo=true).
+  const toggleAttivo = async (f: FamilyWithAxes) => {
+    try {
+      await updateFamily.mutateAsync({ id: f.id, patch: { attivo: !f.attivo } });
+      toast.success(f.attivo ? "Articolo disattivato" : "Articolo riattivato");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore nell'aggiornamento");
+    }
+  };
+
+  // Toggle visibilità nel preventivatore (indipendente da attivo).
+  const togglePreventivo = async (f: FamilyWithAxes) => {
+    const wasVisible = f.mostra_preventivo !== false;
+    try {
+      await updateFamily.mutateAsync({
+        id: f.id,
+        patch: { mostra_preventivo: !wasVisible },
+      });
+      toast.success(
+        wasVisible ? "Nascosto dal preventivatore" : "Mostrato nel preventivatore",
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Errore nell'aggiornamento");
+    }
+  };
+
   return (
     <div className="space-y-4">
       <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -555,6 +639,32 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
               className="pl-9 h-10"
               aria-label="Cerca articolo"
             />
+          </div>
+          <div className="inline-flex h-10 shrink-0 rounded-md border border-input bg-background p-0.5">
+            <Button
+              type="button"
+              variant={viewMode === "cards" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-9 px-3"
+              onClick={() => setView("cards")}
+              aria-pressed={viewMode === "cards"}
+              aria-label="Vista schede"
+              title="Vista schede"
+            >
+              <LayoutGrid className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant={viewMode === "table" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-9 px-3"
+              onClick={() => setView("table")}
+              aria-pressed={viewMode === "table"}
+              aria-label="Vista tabella"
+              title="Vista tabella"
+            >
+              <Rows3 className="h-4 w-4" aria-hidden="true" />
+            </Button>
           </div>
           {isAdmin && (
             <div className="flex items-center gap-2 flex-wrap">
@@ -618,7 +728,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
 
       <Card className="border-muted">
         <CardContent className="p-3">
-          <div className="grid gap-2 sm:gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-2 sm:gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
               <Label htmlFor="filter-macro" className="text-xs">
                 Macrocategoria
@@ -678,6 +788,46 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="filter-stato" className="text-xs">
+                Stato
+              </Label>
+              <Select
+                value={attivoFilter}
+                onValueChange={(value) =>
+                  setAttivoFilter(value as "all" | "attivi" | "disattivi")
+                }
+              >
+                <SelectTrigger id="filter-stato" className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti</SelectItem>
+                  <SelectItem value="attivi">Solo attivi</SelectItem>
+                  <SelectItem value="disattivi">Solo disattivati</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="filter-preventivo" className="text-xs">
+                Preventivatore
+              </Label>
+              <Select
+                value={preventivoFilter}
+                onValueChange={(value) =>
+                  setPreventivoFilter(value as "all" | "mostrati" | "nascosti")
+                }
+              >
+                <SelectTrigger id="filter-preventivo" className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti</SelectItem>
+                  <SelectItem value="mostrati">Mostrati nei preventivi</SelectItem>
+                  <SelectItem value="nascosti">Nascosti dai preventivi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-end">
               <Button
                 type="button"
@@ -732,6 +882,206 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
               </Button>
             )}
           </CardContent>
+        </Card>
+      ) : viewMode === "table" ? (
+        <Card>
+          <div className="overflow-x-auto">
+            <TooltipProvider delayDuration={300}>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[96px]">Codice</TableHead>
+                    <TableHead>Articolo</TableHead>
+                    <TableHead className="hidden md:table-cell">Macrocategoria</TableHead>
+                    <TableHead className="hidden xl:table-cell">Modalità</TableHead>
+                    <TableHead className="text-right">Prezzo</TableHead>
+                    <TableHead className="hidden lg:table-cell text-right">Margine</TableHead>
+                    <TableHead className="text-center w-[72px]">Attivo</TableHead>
+                    <TableHead className="text-center w-[104px]">
+                      <span className="inline-flex items-center gap-1">
+                        Preventivo
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[220px] text-xs">
+                            Se attivo, l&apos;articolo è proponibile nel
+                            preventivatore. Spegnilo per tenerlo a listino ma
+                            non mostrarlo nei preventivi.
+                          </TooltipContent>
+                        </Tooltip>
+                      </span>
+                    </TableHead>
+                    {isAdmin && <TableHead className="w-[44px]" />}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {grouped.flatMap((mg) =>
+                    mg.categorie.flatMap((cg) =>
+                      cg.items.map((f) => {
+                        const econ = computeEconomics(f);
+                        const marginState = getMarginState(econ.marginePct);
+                        return (
+                          <TableRow
+                            key={f.id}
+                            className={cn(
+                              isAdmin && "cursor-pointer",
+                              !f.attivo && "opacity-60",
+                            )}
+                            onClick={
+                              isAdmin
+                                ? () =>
+                                    navigate(
+                                      `/azienda/impostazioni/listino/famiglie/${f.id}`,
+                                    )
+                                : undefined
+                            }
+                          >
+                            <TableCell className="font-mono text-xs text-muted-foreground">
+                              {f.codice || "—"}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2 min-w-0">
+                                {f.immagine_url ? (
+                                  <img
+                                    src={f.immagine_url}
+                                    alt=""
+                                    loading="lazy"
+                                    className="h-8 w-8 rounded object-cover border shrink-0"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).style.display = "none";
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
+                                    <Package className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <p className="font-medium text-sm truncate max-w-[260px]" title={f.nome}>
+                                    {f.nome}
+                                  </p>
+                                  {f.descrizione ? (
+                                    <p className="text-[11px] text-muted-foreground truncate max-w-[260px]">
+                                      {f.descrizione}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                              {mg.macroNome}
+                            </TableCell>
+                            <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+                              {MODALITA_LABEL[f.modalita_prezzo_base]}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-sm">
+                              {fmtEUR.format(econ.venditaPz)}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell text-right">
+                              {econ.marginePct == null ? (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              ) : (
+                                <span
+                                  className={cn(
+                                    "text-xs font-medium tabular-nums",
+                                    marginState === "low" && "text-destructive",
+                                    marginState === "ok" && "text-emerald-600",
+                                    marginState === "missing" && "text-muted-foreground",
+                                  )}
+                                >
+                                  {econ.marginePct.toFixed(0)}%
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell
+                              className="text-center"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Switch
+                                checked={f.attivo}
+                                onCheckedChange={() => void toggleAttivo(f)}
+                                disabled={
+                                  !isAdmin ||
+                                  (updateFamily.isPending &&
+                                    updateFamily.variables?.id === f.id)
+                                }
+                                aria-label={`Articolo attivo: ${f.nome}`}
+                              />
+                            </TableCell>
+                            <TableCell
+                              className="text-center"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Switch
+                                checked={f.mostra_preventivo !== false}
+                                onCheckedChange={() => void togglePreventivo(f)}
+                                disabled={
+                                  !isAdmin ||
+                                  (updateFamily.isPending &&
+                                    updateFamily.variables?.id === f.id)
+                                }
+                                aria-label={`Mostra nel preventivatore: ${f.nome}`}
+                              />
+                            </TableCell>
+                            {isAdmin && (
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      aria-label={`Azioni per ${f.nome}`}
+                                    >
+                                      <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        navigate(
+                                          `/azienda/impostazioni/listino/famiglie/${f.id}`,
+                                        )
+                                      }
+                                    >
+                                      <Wrench className="h-4 w-4 mr-2" aria-hidden="true" />
+                                      Modifica
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setToDuplicate(f);
+                                        setDupName(`${f.nome} (copia)`);
+                                      }}
+                                    >
+                                      <CopyPlus className="h-4 w-4 mr-2" aria-hidden="true" />
+                                      Duplica
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => openMove(f)}>
+                                      <FolderSymlink className="h-4 w-4 mr-2" aria-hidden="true" />
+                                      Sposta
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => setToDelete(f)}
+                                      className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />
+                                      Elimina
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        );
+                      }),
+                    ),
+                  )}
+                </TableBody>
+              </Table>
+            </TooltipProvider>
+          </div>
         </Card>
       ) : (
         <div className="space-y-8">
@@ -808,11 +1158,12 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                         >
                           <HoverCardTrigger asChild>
                           <Card
-                            className={
+                            className={cn(
                               isAdmin
                                 ? "group relative h-full cursor-pointer hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-all flex flex-col"
-                                : "h-full flex flex-col"
-                            }
+                                : "h-full flex flex-col",
+                              !f.attivo && "opacity-70 border-dashed",
+                            )}
                             onClick={
                               isAdmin
                                 ? () =>
@@ -870,6 +1221,35 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                                   {MODALITA_LABEL[f.modalita_prezzo_base]}
                                 </Badge>
                               </div>
+                              {(!f.attivo || f.mostra_preventivo === false) && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {!f.attivo && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] border-amber-300 text-amber-700 bg-amber-50"
+                                    >
+                                      Disattivato
+                                    </Badge>
+                                  )}
+                                  {f.mostra_preventivo === false && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] border-slate-300 text-slate-600 bg-slate-50 inline-flex items-center gap-0.5"
+                                    >
+                                      <EyeOff className="h-3 w-3" aria-hidden="true" />
+                                      Fuori preventivi
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
+                              {f.codice ? (
+                                <p
+                                  className="font-mono text-[11px] text-muted-foreground truncate"
+                                  title={`Codice: ${f.codice}`}
+                                >
+                                  {f.codice}
+                                </p>
+                              ) : null}
                               {f.descrizione ? (
                                 <CardDescription
                                   className="line-clamp-1"
@@ -1007,6 +1387,43 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                                         aria-hidden="true"
                                       />
                                       Sposta
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        void togglePreventivo(f);
+                                      }}
+                                    >
+                                      {f.mostra_preventivo !== false ? (
+                                        <>
+                                          <EyeOff className="h-4 w-4 mr-2" aria-hidden="true" />
+                                          Nascondi dai preventivi
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Eye className="h-4 w-4 mr-2" aria-hidden="true" />
+                                          Mostra nei preventivi
+                                        </>
+                                      )}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        void toggleAttivo(f);
+                                      }}
+                                    >
+                                      {f.attivo ? (
+                                        <>
+                                          <PowerOff className="h-4 w-4 mr-2" aria-hidden="true" />
+                                          Disattiva
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Power className="h-4 w-4 mr-2" aria-hidden="true" />
+                                          Riattiva
+                                        </>
+                                      )}
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
@@ -1365,7 +1782,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
           <DialogHeader>
             <DialogTitle>Sposta articolo</DialogTitle>
             <DialogDescription>
-              Scegli macrocategoria e categoria di destinazione per{" "}
+              Scegli la macrocategoria di destinazione per{" "}
               &quot;{toMove?.nome}&quot;.
             </DialogDescription>
           </DialogHeader>

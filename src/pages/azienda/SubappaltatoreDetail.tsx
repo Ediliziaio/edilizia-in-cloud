@@ -36,12 +36,20 @@ import {
   TIPO_DOC_LABELS,
   SUBAPPALTATORI_DOCUMENTI_BUCKET as DOCUMENT_BUCKET,
 } from '@/lib/sicurezza/bulkDocumenti';
+import { extractDurcExpiryFromPdf } from '@/lib/sicurezza/durcExpiry';
 import BulkDocumentiUploadDialog from './subappaltatore/BulkDocumentiUploadDialog';
 
 // ── Badge helpers ────────────────────────────────────────────────────────────
 
-function DurcBadge({ scadenza }: { scadenza: string | null }) {
-  if (!scadenza) return <Badge variant="outline">DURC mancante</Badge>;
+function DurcBadge({ scadenza, hasDoc }: { scadenza: string | null; hasDoc?: boolean }) {
+  if (!scadenza) {
+    // Distinzione: DURC caricato ma SENZA data di scadenza (da inserire) vs DURC
+    // del tutto assente. Prima mostrava sempre "DURC mancante" → confondeva quando
+    // il file DURC c'era (es. import massivo) ma la scadenza non era stata salvata.
+    return hasDoc
+      ? <Badge className="bg-amber-500 text-white">DURC · scadenza mancante</Badge>
+      : <Badge variant="outline">DURC assente</Badge>;
+  }
   const daysLeft = differenceInDays(parseISO(scadenza), new Date());
   if (daysLeft < 0) return <Badge className="bg-red-600 text-white">DURC scaduto</Badge>;
   if (daysLeft <= 30) return <Badge className="bg-yellow-500 text-white">DURC {daysLeft}gg</Badge>;
@@ -159,6 +167,47 @@ export default function SubappaltatoreDetail() {
     enabled: !!id,
   });
 
+  // ── Fetch documenti "fascicolo" (tabella subappaltatori_documenti) ─────────
+  // Archivio DIVERSO da documenti_subappaltatore (sopra): qui finiscono i doc
+  // caricati in massa / dal modulo Sicurezza, legati all'ANAGRAFICA
+  // (campo_subappaltatore_id). Li mostriamo in sola lettura sulla scheda così
+  // sono accessibili da qui. Stesso bucket (subappaltatori-documenti).
+  const COMPLIANCE_TIPO_LABELS: Record<string, string> = {
+    durc: 'DURC', visura: 'Visura camerale', dvr: 'DVR', pos: 'POS',
+    soa: 'Attestazione SOA', polizza_rc: 'Polizza RC', cassa_edile: 'Cassa Edile',
+    antimafia: 'Antimafia', iscrizione_albo: 'Iscrizione Albo',
+    formazione_operai: 'Formazione operai', altro: 'Altro',
+  };
+  const { data: documentiCompliance = [] } = useQuery({
+    queryKey: ['sub-doc-compliance', sub?.campo_subappaltatore_id],
+    enabled: !!sub?.campo_subappaltatore_id,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('subappaltatori_documenti')
+        .select('id, tipo, status, storage_path, scadenza, created_at')
+        .eq('subappaltatore_id', sub!.campo_subappaltatore_id)
+        .neq('status', 'superseded')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; tipo: string; status: string;
+        storage_path: string | null; scadenza: string | null; created_at: string;
+      }>;
+    },
+  });
+
+  const openComplianceDoc = async (path: string | null) => {
+    if (!path) return;
+    const { data, error } = await supabase.storage
+      .from(DOCUMENT_BUCKET)
+      .createSignedUrl(path, 60 * 5);
+    if (error || !data?.signedUrl) {
+      toast.error('Impossibile aprire il documento');
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
   const { data: campoAccess } = useQuery({
     queryKey: ['subappaltatore-campo-access', sub?.campo_subappaltatore_id],
     queryFn: async () => {
@@ -221,6 +270,7 @@ export default function SubappaltatoreDetail() {
     indirizzo: '',
     email: '',
     pec: '',
+    codice_fiscale: '',
     responsabile: '',
     telefono: '',
     tipo_lavori: '',
@@ -235,6 +285,7 @@ export default function SubappaltatoreDetail() {
       indirizzo: sub?.indirizzo ?? '',
       email: sub?.email ?? '',
       pec: sub?.pec ?? '',
+      codice_fiscale: sub?.codice_fiscale ?? '',
       responsabile: sub?.responsabile ?? '',
       telefono: sub?.telefono ?? '',
       tipo_lavori: sub?.tipo_lavori ?? '',
@@ -318,6 +369,7 @@ export default function SubappaltatoreDetail() {
         indirizzo: anagraficaForm.indirizzo.trim() || null,
         email: anagraficaForm.email.trim() || null,
         pec: anagraficaForm.pec.trim() || null,
+        codice_fiscale: anagraficaForm.codice_fiscale.trim() || null,
         responsabile: anagraficaForm.responsabile.trim() || null,
         telefono: anagraficaForm.telefono.trim() || null,
         tipo_lavori: anagraficaForm.tipo_lavori.trim() || null,
@@ -394,6 +446,9 @@ export default function SubappaltatoreDetail() {
     data_scadenza: '',
     note: '',
   });
+  // Setter inline rapido per la scadenza DURC (quando il DURC è caricato ma la
+  // data non è stata registrata — es. import massivo).
+  const [durcDateInput, setDurcDateInput] = useState('');
 
   const uploadDocumentMutation = useMutation({
     mutationFn: async () => {
@@ -415,10 +470,20 @@ export default function SubappaltatoreDetail() {
         note: docForm.note.trim() || null,
       });
       if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
+      // Se carico un DURC con scadenza, allineo durc_scadenza della scheda così il
+      // badge smette di dire "DURC mancante" (prima i due dati restavano scollegati).
+      if (docForm.tipo === 'durc' && docForm.data_scadenza) {
+        await (supabase as any)
+          .from('subappaltatori_sicurezza')
+          .update({ durc_scadenza: docForm.data_scadenza })
+          .eq('id', id!);
+      }
     },
     onSuccess: () => {
       toast.success('Documento caricato');
       queryClient.invalidateQueries({ queryKey: ['documenti-sub', id] });
+      queryClient.invalidateQueries({ queryKey: ['subappaltatore', id] });
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
       setDocDialog(false);
       setDocFile(null);
       setDocForm({ tipo: 'durc', data_rilascio: '', data_scadenza: '', note: '' });
@@ -453,6 +518,24 @@ export default function SubappaltatoreDetail() {
     onSuccess: () => {
       toast.success('Documento eliminato');
       queryClient.invalidateQueries({ queryKey: ['documenti-sub', id] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // Imposta/aggiorna SOLO la scadenza DURC sulla scheda (badge in alto si aggiorna).
+  const setDurcMutation = useMutation({
+    mutationFn: async (date: string) => {
+      const { error } = await (supabase as any)
+        .from('subappaltatori_sicurezza')
+        .update({ durc_scadenza: date || null })
+        .eq('id', id!);
+      if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
+    },
+    onSuccess: () => {
+      toast.success('Scadenza DURC aggiornata');
+      setDurcDateInput('');
+      queryClient.invalidateQueries({ queryKey: ['subappaltatore', id] });
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -684,6 +767,20 @@ export default function SubappaltatoreDetail() {
   const appCantiere = campoAccess ?? inferredCampoAccess ?? null;
   const hasAppCantiere = Boolean(sub.campo_subappaltatore_id || appCantiere?.id);
 
+  // DURC "effettivo": il campo durc_scadenza della scheda OPPURE, se vuoto, la
+  // scadenza del DURC caricato più recente (tra documenti idoneità e fascicolo).
+  // Così il badge non dice "mancante" quando un DURC con scadenza c'è davvero.
+  const durcDocScadenze = [
+    ...documenti.filter((d) => d.tipo === 'durc' && d.data_scadenza).map((d) => d.data_scadenza as string),
+    ...documentiCompliance.filter((d) => d.tipo === 'durc' && d.scadenza).map((d) => d.scadenza as string),
+  ].sort();
+  const effectiveDurc = sub.durc_scadenza ?? (durcDocScadenze.length ? durcDocScadenze[durcDocScadenze.length - 1] : null);
+  // Esiste un documento DURC caricato (anche senza scadenza)? Distingue
+  // "DURC presente · scadenza mancante" da "DURC assente".
+  const hasDurcDoc =
+    documenti.some((d) => d.tipo === 'durc') ||
+    documentiCompliance.some((d) => d.tipo === 'durc');
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -715,7 +812,7 @@ export default function SubappaltatoreDetail() {
                 App cantiere non collegata
               </Badge>
             )}
-            <DurcBadge scadenza={sub.durc_scadenza} />
+            <DurcBadge scadenza={effectiveDurc} hasDoc={hasDurcDoc} />
             {!hasAppCantiere && (
               <Button
                 variant="outline"
@@ -791,7 +888,8 @@ export default function SubappaltatoreDetail() {
               </div>
               {[
                 { label: 'Ragione sociale', value: sub.ragione_sociale },
-                { label: 'P.IVA / C.F.', value: sub.piva },
+                { label: 'P.IVA', value: sub.piva },
+                { label: 'Codice Fiscale', value: sub.codice_fiscale },
                 { label: 'Indirizzo', value: sub.indirizzo },
                 { label: 'Responsabile', value: sub.responsabile },
                 { label: 'Telefono', value: sub.telefono },
@@ -805,9 +903,29 @@ export default function SubappaltatoreDetail() {
                   <span className="text-sm font-medium">{value}</span>
                 </div>
               ) : null)}
-              <div className="flex gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="text-sm text-muted-foreground w-32 shrink-0">Scadenza DURC</span>
-                <DurcBadge scadenza={sub.durc_scadenza} />
+                <DurcBadge scadenza={effectiveDurc} hasDoc={hasDurcDoc} />
+                {!effectiveDurc && (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="date"
+                      value={durcDateInput}
+                      onChange={(e) => setDurcDateInput(e.target.value)}
+                      className="h-8 w-auto text-xs"
+                      aria-label="Data scadenza DURC"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      disabled={!durcDateInput || setDurcMutation.isPending}
+                      onClick={() => setDurcMutation.mutate(durcDateInput)}
+                    >
+                      {setDurcMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Salva scadenza'}
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -832,6 +950,10 @@ export default function SubappaltatoreDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">
+                Carica qui <strong>DURC</strong>, visura camerale, POS, polizze e altri documenti di idoneità.
+                Per il DURC indica la <strong>data di scadenza</strong>: aggiorna in automatico il badge in alto.
+              </p>
               {documenti.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nessun documento caricato.</p>
               ) : (
@@ -887,6 +1009,55 @@ export default function SubappaltatoreDetail() {
               )}
             </CardContent>
           </Card>
+
+          {/* Documenti fascicolo (sola lettura) — da subappaltatori_documenti,
+              legati all'anagrafica. Visure/DURC/accordi caricati in massa o dal
+              modulo Sicurezza, resi accessibili anche da qui. */}
+          {sub.campo_subappaltatore_id && documentiCompliance.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileText className="h-4 w-4" /> Documenti caricati
+                  <Badge variant="secondary" className="ml-1">{documentiCompliance.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Documenti importati dall'anagrafica o dall'import massivo (modulo Sicurezza), in sola lettura.
+                </p>
+                <div className="space-y-2">
+                  {documentiCompliance.map((doc) => {
+                    const daysLeft = doc.scadenza
+                      ? differenceInDays(parseISO(doc.scadenza), new Date())
+                      : null;
+                    return (
+                      <div key={doc.id} className="flex items-center justify-between border rounded-lg p-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">
+                            {COMPLIANCE_TIPO_LABELS[doc.tipo] ?? doc.tipo}
+                          </p>
+                          {doc.scadenza && (
+                            <p className={`text-xs mt-0.5 ${daysLeft === null ? 'text-muted-foreground' : daysLeft < 0 ? 'text-red-600' : daysLeft <= 30 ? 'text-amber-600' : 'text-muted-foreground'}`}>
+                              Scade: {format(parseISO(doc.scadenza), 'dd/MM/yyyy')}
+                              {daysLeft !== null && (daysLeft < 0 ? ' (scaduto)' : daysLeft <= 30 ? ` (${daysLeft}gg)` : '')}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void openComplianceDoc(doc.storage_path)}
+                          aria-label="Apri documento"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* ─── Tab 2: Lavori svolti ──────────────────────────────────────────── */}
@@ -1324,6 +1495,10 @@ export default function SubappaltatoreDetail() {
                 <Input type="email" value={anagraficaForm.pec} onChange={(e) => setAnagraficaForm(f => ({ ...f, pec: e.target.value }))} />
               </div>
               <div className="space-y-1.5">
+                <Label>Codice Fiscale</Label>
+                <Input value={anagraficaForm.codice_fiscale} onChange={(e) => setAnagraficaForm(f => ({ ...f, codice_fiscale: e.target.value }))} placeholder="Es. RSSMRA80A01H501U" />
+              </div>
+              <div className="space-y-1.5">
                 <Label>Scadenza DURC</Label>
                 <Input type="date" value={anagraficaForm.durc_scadenza} onChange={(e) => setAnagraficaForm(f => ({ ...f, durc_scadenza: e.target.value }))} />
               </div>
@@ -1368,7 +1543,20 @@ export default function SubappaltatoreDetail() {
             </div>
             <div className="space-y-1.5">
               <Label>File *</Label>
-              <Input type="file" onChange={(e) => setDocFile(e.target.files?.[0] ?? null)} />
+              <Input type="file" onChange={async (e) => {
+                const f = e.target.files?.[0] ?? null;
+                setDocFile(f);
+                // DURC PDF: prova a leggere la "Scadenza validità" dal contenuto e
+                // precompila la data (il parser matcha solo testo DURC → nessun
+                // falso positivo su altri PDF).
+                if (f && /pdf/i.test(f.type)) {
+                  const iso = await extractDurcExpiryFromPdf(f);
+                  if (iso) {
+                    setDocForm((prev) => ({ ...prev, data_scadenza: prev.data_scadenza || iso }));
+                    toast.success(`Scadenza DURC rilevata dal PDF: ${iso.split('-').reverse().join('/')}`);
+                  }
+                }
+              }} />
               {docFile && <p className="text-xs text-muted-foreground">{docFile.name}</p>}
             </div>
             <div className="grid grid-cols-2 gap-3">

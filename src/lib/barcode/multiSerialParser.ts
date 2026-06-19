@@ -214,3 +214,27 @@ export function tryParseMultiSerial(raw: string): MultiSerialResult | null {
     trySplitParser(raw)
   );
 }
+
+/**
+ * Deriva il codice LOTTO/bancale dal prefisso comune dei seriali.
+ * Su un bancale fotovoltaico (es. 36 pannelli SunPower/Hyundai) i seriali
+ * condividono un prefisso e differiscono solo nelle ultime cifre: il prefisso
+ * comune più lungo è il codice lotto naturale. Ritorna null se i seriali non
+ * condividono un prefisso significativo (≥ minLen dopo pulizia separatori finali).
+ */
+export function deriveLottoFromSerials(serials: string[], minLen = 4): string | null {
+  const clean = (serials ?? [])
+    .map((s) => (typeof s === "string" ? s.trim() : ""))
+    .filter((s) => s.length >= minLen);
+  if (clean.length < 2) return null;
+  let prefix = clean[0];
+  for (const s of clean.slice(1)) {
+    let i = 0;
+    while (i < prefix.length && i < s.length && prefix[i] === s[i]) i++;
+    prefix = prefix.slice(0, i);
+    if (prefix.length < minLen) return null;
+  }
+  // Ripulisci separatori/cifre-parziali finali per un codice lotto pulito.
+  const trimmed = prefix.replace(/[-_\s./]+$/, "");
+  return trimmed.length >= minLen ? trimmed : null;
+}

@@ -101,6 +101,8 @@ export interface OrderItem {
   // article_template_id = link al listino; categoria = snapshot per analisi;
   // standard_cost = baseline da listino (€ pianificato) vs purchase_price (€ reale).
   article_template_id?: string | null;
+  /** Codice articolo (SKU) snapshot dal listino → order_items.product_code (ricerca magazzino/commesse). */
+  product_code?: string | null;
   categoria?: string | null;
   // ── Ciclo misure (prodotti su misura) — spina dorsale articolo ──
   // Copiati dal preventivo (famiglia + assi + misura iniziale), poi arricchiti
@@ -206,6 +208,8 @@ export function OrderItemsList({
   // Aggancio listino: baseline costo standard (€ da listino) + link + categoria
   const [itemStandardCost, setItemStandardCost] = useState<number | undefined>();
   const [itemArticleTemplateId, setItemArticleTemplateId] = useState<string | undefined>();
+  // Codice articolo (SKU) snapshot dal listino → order_items.product_code.
+  const [itemProductCode, setItemProductCode] = useState<string | undefined>();
   const [itemCategoria, setItemCategoria] = useState<string | undefined>();
   // Anteprima prodotto (transitoria, non persistita): foto + scheda + manodopera dal listino.
   const [itemImageUrl, setItemImageUrl] = useState<string | undefined>();
@@ -460,6 +464,7 @@ export function OrderItemsList({
     setItemVatRate(22);
     setItemStandardCost(undefined);
     setItemArticleTemplateId(undefined);
+    setItemProductCode(undefined);
     setItemCategoria(undefined);
     setItemImageUrl(undefined);
     setItemPdfSchedaUrl(undefined);
@@ -504,6 +509,7 @@ export function OrderItemsList({
     setItemVatRate(item.vat_rate ?? 22);
     setItemStandardCost(item.standard_cost != null && item.standard_cost > 0 ? item.standard_cost : undefined);
     setItemArticleTemplateId(item.article_template_id ?? undefined);
+    setItemProductCode(item.product_code ?? undefined);
     setItemCategoria(item.categoria ?? undefined);
     setItemStatus(item.status);
     setItemIsPaid(item.is_paid || false);
@@ -589,6 +595,7 @@ export function OrderItemsList({
       // da poterlo confrontare con purchase_price (€ realmente pagato).
       standard_cost: itemStandardCost ?? 0,
       article_template_id: itemArticleTemplateId ?? null,
+      product_code: itemProductCode ?? null,
       categoria: itemCategoria ?? null,
       // Legacy fields zeroed out
       unit_price: 0,
@@ -728,6 +735,8 @@ export function OrderItemsList({
       // niente article_template_id (FK valida solo per il catalogo), ma la
       // categoria e la baseline costo sì (alimentano l'analisi Prodotti/Categorie).
       setItemArticleTemplateId(templateData.source === "listino" ? undefined : templateData.id);
+      // Codice (sku) → product_code: ricercabile in magazzino/commesse anche dopo il salvataggio.
+      setItemProductCode(templateData.sku ?? undefined);
       setItemCategoria(templateData.category ?? undefined);
       setItemImageUrl(templateData.immagine_url ?? undefined);
       setItemPdfSchedaUrl(templateData.pdf_scheda_url ?? undefined);
@@ -744,6 +753,7 @@ export function OrderItemsList({
     } else {
       // Nome digitato a mano (non dal listino) → nessuna baseline/link/anteprima.
       setItemArticleTemplateId(undefined);
+      setItemProductCode(undefined);
       setItemCategoria(undefined);
       setItemStandardCost(undefined);
       setItemImageUrl(undefined);

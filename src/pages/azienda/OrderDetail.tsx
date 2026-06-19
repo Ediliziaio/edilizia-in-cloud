@@ -678,6 +678,7 @@ function OrderDetailInner() {
         // Aggancio listino: link + categoria + baseline standard (€ listino) per
         // il confronto con il costo reale nel controllo di gestione.
         article_template_id: item.article_template_id || null,
+        product_code: item.product_code || null,
         categoria: item.categoria || null,
         standard_cost: item.standard_cost ?? 0,
       }).eq("id", item.id);
@@ -723,6 +724,7 @@ function OrderDetailInner() {
         stock_item_id: item.stock_item_id || null,
         // Aggancio listino (vedi updateSingleItemMutation).
         article_template_id: item.article_template_id || null,
+        product_code: item.product_code || null,
         categoria: item.categoria || null,
         standard_cost: item.standard_cost ?? 0,
       });
@@ -879,11 +881,19 @@ function OrderDetailInner() {
       diaryMessages: diaryMessages.data ?? [],
       statuses,
       companyName: effectiveCompany?.name,
+      // Il PDF rispetta la visibilità finanziaria di chi lo genera: costi e
+      // margini/provvigioni vengono omessi a chi non è autorizzato.
+      showCosts: permissions.canViewCosts,
+      showMargins: permissions.canViewMargins,
     };
-  }, [order, id, orderItems, displayInstallments, statuses, effectiveCompany]);
+  }, [order, id, orderItems, displayInstallments, statuses, effectiveCompany, permissions]);
 
   const handleDownloadPDF = useCallback(async () => {
     if (!order || pdfPreparing) return;
+    if (!permissions.canViewOrderAmounts) {
+      toast.error("Non hai i permessi per esportare il PDF economico della commessa.");
+      return;
+    }
     setPdfPreparing(true);
     try {
       const opts = await gatherPdfOpts();
@@ -894,10 +904,14 @@ function OrderDetailInner() {
     } finally {
       setPdfPreparing(false);
     }
-  }, [order, pdfPreparing, gatherPdfOpts, downloadPDF]);
+  }, [order, pdfPreparing, gatherPdfOpts, downloadPDF, permissions.canViewOrderAmounts]);
 
   // Genera il PDF come blob (per allegarlo all'email del cliente).
   const getPdfBlobForOrder = useCallback(async () => {
+    if (!permissions.canViewOrderAmounts) {
+      toast.error("Non hai i permessi per esportare il PDF economico della commessa.");
+      return null;
+    }
     try {
       const opts = await gatherPdfOpts();
       if (!opts) return null;
@@ -907,7 +921,7 @@ function OrderDetailInner() {
       toast.error("Impossibile generare il PDF. Riprova.");
       return null;
     }
-  }, [gatherPdfOpts, getPDFBlob]);
+  }, [gatherPdfOpts, getPDFBlob, permissions.canViewOrderAmounts]);
 
   if (orderLoading) {
     return (
@@ -1061,6 +1075,8 @@ function OrderDetailInner() {
         {/* ── Card commessa: ognuna isolata in ErrorBoundary (fallback vuoto) così
                un errore in una NON può buttare giù il dettaglio commessa. ── */}
         {/* Conto economico: riepilogo a colpo d'occhio, sempre in cima */}
+        {/* Conto economico = costi + margine → solo a chi può vederli. */}
+        {(permissions.canViewCosts || permissions.canViewMargins) && (
         <ErrorBoundary fallback={<></>}>
           <OrderEconomicsSummary
             orderId={id!}
@@ -1071,6 +1087,7 @@ function OrderDetailInner() {
             itemsLoading={orderItemsPending}
           />
         </ErrorBoundary>
+        )}
 
         {/* Sopralluoghi collegati (rilievo misure) */}
         <ErrorBoundary fallback={<></>}>
@@ -1175,6 +1192,8 @@ function OrderDetailInner() {
 
             {/* Tab 3: Finanza */}
             <TabsContent value="finanza" className="space-y-4 mt-4">
+              {/* Importi/acconti = lato vendita → solo a chi può vedere gli importi. */}
+              {permissions.canViewOrderAmounts && (
               <OrdineEconomico
                 orderId={id!}
                 totalAmount={order.total_amount}
@@ -1187,6 +1206,7 @@ function OrderDetailInner() {
                 onInstallmentPaidToggle={handleInstallmentPaidToggle}
                 onInstallmentDateChange={handleInstallmentDateChange}
               />
+              )}
               {/* Fatturazione e documenti */}
               <QuoteCard
                 title={
@@ -1465,6 +1485,7 @@ function OrderDetailInner() {
                 L'id è il target del bottone "+ SAL" in testata (desktop): il
                 Riepilogo Finanziario col piano rate è il primo blocco. */}
             <div id="section-pagamenti" className="scroll-mt-24">
+              {permissions.canViewOrderAmounts && (
               <OrdineEconomico
                 orderId={id!}
                 totalAmount={order.total_amount}
@@ -1477,6 +1498,7 @@ function OrderDetailInner() {
                 onInstallmentPaidToggle={handleInstallmentPaidToggle}
                 onInstallmentDateChange={handleInstallmentDateChange}
               />
+              )}
             </div>
 
             {/* Articoli */}

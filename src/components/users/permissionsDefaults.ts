@@ -5,6 +5,7 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_cruscotto: false, can_view_controllo_gestione: false,
   // Cantieri & Lavori
   can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
+  can_view_order_amounts: true,
   can_approve_orders: false, can_delete_orders: false,
   can_view_warehouse: false, can_edit_warehouse: false, can_manage_warehouse_items: false,
   can_view_calendar: false, can_view_all_team_calendar: false,
@@ -22,6 +23,8 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   // Persone
   can_view_persone: false, can_view_employees: false, can_view_users: false,
   can_view_giornale_lavori: false, can_view_messaggi_esterni: false,
+  can_edit_giornale_lavori: false,
+  can_view_sopralluoghi: false, can_view_preventivi: false, can_edit_preventivi: false,
   can_view_formazione: false, can_manage_portal: false,
   // Marketing & Vendita
   can_view_marketing: false, can_edit_marketing: false,
@@ -44,6 +47,9 @@ export const DEFAULT_PERMISSIONS: StaffPermissions = {
   can_view_settings_customization: false, can_edit_settings_customization: false,
   can_view_settings_people: false, can_edit_settings_people: false,
   can_view_settings_security: false,
+  can_view_settings_pricing: false, can_edit_settings_pricing: false,
+  can_view_settings_suppliers: false, can_edit_settings_suppliers: false,
+  can_view_settings_integrations: false, can_edit_settings_integrations: false,
   // Speciali
   only_assigned: false,
   visible_areas: [],
@@ -66,6 +72,7 @@ export const CRUSCOTTO_SECTIONS: PermissionSectionDef[] = [
 export const CANTIERI_SECTIONS: PermissionSectionDef[] = [
   { label: "Dashboard",              viewKey: "can_view_dashboard",          editKey: null },
   { label: "Ordini e Commesse",      viewKey: "can_view_orders",             editKey: "can_edit_orders" },
+  { label: "Importi di vendita",     viewKey: "can_view_order_amounts",      editKey: null },
   { label: "Approva Ordini",         viewKey: "can_approve_orders",          editKey: null },
   { label: "Elimina Ordini",         viewKey: "can_delete_orders",           editKey: null },
   { label: "Magazzino",              viewKey: "can_view_warehouse",          editKey: "can_edit_warehouse" },
@@ -99,7 +106,7 @@ export const PERSONE_SECTIONS: PermissionSectionDef[] = [
   { label: "Personale, Chat e Messaggistica", viewKey: "can_view_persone",          editKey: null },
   { label: "Gestione Dipendenti",             viewKey: "can_view_employees",         editKey: null },
   { label: "Utenti & Team",                   viewKey: "can_view_users",             editKey: null },
-  { label: "Giornale Lavori",                 viewKey: "can_view_giornale_lavori",   editKey: null },
+  { label: "Giornale Lavori",                 viewKey: "can_view_giornale_lavori",   editKey: "can_edit_giornale_lavori" },
   { label: "Formazione (fruizione corsi)",    viewKey: "can_view_formazione",        editKey: null },
   { label: "Portale corsi (gestione)",        viewKey: "can_manage_portal",          editKey: null },
 ];
@@ -108,6 +115,8 @@ export const MARKETING_SECTIONS: PermissionSectionDef[] = [
   { label: "Dashboard Marketing",     viewKey: "can_view_marketing_dashboard",      editKey: null },
   { label: "Contatti CRM",            viewKey: "can_view_marketing_contacts",       editKey: "can_edit_marketing_contacts" },
   { label: "Opportunità",             viewKey: "can_view_marketing_opportunities",  editKey: "can_edit_marketing_opportunities" },
+  { label: "Preventivi",              viewKey: "can_view_preventivi",               editKey: "can_edit_preventivi" },
+  { label: "Sopralluoghi",            viewKey: "can_view_sopralluoghi",             editKey: null },
   { label: "Attività",                viewKey: "can_view_marketing_activities",     editKey: null },
   { label: "Appuntamenti",            viewKey: "can_view_marketing_appointments",   editKey: null },
   { label: "Email Marketing",         viewKey: "can_view_marketing_email",          editKey: null },
@@ -125,11 +134,14 @@ export const AUTOMAZIONI_SECTIONS: PermissionSectionDef[] = [
 ];
 
 export const IMPOSTAZIONI_SECTIONS: PermissionSectionDef[] = [
-  { label: "Profilo Aziendale",    viewKey: "can_view_settings_profile",       editKey: "can_edit_settings_profile" },
-  { label: "Gestione Ordini",      viewKey: "can_view_settings_orders",         editKey: "can_edit_settings_orders" },
-  { label: "Personalizzazione",    viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization" },
-  { label: "Team & Persone",       viewKey: "can_view_settings_people",         editKey: "can_edit_settings_people" },
-  { label: "Sicurezza & Privacy",  viewKey: "can_view_settings_security",       editKey: null },
+  { label: "Profilo Aziendale",      viewKey: "can_view_settings_profile",        editKey: "can_edit_settings_profile" },
+  { label: "Listino & Prezzi",       viewKey: "can_view_settings_pricing",        editKey: "can_edit_settings_pricing" },
+  { label: "Branding & Template",    viewKey: "can_view_settings_customization",  editKey: "can_edit_settings_customization" },
+  { label: "Configurazione Ordini",  viewKey: "can_view_settings_orders",         editKey: "can_edit_settings_orders" },
+  { label: "Fornitori",              viewKey: "can_view_settings_suppliers",      editKey: "can_edit_settings_suppliers" },
+  { label: "Team & Utenti",          viewKey: "can_view_settings_people",         editKey: "can_edit_settings_people" },
+  { label: "Integrazioni & Canali",  viewKey: "can_view_settings_integrations",   editKey: "can_edit_settings_integrations" },
+  { label: "Sicurezza & Privacy",    viewKey: "can_view_settings_security",       editKey: null },
 ];
 
 export const ALL_PERMISSION_SECTIONS: PermissionSectionDef[] = [
@@ -170,7 +182,7 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_interventi: true,
     can_view_manutenzione: true,
     can_view_employees: true, can_view_persone: true, can_view_users: true,
-    can_view_giornale_lavori: true,
+    can_view_giornale_lavori: true, can_edit_giornale_lavori: true,
     can_view_formazione: true,
     can_view_firma_elettronica: true,
     can_view_billing: true, can_view_prima_nota: true,
@@ -184,11 +196,14 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_calendar: true,
     can_view_customers: true, can_edit_customers: true,
     can_view_users: true,
-    can_view_margins: true,
+    // Livello finanziario "Commerciale": vede importi (default) ma NON margini.
+    // (prima qui c'era can_view_margins: true → incoerente col modello 3-livelli)
     can_view_formazione: true,
     can_view_marketing_dashboard: true,
     can_view_marketing_contacts: true, can_edit_marketing_contacts: true,
     can_view_marketing_opportunities: true, can_edit_marketing_opportunities: true,
+    can_view_preventivi: true, can_edit_preventivi: true,
+    can_view_sopralluoghi: true,
     can_view_marketing_activities: true,
     can_view_marketing_appointments: true,
     can_view_marketing_reports: true,
@@ -206,6 +221,8 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_users: true,
     can_view_marketing_contacts: true, can_edit_marketing_contacts: true,
     can_view_marketing_opportunities: true,
+    can_view_preventivi: true,
+    can_view_sopralluoghi: true,
     can_view_marketing_activities: true,
     can_view_marketing_appointments: true,
     can_view_marketing: true,
@@ -215,8 +232,10 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
 
   employee: {
     can_view_calendar: true,
-    can_view_giornale_lavori: true,
+    can_view_giornale_lavori: true, can_edit_giornale_lavori: true,
     can_view_formazione: true,
+    // Livello finanziario "Operativo": niente importi/costi/margini.
+    can_view_order_amounts: false,
     only_assigned: true,
     visible_areas: ["cantiere"],
   },
@@ -228,6 +247,9 @@ export const ROLE_PRESETS: Record<StaffRoleType, Partial<StaffPermissions>> = {
     can_view_subappaltatori: true,
     can_view_formazione: true,
     can_view_firma_elettronica: true,
+    // Operativo: il subappaltatore vede le sue commesse ma NON gli importi di
+    // vendita al cliente (né costi/margini).
+    can_view_order_amounts: false,
     only_assigned: true,
     visible_areas: ["cantiere"],
   },
@@ -238,10 +260,13 @@ export function syncLegacySettingsFlags(perms: StaffPermissions): StaffPermissio
   const hasAnyView =
     perms.can_view_settings_profile || perms.can_view_settings_orders ||
     perms.can_view_settings_customization || perms.can_view_settings_people ||
-    perms.can_view_settings_security;
+    perms.can_view_settings_security || perms.can_view_settings_pricing ||
+    perms.can_view_settings_suppliers || perms.can_view_settings_integrations;
   const hasAnyEdit =
     perms.can_edit_settings_profile || perms.can_edit_settings_orders ||
-    perms.can_edit_settings_customization || perms.can_edit_settings_people;
+    perms.can_edit_settings_customization || perms.can_edit_settings_people ||
+    perms.can_edit_settings_pricing || perms.can_edit_settings_suppliers ||
+    perms.can_edit_settings_integrations;
   return {
     ...perms,
     can_view_settings: hasAnyView,

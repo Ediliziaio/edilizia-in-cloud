@@ -27,6 +27,7 @@ import {
   FolderTree,
   Upload,
   ImageIcon,
+  ZoomIn,
   X,
   Wrench,
   Banknote,
@@ -84,6 +85,7 @@ import { PhotoTemplatePicker } from "./PhotoTemplatePicker";
 import { firstGallerySlugFor } from "@/lib/verticalMapping";
 import { FamilyPricePreview } from "./FamilyPricePreview";
 import { MacroCategorieManager } from "./MacroCategorieManager";
+import { ArticlePdfDocumentsSection } from "./ArticlePdfDocumentsSection";
 import { DynamicFieldsRenderer, type DynamicFieldValues } from "./DynamicFieldsRenderer";
 import type {
   ModalitaPrezzoBase,
@@ -232,6 +234,11 @@ export function FamilyEditor() {
 
   // ── Form state Step 1 ────────────────────────────────────────────────────
   const [nome, setNome] = useState("");
+  // Codice articolo / SKU opzionale (migration 20271010000000). Ricercabile in
+  // listino, picker commesse e magazzino. Trim → null in salvataggio.
+  const [codice, setCodice] = useState("");
+  // Fornitore associato (article_families.supplier_id). "none" = nessuno.
+  const [supplierId, setSupplierId] = useState<string | "none">("none");
   const [macrocategoriaId, setMacrocategoriaId] = useState<string | "none">("none");
   const [descrizione, setDescrizione] = useState("");
   /**
@@ -243,6 +250,8 @@ export function FamilyEditor() {
    */
   const [immagineUrl, setImmagineUrl] = useState<string | null>(null);
   const [photoTemplatePickerOpen, setPhotoTemplatePickerOpen] = useState(false);
+  // Lightbox: click sulla miniatura → immagine ingrandita.
+  const [imageZoomOpen, setImageZoomOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { upload: uploadImage, remove: removeImage, isUploading, isRemoving } =
     useArticleImageUpload();
@@ -297,11 +306,11 @@ export function FamilyEditor() {
   const initialSnapshotRef = useRef<string | null>(null);
   const currentSnapshot = useMemo(
     () => JSON.stringify({
-      nome, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
+      nome, codice, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
       macrocategoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
     }),
     [
-      nome, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
+      nome, codice, descrizione, immagineUrl, modalita, unitOfMeasure, vatRate, vatRateAcquisto,
       macrocategoriaId, prezzoVendita, prezzoAcquisto, customFieldValues,
     ],
   );
@@ -312,11 +321,26 @@ export function FamilyEditor() {
   // ── Query: macrocategorie + categorie + tariffe ────────────────────────
   const { macrocategorie } = useListinoMacrocategorie();
   const { categorie } = useListinoCategorie();
+  // Fornitori dell'azienda per associare il prodotto (article_families.supplier_id).
+  const { data: fornitori = [] } = useQuery({
+    queryKey: ["suppliers-select", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("suppliers").select("id, name")
+        .eq("company_id", companyId).eq("is_active", true).order("name");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string }>;
+    },
+  });
 
   // Bootstrap da family caricata
   useEffect(() => {
     if (family) {
       setNome(family.nome);
+      setCodice(family.codice ?? "");
+      setSupplierId((family as { supplier_id?: string | null }).supplier_id ?? "none");
       // Preferenza al FK diretto (post-refactor 20270513200000). Fallback al
       // vecchio path via categoria.macrocategoria_id per articoli pre-refactor.
       const macroFromCat = family.categoria_id
@@ -708,6 +732,10 @@ export function FamilyEditor() {
 
     const payload = {
       nome: nome.trim(),
+      // Codice articolo / SKU (opzionale, user-managed). Trim → null.
+      codice: codice.trim() || null,
+      // Fornitore associato (correlazione listino↔fornitori).
+      supplier_id: supplierId === "none" ? null : supplierId,
       // Refactor 20270513200000: scriviamo direttamente macrocategoria_id;
       // categoria_id resta esposto sui tipi ma settato a NULL su tutte le
       // nuove creazioni (la colonna DB verrà droppata in migration futura).
@@ -909,6 +937,39 @@ export function FamilyEditor() {
                   </div>
 
                   <div>
+                    <Label htmlFor="f-codice">Codice articolo (SKU)</Label>
+                    <Input
+                      id="f-codice"
+                      value={codice}
+                      onChange={(e) => setCodice(e.target.value)}
+                      placeholder="es. TIGO-TS4-700 (opzionale)"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Codice interno o fornitore. Ricercabile in listino, commesse e
+                      magazzino oltre al nome.
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="f-fornitore">Fornitore</Label>
+                    <Select value={supplierId} onValueChange={(v) => setSupplierId(v as string | "none")}>
+                      <SelectTrigger id="f-fornitore">
+                        <SelectValue placeholder="Nessun fornitore" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nessun fornitore</SelectItem>
+                        {fornitori.map((f) => (
+                          <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Da chi acquisti questo prodotto. Lo ritrovi nel fornitore tra i
+                      prodotti collegati e nel preventivo/commessa.
+                    </p>
+                  </div>
+
+                  <div>
                     <div className="flex items-center justify-between gap-2">
                       <Label htmlFor="f-macrocategoria">Macrocategoria</Label>
                       <Button
@@ -963,11 +1024,22 @@ export function FamilyEditor() {
                       {/* Preview */}
                       <div className="h-28 w-28 rounded-lg border-2 border-dashed border-muted-foreground/25 flex items-center justify-center overflow-hidden bg-muted/50 shrink-0">
                         {immagineUrl ? (
-                          <img loading="lazy"
-                            src={immagineUrl}
-                            alt={`Preview ${nome || "articolo"}`}
-                            className="h-full w-full object-cover"
-                          />
+                          <button
+                            type="button"
+                            onClick={() => setImageZoomOpen(true)}
+                            className="group relative h-full w-full cursor-zoom-in"
+                            title="Ingrandisci immagine"
+                            aria-label="Ingrandisci immagine articolo"
+                          >
+                            <img loading="lazy"
+                              src={immagineUrl}
+                              alt={`Preview ${nome || "articolo"}`}
+                              className="h-full w-full object-cover"
+                            />
+                            <span className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition group-hover:bg-black/40 group-hover:opacity-100">
+                              <ZoomIn className="h-6 w-6 text-white" aria-hidden="true" />
+                            </span>
+                          </button>
                         ) : (
                           <div className="flex flex-col items-center gap-1 text-muted-foreground">
                             <ImageIcon className="h-7 w-7" aria-hidden="true" />
@@ -1062,6 +1134,15 @@ export function FamilyEditor() {
                       className="hidden"
                     />
                   </div>
+
+                  {/* Schede tecniche / documenti PDF — la colonna pdf_scheda_url
+                      esisteva ma non era esposta; ora multi-documento via tabella
+                      dedicata (article_family_documents). */}
+                  <ArticlePdfDocumentsSection
+                    companyId={companyId}
+                    familyId={family?.id ?? null}
+                    ensureFamilyId={saveBase}
+                  />
 
                   <div>
                     <Label>Modalità prezzo base</Label>
@@ -1840,6 +1921,23 @@ export function FamilyEditor() {
           )}
         </div>
       </div>
+
+      {/* Lightbox: immagine articolo ingrandita (click sulla miniatura) */}
+      <Dialog open={imageZoomOpen} onOpenChange={setImageZoomOpen}>
+        <DialogContent className="max-w-3xl p-2 sm:p-4">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Immagine articolo</DialogTitle>
+            <DialogDescription>{nome || "Anteprima immagine articolo"}</DialogDescription>
+          </DialogHeader>
+          {immagineUrl && (
+            <img
+              src={immagineUrl}
+              alt={`Immagine ${nome || "articolo"}`}
+              className="w-full max-h-[80vh] rounded-md object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog gestione macrocategorie/categorie (aperto da sezione Step 1) */}
       <Dialog open={showCategorieManager} onOpenChange={setShowCategorieManager}>

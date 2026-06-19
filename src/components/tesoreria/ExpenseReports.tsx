@@ -16,6 +16,12 @@ import { formatTreasuryCurrency, isChronologicalDateRange, parsePositiveAmount, 
 
 const formatEur = (val: unknown) => formatTreasuryCurrency(val, "€0,00");
 
+// Data odierna in formato ISO (yyyy-MM-dd) ora locale, indipendente dal locale del browser.
+const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
   draft: { label: "Bozza", color: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200", icon: Clock },
   submitted: { label: "Inviata", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: Send },
@@ -41,7 +47,7 @@ export default function ExpenseReports({ companyId, refreshKey = 0 }: Props) {
   const [selectedReport, setSelectedReport] = useState<any>(null);
   const [reportItems, setReportItems] = useState<any[]>([]);
   const [showAddItem, setShowAddItem] = useState(false);
-  const [newItem, setNewItem] = useState({ description: "", amount: "", category: "Trasferte", expense_date: new Date().toLocaleDateString("en-CA") });
+  const [newItem, setNewItem] = useState({ description: "", amount: "", category: "Trasferte", expense_date: todayIso() });
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isAddingItem, setIsAddingItem] = useState(false);
@@ -145,7 +151,7 @@ export default function ExpenseReports({ companyId, refreshKey = 0 }: Props) {
       if (error) { toast.error(error.message); return; }
       toast.success("Voce aggiunta");
       setShowAddItem(false);
-      setNewItem({ description: "", amount: "", category: "Trasferte", expense_date: new Date().toLocaleDateString("en-CA") });
+      setNewItem({ description: "", amount: "", category: "Trasferte", expense_date: todayIso() });
       await openDetail(selectedReport);
       await loadReports();
     } finally {

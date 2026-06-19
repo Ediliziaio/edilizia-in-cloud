@@ -561,10 +561,10 @@ export default function CompanyRoutesContainer() {
         {/* 🆕 MP-EMAIL-AI: impostazioni AI casella (apprendimento + regole) */}
         <Route path="email/ai" element={withCompanyPermission("canViewMarketingEmail", <EmailAiSettingsPage />)} />
         {/* 🆕 Sprint S1-S3: Modulo Sopralluoghi (Beta) */}
-        <Route path="sopralluoghi" element={withCompanyPermission("canViewMarketingContacts", <SopralluoghiList />)} />
-        <Route path="sopralluoghi/nuovo" element={withCompanyPermission("canViewMarketingContacts", <NuovoSopralluogo />)} />
-        <Route path="sopralluoghi/:id" element={withCompanyPermission("canViewMarketingContacts", <SopralluogoEditor />)} />
-        <Route path="sopralluoghi/:id/firma" element={withCompanyPermission("canViewMarketingContacts", <FirmaCliente />)} />
+        <Route path="sopralluoghi" element={withCompanyPermission("canViewSopralluoghi", <SopralluoghiList />)} />
+        <Route path="sopralluoghi/nuovo" element={withCompanyPermission("canViewSopralluoghi", <NuovoSopralluogo />)} />
+        <Route path="sopralluoghi/:id" element={withCompanyPermission("canViewSopralluoghi", <SopralluogoEditor />)} />
+        <Route path="sopralluoghi/:id/firma" element={withCompanyPermission("canViewSopralluoghi", <FirmaCliente />)} />
         {/* v8.6.71 — RIMOSSO: impostazioni/sopralluoghi era qui (fuori dal
             SettingsLayout) → niente back arrow/header settings su mobile.
             Spostato dentro <Route path="impostazioni"> più sotto. */}
@@ -821,11 +821,11 @@ export default function CompanyRoutesContainer() {
             <ErrorBoundary title="Errore wizard Ristrutturazione"><RistrutturazioneWizard /></ErrorBoundary>,
           )
         } />
-        <Route path="marketing/preventivi" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />
+        <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />
         <Route path="marketing/preventivi/approvazioni" element={<Navigate to="/azienda/marketing/preventivi?tab=approvazioni" replace />} />
-        <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
-        <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><QuoteDetail /></FeatureRoute>)} />
-        <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditMarketingOpportunities", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
+        <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
+        <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="crm_modulo"><QuoteDetail /></FeatureRoute>)} />
+        <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
         <Route path="marketing/firma-elettronica" element={withCompanyPermission("canViewFirmaElettronica", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
         {/* Sprint B — Varianti Costo Manodopera: vista admin-only gated da can_view_margins */}
         <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <QuoteMargini />)} />
@@ -846,27 +846,27 @@ export default function CompanyRoutesContainer() {
           {/* ── Impostazioni azienda (solo admin/permessi) ── */}
           <Route path="profilo" element={withCompanyPermission("canViewSettingsProfile", <SettingsProfile />)} />
           <Route path="catalogo" element={<Navigate to="../listino" replace />} />
-          <Route path="listino" element={withCompanyPermission("canViewSettingsCustomization", <SettingsCatalog />)} />
-          <Route path="listino/import" element={withCompanyPermission("canEditSettingsCustomization", <SettingsCatalogImport />)} />
+          <Route path="listino" element={withCompanyPermission("canViewSettingsPricing", <SettingsCatalog />)} />
+          <Route path="listino/import" element={withCompanyPermission("canEditSettingsPricing", <SettingsCatalogImport />)} />
           <Route path="catalogo/import" element={<Navigate to="../listino/import" replace />} />
           <Route path="listino/famiglie" element={<Navigate to="../listino?tab=famiglie" replace />} />
-          <Route path="listino/famiglie/nuova" element={withCompanyPermission("canEditSettingsCustomization", <SettingsFamilyEditor />)} />
-          <Route path="listino/famiglie/:id" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFamilyEditor />)} />
-          <Route path="bundle-serramentista" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBundle />)} />
-          <Route path="bundle" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBundle />)} />
-          <Route path="tariffe" element={withCompanyPermission("canViewSettingsCustomization", <SettingsTariffe />)} />
+          <Route path="listino/famiglie/nuova" element={withCompanyPermission("canEditSettingsPricing", <SettingsFamilyEditor />)} />
+          <Route path="listino/famiglie/:id" element={withCompanyPermission("canViewSettingsPricing", <SettingsFamilyEditor />)} />
+          <Route path="bundle-serramentista" element={withCompanyPermission("canViewSettingsPricing", <SettingsBundle />)} />
+          <Route path="bundle" element={withCompanyPermission("canViewSettingsPricing", <SettingsBundle />)} />
+          <Route path="tariffe" element={withCompanyPermission("canViewSettingsPricing", <SettingsTariffe />)} />
           {/* Listino Manutenzione accorpato nella pagina Tariffe (tab Manutenzione) */}
           <Route path="listino-manutenzione" element={<Navigate to="../tariffe?tab=manutenzione" replace />} />
           {/* Finanziamenti — tabelle finanziarie + calcolatore (Phase A MVP) */}
-          <Route path="finanziamenti" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFinanziamenti />)} />
-          <Route path="finanziamenti/nuova" element={withCompanyPermission("canEditSettingsCustomization", <SettingsFinanziamentiNuova />)} />
-          <Route path="finanziamenti/calcolatore" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFinanziamentiCalcolatore />)} />
-          <Route path="finanziamenti/:id" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFinanziamentiDetail />)} />
+          <Route path="finanziamenti" element={withCompanyPermission("canViewSettingsPricing", <SettingsFinanziamenti />)} />
+          <Route path="finanziamenti/nuova" element={withCompanyPermission("canEditSettingsPricing", <SettingsFinanziamentiNuova />)} />
+          <Route path="finanziamenti/calcolatore" element={withCompanyPermission("canViewSettingsPricing", <SettingsFinanziamentiCalcolatore />)} />
+          <Route path="finanziamenti/:id" element={withCompanyPermission("canViewSettingsPricing", <SettingsFinanziamentiDetail />)} />
           {/* Listini Serramenti Avanzati (feature opt-in) */}
           <Route
             path="listini-serramenti/fornitori"
             element={
-              withCompanyPermission("canViewSettingsCustomization", <FeatureRoute featureKey="listini_serramenti_avanzati">
+              withCompanyPermission("canViewSettingsPricing", <FeatureRoute featureKey="listini_serramenti_avanzati">
                 <ErrorBoundary title="Errore listini serramenti">
                   <ListiniFornitoriPage />
                 </ErrorBoundary>
@@ -876,7 +876,7 @@ export default function CompanyRoutesContainer() {
           <Route
             path="listini-serramenti/matrice"
             element={
-              withCompanyPermission("canViewSettingsCustomization", <FeatureRoute featureKey="listini_serramenti_avanzati">
+              withCompanyPermission("canViewSettingsPricing", <FeatureRoute featureKey="listini_serramenti_avanzati">
                 <ErrorBoundary title="Errore matrice listini">
                   <MatriceListiniPage />
                 </ErrorBoundary>
@@ -884,9 +884,9 @@ export default function CompanyRoutesContainer() {
             }
           />
           <Route path="margini" element={withCompanyPermission("canViewCosts", <SettingsMargini />)} />
-          <Route path="scontistica" element={withCompanyPermission("canViewSettingsCustomization", <SettingsScontistica />)} />
+          <Route path="scontistica" element={withCompanyPermission("canViewSettingsPricing", <SettingsScontistica />)} />
           <Route path="stati-ordine" element={withCompanyPermission("canViewSettingsOrders", <SettingsOrderStatus />)} />
-          <Route path="fornitori" element={withCompanyPermission("canViewSettingsOrders", <SettingsSuppliers />)} />
+          <Route path="fornitori" element={withCompanyPermission("canViewSettingsSuppliers", <SettingsSuppliers />)} />
           <Route path="qr-codici" element={withCompanyPermission("canViewSettingsOrders", <SettingsQrCodici />)} />
           <Route path="categorie-costi" element={withCompanyPermission("canViewCosts", <SettingsCostCategories />)} />
           <Route path="automazioni-finanza" element={withCompanyPermission("canViewCosts", <SettingsFinanceAutomation />)} />
@@ -909,9 +909,9 @@ export default function CompanyRoutesContainer() {
           <Route path="sicurezza" element={<Navigate to="/azienda/impostazioni/mio-profilo?tab=sicurezza" replace />} />
           <Route path="security-dashboard" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=dashboard" replace />} />
           <Route path="attivita" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=attivita" replace />} />
-          <Route path="integrazioni" element={withCompanyPermission("canViewSettingsSecurity", <SettingsIntegrations />)} />
-          <Route path="whatsapp-bot" element={withCompanyPermission("canViewSettingsCustomization", <SettingsWhatsAppBot />)} />
-          <Route path="lead-forms" element={withCompanyPermission("canViewSettingsCustomization", <FacebookFormsPage />)} />
+          <Route path="integrazioni" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsIntegrations />)} />
+          <Route path="whatsapp-bot" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsWhatsAppBot />)} />
+          <Route path="lead-forms" element={withCompanyPermission("canViewSettingsIntegrations", <FacebookFormsPage />)} />
           {/* Apple Guideline 3.1.1 — SettingsCredits contiene RechargeDialog Stripe, blocco su iOS */}
           <Route
             path="crediti"
@@ -921,17 +921,17 @@ export default function CompanyRoutesContainer() {
                 : withCompanyPermission("canViewBilling", <SettingsCredits />)
             }
           />
-          <Route path="api" element={withCompanyPermission("canViewSettingsSecurity", <SettingsApiKeys />)} />
-          <Route path="webhook" element={withCompanyPermission("canViewSettingsSecurity", <SettingsWebhooks />)} />
+          <Route path="api" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsApiKeys />)} />
+          <Route path="webhook" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsWebhooks />)} />
           <Route path="dominio-email" element={withCompanyPermission("canViewMarketingEmail", <SettingsEmailDomain />)} />
           <Route path="preferenze-email" element={withCompanyPermission("canViewMarketingEmail", <SettingsEmailPreferences />)} />
           <Route path="privacy" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=privacy" replace />} />
           <Route path="branding" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBranding />)} />
-          <Route path="materiali-preventivi" element={withCompanyPermission("canViewSettingsCustomization", <SettingsQuoteMaterials />)} />
-          <Route path="template-preventivi" element={withCompanyPermission("canViewSettingsCustomization", <SettingsQuoteTemplates />)} />
+          <Route path="materiali-preventivi" element={withCompanyPermission("canViewSettingsPricing", <SettingsQuoteMaterials />)} />
+          <Route path="template-preventivi" element={withCompanyPermission("canViewSettingsPricing", <SettingsQuoteTemplates />)} />
           {/* AI Test Lab — gated all'interno della pagina (auto-redirect se non autorizzato) */}
           <Route path="ai-test-lab" element={<AITestLab />} />
-          <Route path="firma-elettronica" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFirmaElettronica />)} />
+          <Route path="firma-elettronica" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsFirmaElettronica />)} />
           {/* v8.6.71 — Sopralluoghi spostato qui dentro SettingsLayout */}
           <Route path="sopralluoghi" element={<SettingsSopralluoghi />} />
           {/* v8.6.57 — Unico endpoint con tab interni (provider esterni + nativa).
@@ -949,7 +949,7 @@ export default function CompanyRoutesContainer() {
             }
           />
           <Route path="form-builder" element={withCompanyPermission("canViewSettingsCustomization", <SettingsFormBuilder />)} />
-          <Route path="numeri-telefono" element={withCompanyPermission("canViewSettingsCustomization", <SettingsPhoneNumbers />)} />
+          <Route path="numeri-telefono" element={withCompanyPermission("canViewSettingsIntegrations", <SettingsPhoneNumbers />)} />
           {/* Alias GHL-style: "Telefonia / Sistema telefonico" → pagina numeri */}
           <Route path="telefonia" element={<Navigate to="/azienda/impostazioni/numeri-telefono" replace />} />
         </Route>

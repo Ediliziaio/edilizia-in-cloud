@@ -53,6 +53,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreateShipment } from "@/hooks/warehouse/useCreateShipment";
+import { useShipmentDDTPDF } from "@/hooks/useShipmentDDTPDF";
+import { useBillingMode } from "@/contexts/BillingModeContext";
 import { uploadWarehousePhotos } from "@/lib/warehousePhotoUpload";
 import { supabase } from "@/integrations/supabase/client";
 import type { BatchScanEntry } from "./BatchBarcodeScanner";
@@ -81,6 +83,11 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
   const shipment = useCreateShipment();
+  // L'editor DDT (/azienda/documenti/:id) è gated da BillingModeGuard "native":
+  // in fatturazione esterna redirige a vuoto → per quelle aziende scarichiamo
+  // il PDF invece di navigare (stesso pattern di WarehouseDDTTab).
+  const { generate: generateDDT } = useShipmentDDTPDF();
+  const { isNative } = useBillingMode();
 
   const [step, setStep] = useState<Step>("context");
   const [orderId, setOrderId] = useState<string | undefined>();
@@ -387,10 +394,15 @@ export function ScaricoCantiereSheet({ open, onOpenChange }: ScaricoCantiereShee
         ddtExtra: Object.keys(ddtExtra).length > 0 ? ddtExtra : undefined,
       });
       onOpenChange(false);
-      // Naviga all'editor DDT — qui l'utente completa causale, vettore,
-      // conducente, targa, ecc. nel layout strutturato dedicato.
       if (res.documento_id) {
-        navigate(`/azienda/documenti/${res.documento_id}`);
+        if (isNative) {
+          // Fatturazione nativa: apri l'editor DDT (causale, vettore, targa, ecc.).
+          navigate(`/azienda/documenti/${res.documento_id}`);
+        } else {
+          // Fatturazione esterna: la rotta editor è riservata alla modalità nativa
+          // → niente redirect a vuoto. Scarica il PDF del DDT; si resta in magazzino.
+          void generateDDT(res.documento_id);
+        }
       }
     } catch {
       /* errore già toastato dal hook */

@@ -113,41 +113,95 @@ export function ArticleCombobox({
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sb = supabase as any;
-      const [famRes, catRes] = await Promise.all([
+      const [famRes, catRes, axesRes] = await Promise.all([
         sb.from("article_families")
-          .select("id, nome, descrizione, immagine_url, prezzo_base_acquisto, prezzo_base_vendita, categoria_id, manodopera_costo_acquisto")
+          .select("id, nome, codice, descrizione, immagine_url, prezzo_base_acquisto, prezzo_base_vendita, categoria_id, manodopera_costo_acquisto")
           .eq("company_id", companyId!)
           .eq("attivo", true)
+          .eq("mostra_preventivo", true)
           .is("deleted_at", null)
           .order("nome")
           .limit(2000),
         sb.from("listino_categorie").select("id, nome").eq("company_id", companyId!),
+        // Varianti: assi + valori. Espandiamo SOLO le famiglie con un singolo
+        // asse (es. "Potenza"/"Modello") nelle loro varianti, ognuna col suo
+        // codice + prezzo. Famiglie multi-asse → restano una voce (configuratore).
+        sb.from("article_family_axes")
+          .select("id, family_id, values:article_family_axis_values(id, label, codice, prezzo_vendita, immagine_url, maggiorazione_tipo, maggiorazione_valore, attivo, sort_order)")
+          .eq("company_id", companyId!),
       ]);
       if (famRes.error) throw famRes.error;
       const catName = new Map<string, string>();
       (catRes.data ?? []).forEach((c: { id: string; nome: string | null }) => {
         if (c.nome) catName.set(c.id, c.nome);
       });
+
+      type VariantRow = {
+        id: string; label: string; codice: string | null; prezzo_vendita: number | null; immagine_url: string | null;
+        maggiorazione_tipo: string | null; maggiorazione_valore: number | null; attivo: boolean; sort_order: number;
+      };
+      const axisCount = new Map<string, number>();
+      const variantsByFamily = new Map<string, VariantRow[]>();
+      (axesRes.data ?? []).forEach((ax: { id: string; family_id: string; values: VariantRow[] | null }) => {
+        axisCount.set(ax.family_id, (axisCount.get(ax.family_id) ?? 0) + 1);
+        const vals = (ax.values ?? []).filter((v) => v.attivo).sort((a, b) => a.sort_order - b.sort_order);
+        if (vals.length > 0) variantsByFamily.set(ax.family_id, vals);
+      });
+      const variantPrice = (base: number | null, v: VariantRow): number => {
+        if (v.prezzo_vendita != null && Number(v.prezzo_vendita) > 0) return Number(v.prezzo_vendita);
+        const b = Number(base ?? 0);
+        if (v.maggiorazione_tipo === "percentuale") return b * (1 + Number(v.maggiorazione_valore ?? 0) / 100);
+        if (typeof v.maggiorazione_tipo === "string" && v.maggiorazione_tipo.startsWith("fisso")) {
+          return b + Number(v.maggiorazione_valore ?? 0);
+        }
+        return b;
+      };
+
       return ((famRes.data ?? []) as Array<{
-        id: string; nome: string; descrizione: string | null; immagine_url: string | null;
+        id: string; nome: string; codice: string | null; descrizione: string | null; immagine_url: string | null;
         prezzo_base_acquisto: number | null; prezzo_base_vendita: number | null; categoria_id: string | null;
         manodopera_costo_acquisto: number | null;
-      }>).map((f): ArticleTemplateData => ({
-        id: f.id,
-        name: f.nome,
-        sku: null,
-        category: f.categoria_id ? (catName.get(f.categoria_id) ?? null) : null,
-        unit_price: Number(f.prezzo_base_vendita ?? 0),
-        standard_cost: Number(f.prezzo_base_acquisto ?? 0),
-        unit_of_measure: "pz",
-        vat_rate: 22,
-        supplier_id: null,
-        description: f.descrizione,
-        immagine_url: f.immagine_url,
-        pdf_scheda_url: null,
-        source: "listino",
-        manodopera_costo: Number(f.manodopera_costo_acquisto ?? 0) || null,
-      }));
+      }>).flatMap((f): ArticleTemplateData[] => {
+        const category = f.categoria_id ? (catName.get(f.categoria_id) ?? null) : null;
+        const variants = axisCount.get(f.id) === 1 ? variantsByFamily.get(f.id) : undefined;
+        // Famiglia a variante singola → una voce per variante (codice + prezzo propri).
+        if (variants && variants.length > 0) {
+          return variants.map((v): ArticleTemplateData => ({
+            id: v.id,
+            name: `${f.nome} — ${v.label}`,
+            sku: v.codice ?? f.codice,
+            category,
+            unit_price: variantPrice(f.prezzo_base_vendita, v),
+            standard_cost: Number(f.prezzo_base_acquisto ?? 0),
+            unit_of_measure: "pz",
+            vat_rate: 22,
+            supplier_id: null,
+            description: f.descrizione,
+            // Immagine propria della variante, fallback a quella della famiglia.
+            immagine_url: v.immagine_url ?? f.immagine_url,
+            pdf_scheda_url: null,
+            source: "listino",
+            manodopera_costo: Number(f.manodopera_costo_acquisto ?? 0) || null,
+          }));
+        }
+        // Nessuna variante → la famiglia come singola voce (comportamento attuale).
+        return [{
+          id: f.id,
+          name: f.nome,
+          sku: f.codice,
+          category,
+          unit_price: Number(f.prezzo_base_vendita ?? 0),
+          standard_cost: Number(f.prezzo_base_acquisto ?? 0),
+          unit_of_measure: "pz",
+          vat_rate: 22,
+          supplier_id: null,
+          description: f.descrizione,
+          immagine_url: f.immagine_url,
+          pdf_scheda_url: null,
+          source: "listino",
+          manodopera_costo: Number(f.manodopera_costo_acquisto ?? 0) || null,
+        }];
+      });
     },
   });
 

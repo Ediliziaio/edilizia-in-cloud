@@ -75,9 +75,17 @@ export interface ArticleFamily {
    */
   categoria_id: string | null;
   nome: string;
+  /**
+   * Codice articolo / SKU opzionale (migration 20271010000000). User-managed,
+   * nessun vincolo di unicità. Ricercabile in listino, picker commesse e
+   * magazzino oltre al nome. NULL = nessun codice assegnato.
+   */
+  codice: string | null;
   descrizione: string | null;
   immagine_url: string | null;
   pdf_scheda_url: string | null;
+  /** FK a suppliers.id — fornitore associato al prodotto (correlazione listino↔fornitori). */
+  supplier_id: string | null;
   modalita_prezzo_base: ModalitaPrezzoBase;
   /**
    * Strategia gestione prezzo: "vendita" diretto o "acquisto_markup" con
@@ -145,6 +153,12 @@ export interface ArticleFamily {
   griglia_asse_y_label: string;
   griglia_unita: string;
   attivo: boolean;
+  /**
+   * Visibilità nel selettore articoli del preventivatore. Indipendente da
+   * `attivo`: un prodotto può restare a listino/magazzino (attivo=true) ma non
+   * essere proposto nei preventivi (mostra_preventivo=false). Default true.
+   */
+  mostra_preventivo: boolean;
   sort_order: number;
   custom_field_values: Record<string, unknown>;
   /**
@@ -181,6 +195,24 @@ export interface AxisValue {
   maggiorazione_tipo: MaggiorazioneTipo;
   maggiorazione_valore: number;
   maggiorazione_acquisto: number;
+  /**
+   * Codice/SKU proprio della variante (migration 20271016000000). Se valorizzato
+   * collega alla giacenza via warehouse_stock.internal_code. NULL = nessun codice.
+   */
+  codice: string | null;
+  /**
+   * Prezzo di vendita ASSOLUTO della variante. Se valorizzato (> 0) prevale sulla
+   * maggiorazione sul prezzo base famiglia — usato quando ogni variante è un
+   * prodotto distinto col suo prezzo (es. moduli/inverter a potenze diverse).
+   */
+  prezzo_vendita: number | null;
+  /** Prezzo di acquisto assoluto della variante. */
+  prezzo_acquisto: number | null;
+  /**
+   * Immagine propria della variante (migration 20271017000000). Se valorizzata
+   * è usata nel preventivatore/scheda al posto di quella della famiglia.
+   */
+  immagine_url: string | null;
   sort_order: number;
   attivo: boolean;
   created_at: string;

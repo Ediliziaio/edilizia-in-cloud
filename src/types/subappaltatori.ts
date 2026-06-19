@@ -85,6 +85,7 @@ export interface SubappaltatoreBase {
   piva: string | null;
   email: string | null;
   pec: string | null;
+  codice_fiscale: string | null;
   indirizzo: string | null;
   note: string | null;
   campo_subappaltatore_id: string | null;

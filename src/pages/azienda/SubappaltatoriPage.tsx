@@ -12,6 +12,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+} from '@/components/ui/table';
+import {
+  Tooltip, TooltipTrigger, TooltipContent,
+} from '@/components/ui/tooltip';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -19,7 +27,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  HardHat, Plus, Search, Euro, AlertTriangle, Phone, ExternalLink, Loader2, Mail, MapPin, Link2, Link2Off, ShieldCheck,
+  HardHat, Plus, Search, FileText, FileX2, AlertTriangle, Phone, ExternalLink, Loader2, Mail, MapPin, Link2, Link2Off, ShieldCheck, Trash2, CheckCircle2, XCircle, X,
 } from 'lucide-react';
 import { differenceInDays, parseISO } from 'date-fns';
 import type { SubappaltatoreConDashboard, StatoContratto } from '@/types/subappaltatori';
@@ -46,6 +54,12 @@ function StatoBadge({ stato }: { stato: StatoContratto | null }) {
   return <Badge className={`text-xs ${cfg.className}`}>{cfg.label}</Badge>;
 }
 
+function AttivoBadge({ attivo }: { attivo: boolean | null }) {
+  return attivo
+    ? <Badge className="text-xs bg-green-600 text-white">Attivo</Badge>
+    : <Badge variant="secondary" className="text-xs">Non attivo</Badge>;
+}
+
 function isMissingCampoLinkColumn(error: unknown) {
   const message = String((error as { message?: string })?.message ?? error ?? '').toLowerCase();
   return message.includes('campo_subappaltatore_id') && (
@@ -62,9 +76,12 @@ export default function SubappaltatoriPage() {
   const { isScopriPlan } = useSubscriptionLimits();
 
   const [search, setSearch] = useState('');
-  const [filtroOrdine, setFiltroOrdine] = useState('__all__');
+  const [filtroDoc, setFiltroDoc] = useState('__all__');
   const [filtroStato, setFiltroStato] = useState('__all__');
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Selezione multipla (id = id scheda sicurezza, come le righe del view).
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confermaEliminaBulk, setConfermaEliminaBulk] = useState(false);
 
   // Form nuovo subappaltatore
   const [form, setForm] = useState({
@@ -75,6 +92,7 @@ export default function SubappaltatoriPage() {
     piva: '',
     email: '',
     pec: '',
+    codice_fiscale: '',
     indirizzo: '',
     durc_scadenza: '',
     ordine_id: '',
@@ -140,11 +158,33 @@ export default function SubappaltatoriPage() {
     staleTime: 3 * 60 * 1000,
   });
 
-  // ── Fetch ordini per filtro ───────────────────────────────────────────────
+  // ── Conteggio documenti (fascicolo) per subappaltatore ─────────────────────
+  // Mappa anagrafica_id → n. documenti attivi (subappaltatori_documenti). Serve
+  // a mostrare/filtrare chi ha i documenti collegati e chi no.
+  const { data: docCountMap = {} } = useQuery({
+    queryKey: ['sub-doc-counts', companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('subappaltatori_documenti')
+        .select('subappaltatore_id')
+        .eq('company_id', companyId)
+        .neq('status', 'superseded');
+      if (error) throw error;
+      const m: Record<string, number> = {};
+      for (const r of (data ?? []) as Array<{ subappaltatore_id: string | null }>) {
+        if (r.subappaltatore_id) m[r.subappaltatore_id] = (m[r.subappaltatore_id] ?? 0) + 1;
+      }
+      return m;
+    },
+  });
+  const docCountFor = (s: SubappaltatoreConDashboard) =>
+    s.campo_subappaltatore_id ? (docCountMap[s.campo_subappaltatore_id] ?? 0) : 0;
+
+  // Ordini per il selettore "Cantiere / Ordine" nel dialog di creazione.
   const { data: ordini = [] } = useQuery({
     queryKey: ['ordini-select', companyId],
     queryFn: async () => {
-      // 2026-05-27 (UX audit): .limit(50) → 500 — vedi nota in GiornaleLavori
       const { data, error } = await supabase
         .from('orders')
         .select('id, order_code, description')
@@ -159,15 +199,17 @@ export default function SubappaltatoriPage() {
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const attivi = subappaltatori.filter(s => s.stato_contratto === 'attivo').length;
-    const importoContratti = subappaltatori.reduce((a, s) => a + (s.importo_contrattuale ?? 0), 0);
-    const ritenuteTotali = subappaltatori.reduce((a, s) => a + (s.ritenute_in_corso ?? 0), 0);
+    const attivi = subappaltatori.filter(s => s.campo_is_active).length;
+    const conDocumenti = subappaltatori.filter(s =>
+      s.campo_subappaltatore_id ? (docCountMap[s.campo_subappaltatore_id] ?? 0) > 0 : false,
+    ).length;
+    const senzaDocumenti = subappaltatori.length - conDocumenti;
     const durcScaduti = subappaltatori.filter(s => {
       if (!s.durc_scadenza) return false;
       return differenceInDays(parseISO(s.durc_scadenza), new Date()) <= 30;
     }).length;
-    return { attivi, importoContratti, ritenuteTotali, durcScaduti };
-  }, [subappaltatori]);
+    return { attivi, conDocumenti, senzaDocumenti, durcScaduti };
+  }, [subappaltatori, docCountMap]);
 
   // ── Filtro locale ─────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -177,11 +219,15 @@ export default function SubappaltatoriPage() {
           !(s.tipo_lavori ?? '').toLowerCase().includes(term) &&
           !(s.piva ?? '').toLowerCase().includes(term) &&
           !(s.email ?? '').toLowerCase().includes(term)) return false;
-      if (filtroOrdine !== '__all__' && s.order_id !== filtroOrdine) return false;
-      if (filtroStato !== '__all__' && s.stato_contratto !== filtroStato) return false;
+      if (filtroDoc === '__con__' && docCountFor(s) === 0) return false;
+      if (filtroDoc === '__senza__' && docCountFor(s) > 0) return false;
+      if (filtroStato === '__active__' && !s.campo_is_active) return false;
+      if (filtroStato === '__inactive__' && s.campo_is_active) return false;
+      if (filtroStato !== '__all__' && filtroStato !== '__active__' && filtroStato !== '__inactive__'
+          && s.stato_contratto !== filtroStato) return false;
       return true;
     });
-  }, [subappaltatori, search, filtroOrdine, filtroStato]);
+  }, [subappaltatori, search, filtroDoc, filtroStato, docCountMap]);
 
   // ── Mutation nuovo subappaltatore ────────────────────────────────────────
   const createMutation = useMutation({
@@ -199,6 +245,7 @@ export default function SubappaltatoriPage() {
           piva: form.piva.trim() || null,
           email: form.email.trim() || null,
           pec: form.pec.trim() || null,
+          codice_fiscale: form.codice_fiscale.trim() || null,
           indirizzo: form.indirizzo.trim() || null,
           durc_scadenza: form.durc_scadenza || null,
           note: form.note.trim() || null,
@@ -228,6 +275,7 @@ export default function SubappaltatoriPage() {
         piva: '',
         email: '',
         pec: '',
+        codice_fiscale: '',
         indirizzo: '',
         durc_scadenza: '',
         ordine_id: '',
@@ -236,6 +284,108 @@ export default function SubappaltatoriPage() {
     },
     onError: (err: Error) => toast.error(err.message),
   });
+
+  // ── Mutation toggle Attivo/Inattivo (anagrafica app cantiere) ─────────────
+  const toggleAttivoMutation = useMutation({
+    mutationFn: async ({ subappaltatoreId, attivo }: { subappaltatoreId: string; attivo: boolean }) => {
+      const { error } = await (supabase as any)
+        .from('subappaltatori')
+        .update({ is_active: attivo })
+        .eq('id', subappaltatoreId);
+      if (error) throw new Error(error.message || error.details || error.hint || 'Errore');
+    },
+    onSuccess: (_data, vars) => {
+      toast.success(vars.attivo ? 'Subappaltatore attivato' : 'Subappaltatore disattivato');
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // ── Selezione multipla + azioni in blocco ────────────────────────────────
+  const visibleIds = filtered.map(s => s.id);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selected.has(id));
+  const toggleOne = (id: string) => setSelected(prev => {
+    const n = new Set(prev);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
+  const toggleAllVisible = () => setSelected(prev => {
+    const n = new Set(prev);
+    if (allVisibleSelected) visibleIds.forEach(id => n.delete(id));
+    else visibleIds.forEach(id => n.add(id));
+    return n;
+  });
+  const clearSelezione = () => setSelected(new Set());
+  // id scheda selezionati → id anagrafica (campo) per le azioni su `subappaltatori`.
+  const campoIdsForSelected = () => subappaltatori
+    .filter(s => selected.has(s.id) && s.campo_subappaltatore_id)
+    .map(s => s.campo_subappaltatore_id as string);
+
+  const bulkAttivoMutation = useMutation({
+    mutationFn: async (attivo: boolean) => {
+      const campoIds = campoIdsForSelected();
+      if (campoIds.length === 0) return 0;
+      const { error } = await (supabase as any)
+        .from('subappaltatori').update({ is_active: attivo }).in('id', campoIds);
+      if (error) throw new Error(error.message || 'Errore');
+      return campoIds.length;
+    },
+    onSuccess: (n, attivo) => {
+      toast.success(`${n} ${n === 1 ? 'subappaltatore' : 'subappaltatori'} ${attivo ? 'attivati' : 'disattivati'}`);
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
+      clearSelezione();
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const bulkDeleteMutation = useMutation({
+    // Elimina solo la SCHEDA (subappaltatori_sicurezza): rimuove la riga dalla
+    // lista senza toccare l'anagrafica né i documenti collegati (no cascade).
+    mutationFn: async () => {
+      const schedaIds = Array.from(selected);
+      if (schedaIds.length === 0) return 0;
+      const { error } = await (supabase as any)
+        .from('subappaltatori_sicurezza').delete().in('id', schedaIds);
+      if (error) throw new Error(error.message || 'Errore');
+      return schedaIds.length;
+    },
+    onSuccess: (n) => {
+      toast.success(`${n} ${n === 1 ? 'subappaltatore rimosso' : 'subappaltatori rimossi'} dalla lista`);
+      queryClient.invalidateQueries({ queryKey: ['subappaltatori-page', companyId] });
+      clearSelezione();
+      setConfermaEliminaBulk(false);
+    },
+    onError: (err: Error) => { toast.error(err.message); setConfermaEliminaBulk(false); },
+  });
+
+  // Toggle riutilizzabile (tabella desktop + card mobile).
+  function AttivoToggle({ sub }: { sub: SubappaltatoreConDashboard }) {
+    const linkId = sub.campo_subappaltatore_id;
+    const pending = toggleAttivoMutation.isPending
+      && toggleAttivoMutation.variables?.subappaltatoreId === linkId;
+    const sw = (
+      <Switch
+        checked={!!sub.campo_is_active}
+        disabled={!linkId || pending}
+        onCheckedChange={(v) => {
+          if (!linkId) return;
+          toggleAttivoMutation.mutate({ subappaltatoreId: linkId, attivo: v });
+        }}
+        aria-label={sub.campo_is_active ? 'Disattiva subappaltatore' : 'Attiva subappaltatore'}
+      />
+    );
+    if (linkId) return sw;
+    // Anagrafica non collegata: switch disabilitato + spiegazione.
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          {/* span wrapper: un elemento disabled non emette eventi hover */}
+          <span className="inline-flex cursor-not-allowed">{sw}</span>
+        </TooltipTrigger>
+        <TooltipContent>Collega prima l'anagrafica</TooltipContent>
+      </Tooltip>
+    );
+  }
 
   if (isScopriPlan) return <UpgradeScopriWall type="generic" inline />;
 
@@ -267,9 +417,9 @@ export default function SubappaltatoriPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <OperationalKpiCard icon={HardHat} label="Attivi" value={stats.attivi} hint="contratti operativi" tone="green" />
-        <OperationalKpiCard icon={Euro} label="Valore contratti" value={`€${stats.importoContratti.toLocaleString('it-IT')}`} hint="importo complessivo" tone="blue" />
-        <OperationalKpiCard icon={ShieldCheck} label="Ritenute in corso" value={`€${stats.ritenuteTotali.toLocaleString('it-IT')}`} hint="da monitorare" tone="amber" />
+        <OperationalKpiCard icon={HardHat} label="Attivi" value={stats.attivi} hint="collaboratori attivi" tone="green" />
+        <OperationalKpiCard icon={FileText} label="Con documenti" value={stats.conDocumenti} hint="fascicolo presente" tone="blue" />
+        <OperationalKpiCard icon={FileX2} label="Senza documenti" value={stats.senzaDocumenti} hint={stats.senzaDocumenti > 0 ? "da completare" : "tutti ok"} tone={stats.senzaDocumenti > 0 ? "amber" : "green"} />
         <OperationalKpiCard icon={AlertTriangle} label="DURC in scadenza" value={stats.durcScaduti} hint={stats.durcScaduti > 0 ? "richiede controllo" : "documenti ok"} tone={stats.durcScaduti > 0 ? "red" : "green"} />
       </div>
 
@@ -284,17 +434,14 @@ export default function SubappaltatoriPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Select value={filtroOrdine} onValueChange={setFiltroOrdine}>
+        <Select value={filtroDoc} onValueChange={setFiltroDoc}>
           <SelectTrigger className="sm:w-48">
-            <SelectValue placeholder="Tutti i cantieri" />
+            <SelectValue placeholder="Documenti" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all__">Tutti i cantieri</SelectItem>
-            {ordini.map((o: any) => (
-              <SelectItem key={o.id} value={o.id}>
-                {o.order_code ? `#${o.order_code}` : o.description?.substring(0, 30)}
-              </SelectItem>
-            ))}
+            <SelectItem value="__all__">Tutti i documenti</SelectItem>
+            <SelectItem value="__con__">Con documenti</SelectItem>
+            <SelectItem value="__senza__">Senza documenti</SelectItem>
           </SelectContent>
         </Select>
         <Select value={filtroStato} onValueChange={setFiltroStato}>
@@ -303,14 +450,36 @@ export default function SubappaltatoriPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">Tutti gli stati</SelectItem>
+            <SelectItem value="__active__">Solo attivi</SelectItem>
+            <SelectItem value="__inactive__">Solo non attivi</SelectItem>
             <SelectItem value="bozza">Bozza</SelectItem>
-            <SelectItem value="attivo">Attivo</SelectItem>
+            <SelectItem value="attivo">Contratto attivo</SelectItem>
             <SelectItem value="completato">Completato</SelectItem>
             <SelectItem value="risolto">Risolto</SelectItem>
             <SelectItem value="sospeso">Sospeso</SelectItem>
           </SelectContent>
         </Select>
       </div>
+
+      {/* Barra azioni in blocco */}
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-orange-300 bg-orange-50 px-3 py-2">
+          <span className="text-sm font-semibold text-orange-800">{selected.size} selezionati</span>
+          <div className="flex-1" />
+          <Button size="sm" variant="outline" onClick={() => bulkAttivoMutation.mutate(true)} disabled={bulkAttivoMutation.isPending}>
+            <CheckCircle2 className="h-4 w-4 mr-1.5" />Attiva
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => bulkAttivoMutation.mutate(false)} disabled={bulkAttivoMutation.isPending}>
+            <XCircle className="h-4 w-4 mr-1.5" />Disattiva
+          </Button>
+          <Button size="sm" variant="outline" className="text-destructive border-destructive/30 hover:bg-destructive/10" onClick={() => setConfermaEliminaBulk(true)} disabled={bulkDeleteMutation.isPending}>
+            <Trash2 className="h-4 w-4 mr-1.5" />Elimina
+          </Button>
+          <Button size="sm" variant="ghost" onClick={clearSelezione}>
+            <X className="h-4 w-4 mr-1.5" />Deseleziona
+          </Button>
+        </div>
+      )}
 
       {/* Lista */}
       {isLoading ? (
@@ -324,7 +493,7 @@ export default function SubappaltatoriPage() {
             <div>
               <p className="font-semibold text-lg">Nessun subappaltatore</p>
               <p className="text-sm text-muted-foreground mt-1">
-                {search || filtroOrdine !== '__all__' || filtroStato !== '__all__'
+                {search || filtroDoc !== '__all__' || filtroStato !== '__all__'
                   ? 'Nessun risultato per i filtri selezionati.'
                   : 'Aggiungi il primo subappaltatore con il pulsante in alto.'}
               </p>
@@ -332,13 +501,132 @@ export default function SubappaltatoriPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <>
+        {/* ── Tabella desktop (md+) ─────────────────────────────────────── */}
+        <Card className="hidden md:block">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={allVisibleSelected}
+                        onCheckedChange={toggleAllVisible}
+                        aria-label="Seleziona tutti"
+                      />
+                    </TableHead>
+                    <TableHead>Ditta</TableHead>
+                    <TableHead>P.IVA / C.F.</TableHead>
+                    <TableHead>Sede</TableHead>
+                    <TableHead>Contatti</TableHead>
+                    <TableHead>DURC</TableHead>
+                    <TableHead>Documenti</TableHead>
+                    <TableHead>Stato</TableHead>
+                    <TableHead className="text-right">Azioni</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((sub) => (
+                    <TableRow key={sub.id} className="align-top" data-state={selected.has(sub.id) ? 'selected' : undefined}>
+                      <TableCell className="w-10">
+                        <Checkbox
+                          checked={selected.has(sub.id)}
+                          onCheckedChange={() => toggleOne(sub.id)}
+                          aria-label={`Seleziona ${sub.ragione_sociale}`}
+                        />
+                      </TableCell>
+                      {/* Ditta */}
+                      <TableCell className="max-w-[220px]">
+                        <p className="font-semibold leading-tight truncate">{sub.ragione_sociale}</p>
+                        {sub.responsabile && (
+                          <p className="text-xs text-muted-foreground truncate">{sub.responsabile}</p>
+                        )}
+                        {sub.tipo_lavori && (
+                          <p className="text-xs text-muted-foreground truncate">{sub.tipo_lavori}</p>
+                        )}
+                      </TableCell>
+                      {/* P.IVA / C.F. */}
+                      <TableCell className="text-sm">
+                        {sub.piva && <div>P.IVA {sub.piva}</div>}
+                        {sub.codice_fiscale && (
+                          <div className="text-xs text-muted-foreground">C.F. {sub.codice_fiscale}</div>
+                        )}
+                        {!sub.piva && !sub.codice_fiscale && <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      {/* Sede */}
+                      <TableCell className="max-w-[180px] text-sm">
+                        {sub.indirizzo
+                          ? <span className="block truncate" title={sub.indirizzo}>{sub.indirizzo}</span>
+                          : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      {/* Contatti */}
+                      <TableCell>
+                        <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+                          {(sub as any).telefono && (
+                            <a href={`tel:${(sub as any).telefono}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                              <Phone className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{(sub as any).telefono}</span>
+                            </a>
+                          )}
+                          {sub.email && (
+                            <a href={`mailto:${sub.email}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                              <Mail className="h-3 w-3 shrink-0" />
+                              <span className="truncate max-w-[160px]">{sub.email}</span>
+                            </a>
+                          )}
+                          {sub.pec && (
+                            <a href={`mailto:${sub.pec}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                              <ShieldCheck className="h-3 w-3 shrink-0" />
+                              <span className="truncate max-w-[160px]">{sub.pec}</span>
+                            </a>
+                          )}
+                          {!(sub as any).telefono && !sub.email && !sub.pec && (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      {/* DURC */}
+                      <TableCell><DurcBadge scadenza={sub.durc_scadenza} /></TableCell>
+                      {/* Documenti */}
+                      <TableCell>
+                        {docCountFor(sub) > 0 ? (
+                          <Badge className="text-xs bg-green-600 text-white">
+                            <FileText className="h-3 w-3 mr-1" />{docCountFor(sub)}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-amber-700 border-amber-200">
+                            <FileX2 className="h-3 w-3 mr-1" />Nessuno
+                          </Badge>
+                        )}
+                      </TableCell>
+                      {/* Stato */}
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <AttivoToggle sub={sub} />
+                          <AttivoBadge attivo={sub.campo_is_active} />
+                        </div>
+                      </TableCell>
+                      {/* Azioni */}
+                      <TableCell className="text-right">
+                        <Button asChild variant="outline" size="sm">
+                          <Link to={`/azienda/subappaltatori/${sub.id}`}>
+                            <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                            Dettaglio
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Card mobile (< md) ────────────────────────────────────────── */}
+        <div className="space-y-3 md:hidden">
           {filtered.map((sub) => {
-            const lordo = sub.totale_sal_lordo ?? 0;
-            const contratto = sub.importo_contrattuale ?? 0;
-            const pct = contratto > 0
-              ? Math.min(100, Math.round((lordo / contratto) * 100))
-              : 0;
             return (
               <Card key={sub.id} className="hover:border-primary/50 transition-colors">
                 <CardContent className="p-4">
@@ -367,7 +655,17 @@ export default function SubappaltatoriPage() {
                             </Badge>
                           )}
                           <DurcBadge scadenza={sub.durc_scadenza} />
+                          {docCountFor(sub) > 0 ? (
+                            <Badge className="text-xs bg-green-600 text-white">
+                              <FileText className="h-3 w-3 mr-1" />{docCountFor(sub)} doc
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs text-amber-700 border-amber-200">
+                              <FileX2 className="h-3 w-3 mr-1" />No doc
+                            </Badge>
+                          )}
                           <StatoBadge stato={sub.stato_contratto} />
+                          <AttivoBadge attivo={sub.campo_is_active} />
                         </div>
                       </div>
 
@@ -398,34 +696,14 @@ export default function SubappaltatoriPage() {
                             {sub.indirizzo}
                           </span>
                         )}
-                        {(sub.ritenute_in_corso ?? 0) > 0 && (
-                          <span className="text-amber-600 font-medium">
-                            <Euro className="inline h-3 w-3 mr-0.5" />
-                            {(sub.ritenute_in_corso ?? 0).toLocaleString('it-IT')} in garanzia
-                          </span>
-                        )}
                       </div>
 
-                      {contratto > 0 && (
-                        <div className="mt-3 space-y-1">
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Contratto eseguito</span>
-                            <span className="font-medium">{pct}%</span>
-                          </div>
-                          <div className="h-2 bg-muted rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-orange-500 rounded-full transition-all"
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>€{lordo.toLocaleString('it-IT')} eseguiti</span>
-                            <span>€{contratto.toLocaleString('it-IT')} totale</span>
-                          </div>
-                        </div>
-                      )}
 
-                      <div className="mt-3 flex justify-end">
+                      <div className="mt-3 flex items-center justify-between gap-2">
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <AttivoToggle sub={sub} />
+                          {sub.campo_is_active ? 'Attivo' : 'Non attivo'}
+                        </label>
                         <Button asChild variant="outline" size="sm">
                           <Link to={`/azienda/subappaltatori/${sub.id}`}>
                             <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
@@ -440,6 +718,7 @@ export default function SubappaltatoriPage() {
             );
           })}
         </div>
+        </>
       )}
 
       {/* Dialog nuovo subappaltatore */}
@@ -518,6 +797,14 @@ export default function SubappaltatoriPage() {
               </div>
             </div>
             <div className="space-y-1.5">
+              <Label>Codice Fiscale</Label>
+              <Input
+                value={form.codice_fiscale}
+                onChange={(e) => setForm(f => ({ ...f, codice_fiscale: e.target.value }))}
+                placeholder="Es. RSSMRA80A01H501U (utile per ditte individuali)"
+              />
+            </div>
+            <div className="space-y-1.5">
               <Label>Indirizzo sede</Label>
               <Input
                 value={form.indirizzo}
@@ -570,6 +857,29 @@ export default function SubappaltatoriPage() {
             >
               {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Aggiungi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Conferma eliminazione in blocco */}
+      <Dialog open={confermaEliminaBulk} onOpenChange={setConfermaEliminaBulk}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eliminare {selected.size} subappaltatori?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Verranno rimossi dalla lista subappaltatori. L'anagrafica e i documenti
+            collegati restano salvati. L'azione non è annullabile.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfermaEliminaBulk(false)}>Annulla</Button>
+            <Button
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => bulkDeleteMutation.mutate()}
+              disabled={bulkDeleteMutation.isPending}
+            >
+              {bulkDeleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Trash2 className="h-4 w-4 mr-1.5" />Elimina</>}
             </Button>
           </DialogFooter>
         </DialogContent>

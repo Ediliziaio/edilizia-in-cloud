@@ -29,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -58,6 +59,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBatchCarico } from "@/hooks/warehouse/useBatchCarico";
 import { uploadWarehouseDDTToOrders, uploadWarehousePhotos } from "@/lib/warehousePhotoUpload";
+import { deriveLottoFromSerials } from "@/lib/barcode/multiSerialParser";
 import type { BatchScanEntry } from "./BatchBarcodeScanner";
 
 const BatchBarcodeScanner = lazy(() =>
@@ -170,6 +172,10 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   // stock_units (serializzati) appena creati verranno raggruppati sotto questo
   // lotto. Caso d'uso fotovoltaico/impiantistica: 1 bancale = 1 lotto.
   const [lottoCode, setLottoCode] = useState("");
+  // "Incolla seriali bancale": alternativa alla camera quando il QR è denso/
+  // difficile da inquadrare → incolli la lista, costruiamo le entry e si prosegue.
+  const [serialPaste, setSerialPaste] = useState("");
+  const [pasteSectionOpen, setPasteSectionOpen] = useState(false);
   const [productPhotos, setProductPhotos] = useState<File[]>([]);
   const [entries, setEntries] = useState<BatchScanEntry[]>([]);
   const [insertedAt, setInsertedAt] = useState(() => new Date());
@@ -411,6 +417,42 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
     }
   }
 
+  // Incolla/scansiona una lista di seriali (es. il contenuto del QR "SERIALS" di
+  // un bancale): li trasformiamo in entry no-match e proseguiamo allo scanner,
+  // dove con "Crea articolo unico" si collegano al prodotto e si conferma il carico
+  // (il lotto viene poi derivato in automatico dal prefisso comune).
+  const handleLoadPastedSerials = () => {
+    const raw = serialPaste.trim();
+    if (!raw) return;
+    const serials = Array.from(
+      new Set(raw.split(/[\s,;]+/).map((s) => s.trim()).filter((s) => s.length >= 4)),
+    ).slice(0, 500);
+    if (serials.length === 0) {
+      toast.error("Nessun seriale valido nel testo incollato");
+      return;
+    }
+    const ts = Date.now();
+    const pasted: BatchScanEntry[] = serials.map((serial) => ({
+      clientUuid:
+        typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${ts}-${serial}`,
+      rawCode: serial,
+      scanFormat: "paste/manual",
+      stockItemId: null,
+      itemName: null,
+      trackingMode: null,
+      quantity: 1,
+      serialNumbers: [],
+      scannedAt: ts,
+    }));
+    setEntries((prev) => [...prev, ...pasted]);
+    toast.success(`${serials.length} seriali pronti`, {
+      description: 'Collega l\'articolo con "Crea articolo unico" e conferma il carico.',
+    });
+    setSerialPaste("");
+    setPasteSectionOpen(false);
+    setStep("scan");
+  };
+
   async function handleConfirm() {
     if (!warehouseId || !supplierId) return;
 
@@ -457,15 +499,16 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       // vengono raggruppati sotto un nuovo stock_lotti. Best-effort: se la
       // creazione del lotto fallisce, il carico è già committato → non perdiamo
       // i seriali, l'utente può creare il lotto manualmente dopo.
-      const trimmedLottoCode = lottoCode.trim();
+      // Seriali appena inseriti dall'RPC in stock_units (entries serializzate).
+      const scannedSerials = entries
+        .filter((e) => e.trackingMode === "serialized")
+        .flatMap((e) => e.serialNumbers ?? []);
+      // Codice lotto: quello digitato OPPURE, se vuoto, derivato dal prefisso
+      // comune dei seriali → scansionando il QR di un bancale (es. 36 pannelli)
+      // il lotto si crea da solo, senza inserimento manuale.
+      const trimmedLottoCode = lottoCode.trim() || deriveLottoFromSerials(scannedSerials) || "";
       if (trimmedLottoCode && result.created_units > 0 && effectiveCompany?.id) {
         try {
-          // Raccolgo i seriali appena scansionati dalle entries (sono quelli
-          // che l'RPC ha appena inserito in stock_units).
-          const scannedSerials = entries
-            .filter((e) => e.trackingMode === "serialized")
-            .flatMap((e) => e.serialNumbers ?? []);
-
           if (scannedSerials.length > 0) {
             // Articolo: se tutte le entry serialized hanno lo stesso stockItemId,
             // useremo quello come stock_item_id del lotto (drill-down preciso).
@@ -938,9 +981,57 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
               maxLength={80}
             />
             <p className="text-[10px] text-muted-foreground">
-              Se compilato, tutti i seriali scansionati verranno raggruppati sotto questo lotto
-              (utile per garanzie individuali su bancali di pannelli o componenti).
+              Se compilato, tutti i seriali scansionati verranno raggruppati sotto questo lotto.
+              Se lo lasci vuoto e scansioni il QR "SERIALS" di un bancale, il codice lotto viene
+              rilevato in automatico dal prefisso comune dei seriali (es. 36 pannelli → 1 lotto).
             </p>
+          </div>
+
+          {/* Incolla seriali bancale — alternativa alla camera (QR denso/difficile) */}
+          <div className="rounded-lg border bg-muted/20">
+            <button
+              type="button"
+              onClick={() => setPasteSectionOpen((v) => !v)}
+              className="w-full flex items-center gap-2 p-3 hover:bg-muted/30 transition-colors rounded-lg"
+              aria-expanded={pasteSectionOpen}
+            >
+              <ClipboardList className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-sm font-medium">Incolla seriali del bancale</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Se il QR è difficile da inquadrare: scansionalo col telefono e incolla qui la lista.
+                </p>
+              </div>
+              {pasteSectionOpen ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+            </button>
+            {pasteSectionOpen && (
+              <div className="px-3 pb-3 space-y-2 border-t border-muted-foreground/10 pt-3">
+                <Textarea
+                  value={serialPaste}
+                  onChange={(e) => setSerialPaste(e.target.value)}
+                  placeholder={"Seriali separati da spazio, virgola o a-capo\nes. V13H10002035 V13H10002023 V13H10001689 ..."}
+                  rows={4}
+                  className="font-mono text-xs"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  disabled={!serialPaste.trim() || !canProceedToScan}
+                  onClick={handleLoadPastedSerials}
+                >
+                  Carica seriali e prosegui
+                </Button>
+                {!canProceedToScan && (
+                  <p className="text-[10px] text-amber-600">Scegli prima fornitore e magazzino qui sopra.</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Note opzionali */}

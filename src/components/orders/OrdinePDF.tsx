@@ -249,6 +249,11 @@ export interface OrdinePDFProps {
   diaryMessages?: any[];
   companyName?: string;
   statuses?: any[];
+  /** Visibilità finanziaria del generatore. Se false, il PDF omette
+   *  rispettivamente i costi (materiali/manodopera/subappalto/ODA) e la
+   *  sezione margine + provvigioni. Default true = retrocompatibile. */
+  showCosts?: boolean;
+  showMargins?: boolean;
 }
 
 /* ── Component ───────────────────────────────────────────── */
@@ -268,6 +273,8 @@ export function OrdinePDF({
   diaryMessages = [],
   companyName,
   statuses = [],
+  showCosts = true,
+  showMargins = true,
 }: OrdinePDFProps) {
   // ── Financials ──
   const imponibile = order?.total_amount ?? 0;
@@ -365,10 +372,12 @@ export function OrdinePDF({
             <Text style={[styles.kpiValue, { color: C.orange }]}>{fmt(totaleIva)}</Text>
             <Text style={styles.kpiLabel}>Totale Commessa (IVA incl.)</Text>
           </View>
+          {showMargins && (
           <View style={[styles.kpiBox, { backgroundColor: margine >= 0 ? C.greenBg : C.redBg }]}>
             <Text style={[styles.kpiValue, { color: margine >= 0 ? C.green : C.red }]}>{fmtPerc(marginePerc)}</Text>
             <Text style={styles.kpiLabel}>Margine</Text>
           </View>
+          )}
           <View style={[styles.kpiBox, { backgroundColor: C.cyanBg }]}>
             <Text style={[styles.kpiValue, { color: C.cyan }]}>{itemsInstallati}/{items.length}</Text>
             <Text style={styles.kpiLabel}>Articoli Installati</Text>
@@ -468,7 +477,7 @@ export function OrdinePDF({
                 <Text style={[styles.tableHeaderText, { flex: 0.5, textAlign: "center" }]}>Qty</Text>
                 <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Prezzo Unit.</Text>
                 <Text style={[styles.tableHeaderText, { flex: 0.5, textAlign: "center" }]}>Sc.%</Text>
-                <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Costo Acq.</Text>
+                {showCosts && <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Costo Acq.</Text>}
                 <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Tot. Vendita</Text>
                 <Text style={[styles.tableHeaderText, { flex: 0.8, textAlign: "center" }]}>Stato</Text>
                 <Text style={[styles.tableHeaderText, { flex: 0.6, textAlign: "center" }]}>Pag.</Text>
@@ -494,7 +503,7 @@ export function OrdinePDF({
                     <Text style={[styles.tableCell, { flex: 0.5, textAlign: "center" }]}>{qty}</Text>
                     <Text style={[styles.tableCell, { flex: 1, textAlign: "right" }]}>{fmt(unitPrice)}</Text>
                     <Text style={[styles.tableCell, { flex: 0.5, textAlign: "center" }]}>{discount > 0 ? `${discount}%` : "—"}</Text>
-                    <Text style={[styles.tableCell, { flex: 1, textAlign: "right" }]}>{fmt(purchasePrice)}</Text>
+                    {showCosts && <Text style={[styles.tableCell, { flex: 1, textAlign: "right" }]}>{fmt(purchasePrice)}</Text>}
                     <Text style={[styles.tableCell, { flex: 1, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmt(totalVendita)}</Text>
                     <View style={{ flex: 0.8, alignItems: "center" }}>
                       <Text style={[{ fontSize: 6, padding: "1 4", borderRadius: 6 }, statusInfo.style]}>{statusInfo.label}</Text>
@@ -516,7 +525,7 @@ export function OrdinePDF({
                 </Text>
                 <Text style={{ flex: 1 }} />
                 <Text style={{ flex: 0.5 }} />
-                <Text style={[styles.tableCell, { flex: 1, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmt(costoMateriali)}</Text>
+                {showCosts && <Text style={[styles.tableCell, { flex: 1, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>{fmt(costoMateriali)}</Text>}
                 <Text style={[styles.tableCell, { flex: 1, textAlign: "right", fontFamily: "Helvetica-Bold", color: C.navy }]}>{fmt(totaleVendita)}</Text>
                 <Text style={[styles.tableCell, { flex: 0.8, textAlign: "center", fontFamily: "Helvetica-Bold", fontSize: 7 }]}>
                   {itemsInstallati}/{items.length}
@@ -577,7 +586,8 @@ export function OrdinePDF({
             )}
           </View>
 
-          {/* Analisi Margine */}
+          {/* Analisi Margine — solo per chi può vedere i margini */}
+          {showMargins && (
           <View style={[styles.financialBox, styles.col]}>
             <Text style={[styles.label, { marginBottom: 6 }]}>ANALISI MARGINE</Text>
             <View style={styles.financialRow}>
@@ -615,10 +625,11 @@ export function OrdinePDF({
               </Text>
             </View>
           </View>
+          )}
         </View>
 
         {/* ─── MANODOPERA DIPENDENTI ─── */}
-        {laborEmployees.length > 0 && (
+        {showCosts && laborEmployees.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Dipendenti Assegnati ({laborEmployees.length})</Text>
             <View style={styles.sectionLine} />
@@ -660,7 +671,7 @@ export function OrdinePDF({
         )}
 
         {/* ─── SUBAPPALTATORI ─── */}
-        {laborTeams.length > 0 && (
+        {showCosts && laborTeams.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Subappaltatori ({laborTeams.length})</Text>
             <View style={styles.sectionLine} />
@@ -699,7 +710,7 @@ export function OrdinePDF({
         )}
 
         {/* ─── PROVVIGIONI VENDITORI ─── */}
-        {salespeople.length > 0 && (
+        {showMargins && salespeople.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Provvigioni Venditori ({salespeople.length})</Text>
             <View style={styles.sectionLine} />
@@ -750,7 +761,7 @@ export function OrdinePDF({
         )}
 
         {/* ─── ORDINI DI ACQUISTO ─── */}
-        {purchaseOrders.length > 0 && (
+        {showCosts && purchaseOrders.length > 0 && (
           <>
             <Text style={styles.sectionTitle}>Ordini di Acquisto ({purchaseOrders.length})</Text>
             <View style={styles.sectionLine} />

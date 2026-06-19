@@ -9,8 +9,9 @@
  *   1. HERE Geocoding (HERE_API_KEY) — 250k req/mese free tier
  *   2. Google Geocoding (GOOGLE_GEOCODING_API_KEY / GOOGLE_SOLAR_API_KEY /
  *      GOOGLE_MAPS_API_KEY) — riserva, ~10k free/mese
- * Se nessuna chiave è configurata ritorna 503 e il frontend resta
- * sull'inserimento manuale.
+ *   3. Nominatim (OpenStreetMap) — fallback SENZA chiave, sempre disponibile.
+ * Così il geocoding funziona anche se HERE/Google non sono configurati; 404
+ * solo se nessun provider trova l'indirizzo.
  *
  * Il parsing Google è mirror di src/lib/fotovoltaico/geocode.ts (unit test).
  */
@@ -142,6 +143,56 @@ async function geocodeGoogle(indirizzo: string, key: string): Promise<GeocodeRes
   }
 }
 
+// ── Nominatim (OpenStreetMap) — fallback SENZA API key ────────────────────────
+// Gratuito, nessuna chiave richiesta. Garantisce che il geocoding funzioni anche
+// quando HERE/Google non sono configurati. Richiede uno User-Agent descrittivo
+// (policy OSM) e va usato a basso volume (1 req/s) — adatto al preventivatore.
+async function geocodeNominatim(indirizzo: string): Promise<GeocodeResult | null> {
+  const url =
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(indirizzo)}` +
+    `&countrycodes=it&format=jsonv2&addressdetails=1&limit=1`;
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const resp = await fetch(url, {
+      signal: ctrl.signal,
+      headers: { "User-Agent": "EdiliziaInCloud/1.0 (geocoding preventivatore fotovoltaico)" },
+    });
+    if (!resp.ok) return null;
+    const arr = (await resp.json()) as Array<{
+      lat?: string;
+      lon?: string;
+      display_name?: string;
+      address?: Record<string, string>;
+    }>;
+    const item = arr?.[0];
+    if (!item) return null;
+    const lat = Number(item.lat);
+    const lng = Number(item.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    const a = item.address ?? {};
+    const comune =
+      a.city ?? a.town ?? a.village ?? a.municipality ?? a.county ?? null;
+    // Sigla provincia da ISO3166-2-lvl6 (es. "IT-PD" → "PD"); fallback al county.
+    const iso = a["ISO3166-2-lvl6"] ?? "";
+    const provincia = iso.startsWith("IT-") ? iso.slice(3) : (a.county ?? null);
+    return {
+      lat,
+      lng,
+      comune,
+      provincia,
+      cap: a.postcode ?? null,
+      regione: a.state ?? null,
+      formatted: item.display_name ?? null,
+      in_italia: inItalia(lat, lng, (a.country_code ?? "").toLowerCase() === "it"),
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(tid);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
@@ -162,13 +213,12 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("GOOGLE_SOLAR_API_KEY") ??
       Deno.env.get("GOOGLE_MAPS_API_KEY");
 
-    if (!hereKey && !googleKey) {
-      return errorResponse("Geocoding non configurato (nessuna chiave)", 503, corsHeaders);
-    }
-
+    // Provider in ordine di preferenza; Nominatim è il fallback keyless finale
+    // così il geocoding funziona SEMPRE, anche senza HERE/Google configurati.
     let result: GeocodeResult | null = null;
     if (hereKey) result = await geocodeHere(indirizzo, hereKey);
     if (!result && googleKey) result = await geocodeGoogle(indirizzo, googleKey);
+    if (!result) result = await geocodeNominatim(indirizzo);
 
     if (!result) {
       return errorResponse("Indirizzo non trovato", 404, corsHeaders);

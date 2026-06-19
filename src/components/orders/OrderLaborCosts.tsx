@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   HardHat, Users, Building2, Plus, Trash2, Check, Clock,
-  ExternalLink, Crown, UserPlus, Loader2, ShieldCheck,
+  ExternalLink, Crown, UserPlus, Loader2, ShieldCheck, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { differenceInDays, parseISO } from "date-fns";
@@ -90,6 +91,9 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
   const effectiveCompanyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
   const canEdit = editable && (role === "company_admin" || role === "company_staff" || role === "super_admin");
+  // Visibilità costi: chi non ha canViewCosts vede l'operativo (chi è assegnato,
+  // DURC, stato pagamenti) ma NON i valori € di manodopera/subappalto.
+  const { canViewCosts } = usePermissions();
 
   const [assignEmployeeOpen, setAssignEmployeeOpen] = useState(false);
   const [assignTeamOpen, setAssignTeamOpen] = useState(false);
@@ -157,6 +161,22 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
     enabled: !!orderId && !!effectiveCompanyId,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Alert DURC aggregato: subappaltatori di QUESTA commessa con DURC
+  // scaduto / in scadenza (≤30gg) / mancante — per non lavorare con DURC irregolare.
+  const durcAlerts = subappaltatori
+    .map((s) => {
+      const sc = s.durc_scadenza ?? null;
+      const days = sc ? differenceInDays(parseISO(sc), new Date()) : null;
+      const level: "scaduto" | "scadenza" | "mancante" | null =
+        !sc ? "mancante" : days! < 0 ? "scaduto" : days! <= 30 ? "scadenza" : null;
+      return level ? { id: s.id, nome: s.ragione_sociale, level, days } : null;
+    })
+    .filter(
+      (x): x is { id: string; nome: string; level: "scaduto" | "scadenza" | "mancante"; days: number | null } =>
+        x !== null,
+    )
+    .sort((a, b) => ({ scaduto: 0, scadenza: 1, mancante: 2 })[a.level] - ({ scaduto: 0, scadenza: 1, mancante: 2 })[b.level]);
 
   const { data: assegnazioni = [], isLoading: loadingAssegnazioni } = useQuery<CampoAssignment[]>({
     queryKey: ["order-campo-assignments", orderId],
@@ -338,10 +358,10 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                   <div key={oe.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
                     <div className="space-y-1">
                       <p className="font-medium text-sm">{oe.employee?.first_name ?? "—"} {oe.employee?.last_name ?? ""}</p>
-                      <p className="text-xs text-muted-foreground">{oe.hours_worked}h × {formatCurrency(oe.hourly_rate)}/h</p>
+                      <p className="text-xs text-muted-foreground">{oe.hours_worked}h{canViewCosts ? ` × ${formatCurrency(oe.hourly_rate)}/h` : ""}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">{formatCurrency(oe.total_cost)}</span>
+                      {canViewCosts && <span className="font-semibold text-sm">{formatCurrency(oe.total_cost)}</span>}
                       {canEdit && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
@@ -362,10 +382,12 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                     </div>
                   </div>
                 ))}
+                {canViewCosts && (
                 <div className="flex justify-between pt-2 border-t">
                   <span className="font-medium text-sm">Totale Dipendenti</span>
                   <span className="font-semibold text-sm">{formatCurrency(totalEmployeeCost)}</span>
                 </div>
+                )}
               </div>
             )}
             {canEdit && (
@@ -377,6 +399,26 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
 
           {/* ── Subappaltatori ──────────────────────────────────── */}
           <TabsContent value="teams" className="space-y-3 mt-4">
+            {durcAlerts.length > 0 && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-1.5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  Attenzione DURC subappaltatori in commessa
+                </div>
+                <ul className="space-y-0.5 text-xs text-amber-800">
+                  {durcAlerts.map((a) => (
+                    <li key={a.id}>
+                      <span className="font-medium">{a.nome}</span>:{" "}
+                      {a.level === "scaduto"
+                        ? `DURC SCADUTO${a.days != null ? ` da ${Math.abs(a.days)}gg` : ""}`
+                        : a.level === "scadenza"
+                          ? `DURC in scadenza tra ${a.days}gg`
+                          : "DURC non presente in scheda"}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {subappaltatori.length > 0 && (
               <div className="space-y-2">
                 {subappaltatori.map((sub) => {
@@ -401,12 +443,14 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                           <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                             <div className="h-full bg-orange-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
                           </div>
+                          {canViewCosts && (
                           <div className="flex justify-between text-xs text-muted-foreground">
                             <span>{formatCurrency(lordo)} / {formatCurrency(contr)}</span>
                             {(sub.ritenute_in_corso ?? 0) > 0 && (
                               <span className="text-amber-600 font-medium">{formatCurrency(sub.ritenute_in_corso)} ritenuta</span>
                             )}
                           </div>
+                          )}
                         </div>
                       )}
                       <Button asChild variant="ghost" size="sm" className="h-7 text-xs w-full">
@@ -436,7 +480,7 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">{formatCurrency(ot.total_cost)}</span>
+                      {canViewCosts && <span className="font-semibold text-sm">{formatCurrency(ot.total_cost)}</span>}
                       {canEdit && (
                         <>
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => togglePaidMutation.mutate({ id: ot.id, isPaid: !ot.is_paid })}>
@@ -462,10 +506,12 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
                     </div>
                   </div>
                 ))}
+                {canViewCosts && (
                 <div className="flex justify-between pt-2 border-t">
                   <span className="font-medium text-sm">Totale Squadre Esterne</span>
                   <span className="font-semibold text-sm">{formatCurrency(totalTeamCost)}</span>
                 </div>
+                )}
               </div>
             )}
 
@@ -563,11 +609,15 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
         </Tabs>
 
         {/* ── Totale ───────────────────────────────────────────── */}
+        {canViewCosts && (
+        <>
         <Separator />
         <div className="flex justify-between items-center pt-1">
           <span className="font-semibold text-sm">TOTALE MANODOPERA</span>
           <span className="text-lg font-bold text-primary">{formatCurrency(totalLaborCost)}</span>
         </div>
+        </>
+        )}
 
         {/* ── Dialogs ──────────────────────────────────────────── */}
         <AssignEmployeeDialog

@@ -250,11 +250,13 @@ function SupplierTable({
   onEdit,
   onDelete,
   emptyMessage = "Nessun fornitore in questa categoria",
+  productCounts = {},
 }: {
   suppliers: Supplier[];
   onEdit: (s: Supplier) => void;
   onDelete: (s: Supplier) => void;
   emptyMessage?: string;
+  productCounts?: Record<string, number>;
 }) {
   if (suppliers.length === 0) {
     return (
@@ -277,6 +279,7 @@ function SupplierTable({
           <TableHead>Stato</TableHead>
           <TableHead>P.IVA</TableHead>
           <TableHead>Aliquota IVA</TableHead>
+          <TableHead>Prodotti</TableHead>
           <TableHead className="w-[100px]">Azioni</TableHead>
         </TableRow>
       </TableHeader>
@@ -300,6 +303,13 @@ function SupplierTable({
             </TableCell>
             <TableCell>{supplier.vat_number || "—"}</TableCell>
             <TableCell>{getVatRateLabel(supplier.vat_rate || 22)}</TableCell>
+            <TableCell>
+              {(productCounts[supplier.id] ?? 0) > 0 ? (
+                <span className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700" title="Prodotti del listino collegati a questo fornitore">
+                  {productCounts[supplier.id]} prod.
+                </span>
+              ) : <span className="text-xs text-muted-foreground">—</span>}
+            </TableCell>
             <TableCell>
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="icon" onClick={() => onEdit(supplier)} aria-label={`Modifica ${supplier.name}`}>
@@ -354,6 +364,25 @@ export function SuppliersConfig() {
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
+  });
+
+  // Conteggio prodotti del listino collegati a ciascun fornitore (correlazione
+  // article_families.supplier_id → suppliers.id). Mostrato in colonna "Prodotti".
+  const { data: productCounts = {} } = useQuery({
+    queryKey: ["supplier-product-counts", companyId],
+    enabled: !!companyId,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("article_families").select("supplier_id")
+        .eq("company_id", companyId).is("deleted_at", null).not("supplier_id", "is", null);
+      if (error) throw error;
+      const m: Record<string, number> = {};
+      for (const r of (data ?? []) as Array<{ supplier_id: string | null }>) {
+        if (r.supplier_id) m[r.supplier_id] = (m[r.supplier_id] ?? 0) + 1;
+      }
+      return m;
+    },
   });
 
   const existingCategories = useMemo(() => {
@@ -785,10 +814,10 @@ export function SuppliersConfig() {
                 <TabsTrigger value="esteri">Esteri ({esteri.length})</TabsTrigger>
               </TabsList>
               <TabsContent value="italiani">
-                <SupplierTable suppliers={italiani} onEdit={handleOpenEdit} onDelete={handleOpenDelete} emptyMessage="Modifica ricerca o filtri, oppure crea un nuovo fornitore italiano." />
+                <SupplierTable suppliers={italiani} onEdit={handleOpenEdit} onDelete={handleOpenDelete} productCounts={productCounts} emptyMessage="Modifica ricerca o filtri, oppure crea un nuovo fornitore italiano." />
               </TabsContent>
               <TabsContent value="esteri">
-                <SupplierTable suppliers={esteri} onEdit={handleOpenEdit} onDelete={handleOpenDelete} emptyMessage="Modifica ricerca o filtri, oppure crea un nuovo fornitore estero." />
+                <SupplierTable suppliers={esteri} onEdit={handleOpenEdit} onDelete={handleOpenDelete} productCounts={productCounts} emptyMessage="Modifica ricerca o filtri, oppure crea un nuovo fornitore estero." />
               </TabsContent>
             </Tabs>
           </div>

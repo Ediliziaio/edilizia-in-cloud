@@ -145,7 +145,7 @@ export function DraggableOrderBar({
             )}
             {order.order_employees && order.order_employees.length > 0 ? (
               <p className="text-xs">
-                Squadra: {order.order_employees.map(ae => `${ae.employee.first_name[0]}${ae.employee.last_name[0]}`).join(", ")}
+                Squadra: {order.order_employees.map(ae => `${ae.employee?.first_name?.[0] ?? ""}${ae.employee?.last_name?.[0] ?? ""}`).join(", ")}
               </p>
             ) : (
               <p className="text-xs text-amber-500">Nessuna squadra assegnata</p>
