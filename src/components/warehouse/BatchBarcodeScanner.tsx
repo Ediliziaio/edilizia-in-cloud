@@ -94,6 +94,9 @@ export interface BatchScanEntry {
   serialNumbers: string[];
   /** Solo modalità oda_receive: ID della riga ODA matchata. */
   odaItemId?: string | null;
+  /** Prezzo d'acquisto per unità (entrata merce): precompilato dal listino,
+   *  modificabile col prezzo del DDT. Salvato come unit_cost/purchase_price. */
+  purchasePrice?: number;
   /** Timestamp client per ordinamento UI. */
   scannedAt: number;
   /**

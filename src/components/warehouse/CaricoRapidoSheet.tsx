@@ -54,6 +54,7 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  PackagePlus,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -65,6 +66,7 @@ import type { BatchScanEntry } from "./BatchBarcodeScanner";
 const BatchBarcodeScanner = lazy(() =>
   import("./BatchBarcodeScanner").then((m) => ({ default: m.BatchBarcodeScanner })),
 );
+import { ManualArticleAdder } from "./ManualArticleAdder";
 
 interface CaricoRapidoSheetProps {
   open: boolean;
@@ -111,6 +113,24 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       return (data ?? []) as Array<{ id: string; name: string; is_default: boolean }>;
     },
   });
+  // B3 — sezioni/ubicazioni del magazzino selezionato (per stoccaggio mirato).
+  const { data: sections = [] } = useQuery({
+    queryKey: ["carico-rapido-sections", companyId, warehouseId],
+    enabled: !!companyId && !!warehouseId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_sections")
+        .select("id, name")
+        .eq("company_id", companyId!)
+        .eq("warehouse_id", warehouseId)
+        .order("position", { ascending: true })
+        .order("name", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string }>;
+    },
+  });
+  const sectionName = sectionId ? sections.find((s) => s.id === sectionId)?.name ?? null : null;
   const { data: suppliers = [], isLoading: suppliersLoading } = useQuery<SupplierOption[]>({
     queryKey: queryKeys.suppliers.list(companyId),
     queryFn: async () => {
@@ -175,10 +195,16 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   // stock_units (serializzati) appena creati verranno raggruppati sotto questo
   // lotto. Caso d'uso fotovoltaico/impiantistica: 1 bancale = 1 lotto.
   const [lottoCode, setLottoCode] = useState("");
+  // B3 — scadenza lotto + sezione di stoccaggio (entrata merce).
+  const [lottoScadenza, setLottoScadenza] = useState("");
+  const [sectionId, setSectionId] = useState<string | undefined>();
   // "Incolla seriali bancale": alternativa alla camera quando il QR è denso/
   // difficile da inquadrare → incolli la lista, costruiamo le entry e si prosegue.
   const [serialPaste, setSerialPaste] = useState("");
   const [pasteSectionOpen, setPasteSectionOpen] = useState(false);
+  // B1 — "Aggiungi a mano dal listino": entrata merce senza scansione
+  // (es. arriva un bancale di articoli già a catalogo → li scegli + quantità + prezzo).
+  const [manualSectionOpen, setManualSectionOpen] = useState(false);
   const [productPhotos, setProductPhotos] = useState<File[]>([]);
   const [entries, setEntries] = useState<BatchScanEntry[]>([]);
   const [insertedAt, setInsertedAt] = useState(() => new Date());
@@ -495,6 +521,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
         supplierId,
         entries,
         notes: mergedNotes || undefined,
+        sectionId: sectionId ?? null,
       });
 
       // ── Auto-create lotto se l'utente ha compilato lottoCode ────────────
@@ -540,6 +567,9 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 warehouse_id: warehouseId,
                 quantita: scannedSerials.length,
                 unita_misura: "pz",
+                // B3 — scadenza + ubicazione di stoccaggio del lotto (entrata merce).
+                data_scadenza: lottoScadenza || null,
+                posizione: sectionName ?? null,
                 note: `Creato da carico rapido il ${insertedAt.toLocaleString("it-IT")}`,
               })
               .select("id")
@@ -965,7 +995,13 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 Caricamento...
               </div>
             ) : (
-              <Select value={warehouseId} onValueChange={setWarehouseId}>
+              <Select
+                value={warehouseId}
+                onValueChange={(v) => {
+                  setWarehouseId(v);
+                  setSectionId(undefined); // sezioni dipendono dal magazzino
+                }}
+              >
                 <SelectTrigger id="cr-warehouse">
                   <SelectValue placeholder="Scegli un magazzino..." />
                 </SelectTrigger>
@@ -987,6 +1023,34 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             )}
           </div>
 
+          {/* B3 — Sezione di stoccaggio + scadenza lotto (entrata merce) */}
+          {sections.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="cr-section" className="text-xs">
+                Sezione / ubicazione di stoccaggio (opzionale)
+              </Label>
+              <Select
+                value={sectionId ?? "__none__"}
+                onValueChange={(v) => setSectionId(v === "__none__" ? undefined : v)}
+              >
+                <SelectTrigger id="cr-section">
+                  <SelectValue placeholder="Nessuna sezione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nessuna sezione</SelectItem>
+                  {sections.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Applica scaffale/area a tutte le righe di questo carico (giacenza + seriali).
+              </p>
+            </div>
+          )}
+
           {/* Codice lotto opzionale */}
           <div className="space-y-2">
             <Label htmlFor="cr-lotto" className="text-xs">
@@ -1005,6 +1069,21 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
               Se lo lasci vuoto e scansioni il QR "SERIALS" di un bancale, il codice lotto viene
               rilevato in automatico dal prefisso comune dei seriali (es. 36 pannelli → 1 lotto).
             </p>
+            <div className="space-y-1.5 pt-1">
+              <Label htmlFor="cr-lotto-scadenza" className="text-xs">
+                Scadenza lotto (opzionale)
+              </Label>
+              <Input
+                id="cr-lotto-scadenza"
+                type="date"
+                value={lottoScadenza}
+                onChange={(e) => setLottoScadenza(e.target.value)}
+                className="text-xs"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Utile per materiali deperibili o con garanzia a termine (sigillanti, collanti, additivi).
+              </p>
+            </div>
           </div>
 
           {/* Incolla seriali bancale — alternativa alla camera (QR denso/difficile) */}
@@ -1049,6 +1128,46 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 </Button>
                 {!canProceedToScan && (
                   <p className="text-[10px] text-amber-600">Scegli prima fornitore e magazzino qui sopra.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* B1 — Aggiungi a mano dal listino (senza scansione) */}
+          <div className="rounded-lg border bg-muted/20">
+            <button
+              type="button"
+              onClick={() => setManualSectionOpen((v) => !v)}
+              className="w-full flex items-center gap-2 p-3 hover:bg-muted/30 transition-colors rounded-lg"
+              aria-expanded={manualSectionOpen}
+            >
+              <PackagePlus className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-sm font-medium">Aggiungi a mano dal listino</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Niente codice a barre? Scegli l'articolo dal listino/giacenza, quantità e prezzo d'acquisto.
+                </p>
+              </div>
+              {manualSectionOpen ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+            </button>
+            {manualSectionOpen && (
+              <div className="px-3 pb-3 border-t border-muted-foreground/10 pt-3">
+                {!canProceedToScan ? (
+                  <p className="text-[11px] text-amber-600">
+                    Scegli prima fornitore e magazzino qui sopra.
+                  </p>
+                ) : (
+                  <ManualArticleAdder
+                    companyId={companyId}
+                    warehouseId={warehouseId}
+                    entries={entries}
+                    onEntriesChange={setEntries}
+                    showPurchasePrice
+                  />
                 )}
               </div>
             )}
