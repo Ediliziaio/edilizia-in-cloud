@@ -548,7 +548,11 @@ async function serperSearch(query: string, key: string, num = 5): Promise<Array<
     headers: { "X-API-KEY": key, "Content-Type": "application/json" },
     body: JSON.stringify({ q: query, num, gl: "it", hl: "it" }),
   });
-  const d = await res.json();
+  // BUGFIX: status PRIMA di res.json() — su 429/5xx il body può non essere JSON
+  // (res.json() lancerebbe un errore opaco senza "rate/limit", così il break
+  // anti-rate-limit in find_linkedin non scatterebbe).
+  if (!res.ok) throw new Error(`Serper ${res.status}${res.status === 429 ? " — rate limit" : ""}`);
+  const d = await res.json().catch(() => ({} as { message?: string; organic?: unknown[] }));
   if (d.message && !d.organic) throw new Error(`Serper: ${d.message}`);
   return (d.organic || []).map((o: { title: string; link: string; snippet: string }) => ({
     title: o.title, link: o.link, snippet: o.snippet,
@@ -570,8 +574,13 @@ async function apolloPeopleSearch(opts: { titles: string[]; keyword: string; loc
     headers: { "X-Api-Key": key, "Content-Type": "application/json", "Cache-Control": "no-cache" },
     body: JSON.stringify(body),
   });
-  const d = await res.json();
-  if (res.status >= 400) throw new Error(`Apollo: ${d.error || d.message || res.status}`);
+  // BUGFIX: status PRIMA di res.json() — un 429/5xx con body non-JSON farebbe
+  // lanciare res.json() un errore opaco invece del rate-limit reale.
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Apollo ${res.status}${res.status === 429 ? " — rate limit" : ""}${t ? ": " + t.slice(0, 120) : ""}`);
+  }
+  const d = await res.json().catch(() => ({} as { people?: unknown[]; contacts?: unknown[] }));
   return d.people || d.contacts || [];
 }
 
@@ -1670,7 +1679,9 @@ Deno.serve(async (req) => {
 
         await supabaseAdmin.from("lead_scraper_results").update({
           email: l.email || guess,
-          email_status: l.email ? l.email_status : "verified_mx",
+          // È un GUESS su dominio con MX valido, NON un'email verificata: etichetta
+          // onesta "guessed" (prima "verified_mx" faceva inviare a indirizzi forse inesistenti).
+          email_status: l.email ? l.email_status : "guessed",
           enrichment: { email_candidates: candidates, mx: true },
         }).eq("id", l.id);
         updated++;

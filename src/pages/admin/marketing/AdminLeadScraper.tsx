@@ -617,6 +617,7 @@ export default function AdminLeadScraper() {
   const [massive, setMassive] = useState(false);          // scraping massivo (migliaia, asincrono)
   const [massiveTarget, setMassiveTarget] = useState("1000");
   const [jobId, setJobId] = useState<string | null>(null);
+  const activeMassiveJobRef = useRef<string | null>(null); // ferma il polling orfano del job massivo
   const [renderLimit, setRenderLimit] = useState(200);    // righe renderizzate (anti-jank su migliaia)
 
   const [progress, setProgress] = useState<{ label: string; done: number; total: number } | null>(null);
@@ -752,6 +753,7 @@ export default function AdminLeadScraper() {
     onSuccess: (data) => {
       setCurrentSearchId(data.searchId);
       setSelected(new Set());
+      setRenderLimit(200);
       queryClient.invalidateQueries({ queryKey: ["lead-scraper", "searches"] });
       const desc = data.scrapedNew != null
         ? `${data.reused ?? 0} riusati dal DB (gratis) · ${data.scrapedNew} nuovi scrapati`
@@ -771,20 +773,22 @@ export default function AdminLeadScraper() {
       const data = await invoke({ action: "enqueue_scrape", keyword: keyword.trim(), city: city.trim(), region: region.trim(), engine: "paginegialle", target, extractEmails });
       const id = data.jobId as string;
       setJobId(id);
+      activeMassiveJobRef.current = id;
       setProgress({ label: "Scraping massivo (in coda)", done: 0, total: target });
       const poll = async () => {
+        if (activeMassiveJobRef.current !== id) return; // job non più attivo (unmount/nuovo job) → stop
         try {
           const s = await invoke({ action: "job_status", jobId: id });
           setProgress({ label: `Scraping massivo · ${s.status}`, done: s.processed || 0, total: s.total || target });
           if (s.status === "done") {
-            setProgress(null); setJobId(null);
+            setProgress(null); setJobId(null); activeMassiveJobRef.current = null;
             if (s.search_id) { setCurrentSearchId(s.search_id); setSelected(new Set()); setRenderLimit(200); }
             queryClient.invalidateQueries({ queryKey: ["lead-scraper", "searches"] });
             toast.success(`Scraping massivo completato`, { description: `${s.results_count} aziende nel DB proprietario` });
             return;
           }
           if (s.status === "error" || s.status === "canceled") {
-            setProgress(null); setJobId(null);
+            setProgress(null); setJobId(null); activeMassiveJobRef.current = null;
             toast.error("Job interrotto", { description: s.error || s.status });
             return;
           }
@@ -891,6 +895,26 @@ export default function AdminLeadScraper() {
       });
     },
     onError: (e: Error) => toast.error("Arricchimento Registro fallito", { description: e.message }),
+  });
+
+  // Valida P.IVA su VIES (gratis) → ragione sociale ufficiale. Azione edge già pronta.
+  const validateVatMutation = useMutation({
+    mutationFn: (resultIds: string[]) => batchInvoke("Valida P.IVA", "validate_vat", resultIds, 10),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      toast.success(`${data.validated} P.IVA valide (VIES)`, { description: `su ${data.attempted} con P.IVA · ragione sociale ufficiale aggiornata` });
+    },
+    onError: (e: Error) => toast.error("Validazione P.IVA fallita", { description: e.message }),
+  });
+
+  // Dati persona dal profilo LinkedIn (Proxycurl): nome/ruolo/email decisore.
+  const enrichLinkedinMutation = useMutation({
+    mutationFn: (resultIds: string[]) => batchInvoke("Dati LinkedIn", "enrich_linkedin_profile", resultIds, 6),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      toast.success(`${data.enriched} profili LinkedIn arricchiti`, { description: `nome/ruolo/email · su ${data.attempted} con URL LinkedIn` });
+    },
+    onError: (e: Error) => toast.error("Arricchimento LinkedIn fallito", { description: e.message }),
   });
 
   // Outreach reale — invio a freddo. channel "mailbox" = ruota sulle caselle Google/Outlook
@@ -1143,6 +1167,7 @@ export default function AdminLeadScraper() {
     enrollMutation.isPending || enrichApolloMutation.isPending || enrichPdlMutation.isPending ||
     verifyEmailMutation.isPending || buyingMutation.isPending || flagExistingMutation.isPending ||
     generateSequenceMutation.isPending || findPecMutation.isPending || enrichRegistroMutation.isPending ||
+    validateVatMutation.isPending || enrichLinkedinMutation.isPending ||
     sendOutreachMutation.isPending || pipelineRunning || jobId !== null || progress !== null;
 
   // ── filtri + ordinamento ──────────────────────────────────────────────────────
@@ -1169,7 +1194,7 @@ export default function AdminLeadScraper() {
   // ── funnel ────────────────────────────────────────────────────────────────────
   const funnel = useMemo(() => ({
     total: results.length,
-    enriched: results.filter((r) => r.enrichment && (r as unknown as { enriched?: boolean }).enriched).length || results.filter((r) => r.intent_score != null).length,
+    enriched: results.filter((r) => r.enrichment != null || r.intent_score != null).length,
     qualified: results.filter((r) => r.ai_score != null).length,
     pushed: results.filter((r) => r.pushed_to_crm).length,
     opps: results.filter((r) => r.crm_opportunity_id).length,
@@ -1191,7 +1216,10 @@ export default function AdminLeadScraper() {
   });
   const allSelected = visibleResults.length > 0 && visibleResults.every((r) => selected.has(r.id));
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(visibleResults.map((r) => r.id)));
-  const selectedIds = [...selected];
+  // BUGFIX: azioni in blocco + export agiscono SOLO sui lead VISIBILI col filtro
+  // corrente (non su selezionati poi nascosti da un filtro).
+  const visibleIds = useMemo(() => new Set(visibleResults.map((r) => r.id)), [visibleResults]);
+  const selectedIds = [...selected].filter((id) => visibleIds.has(id));
 
   // ── export CSV ─────────────────────────────────────────────────────────────────
   const CSV_HEADER = ["Azienda", "Contatto", "Ruolo", "Telefono", "Email", "Stato email", "P.IVA", "Sito",
@@ -1220,7 +1248,7 @@ export default function AdminLeadScraper() {
 
   // Export rapido: selezione o risultati già in memoria (≤2000).
   const exportCsv = () => {
-    const rows = selectedIds.length ? results.filter((r) => selected.has(r.id)) : results;
+    const rows = selectedIds.length ? visibleResults.filter((r) => selected.has(r.id)) : visibleResults;
     if (!rows.length) return;
     const csv = [CSV_HEADER.join(","), ...rows.map(csvRow)].join("\n");
     downloadCsv(csv);
@@ -1471,7 +1499,7 @@ export default function AdminLeadScraper() {
                     className={`group flex items-center gap-2 rounded-lg px-2 py-1.5 cursor-pointer transition-colors ${
                       currentSearchId === s.id ? "bg-primary/10" : "hover:bg-muted/50"
                     }`}
-                    onClick={() => { setCurrentSearchId(s.id); setSelected(new Set()); }}
+                    onClick={() => { setCurrentSearchId(s.id); setSelected(new Set()); setRenderLimit(200); }}
                   >
                     <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <div className="min-w-0 flex-1">
@@ -1569,6 +1597,12 @@ export default function AdminLeadScraper() {
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => enrichRegistroMutation.mutate(selectedIds)}>
                       <Building2 className="h-3.5 w-3.5 mr-2 text-sky-600" /> Registro Imprese (ATECO, fatturato, dipendenti)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => validateVatMutation.mutate(selectedIds)}>
+                      <BadgeCheck className="h-3.5 w-3.5 mr-2 text-emerald-600" /> Valida P.IVA (VIES, gratis)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => enrichLinkedinMutation.mutate(selectedIds)}>
+                      <Linkedin className="h-3.5 w-3.5 mr-2 text-[#0a66c2]" /> Dati persona da LinkedIn (Proxycurl)
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuLabel className="text-[11px]">Intento & outreach</DropdownMenuLabel>
