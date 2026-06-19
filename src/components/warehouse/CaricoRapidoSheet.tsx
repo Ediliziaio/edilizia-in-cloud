@@ -12,7 +12,7 @@
  * mobile fluido (un solo Sheet, scan continuo, niente passaggi inutili).
  */
 
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -55,6 +55,7 @@ import {
   ChevronDown,
   ChevronUp,
   PackagePlus,
+  Sparkles,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -86,6 +87,7 @@ interface RelatedOrderOption {
   id: string;
   order_code: string;
   customer_name: string | null;
+  description: string | null;
 }
 
 export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps) {
@@ -134,7 +136,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("orders")
-        .select("id, order_code, customer:customer_id(first_name, last_name)")
+        .select("id, order_code, description, tipo_lavoro, customer:customer_id(first_name, last_name)")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
         .limit(80);
@@ -142,6 +144,8 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       type RawOrder = {
         id: string;
         order_code: string | null;
+        description?: string | null;
+        tipo_lavoro?: string | null;
         customer?: { first_name?: string | null; last_name?: string | null } | null;
       };
       return ((data ?? []) as unknown as RawOrder[]).map((order) => ({
@@ -151,6 +155,8 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
           order.customer?.first_name || order.customer?.last_name
             ? `${order.customer?.first_name ?? ""} ${order.customer?.last_name ?? ""}`.trim()
             : null,
+        // Descrizione lavoro/commessa: prima `description`, poi `tipo_lavoro`.
+        description: (order.description ?? order.tipo_lavoro ?? "").trim() || null,
       }));
     },
     enabled: !!companyId,
@@ -172,6 +178,9 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   const [relatedOrderIds, setRelatedOrderIds] = useState<string[]>([]);
   const [orderSearch, setOrderSearch] = useState("");
   const [ddtFile, setDdtFile] = useState<File | null>(null);
+  // Analisi AI del DDT: legge foto/PDF, estrae righe prodotto e pre-compila il carico.
+  const [ddtAiLoading, setDdtAiLoading] = useState(false);
+  const [ddtAiDone, setDdtAiDone] = useState(false);
   const [notes, setNotes] = useState("");
   // Lotto opzionale: se l'utente compila il codice, dopo il carico tutti i
   // stock_units (serializzati) appena creati verranno raggruppati sotto questo
@@ -278,7 +287,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
     const q = orderSearch.trim().toLowerCase();
     if (!q) return relatedOrders;
     return relatedOrders.filter((order) =>
-      `${order.order_code} ${order.customer_name ?? ""}`.toLowerCase().includes(q),
+      `${order.order_code} ${order.customer_name ?? ""} ${order.description ?? ""}`.toLowerCase().includes(q),
     );
   }, [orderSearch, relatedOrders]);
   const scannerContextLabel = useMemo(() => {
@@ -483,6 +492,113 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
     setPasteSectionOpen(false);
     setStep("scan");
   };
+
+  // ── Analisi AI del DDT ──────────────────────────────────────────────
+  // Manda foto/PDF del DDT all'edge function ai-ddt-analyzer: estrae le righe
+  // prodotto, le matcha contro la giacenza e pre-compila `entries`. Stessa
+  // funzione riusabile un domani da WhatsApp/Silvio (basta file + company).
+  const handleAnalyzeDdt = useCallback(async () => {
+    if (!ddtFile || !companyId) return;
+    setDdtAiLoading(true);
+    try {
+      const fileBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const res = String(reader.result ?? "");
+          const comma = res.indexOf(",");
+          resolve(comma >= 0 ? res.slice(comma + 1) : res);
+        };
+        reader.onerror = () => reject(reader.error ?? new Error("Lettura file non riuscita"));
+        reader.readAsDataURL(ddtFile);
+      });
+
+      const { data, error } = await supabase.functions.invoke("ai-ddt-analyzer", {
+        body: {
+          file_base64: fileBase64,
+          mime: ddtFile.type || "image/jpeg",
+          company_id: companyId,
+          warehouse_id: warehouseId ?? null,
+        },
+      });
+      if (error) throw error;
+      const payload = data as {
+        success?: boolean;
+        error?: string;
+        extracted?: {
+          supplier_name?: string | null;
+          items?: Array<{
+            description?: string | null;
+            quantity?: number | string | null;
+            unit_price?: number | string | null;
+            code?: string | null;
+            barcode?: string | null;
+          }>;
+        };
+        matches?: Array<{
+          index: number;
+          stock_item_id: string | null;
+          matched_name: string | null;
+          tracking_mode: string | null;
+        }>;
+      };
+      if (!payload?.success) throw new Error(payload?.error ?? "Analisi non riuscita");
+
+      const items = payload.extracted?.items ?? [];
+      const matches = payload.matches ?? [];
+      if (items.length === 0) {
+        toast.warning("Nessun articolo rilevato nel DDT", {
+          description: "Prova con una foto più nitida, oppure aggiungi a mano dal listino.",
+        });
+        return;
+      }
+
+      const ts = Date.now();
+      const newEntries: BatchScanEntry[] = items.map((it, i) => {
+        const m = matches.find((x) => x.index === i);
+        const qtyNum = Number(it.quantity);
+        const quantity = Number.isFinite(qtyNum) && qtyNum > 0 ? Math.round(qtyNum) : 1;
+        const priceNum = it.unit_price != null ? Number(it.unit_price) : NaN;
+        const purchasePrice = Number.isFinite(priceNum) && priceNum >= 0 ? priceNum : undefined;
+        return {
+          clientUuid:
+            typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${ts}-${i}`,
+          rawCode: String(it.barcode || it.code || it.description || `riga-${i + 1}`),
+          scanFormat: "ai/ddt",
+          stockItemId: m?.stock_item_id ?? null,
+          itemName: m?.matched_name ?? (it.description ? String(it.description) : null),
+          trackingMode:
+            (m?.tracking_mode as "fungible" | "serialized" | null) ??
+            (m?.stock_item_id ? "fungible" : null),
+          quantity,
+          serialNumbers: [],
+          purchasePrice,
+          scannedAt: ts + i,
+        };
+      });
+
+      setEntries((prev) => [...prev, ...newEntries]);
+
+      // Pre-seleziona il fornitore se l'AI lo riconosce e non è già scelto.
+      const supName = payload.extracted?.supplier_name;
+      if (supName && !supplierId) {
+        const needle = String(supName).toLowerCase().slice(0, 12);
+        const sup = suppliers.find((s) => (s.name ?? "").toLowerCase().includes(needle));
+        if (sup) setSupplierId(sup.id);
+      }
+
+      const matchedCount = newEntries.filter((e) => e.stockItemId).length;
+      setDdtAiDone(true);
+      toast.success(`DDT analizzato: ${items.length} righe estratte`, {
+        description: `${matchedCount} già a catalogo, ${items.length - matchedCount} da creare. Prosegui per controllare e confermare.`,
+      });
+    } catch (e) {
+      toast.error("Analisi DDT non riuscita", {
+        description: (e as Error)?.message ?? "Riprova o aggiungi gli articoli a mano.",
+      });
+    } finally {
+      setDdtAiLoading(false);
+    }
+  }, [ddtFile, companyId, warehouseId, suppliers, supplierId]);
 
   async function handleConfirm() {
     if (!warehouseId || !supplierId) return;
@@ -868,27 +984,63 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 className="sr-only"
                 onChange={(event) => {
                   setDdtFile(event.target.files?.[0] ?? null);
+                  setDdtAiDone(false);
                   event.currentTarget.value = "";
                 }}
               />
               {ddtFile ? (
-                <div className="flex min-w-0 items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      DDT allegato
-                    </p>
-                    <p className="truncate text-xs font-medium">{ddtFile.name}</p>
+                <div className="space-y-2">
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        DDT allegato
+                      </p>
+                      <p className="truncate text-xs font-medium">{ddtFile.name}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 min-h-8 min-w-8 shrink-0"
+                      onClick={() => {
+                        setDdtFile(null);
+                        setDdtAiDone(false);
+                      }}
+                      aria-label={`Rimuovi DDT ${ddtFile.name}`}
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </Button>
                   </div>
+                  {/* Analisi AI del DDT: estrae le righe e pre-compila il carico */}
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 min-h-8 min-w-8 shrink-0"
-                    onClick={() => setDdtFile(null)}
-                    aria-label={`Rimuovi DDT ${ddtFile.name}`}
+                    variant={ddtAiDone ? "outline" : "default"}
+                    size="sm"
+                    className="w-full gap-2"
+                    disabled={ddtAiLoading || !companyId}
+                    onClick={handleAnalyzeDdt}
                   >
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    {ddtAiLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Analisi in corso…
+                      </>
+                    ) : ddtAiDone ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        Analizzato — rianalizza
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Analizza DDT con AI
+                      </>
+                    )}
                   </Button>
+                  <p className="text-[10px] text-muted-foreground">
+                    L&apos;AI legge il DDT, estrae gli articoli e pre-compila il carico (li potrai
+                    controllare prima di confermare).
+                  </p>
                 </div>
               ) : (
                 <label
@@ -971,10 +1123,17 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                           className="mt-0.5 !h-4 !w-4 !min-h-4 !min-w-4 rounded border-muted-foreground/50 data-[state=checked]:border-primary"
                         />
                         <span className="min-w-0 flex-1 leading-tight">
-                          <span className="block truncate font-semibold text-foreground">{order.order_code}</span>
-                          {order.customer_name && (
-                            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                              {order.customer_name}
+                          <span className="flex items-center gap-1.5">
+                            <span className="truncate font-semibold text-foreground">{order.order_code}</span>
+                            {order.customer_name && (
+                              <span className="truncate text-xs font-medium text-foreground/80">
+                                · {order.customer_name}
+                              </span>
+                            )}
+                          </span>
+                          {order.description && (
+                            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                              {order.description}
                             </span>
                           )}
                         </span>
