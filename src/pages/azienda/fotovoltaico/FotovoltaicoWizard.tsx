@@ -2347,7 +2347,9 @@ function Step5Configurazione({
 
   const stimaProducibilita =
     data.potenza_kwp && data.ore_sole_annue
-      ? data.potenza_kwp * data.ore_sole_annue * 0.85
+      ? // ore_sole_annue è LORDO (ore di picco): applico il derate di sistema PR×perdite
+        // (~0.7565), coerente col motore finanziario, non solo PR (0.85).
+        data.potenza_kwp * data.ore_sole_annue * 0.7565
       : 0;
   const listinoCompleto = Boolean(
     data.pannello_id && data.inverter_id && (!data.con_accumulo || data.accumulo_id),

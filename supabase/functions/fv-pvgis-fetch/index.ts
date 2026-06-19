@@ -146,15 +146,27 @@ function parsePvgis(json: Record<string, unknown>, kwp: number) {
     perdite_totali_pct: fixed.l_total as number ?? 14,
     elevation: location.elevation as number ?? null,
     raddatabase: meteo.radiation_db as string ?? "PVGIS-SARAH2",
-    ore_sole_annue_equivalenti: kwp > 0 ? Math.round(((fixed.E_y as number) ?? 0) / kwp) : 0,
+    // ore_sole_annue_equivalenti = irraggiamento LORDO sul piano (H(i)_y, kWh/m²/anno =
+    // ore di picco equivalenti). DEVE essere lordo: il motore finanziario applica a valle
+    // PR×perdite, esattamente come per Google Solar API (maxSunshineHoursPerYear, anch'esso
+    // lordo). Usare E_y/kwp (netto, già al netto delle perdite) qui causava un doppio
+    // conteggio delle perdite di sistema (~-24% di produzione sul percorso PVGIS).
+    ore_sole_annue_equivalenti:
+      (fixed["H(i)_y"] as number | undefined) != null
+        ? Math.round(fixed["H(i)_y"] as number)
+        : kwp > 0
+          ? Math.round((((fixed.E_y as number) ?? 0) / kwp) / 0.7565)
+          : 0,
   };
 }
 
 function buildMockPvgis(lat: number, _lng: number, kwp: number, tilt: number, _azimuth: number): Record<string, unknown> {
-  // Stima Italia: 1100-1500 kWh/kWp/anno (nord 1100, centro 1300, sud 1450, isole 1500)
-  const oreSole = lat >= 44 ? 1100 : lat >= 41 ? 1300 : lat >= 38 ? 1450 : 1500;
+  // Ore di picco equivalenti LORDE (irraggiamento sul piano), coerenti con H(i)_y di PVGIS
+  // e con maxSunshineHoursPerYear di Solar API: il motore finanziario applica PR×perdite a valle.
+  const oreSole = lat >= 44 ? 1450 : lat >= 41 ? 1700 : lat >= 38 ? 1900 : 1950;
   const fattoreTilt = tilt >= 25 && tilt <= 35 ? 1.0 : 0.95;
-  const produzione_annua = Math.round(kwp * oreSole * 0.85 * fattoreTilt);
+  // produzione di riferimento (netta) = lordo × derate di sistema (PR×perdite ≈ 0.7565)
+  const produzione_annua = Math.round(kwp * oreSole * 0.7565 * fattoreTilt);
 
   // Distribuzione mensile centro-Italia approssimata
   const distMese = [0.04, 0.055, 0.085, 0.10, 0.115, 0.125, 0.13, 0.115, 0.10, 0.075, 0.045, 0.035];

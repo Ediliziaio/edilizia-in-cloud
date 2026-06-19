@@ -106,7 +106,11 @@ Deno.serve(async (req: Request) => {
     const margine_pct = prezzo_vendita_netto > 0 ? margine_eur / prezzo_vendita_netto : 0;
 
     // ── 3. Produzione anno 1 ──────────────────────────────────────────────
-    const PR = par("performance_ratio_default", 0.85);
+    // Con ottimizzatori di potenza il PR migliora (~+3%): il wizard lo pubblicizza
+    // ("PR +3%") ma prima il valore non veniva mai applicato (PR fisso a 0.85).
+    const PR = prog.con_ottimizzatori
+      ? par("performance_ratio_premium", 0.88)
+      : par("performance_ratio_default", 0.85);
     const perdite =
       par("perdita_temperatura_pct", 0.04) +
       par("perdita_mismatch_pct", 0.02) +
@@ -227,9 +231,20 @@ Deno.serve(async (req: Request) => {
     // ── 10. Confronti alternative ─────────────────────────────────────────
     const tassoBtp = par("tasso_btp_25anni", 0.038);
     const tassoDeposito = par("tasso_deposito_vincolato", 0.025);
-    const fv_montante = prezzo_vendita_iva_inclusa + risparmio_totale_25;
-    const btp_montante = prezzo_vendita_iva_inclusa * Math.pow(1 + tassoBtp, ORIZZONTE_DEFAULT);
-    const deposito_montante = prezzo_vendita_iva_inclusa * Math.pow(1 + tassoDeposito, ORIZZONTE_DEFAULT);
+    // Montante FV omogeneo al confronto finanziario: quanto resta in tasca a 25 anni
+    // partendo dallo stesso capitale = somma dei flussi netti = cumulato_finale + investimento.
+    // (Prima era `investimento + risparmi` → il capitale veniva contato DUE volte, gonfiando
+    // il vantaggio FV di un intero investimento.)
+    const cumulato_finale = cassa[cassa.length - 1]?.cumulato ?? 0;
+    const fv_montante = cumulato_finale + prezzo_vendita_iva_inclusa;
+    // Alternative al NETTO dell'imposta sul rendimento (solo sul guadagno, non sul capitale):
+    // BTP/titoli di Stato 12.5%, conto deposito 26%.
+    const tassaBtp = par("tassa_rendita_btp", 0.125);
+    const tassaDeposito = par("tassa_rendita_deposito", 0.26);
+    const btp_lordo = prezzo_vendita_iva_inclusa * Math.pow(1 + tassoBtp, ORIZZONTE_DEFAULT);
+    const deposito_lordo = prezzo_vendita_iva_inclusa * Math.pow(1 + tassoDeposito, ORIZZONTE_DEFAULT);
+    const btp_montante = prezzo_vendita_iva_inclusa + (btp_lordo - prezzo_vendita_iva_inclusa) * (1 - tassaBtp);
+    const deposito_montante = prezzo_vendita_iva_inclusa + (deposito_lordo - prezzo_vendita_iva_inclusa) * (1 - tassaDeposito);
 
     // ── 11. CO2 evitata ───────────────────────────────────────────────────
     const co2Factor = par("co2_factor_kg_per_kwh", 0.319);

@@ -17,6 +17,10 @@ export interface FvFlowsInput {
   ore_sole_annue?: number | null;
   /** Performance Ratio: PR=0.85 default per impianti residenziali */
   performance_ratio?: number;
+  /** Efficienza di sistema = 1 − perdite (temperatura+mismatch+sporcamento+inverter ≈ 0.11
+   *  → 0.89). ore_sole_annue è LORDO (ore di picco): la produzione netta è kWp×ore×PR×eff,
+   *  coerente con fv-calcolo-finanziario. */
+  efficienza_sistema?: number;
   /** Profilo consumo: incide su autoconsumo */
   profilo_consumo?: "diurno" | "serale" | "misto" | "lavorativo" | string;
 }
@@ -35,15 +39,18 @@ export interface FvFlows {
 /**
  * Calcola i flussi energetici annuali.
  * Modello W1 semplificato:
- *   produzione = kWp × ore_sole × PR
+ *   produzione = kWp × ore_sole(LORDO) × PR × efficienza_sistema
  *   autoconsumo% = base_profilo + bonus_accumulo
  *   ceduto_rete = produzione - autoconsumo_kwh
  *   prelievo_rete = consumo_annuo - autoconsumo_kwh (se autoconsumo < consumo)
  */
 export function calcolaEnergyFlows(input: FvFlowsInput): FvFlows {
-  const oreSole = input.ore_sole_annue ?? 1450; // ESTIMATE: media Italia
+  const oreSole = input.ore_sole_annue ?? 1700; // ESTIMATE: ore di picco LORDE, media Italia
   const pr = input.performance_ratio ?? 0.85;
-  const produzione_kwh = Math.round(input.potenza_kwp * oreSole * pr);
+  const effSistema = input.efficienza_sistema ?? 0.89;
+  // ore_sole_annue è LORDO: applico PR × efficienza di sistema (≈0.7565) come il motore
+  // finanziario, altrimenti il PDF sovrastimerebbe la produzione di ~15%.
+  const produzione_kwh = Math.round(input.potenza_kwp * oreSole * pr * effSistema);
 
   // Base autoconsumo per profilo (sengza accumulo)
   const baseProfilo: Record<string, number> = {
