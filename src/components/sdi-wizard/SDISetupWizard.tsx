@@ -81,14 +81,26 @@ export function SDISetupWizard({ open, onOpenChange }: Props) {
     }
     setIsSalvando(true);
     try {
-      const { error } = await supabase
-        .from('company_settings')
-        .upsert({
-          company_id: effectiveCompany.id,
-          key: 'sdi_config',
-          value: JSON.stringify(form),
-        });
+      // I dati SDI vivono sull'anagrafica fiscale dell'azienda (stessa tabella
+      // letta/scritta da ImpostazioniFatturazione), NON su una "company_settings"
+      // (che non esiste → prima ogni salvataggio falliva = vicolo cieco).
+      const { data, error } = await supabase
+        .from('anagrafica_azienda' as never)
+        .update({
+          codice_sdi: form.codice_destinatario,
+          pec: form.pec_sdi || null,
+          regime_fiscale: form.regime_fiscale,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq('company_id', effectiveCompany.id)
+        .select('id');
       if (error) throw error;
+      if (!data || (data as unknown[]).length === 0) {
+        toast.error('Anagrafica aziendale non trovata', {
+          description: 'Completa prima i dati azienda in Impostazioni Fatturazione.',
+        });
+        return;
+      }
       toast.success('Configurazione SDI salvata');
       handleClose(false);
     } catch (err) {
