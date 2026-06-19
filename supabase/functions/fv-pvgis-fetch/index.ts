@@ -83,7 +83,7 @@ Deno.serve(async (req: Request) => {
       `https://re.jrc.ec.europa.eu/api/v5_2/PVcalc` +
       `?lat=${p.lat}&lon=${p.lng}` +
       `&peakpower=${p.kwp}&loss=${loss}&angle=${tilt}&aspect=${pvgisAzimuth}` +
-      `&outputformat=json&raddatabase=PVGIS-SARAH3`;
+      `&outputformat=json&raddatabase=PVGIS-SARAH2`;
 
     let resp: Response;
     try {
@@ -134,7 +134,7 @@ function parsePvgis(json: Record<string, unknown>, kwp: number) {
     produzione_mensile_kwh: monthly.map((m) => m.E_m as number),
     perdite_totali_pct: fixed.l_total as number ?? 14,
     elevation: location.elevation as number ?? null,
-    raddatabase: meteo.radiation_db as string ?? "PVGIS-SARAH3",
+    raddatabase: meteo.radiation_db as string ?? "PVGIS-SARAH2",
     ore_sole_annue_equivalenti: kwp > 0 ? Math.round(((fixed.E_y as number) ?? 0) / kwp) : 0,
   };
 }
@@ -155,7 +155,7 @@ function buildMockPvgis(lat: number, _lng: number, kwp: number, tilt: number, _a
     produzione_mensile_kwh: monthly,
     perdite_totali_pct: 14,
     elevation: 100,
-    raddatabase: "PVGIS-SARAH3 (mock)",
+    raddatabase: "PVGIS-SARAH2 (mock)",
     ore_sole_annue_equivalenti: oreSole,
     _mock: true,
   };
