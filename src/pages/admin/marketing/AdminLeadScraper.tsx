@@ -154,6 +154,21 @@ function fmtFatturato(v: number | null): string {
   return `€${Math.round(v)}`;
 }
 
+// Stima il costo di una ricerca PRIMA di lanciarla (trasparenza spesa).
+function stimaCostoRicerca(source: string, n: number): { testo: string } {
+  switch (source) {
+    case "company_search": {
+      const eur = n * 0.03; // ricerca + dettaglio IT-advanced openapi.it
+      return { testo: `~${eur.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 })} (${n} aziende × ~€0,03)` };
+    }
+    case "apollo": return { testo: `consuma ~${n} crediti Apollo` };
+    case "google_maps": return { testo: "gratis (entro il cap giornaliero Google Places)" };
+    case "linkedin": return { testo: "~gratis (ricerca web)" };
+    case "internal": return { testo: "gratis (DB proprietario / scraper self-host)" };
+    default: return { testo: "" };
+  }
+}
+
 // Normalizza un numero IT in E.164 e indica se è mobile (per WhatsApp).
 function normalizeItPhone(raw: string | null): { e164: string | null; isMobile: boolean } {
   if (!raw) return { e164: null, isMobile: false };
@@ -732,6 +747,16 @@ export default function AdminLeadScraper() {
     queryKey: ["lead-scraper", "openapi-env"],
     queryFn: () => invoke({ action: "openapi_env" }) as Promise<{ env: string; hasToken: boolean }>,
     enabled: hasAccess && source === "company_search",
+  });
+  // Quota odierna per la trasparenza costi pre-ricerca (riusa la vista usata in Analytics).
+  const { data: providerUsageInline = [] } = useQuery({
+    queryKey: ["lead-scraper", "provider-usage-inline"],
+    queryFn: async (): Promise<{ provider: string; calls_today: number }[]> => {
+      const { data } = await fromLS("lead_scraper_provider_usage").select("provider, calls_today");
+      return (data || []) as { provider: string; calls_today: number }[];
+    },
+    enabled: hasAccess && (source === "company_search" || source === "google_maps"),
+    staleTime: 60_000,
   });
   const setOpenapiEnv = useMutation({
     mutationFn: (env: "sandbox" | "prod") => invoke({ action: "openapi_env", set: env }),
@@ -1459,6 +1484,20 @@ export default function AdminLeadScraper() {
                 </div>
               )}
 
+              {(() => {
+                const isSandbox = source === "company_search" && openapiEnvQuery.data?.env !== "prod";
+                const n = massive && source === "internal" ? (parseInt(massiveTarget, 10) || 0) : (parseInt(maxResults, 10) || 0);
+                const stima = stimaCostoRicerca(source, n);
+                if (!stima.testo && !isSandbox) return null;
+                const googleToday = providerUsageInline.find((p) => p.provider === "google_places")?.calls_today;
+                return (
+                  <div className="rounded-md border bg-muted/30 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                    <span>Stima costo: </span>
+                    <span className="font-medium text-foreground">{isSandbox ? "gratis (Sandbox · dati di test)" : stima.testo}</span>
+                    {source === "google_maps" && googleToday != null && <span> · Google oggi: {googleToday}/2000</span>}
+                  </div>
+                );
+              })()}
               <Button className="w-full gap-2"
                 onClick={() => (massive && source === "internal" ? runMassive() : searchMutation.mutate())}
                 disabled={busy || !keyword.trim()}>
