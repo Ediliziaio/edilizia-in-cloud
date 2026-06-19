@@ -621,8 +621,8 @@ export default function AdminLeadScraper() {
 
   const [progress, setProgress] = useState<{ label: string; done: number; total: number } | null>(null);
   const [filterQ, setFilterQ] = useState("");
-  const [filterFlags, setFilterFlags] = useState({ email: false, hot: false, notCrm: false, edil: false });
-  const [sortBy, setSortBy] = useState<"ai" | "intent" | "buying" | "rating" | "name">("ai");
+  const [filterFlags, setFilterFlags] = useState({ email: false, hot: false, notCrm: false, edil: false, conFatturato: false });
+  const [sortBy, setSortBy] = useState<"ai" | "intent" | "buying" | "rating" | "name" | "fatturato">("ai");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [sequenzaId, setSequenzaId] = useState<string>("");
 
@@ -1154,9 +1154,11 @@ export default function AdminLeadScraper() {
     if (filterFlags.hot) list = list.filter((r) => r.ai_label === "hot" || (r.intent_score != null && r.intent_score >= 70));
     if (filterFlags.notCrm) list = list.filter((r) => !r.pushed_to_crm);
     if (filterFlags.edil) list = list.filter((r) => /^4[123]/.test(r.ateco || "")); // ATECO 41/42/43 = costruzioni
+    if (filterFlags.conFatturato) list = list.filter((r) => (r.fatturato ?? 0) > 0); // solo con fatturato dal Registro
     const arr = [...list];
     arr.sort((a, b) => {
       if (sortBy === "name") return a.business_name.localeCompare(b.business_name);
+      if (sortBy === "fatturato") return (b.fatturato ?? 0) - (a.fatturato ?? 0);
       const key = sortBy === "ai" ? "ai_score" : sortBy === "intent" ? "intent_score" : sortBy === "buying" ? "buying_score" : "rating";
       return (Number(b[key as keyof LeadResult] ?? -1)) - (Number(a[key as keyof LeadResult] ?? -1));
     });
@@ -1681,10 +1683,11 @@ export default function AdminLeadScraper() {
                     <SelectItem value="buying">Ordina: Intento d'acquisto</SelectItem>
                     <SelectItem value="intent">Ordina: Intento (fit)</SelectItem>
                     <SelectItem value="rating">Ordina: Rating</SelectItem>
+                    <SelectItem value="fatturato">Ordina: Fatturato</SelectItem>
                     <SelectItem value="name">Ordina: Nome</SelectItem>
                   </SelectContent>
                 </Select>
-                {([["email", "Con email"], ["hot", "Hot"], ["notCrm", "Non in CRM"], ["edil", "Solo edilizia"]] as const).map(([k, lbl]) => (
+                {([["email", "Con email"], ["hot", "Hot"], ["notCrm", "Non in CRM"], ["edil", "Solo edilizia"], ["conFatturato", "Con fatturato"]] as const).map(([k, lbl]) => (
                   <button key={k} type="button"
                     onClick={() => setFilterFlags((f) => ({ ...f, [k]: !f[k] }))}
                     className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${filterFlags[k] ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/50"}`}>
