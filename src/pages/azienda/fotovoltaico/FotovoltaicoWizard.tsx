@@ -1080,15 +1080,21 @@ export default function FotovoltaicoWizard() {
    */
   const goTo = useCallback(
     (target: number, opts?: { markCompleted?: boolean }) => {
+      const nextCompleted = opts?.markCompleted ? new Set(completedSteps).add(step) : completedSteps;
       if (opts?.markCompleted) {
-        setCompletedSteps((s) => new Set(s).add(step));
+        setCompletedSteps(nextCompleted);
       }
       const safe = Math.max(1, Math.min(TOTAL_STEPS, target));
+      // Flush SINCRONO della bozza: senza, un refresh entro ~800ms dal click su
+      // "Avanti" cadrebbe nella finestra del debounce e perderebbe l'ultimo input.
+      if (!readOnlyMode) {
+        savePersistedDraft(progettoId, { step: safe, data, completedSteps: Array.from(nextCompleted) });
+      }
       setStep(safe);
       // scroll to top of content
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [step],
+    [step, completedSteps, readOnlyMode, progettoId, data],
   );
 
   const goPrev = useCallback(() => goTo(step - 1), [step, goTo]);
