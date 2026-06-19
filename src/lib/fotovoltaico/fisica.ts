@@ -35,6 +35,12 @@ export interface FvParametriPerdite {
   perdita_inverter_pct: number;
   performance_ratio: number;
   degradazione_annua_pannelli_pct: number;
+  /**
+   * Ombreggiamento da ostacoli VICINI (alberi/edifici adiacenti), frazione 0..1.
+   * Default 0 = nessuno. L'orizzonte lontano è già in ore_sole_annue (PVGIS H(i)_y),
+   * quindi è una perdita MOLTIPLICATIVA distinta dalle perdite di sistema.
+   */
+  perdita_ombreggiamento_pct?: number;
 }
 
 export const FV_PERDITE_DEFAULT: FvParametriPerdite = {
@@ -44,6 +50,7 @@ export const FV_PERDITE_DEFAULT: FvParametriPerdite = {
   perdita_inverter_pct: 0.02,
   performance_ratio: 0.85,
   degradazione_annua_pannelli_pct: 0.005,
+  perdita_ombreggiamento_pct: 0,
 };
 
 export const FV_PERDITE_PREMIUM: FvParametriPerdite = {
@@ -80,7 +87,11 @@ export function produzioneAnnuaLorda(input: {
 }): number {
   const p = { ...FV_PERDITE_DEFAULT, ...(input.parametri ?? {}) };
   const teorica = input.potenza_kwp * input.ore_sole_annue;
-  const netta = teorica * p.performance_ratio * fattoreEfficienzaNetta(p);
+  // Ombreggiamento vicino: fattore moltiplicativo (1 - ombra), clamp [0, 0.6].
+  // Default 0 → nessun impatto (coerenza con motore e PDF).
+  const ombra = Math.min(0.6, Math.max(0, p.perdita_ombreggiamento_pct ?? 0));
+  const netta =
+    teorica * p.performance_ratio * fattoreEfficienzaNetta(p) * (1 - ombra);
   return arrotondaTo(2, netta);
 }
 

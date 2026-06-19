@@ -60,6 +60,11 @@ export interface WizardData {
   azimut_tetto: string | null;
   /** Inclinazione (pendenza) reale della falda prevalente, in gradi. */
   inclinazione_tetto: number | null;
+  /**
+   * Ombreggiamento da ostacoli VICINI (alberi, edifici adiacenti) come FRAZIONE 0..1
+   * (es. 0.10 = 10%). Default 0 = nessuno. L'orizzonte lontano è già in PVGIS H(i)_y.
+   */
+  perdita_ombreggiamento_pct: number;
   // Step 5: Configurazione
   numero_pannelli_scelti: number;
   potenza_kwp: number;

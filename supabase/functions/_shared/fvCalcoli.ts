@@ -23,6 +23,9 @@ export interface FvFlowsInput {
   efficienza_sistema?: number;
   /** Profilo consumo: incide su autoconsumo */
   profilo_consumo?: "diurno" | "serale" | "misto" | "lavorativo" | string;
+  /** Ombreggiamento da ostacoli VICINI (alberi/edifici adiacenti), frazione 0..1.
+   *  Default 0 = nessuno. L'orizzonte lontano è già in ore_sole_annue (PVGIS H(i)_y). */
+  perdita_ombreggiamento_pct?: number;
 }
 
 export interface FvFlows {
@@ -50,7 +53,11 @@ export function calcolaEnergyFlows(input: FvFlowsInput): FvFlows {
   const effSistema = input.efficienza_sistema ?? 0.89;
   // ore_sole_annue è LORDO: applico PR × efficienza di sistema (≈0.7565) come il motore
   // finanziario, altrimenti il PDF sovrastimerebbe la produzione di ~15%.
-  const produzione_kwh = Math.round(input.potenza_kwp * oreSole * pr * effSistema);
+  // Ombreggiamento vicino (frazione 0..1, clamp [0,0.6]): default 0 = nessun impatto.
+  const perdita_ombra = Math.min(0.6, Math.max(0, input.perdita_ombreggiamento_pct ?? 0));
+  const produzione_kwh = Math.round(
+    input.potenza_kwp * oreSole * pr * effSistema * (1 - perdita_ombra),
+  );
 
   // Base autoconsumo per profilo (sengza accumulo)
   const baseProfilo: Record<string, number> = {

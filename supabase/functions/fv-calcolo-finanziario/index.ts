@@ -117,8 +117,12 @@ Deno.serve(async (req: Request) => {
       par("perdita_sporcamento_pct", 0.03) +
       par("perdita_inverter_pct", 0.02);
     const eff_netta = Math.max(0, 1 - perdite);
+    // Ombreggiamento da ostacoli VICINI (alberi/edifici adiacenti), frazione 0..1.
+    // L'orizzonte lontano è già in H(i)_y (PVGIS/Solar). Default 0 = nessun impatto.
+    // Clamp a [0, 0.6] per robustezza contro valori fuori scala.
+    const perdita_ombra = Math.min(0.6, Math.max(0, prog.perdita_ombreggiamento_pct ?? 0));
     const produzione_anno_1 =
-      prog.potenza_kwp * prog.ore_sole_annue * PR * eff_netta;
+      prog.potenza_kwp * prog.ore_sole_annue * PR * eff_netta * (1 - perdita_ombra);
 
     // ── 4. Autoconsumo % dal profilo ───────────────────────────────────────
     let autoconsumo_pct = prog.autoconsumo_pct ?? 0.35;

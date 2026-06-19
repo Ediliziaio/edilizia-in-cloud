@@ -353,6 +353,7 @@ export default function FotovoltaicoWizard() {
       inclinazione_tetto: progettoEsistente.inclinazione_tetto ?? null,
       layout_tetto:
         (progettoEsistente.layout_tetto as WizardData["layout_tetto"]) ?? null,
+      perdita_ombreggiamento_pct: progettoEsistente.perdita_ombreggiamento_pct ?? 0,
       numero_pannelli_scelti: progettoEsistente.numero_pannelli_scelti ?? 16,
       potenza_kwp: progettoEsistente.potenza_kwp ?? 8.64,
       con_accumulo: progettoEsistente.con_accumulo ?? false,
@@ -750,6 +751,9 @@ export default function FotovoltaicoWizard() {
           azimut_tetto: azimutDeg,
           inclinazione_tetto: inclinazioneDeg,
           layout_tetto: layoutTetto,
+          // Ombreggiamento vicino (frazione 0..1): persistito con gli altri campi
+          // dello Step 4 così sopravvive a reload e arriva al motore di calcolo.
+          perdita_ombreggiamento_pct: data.perdita_ombreggiamento_pct ?? 0,
         } as never,
       });
 
@@ -1272,6 +1276,9 @@ export default function FotovoltaicoWizard() {
           isee: data.isee,
           numero_figli: data.numero_figli,
           reddito_annuo_dichiarato: data.reddito_annuo_dichiarato,
+          // tetto: ombreggiamento vicino (frazione 0..1) — persistito anche qui
+          // così "Salva bozza" non lo perde al refresh.
+          perdita_ombreggiamento_pct: data.perdita_ombreggiamento_pct ?? 0,
           // configurazione + opzioni
           numero_pannelli_scelti: data.numero_pannelli_scelti,
           potenza_kwp: data.potenza_kwp,
@@ -2256,6 +2263,44 @@ function Step4Tetto({
               Modulo → API & Secrets</em>.
             </FvCallout>
           )}
+
+          {/* Ombreggiamento da ostacoli vicini (alberi/edifici adiacenti).
+              Lo slider/Select MOSTRA la percentuale ma SALVA la frazione 0..1.
+              Default 0 = "Nessuno" → nessun impatto sui progetti esistenti. */}
+          <FvCard title="Ombreggiamento da ostacoli vicini" className="mt-4">
+            <div className="grid sm:grid-cols-2 gap-3 items-start">
+              <div>
+                <Label>Ombra da alberi o edifici vicini (opzionale)</Label>
+                <Select
+                  value={String(Math.round((data.perdita_ombreggiamento_pct ?? 0) * 100))}
+                  onValueChange={(v) =>
+                    update("perdita_ombreggiamento_pct", Number(v) / 100)
+                  }
+                  disabled={readOnlyMode}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Nessuno</SelectItem>
+                    <SelectItem value="5">Leggero — 5%</SelectItem>
+                    <SelectItem value="10">Moderato — 10%</SelectItem>
+                    <SelectItem value="15">Sensibile — 15%</SelectItem>
+                    <SelectItem value="20">Marcato — 20%</SelectItem>
+                    <SelectItem value="30">Forte — 30%</SelectItem>
+                    <SelectItem value="40">Molto forte — 40%</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed sm:pt-6">
+                L'orizzonte e le colline sono già considerati nei dati di
+                irradiazione: indica qui <strong>solo</strong> le ombre ravvicinate
+                (un albero alto, un edificio adiacente) che riducono la produzione.
+                Riduce la stima di produzione del valore scelto.
+              </p>
+            </div>
+          </FvCard>
+
           <FvLayoutTetto panels={data.layout_tetto} className="mt-3" />
         </>
       )}

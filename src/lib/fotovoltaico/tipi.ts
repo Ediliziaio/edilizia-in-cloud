@@ -147,6 +147,10 @@ export interface FvProgetto {
   azimut_tetto: number | null;
   inclinazione_tetto: number | null;
   layout_tetto: Record<string, unknown> | unknown[] | null;
+  // Perdita frazionaria 0..1 da ombreggiamento vicino (alberi/edifici adiacenti).
+  // 0 = nessuno. L'orizzonte lontano è già incluso in PVGIS H(i)_y.
+  // Persistito via migrazione 20271021010000_fv_perdita_ombreggiamento.sql.
+  perdita_ombreggiamento_pct: number | null;
   // configurazione
   numero_pannelli_scelti: number | null;
   potenza_kwp: number | null;

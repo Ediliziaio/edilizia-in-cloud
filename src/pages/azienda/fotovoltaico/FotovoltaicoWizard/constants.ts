@@ -69,6 +69,7 @@ export const INITIAL: WizardData = {
   layout_tetto: null,
   azimut_tetto: null,
   inclinazione_tetto: null,
+  perdita_ombreggiamento_pct: 0,
   numero_pannelli_scelti: 16,
   potenza_kwp: 8.64,
   con_accumulo: false,
