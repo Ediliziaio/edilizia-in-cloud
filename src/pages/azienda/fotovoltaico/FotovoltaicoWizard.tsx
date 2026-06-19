@@ -38,6 +38,7 @@ import {
   Copy,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { FvContactPicker } from "@/components/fotovoltaico/FvContactPicker";
 import {
   useProgetto,
   useAggiornaProgetto,
@@ -600,18 +601,41 @@ export default function FotovoltaicoWizard() {
     setAnalizzandoTetto(true);
     try {
       let result: Record<string, unknown> | null = null;
-      if (data.fonte_dati_tetto === "solar_api") {
-        const { data: r, error } = await supabase.functions.invoke("fv-solar-api-fetch", {
-          body: { lat: data.latitudine, lng: data.longitudine, progetto_id: progettoId },
-        });
-        if (error) throw error;
-        result = r as Record<string, unknown>;
-      } else if (data.fonte_dati_tetto === "pvgis") {
+      // Fonte realmente usata: se la Solar API fallisce, ripieghiamo su PVGIS
+      // così l'analisi tetto restituisce SEMPRE dei dati (niente vicolo cieco).
+      let fonteEffettiva: "solar_api" | "pvgis" =
+        data.fonte_dati_tetto === "pvgis" ? "pvgis" : "solar_api";
+
+      const chiamaPvgis = async (): Promise<Record<string, unknown>> => {
         const { data: r, error } = await supabase.functions.invoke("fv-pvgis-fetch", {
           body: { lat: data.latitudine, lng: data.longitudine, kwp: data.potenza_kwp },
         });
         if (error) throw error;
-        result = r as Record<string, unknown>;
+        fonteEffettiva = "pvgis";
+        return r as Record<string, unknown>;
+      };
+
+      if (data.fonte_dati_tetto === "solar_api") {
+        try {
+          const { data: r, error } = await supabase.functions.invoke("fv-solar-api-fetch", {
+            body: { lat: data.latitudine, lng: data.longitudine, progetto_id: progettoId },
+          });
+          if (error) throw error;
+          const sr = r as Record<string, unknown>;
+          // La Solar API risponde 200 con `error` quando l'edificio non è coperto
+          // o l'API rifiuta la richiesta → fallback automatico a PVGIS.
+          if (sr?.error) throw new Error(String(sr.message ?? sr.error));
+          result = sr;
+          fonteEffettiva = "solar_api";
+        } catch (solarErr) {
+          if (!mountedRef.current) return;
+          toast.message("Solar API non disponibile per questo edificio — uso PVGIS", {
+            description: describeError(solarErr),
+          });
+          result = await chiamaPvgis();
+        }
+      } else if (data.fonte_dati_tetto === "pvgis") {
+        result = await chiamaPvgis();
       }
 
       if (!mountedRef.current) return;
@@ -642,7 +666,7 @@ export default function FotovoltaicoWizard() {
       // veniva scartato; ora alimenta la vista "Disposizione reale dei pannelli".
       update(
         "layout_tetto",
-        data.fonte_dati_tetto === "solar_api"
+        fonteEffettiva === "solar_api"
           ? ((result.layout_suggerito as WizardData["layout_tetto"]) ?? null)
           : null,
       );
@@ -653,7 +677,7 @@ export default function FotovoltaicoWizard() {
       await aggiornaProgetto.mutateAsync({
         id: progettoId,
         patch: {
-          fonte_dati_tetto: data.fonte_dati_tetto,
+          fonte_dati_tetto: fonteEffettiva,
           ore_sole_annue: ore,
           superficie_tetto_disponibile_mq:
             (result.superficie_tetto_disponibile_mq as number) ?? null,
@@ -1437,10 +1461,22 @@ function Step1Cliente({
         title="Dati del cliente"
         subtitle={
           <>
-            Anagrafica e contatti del committente. Lookup automatico via Codice Fiscale + integrazione con il{" "}
-            <strong>CRM EiC</strong> nelle prossime versioni.
+            Anagrafica e contatti del committente. Collega un contatto dal{" "}
+            <strong>CRM EiC</strong> per compilare i dati in automatico.
           </>
         }
+      />
+
+      <FvContactPicker
+        clienteId={data.cliente_id}
+        onSelect={(c) => {
+          update("cliente_id", c.id);
+          update("cliente_nome", c.first_name ?? "");
+          update("cliente_cognome", c.last_name ?? "");
+          update("cliente_email", c.email ?? "");
+          update("cliente_telefono", c.phone ?? "");
+        }}
+        onClear={() => update("cliente_id", null)}
       />
 
       <div className="grid lg:grid-cols-2 gap-4">

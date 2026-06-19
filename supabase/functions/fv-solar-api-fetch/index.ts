@@ -97,15 +97,23 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── 4. Chiamata Solar API ──────────────────────────────────────────────
-    const url =
+    // L'API rifiuta a volte la combo requiredQuality + EXPANDED_COVERAGE con
+    // 400 INVALID_ARGUMENT: proviamo prima CON l'esperimento (coverage massima),
+    // poi SENZA. Default quality LOW per coprire più edifici (la qualità reale
+    // viene comunque riportata nel risultato).
+    const buildUrl = (withExperiments: boolean) =>
       `https://solar.googleapis.com/v1/buildingInsights:findClosest` +
       `?location.latitude=${payload.lat}` +
       `&location.longitude=${payload.lng}` +
-      `&requiredQuality=${payload.required_quality ?? "MEDIUM"}` +
-      `&experiments=EXPANDED_COVERAGE` +
+      `&requiredQuality=${payload.required_quality ?? "LOW"}` +
+      (withExperiments ? `&experiments=EXPANDED_COVERAGE` : ``) +
       `&key=${apiKey}`;
 
-    const apiResp = await fetch(url, { method: "GET" });
+    let apiResp = await fetch(buildUrl(true), { method: "GET" });
+    if (apiResp.status === 400) {
+      // Combo param non accettata → retry senza EXPANDED_COVERAGE.
+      apiResp = await fetch(buildUrl(false), { method: "GET" });
+    }
 
     if (apiResp.status === 404) {
       // Edificio non trovato — salva risposta NOT_FOUND in cache TTL 30gg
@@ -127,7 +135,19 @@ Deno.serve(async (req: Request) => {
     if (!apiResp.ok) {
       await logUsage(supabaseAdmin, "buildingInsights", "error");
       const txt = await apiResp.text();
-      return errorResponse(`Solar API error ${apiResp.status}: ${txt.slice(0, 200)}`, 502, corsHeaders);
+      // Non blocchiamo il wizard: segnaliamo al client di usare il fallback PVGIS
+      // (200 con campo `error`) invece di un 5xx che interrompe il flusso.
+      return jsonResponse(
+        {
+          fonte: "solar_api",
+          qualita: "manual",
+          error: "SOLAR_API_ERROR",
+          message: `Solar API ${apiResp.status} — uso PVGIS`,
+          detail: txt.slice(0, 200),
+        },
+        200,
+        corsHeaders,
+      );
     }
 
     const json = await apiResp.json();
