@@ -113,24 +113,6 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       return (data ?? []) as Array<{ id: string; name: string; is_default: boolean }>;
     },
   });
-  // B3 — sezioni/ubicazioni del magazzino selezionato (per stoccaggio mirato).
-  const { data: sections = [] } = useQuery({
-    queryKey: ["carico-rapido-sections", companyId, warehouseId],
-    enabled: !!companyId && !!warehouseId,
-    staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("warehouse_sections")
-        .select("id, name")
-        .eq("company_id", companyId!)
-        .eq("warehouse_id", warehouseId)
-        .order("position", { ascending: true })
-        .order("name", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as Array<{ id: string; name: string }>;
-    },
-  });
-  const sectionName = sectionId ? sections.find((s) => s.id === sectionId)?.name ?? null : null;
   const { data: suppliers = [], isLoading: suppliersLoading } = useQuery<SupplierOption[]>({
     queryKey: queryKeys.suppliers.list(companyId),
     queryFn: async () => {
@@ -198,6 +180,26 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   // B3 — scadenza lotto + sezione di stoccaggio (entrata merce).
   const [lottoScadenza, setLottoScadenza] = useState("");
   const [sectionId, setSectionId] = useState<string | undefined>();
+  // B3 — sezioni/ubicazioni del magazzino selezionato (per stoccaggio mirato).
+  // NB: dichiarata DOPO warehouseId/sectionId — referenziarli prima causa TDZ
+  // ("Cannot access before initialization") e fa crashare l'intera pagina.
+  const { data: sections = [] } = useQuery({
+    queryKey: ["carico-rapido-sections", companyId, warehouseId],
+    enabled: !!companyId && !!warehouseId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_sections")
+        .select("id, name")
+        .eq("company_id", companyId!)
+        .eq("warehouse_id", warehouseId)
+        .order("position", { ascending: true })
+        .order("name", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string }>;
+    },
+  });
+  const sectionName = sectionId ? sections.find((s) => s.id === sectionId)?.name ?? null : null;
   // "Incolla seriali bancale": alternativa alla camera quando il QR è denso/
   // difficile da inquadrare → incolli la lista, costruiamo le entry e si prosegue.
   const [serialPaste, setSerialPaste] = useState("");
