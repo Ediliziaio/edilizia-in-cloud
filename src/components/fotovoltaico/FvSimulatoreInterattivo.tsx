@@ -25,6 +25,16 @@ const eur = (v: number) =>
     maximumFractionDigits: 0,
   }).format(v);
 
+const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
+
+// Range degli slider (devono restare allineati ai min/max degli <Slider/> sotto).
+const COSTO_KWH_MIN = 0.15,
+  COSTO_KWH_MAX = 0.5;
+const AUTOCONSUMO_MIN = 0.2,
+  AUTOCONSUMO_MAX = 0.95;
+const INFLAZIONE_MIN = 0,
+  INFLAZIONE_MAX = 0.06;
+
 const anni = (v: number | null) =>
   v == null ? "oltre 25 anni" : `${v.toLocaleString("it-IT", { maximumFractionDigits: 1 })} anni`;
 
@@ -103,9 +113,15 @@ export function FvSimulatoreInterattivo({
   conAccumulo: boolean;
   className?: string;
 }) {
-  const [costoKwh, setCostoKwh] = useState(base.costo_kwh_attuale);
-  const [autoconsumo, setAutoconsumo] = useState(base.autoconsumo_pct);
-  const [inflazione, setInflazione] = useState(base.inflazione_energia_pct);
+  // Stato iniziale clampato nei range degli slider: un valore base fuori range
+  // altrimenti renderebbe lo slider incoerente e "modificato" sempre true.
+  const initCostoKwh = clamp(base.costo_kwh_attuale, COSTO_KWH_MIN, COSTO_KWH_MAX);
+  const initAutoconsumo = clamp(base.autoconsumo_pct, AUTOCONSUMO_MIN, AUTOCONSUMO_MAX);
+  const initInflazione = clamp(base.inflazione_energia_pct, INFLAZIONE_MIN, INFLAZIONE_MAX);
+
+  const [costoKwh, setCostoKwh] = useState(initCostoKwh);
+  const [autoconsumo, setAutoconsumo] = useState(initAutoconsumo);
+  const [inflazione, setInflazione] = useState(initInflazione);
 
   const { kpi, cassa } = useMemo(() => {
     const input = applicaOverride(base, {
@@ -125,15 +141,17 @@ export function FvSimulatoreInterattivo({
     };
   }, [base, costoKwh, autoconsumo, inflazione, potenzaKwp, conAccumulo]);
 
+  // Confronto float con epsilon: '!==' resterebbe true per arrotondamenti.
+  const EPS = 1e-9;
   const modificato =
-    costoKwh !== base.costo_kwh_attuale ||
-    autoconsumo !== base.autoconsumo_pct ||
-    inflazione !== base.inflazione_energia_pct;
+    Math.abs(costoKwh - initCostoKwh) > EPS ||
+    Math.abs(autoconsumo - initAutoconsumo) > EPS ||
+    Math.abs(inflazione - initInflazione) > EPS;
 
   const reset = () => {
-    setCostoKwh(base.costo_kwh_attuale);
-    setAutoconsumo(base.autoconsumo_pct);
-    setInflazione(base.inflazione_energia_pct);
+    setCostoKwh(initCostoKwh);
+    setAutoconsumo(initAutoconsumo);
+    setInflazione(initInflazione);
   };
 
   return (
@@ -164,8 +182,8 @@ export function FvSimulatoreInterattivo({
           label="Prezzo energia oggi"
           display={`${costoKwh.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €/kWh`}
           value={costoKwh}
-          min={0.15}
-          max={0.5}
+          min={COSTO_KWH_MIN}
+          max={COSTO_KWH_MAX}
           step={0.01}
           onChange={setCostoKwh}
         />
@@ -173,8 +191,8 @@ export function FvSimulatoreInterattivo({
           label="Energia che usi quando produci"
           display={`${Math.round(autoconsumo * 100)}%`}
           value={autoconsumo}
-          min={0.2}
-          max={0.95}
+          min={AUTOCONSUMO_MIN}
+          max={AUTOCONSUMO_MAX}
           step={0.05}
           onChange={setAutoconsumo}
         />
@@ -182,8 +200,8 @@ export function FvSimulatoreInterattivo({
           label="Aumento prezzo energia / anno"
           display={`${(inflazione * 100).toLocaleString("it-IT", { maximumFractionDigits: 1 })}%`}
           value={inflazione}
-          min={0}
-          max={0.06}
+          min={INFLAZIONE_MIN}
+          max={INFLAZIONE_MAX}
           step={0.005}
           onChange={setInflazione}
         />

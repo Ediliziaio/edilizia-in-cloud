@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useDebounce } from "@/hooks/useDebounce";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -50,9 +51,10 @@ export function FvContactPicker({
   const companyId = useEffectiveCompanyId();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 250);
 
   const { data: contacts = [] } = useQuery({
-    queryKey: ["fv-contact-picker", companyId, search],
+    queryKey: ["fv-contact-picker", companyId, debouncedSearch],
     enabled: !!companyId && open,
     queryFn: async (): Promise<FvContactLite[]> => {
       let q = supabase
@@ -60,13 +62,15 @@ export function FvContactPicker({
         .select("id, first_name, last_name, email, phone")
         .eq("company_id", companyId!)
         .limit(20);
-      const safe = search.replace(/[%,]/g, " ").trim();
+      // Sanitizza i caratteri speciali del filtro PostgREST (.or) per evitare
+      // match troppo larghi o parsing errato del pattern ilike.
+      const safe = debouncedSearch.replace(/[%,()_\\]/g, " ").trim();
       if (safe) {
         q = q.or(
           `first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,email.ilike.%${safe}%`,
         );
       }
-      const { data, error } = await q.order("first_name");
+      const { data, error } = await q.order("first_name", { nullsFirst: false });
       if (error) throw error;
       return (data ?? []) as FvContactLite[];
     },

@@ -15,6 +15,12 @@ export interface InputCassaCumulata {
   investimento_iniziale: number;
   produzione_anno_1_kwh: number;
   autoconsumo_pct: number;
+  /**
+   * Consumo elettrico annuo (kWh) — cap fisico all'autoconsumo: non si può
+   * auto-consumare più di quanto si consuma. Se OMESSO → nessun cap
+   * (comportamento storico, per non rompere i chiamanti che non lo passano).
+   */
+  consumo_annuo_kwh?: number;
   costo_kwh_attuale: number;
   prezzo_rid_kwh: number;
   /** Detrazione annua (€/anno) per anni 1..durata_detrazione. */
@@ -90,8 +96,14 @@ export function calcolaCassaCumulata(input: InputCassaCumulata): FlussoAnno[] {
     const prezzo_rid_n =
       input.prezzo_rid_kwh * Math.pow(1 + inflRid, anno - 1);
 
-    // Energia & risparmi
-    const autoconsumata = produzione_n * input.autoconsumo_pct;
+    // Energia & risparmi.
+    // CAP autoconsumo: non si può auto-consumare più del consumo annuo. Se il
+    // consumo non è fornito, nessun cap (comportamento storico). Il consumo è
+    // costante in kWh anno su anno (non si degrada come la produzione).
+    const autoconsumata =
+      input.consumo_annuo_kwh != null
+        ? Math.min(produzione_n * input.autoconsumo_pct, input.consumo_annuo_kwh)
+        : produzione_n * input.autoconsumo_pct;
     const immessa = produzione_n - autoconsumata;
 
     const risparmio_bolletta = autoconsumata * prezzo_kwh_n;
@@ -328,14 +340,19 @@ export function scenarioAutoElettrica(input: {
   // _extra è il consumo aggiuntivo previsto (auto elettrica): per ora il modello
   // W1 lo modella alzando solo l'autoconsumo (delta), riservato a W2 il calcolo
   // pieno con flussi separati.
-  const _extra = input.consumo_extra_kwh ?? 3000;
-  void _extra;
+  const extra = input.consumo_extra_kwh ?? 3000;
   const delta = input.delta_autoconsumo_pct ?? 0.20;
   // Ricalcolo: produzione resta uguale, ma autoconsumo aumenta (capped a 1.0)
   const newAutoconsumo = Math.min(1, input.base.autoconsumo_pct + delta);
   const newInput: InputCassaCumulata = {
     ...input.base,
     autoconsumo_pct: newAutoconsumo,
+    // L'EV alza i consumi: se la base ha un cap, alzalo della stessa quota così
+    // il maggior autoconsumo non viene erroneamente tagliato dal min().
+    consumo_annuo_kwh:
+      input.base.consumo_annuo_kwh != null
+        ? input.base.consumo_annuo_kwh + extra
+        : undefined,
   };
   const cassa = calcolaCassaCumulata(newInput);
   return {
@@ -362,9 +379,8 @@ export function scenarioPompaCalore(input: {
   npv: number;
   autoconsumo: number;
 } {
-  // _extra → consumo extra elettrico (PdC). Modello W1 lo riassorbe via delta autoconsumo.
-  const _extra = input.consumo_extra_kwh ?? 4000;
-  void _extra;
+  // extra → consumo extra elettrico (PdC). Modello W1 lo riassorbe via delta autoconsumo.
+  const extra = input.consumo_extra_kwh ?? 4000;
   const risparmio_gas = input.risparmio_gas_anno_eur ?? 800;
   const delta = input.delta_autoconsumo_pct ?? 0.30;
   const newAutoconsumo = Math.min(1, input.base.autoconsumo_pct + delta);
@@ -374,6 +390,12 @@ export function scenarioPompaCalore(input: {
   const newInput: InputCassaCumulata = {
     ...input.base,
     autoconsumo_pct: newAutoconsumo,
+    // La PdC alza i consumi elettrici: se la base ha un cap, alzalo della stessa
+    // quota così il maggior autoconsumo non viene tagliato dal min().
+    consumo_annuo_kwh:
+      input.base.consumo_annuo_kwh != null
+        ? input.base.consumo_annuo_kwh + extra
+        : undefined,
   };
   const cassaBase = calcolaCassaCumulata(newInput);
   // Aggiungo risparmio gas (inflazione 3%) a tutti gli anni > 0

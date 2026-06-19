@@ -33,6 +33,8 @@ import {
   ExternalLink,
   Settings,
   ArrowLeft,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -320,11 +322,15 @@ export default function FotovoltaicoIndex() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tutti gli stati</SelectItem>
-                  {Object.entries(STATI_LABEL).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>
-                      {v.label}
-                    </SelectItem>
-                  ))}
+                  {/* "annullato" escluso: la view dashboard filtra annullato=false,
+                      quindi quel filtro darebbe sempre lista vuota. */}
+                  {Object.entries(STATI_LABEL)
+                    .filter(([k]) => k !== "annullato")
+                    .map(([k, v]) => (
+                      <SelectItem key={k} value={k}>
+                        {v.label}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               <Select value={filtroArchetipo} onValueChange={setFiltroArchetipo}>
@@ -347,8 +353,33 @@ export default function FotovoltaicoIndex() {
           </div>
         </FvCard>
 
+        {/* Errore di caricamento — distinto dallo stato vuoto reale */}
+        {progettiQuery.isError && (
+          <FvCallout
+            variant="error"
+            title="Impossibile caricare i progetti"
+            icon={<AlertTriangle className="h-4 w-4" />}
+            action={
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => progettiQuery.refetch()}
+                disabled={progettiQuery.isFetching}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 mr-1.5 ${progettiQuery.isFetching ? "animate-spin" : ""}`}
+                />
+                Riprova
+              </Button>
+            }
+          >
+            Si è verificato un errore nel recupero dell'elenco progetti. Controlla la connessione e
+            riprova.
+          </FvCallout>
+        )}
+
         {/* Tabella o empty state */}
-        {progetti.length === 0 && (
+        {progettiQuery.isSuccess && progetti.length === 0 && (
           <FvCard>
             <div className="py-16 text-center space-y-4">
               <div className="relative w-fit mx-auto">

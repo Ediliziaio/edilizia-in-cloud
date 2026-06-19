@@ -283,6 +283,11 @@ function buildInput(
     investimento_iniziale: investimento_eur,
     produzione_anno_1_kwh,
     autoconsumo_pct,
+    // Cap fisico: l'autoconsumo non può superare il consumo annuo. `autoconsumo_pct`
+    // qui è già la quota EFFETTIVA anno-1 (post-cap, via autoconsumoEffettivo), quindi
+    // il cap è una rete di sicurezza coerente col motore server: non altera i numeri
+    // ma garantisce che nessuna variante auto-consumi più del consumo.
+    consumo_annuo_kwh: ctx.consumo_annuo_kwh,
     costo_kwh_attuale: ctx.costo_kwh_attuale,
     prezzo_rid_kwh: ctx.prezzo_rid_kwh,
     detrazione_annua_eur: ctx.detrazione_annua_eur * ratio,

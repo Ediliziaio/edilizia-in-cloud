@@ -68,15 +68,17 @@ Deno.serve(async (req: Request) => {
     if (!apiKey) {
       console.log("[fv-solar-api-fetch] GOOGLE_SOLAR_API_KEY non configurata — uso mock dev");
       const mock = buildMockResponse(payload.lat, payload.lng);
-      // Salvo mock in cache con TTL ridotto (1 giorno) per coerenza nelle sessioni
-      await supabaseAdmin.from("fv_solar_api_cache").insert({
+      // Salvo mock in cache con TTL ridotto (1 giorno) per coerenza nelle sessioni.
+      // upsert su cache_key: la riga scaduta viene rinnovata invece di violare
+      // silenziosamente il vincolo UNIQUE (insert → ri-hit API ad ogni richiesta).
+      await supabaseAdmin.from("fv_solar_api_cache").upsert({
         cache_key: cacheKey,
         endpoint: "buildingInsights",
         response: mock.raw,
         quality_level: "MEDIUM",
         imagery_date: mock.imagery_date,
         expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-      });
+      }, { onConflict: "cache_key" });
       await logUsage(supabaseAdmin, "buildingInsights", "cache"); // mock = no API cost
       return jsonResponse(mock.result, 200, corsHeaders);
     }
@@ -116,14 +118,15 @@ Deno.serve(async (req: Request) => {
     }
 
     if (apiResp.status === 404) {
-      // Edificio non trovato — salva risposta NOT_FOUND in cache TTL 30gg
-      await supabaseAdmin.from("fv_solar_api_cache").insert({
+      // Edificio non trovato — salva risposta NOT_FOUND in cache TTL 30gg.
+      // upsert su cache_key: rinnova la riga scaduta (vedi nota sopra).
+      await supabaseAdmin.from("fv_solar_api_cache").upsert({
         cache_key: cacheKey,
         endpoint: "buildingInsights",
         response: { error: "NOT_FOUND" },
         quality_level: "NOT_FOUND",
         expires_at: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
-      });
+      }, { onConflict: "cache_key" });
       await logUsage(supabaseAdmin, "buildingInsights", "api");
       return jsonResponse(
         { fonte: "solar_api", qualita: "manual", error: "NOT_FOUND", message: "Edificio non trovato — usa fallback PVGIS" },
@@ -135,6 +138,9 @@ Deno.serve(async (req: Request) => {
     if (!apiResp.ok) {
       await logUsage(supabaseAdmin, "buildingInsights", "error");
       const txt = await apiResp.text();
+      // Body upstream loggato SOLO server-side: può contenere dettagli interni
+      // (chiave, struttura richiesta) che non devono raggiungere il browser.
+      console.error(`[fv-solar-api-fetch] Solar API ${apiResp.status}:`, txt.slice(0, 500));
       // Non blocchiamo il wizard: segnaliamo al client di usare il fallback PVGIS
       // (200 con campo `error`) invece di un 5xx che interrompe il flusso.
       return jsonResponse(
@@ -143,7 +149,6 @@ Deno.serve(async (req: Request) => {
           qualita: "manual",
           error: "SOLAR_API_ERROR",
           message: `Solar API ${apiResp.status} — uso PVGIS`,
-          detail: txt.slice(0, 200),
         },
         200,
         corsHeaders,
@@ -151,14 +156,15 @@ Deno.serve(async (req: Request) => {
     }
 
     const json = await apiResp.json();
-    await supabaseAdmin.from("fv_solar_api_cache").insert({
+    // upsert su cache_key: rinnova la riga scaduta (vedi nota sopra).
+    await supabaseAdmin.from("fv_solar_api_cache").upsert({
       cache_key: cacheKey,
       endpoint: "buildingInsights",
       response: json,
       quality_level: json.imageryQuality ?? "MEDIUM",
       imagery_date: parseImageryDate(json.imageryDate),
       expires_at: new Date(Date.now() + 180 * 24 * 3600 * 1000).toISOString(),
-    });
+    }, { onConflict: "cache_key" });
     await logUsage(supabaseAdmin, "buildingInsights", "api");
 
     const result = parseSolarResponse(json, json.imageryQuality, parseImageryDate(json.imageryDate), "solar_api");

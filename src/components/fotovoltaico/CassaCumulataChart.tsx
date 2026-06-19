@@ -11,7 +11,9 @@ interface Props {
 }
 
 export function CassaCumulataChart({ cassa, payback }: Props) {
-  if (cassa.length === 0) return null;
+  const xRange = cassa.length > 0 ? cassa[cassa.length - 1].anno : 0;
+  // Guard: serve almeno 2 punti e un orizzonte > 0, altrimenti xScale divide per 0.
+  if (cassa.length < 2 || xRange <= 0) return null;
   const W = 800;
   const H = 280;
   const padL = 50,
@@ -20,22 +22,29 @@ export function CassaCumulataChart({ cassa, payback }: Props) {
     padB = 50;
   const minCum = Math.min(...cassa.map((c) => c.cumulato), 0);
   const maxCum = Math.max(...cassa.map((c) => c.cumulato), 0);
-  const xRange = cassa[cassa.length - 1].anno;
   const xScale = (anno: number) => padL + (anno / xRange) * (W - padL - padR);
   const yRange = Math.max(maxCum - minCum, 1);
   const yScale = (cum: number) => padT + ((maxCum - cum) / yRange) * (H - padT - padB);
   const yZero = yScale(0);
   const linePoints = cassa.map((c) => `${xScale(c.anno)},${yScale(c.cumulato)}`).join(" L ");
-  const negPoints = cassa
-    .filter((c) => c.cumulato <= 0)
-    .map((c) => `${xScale(c.anno)},${yScale(c.cumulato)}`);
+  // Punto di incrocio interpolato (cumulato=0 all'anno `payback`): aggiunto a
+  // entrambe le aree così rossa e verde si chiudono sullo zero senza cuneo.
+  const crossPoint =
+    payback != null && payback > 0 && payback <= xRange
+      ? `${xScale(payback)},${yZero}`
+      : null;
+  const negPoints = [
+    ...cassa.filter((c) => c.cumulato <= 0).map((c) => `${xScale(c.anno)},${yScale(c.cumulato)}`),
+    ...(crossPoint ? [crossPoint] : []),
+  ];
   const negArea =
     negPoints.length > 0
       ? `M ${negPoints[0].split(",")[0]},${yZero} L ${negPoints.join(" L ")} L ${negPoints[negPoints.length - 1].split(",")[0]},${yZero} Z`
       : null;
-  const posPoints = cassa
-    .filter((c) => c.cumulato >= 0)
-    .map((c) => `${xScale(c.anno)},${yScale(c.cumulato)}`);
+  const posPoints = [
+    ...(crossPoint ? [crossPoint] : []),
+    ...cassa.filter((c) => c.cumulato >= 0).map((c) => `${xScale(c.anno)},${yScale(c.cumulato)}`),
+  ];
   const posArea =
     posPoints.length > 0
       ? `M ${posPoints[0].split(",")[0]},${yZero} L ${posPoints.join(" L ")} L ${posPoints[posPoints.length - 1].split(",")[0]},${yZero} Z`
@@ -138,8 +147,13 @@ export function CassaCumulataChart({ cassa, payback }: Props) {
         </text>
       </g>
       <g fontSize="10" fill="#64748B" textAnchor="middle">
-        {[0, 5, 10, 15, 20, xRange].map((a) => (
-          <text key={a} x={xScale(a)} y={H - padB + 18}>{`Anno ${a}`}</text>
+        {[
+          ...new Set([
+            ...Array.from({ length: Math.floor(xRange / 5) + 1 }, (_, i) => i * 5),
+            xRange,
+          ]),
+        ].map((a, i) => (
+          <text key={`${a}-${i}`} x={xScale(a)} y={H - padB + 18}>{`Anno ${a}`}</text>
         ))}
       </g>
     </svg>

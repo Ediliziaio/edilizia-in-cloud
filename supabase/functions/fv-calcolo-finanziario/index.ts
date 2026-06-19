@@ -17,7 +17,7 @@
  */
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
-import { requireAuth } from "../_shared/auth.ts";
+import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
 
 interface Payload {
   progetto_id: string;
@@ -67,6 +67,15 @@ Deno.serve(async (req: Request) => {
       return errorResponse("Progetto non trovato", 404, corsHeaders);
     }
     const prog = progettoRes.data;
+
+    // ── SICUREZZA (IDOR): il progetto è caricato via service-role (bypassa RLS),
+    // quindi qui ripristiniamo il confine tenant a livello applicativo. Senza
+    // questo controllo un utente autenticato potrebbe leggere margini/costi e
+    // ANCHE eseguire UPDATE/INSERT (sotto) su progetti di altre aziende.
+    // FAIL-CLOSED: requireCompanyAccess lancia un Response 403 (gestito dal
+    // catch in fondo) se la company dell'utente è nulla o ≠ prog.company_id.
+    // Eccezioni gestite dall'helper: super_admin e multi_company_access.
+    await requireCompanyAccess(supabaseAdmin, userId, prog.company_id, corsHeaders);
     const params = (paramsRes.data ?? []) as ParametroDb[];
     const par = (k: string, def: number): number => params.find((x) => x.chiave === k)?.valore ?? def;
     const profili = profiliRes.data ?? [];
@@ -141,6 +150,11 @@ Deno.serve(async (req: Request) => {
       numero_figli: prog.numero_figli ?? 0,
       costo_totale: prezzo_vendita_iva_inclusa,
       iva_aliquota_default: 0.22,
+      // F9: aliquota IVA EFFETTIVAMENTE applicata al prezzo (default 10% agevolata).
+      // Serve per derivare il netto in modo coerente (vedi IVA_10 sotto), invece
+      // di dividere a tappeto per 1.22 mentre il prezzo è già IVA@10%.
+      iva_aliquota_applicata: iva_aliquota,
+      prezzo_vendita_netto,
       potenza_kwp: prog.potenza_kwp,
       capacita_accumulo_kwh: prog.capacita_accumulo_kwh ?? 0,
       energia_immessa_anno_kwh: energia_immessa,
@@ -165,6 +179,10 @@ Deno.serve(async (req: Request) => {
       investimento_iniziale: prezzo_vendita_iva_inclusa,
       produzione_anno_1_kwh: produzione_anno_1,
       autoconsumo_pct,
+      // F6: cap autoconsumo al consumo annuo (qui `autoconsumo_pct` è la quota
+      // GREZZA da profilo, non quella già limitata: senza cap il cashflow
+      // sovrastimerebbe il risparmio bolletta su impianti sovradimensionati).
+      consumo_annuo_kwh: prog.consumo_annuo_kwh,
       costo_kwh_attuale: prezzo_kwh_attuale,
       prezzo_rid_kwh: prezzo_rid,
       detrazione_annua_eur: detrazione_anno_eur,
@@ -193,16 +211,18 @@ Deno.serve(async (req: Request) => {
     // ── 8. Sensitivity ±15% prezzo energia ────────────────────────────────
     const sens_minus15 = applicaSensitivity({
       base: cassa, delta: -0.15,
-      input: { autoconsumo_pct, prezzo_kwh_base: prezzo_kwh_attuale, produzione_anno_1, ricavi_rid_anno_1: ricavi_rid, detrazione_anno_eur, manutenzione, inflazione, degradazione, sostInverter, investimento: prezzo_vendita_iva_inclusa, prezzo_rid, tassoNpv },
+      input: { autoconsumo_pct, prezzo_kwh_base: prezzo_kwh_attuale, produzione_anno_1, ricavi_rid_anno_1: ricavi_rid, detrazione_anno_eur, manutenzione, inflazione, degradazione, sostInverter, investimento: prezzo_vendita_iva_inclusa, prezzo_rid, tassoNpv, consumo_annuo_kwh: prog.consumo_annuo_kwh },
     });
     const sens_plus15 = applicaSensitivity({
       base: cassa, delta: +0.15,
-      input: { autoconsumo_pct, prezzo_kwh_base: prezzo_kwh_attuale, produzione_anno_1, ricavi_rid_anno_1: ricavi_rid, detrazione_anno_eur, manutenzione, inflazione, degradazione, sostInverter, investimento: prezzo_vendita_iva_inclusa, prezzo_rid, tassoNpv },
+      input: { autoconsumo_pct, prezzo_kwh_base: prezzo_kwh_attuale, produzione_anno_1, ricavi_rid_anno_1: ricavi_rid, detrazione_anno_eur, manutenzione, inflazione, degradazione, sostInverter, investimento: prezzo_vendita_iva_inclusa, prezzo_rid, tassoNpv, consumo_annuo_kwh: prog.consumo_annuo_kwh },
     });
 
     // ── 9. What-if scenari ────────────────────────────────────────────────
-    const scenarioEv = simulaScenario({ delta_autoconsumo: 0.20, autoconsumo_base: autoconsumo_pct, base_input: { investimento: prezzo_vendita_iva_inclusa, produzione_anno_1, prezzo_kwh_base: prezzo_kwh_attuale, prezzo_rid, detrazione_anno_eur, inflazione, degradazione, manutenzione, sostInverter, tassoNpv } });
-    const scenarioPdC = simulaScenario({ delta_autoconsumo: 0.30, risparmio_extra_annuo: 800, autoconsumo_base: autoconsumo_pct, base_input: { investimento: prezzo_vendita_iva_inclusa, produzione_anno_1, prezzo_kwh_base: prezzo_kwh_attuale, prezzo_rid, detrazione_anno_eur, inflazione, degradazione, manutenzione, sostInverter, tassoNpv } });
+    // consumo_extra_kwh: EV ≈ +3000 kWh/anno, PdC ≈ +4000 kWh/anno → alzano il
+    // cap autoconsumo coerentemente col delta_autoconsumo (vedi simulaScenario).
+    const scenarioEv = simulaScenario({ delta_autoconsumo: 0.20, consumo_extra_kwh: 3000, autoconsumo_base: autoconsumo_pct, base_input: { investimento: prezzo_vendita_iva_inclusa, produzione_anno_1, prezzo_kwh_base: prezzo_kwh_attuale, prezzo_rid, detrazione_anno_eur, inflazione, degradazione, manutenzione, sostInverter, tassoNpv, consumo_annuo_kwh: prog.consumo_annuo_kwh } });
+    const scenarioPdC = simulaScenario({ delta_autoconsumo: 0.30, risparmio_extra_annuo: 800, consumo_extra_kwh: 4000, autoconsumo_base: autoconsumo_pct, base_input: { investimento: prezzo_vendita_iva_inclusa, produzione_anno_1, prezzo_kwh_base: prezzo_kwh_attuale, prezzo_rid, detrazione_anno_eur, inflazione, degradazione, manutenzione, sostInverter, tassoNpv, consumo_annuo_kwh: prog.consumo_annuo_kwh } });
 
     // ── 10. Confronti alternative ─────────────────────────────────────────
     const tassoBtp = par("tasso_btp_25anni", 0.038);
@@ -217,12 +237,20 @@ Deno.serve(async (req: Request) => {
     const co2_evitata = Math.round(produzione_25 * co2Factor);
 
     // ── 12. Cassa mensile anno 1 ──────────────────────────────────────────
+    // F6: stesso cap autoconsumo della cassa annuale, ripartito sui mesi con la
+    // stessa distribuzione (cap_mese = consumo_annuo × pct). Senza cap il mese
+    // estivo di un impianto sovradimensionato sovrastimerebbe il risparmio.
     const distMensile = mensileDistribution(prog.provincia ?? null);
-    const cassa_mese = distMensile.map((pct, i) => ({
-      mese: i + 1,
-      produzione_kwh: round2(produzione_anno_1 * pct),
-      flusso: round2((produzione_anno_1 * pct * autoconsumo_pct * prezzo_kwh_attuale) + (produzione_anno_1 * pct * (1 - autoconsumo_pct) * prezzo_rid)),
-    }));
+    const cassa_mese = distMensile.map((pct, i) => {
+      const prod_mese = produzione_anno_1 * pct;
+      const auto_mese = Math.min(prod_mese * autoconsumo_pct, prog.consumo_annuo_kwh * pct);
+      const imm_mese = Math.max(0, prod_mese - auto_mese);
+      return {
+        mese: i + 1,
+        produzione_kwh: round2(prod_mese),
+        flusso: round2(auto_mese * prezzo_kwh_attuale + imm_mese * prezzo_rid),
+      };
+    });
 
     // ── 13. Compongo risultato ────────────────────────────────────────────
     const risultato = {
@@ -360,6 +388,8 @@ function calcolaCassaCumulata(input: {
   investimento_iniziale: number;
   produzione_anno_1_kwh: number;
   autoconsumo_pct: number;
+  /** Cap fisico autoconsumo (kWh/anno). Se omesso → nessun cap (storico). */
+  consumo_annuo_kwh?: number;
   costo_kwh_attuale: number;
   prezzo_rid_kwh: number;
   detrazione_annua_eur: number;
@@ -382,7 +412,11 @@ function calcolaCassaCumulata(input: {
     const prod_n = input.produzione_anno_1_kwh * Math.pow(1 - input.degradazione_pannelli_pct, anno - 1);
     const prezzo_n = input.costo_kwh_attuale * Math.pow(1 + input.inflazione_energia_pct, anno - 1);
     const rid_n = input.prezzo_rid_kwh * Math.pow(1.02, anno - 1);
-    const auto = prod_n * input.autoconsumo_pct;
+    // CAP autoconsumo (identico al client finanziaria.ts): non si può
+    // auto-consumare più del consumo annuo. Se omesso → nessun cap (storico).
+    const auto = input.consumo_annuo_kwh != null
+      ? Math.min(prod_n * input.autoconsumo_pct, input.consumo_annuo_kwh)
+      : prod_n * input.autoconsumo_pct;
     const imm = prod_n - auto;
     const risp = auto * prezzo_n;
     const rid = imm * rid_n;
@@ -468,6 +502,8 @@ interface ScenarioInput {
   manutenzione: number;
   sostInverter: number;
   tassoNpv: number;
+  /** Cap autoconsumo (kWh/anno). Se omesso → nessun cap (storico). */
+  consumo_annuo_kwh?: number;
 }
 
 function applicaSensitivity(args: { base: FlussoAnno[]; delta: number; input: ScenarioInput & { autoconsumo_pct: number; ricavi_rid_anno_1: number } }) {
@@ -475,6 +511,8 @@ function applicaSensitivity(args: { base: FlussoAnno[]; delta: number; input: Sc
     investimento_iniziale: args.input.investimento,
     produzione_anno_1_kwh: args.input.produzione_anno_1,
     autoconsumo_pct: args.input.autoconsumo_pct,
+    // Sensitivity varia solo il prezzo energia, non l'autoconsumo: cap = consumo base.
+    consumo_annuo_kwh: args.input.consumo_annuo_kwh,
     costo_kwh_attuale: args.input.prezzo_kwh_base * (1 + args.delta),
     prezzo_rid_kwh: args.input.prezzo_rid,
     detrazione_annua_eur: args.input.detrazione_anno_eur,
@@ -489,12 +527,18 @@ function applicaSensitivity(args: { base: FlussoAnno[]; delta: number; input: Sc
   return { payback_anni: calcolaPayback(cassa), npv: round2(calcolaNPV(cassa, args.input.tassoNpv)) };
 }
 
-function simulaScenario(args: { delta_autoconsumo: number; risparmio_extra_annuo?: number; autoconsumo_base: number; base_input: ScenarioInput }) {
+function simulaScenario(args: { delta_autoconsumo: number; risparmio_extra_annuo?: number; consumo_extra_kwh?: number; autoconsumo_base: number; base_input: ScenarioInput }) {
   const newAuto = Math.min(1, args.autoconsumo_base + args.delta_autoconsumo);
+  // EV/PdC alzano i consumi: se la base ha un cap, alzalo della stessa quota,
+  // così il maggior autoconsumo non viene tagliato dal min() (coerente col client).
+  const consumoCap = args.base_input.consumo_annuo_kwh != null
+    ? args.base_input.consumo_annuo_kwh + (args.consumo_extra_kwh ?? 0)
+    : undefined;
   const cassa = calcolaCassaCumulata({
     investimento_iniziale: args.base_input.investimento,
     produzione_anno_1_kwh: args.base_input.produzione_anno_1,
     autoconsumo_pct: newAuto,
+    consumo_annuo_kwh: consumoCap,
     costo_kwh_attuale: args.base_input.prezzo_kwh_base,
     prezzo_rid_kwh: args.base_input.prezzo_rid,
     detrazione_annua_eur: args.base_input.detrazione_anno_eur,
@@ -520,7 +564,7 @@ function simulaScenario(args: { delta_autoconsumo: number; risparmio_extra_annuo
 
 interface IncentivoApplicato { codice: string; nome: string; tipo: string; importo_eur: number | null; durata_anni: number | null; info?: string }
 
-function selezionaIncentivi(input: { archetipo: string; prima_casa: boolean; isee: number | null; numero_figli: number; costo_totale: number; iva_aliquota_default: number; potenza_kwp: number; capacita_accumulo_kwh: number; energia_immessa_anno_kwh: number; prezzo_rid_kwh: number; durata_simulazione_anni: number; popolazione_comune: number | null }, catalogo: Array<{ codice: string; nome: string; tipo: string; aliquota: number | null; plafond_max_eur: number | null }>): IncentivoApplicato[] {
+function selezionaIncentivi(input: { archetipo: string; prima_casa: boolean; isee: number | null; numero_figli: number; costo_totale: number; iva_aliquota_default: number; iva_aliquota_applicata?: number; prezzo_vendita_netto?: number; potenza_kwp: number; capacita_accumulo_kwh: number; energia_immessa_anno_kwh: number; prezzo_rid_kwh: number; durata_simulazione_anni: number; popolazione_comune: number | null }, catalogo: Array<{ codice: string; nome: string; tipo: string; aliquota: number | null; plafond_max_eur: number | null }>): IncentivoApplicato[] {
   const cand: IncentivoApplicato[] = [];
   const get = (c: string) => catalogo.find((x) => x.codice === c);
   const isPriv = ["privato_prima","privato_seconda","privato_isee"].includes(input.archetipo);
@@ -544,8 +588,16 @@ function selezionaIncentivi(input: { archetipo: string; prima_casa: boolean; ise
     }
     const iva = get("IVA_10");
     if (iva) {
-      const netto = input.costo_totale / (1 + input.iva_aliquota_default);
-      cand.push({ codice: "IVA_10", nome: iva.nome, tipo: "sconto_iva", importo_eur: round2(netto * 0.12), durata_anni: null });
+      // F9 fix: il netto va derivato dall'aliquota EFFETTIVAMENTE applicata
+      // (default 10% agevolata), non dividendo per 1.22 — `costo_totale` è già
+      // IVA@10% inclusa, quindi /1.22 sottostimava il netto e gonfiava lo sconto.
+      // Il prezzo agevolato è GIÀ nel `costo_totale`: l'IVA_10 non è un incentivo
+      // aggiuntivo da sommare, ma il risparmio INFORMATIVO rispetto all'aliquota
+      // ordinaria (22%). Lo esponiamo come info, non come importo cumulabile.
+      const ivaApplicata = input.iva_aliquota_applicata ?? 0.10;
+      const netto = input.prezzo_vendita_netto ?? (input.costo_totale / (1 + ivaApplicata));
+      const risparmio_vs_ordinaria = netto * (input.iva_aliquota_default - ivaApplicata);
+      cand.push({ codice: "IVA_10", nome: iva.nome, tipo: "sconto_iva", importo_eur: null, durata_anni: null, info: `IVA agevolata ${Math.round(ivaApplicata * 100)}% già applicata: ~${round2(risparmio_vs_ordinaria)}€ di risparmio vs IVA ordinaria ${Math.round(input.iva_aliquota_default * 100)}%` });
     }
     if (input.popolazione_comune !== null && input.popolazione_comune < 50000) {
       const cer = get("CER_INFO");
@@ -554,7 +606,16 @@ function selezionaIncentivi(input: { archetipo: string; prima_casa: boolean; ise
   }
   if (input.archetipo === "pmi") {
     const amm = get("AMMORTAMENTO_PMI");
-    if (amm) cand.push({ codice: "AMMORTAMENTO_PMI", nome: amm.nome, tipo: "deducibilita_fiscale", importo_eur: round2(input.costo_totale * 0.04 * 25), durata_anni: 25 });
+    if (amm) {
+      // F8 fix: `costo_totale * 0.04 * 25` = 100% del costo, ma quella è la BASE
+      // DEDUCIBILE (ammortamento al 4%/anno per 25 anni = 100%), NON il risparmio
+      // d'imposta. Il beneficio reale è la base deducibile × aliquota fiscale.
+      // Assunzione conservativa: aliquota IRES 24% (default ragionevole; la quota
+      // IRAP/sovraimposte regionali varia e non è inclusa). Da validare col business.
+      const ALIQUOTA_FISCALE_PMI = 0.24;
+      const base_deducibile = input.costo_totale; // 4%/anno × 25 anni = 100% del costo
+      cand.push({ codice: "AMMORTAMENTO_PMI", nome: amm.nome, tipo: "deducibilita_fiscale", importo_eur: round2(base_deducibile * ALIQUOTA_FISCALE_PMI), durata_anni: 25 });
+    }
   }
   // RID
   const rid = get("RID");

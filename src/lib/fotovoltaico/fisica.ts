@@ -197,7 +197,7 @@ export function co2Evitata25Anni(
 export function equivalenzeCo2(co2_kg: number) {
   return {
     alberi_piantati: Math.round(co2_kg / 25),     // 1 albero ≈ 25 kg/anno
-    auto_km_benzina: Math.round(co2_kg * 5450),    // ≈ 0.18 kg CO2/km
+    auto_km_benzina: Math.round(co2_kg / 0.18),    // ≈ 0.18 kg CO2/km → km = kg / 0.18
     famiglie_anno_consumo: Math.round(co2_kg / 3260), // ≈ 3260 kg CO2/famiglia/anno
   };
 }

@@ -128,10 +128,11 @@ export interface FvProgetto {
   consumo_annuo_kwh: number | null;
   bolletta_caricata_url: string | null;
   profilo_consumo: FvProfiloAutoconsumoCodice | null;
-  costo_kwh_attuale: number;
-  tariffa_tipo: FvTariffaTipo;
+  // F23: nullable in DB (default DB-side) — allineato alla realtà.
+  costo_kwh_attuale: number | null;
+  tariffa_tipo: FvTariffaTipo | null;
   isee: number | null;
-  numero_figli: number;
+  numero_figli: number | null;
   reddito_annuo_dichiarato: number | null;
   // analisi tetto
   fonte_dati_tetto: FvFonteDatiTetto | null;
@@ -141,10 +142,16 @@ export interface FvProgetto {
   superficie_tetto_disponibile_mq: number | null;
   numero_pannelli_max: number | null;
   potenza_max_kwp: number | null;
+  // F16: orientamento/inclinazione/layout reali del tetto (Solar API),
+  // persistiti via migrazione 20271021000000_fv_progetti_dati_tetto.sql.
+  azimut_tetto: number | null;
+  inclinazione_tetto: number | null;
+  layout_tetto: Record<string, unknown> | unknown[] | null;
   // configurazione
   numero_pannelli_scelti: number | null;
   potenza_kwp: number | null;
-  con_accumulo: boolean;
+  // F23: con_accumulo / capacita_accumulo_kwh nullable in DB.
+  con_accumulo: boolean | null;
   capacita_accumulo_kwh: number | null;
   con_wallbox: boolean;
   con_ottimizzatori: boolean;
@@ -153,7 +160,8 @@ export interface FvProgetto {
   autoconsumo_pct: number | null;
   costo_totale_netto: number | null;
   prezzo_vendita_iva_inclusa: number | null;
-  iva_aliquota: number;
+  // F23: iva_aliquota nullable in DB.
+  iva_aliquota: number | null;
   margine_eur: number | null;
   margine_pct: number | null;
   incentivi_applicati: FvIncentivoApplicato[] | null;

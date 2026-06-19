@@ -227,7 +227,8 @@ Deno.serve(async (req: Request) => {
     if (supabaseAdmin) {
       await logFunction(supabaseAdmin, "fv-onboarding-cliente", null, userId, progettoId, null, 500, msg, Date.now() - startTime);
     }
-    return errorResponse(msg, 500, corsHeaders);
+    // msg loggato server-side e nei function_logs: al client un messaggio generico.
+    return errorResponse("Errore interno", 500, corsHeaders);
   }
 });
 

@@ -7,7 +7,8 @@
  * Body: { lat, lng, kwp, tilt?, azimuth_solar?, loss_pct? }
  * Output: { fonte: 'pvgis', produzione_annua_kwh, produzione_mensile[], elevation, raddatabase }
  *
- * Conversione azimut: PVGIS usa -180=N, 0=S, +180=N. Solar API/Maps 0=N, 90=E, 180=S, 270=O.
+ * Conversione azimut: PVGIS aspect 0=S, -90=E, +90=O (range -180..+180).
+ * Solar API/Maps 0=N, 90=E, 180=S, 270=O.
  *   pvgis_azimuth = solar_api_azimuth - 180
  */
 
@@ -70,11 +71,13 @@ Deno.serve(async (req: Request) => {
     const useMock = Deno.env.get("FV_USE_MOCK_PVGIS") === "true";
     if (useMock) {
       const mock = buildMockPvgis(p.lat, p.lng, p.kwp, tilt, azimuthSolar);
-      await supabaseAdmin.from("fv_pvgis_cache").insert({
+      // upsert su cache_key (UNIQUE): rinnova la riga scaduta invece di violare
+      // silenziosamente il vincolo con insert → ri-hit PVGIS ad ogni richiesta.
+      await supabaseAdmin.from("fv_pvgis_cache").upsert({
         cache_key: cacheKey,
         response: mock,
         expires_at: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString(),
-      });
+      }, { onConflict: "cache_key" });
       return jsonResponse(mock, 200, corsHeaders);
     }
 
@@ -97,24 +100,32 @@ Deno.serve(async (req: Request) => {
 
     if (!resp.ok) {
       const txt = await resp.text();
-      return errorResponse(`PVGIS error ${resp.status}: ${txt.slice(0, 200)}`, 502, corsHeaders);
+      // Body upstream loggato SOLO server-side (non al browser). Coerente col
+      // ramo catch: non blocchiamo il wizard con un 502, ripieghiamo sul mock
+      // (200) così il flusso prosegue come per "PVGIS unreachable".
+      console.error(`[fv-pvgis-fetch] PVGIS ${resp.status}:`, txt.slice(0, 500));
+      const mock = buildMockPvgis(p.lat, p.lng, p.kwp, tilt, azimuthSolar);
+      mock._fallback = `PVGIS ${resp.status}`;
+      return jsonResponse(mock, 200, corsHeaders);
     }
 
     const json = await resp.json();
     const result = parsePvgis(json, p.kwp);
 
-    await supabaseAdmin.from("fv_pvgis_cache").insert({
+    // upsert su cache_key (UNIQUE): rinnova la riga scaduta (vedi nota sopra).
+    await supabaseAdmin.from("fv_pvgis_cache").upsert({
       cache_key: cacheKey,
       response: result,
       expires_at: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString(),
-    });
+    }, { onConflict: "cache_key" });
 
     return jsonResponse(result, 200, corsHeaders);
   } catch (err) {
     if (err instanceof Response) return err;
     const msg = err instanceof Error ? err.message : String(err);
+    // Dettaglio interno loggato SOLO server-side: al client un messaggio generico.
     console.error("[fv-pvgis-fetch] ERROR:", msg);
-    return errorResponse(msg, 500, corsHeaders);
+    return errorResponse("Errore interno", 500, corsHeaders);
   }
 });
 

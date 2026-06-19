@@ -91,6 +91,9 @@ import { FvSimulatoreInterattivo } from "@/components/fotovoltaico/FvSimulatoreI
 import { FvDimensionamentoStringhe } from "@/components/fotovoltaico/FvDimensionamentoStringhe";
 import { inputBaseDaContesto, type ContestoVariantiVicine } from "@/lib/fotovoltaico/varianti";
 import { derivaSpecModuloDaPotenza } from "@/lib/fotovoltaico/catalogoProdotti";
+// F16: ricostruisce l'etichetta orientamento (es. "S 180°") dall'azimut numerico
+// salvato in DB (fv_progetti.azimut_tetto) all'idratazione del progetto.
+import { etichettaAzimut } from "@/lib/fotovoltaico/tetto";
 
 // MP-MKT-001: TOTAL_STEPS + TABS estratti in ./FotovoltaicoWizard/constants.ts
 // Bugfix: i range coordinate Italia (ITALIA_LAT/LNG_*) sono usati in
@@ -341,6 +344,15 @@ export default function FotovoltaicoWizard() {
       superficie_tetto_disponibile_mq: progettoEsistente.superficie_tetto_disponibile_mq,
       numero_pannelli_max: progettoEsistente.numero_pannelli_max,
       potenza_max_kwp: progettoEsistente.potenza_max_kwp,
+      // F16: ridrata geometria tetto persistita. azimut_tetto in DB è numerico
+      // (gradi) → ricostruisco l'etichetta UI; inclinazione/layout passano diretti.
+      azimut_tetto:
+        progettoEsistente.azimut_tetto != null
+          ? etichettaAzimut(Number(progettoEsistente.azimut_tetto))
+          : null,
+      inclinazione_tetto: progettoEsistente.inclinazione_tetto ?? null,
+      layout_tetto:
+        (progettoEsistente.layout_tetto as WizardData["layout_tetto"]) ?? null,
       numero_pannelli_scelti: progettoEsistente.numero_pannelli_scelti ?? 16,
       potenza_kwp: progettoEsistente.potenza_kwp ?? 8.64,
       con_accumulo: progettoEsistente.con_accumulo ?? false,
@@ -404,7 +416,11 @@ export default function FotovoltaicoWizard() {
 
   const update = <K extends keyof WizardData>(k: K, v: WizardData[K]) => {
     if (readOnlyMode) {
-      toast.error("Progetto in sola lettura. Clona per creare una nuova versione.");
+      // F14a: dedup del toast — un singolo gesto (es. slider) chiama update()
+      // più volte di fila; senza id si accumulerebbero N toast identici.
+      toast.error("Progetto in sola lettura. Clona per creare una nuova versione.", {
+        id: "fv-readonly",
+      });
       return;
     }
     setData((d) => ({ ...d, [k]: v }));
@@ -456,8 +472,10 @@ export default function FotovoltaicoWizard() {
           return { valido: false, motivo: "Seleziona un modello di pannello dal listino" };
         if (!data.inverter_id)
           return { valido: false, motivo: "Seleziona un inverter dal listino" };
-        if (data.con_accumulo && !data.accumulo_id)
-          return { valido: false, motivo: "Hai attivato l'accumulo: seleziona un modello dal listino o disattivalo" };
+        // F13: NON richiediamo più accumulo_id quando con_accumulo è true. Lo
+        // slider "Accumulo (kWh)" imposta con_accumulo + capacità senza scegliere
+        // un articolo; il salvataggio Step 5 gestisce il ramo "accumulo generico"
+        // (descrizione + prezzo da capacità). Il dropdown modello resta opzionale.
         return { valido: true };
       }
       case 6:
@@ -597,6 +615,9 @@ export default function FotovoltaicoWizard() {
 
   // ─── Step 4 → analisi tetto ───────────────────────────────────────────────
   const handleAnalizzaTetto = async () => {
+    // F14b: in sola lettura l'analisi è disabilitata — esci subito senza
+    // invocare le edge function né scrivere sul progetto.
+    if (readOnlyMode) return;
     if (!progettoId || data.latitudine == null || data.longitudine == null) return;
     setAnalizzandoTetto(true);
     try {
@@ -648,43 +669,87 @@ export default function FotovoltaicoWizard() {
         (result.ore_sole_annue as number) ??
         (result.ore_sole_annue_equivalenti as number) ??
         null;
-      const numMax = (result.numero_pannelli_max as number) ?? null;
-      const kwpMax = (result.potenza_max_kwp as number) ?? null;
       const isMock = result._mock === true;
       const qualitaTetto = isMock ? "mock" : ((result.qualita as string) ?? null);
+
+      // F10: la fonte PVGIS NON restituisce la geometria del tetto
+      // (numero_pannelli_max / potenza_max_kwp / superficie_tetto_disponibile_mq):
+      // salvarli a null bloccava la validazione dello Step 4 ("max null pannelli").
+      // Quando il servizio non fornisce questi campi li stimiamo da una grandezza
+      // nota (superficie immobile), con un default ragionevole se manca tutto —
+      // così "Avanti" si abilita e l'utente può comunque rifinire a mano.
+      const POTENZA_PANNELLO_W = 540; // pannello standard di riferimento
+      const numMaxRaw = (result.numero_pannelli_max as number) ?? null;
+      const kwpMaxRaw = (result.potenza_max_kwp as number) ?? null;
+      const supTettoRaw = (result.superficie_tetto_disponibile_mq as number) ?? null;
+      // Stima superficie utile del tetto: ~50% della superficie immobile,
+      // fallback a 60 m² (tetto residenziale medio) se la superficie è ignota.
+      const supImmobile = data.superficie_immobile_mq ?? null;
+      const supTettoStimata =
+        supTettoRaw && supTettoRaw > 0
+          ? supTettoRaw
+          : supImmobile && supImmobile > 0
+            ? Math.round(supImmobile * 0.5)
+            : 60;
+      // ~2 m² per pannello; almeno 4 pannelli per non bloccare lo slider (min 4).
+      const numMax =
+        numMaxRaw && numMaxRaw > 0
+          ? numMaxRaw
+          : Math.max(4, Math.floor(supTettoStimata / 2));
+      const kwpMax =
+        kwpMaxRaw && kwpMaxRaw > 0
+          ? kwpMaxRaw
+          : Math.round((numMax * POTENZA_PANNELLO_W) / 10) / 100;
+      const stimaGeometrica = !(numMaxRaw && numMaxRaw > 0);
+
+      // F16: layout/azimut/inclinazione — la Solar API fornisce sia l'etichetta
+      // ("S 180°") sia il valore numerico in gradi. Teniamo l'etichetta nello
+      // stato locale (UI) ma persistiamo il numero (colonna numeric in DB).
+      const layoutTetto =
+        fonteEffettiva === "solar_api"
+          ? ((result.layout_suggerito as WizardData["layout_tetto"]) ?? null)
+          : null;
+      const azimutDeg =
+        fonteEffettiva === "solar_api"
+          ? ((result.azimut_dominante_deg as number) ?? null)
+          : null;
+      const inclinazioneDeg =
+        fonteEffettiva === "solar_api"
+          ? ((result.tilt_dominante_deg as number) ?? null)
+          : null;
 
       update("ore_sole_annue", ore);
       update("numero_pannelli_max", numMax);
       update("potenza_max_kwp", kwpMax);
-      update(
-        "superficie_tetto_disponibile_mq",
-        (result.superficie_tetto_disponibile_mq as number) ?? null,
-      );
+      update("superficie_tetto_disponibile_mq", supTettoStimata);
       update("qualita_dati_tetto", qualitaTetto);
       update("imagery_date", (result.imagery_date as string) ?? null);
       // Cattura il layout reale dei pannelli (solo Solar API lo fornisce): oggi
       // veniva scartato; ora alimenta la vista "Disposizione reale dei pannelli".
+      update("layout_tetto", layoutTetto);
+      // Orientamento prevalente reale della falda (azimut + pendenza) da Solar API.
+      // Etichetta in stato locale; valore numerico persistito in DB.
       update(
-        "layout_tetto",
-        fonteEffettiva === "solar_api"
-          ? ((result.layout_suggerito as WizardData["layout_tetto"]) ?? null)
-          : null,
+        "azimut_tetto",
+        azimutDeg != null ? etichettaAzimut(azimutDeg) : null,
       );
-      // Orientamento prevalente reale della falda (azimut + pendenza) da Solar API
-      update("azimut_tetto", (result.azimut_dominante as string) ?? null);
-      update("inclinazione_tetto", (result.tilt_dominante_deg as number) ?? null);
+      update("inclinazione_tetto", inclinazioneDeg);
 
       await aggiornaProgetto.mutateAsync({
         id: progettoId,
         patch: {
           fonte_dati_tetto: fonteEffettiva,
           ore_sole_annue: ore,
-          superficie_tetto_disponibile_mq:
-            (result.superficie_tetto_disponibile_mq as number) ?? null,
+          superficie_tetto_disponibile_mq: supTettoStimata,
           numero_pannelli_max: numMax,
           potenza_max_kwp: kwpMax,
           qualita_dati_tetto: qualitaTetto,
           imagery_date: (result.imagery_date as string) ?? null,
+          // F16: persisti geometria reale del tetto (vedi migrazione
+          // 20271021000000_fv_progetti_dati_tetto.sql).
+          azimut_tetto: azimutDeg,
+          inclinazione_tetto: inclinazioneDeg,
+          layout_tetto: layoutTetto,
         } as never,
       });
 
@@ -692,9 +757,15 @@ export default function FotovoltaicoWizard() {
       markSaved();
       // Fix #16 Sprint 3: traccia se i dati sono mock per warning persistente
       update("tetto_mock", isMock);
-      toast.success(
-        `Tetto analizzato: ${ore?.toFixed(0)} h sole/anno · max ${numMax} pannelli${isMock ? " (dati stimati)" : ""}`,
-      );
+      // F10: toast difensivo contro null + nota quando la geometria è stimata.
+      const oreTxt = ore != null ? `${ore.toFixed(0)} h sole/anno` : "ore sole non disponibili";
+      const maxTxt = numMax != null ? `max ${numMax} pannelli` : "geometria da definire";
+      const stimaTxt = stimaGeometrica
+        ? " (geometria stimata — affina i valori se serve)"
+        : isMock
+          ? " (dati stimati)"
+          : "";
+      toast.success(`Tetto analizzato: ${oreTxt} · ${maxTxt}${stimaTxt}`);
     } catch (e) {
       if (!mountedRef.current) return;
       toast.error(
@@ -1182,16 +1253,32 @@ export default function FotovoltaicoWizard() {
     setSalvando(true);
     setAutoSaveState("saving");
     try {
-      // Salva campi base del progetto
+      // Salva campi base del progetto.
+      // F15: persisti TUTTI i campi editati nel wizard, non solo un sottoinsieme
+      // (prima consumi/config; ora anche immobile/fiscali/opzioni) — altrimenti
+      // "Salva bozza" perdeva tariffa/profilo/ISEE/wallbox ecc. al refresh.
       await aggiornaProgetto.mutateAsync({
         id: progettoId,
         patch: {
+          // immobile
+          tipologia_immobile: data.tipologia_immobile,
+          superficie_immobile_mq: data.superficie_immobile_mq,
+          popolazione_comune: data.popolazione_comune,
+          // consumi + fiscali
           consumo_annuo_kwh: data.consumo_annuo_kwh,
           costo_kwh_attuale: data.costo_kwh_attuale,
+          tariffa_tipo: data.tariffa_tipo,
+          profilo_consumo: data.profilo_consumo,
+          isee: data.isee,
+          numero_figli: data.numero_figli,
+          reddito_annuo_dichiarato: data.reddito_annuo_dichiarato,
+          // configurazione + opzioni
           numero_pannelli_scelti: data.numero_pannelli_scelti,
           potenza_kwp: data.potenza_kwp,
           con_accumulo: data.con_accumulo,
           capacita_accumulo_kwh: data.capacita_accumulo_kwh,
+          con_wallbox: data.con_wallbox,
+          con_ottimizzatori: data.con_ottimizzatori,
         } as never,
       });
 
@@ -1241,7 +1328,9 @@ export default function FotovoltaicoWizard() {
   }, [progettoId, data, aggiornaProgetto, markSaved, manodoperaEsistente, tariffeFv, upsertManodopera]);
 
   // ─── Header info ──────────────────────────────────────────────────────────
-  const numero = (progettoEsistente as { numero_progetto?: string } | undefined)?.numero_progetto;
+  // F11: il campo reale su FvProgetto è `numero` (non `numero_progetto`),
+  // altrimenti l'header mostrava sempre "Progetto fotovoltaico" senza codice.
+  const numero = (progettoEsistente as { numero?: string } | undefined)?.numero;
   const titoloHeader = progettoId
     ? `Progetto ${numero ?? "fotovoltaico"}`
     : "Nuovo progetto fotovoltaico";
@@ -1373,6 +1462,7 @@ export default function FotovoltaicoWizard() {
               update={update}
               analizzando={analizzandoTetto}
               onAnalizza={handleAnalizzaTetto}
+              readOnlyMode={readOnlyMode}
             />
           )}
           {step === 5 && (
@@ -1807,7 +1897,10 @@ function Step3Consumi({
   profili: Array<{ codice: string; nome_visualizzato: string; emoji: string | null }>;
 }) {
   const consumoAnnuo = data.consumo_annuo_kwh ?? 0;
-  const spesaAnnua = consumoAnnuo * data.costo_kwh_attuale;
+  // F12: costo_kwh_attuale può essere null (campo svuotato) → tratta come 0
+  // nei derivati per non propagare NaN nei KPI.
+  const costoKwh = data.costo_kwh_attuale ?? 0;
+  const spesaAnnua = consumoAnnuo * costoKwh;
   const stima10anni = spesaAnnua * 10 * 1.5; // include +5%/anno aspettato
 
   return (
@@ -1834,7 +1927,11 @@ function Step3Consumi({
         />
         <FvKpi
           label="Prezzo medio"
-          value={data.costo_kwh_attuale.toFixed(3)}
+          value={
+            data.costo_kwh_attuale != null && Number.isFinite(data.costo_kwh_attuale)
+              ? data.costo_kwh_attuale.toFixed(3)
+              : "—"
+          }
           unit="€/kWh"
           hint={data.tariffa_tipo}
         />
@@ -1869,8 +1966,16 @@ function Step3Consumi({
               <Input
                 type="number"
                 step="0.001"
-                value={data.costo_kwh_attuale}
-                onChange={(e) => update("costo_kwh_attuale", Number(e.target.value))}
+                value={data.costo_kwh_attuale ?? ""}
+                onChange={(e) => {
+                  // F12: campo vuoto → null (non 0, che falsava spesa/payback);
+                  // valori non finiti scartati.
+                  const n = Number(e.target.value);
+                  update(
+                    "costo_kwh_attuale",
+                    e.target.value === "" ? null : Number.isFinite(n) ? n : null,
+                  );
+                }}
                 placeholder="0.32"
               />
             </div>
@@ -1985,11 +2090,13 @@ function Step4Tetto({
   update,
   analizzando,
   onAnalizza,
+  readOnlyMode,
 }: {
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
   analizzando: boolean;
   onAnalizza: () => void;
+  readOnlyMode: boolean;
 }) {
   return (
     <>
@@ -2010,6 +2117,7 @@ function Step4Tetto({
           <SourceTile
             active={data.fonte_dati_tetto === "solar_api"}
             onClick={() => update("fonte_dati_tetto", "solar_api")}
+            disabled={readOnlyMode}
             icon={<Sparkles className="h-5 w-5 text-orange-500" />}
             title="Google Solar API"
             description="Analisi satellitare ad alta risoluzione, layout pannelli automatico."
@@ -2018,6 +2126,7 @@ function Step4Tetto({
           <SourceTile
             active={data.fonte_dati_tetto === "pvgis"}
             onClick={() => update("fonte_dati_tetto", "pvgis")}
+            disabled={readOnlyMode}
             icon={<Sun className="h-5 w-5 text-amber-500" />}
             title="PVGIS (JRC EU)"
             description="Dati irradiazione gratuiti europei. Niente geometria del tetto."
@@ -2025,6 +2134,7 @@ function Step4Tetto({
           <SourceTile
             active={data.fonte_dati_tetto === "manuale"}
             onClick={() => update("fonte_dati_tetto", "manuale")}
+            disabled={readOnlyMode}
             icon={<FileText className="h-5 w-5 text-slate-500" />}
             title="Manuale"
             description="Inserisci tu i parametri se le altre fonti non rispondono."
@@ -2035,7 +2145,7 @@ function Step4Tetto({
           <button
             type="button"
             onClick={onAnalizza}
-            disabled={analizzando}
+            disabled={analizzando || readOnlyMode}
             className="mt-4 w-full px-5 py-3 text-sm font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-amber-400 shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {analizzando ? (
@@ -2160,6 +2270,7 @@ function SourceTile({
   title,
   description,
   badge,
+  disabled = false,
 }: {
   active: boolean;
   onClick: () => void;
@@ -2167,12 +2278,14 @@ function SourceTile({
   title: string;
   description: string;
   badge?: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`relative text-left rounded-xl border-2 p-4 transition-all ${
+      disabled={disabled}
+      className={`relative text-left rounded-xl border-2 p-4 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
         active
           ? "border-orange-500 bg-orange-50 shadow-sm"
           : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"

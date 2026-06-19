@@ -32,7 +32,8 @@ export interface WizardData {
   prima_casa: boolean;
   // Step 3: Consumi
   consumo_annuo_kwh: number | null;
-  costo_kwh_attuale: number;
+  // F12: nullable — il campo può essere svuotato dall'utente (era forzato a 0).
+  costo_kwh_attuale: number | null;
   tariffa_tipo: FvTariffaTipo;
   profilo_consumo: FvProfiloAutoconsumoCodice;
   isee: number | null;

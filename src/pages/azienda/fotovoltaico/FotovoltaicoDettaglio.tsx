@@ -351,9 +351,13 @@ export default function FotovoltaicoDettaglio() {
                 />
                 <Row
                   label="Costo €/kWh"
-                  value={`€ ${progetto.costo_kwh_attuale.toFixed(3)}`}
+                  value={
+                    progetto.costo_kwh_attuale != null
+                      ? `€ ${Number(progetto.costo_kwh_attuale).toFixed(3)}`
+                      : "—"
+                  }
                 />
-                <Row label="Tariffa" value={progetto.tariffa_tipo} />
+                <Row label="Tariffa" value={progetto.tariffa_tipo ?? "—"} />
                 <Row label="Profilo" value={progetto.profilo_consumo ?? "—"} />
                 <Row
                   label="ISEE"
@@ -392,7 +396,9 @@ export default function FotovoltaicoDettaglio() {
                   label="Accumulo"
                   value={
                     progetto.con_accumulo
-                      ? `${progetto.capacita_accumulo_kwh} kWh`
+                      ? progetto.capacita_accumulo_kwh != null
+                        ? `${progetto.capacita_accumulo_kwh} kWh`
+                        : "Sì"
                       : "No"
                   }
                 />
