@@ -215,6 +215,14 @@ function LeadDetailSheet({ lead, onClose, onSave, saving }: {
               {lead.website && <div><span className="text-muted-foreground">Sito:</span> <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{lead.website}</a></div>}
               {lead.partita_iva && <div><span className="text-muted-foreground">P.IVA:</span> {lead.partita_iva}</div>}
               {lead.ateco && <div><span className="text-muted-foreground">ATECO:</span> {lead.ateco} {lead.ateco_desc}</div>}
+              {(lead.fatturato != null || lead.dipendenti != null || lead.forma_giuridica || lead.anno_fondazione) && (
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                  {lead.fatturato != null && <span><span className="text-muted-foreground">Fatturato:</span> <span className="font-medium">{fmtFatturato(lead.fatturato)}</span></span>}
+                  {lead.dipendenti != null && <span><span className="text-muted-foreground">Dipendenti:</span> {lead.dipendenti}</span>}
+                  {lead.forma_giuridica && <span><span className="text-muted-foreground">Forma:</span> {lead.forma_giuridica}</span>}
+                  {lead.anno_fondazione && <span><span className="text-muted-foreground">Anno:</span> {lead.anno_fondazione}</span>}
+                </div>
+              )}
               {lead.address && <div><span className="text-muted-foreground">Indirizzo:</span> {lead.address}</div>}
               {lead.linkedin_url && <div><a href={lead.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Profilo LinkedIn ↗</a></div>}
               {lead.ai_summary && <div className="rounded bg-muted/50 p-2"><span className="text-muted-foreground">Sintesi AI: </span>{lead.ai_summary}</div>}
@@ -477,7 +485,7 @@ function EnrichCompanySheet({ open, onClose }: { open: boolean; onClose: () => v
 
   const canRun = !!(businessName.trim() || website.trim() || piva.trim());
   const copy = (t: string) => { navigator.clipboard?.writeText(t); toast.success("Copiato"); };
-  const empty = result && !result.emails?.length && !result.phones?.length && !result.partita_iva && !result.vies?.valid;
+  const empty = result && !result.emails?.length && !result.phones?.length && !result.partita_iva && !result.vies?.valid && !(result.firmografici && Object.keys(result.firmografici).length > 0);
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -531,12 +539,50 @@ function EnrichCompanySheet({ open, onClose }: { open: boolean; onClose: () => v
                 {result.instagram_url && <a href={result.instagram_url} target="_blank" rel="noopener noreferrer" title="Instagram"><Instagram className="h-4 w-4 text-[#e1306c]" /></a>}
               </div>
             )}
-            {result.firmografici && Object.keys(result.firmografici).length > 0 && (
-              <details className="rounded-lg border p-3 text-xs">
-                <summary className="cursor-pointer text-[11px] uppercase tracking-wide text-muted-foreground">Dati ufficiali (Registro Imprese)</summary>
-                <pre className="mt-2 whitespace-pre-wrap break-words text-[11px]">{JSON.stringify(result.firmografici, null, 2)}</pre>
-              </details>
-            )}
+            {result.firmografici && Object.keys(result.firmografici).length > 0 && (() => {
+              const f = result.firmografici as {
+                fatturato?: number; dipendenti?: number; ateco?: string; ateco_desc?: string;
+                forma_giuridica?: string; anno_fondazione?: number; company_size?: string; pec?: string;
+              };
+              const rows: { label: string; value: string }[] = [];
+              if (f.fatturato != null) rows.push({ label: "Fatturato", value: fmtFatturato(f.fatturato) });
+              if (f.dipendenti != null) rows.push({ label: "Dipendenti", value: String(f.dipendenti) });
+              if (f.ateco) rows.push({ label: "ATECO", value: `${f.ateco}${f.ateco_desc ? ` · ${f.ateco_desc}` : ""}` });
+              if (f.forma_giuridica) rows.push({ label: "Forma giuridica", value: f.forma_giuridica });
+              if (f.anno_fondazione) rows.push({ label: "Anno fondazione", value: String(f.anno_fondazione) });
+              if (f.company_size) rows.push({ label: "Dimensione", value: f.company_size });
+              return (
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <Building2 className="h-3 w-3" /> Dati ufficiali (Registro Imprese)
+                  </div>
+                  {rows.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      {rows.map((r) => (
+                        <div key={r.label}>
+                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{r.label}</div>
+                          <div className="text-sm font-medium">{r.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Nessun dato firmografico disponibile.</p>
+                  )}
+                  {f.pec && (
+                    <div className="mt-2 border-t pt-2">
+                      <div className="mb-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">PEC</div>
+                      <button type="button" onClick={() => copy(f.pec!)} className="flex items-center gap-1.5 text-sm hover:text-primary">
+                        <Mail className="h-3 w-3 shrink-0" />{f.pec}
+                      </button>
+                    </div>
+                  )}
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-muted-foreground">Tutti i campi</summary>
+                    <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">{JSON.stringify(result.firmografici, null, 2)}</pre>
+                  </details>
+                </div>
+              );
+            })()}
             {empty && (
               <div className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
                 Nessuna info trovata. Prova ad aggiungere il sito web.
