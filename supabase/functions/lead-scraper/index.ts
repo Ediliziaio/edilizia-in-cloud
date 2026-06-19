@@ -1183,7 +1183,12 @@ Deno.serve(async (req) => {
           const center = await geocodeQuery(queryStr, GKEY);
           await bumpUsage(supabaseAdmin, "google_places", 1);
           if (!center) return errorResponse("Impossibile geolocalizzare l'area per il geo-grid.", 502, corsH);
-          const gridSize = Math.max(2, Math.min(5, Number(body.gridSize) || 3)); // NxN
+          // Guard-rail costo: il solo check iniziale di quota non basta — il grid
+          // fa gridSize² chiamate nearby (a pagamento). Riduci il grid se siamo
+          // vicini al cap giornaliero, così non si sfora di decine di chiamate.
+          const remaining = Math.max(0, quota.cap - quota.used);
+          let gridSize = Math.max(2, Math.min(5, Number(body.gridSize) || 3)); // NxN
+          while (gridSize > 1 && gridSize * gridSize + 1 > remaining) gridSize--;
           const stepLat = 0.018, stepLng = 0.024; // ~2km
           const half = (gridSize - 1) / 2;
           const points: Array<{ lat: number; lng: number }> = [];
@@ -1291,6 +1296,7 @@ Deno.serve(async (req) => {
     if (action === "enrich") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
 
       const { data: leads, error } = await supabaseAdmin
         .from("lead_scraper_results")
@@ -1348,6 +1354,7 @@ Deno.serve(async (req) => {
     if (action === "push_crm") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
       const extraTags: string[] = Array.isArray(body.tags) ? body.tags.map(String) : [];
       const createOpp = body.createOpportunity === true;
 
@@ -1489,6 +1496,7 @@ Deno.serve(async (req) => {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       const doVies = body.vies !== false;
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
 
       // firmografici opzionali (ATECO/dimensione) — gated dietro openapi.it
       const openapiToken = await getPlatformSetting("openapi_it_token", "OPENAPI_IT_TOKEN");
@@ -1655,6 +1663,7 @@ Deno.serve(async (req) => {
     if (action === "find_email") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
 
       const { data: leads, error } = await supabaseAdmin
         .from("lead_scraper_results")
@@ -1693,6 +1702,7 @@ Deno.serve(async (req) => {
     if (action === "find_linkedin") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
       // Serper preferito (più economico); fallback CSE
       const serperKey = await getPlatformSetting("serper_api_key", "SERPER_API_KEY");
       const cseKey = await getPlatformSetting("google_cse_api_key", "GOOGLE_CSE_API_KEY");
@@ -1735,6 +1745,7 @@ Deno.serve(async (req) => {
     if (action === "validate_vat") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
       const { data: leads, error } = await supabaseAdmin
         .from("lead_scraper_results")
         .select("id, partita_iva, contact_name")
@@ -1759,6 +1770,7 @@ Deno.serve(async (req) => {
     if (action === "generate_outreach") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
 
       const { data: leads, error } = await supabaseAdmin
         .from("lead_scraper_results")
@@ -1816,6 +1828,7 @@ Deno.serve(async (req) => {
     if (action === "send_outreach") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
       // channel: "mailbox" = ruota sulle caselle Google/Outlook collegate (cold outreach,
       // protegge la reputazione del dominio transazionale); "esp" = Resend (per opt-in).
       const channel = body.channel === "mailbox" ? "mailbox" : "esp";
@@ -1983,6 +1996,7 @@ Deno.serve(async (req) => {
     if (action === "enrich_linkedin_profile") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
       const pcKey = await getPlatformSetting("proxycurl_api_key", "PROXYCURL_API_KEY");
       if (!pcKey) return errorResponse("Configura proxycurl_api_key per arricchire i profili LinkedIn (servizio a pagamento).", 400, corsH);
 
@@ -2013,6 +2027,7 @@ Deno.serve(async (req) => {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       const sequenzaId = String(body.sequenzaId || "");
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
       if (!sequenzaId) return errorResponse("sequenzaId obbligatorio.", 400, corsH);
 
       // carica la sequenza (deve appartenere alla platform admin company)
@@ -2063,6 +2078,7 @@ Deno.serve(async (req) => {
     if (action === "enrich_apollo") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
       const apolloKey = await getPlatformSetting("apollo_api_key", "APOLLO_API_KEY");
       if (!apolloKey) return errorResponse("Configura apollo_api_key per l'arricchimento Apollo.", 400, corsH);
 
@@ -2096,6 +2112,7 @@ Deno.serve(async (req) => {
     if (action === "enrich_pdl") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
       const pdlKey = await getPlatformSetting("pdl_api_key", "PDL_API_KEY");
       if (!pdlKey) return errorResponse("Configura pdl_api_key (People Data Labs — free 100/mese).", 400, corsH);
 
@@ -2125,6 +2142,7 @@ Deno.serve(async (req) => {
     if (action === "verify_email") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
       const provider = (await getPlatformSetting("email_verify_provider", "EMAIL_VERIFY_PROVIDER")) || "neverbounce";
       const vkey = await getPlatformSetting("email_verify_api_key", "EMAIL_VERIFY_API_KEY");
       if (!vkey) return errorResponse("Configura email_verify_api_key (+ opz. email_verify_provider: neverbounce|zerobounce).", 400, corsH);
@@ -2292,6 +2310,7 @@ Deno.serve(async (req) => {
     if (action === "find_pec") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
       const openapiToken = await getPlatformSetting("openapi_it_token", "OPENAPI_IT_TOKEN");
       if (!openapiToken) return errorResponse("Configura openapi_it_token per recuperare la PEC dalla P.IVA (openapi.it).", 400, corsH);
 
@@ -2328,6 +2347,7 @@ Deno.serve(async (req) => {
     if (action === "enrich_registro") {
       const ids: string[] = Array.isArray(body.resultIds) ? body.resultIds : [];
       if (ids.length === 0) return errorResponse("resultIds vuoto.", 400, corsH);
+      if (ids.length > 500) return errorResponse("Troppi lead in una sola chiamata (max 500). Usa lotti più piccoli.", 400, corsH);
       const openapiToken = await getPlatformSetting("openapi_it_token", "OPENAPI_IT_TOKEN");
       if (!openapiToken) return errorResponse("Configura openapi_it_token per arricchire dal Registro Imprese (openapi.it).", 400, corsH);
 
