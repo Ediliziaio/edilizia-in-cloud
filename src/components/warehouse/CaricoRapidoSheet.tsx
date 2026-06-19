@@ -162,6 +162,9 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   // Default CHIUSA su mobile per ridurre clutter (l'utente la apre solo se serve).
   const [ddtSectionOpen, setDdtSectionOpen] = useState(false);
   const [receiveMode, setReceiveMode] = useState<ReceiveMode>("scan");
+  // Scansione "una alla volta": ogni scan apre un popup di conferma (trovato→associa,
+  // non trovato→crea) prima di aggiungere. Default ON (richiesta utente).
+  const [confirmEachScan, setConfirmEachScan] = useState(true);
   const [supplierId, setSupplierId] = useState<string | undefined>();
   const [warehouseId, setWarehouseId] = useState<string | undefined>();
   const [relatedOrderIds, setRelatedOrderIds] = useState<string[]>([]);
@@ -651,6 +654,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             confirmLabel="Conferma carico"
             isConfirming={batchCarico.isPending}
             onRequestCreateItem={handleRequestCreateItem}
+            confirmEachScan={confirmEachScan}
             onBack={() => setStep("context")}
             backLabel="Indietro"
           />
@@ -727,6 +731,22 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                   Carica DDT
                 </Button>
               </div>
+              {receiveMode === "scan" && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmEachScan((v) => !v)}
+                  className="mt-2 flex w-full items-center justify-between gap-3 rounded-md border bg-background px-3 py-2 text-left"
+                  aria-pressed={confirmEachScan}
+                >
+                  <span className="min-w-0 text-xs">
+                    <span className="font-medium">Conferma una alla volta</span>
+                    <span className="block text-muted-foreground">Popup di conferma a ogni scansione (associa o crea)</span>
+                  </span>
+                  <span className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${confirmEachScan ? "bg-primary" : "bg-muted-foreground/30"}`}>
+                    <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${confirmEachScan ? "left-[18px]" : "left-0.5"}`} />
+                  </span>
+                </button>
+              )}
             </div>
           </div>
 
