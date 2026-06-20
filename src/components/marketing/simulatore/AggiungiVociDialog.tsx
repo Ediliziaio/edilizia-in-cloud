@@ -208,14 +208,14 @@ export function AggiungiVociDialog({ open, onOpenChange, onAdd }: AggiungiVociDi
               <Library className="h-4 w-4" />
               Listino aziendale
               {selListino.size > 0 ? (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5">{selListino.size}</Badge>
+                <Badge variant="default" className="ml-1 h-5 px-1.5">{selListino.size}</Badge>
               ) : null}
             </TabsTrigger>
             <TabsTrigger value="prezzario" className="gap-1.5">
               <MapPin className="h-4 w-4" />
               Prezzario regionale
               {selPrezzario.size > 0 ? (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5">{selPrezzario.size}</Badge>
+                <Badge variant="default" className="ml-1 h-5 px-1.5">{selPrezzario.size}</Badge>
               ) : null}
             </TabsTrigger>
           </TabsList>

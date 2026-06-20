@@ -9,9 +9,10 @@
  * UI:
  *   - Due input percentuali: `acconto_pct` e `saldo_pct` (→ `onChangeSal`).
  *   - Grafico a linee del netto per settimana con `ReferenceLine y=0`; il punto
- *     di massima esposizione è evidenziato con un dot dedicato.
- *   - Metriche: esposizione massima (= |max_esposizione|, in rosso) alla
- *     settimana X, acconto, saldo.
+ *     di massima esposizione è evidenziato con un dot dedicato. Verde (chart-2)
+ *     sopra zero, rosso (chart-5) sotto: il colore segue il segno del netto.
+ *   - Metriche: esposizione massima (= |max_esposizione|, rosso chart-5) alla
+ *     settimana X, acconto (brand primary), saldo (verde chart-2).
  *
  * Empty-state se non ci sono fasi nel cronoprogramma.
  */
@@ -50,6 +51,11 @@ function parsePct(raw: string): number {
   const n = Math.min(100, Math.max(0, Number(raw)));
   return Number.isFinite(n) ? n : 0;
 }
+
+// Colori semantici del flusso di cassa dalla palette chart del brand:
+// verde (chart-2) per il netto positivo, rosso (chart-5) per l'esposizione.
+const CASSA_POSITIVO = "hsl(var(--chart-2))";
+const CASSA_NEGATIVO = "hsl(var(--chart-5))";
 
 export function SimFlussoCassa({
   fasi,
@@ -133,7 +139,7 @@ export function SimFlussoCassa({
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Wallet className="h-4 w-4" />
             </span>
             <h3 className="text-sm font-semibold">Flusso di cassa nel tempo (SAL)</h3>
@@ -161,15 +167,15 @@ export function SimFlussoCassa({
                 <defs>
                   {/* Stroke: verde→rosso al passaggio per lo zero (gradientOffset). */}
                   <linearGradient id="simCassaStroke" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset={gradientOffset} stopColor="hsl(142 76% 36%)" stopOpacity={1} />
-                    <stop offset={gradientOffset} stopColor="hsl(0 84% 60%)" stopOpacity={1} />
+                    <stop offset={gradientOffset} stopColor={CASSA_POSITIVO} stopOpacity={1} />
+                    <stop offset={gradientOffset} stopColor={CASSA_NEGATIVO} stopOpacity={1} />
                   </linearGradient>
                   {/* Fill: stessa logica, sfumato verso trasparente in basso. */}
                   <linearGradient id="simCassaFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(142 76% 36%)" stopOpacity={0.28} />
-                    <stop offset={gradientOffset} stopColor="hsl(142 76% 36%)" stopOpacity={0.04} />
-                    <stop offset={gradientOffset} stopColor="hsl(0 84% 60%)" stopOpacity={0.04} />
-                    <stop offset="100%" stopColor="hsl(0 84% 60%)" stopOpacity={0.28} />
+                    <stop offset="0%" stopColor={CASSA_POSITIVO} stopOpacity={0.28} />
+                    <stop offset={gradientOffset} stopColor={CASSA_POSITIVO} stopOpacity={0.04} />
+                    <stop offset={gradientOffset} stopColor={CASSA_NEGATIVO} stopOpacity={0.04} />
+                    <stop offset="100%" stopColor={CASSA_NEGATIVO} stopOpacity={0.28} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -215,7 +221,7 @@ export function SimFlussoCassa({
                     x={puntoMax.settimana}
                     y={puntoMax.netto}
                     r={5}
-                    fill="hsl(0 84% 60%)"
+                    fill={CASSA_NEGATIVO}
                     stroke="hsl(var(--card))"
                     strokeWidth={2}
                     label={{
@@ -223,7 +229,7 @@ export function SimFlussoCassa({
                       position: "top",
                       fontSize: 11,
                       fontWeight: 600,
-                      fill: "hsl(0 84% 60%)",
+                      fill: CASSA_NEGATIVO,
                     }}
                   />
                 ) : null}
@@ -232,12 +238,19 @@ export function SimFlussoCassa({
 
             {/* Metriche */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3 dark:border-rose-900/60 dark:bg-rose-950/30">
-                <div className="flex items-center gap-1.5 text-[11px] font-medium text-rose-600 dark:text-rose-400">
+              {/* Esposizione: box semantico rosso (chart-5), tinta tenue inline. */}
+              <div
+                className="rounded-xl border p-3"
+                style={{
+                  borderColor: "hsl(var(--chart-5) / 0.30)",
+                  backgroundColor: "hsl(var(--chart-5) / 0.06)",
+                }}
+              >
+                <div className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: CASSA_NEGATIVO }}>
                   <TrendingDown className="h-3.5 w-3.5" />
                   Esposizione massima
                 </div>
-                <p className="mt-1 text-lg font-semibold tabular-nums text-rose-700 dark:text-rose-300">
+                <p className="mt-1 text-lg font-semibold tabular-nums" style={{ color: CASSA_NEGATIVO }}>
                   {formatCurrency(esposizione)}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
@@ -248,7 +261,7 @@ export function SimFlussoCassa({
                 <div className="text-[11px] font-medium text-muted-foreground">
                   Acconto ({sal.acconto_pct.toLocaleString("it-IT")}%)
                 </div>
-                <p className="mt-1 text-lg font-semibold tabular-nums text-sky-700 dark:text-sky-300">
+                <p className="mt-1 text-lg font-semibold tabular-nums text-primary">
                   {formatCurrency(acconto)}
                 </p>
                 <p className="text-[11px] text-muted-foreground">alla firma</p>
@@ -257,7 +270,7 @@ export function SimFlussoCassa({
                 <div className="text-[11px] font-medium text-muted-foreground">
                   Saldo ({sal.saldo_pct.toLocaleString("it-IT")}%)
                 </div>
-                <p className="mt-1 text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
+                <p className="mt-1 text-lg font-semibold tabular-nums" style={{ color: CASSA_POSITIVO }}>
                   {formatCurrency(saldo)}
                 </p>
                 <p className="text-[11px] text-muted-foreground">a fine lavori</p>

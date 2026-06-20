@@ -9,7 +9,7 @@
  * Cruscotto): griglia di Card, Badge colorati per margine/stato, DropdownMenu
  * per le azioni, AlertDialog per le conferme distruttive, EmptyState curato.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -79,15 +79,18 @@ const STATO_BADGE: Record<string, "secondary" | "default" | "outline"> = {
   archiviata: "outline",
 };
 
-/** Colore del margine: verde ≥25%, giallo 10–25%, rosso <10%. */
-function margineClasses(pct: number): string {
-  if (pct >= 25) {
-    return "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800";
-  }
-  if (pct >= 10) {
-    return "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-800";
-  }
-  return "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-900/40 dark:text-rose-300 dark:border-rose-800";
+/**
+ * Stile del badge margine (semaforo, unico colore semantico della card): verde
+ * (chart-2) ≥25%, arancio (chart-3) 10–25%, rosso (chart-5) <10%. Reso inline
+ * con la palette chart del brand → coerente col tema e col dark-mode.
+ */
+function margineStyle(pct: number): CSSProperties {
+  const v = pct >= 25 ? "var(--chart-2)" : pct >= 10 ? "var(--chart-3)" : "var(--chart-5)";
+  return {
+    backgroundColor: `hsl(${v} / 0.12)`,
+    color: `hsl(${v})`,
+    borderColor: `hsl(${v} / 0.30)`,
+  };
 }
 
 function fmtPct(pct: number): string {
@@ -339,7 +342,7 @@ export default function SimulatoreIndex() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className={`text-xs font-medium ${margineClasses(sim.margine_pct)}`}>
+                  <Badge variant="outline" className="text-xs font-medium" style={margineStyle(sim.margine_pct)}>
                     Margine {fmtPct(sim.margine_pct)}
                   </Badge>
                   <span className="text-xs text-muted-foreground tabular-nums">

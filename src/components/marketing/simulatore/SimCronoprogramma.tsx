@@ -20,7 +20,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/formatters";
-import { cn } from "@/lib/utils";
 import type { FaseCalcolata } from "@/lib/simulatore/calcoli";
 import type { FaseSim, VoceSim } from "@/lib/simulatore/tipi";
 
@@ -63,15 +62,17 @@ function settLabel(n: number): string {
 }
 
 /**
- * Palette barre fasi: tinte tasteful ciclate per indice di fase (indigo, sky,
- * emerald, amber, violet). Usano classi Tailwind coerenti col tema/dark-mode.
+ * Palette barre fasi: ciclata per indice di fase sulla palette chart ufficiale
+ * del brand (chart-1 blu, chart-2 verde, chart-3 arancio, chart-4 viola,
+ * chart-5 rosso). Stringhe `hsl(var(--chart-N))` applicate inline → il dark-mode
+ * è gestito dai token --chart-N.
  */
 const FASE_BAR = [
-  "bg-indigo-500 dark:bg-indigo-500",
-  "bg-sky-500 dark:bg-sky-500",
-  "bg-emerald-500 dark:bg-emerald-500",
-  "bg-amber-500 dark:bg-amber-500",
-  "bg-violet-500 dark:bg-violet-500",
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
 ] as const;
 
 export function SimCronoprogramma({
@@ -105,12 +106,12 @@ export function SimCronoprogramma({
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <CalendarRange className="h-4 w-4" />
             </span>
             <h3 className="text-sm font-semibold">Cronoprogramma</h3>
             {totale > 0 ? (
-              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 tabular-nums dark:bg-indigo-500/15 dark:text-indigo-300">
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary tabular-nums">
                 {settLabel(totale)} totali
               </span>
             ) : null}
@@ -207,7 +208,7 @@ export function SimCronoprogramma({
                       variant="ghost"
                       size="icon"
                       onClick={() => removeFase(fase.id)}
-                      className="h-8 w-8 text-muted-foreground transition hover:text-rose-600"
+                      className="h-8 w-8 text-muted-foreground transition hover:text-destructive"
                       aria-label="Elimina fase"
                       title="Elimina fase"
                     >
@@ -219,11 +220,8 @@ export function SimCronoprogramma({
                   <div className="mt-2.5">
                     <div className="relative h-7 w-full overflow-hidden rounded-full bg-muted">
                       <div
-                        className={cn(
-                          "absolute inset-y-0 flex items-center rounded-full px-2.5 text-white shadow-sm",
-                          barColor,
-                        )}
-                        style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                        className="absolute inset-y-0 flex items-center rounded-full px-2.5 text-white shadow-sm"
+                        style={{ left: `${leftPct}%`, width: `${widthPct}%`, backgroundColor: barColor }}
                       >
                         <span className="truncate text-[11px] font-semibold tabular-nums">
                           {settLabel(fase.durata_settimane)}

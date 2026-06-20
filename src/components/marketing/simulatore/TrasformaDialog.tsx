@@ -418,7 +418,7 @@ export function TrasformaDialog({
             )}
 
             {!hasVoci && (
-              <p className="text-xs text-amber-600 dark:text-amber-500">
+              <p className="text-xs" style={{ color: "hsl(var(--chart-3))" }}>
                 La simulazione non ha voci: il documento verrà creato vuoto.
               </p>
             )}

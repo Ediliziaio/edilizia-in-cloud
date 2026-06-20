@@ -5,13 +5,14 @@
  * niente libreria grafici), coerenti con la terminologia del motore:
  *
  *   1. "Dove va il ricavo" — ripartizione del RICAVO IMPONIBILE (netto) nelle
- *      sue componenti: Costo diretto (sky), Spese generali (amber), Provvigioni
- *      (violet), Margine (emerald se ≥0 / rose se <0). Larghezze ∝ ai `_pct`
- *      (quota in % sul ricavo netto), con etichette % e legenda (pallino + nome
- *      + % + €).
- *   2. "Composizione del costo" — il costo diretto diviso in Manodopera (indigo)
- *      vs Materiali (sky), con % ed €, più la riga in risalto "Incidenza
- *      manodopera sul prezzo".
+ *      sue componenti, colorate con la palette chart ufficiale del brand:
+ *      Costo diretto (chart-1 blu), Spese generali (chart-3 arancio), Provvigioni
+ *      (chart-4 viola), Margine (chart-2 verde se ≥0 / chart-5 rosso se <0).
+ *      Larghezze ∝ ai `_pct` (quota in % sul ricavo netto), con etichette % e
+ *      legenda (pallino + nome + % + €).
+ *   2. "Composizione del costo" — il costo diretto diviso in Manodopera
+ *      (chart-1 blu) vs Materiali (chart-3 arancio), con % ed €, più la riga in
+ *      risalto "Incidenza manodopera sul prezzo".
  *
  * I numeri vengono da `calcolaIncidenze(voci, risultato)`; le quote € dal
  * risultato. Empty-state pulito senza voci. Stile card di progetto:
@@ -32,16 +33,18 @@ interface SimIncidenzaCostiProps {
   risultato: SimulazioneRisultato;
 }
 
-/** Una fetta della barra impilata: nome, %, valore €, e classi colore. */
+/** Una fetta della barra impilata: nome, %, valore €, e colore (palette chart). */
 interface Slice {
   key: string;
   label: string;
   pct: number;
   valore: number;
-  /** Classe sfondo della fetta nella barra. */
-  bar: string;
-  /** Classe colore del pallino di legenda. */
-  dot: string;
+  /**
+   * Colore della fetta come stringa `hsl(var(--chart-N))` (palette brand). Usato
+   * inline sia per la barra sia per il pallino di legenda; il dark-mode è gestito
+   * dai token --chart-N.
+   */
+  color: string;
 }
 
 /** "12,3%" — percentuale arrotondata a 1 decimale, locale IT. */
@@ -67,8 +70,8 @@ function StackedBar({ slices }: { slices: Slice[] }) {
           return (
             <div
               key={s.key}
-              className={cn("flex items-center justify-center", s.bar)}
-              style={{ width: `${w}%` }}
+              className="flex items-center justify-center"
+              style={{ width: `${w}%`, backgroundColor: s.color }}
               title={`${s.label}: ${fmtPct(s.pct)} · ${formatCurrency(s.valore)}`}
             >
               {/* Etichetta % solo se la fetta è abbastanza larga da leggerla. */}
@@ -95,7 +98,7 @@ function Legend({ slices }: { slices: Slice[] }) {
     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-4">
       {slices.map((s) => (
         <div key={s.key} className="flex items-center gap-2 text-xs">
-          <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", s.dot)} />
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
           <span className="min-w-0 flex-1 truncate text-muted-foreground">{s.label}</span>
           <span className="shrink-0 font-semibold tabular-nums">{fmtPct(s.pct)}</span>
         </div>
@@ -152,7 +155,7 @@ export function SimIncidenzaCosti({ voci, risultato }: SimIncidenzaCostiProps) {
         <CardContent className="space-y-3 p-4">
           <SectionHeader
             icon={<PieChart className="h-4 w-4" />}
-            chip="bg-violet-100 text-violet-600 dark:bg-violet-950/60 dark:text-violet-400"
+            chip="bg-primary/10 text-primary"
             title="Incidenza &amp; composizione costi"
           />
           <EmptyState
@@ -175,32 +178,29 @@ export function SimIncidenzaCosti({ voci, risultato }: SimIncidenzaCostiProps) {
       label: "Costo diretto",
       pct: inc.costo_diretto_pct,
       valore: risultato.costo_diretto,
-      bar: "bg-sky-500 dark:bg-sky-600",
-      dot: "bg-sky-500",
+      color: "hsl(var(--chart-1))",
     },
     {
       key: "spese_generali",
       label: "Spese generali",
       pct: inc.spese_generali_pct,
       valore: risultato.spese_generali,
-      bar: "bg-amber-500 dark:bg-amber-600",
-      dot: "bg-amber-500",
+      color: "hsl(var(--chart-3))",
     },
     {
       key: "provvigioni",
       label: "Provvigioni",
       pct: inc.provvigioni_pct,
       valore: risultato.provvigioni_totale,
-      bar: "bg-violet-500 dark:bg-violet-600",
-      dot: "bg-violet-500",
+      color: "hsl(var(--chart-4))",
     },
     {
       key: "margine",
       label: "Margine",
       pct: inc.margine_pct,
       valore: risultato.margine_valore,
-      bar: margineNeg ? "bg-rose-500 dark:bg-rose-600" : "bg-emerald-500 dark:bg-emerald-600",
-      dot: margineNeg ? "bg-rose-500" : "bg-emerald-500",
+      // Margine: verde chart-2 se ≥0, rosso chart-5 se in perdita (segno semantico).
+      color: margineNeg ? "hsl(var(--chart-5))" : "hsl(var(--chart-2))",
     },
   ];
 
@@ -211,16 +211,14 @@ export function SimIncidenzaCosti({ voci, risultato }: SimIncidenzaCostiProps) {
       label: "Manodopera",
       pct: inc.manodopera_pct_costo,
       valore: inc.manodopera_costo,
-      bar: "bg-indigo-500 dark:bg-indigo-600",
-      dot: "bg-indigo-500",
+      color: "hsl(var(--chart-1))",
     },
     {
       key: "materiali",
       label: "Materiali",
       pct: inc.materiali_pct_costo,
       valore: inc.materiali_costo,
-      bar: "bg-sky-500 dark:bg-sky-600",
-      dot: "bg-sky-500",
+      color: "hsl(var(--chart-3))",
     },
   ];
 
@@ -231,7 +229,7 @@ export function SimIncidenzaCosti({ voci, risultato }: SimIncidenzaCostiProps) {
         <section className="space-y-3">
           <SectionHeader
             icon={<PieChart className="h-4 w-4" />}
-            chip="bg-violet-100 text-violet-600 dark:bg-violet-950/60 dark:text-violet-400"
+            chip="bg-primary/10 text-primary"
             title="Dove va il ricavo"
             subtitle={`Ripartizione del ricavo imponibile · ${formatCurrency(risultato.ricavo_netto)}`}
           />
@@ -244,7 +242,7 @@ export function SimIncidenzaCosti({ voci, risultato }: SimIncidenzaCostiProps) {
         <section className="space-y-3 border-t pt-5">
           <SectionHeader
             icon={<Layers className="h-4 w-4" />}
-            chip="bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400"
+            chip="bg-primary/10 text-primary"
             title="Composizione del costo"
             subtitle={`Costo diretto · ${formatCurrency(risultato.costo_diretto)}`}
           />
@@ -252,14 +250,14 @@ export function SimIncidenzaCosti({ voci, risultato }: SimIncidenzaCostiProps) {
           <Legend slices={costoSlices} />
           <ValoriRow slices={costoSlices} />
 
-          {/* Riga in risalto: incidenza manodopera sul prezzo. */}
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-sm dark:border-indigo-900 dark:bg-indigo-950/30">
-            <span className="flex items-center gap-1.5 font-medium text-indigo-700 dark:text-indigo-300">
+          {/* Riga in risalto: incidenza manodopera sul prezzo (accento brand). */}
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm">
+            <span className="flex items-center gap-1.5 font-medium text-primary">
               <HardHat className="h-4 w-4" />
               Incidenza manodopera sul prezzo
             </span>
             <span className="flex items-center gap-2 tabular-nums">
-              <span className="font-bold text-indigo-700 dark:text-indigo-300">
+              <span className="font-bold text-primary">
                 {fmtPct(inc.incidenza_manodopera_ricavo)}
               </span>
               <span className="flex items-center gap-1 text-[11px] text-muted-foreground">

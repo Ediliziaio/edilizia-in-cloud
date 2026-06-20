@@ -287,7 +287,7 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = 
             variant="ghost"
             size="icon"
             onClick={onRemove}
-            className="h-8 w-8 text-muted-foreground opacity-60 transition hover:text-rose-600 group-hover:opacity-100"
+            className="h-8 w-8 text-muted-foreground opacity-60 transition hover:text-destructive group-hover:opacity-100"
             aria-label="Elimina riga"
             title="Elimina riga"
           >

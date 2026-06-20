@@ -259,7 +259,7 @@ export function SimScenariPanel({
         {/* ── Sezione Economia & Trattativa ───────────────────────────────── */}
         <section className="space-y-3">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <SlidersHorizontal className="h-4 w-4" />
             </span>
             <h3 className="text-sm font-semibold">Economia &amp; trattativa</h3>
@@ -323,32 +323,28 @@ export function SimScenariPanel({
             </div>
           </div>
 
-          {/* Esito margine netto vs utile target */}
+          {/* Esito margine netto vs utile target — semaforo: verde (chart-2) se
+              raggiunge il target, arancio (chart-3) di avviso sotto soglia. */}
+          {(() => {
+            const margineVar = margineOk ? "var(--chart-2)" : "var(--chart-3)";
+            return (
           <div
-            className={cn(
-              "flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2.5 text-sm",
-              margineOk
-                ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/30"
-                : "border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/30",
-            )}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2.5 text-sm"
+            style={{
+              borderColor: `hsl(${margineVar} / 0.30)`,
+              backgroundColor: `hsl(${margineVar} / 0.08)`,
+            }}
           >
             <span className="flex items-center gap-1.5 font-medium">
               {margineOk ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <CheckCircle2 className="h-4 w-4" style={{ color: `hsl(${margineVar})` }} />
               ) : (
-                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <AlertTriangle className="h-4 w-4" style={{ color: `hsl(${margineVar})` }} />
               )}
               Margine netto
             </span>
             <span className="flex items-center gap-2 tabular-nums">
-              <span
-                className={cn(
-                  "font-bold",
-                  margineOk
-                    ? "text-emerald-700 dark:text-emerald-300"
-                    : "text-amber-700 dark:text-amber-300",
-                )}
-              >
+              <span className="font-bold" style={{ color: `hsl(${margineVar})` }}>
                 {formatCurrency(risultato.margine_netto_valore)} ({fmtPct(risultato.margine_netto_pct)})
               </span>
               {utileTarget > 0 ? (
@@ -358,6 +354,8 @@ export function SimScenariPanel({
               ) : null}
             </span>
           </div>
+            );
+          })()}
 
           {/* Obiettivo (calcolo inverso): per prezzo o per margine */}
           <div className="rounded-xl border bg-card p-3 shadow-sm space-y-2.5">
@@ -375,12 +373,12 @@ export function SimScenariPanel({
                 onValueChange={(v) => {
                   if (v === "prezzo" || v === "margine") setObiettivoMode(v);
                 }}
-                className="rounded-lg border bg-secondary/40 p-0.5"
+                className="rounded-lg border bg-muted/40 p-0.5"
               >
-                <ToggleGroupItem value="prezzo" className="h-7 px-3 text-xs data-[state=on]:bg-background">
+                <ToggleGroupItem value="prezzo" className="h-7 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
                   Per prezzo
                 </ToggleGroupItem>
-                <ToggleGroupItem value="margine" className="h-7 px-3 text-xs data-[state=on]:bg-background">
+                <ToggleGroupItem value="margine" className="h-7 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
                   Per margine
                 </ToggleGroupItem>
               </ToggleGroup>
@@ -425,7 +423,7 @@ export function SimScenariPanel({
                     </span>
                     <span className="text-muted-foreground">
                       Margine:{" "}
-                      <strong className={cn(obiettivo.margine_valore >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                      <strong style={{ color: obiettivo.margine_valore >= 0 ? "hsl(var(--chart-2))" : "hsl(var(--chart-5))" }}>
                         {formatCurrency(obiettivo.margine_valore)} ({fmtPct(obiettivo.margine_pct)})
                       </strong>
                     </span>
@@ -446,12 +444,12 @@ export function SimScenariPanel({
                     onValueChange={(v) => {
                       if (v === "pct" || v === "euro") setMargineTargetType(v);
                     }}
-                    className="rounded-lg border bg-secondary/40 p-0.5"
+                    className="rounded-lg border bg-muted/40 p-0.5"
                   >
-                    <ToggleGroupItem value="pct" className="h-8 px-3 text-xs data-[state=on]:bg-background">
+                    <ToggleGroupItem value="pct" className="h-8 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
                       %
                     </ToggleGroupItem>
-                    <ToggleGroupItem value="euro" className="h-8 px-3 text-xs data-[state=on]:bg-background">
+                    <ToggleGroupItem value="euro" className="h-8 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
                       €
                     </ToggleGroupItem>
                   </ToggleGroup>
@@ -474,11 +472,11 @@ export function SimScenariPanel({
                 {margineObiettivo ? (
                   margineObiettivo.fattibile ? (
                     <div className="space-y-1.5">
-                      <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-2.5 text-sm dark:border-indigo-900 dark:bg-indigo-950/30">
-                        <p className="text-[11px] font-medium uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-sm">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-primary">
                           Dovresti vendere a
                         </p>
-                        <p className="mt-0.5 font-bold tabular-nums text-indigo-900 dark:text-indigo-100">
+                        <p className="mt-0.5 font-bold tabular-nums text-foreground">
                           {formatCurrency(margineObiettivo.ricavo_netto_necessario ?? 0)}{" "}
                           <span className="text-[11px] font-normal text-muted-foreground">imponibile</span>{" "}
                           <span className="text-muted-foreground">→</span>{" "}
@@ -494,11 +492,7 @@ export function SimScenariPanel({
                           <p className="text-[11px] text-muted-foreground tabular-nums">
                             Rispetto all&apos;attuale ({formatCurrency(risultato.ricavo_netto)}):{" "}
                             <strong
-                              className={cn(
-                                diff > 0
-                                  ? "text-amber-600 dark:text-amber-400"
-                                  : "text-emerald-600 dark:text-emerald-400",
-                              )}
+                              style={{ color: diff > 0 ? "hsl(var(--chart-3))" : "hsl(var(--chart-2))" }}
                             >
                               {diff >= 0 ? "+" : "−"}
                               {formatCurrency(Math.abs(diff))}
@@ -508,7 +502,14 @@ export function SimScenariPanel({
                       })()}
                     </div>
                   ) : (
-                    <p className="rounded-lg border border-amber-200 bg-amber-50/60 p-2.5 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                    <p
+                      className="rounded-lg border p-2.5 text-xs font-medium"
+                      style={{
+                        borderColor: "hsl(var(--chart-3) / 0.30)",
+                        backgroundColor: "hsl(var(--chart-3) / 0.08)",
+                        color: "hsl(var(--chart-3))",
+                      }}
+                    >
                       Margine non raggiungibile con questi costi/provvigioni.
                     </p>
                   )
@@ -621,7 +622,7 @@ export function SimScenariPanel({
                         size="icon"
                         variant="ghost"
                         aria-label="Elimina provvigione"
-                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-rose-600"
+                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                         onClick={() => removeProvvigione(p.id)}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -637,7 +638,7 @@ export function SimScenariPanel({
                       <HandCoins className="h-3.5 w-3.5" />
                       Totale provvigioni
                     </span>
-                    <span className="font-semibold text-rose-600 dark:text-rose-400">
+                    <span className="font-semibold" style={{ color: "hsl(var(--chart-5))" }}>
                       −{formatCurrency(risultato.provvigioni_totale)}
                     </span>
                   </div>
@@ -649,13 +650,7 @@ export function SimScenariPanel({
                   </div>
                   <div className="flex items-center justify-between gap-3 border-t pt-1.5 font-medium">
                     <span>Margine finale</span>
-                    <span
-                      className={cn(
-                        risultato.margine_valore >= 0
-                          ? "text-emerald-700 dark:text-emerald-300"
-                          : "text-rose-600 dark:text-rose-400",
-                      )}
-                    >
+                    <span style={{ color: risultato.margine_valore >= 0 ? "hsl(var(--chart-2))" : "hsl(var(--chart-5))" }}>
                       {formatCurrency(risultato.margine_valore)} ({fmtPct(risultato.margine_pct)})
                     </span>
                   </div>
@@ -669,7 +664,7 @@ export function SimScenariPanel({
         <section className="space-y-3 border-t pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-950/60 dark:text-sky-400">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <Receipt className="h-4 w-4" />
               </span>
               <h3 className="text-sm font-semibold">IVA</h3>
@@ -681,12 +676,12 @@ export function SimScenariPanel({
               onValueChange={(v) => {
                 if (v === "singola" || v === "mista") patch({ iva_mode: v });
               }}
-              className="rounded-lg border bg-secondary/40 p-0.5"
+              className="rounded-lg border bg-muted/40 p-0.5"
             >
-              <ToggleGroupItem value="singola" className="h-7 px-3 text-xs data-[state=on]:bg-background">
+              <ToggleGroupItem value="singola" className="h-7 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
                 Singola
               </ToggleGroupItem>
-              <ToggleGroupItem value="mista" className="h-7 px-3 text-xs data-[state=on]:bg-background">
+              <ToggleGroupItem value="mista" className="h-7 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
                 Mista 10/22
               </ToggleGroupItem>
             </ToggleGroup>
@@ -742,14 +737,14 @@ export function SimScenariPanel({
                     className={cn(
                       "rounded-lg border bg-card p-2.5 text-center transition-colors",
                       attiva
-                        ? "border-sky-400 ring-1 ring-sky-400/40 dark:border-sky-500"
+                        ? "border-primary ring-1 ring-primary/40"
                         : "border-border",
                     )}
                   >
                     <p
                       className={cn(
                         "text-[11px] font-medium",
-                        attiva ? "text-sky-600 dark:text-sky-400" : "text-muted-foreground",
+                        attiva ? "text-primary" : "text-muted-foreground",
                       )}
                     >
                       IVA {pctLabel(a)}
@@ -810,7 +805,7 @@ export function SimScenariPanel({
         <section className="space-y-3 border-t pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950/60 dark:text-violet-400">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <CreditCard className="h-4 w-4" />
               </span>
               <h3 className="text-sm font-semibold">Finanziamento</h3>
@@ -822,12 +817,12 @@ export function SimScenariPanel({
               onValueChange={(v) => {
                 if (v === "on" || v === "off") toggleFin(v === "on");
               }}
-              className="rounded-lg border bg-secondary/40 p-0.5"
+              className="rounded-lg border bg-muted/40 p-0.5"
             >
-              <ToggleGroupItem value="off" className="h-7 px-3 text-xs data-[state=on]:bg-background">
+              <ToggleGroupItem value="off" className="h-7 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
                 Nessuno
               </ToggleGroupItem>
-              <ToggleGroupItem value="on" className="h-7 px-3 text-xs data-[state=on]:bg-background">
+              <ToggleGroupItem value="on" className="h-7 px-3 text-xs data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
                 Rateizza
               </ToggleGroupItem>
             </ToggleGroup>
@@ -842,9 +837,14 @@ export function SimScenariPanel({
             <div className="space-y-3">
               {/* Tabelle non configurate */}
               {tabelle.data && tabelle.data.length === 0 ? (
-                <Alert className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
-                  <AlertTriangle className="h-4 w-4 text-amber-700 dark:text-amber-400" />
-                  <AlertDescription className="text-amber-900 dark:text-amber-200">
+                <Alert
+                  style={{
+                    borderColor: "hsl(var(--chart-3) / 0.40)",
+                    backgroundColor: "hsl(var(--chart-3) / 0.08)",
+                  }}
+                >
+                  <AlertTriangle className="h-4 w-4" style={{ color: "hsl(var(--chart-3))" }} />
+                  <AlertDescription style={{ color: "hsl(var(--chart-3))" }}>
                     <strong>Nessuna tabella finanziamento configurata.</strong>{" "}
                     <a
                       href="/azienda/impostazioni/finanziamenti"
@@ -963,31 +963,31 @@ export function SimScenariPanel({
                 </Alert>
               ) : null}
 
-              {/* Esito calcolo: rata */}
+              {/* Esito calcolo: rata. Esatto (da tabella) = verde chart-2;
+                  interpolato = accento brand primary (informativo, non allarme). */}
               {result && result.modalita !== "errore" ? (
+                (() => {
+                  const esatto = result.modalita === "esatto";
+                  const rataVar = esatto ? "var(--chart-2)" : "var(--primary)";
+                  return (
                 <div
-                  className={cn(
-                    "rounded-lg border p-3",
-                    result.modalita === "esatto"
-                      ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/30"
-                      : "border-sky-200 bg-sky-50/60 dark:border-sky-900 dark:bg-sky-950/30",
-                  )}
+                  className="rounded-lg border p-3"
+                  style={{
+                    borderColor: `hsl(${rataVar} / 0.30)`,
+                    backgroundColor: `hsl(${rataVar} / 0.08)`,
+                  }}
                 >
                   <div className="mb-2 flex items-center justify-between">
                     <p className="flex items-center gap-1.5 text-sm font-semibold">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      <CheckCircle2 className="h-4 w-4" style={{ color: "hsl(var(--chart-2))" }} />
                       Rata calcolata
                     </p>
                     <Badge
                       variant="outline"
-                      className={cn(
-                        "text-[10px]",
-                        result.modalita === "esatto"
-                          ? "border-emerald-400 text-emerald-700 dark:text-emerald-300"
-                          : "border-sky-400 text-sky-700 dark:text-sky-300",
-                      )}
+                      className="text-[10px]"
+                      style={{ borderColor: `hsl(${rataVar} / 0.50)`, color: `hsl(${rataVar})` }}
                     >
-                      {result.modalita === "esatto" ? "Da tabella" : "Interpolato"}
+                      {esatto ? "Da tabella" : "Interpolato"}
                     </Badge>
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -1009,6 +1009,8 @@ export function SimScenariPanel({
                     />
                   </div>
                 </div>
+                  );
+                })()
               ) : null}
             </div>
           )}
