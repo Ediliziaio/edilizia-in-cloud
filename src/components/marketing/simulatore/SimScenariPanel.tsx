@@ -25,6 +25,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Receipt, CreditCard, AlertTriangle, CheckCircle2, SlidersHorizontal, Target, TrendingDown,
+  Users, Plus, Trash2, HandCoins,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -44,10 +45,11 @@ import {
   useTabellaFinanziamentoRighe,
 } from "@/hooks/useTabelleFinanziamento";
 import { calcolaFinanziamento } from "@/lib/finanziamenti/calcolaFinanziamento";
-import { calcolaPrezzoObiettivo } from "@/lib/simulatore/calcoli";
+import { calcolaPrezzoObiettivo, calcolaProvvigione } from "@/lib/simulatore/calcoli";
 import type { RigaTabellaFinanziamento, RisultatoCalcolo } from "@/lib/finanziamenti/types";
 import type {
   ScenariConfig, SimulazioneRisultato, FinanziamentoConfig,
+  ProvvigioneSim, ProvvigioneBase,
 } from "@/lib/simulatore/tipi";
 
 interface SimScenariPanelProps {
@@ -59,6 +61,14 @@ interface SimScenariPanelProps {
 }
 
 const ALIQUOTE: Array<4 | 10 | 22> = [4, 10, 22];
+
+/** Etichette delle basi di provvigione per la Select. */
+const PROVV_BASE_LABEL: Record<ProvvigioneBase, string> = {
+  ricavo: "% su ricavo",
+  margine: "% su margine",
+  fisso: "importo fisso €",
+};
+const PROVV_BASI: ProvvigioneBase[] = ["ricavo", "margine", "fisso"];
 
 const EMPTY_FINANZIAMENTO: FinanziamentoConfig = {
   tabella_id: null,
@@ -96,6 +106,32 @@ export function SimScenariPanel({
   onRataChange,
 }: SimScenariPanelProps) {
   const patch = (p: Partial<ScenariConfig>) => onChange({ ...scenari, ...p });
+
+  // ── Provvigioni (commerciale, segnalatore, ecc.) ──────────────────────────
+  const provvigioni = scenari.provvigioni ?? [];
+  // Margine OPERATIVO (PRE-provvigioni): base per le provvigioni "% su margine"
+  // e per il calcolo per-riga in UI (coerente con calcolaSimulazione).
+  const marginePre = risultato.margine_netto_valore;
+
+  const addProvvigione = () => {
+    const nuova: ProvvigioneSim = {
+      id: crypto.randomUUID(),
+      nome: "",
+      base: "ricavo",
+      valore: 0,
+    };
+    patch({ provvigioni: [...provvigioni, nuova] });
+  };
+
+  const updateProvvigione = (id: string, p: Partial<ProvvigioneSim>) => {
+    patch({
+      provvigioni: provvigioni.map((x) => (x.id === id ? { ...x, ...p } : x)),
+    });
+  };
+
+  const removeProvvigione = (id: string) => {
+    patch({ provvigioni: provvigioni.filter((x) => x.id !== id) });
+  };
 
   // Prezzo cliente per aliquota di confronto (lookup su confronto_iva).
   const prezzoPerAliquota = new Map(
@@ -349,6 +385,149 @@ export function SimScenariPanel({
               <p className="text-[11px] text-muted-foreground">
                 Inserisci un prezzo netto per calcolare lo sconto necessario e il margine risultante.
               </p>
+            )}
+          </div>
+
+          {/* ── Provvigioni (commerciale, segnalatore, ecc.) ──────────────── */}
+          <div className="rounded-lg border bg-secondary/30 p-3 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Provvigioni
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-xs"
+                onClick={addProvvigione}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Aggiungi provvigione
+              </Button>
+            </div>
+
+            {provvigioni.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                Aggiungi i costi di provvigione (commerciale, segnalatore, ecc.): erodono il
+                margine ma non cambiano il prezzo al cliente.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {provvigioni.map((p) => {
+                  const valoreRiga = calcolaProvvigione(p, risultato.ricavo_netto, marginePre);
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex flex-wrap items-end gap-2 rounded-md border bg-card p-2"
+                    >
+                      {/* Nome */}
+                      <div className="min-w-[8rem] flex-1 space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Beneficiario</Label>
+                        <Input
+                          value={p.nome}
+                          placeholder="Es. Commerciale"
+                          onChange={(e) => updateProvvigione(p.id, { nome: e.target.value })}
+                          className="h-8"
+                        />
+                      </div>
+
+                      {/* Base */}
+                      <div className="w-[9.5rem] space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Base</Label>
+                        <Select
+                          value={p.base}
+                          onValueChange={(v) =>
+                            updateProvvigione(p.id, { base: v as ProvvigioneBase })
+                          }
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PROVV_BASI.map((b) => (
+                              <SelectItem key={b} value={b}>
+                                {PROVV_BASE_LABEL[b]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Valore (% o €) */}
+                      <div className="w-[6.5rem] space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">
+                          {p.base === "fisso" ? "Importo (€)" : "Valore (%)"}
+                        </Label>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step={p.base === "fisso" ? "10" : "0.5"}
+                          value={String(p.valore)}
+                          onChange={(e) =>
+                            updateProvvigione(p.id, { valore: parseNonNeg(e.target.value) })
+                          }
+                          className="h-8 text-right tabular-nums"
+                        />
+                      </div>
+
+                      {/* Valore calcolato (read-only) */}
+                      <div className="w-[6rem] space-y-1">
+                        <Label className="text-[10px] text-muted-foreground">Costo</Label>
+                        <div className="flex h-8 items-center justify-end rounded-md border bg-secondary/40 px-2 text-sm font-medium tabular-nums">
+                          {formatCurrency(valoreRiga)}
+                        </div>
+                      </div>
+
+                      {/* Elimina */}
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label="Elimina provvigione"
+                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-rose-600"
+                        onClick={() => removeProvvigione(p.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+
+                {/* Totale provvigioni + margine operativo vs finale */}
+                <div className="rounded-md border bg-card p-2.5 space-y-1.5 text-sm tabular-nums">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <HandCoins className="h-3.5 w-3.5" />
+                      Totale provvigioni
+                    </span>
+                    <span className="font-semibold text-rose-600 dark:text-rose-400">
+                      −{formatCurrency(risultato.provvigioni_totale)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+                    <span>Margine operativo</span>
+                    <span>
+                      {formatCurrency(risultato.margine_netto_valore)} ({fmtPct(risultato.margine_netto_pct)})
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t pt-1.5 font-medium">
+                    <span>Margine finale</span>
+                    <span
+                      className={cn(
+                        risultato.margine_valore >= 0
+                          ? "text-emerald-700 dark:text-emerald-300"
+                          : "text-rose-600 dark:text-rose-400",
+                      )}
+                    >
+                      {formatCurrency(risultato.margine_valore)} ({fmtPct(risultato.margine_pct)})
+                    </span>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </section>

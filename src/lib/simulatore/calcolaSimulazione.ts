@@ -7,9 +7,15 @@
  *     spese_generali_pct/100; `costo_pieno` = costo_diretto + spese_generali.
  *   - `ricavo_lordo` = somma prezzi voci; `sconto_valore` = ricavo_lordo ×
  *     sconto_pct/100; `ricavo_netto` = ricavo_lordo − sconto_valore.
- *   - `margine_netto` = ricavo_netto − costo_pieno. I campi legacy
- *     `margine_valore`/`margine_pct` rispecchiano il margine NETTO, così i KPI e
- *     la riga denormalizzata riflettono sconto + spese generali.
+ *   - `margine_netto` = ricavo_netto − costo_pieno (margine OPERATIVO, esposto
+ *     come `margine_netto_valore`/`margine_netto_pct`).
+ *
+ * Provvigioni (commerciale, segnalatore, ecc.): da `calcolaProvvigioni`, applicate
+ * DOPO sconto + spese generali sul margine OPERATIVO (PRE-provvigioni, per evitare
+ * circolarità). `provvigioni_totale` = somma €. Il margine FINALE = margine
+ * operativo − provvigioni_totale; i campi legacy `margine_valore`/`margine_pct`
+ * (KPI + riga denormalizzata) riflettono questo finale (spese + sconto + provvigioni).
+ * Le provvigioni NON toccano IVA / prezzo cliente / finanziamento (costo interno).
  *
  * IVA: delegata a `calcolaIva(doc.voci, doc.scenari, fattoreSconto)`, dove
  * `fattoreSconto = ricavo_netto/ricavo_lordo` scala gli imponibili al netto
@@ -22,12 +28,14 @@
  * (max offset+durata sulle fasi). `rata_mensile` (finanziamenti) resta neutra
  * fino al task dedicato.
  */
-import { calcolaTotali, calcolaIva, calcolaFasi, calcolaEconomia, round2 } from "./calcoli";
+import {
+  calcolaTotali, calcolaIva, calcolaFasi, calcolaEconomia, calcolaProvvigioni, round2,
+} from "./calcoli";
 import type { SimulazioneDoc, SimulazioneRisultato } from "./tipi";
 
 export function calcolaSimulazione(doc: SimulazioneDoc): SimulazioneRisultato {
   const { costo_totale, ricavo_imponibile } = calcolaTotali(doc.voci);
-  const { spese_generali_pct, utile_pct, sconto_pct } = doc.scenari;
+  const { spese_generali_pct, utile_pct, sconto_pct, provvigioni } = doc.scenari;
 
   // ── Economia & trattativa (spese generali / utile / sconto) ────────────────
   const costo_diretto = costo_totale;
@@ -39,6 +47,18 @@ export function calcolaSimulazione(doc: SimulazioneDoc): SimulazioneRisultato {
     utile_pct,
     sconto_pct,
   });
+
+  // ── Provvigioni (commerciale, segnalatore, ecc.) ───────────────────────────
+  // Applicate sul margine OPERATIVO (PRE-provvigioni) per evitare circolarità.
+  // Erodono il margine FINALE ma non il prezzo cliente.
+  const provvigioni_totale = calcolaProvvigioni(
+    provvigioni ?? [],
+    eco.ricavo_netto,
+    eco.margine_netto_valore,
+  );
+  const margine_finale_valore = round2(eco.margine_netto_valore - provvigioni_totale);
+  const margine_finale_pct =
+    eco.ricavo_netto > 0 ? round2((margine_finale_valore / eco.ricavo_netto) * 100) : 0;
 
   // Fattore di sconto applicato agli imponibili IVA (netto/lordo). Con ricavo
   // lordo nullo non c'è sconto da scalare → fattore neutro 1.
@@ -60,9 +80,9 @@ export function calcolaSimulazione(doc: SimulazioneDoc): SimulazioneRisultato {
   return {
     costo_totale,
     ricavo_imponibile,
-    // Legacy = margine NETTO (riflette sconto + spese generali).
-    margine_valore: eco.margine_netto_valore,
-    margine_pct: eco.margine_netto_pct,
+    // Legacy = margine FINALE (riflette spese generali + sconto + provvigioni).
+    margine_valore: margine_finale_valore,
+    margine_pct: margine_finale_pct,
     // Economia & trattativa.
     costo_diretto,
     spese_generali: eco.spese_generali,
@@ -71,8 +91,10 @@ export function calcolaSimulazione(doc: SimulazioneDoc): SimulazioneRisultato {
     ricavo_lordo,
     ricavo_netto: eco.ricavo_netto,
     utile_target: eco.utile_target,
+    // Margine OPERATIVO (PRE-provvigioni).
     margine_netto_valore: eco.margine_netto_valore,
     margine_netto_pct: eco.margine_netto_pct,
+    provvigioni_totale,
     // IVA / prezzo / cronoprogramma.
     riepilogo_iva,
     iva_totale,

@@ -1,4 +1,4 @@
-import type { VoceSim, FaseSim, ScenariConfig, RiepilogoIvaRiga } from "./tipi";
+import type { VoceSim, FaseSim, ScenariConfig, RiepilogoIvaRiga, ProvvigioneSim } from "./tipi";
 
 export const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -158,6 +158,49 @@ export function calcolaPrezzoObiettivo(
   const margine_pct =
     prezzoObiettivoNetto > 0 ? round2((margine_valore / prezzoObiettivoNetto) * 100) : 0;
   return { margine_valore, margine_pct, sconto_pct_necessario };
+}
+
+/**
+ * calcolaProvvigione — valore € di UNA provvigione, applicata DOPO sconto e
+ * spese generali (è un costo interno che erode il margine, non il prezzo cliente).
+ *
+ * - `base === 'ricavo'`  → valore/100 × ricavo_netto.
+ * - `base === 'margine'` → valore/100 × max(0, marginePre) (mai su perdita).
+ * - `base === 'fisso'`   → valore (€).
+ *
+ * `marginePre` è il margine PRE-provvigioni (ricavo_netto − costo_pieno): usare
+ * il pre evita la circolarità (la provvigione dipenderebbe da sé stessa).
+ * Risultato arrotondato a 2 decimali.
+ */
+export function calcolaProvvigione(
+  p: ProvvigioneSim,
+  ricavo_netto: number,
+  marginePre: number,
+): number {
+  switch (p.base) {
+    case "ricavo":
+      return round2((p.valore / 100) * ricavo_netto);
+    case "margine":
+      return round2((p.valore / 100) * Math.max(0, marginePre));
+    case "fisso":
+      return round2(p.valore);
+    default:
+      return 0;
+  }
+}
+
+/**
+ * calcolaProvvigioni — somma € di tutte le provvigioni (ognuna arrotondata via
+ * `calcolaProvvigione`); totale a sua volta arrotondato. Lista vuota → 0.
+ */
+export function calcolaProvvigioni(
+  provvigioni: ProvvigioneSim[],
+  ricavo_netto: number,
+  marginePre: number,
+): number {
+  return round2(
+    provvigioni.reduce((acc, p) => acc + calcolaProvvigione(p, ricavo_netto, marginePre), 0),
+  );
 }
 
 export interface FaseCalcolata {

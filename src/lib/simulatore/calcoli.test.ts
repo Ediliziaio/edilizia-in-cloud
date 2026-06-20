@@ -6,9 +6,11 @@ import {
   calcolaFasi,
   calcolaEconomia,
   calcolaPrezzoObiettivo,
+  calcolaProvvigione,
+  calcolaProvvigioni,
   calcolaCassa,
 } from "./calcoli";
-import type { VoceSim, FaseSim } from "./tipi";
+import type { VoceSim, FaseSim, ProvvigioneSim } from "./tipi";
 
 const voce = (p: Partial<VoceSim>): VoceSim => ({
   id: "1", fase_id: null, descrizione: "x", fonte: "libera", riferimento_id: null,
@@ -164,6 +166,58 @@ describe("calcolaPrezzoObiettivo", () => {
   it("ricavo_lordo 0 → sconto 0 (no divisione per zero)", () => {
     const r = calcolaPrezzoObiettivo(100, 0, 0);
     expect(r.sconto_pct_necessario).toBe(0);
+  });
+});
+
+describe("calcolaProvvigione", () => {
+  const prov = (p: Partial<ProvvigioneSim>): ProvvigioneSim => ({
+    id: "p1", nome: "Commerciale", base: "ricavo", valore: 0, ...p,
+  });
+
+  it("base 'ricavo' → % su ricavo_netto", () => {
+    // 5% di 1000 = 50
+    expect(calcolaProvvigione(prov({ base: "ricavo", valore: 5 }), 1000, 300)).toBe(50);
+  });
+
+  it("base 'margine' → % sul margine pre-provvigioni", () => {
+    // 10% di 300 = 30
+    expect(calcolaProvvigione(prov({ base: "margine", valore: 10 }), 1000, 300)).toBe(30);
+  });
+
+  it("base 'fisso' → importo in €", () => {
+    expect(calcolaProvvigione(prov({ base: "fisso", valore: 20 }), 1000, 300)).toBe(20);
+  });
+
+  it("base 'margine' con margine negativo → 0 (mai provvigione su perdita)", () => {
+    expect(calcolaProvvigione(prov({ base: "margine", valore: 10 }), 1000, -50)).toBe(0);
+  });
+
+  it("arrotonda a 2 decimali", () => {
+    // 3.33% di 1000 = 33.3
+    expect(calcolaProvvigione(prov({ base: "ricavo", valore: 3.33 }), 1000, 300)).toBe(33.3);
+  });
+});
+
+describe("calcolaProvvigioni", () => {
+  const prov = (p: Partial<ProvvigioneSim>): ProvvigioneSim => ({
+    id: "p1", nome: "x", base: "ricavo", valore: 0, ...p,
+  });
+
+  it("somma 'ricavo' 5% + 'margine' 10% + 'fisso' 20 = 100 (ricavo 1000, margine 300)", () => {
+    const totale = calcolaProvvigioni(
+      [
+        prov({ id: "a", base: "ricavo", valore: 5 }), // 50
+        prov({ id: "b", base: "margine", valore: 10 }), // 30
+        prov({ id: "c", base: "fisso", valore: 20 }), // 20
+      ],
+      1000,
+      300,
+    );
+    expect(totale).toBe(100);
+  });
+
+  it("lista vuota → 0", () => {
+    expect(calcolaProvvigioni([], 1000, 300)).toBe(0);
   });
 });
 

@@ -19,7 +19,7 @@
  * sempre arrotondati via formatCurrency. Dark-mode supportato.
  */
 import type { ComponentType } from "react";
-import { Banknote, TrendingUp, Wallet, Receipt, CalendarClock, Percent, Layers } from "lucide-react";
+import { Banknote, TrendingUp, Wallet, Receipt, CalendarClock, Percent, Layers, HandCoins } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type { SimulazioneRisultato } from "@/lib/simulatore/tipi";
@@ -133,6 +133,7 @@ function margineTone(pct: number): Tone {
 export function SimKpiBar({ risultato, ivaRate }: SimKpiBarProps) {
   const hasSpese = risultato.spese_generali > 0;
   const hasSconto = risultato.sconto_valore > 0;
+  const hasProvvigioni = risultato.provvigioni_totale > 0;
   // Simulazione "vuota": nessun ricavo → il margine % non è significativo (mostriamo "—").
   const hasRicavo = risultato.ricavo_imponibile > 0;
   const margineToneValue = hasRicavo ? margineTone(risultato.margine_pct) : "neutral";
@@ -179,8 +180,8 @@ export function SimKpiBar({ risultato, ivaRate }: SimKpiBarProps) {
         />
       </div>
 
-      {/* Sotto-riga compatta: sconto / spese generali se presenti. */}
-      {hasSconto || hasSpese ? (
+      {/* Sotto-riga compatta: sconto / spese generali / provvigioni se presenti. */}
+      {hasSconto || hasSpese || hasProvvigioni ? (
         <div className="flex flex-wrap items-center gap-2 px-1 text-xs text-muted-foreground">
           {hasSconto ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/60 px-2.5 py-1 tabular-nums">
@@ -192,6 +193,12 @@ export function SimKpiBar({ risultato, ivaRate }: SimKpiBarProps) {
             <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/60 px-2.5 py-1 tabular-nums">
               <Layers className="h-3.5 w-3.5 text-slate-500" />
               Spese generali {formatCurrency(risultato.spese_generali)}
+            </span>
+          ) : null}
+          {hasProvvigioni ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/60 px-2.5 py-1 tabular-nums">
+              <HandCoins className="h-3.5 w-3.5 text-rose-500" />
+              Provvigioni {formatCurrency(risultato.provvigioni_totale)}
             </span>
           ) : null}
         </div>

@@ -37,6 +37,23 @@ export interface FinanziamentoConfig {
   anticipo: number;
 }
 
+/**
+ * Base di calcolo di una provvigione (commerciale, segnalatore, ecc.):
+ * - `ricavo`  → % sul ricavo netto (dopo sconto).
+ * - `margine` → % sul margine PRE-provvigioni (ricavo_netto − costo_pieno).
+ * - `fisso`   → importo fisso in €.
+ */
+export type ProvvigioneBase = "ricavo" | "margine" | "fisso";
+
+/** Una provvigione configurata nello scenario (vive nel JSONB `scenari`). */
+export interface ProvvigioneSim {
+  id: string;
+  nome: string;
+  base: ProvvigioneBase;
+  /** % (per base "ricavo"/"margine") oppure € (per base "fisso"). */
+  valore: number;
+}
+
 export interface ScenariConfig {
   iva_mode: "singola" | "mista";
   iva_rate_singola: 4 | 10 | 22;
@@ -55,6 +72,12 @@ export interface ScenariConfig {
    */
   sal: { acconto_pct: number; saldo_pct: number };
   finanziamento: FinanziamentoConfig | null;
+  /**
+   * Provvigioni (commerciale, segnalatore, ecc.): costi interni applicati DOPO
+   * sconto + spese generali, che erodono il margine finale ma NON il prezzo al
+   * cliente. Default `[]`.
+   */
+  provvigioni: ProvvigioneSim[];
 }
 
 export interface SimulazioneDoc {
@@ -68,9 +91,12 @@ export interface RiepilogoIvaRiga { aliquota: number; imponibile: number; impost
 export interface SimulazioneRisultato {
   costo_totale: number;
   ricavo_imponibile: number;
-  /** margine NETTO (= ricavo_netto − costo_pieno); legacy denormalizzato. */
+  /**
+   * margine FINALE (= margine_netto_valore − provvigioni_totale); legacy
+   * denormalizzato. Riflette spese generali + sconto + provvigioni.
+   */
   margine_valore: number;
-  /** margine NETTO % (su ricavo_netto); legacy denormalizzato. */
+  /** margine FINALE % (su ricavo_netto); legacy denormalizzato. */
   margine_pct: number;
   // ── Economia & trattativa ───────────────────────────────────────────────
   /** Somma dei costi delle voci (= costo_totale). */
@@ -87,10 +113,16 @@ export interface SimulazioneRisultato {
   ricavo_netto: number;
   /** costo_pieno × utile_pct/100 (utile d'impresa atteso). */
   utile_target: number;
-  /** ricavo_netto − costo_pieno. */
+  /**
+   * margine OPERATIVO = ricavo_netto − costo_pieno (PRE-provvigioni). È il
+   * margine prima dei costi di provvigione; usato come base "margine" e mostrato
+   * accanto al margine finale per evidenziarne l'impatto.
+   */
   margine_netto_valore: number;
   /** margine_netto_valore / ricavo_netto × 100 (0 se ricavo_netto ≤ 0). */
   margine_netto_pct: number;
+  /** Somma € di tutte le provvigioni (commerciale, segnalatore, ecc.). */
+  provvigioni_totale: number;
   // ── IVA / prezzo / cronoprogramma ───────────────────────────────────────
   riepilogo_iva: RiepilogoIvaRiga[];
   iva_totale: number;
@@ -109,4 +141,5 @@ export const DEFAULT_SCENARI: ScenariConfig = {
   sconto_pct: 0,
   sal: { acconto_pct: 30, saldo_pct: 10 },
   finanziamento: null,
+  provvigioni: [],
 };

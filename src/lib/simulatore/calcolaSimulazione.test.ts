@@ -122,6 +122,48 @@ describe("calcolaSimulazione", () => {
     expect(r.prezzo_cliente).toBe(1539); // 1350 + 189
   });
 
+  it("provvigioni: ricavo 5% + margine 10% + fisso 20 → totale 100, margine finale 200 (20%), operativo 300", () => {
+    // 1 voce: ricavo netto 1000, costo pieno 700 → margine_pre 300.
+    // provvigioni: ricavo 5% = 50; margine 10% = 30; fisso 20 = 20; totale 100.
+    // margine finale (legacy) = 300 − 100 = 200; pct = 200/1000 = 20.
+    const r = calcolaSimulazione(
+      doc([voce({ quantita: 1, costo_unitario: 700, prezzo_unitario: 1000 })], {
+        iva_mode: "singola",
+        iva_rate_singola: 10,
+        provvigioni: [
+          { id: "a", nome: "Commerciale", base: "ricavo", valore: 5 },
+          { id: "b", nome: "Capo cantiere", base: "margine", valore: 10 },
+          { id: "c", nome: "Segnalatore", base: "fisso", valore: 20 },
+        ],
+      }),
+    );
+    // Margine operativo (PRE-provvigioni) invariato.
+    expect(r.margine_netto_valore).toBe(300);
+    expect(r.margine_netto_pct).toBe(30);
+    // Provvigioni.
+    expect(r.provvigioni_totale).toBe(100);
+    // Margine finale (legacy) = operativo − provvigioni.
+    expect(r.margine_valore).toBe(200);
+    expect(r.margine_pct).toBe(20);
+    // Le provvigioni NON toccano IVA / prezzo cliente / ricavo netto.
+    expect(r.ricavo_netto).toBe(1000);
+    expect(r.iva_totale).toBe(100);
+    expect(r.prezzo_cliente).toBe(1100);
+  });
+
+  it("senza provvigioni: margine finale = margine operativo (retro-compatibile)", () => {
+    const r = calcolaSimulazione(
+      doc([voce({ quantita: 1, costo_unitario: 700, prezzo_unitario: 1000 })], {
+        iva_mode: "singola",
+        iva_rate_singola: 10,
+      }),
+    );
+    expect(r.provvigioni_totale).toBe(0);
+    expect(r.margine_valore).toBe(r.margine_netto_valore);
+    expect(r.margine_pct).toBe(r.margine_netto_pct);
+    expect(r.margine_valore).toBe(300);
+  });
+
   it("senza sconto/spese: economia coerente coi legacy (retro-compatibile)", () => {
     const r = calcolaSimulazione(
       doc([voce({ quantita: 1, costo_unitario: 600, prezzo_unitario: 1000 })], {
