@@ -305,6 +305,7 @@ export default function SimulatoreEditor() {
       <SimVociGrid
         voci={doc.voci}
         fasi={doc.fasi}
+        ivaMode={doc.scenari.iva_mode}
         onChange={(voci) => setDoc((d) => (d ? { ...d, voci } : d))}
         onApriListino={() => setListinoOpen(true)}
       />

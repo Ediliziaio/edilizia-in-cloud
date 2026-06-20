@@ -26,7 +26,7 @@ import {
 import { formatCurrency } from "@/lib/formatters";
 import { calcolaVoce } from "@/lib/simulatore/calcoli";
 import { SimVoceRow } from "./SimVoceRow";
-import type { VoceSim, FaseSim } from "@/lib/simulatore/tipi";
+import type { VoceSim, FaseSim, ScenariConfig } from "@/lib/simulatore/tipi";
 
 interface SimVociGridProps {
   voci: VoceSim[];
@@ -34,6 +34,8 @@ interface SimVociGridProps {
   onApriListino: () => void;
   /** Fasi correnti, per il raggruppamento e il Select "Fase" di riga. */
   fasi?: FaseSim[];
+  /** Modalità IVA: in 'mista' le righe mostrano i controlli "bene significativo". */
+  ivaMode?: ScenariConfig["iva_mode"];
 }
 
 /** Prossimo `ordine` libero (coda): max(ordine)+1, o 0 se vuoto. */
@@ -103,7 +105,7 @@ function raggruppa(voci: VoceSim[], fasi?: FaseSim[]): Gruppo[] {
   return gruppi;
 }
 
-export function SimVociGrid({ voci, onChange, onApriListino, fasi }: SimVociGridProps) {
+export function SimVociGrid({ voci, onChange, onApriListino, fasi, ivaMode = "singola" }: SimVociGridProps) {
   const gruppi = raggruppa(voci, fasi);
   const hasFasi = !!fasi && fasi.length > 0;
   // Colonne totali (per il colspan della riga totale e delle intestazioni gruppo).
@@ -211,6 +213,7 @@ export function SimVociGrid({ voci, onChange, onApriListino, fasi }: SimVociGrid
                           key={voce.id}
                           voce={voce}
                           fasi={fasi}
+                          ivaMode={ivaMode}
                           onChange={(patch) => patchVoce(voce.id, patch)}
                           onRemove={() => removeVoce(voce.id)}
                           reorder={{

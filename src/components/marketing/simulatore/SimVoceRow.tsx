@@ -21,9 +21,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/lib/formatters";
 import { calcolaVoce, round2 } from "@/lib/simulatore/calcoli";
-import type { VoceSim, FaseSim, AliquotaIva } from "@/lib/simulatore/tipi";
+import type { VoceSim, FaseSim, AliquotaIva, ScenariConfig } from "@/lib/simulatore/tipi";
 
 /** Valore sentinella del Select "Fase" per "nessuna fase" (fase_id = null). */
 const NESSUNA_FASE = "__none__";
@@ -60,9 +62,11 @@ interface SimVoceRowProps {
   reorder?: ReorderControls;
   /** Fasi disponibili per l'assegnazione della voce; omesso → niente colonna Fase. */
   fasi?: FaseSim[];
+  /** Modalità IVA corrente: in 'mista' compaiono i controlli "bene significativo". */
+  ivaMode?: ScenariConfig["iva_mode"];
 }
 
-export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi }: SimVoceRowProps) {
+export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = "singola" }: SimVoceRowProps) {
   const { imponibile_ricavo } = calcolaVoce(voce);
 
   // Quando cambia il costo: ricalcola il prezzo da costo×(1+ricarico/100).
@@ -90,14 +94,50 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi }: SimVoceR
 
   return (
     <TableRow className="group">
-      {/* Descrizione */}
-      <TableCell className="min-w-[200px]">
+      {/* Descrizione (+ controlli bene significativo in IVA mista) */}
+      <TableCell className="min-w-[200px] align-top">
         <Input
           value={voce.descrizione}
           onChange={(e) => onChange({ descrizione: e.target.value })}
           placeholder="Descrizione voce"
           className="h-8 border-transparent bg-transparent px-2 shadow-none hover:border-input focus-visible:border-input"
         />
+        {ivaMode === "mista" ? (
+          <div className="mt-1 flex flex-wrap items-center gap-2 px-2">
+            <Label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-muted-foreground">
+              <Checkbox
+                checked={voce.bene_significativo}
+                onCheckedChange={(c) =>
+                  onChange(
+                    c === true
+                      ? { bene_significativo: true }
+                      : { bene_significativo: false, valore_posa_associata: null },
+                  )
+                }
+                className="h-3.5 w-3.5"
+                aria-label="Bene significativo"
+              />
+              Bene significativo
+            </Label>
+            {voce.bene_significativo ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-muted-foreground">Posa €</span>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={numToStr(voce.valore_posa_associata ?? 0)}
+                  onChange={(e) =>
+                    onChange({ valore_posa_associata: parseNum(e.target.value) })
+                  }
+                  className="h-7 w-24 px-2 text-right tabular-nums"
+                  aria-label="Valore posa"
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </TableCell>
 
       {/* Fase (opzionale) */}
