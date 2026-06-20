@@ -190,7 +190,12 @@ export function TrasformaDialog({
 
       // 3) Righe via RPC atomica (line_total è GENERATED → escluso dal payload).
       if (hasVoci) {
-        const items = mapVociToQuoteItems(doc.voci, companyId, quoteId).map((it) => ({
+        const items = mapVociToQuoteItems(
+          doc.voci,
+          companyId,
+          quoteId,
+          doc.scenari.iva_mode,
+        ).map((it) => ({
           name: it.name,
           description: it.description,
           quantity: it.quantity,
@@ -200,6 +205,7 @@ export function TrasformaDialog({
           item_category: it.item_category,
           item_type: it.item_type,
           tariffa_id: it.tariffa_id,
+          prezzo_acquisto: it.prezzo_acquisto,
           sort_order: it.sort_order,
         }));
         const { error: rpcErr } = await supabase.rpc("save_quote_items_atomic", {
