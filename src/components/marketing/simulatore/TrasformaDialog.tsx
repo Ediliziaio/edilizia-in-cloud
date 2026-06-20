@@ -336,7 +336,7 @@ export function TrasformaDialog({
             </div>
 
             {/* Riepilogo importi */}
-            <div className="rounded-lg border bg-secondary/40 p-3 text-sm">
+            <div className="rounded-xl border bg-card p-3 shadow-sm text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Imponibile</span>
                 <span className="font-medium tabular-nums">

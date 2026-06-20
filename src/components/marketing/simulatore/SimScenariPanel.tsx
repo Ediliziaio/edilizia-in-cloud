@@ -332,7 +332,7 @@ export function SimScenariPanel({
           </div>
 
           {/* Prezzo obiettivo (calcolo inverso) */}
-          <div className="rounded-lg border bg-secondary/30 p-3 space-y-2.5">
+          <div className="rounded-xl border bg-card p-3 shadow-sm space-y-2.5">
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-muted-foreground" />
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -389,7 +389,7 @@ export function SimScenariPanel({
           </div>
 
           {/* ── Provvigioni (commerciale, segnalatore, ecc.) ──────────────── */}
-          <div className="rounded-lg border bg-secondary/30 p-3 space-y-2.5">
+          <div className="rounded-xl border bg-card p-3 shadow-sm space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-muted-foreground" />
@@ -421,7 +421,7 @@ export function SimScenariPanel({
                   return (
                     <div
                       key={p.id}
-                      className="flex flex-wrap items-end gap-2 rounded-md border bg-card p-2"
+                      className="flex flex-wrap items-end gap-2 rounded-md border bg-muted/30 p-2"
                     >
                       {/* Nome */}
                       <div className="min-w-[8rem] flex-1 space-y-1">
@@ -477,7 +477,7 @@ export function SimScenariPanel({
                       {/* Valore calcolato (read-only) */}
                       <div className="w-[6rem] space-y-1">
                         <Label className="text-[10px] text-muted-foreground">Costo</Label>
-                        <div className="flex h-8 items-center justify-end rounded-md border bg-secondary/40 px-2 text-sm font-medium tabular-nums">
+                        <div className="flex h-8 items-center justify-end rounded-md border bg-muted/30 px-2 text-sm font-medium tabular-nums">
                           {formatCurrency(valoreRiga)}
                         </div>
                       </div>
@@ -498,7 +498,7 @@ export function SimScenariPanel({
                 })}
 
                 {/* Totale provvigioni + margine operativo vs finale */}
-                <div className="rounded-md border bg-card p-2.5 space-y-1.5 text-sm tabular-nums">
+                <div className="rounded-md border bg-muted/30 p-2.5 space-y-1.5 text-sm tabular-nums">
                   <div className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-1.5 text-muted-foreground">
                       <HandCoins className="h-3.5 w-3.5" />
@@ -639,7 +639,7 @@ export function SimScenariPanel({
 
           {/* In mista: riepilogo per aliquota dalle voci. */}
           {scenari.iva_mode === "mista" && risultato.riepilogo_iva.length > 0 ? (
-            <div className="rounded-lg border bg-secondary/30 p-3">
+            <div className="rounded-xl border bg-card p-3 shadow-sm">
               <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Riepilogo IVA mista
               </p>

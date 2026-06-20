@@ -201,14 +201,17 @@ export function SimVociGrid({ voci, onChange, onApriListino, fasi, ivaMode = "si
                   return (
                     <Fragment key={g.faseId ?? "__senza__"}>
                       {hasFasi ? (
-                        <TableRow className="bg-secondary/40 hover:bg-secondary/40">
+                        <TableRow className="border-t border-border/60 bg-transparent hover:bg-transparent">
                           <TableCell
                             colSpan={colCount - 1}
-                            className="py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                            className="py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
                           >
-                            {g.titolo}
+                            <span className="flex items-center gap-2">
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary/60" />
+                              {g.titolo}
+                            </span>
                           </TableCell>
-                          <TableCell className="py-1.5 text-right text-xs font-semibold tabular-nums text-muted-foreground">
+                          <TableCell className="py-2 text-right text-[11px] font-semibold tabular-nums text-muted-foreground">
                             {formatCurrency(gruppoTotale)}
                           </TableCell>
                         </TableRow>
@@ -234,11 +237,11 @@ export function SimVociGrid({ voci, onChange, onApriListino, fasi, ivaMode = "si
                 })}
               </TableBody>
               <tfoot>
-                <TableRow className="border-t-2 bg-secondary/40 hover:bg-secondary/40">
+                <TableRow className="border-t-2 border-border bg-transparent hover:bg-transparent">
                   <TableCell colSpan={colCount - 2} className="text-right text-sm font-semibold">
                     Totale imponibile
                   </TableCell>
-                  <TableCell className="text-right text-sm font-bold tabular-nums">
+                  <TableCell className="text-right text-sm font-bold tabular-nums text-foreground">
                     {formatCurrency(totale)}
                   </TableCell>
                   <TableCell />
