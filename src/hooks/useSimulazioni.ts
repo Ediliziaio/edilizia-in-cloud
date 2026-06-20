@@ -67,7 +67,10 @@ export function useSimulazioniMutations() {
         .eq("id", params.id).eq("company_id", companyId);
       if (error) throw new Error(error.message);
     },
-    onSuccess: (_d, v) => { invalidate(); qc.invalidateQueries({ queryKey: ["simulazione", v.id] }); },
+    // Solo la lista: NON invalidare ["simulazione", id] (la riga aperta
+    // nell'editor), altrimenti ogni autosave ne forza il refetch mentre
+    // l'utente digita — inutile, l'editor tiene lo stato locale.
+    onSuccess: invalidate,
   });
   const remove = useMutation({
     mutationFn: async (id: string) => {
@@ -82,7 +85,9 @@ export function useSimulazioniMutations() {
       if (!companyId) throw new Error("Nessuna azienda");
       const { id: _id, created_at: _created_at, updated_at: _updated_at, ...rest } = row;
       const { data, error } = await sb().from("simulazioni").insert({
-        ...rest, company_id: companyId, nome: `${row.nome} (copia)`, is_template: row.as_template ?? row.is_template,
+        // La copia nasce sempre in bozza: non ereditare 'archiviata'/'finalizzata'.
+        ...rest, company_id: companyId, nome: `${row.nome} (copia)`, stato: "bozza",
+        is_template: row.as_template ?? row.is_template,
       }).select("id").single();
       if (error) throw new Error(error.message);
       return data.id as string;

@@ -217,12 +217,16 @@ export function SimScenariPanel({
             </p>
           )}
 
-          {/* Confronto prezzo cliente per le 3 aliquote. */}
+          {/* Confronto prezzo cliente per le 3 aliquote. In mista è solo una
+              simulazione "what-if" ad aliquota unica: il prezzo reale è il
+              totale del riepilogo IVA, non queste 3 ipotesi. */}
           <div>
             <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Confronto prezzo cliente
+              {scenari.iva_mode === "mista"
+                ? "Confronto ipotesi ad aliquota unica"
+                : "Confronto prezzo cliente"}
             </p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className={cn("grid grid-cols-3 gap-2", scenari.iva_mode === "mista" && "opacity-60")}>
               {ALIQUOTE.map((a) => {
                 // Evidenzia solo in singola, sulla colonna dell'aliquota attiva.
                 const attiva =
@@ -253,6 +257,13 @@ export function SimScenariPanel({
                 );
               })}
             </div>
+            {scenari.iva_mode === "mista" ? (
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                Ipotesi se tutto l&apos;imponibile fosse a un&apos;unica aliquota. In
+                mista il prezzo reale è il <strong>Totale IVA</strong> del riepilogo
+                qui sotto.
+              </p>
+            ) : null}
           </div>
 
           {/* In mista: riepilogo per aliquota dalle voci. */}
