@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Boxes, Plus, Search, Pencil, Copy, Trash2, Download, Loader2, Grid3x3,
-  Image as ImageIcon, X, Minus,
+  Image as ImageIcon, X, Minus, ChevronDown, ChevronRight, Layers,
 } from "lucide-react";
 import { GlobalPhotoLibraryPicker } from "@/components/admin/GlobalPhotoLibraryPicker";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -63,11 +63,16 @@ interface Template {
 const cellCount = (g: GridDefault | null) =>
   g?.m ? g.m.reduce((s, row) => s + row.filter((v) => v != null).length, 0) : 0;
 
+/** "porta_finestra" → "Porta Finestra", "veneziane" → "Veneziane". */
+const prettyLabel = (s: string) => (s || "Senza categoria").replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
 export default function AdminArticleTemplates() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState<string>("");
   const [onlyInactive, setOnlyInactive] = useState(false);
+  const [categoria, setCategoria] = useState<string>("");
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
 
@@ -92,11 +97,18 @@ export default function AdminArticleTemplates() {
     return Array.from(s).sort();
   }, [templates]);
 
+  const allCategorie = useMemo(() => {
+    const s = new Set<string>();
+    templates.forEach((t) => { if (t.categoria_slug) s.add(t.categoria_slug); });
+    return Array.from(s).sort();
+  }, [templates]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return templates.filter((t) => {
       if (onlyInactive && t.is_active) return false;
       if (tag && !(t.tags ?? []).includes(tag)) return false;
+      if (categoria && (t.categoria_slug ?? "") !== categoria) return false;
       if (!q) return true;
       return (
         t.nome.toLowerCase().includes(q) ||
@@ -104,7 +116,24 @@ export default function AdminArticleTemplates() {
         (t.categoria_slug ?? "").toLowerCase().includes(q)
       );
     });
-  }, [templates, search, tag, onlyInactive]);
+  }, [templates, search, tag, categoria, onlyInactive]);
+
+  // Raggruppamento per verticale → categoria (collassabile): scala a centinaia di template.
+  const groups = useMemo(() => {
+    const map = new Map<string, TemplateListItem[]>();
+    for (const t of filtered) {
+      const key = `${t.vertical_slug || "—"}/${t.categoria_slug || "senza-categoria"}`;
+      const arr = map.get(key); if (arr) arr.push(t); else map.set(key, [t]);
+    }
+    return Array.from(map.entries())
+      .map(([key, items]) => ({ key, vertical: key.split("/")[0], categoria: key.split("/")[1], items }))
+      .sort((a, b) => a.key.localeCompare(b.key, "it"));
+  }, [filtered]);
+
+  const toggleGroup = (key: string) =>
+    setCollapsed((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
+  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.key));
+  const toggleAll = () => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.key)));
 
   const importWnd = useMutation({
     mutationFn: async () => {
@@ -211,6 +240,10 @@ export default function AdminArticleTemplates() {
             <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input className="pl-8" placeholder="Cerca per nome, codice, categoria…" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
+          <select className="h-10 rounded-md border bg-background px-2 text-sm" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
+            <option value="">Tutte le categorie</option>
+            {allCategorie.map((c) => <option key={c} value={c}>{prettyLabel(c)}</option>)}
+          </select>
           <select className="h-10 rounded-md border bg-background px-2 text-sm" value={tag} onChange={(e) => setTag(e.target.value)}>
             <option value="">Tutti i tag</option>
             {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -222,45 +255,71 @@ export default function AdminArticleTemplates() {
       </Card>
 
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">
-            {isLoading ? "Caricamento…" : `${filtered.length} template`}
-          </CardTitle>
-          <CardDescription>Clic su un template per modificarne dati e griglia prezzi.</CardDescription>
+        <CardHeader className="pb-2 flex-row items-center justify-between gap-2 space-y-0">
+          <div className="min-w-0">
+            <CardTitle className="text-base">
+              {isLoading ? "Caricamento…" : `${filtered.length} template · ${groups.length} categorie`}
+            </CardTitle>
+            <CardDescription>Clic su un template per modificarne dati e griglia prezzi.</CardDescription>
+          </div>
+          {groups.length > 1 && (
+            <Button variant="ghost" size="sm" className="shrink-0" onClick={toggleAll}>
+              {allCollapsed ? "Espandi tutto" : "Collassa tutto"}
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="p-0">
-          <div className="divide-y">
-            {filtered.map((t) => (
-              <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40">
-                <div className="h-9 w-9 rounded border bg-muted/40 overflow-hidden flex items-center justify-center shrink-0">
-                  {t.image_url
-                    ? <img src={t.image_url} alt="" className="w-full h-full object-contain" loading="lazy" />
-                    : <ImageIcon className="h-4 w-4 text-muted-foreground/50" />}
-                </div>
-                <button className="flex-1 min-w-0 text-left" onClick={() => setEditingId(t.id)}>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm truncate">{t.nome}</span>
-                    {!t.is_active && <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50">disattivo</Badge>}
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-0.5">
-                    {t.tipologia && <span className="font-mono">{t.tipologia}</span>}
-                    {t.categoria_slug && <span>· {t.categoria_slug}</span>}
-                    {t.modalita_prezzo_base === "griglia" && (
-                      <span className="inline-flex items-center gap-1">· <Grid3x3 className="h-3 w-3" /> Griglia L×H</span>
-                    )}
-                    {(t.tags ?? []).slice(0, 3).map((x) => <Badge key={x} variant="secondary" className="text-[10px]">{x}</Badge>)}
-                  </div>
+          {groups.map((g) => {
+            const isOpen = !collapsed.has(g.key);
+            return (
+              <div key={g.key} className="border-t first:border-t-0">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(g.key)}
+                  className="w-full flex items-center gap-2 px-4 py-2 bg-muted/40 hover:bg-muted/60 text-left"
+                >
+                  {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                  <Layers className="h-4 w-4 text-primary/70" />
+                  <span className="font-semibold text-sm">{prettyLabel(g.categoria)}</span>
+                  {g.vertical && g.vertical !== "serramenti" && <Badge variant="outline" className="text-[10px]">{g.vertical}</Badge>}
+                  <Badge variant="secondary" className="text-[10px] ml-auto">{g.items.length}</Badge>
                 </button>
-                <Switch checked={t.is_active} onCheckedChange={() => toggleActive.mutate(t)} title="Attiva/disattiva" />
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingId(t.id)} title="Modifica"><Pencil className="h-4 w-4" /></Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => duplicate.mutate(t.id)} title="Duplica"><Copy className="h-4 w-4" /></Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => { if (confirm(`Eliminare "${t.nome}"?`)) del.mutate(t.id); }} title="Elimina"><Trash2 className="h-4 w-4" /></Button>
+                {isOpen && (
+                  <div className="divide-y">
+                    {g.items.map((t) => (
+                      <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40">
+                        <div className="h-9 w-9 rounded border bg-muted/40 overflow-hidden flex items-center justify-center shrink-0">
+                          {t.image_url
+                            ? <img src={t.image_url} alt="" className="w-full h-full object-contain" loading="lazy" />
+                            : <ImageIcon className="h-4 w-4 text-muted-foreground/50" />}
+                        </div>
+                        <button className="flex-1 min-w-0 text-left" onClick={() => setEditingId(t.id)}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm truncate">{t.nome}</span>
+                            {!t.is_active && <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50">disattivo</Badge>}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-0.5">
+                            {t.tipologia && <span className="font-mono">{t.tipologia}</span>}
+                            {t.modalita_prezzo_base === "griglia" && (
+                              <span className="inline-flex items-center gap-1"><Grid3x3 className="h-3 w-3" /> Griglia L×H</span>
+                            )}
+                            {(t.tags ?? []).slice(0, 3).map((x) => <Badge key={x} variant="secondary" className="text-[10px]">{x}</Badge>)}
+                          </div>
+                        </button>
+                        <Switch checked={t.is_active} onCheckedChange={() => toggleActive.mutate(t)} title="Attiva/disattiva" />
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingId(t.id)} title="Modifica"><Pencil className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => duplicate.mutate(t.id)} title="Duplica"><Copy className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => { if (confirm(`Eliminare "${t.nome}"?`)) del.mutate(t.id); }} title="Elimina"><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            ))}
-            {!isLoading && filtered.length === 0 && (
-              <div className="py-12 text-center text-muted-foreground text-sm">Nessun template con questi filtri.</div>
-            )}
-          </div>
+            );
+          })}
+          {!isLoading && filtered.length === 0 && (
+            <div className="py-12 text-center text-muted-foreground text-sm">Nessun template con questi filtri.</div>
+          )}
         </CardContent>
       </Card>
 
