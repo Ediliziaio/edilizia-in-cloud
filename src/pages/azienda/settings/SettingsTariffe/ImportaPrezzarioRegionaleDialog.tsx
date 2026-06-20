@@ -214,18 +214,31 @@ export function ImportaPrezzarioRegionaleDialog({
     setSelezione({});
   };
 
+  /** Nome della fonte selezionata (per popolare `fonte` sulle voci importate). */
+  const fonteNome = useMemo(
+    () => fonti.data?.find((f) => f.id === fonteId)?.nome ?? null,
+    [fonti.data, fonteId],
+  );
+
   /** Costruisce il payload `tariffe_aziendali` per una voce del prezzario. */
   const toPayload = (v: PrezzarioVoce) => {
     const prezzoBase = Number(v.prezzo) || 0;
     const unitaFatt = umToUnitaFatturazione(v.unita_misura);
+    const descrizioneCompleta = (v.descrizione ?? "").trim();
     const payload: Record<string, unknown> = {
       company_id: companyId,
-      nome: (v.descrizione ?? "").slice(0, MAX_NOME_LEN).trim(),
+      // nome = titolo breve (descrizione troncata); descrizione = testo completo.
+      nome: descrizioneCompleta.slice(0, MAX_NOME_LEN).trim(),
+      descrizione: descrizioneCompleta || null,
+      codice: v.codice ?? null,
       tipo: tipoFromUm(v.unita_misura),
       unita_fatturazione: unitaFatt,
       // Backward-compat: popoliamo anche la colonna legacy `unita`.
       unita: legacyUnitaFrom(unitaFatt),
       prezzo_vendita: round2(prezzoBase * (1 + ricaricoNum / 100)),
+      // Incidenza manodopera: già frazione 0..1 nel prezzario.
+      incidenza_manodopera_pct: v.incidenza_manodopera_pct ?? null,
+      fonte: fonteNome,
       vertical_associato: null,
       attivo: true,
     };

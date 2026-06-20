@@ -32,6 +32,12 @@ export interface Tariffa {
   attivo?: boolean;
   piano_base?: number;
   prezzo_piano_aggiuntivo?: number;
+  /** Codice articolo/voce (es. dal prezzario regionale). Opzionale. */
+  codice?: string | null;
+  /** Prezzario di provenienza (es. "Prezzario Regione Lombardia 2024"). NULL = inserita a mano. */
+  fonte?: string | null;
+  /** Incidenza manodopera frazionaria 0..1 (obbligo base d'asta nei lavori pubblici). NULL = non specificata. */
+  incidenza_manodopera_pct?: number | null;
 }
 
 export interface TipoDef {

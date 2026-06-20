@@ -393,6 +393,7 @@ function TariffaDialog({
   onSaved: () => void;
 }) {
   const [nome, setNome] = useState(editing?.nome ?? "");
+  const [codice, setCodice] = useState(editing?.codice ?? "");
   const [descrizione, setDescrizione] = useState(editing?.descrizione ?? "");
   const [tipo, setTipo] = useState<TipoTariffa>(editing?.tipo ?? "posa");
   // FASE 6: unita_fatturazione è la nuova UM canonica (fissa alla creazione)
@@ -408,6 +409,12 @@ function TariffaDialog({
   );
   const [pianoBase, setPianoBase] = useState(String(editing?.piano_base ?? "1"));
   const [prezzoPianoAgg, setPrezzoPianoAgg] = useState(String(editing?.prezzo_piano_aggiuntivo ?? ""));
+  const [fonte, setFonte] = useState(editing?.fonte ?? "");
+  const [incidenzaMdoPct, setIncidenzaMdoPct] = useState(
+    editing?.incidenza_manodopera_pct != null
+      ? String(Math.round(editing.incidenza_manodopera_pct * 100))
+      : "",
+  );
   const [attivo, setAttivo] = useState<boolean>(editing?.attivo !== false);
   const [saving, setSaving] = useState(false);
 
@@ -467,9 +474,16 @@ function TariffaDialog({
       const prezzoPianoAggValue = parseNonNegative(prezzoPianoAgg, "Prezzo piano aggiuntivo");
       const pianoBaseValue = parseNonNegativeInt(pianoBase, "Piano base", 1);
 
+      // Incidenza manodopera: input in % (0..100) → frazione 0..1 in DB. null se vuoto/non valido.
+      const incidenzaMdo = (() => {
+        const n = Number(incidenzaMdoPct.replace(",", "."));
+        return Number.isFinite(n) && n > 0 ? Math.min(1, n / 100) : null;
+      })();
+
       const payload: Record<string, unknown> = {
         company_id: companyId,
         nome: nome.trim(),
+        codice: codice.trim() || null,
         descrizione: descrizione.trim() || null,
         tipo,
         // Backward-compat: popoliamo anche la vecchia colonna `unita` con mapping
@@ -477,6 +491,8 @@ function TariffaDialog({
         unita_fatturazione: unitaFatturazione,
         vertical_associato: verticalAssociato.trim() || null,
         prezzo_vendita: prezzoVenditaValue,
+        fonte: fonte.trim() || null,
+        incidenza_manodopera_pct: incidenzaMdo,
         attivo,
         piano_base: tipo === "tiro_piano" ? pianoBaseValue : null,
         prezzo_piano_aggiuntivo: tipo === "tiro_piano" ? prezzoPianoAggValue : null,
@@ -525,13 +541,27 @@ function TariffaDialog({
         <div className="space-y-4">
           {/* Anagrafica */}
           <div className="grid gap-3">
-            <div>
-              <Label>Nome *</Label>
-              <Input
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                placeholder="Es. Posa finestra media (100×120)"
-              />
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+              <div>
+                <Label>Nome *</Label>
+                <Input
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  placeholder="Es. Posa finestra media (100×120)"
+                />
+              </div>
+              <div>
+                <Label>Codice</Label>
+                <Input
+                  value={codice}
+                  onChange={(e) => setCodice(e.target.value)}
+                  placeholder="Es. LOM241.1C.00.010"
+                  className="font-mono"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Codice articolo/voce. Opzionale.
+                </p>
+              </div>
             </div>
             <div>
               <Label>Descrizione</Label>
@@ -650,6 +680,36 @@ function TariffaDialog({
                 onChange={(e) => setPrezzoVendita(e.target.value)}
                 placeholder="0.00"
               />
+            </div>
+          </div>
+
+          {/* Incidenza manodopera + Fonte */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <Label>Incidenza manodopera %</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={incidenzaMdoPct}
+                onChange={(e) => setIncidenzaMdoPct(e.target.value)}
+                placeholder="Es. 35"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Quota di manodopera sul prezzo (obbligo base d'asta nei lavori pubblici). Opzionale.
+              </p>
+            </div>
+            <div>
+              <Label>Fonte</Label>
+              <Input
+                value={fonte}
+                onChange={(e) => setFonte(e.target.value)}
+                placeholder="Es. Prezzario Regione Lombardia 2024"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Prezzario di provenienza (se importata).
+              </p>
             </div>
           </div>
 
@@ -1220,6 +1280,11 @@ function TariffeTable({
                 </TableCell>
                 <TableCell>
                   <div className="font-medium">
+                    {t.codice && (
+                      <Badge variant="outline" className="mr-1.5 h-4 px-1.5 font-mono text-[10px] font-normal align-middle">
+                        {t.codice}
+                      </Badge>
+                    )}
                     {t.nome}
                     {t.tipo === "tiro_piano" && t.prezzo_piano_aggiuntivo != null && (
                       <span className="ml-2 text-xs text-muted-foreground">
