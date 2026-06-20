@@ -231,6 +231,82 @@ export function calcolaPrezzoObiettivo(
   return { margine_valore, margine_pct, sconto_pct_necessario };
 }
 
+/** Parametri di {@link calcolaMargineObiettivo}. */
+export interface MargineObiettivoParams {
+  /** Costo pieno (costo diretto + spese generali). */
+  costoPieno: number;
+  /** Provvigioni configurate (erodono il margine). */
+  provvigioni: ProvvigioneSim[];
+  /** Aliquota IVA effettiva % (per derivare il prezzo cliente dal ricavo netto). */
+  ivaEffettivaPct: number;
+  /** Valore target del margine desiderato. */
+  target: number;
+  /** Tipo di target: `"pct"` = % sul ricavo, `"euro"` = € assoluti. */
+  targetType: "pct" | "euro";
+}
+
+/** Esito di {@link calcolaMargineObiettivo}. */
+export interface MargineObiettivoRisultato {
+  /** Ricavo netto (imponibile) necessario per il margine target; null se impossibile. */
+  ricavo_netto_necessario: number | null;
+  /** Prezzo cliente (IVA inclusa) corrispondente; null se impossibile. */
+  prezzo_cliente_necessario: number | null;
+  /** true se il margine target è raggiungibile (R calcolabile e > 0). */
+  fattibile: boolean;
+}
+
+/**
+ * calcolaMargineObiettivo — helper INVERSO opposto a {@link calcolaPrezzoObiettivo}:
+ * dato un margine desiderato (€ o % sul ricavo) calcola il ricavo netto a cui
+ * vendere per ottenerlo, gestendo le provvigioni in forma chiusa.
+ *
+ * Con `C = costoPieno`, dalle provvigioni si derivano:
+ * - `a` = somma `valore/100` delle provvigioni `base === 'ricavo'`;
+ * - `b` = somma `valore/100` delle provvigioni `base === 'margine'`;
+ * - `prov_fisso` = somma `valore` delle provvigioni `base === 'fisso'`.
+ *
+ * Il margine finale è `R − C − a·R − b·marginePre − prov_fisso`, dove
+ * `marginePre = R − C`. Risolvendo per R:
+ * - target `"euro"` (T): `denom = 1 − a − b`;
+ *   `R = denom > 0 ? (T + C·(1−b) + prov_fisso)/denom : null`.
+ * - target `"pct"` (m, % del ricavo): il margine finale = `m/100·R`, quindi
+ *   `denom = 1 − a − b − m/100`; `R = denom > 0 ? (C·(1−b) + prov_fisso)/denom : null`.
+ *
+ * `ricavo_netto_necessario = round2(R)` (o null); il prezzo cliente applica
+ * l'IVA effettiva: `round2(R·(1 + ivaEffettivaPct/100))`. `fattibile` è vero
+ * solo se R è calcolabile e positivo. Funzione pura.
+ */
+export function calcolaMargineObiettivo(
+  params: MargineObiettivoParams,
+): MargineObiettivoRisultato {
+  const { costoPieno: C, provvigioni, ivaEffettivaPct, target, targetType } = params;
+
+  let a = 0;
+  let b = 0;
+  let prov_fisso = 0;
+  for (const p of provvigioni) {
+    if (p.base === "ricavo") a += p.valore / 100;
+    else if (p.base === "margine") b += p.valore / 100;
+    else if (p.base === "fisso") prov_fisso += p.valore;
+  }
+
+  let R: number | null;
+  if (targetType === "euro") {
+    const denom = 1 - a - b;
+    R = denom > 0 ? (target + C * (1 - b) + prov_fisso) / denom : null;
+  } else {
+    const denom = 1 - a - b - target / 100;
+    R = denom > 0 ? (C * (1 - b) + prov_fisso) / denom : null;
+  }
+
+  const ricavo_netto_necessario = R != null ? round2(R) : null;
+  const prezzo_cliente_necessario =
+    R != null ? round2(R * (1 + ivaEffettivaPct / 100)) : null;
+  const fattibile = R != null && R > 0;
+
+  return { ricavo_netto_necessario, prezzo_cliente_necessario, fattibile };
+}
+
 /**
  * calcolaProvvigione — valore € di UNA provvigione, applicata DOPO sconto e
  * spese generali (è un costo interno che erode il margine, non il prezzo cliente).

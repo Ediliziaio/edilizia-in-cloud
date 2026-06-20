@@ -45,7 +45,9 @@ import {
   useTabellaFinanziamentoRighe,
 } from "@/hooks/useTabelleFinanziamento";
 import { calcolaFinanziamento } from "@/lib/finanziamenti/calcolaFinanziamento";
-import { calcolaPrezzoObiettivo, calcolaProvvigione } from "@/lib/simulatore/calcoli";
+import {
+  calcolaPrezzoObiettivo, calcolaProvvigione, calcolaMargineObiettivo, round2,
+} from "@/lib/simulatore/calcoli";
 import type { RigaTabellaFinanziamento, RisultatoCalcolo } from "@/lib/finanziamenti/types";
 import type {
   ScenariConfig, SimulazioneRisultato, FinanziamentoConfig,
@@ -138,14 +140,40 @@ export function SimScenariPanel({
     risultato.confronto_iva.map((c) => [c.aliquota, c.prezzo_cliente]),
   );
 
-  // ── Prezzo obiettivo (calcolo inverso) ───────────────────────────────────
-  // Input "what-if": prezzo netto desiderato → sconto% necessario + margine.
-  // Stringa locale per non forzare un valore finché l'utente non digita.
+  // ── Obiettivo (calcolo inverso) ──────────────────────────────────────────
+  // Due modalità: "prezzo" (prezzo netto → sconto + margine) e "margine"
+  // (margine desiderato → prezzo a cui vendere). Stringhe locali per non
+  // forzare valori finché l'utente non digita.
+  const [obiettivoMode, setObiettivoMode] = useState<"prezzo" | "margine">("prezzo");
+
+  // Modalità "prezzo": prezzo netto desiderato → sconto% necessario + margine.
   const [prezzoObiettivo, setPrezzoObiettivo] = useState("");
   const obiettivoNetto = Number(prezzoObiettivo);
   const obiettivoValido = prezzoObiettivo !== "" && Number.isFinite(obiettivoNetto) && obiettivoNetto >= 0;
   const obiettivo = obiettivoValido
     ? calcolaPrezzoObiettivo(risultato.costo_pieno, risultato.ricavo_lordo, obiettivoNetto)
+    : null;
+
+  // Modalità "margine": margine desiderato (% o €) → ricavo/prezzo necessari.
+  const [margineTargetType, setMargineTargetType] = useState<"pct" | "euro">("pct");
+  const [margineTarget, setMargineTarget] = useState("");
+  const margineTargetNum = Number(margineTarget);
+  const margineTargetValido =
+    margineTarget !== "" && Number.isFinite(margineTargetNum) && margineTargetNum >= 0;
+  // IVA effettiva: aliquota media dal risultato (iva/ricavo), fallback all'aliquota
+  // singola se non c'è ancora ricavo netto su cui mediare.
+  const ivaEffettivaPct =
+    risultato.ricavo_netto > 0
+      ? (risultato.iva_totale / risultato.ricavo_netto) * 100
+      : scenari.iva_rate_singola;
+  const margineObiettivo = margineTargetValido
+    ? calcolaMargineObiettivo({
+        costoPieno: risultato.costo_pieno,
+        provvigioni,
+        ivaEffettivaPct,
+        target: margineTargetNum,
+        targetType: margineTargetType,
+      })
     : null;
 
   // Margine netto vs utile atteso: verde se raggiunge il target, warning sotto.
@@ -331,60 +359,165 @@ export function SimScenariPanel({
             </span>
           </div>
 
-          {/* Prezzo obiettivo (calcolo inverso) */}
+          {/* Obiettivo (calcolo inverso): per prezzo o per margine */}
           <div className="rounded-xl border bg-card p-3 shadow-sm space-y-2.5">
-            <div className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-muted-foreground" />
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Prezzo obiettivo
-              </p>
-            </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Prezzo netto desiderato (€)</Label>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
-                  step="100"
-                  placeholder={String(Math.round(risultato.ricavo_netto))}
-                  value={prezzoObiettivo}
-                  onChange={(e) => setPrezzoObiettivo(e.target.value)}
-                  className="h-8 w-44 text-right tabular-nums"
-                />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-muted-foreground" />
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Obiettivo
+                </p>
               </div>
-              <Button
-                type="button"
+              <ToggleGroup
+                type="single"
                 size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
-                disabled={!obiettivo}
-                onClick={() => {
-                  if (!obiettivo) return;
-                  patch({ sconto_pct: Math.max(0, obiettivo.sconto_pct_necessario) });
+                value={obiettivoMode}
+                onValueChange={(v) => {
+                  if (v === "prezzo" || v === "margine") setObiettivoMode(v);
                 }}
+                className="rounded-lg border bg-secondary/40 p-0.5"
               >
-                <TrendingDown className="h-3.5 w-3.5" />
-                Applica sconto
-              </Button>
+                <ToggleGroupItem value="prezzo" className="h-7 px-3 text-xs data-[state=on]:bg-background">
+                  Per prezzo
+                </ToggleGroupItem>
+                <ToggleGroupItem value="margine" className="h-7 px-3 text-xs data-[state=on]:bg-background">
+                  Per margine
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
-            {obiettivo ? (
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums">
-                <span className="text-muted-foreground">
-                  Sconto necessario:{" "}
-                  <strong className="text-foreground">{fmtPct(obiettivo.sconto_pct_necessario)}</strong>
-                </span>
-                <span className="text-muted-foreground">
-                  Margine:{" "}
-                  <strong className={cn(obiettivo.margine_valore >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
-                    {formatCurrency(obiettivo.margine_valore)} ({fmtPct(obiettivo.margine_pct)})
-                  </strong>
-                </span>
-              </div>
+
+            {obiettivoMode === "prezzo" ? (
+              <>
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">Prezzo netto desiderato (€)</Label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="100"
+                      placeholder={String(Math.round(risultato.ricavo_netto))}
+                      value={prezzoObiettivo}
+                      onChange={(e) => setPrezzoObiettivo(e.target.value)}
+                      className="h-8 w-44 text-right tabular-nums"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5"
+                    disabled={!obiettivo}
+                    onClick={() => {
+                      if (!obiettivo) return;
+                      patch({ sconto_pct: Math.max(0, obiettivo.sconto_pct_necessario) });
+                    }}
+                  >
+                    <TrendingDown className="h-3.5 w-3.5" />
+                    Applica sconto
+                  </Button>
+                </div>
+                {obiettivo ? (
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums">
+                    <span className="text-muted-foreground">
+                      Sconto necessario:{" "}
+                      <strong className="text-foreground">{fmtPct(obiettivo.sconto_pct_necessario)}</strong>
+                    </span>
+                    <span className="text-muted-foreground">
+                      Margine:{" "}
+                      <strong className={cn(obiettivo.margine_valore >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                        {formatCurrency(obiettivo.margine_valore)} ({fmtPct(obiettivo.margine_pct)})
+                      </strong>
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    Inserisci un prezzo netto per calcolare lo sconto necessario e il margine risultante.
+                  </p>
+                )}
+              </>
             ) : (
-              <p className="text-[11px] text-muted-foreground">
-                Inserisci un prezzo netto per calcolare lo sconto necessario e il margine risultante.
-              </p>
+              <>
+                <div className="flex flex-wrap items-end gap-2">
+                  <ToggleGroup
+                    type="single"
+                    size="sm"
+                    value={margineTargetType}
+                    onValueChange={(v) => {
+                      if (v === "pct" || v === "euro") setMargineTargetType(v);
+                    }}
+                    className="rounded-lg border bg-secondary/40 p-0.5"
+                  >
+                    <ToggleGroupItem value="pct" className="h-8 px-3 text-xs data-[state=on]:bg-background">
+                      %
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="euro" className="h-8 px-3 text-xs data-[state=on]:bg-background">
+                      €
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                  <div className="space-y-1">
+                    <Label className="text-[11px] text-muted-foreground">
+                      {margineTargetType === "pct" ? "Margine desiderato (%)" : "Margine desiderato (€)"}
+                    </Label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step={margineTargetType === "pct" ? "0.5" : "100"}
+                      placeholder={margineTargetType === "pct" ? "20" : "300"}
+                      value={margineTarget}
+                      onChange={(e) => setMargineTarget(e.target.value)}
+                      className="h-8 w-44 text-right tabular-nums"
+                    />
+                  </div>
+                </div>
+                {margineObiettivo ? (
+                  margineObiettivo.fattibile ? (
+                    <div className="space-y-1.5">
+                      <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-2.5 text-sm dark:border-indigo-900 dark:bg-indigo-950/30">
+                        <p className="text-[11px] font-medium uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+                          Dovresti vendere a
+                        </p>
+                        <p className="mt-0.5 font-bold tabular-nums text-indigo-900 dark:text-indigo-100">
+                          {formatCurrency(margineObiettivo.ricavo_netto_necessario ?? 0)}{" "}
+                          <span className="text-[11px] font-normal text-muted-foreground">imponibile</span>{" "}
+                          <span className="text-muted-foreground">→</span>{" "}
+                          {formatCurrency(margineObiettivo.prezzo_cliente_necessario ?? 0)}{" "}
+                          <span className="text-[11px] font-normal text-muted-foreground">IVA inclusa</span>
+                        </p>
+                      </div>
+                      {(() => {
+                        const diff = round2(
+                          (margineObiettivo.ricavo_netto_necessario ?? 0) - risultato.ricavo_netto,
+                        );
+                        return (
+                          <p className="text-[11px] text-muted-foreground tabular-nums">
+                            Rispetto all&apos;attuale ({formatCurrency(risultato.ricavo_netto)}):{" "}
+                            <strong
+                              className={cn(
+                                diff > 0
+                                  ? "text-amber-600 dark:text-amber-400"
+                                  : "text-emerald-600 dark:text-emerald-400",
+                              )}
+                            >
+                              {diff >= 0 ? "+" : "−"}
+                              {formatCurrency(Math.abs(diff))}
+                            </strong>
+                          </p>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <p className="rounded-lg border border-amber-200 bg-amber-50/60 p-2.5 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                      Margine non raggiungibile con questi costi/provvigioni.
+                    </p>
+                  )
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    Inserisci il margine desiderato per calcolare il prezzo a cui vendere.
+                  </p>
+                )}
+              </>
             )}
           </div>
 

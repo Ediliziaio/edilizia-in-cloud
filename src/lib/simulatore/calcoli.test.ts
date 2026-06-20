@@ -6,6 +6,7 @@ import {
   calcolaFasi,
   calcolaEconomia,
   calcolaPrezzoObiettivo,
+  calcolaMargineObiettivo,
   calcolaProvvigione,
   calcolaProvvigioni,
   calcolaCassa,
@@ -167,6 +168,67 @@ describe("calcolaPrezzoObiettivo", () => {
   it("ricavo_lordo 0 → sconto 0 (no divisione per zero)", () => {
     const r = calcolaPrezzoObiettivo(100, 0, 0);
     expect(r.sconto_pct_necessario).toBe(0);
+  });
+});
+
+describe("calcolaMargineObiettivo", () => {
+  const prov = (p: Partial<ProvvigioneSim>): ProvvigioneSim => ({
+    id: "p1", nome: "Commerciale", base: "ricavo", valore: 0, ...p,
+  });
+
+  it("target % senza provvigioni → ricavo netto necessario", () => {
+    // costoPieno 1150, target 20% → ricavo 1437.5 (margine 287.5 = 20%)
+    const r = calcolaMargineObiettivo({
+      costoPieno: 1150,
+      provvigioni: [],
+      ivaEffettivaPct: 10,
+      target: 20,
+      targetType: "pct",
+    });
+    expect(r.fattibile).toBe(true);
+    expect(r.ricavo_netto_necessario).toBe(1437.5);
+    expect(r.prezzo_cliente_necessario).toBe(1581.25); // 1437.5 × 1.10
+  });
+
+  it("target € senza provvigioni → ricavo netto necessario", () => {
+    // costoPieno 1150, target €300 → ricavo 1450
+    const r = calcolaMargineObiettivo({
+      costoPieno: 1150,
+      provvigioni: [],
+      ivaEffettivaPct: 0,
+      target: 300,
+      targetType: "euro",
+    });
+    expect(r.fattibile).toBe(true);
+    expect(r.ricavo_netto_necessario).toBe(1450);
+    expect(r.prezzo_cliente_necessario).toBe(1450);
+  });
+
+  it("target € con provvigione 5% su ricavo → ricavo netto maggiorato", () => {
+    // costoPieno 1150, prov 5% ricavo, target €300 → (300 + 1150)/0.95 = 1526.32
+    const r = calcolaMargineObiettivo({
+      costoPieno: 1150,
+      provvigioni: [prov({ base: "ricavo", valore: 5 })],
+      ivaEffettivaPct: 0,
+      target: 300,
+      targetType: "euro",
+    });
+    expect(r.fattibile).toBe(true);
+    expect(r.ricavo_netto_necessario).toBe(1526.32);
+  });
+
+  it("target % impossibile (denom ≤ 0) → null + non fattibile", () => {
+    // prov 60% ricavo + target 50% → denom = 1 - 0.6 - 0.5 < 0
+    const r = calcolaMargineObiettivo({
+      costoPieno: 1150,
+      provvigioni: [prov({ base: "ricavo", valore: 60 })],
+      ivaEffettivaPct: 10,
+      target: 50,
+      targetType: "pct",
+    });
+    expect(r.fattibile).toBe(false);
+    expect(r.ricavo_netto_necessario).toBeNull();
+    expect(r.prezzo_cliente_necessario).toBeNull();
   });
 });
 

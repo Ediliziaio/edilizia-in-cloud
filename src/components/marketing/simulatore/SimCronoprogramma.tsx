@@ -110,7 +110,7 @@ export function SimCronoprogramma({
             </span>
             <h3 className="text-sm font-semibold">Cronoprogramma</h3>
             {totale > 0 ? (
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
+              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 tabular-nums dark:bg-indigo-500/15 dark:text-indigo-300">
                 {settLabel(totale)} totali
               </span>
             ) : null}
