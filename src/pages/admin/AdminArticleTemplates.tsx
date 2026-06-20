@@ -10,12 +10,13 @@
  *
  * RLS: select/insert/update/delete riservati a super_admin (policy aft_*).
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Boxes, Plus, Search, Pencil, Copy, Trash2, Download, Loader2, Grid3x3,
+  Upload, Image as ImageIcon, X, Minus,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -254,11 +255,60 @@ export default function AdminArticleTemplates() {
   );
 }
 
+/** Upload foto template nel bucket pubblico article-photo-templates (super_admin). */
+async function uploadTemplateImage(file: File): Promise<string> {
+  const ext = (file.name.split(".").pop() || "png").toLowerCase();
+  const path = `templates/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabase.storage
+    .from("article-photo-templates")
+    .upload(path, file, { contentType: file.type || "image/png", upsert: false });
+  if (error) throw error;
+  return supabase.storage.from("article-photo-templates").getPublicUrl(path).data.publicUrl;
+}
+
 function EditDialog({ template, onClose, onSaved }: { template: Template; onClose: () => void; onSaved: () => void }) {
   const isNew = !template.id;
   const [f, setF] = useState<Template>(template);
-  const [grid, setGrid] = useState<GridDefault | null>(template.griglia_default);
   const set = <K extends keyof Template>(k: K, v: Template[K]) => setF((p) => ({ ...p, [k]: v }));
+
+  // Foto
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadTemplateImage(file);
+      set("image_url", url);
+      toast.success("Foto caricata");
+    } catch (err) {
+      toast.error(`Upload fallito: ${(err as Error).message}`);
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  // Griglia prezzi: headers in state (rari), celle in ref (perf su griglie grandi)
+  const [xs, setXs] = useState<number[]>(template.griglia_default?.xs ?? []);
+  const [ys, setYs] = useState<number[]>(template.griglia_default?.ys ?? []);
+  const mRef = useRef<(number | null)[][]>(
+    (template.griglia_default?.ys ?? []).map((_, i) =>
+      (template.griglia_default?.xs ?? []).map((_, j) => template.griglia_default?.m?.[i]?.[j] ?? null)),
+  );
+  const setX = (j: number, v: number) => setXs((p) => p.map((x, k) => (k === j ? v : x)));
+  const setY = (i: number, v: number) => setYs((p) => p.map((y, k) => (k === i ? v : y)));
+  const addCol = () => { const nx = xs.length ? xs[xs.length - 1] + 50 : 1000; mRef.current.forEach((r) => r.push(null)); setXs([...xs, nx]); };
+  const addRow = () => { const ny = ys.length ? ys[ys.length - 1] + 50 : 1000; mRef.current.push(new Array(xs.length).fill(null)); setYs([...ys, ny]); };
+  const removeCol = (j: number) => { mRef.current.forEach((r) => r.splice(j, 1)); setXs(xs.filter((_, k) => k !== j)); };
+  const removeRow = (i: number) => { mRef.current.splice(i, 1); setYs(ys.filter((_, k) => k !== i)); };
+  const createGrid = () => { mRef.current = [[null]]; setXs([1000]); setYs([1000]); };
+  const buildGrid = (): GridDefault | null => {
+    if (f.modalita_prezzo_base !== "griglia" || !xs.length || !ys.length) return null;
+    const m = ys.map((_, i) => xs.map((_, j) => mRef.current[i]?.[j] ?? null));
+    return { xs, ys, m };
+  };
 
   const save = useMutation({
     mutationFn: async () => {
@@ -268,7 +318,7 @@ function EditDialog({ template, onClose, onSaved }: { template: Template; onClos
         modalita_prezzo_base: f.modalita_prezzo_base, prezzo_base_vendita: f.prezzo_base_vendita,
         vat_rate: f.vat_rate, unit_of_measure: f.unit_of_measure,
         griglia_asse_x_label: f.griglia_asse_x_label, griglia_asse_y_label: f.griglia_asse_y_label,
-        griglia_unita: f.griglia_unita, griglia_default: grid as never, image_url: f.image_url, is_active: f.is_active,
+        griglia_unita: f.griglia_unita, griglia_default: buildGrid() as never, image_url: f.image_url, is_active: f.is_active,
       };
       if (isNew) {
         const { error } = await supabase.from("article_family_templates").insert(payload as never);
@@ -282,8 +332,6 @@ function EditDialog({ template, onClose, onSaved }: { template: Template; onClos
     onError: (e: unknown) => toast.error((e as Error).message),
   });
 
-  const editableGrid = grid && (grid.xs?.length ?? 0) * (grid.ys?.length ?? 0) <= 700;
-
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -291,6 +339,30 @@ function EditDialog({ template, onClose, onSaved }: { template: Template; onClos
           <DialogTitle>{isNew ? "Nuovo template" : "Modifica template"}</DialogTitle>
           <DialogDescription>Dati globali del template articolo, importabile dalle aziende.</DialogDescription>
         </DialogHeader>
+
+        {/* Foto */}
+        <div className="flex items-start gap-4">
+          <div className="h-24 w-24 rounded-lg border bg-muted/40 overflow-hidden flex items-center justify-center shrink-0">
+            {f.image_url
+              ? <img src={f.image_url} alt="Anteprima" className="w-full h-full object-contain" />
+              : <ImageIcon className="h-8 w-8 text-muted-foreground" />}
+          </div>
+          <div className="flex-1 space-y-2">
+            <Label>Foto / icona articolo</Label>
+            <div className="flex items-center gap-2">
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickFile} />
+              <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                {uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />} Carica foto
+              </Button>
+              {f.image_url && (
+                <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => set("image_url", null)}>
+                  <X className="h-4 w-4 mr-1" /> Rimuovi
+                </Button>
+              )}
+            </div>
+            <Input className="text-xs" placeholder="…oppure incolla un URL immagine" value={f.image_url ?? ""} onChange={(e) => set("image_url", e.target.value || null)} />
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2"><Label>Nome</Label><Input value={f.nome} onChange={(e) => set("nome", e.target.value)} /></div>
@@ -302,53 +374,72 @@ function EditDialog({ template, onClose, onSaved }: { template: Template; onClos
           <div><Label>Modalità prezzo</Label><Input value={f.modalita_prezzo_base ?? ""} onChange={(e) => set("modalita_prezzo_base", e.target.value)} /></div>
           <div><Label>IVA %</Label><Input type="number" value={f.vat_rate ?? 22} onChange={(e) => set("vat_rate", Number(e.target.value))} /></div>
           <div><Label>UM</Label><Input value={f.unit_of_measure ?? ""} onChange={(e) => set("unit_of_measure", e.target.value)} /></div>
-          <div><Label>URL icona</Label><Input value={f.image_url ?? ""} onChange={(e) => set("image_url", e.target.value || null)} /></div>
           <div className="flex items-center gap-2 pt-6"><Switch checked={f.is_active} onCheckedChange={(v) => set("is_active", v)} /><Label>Attivo</Label></div>
         </div>
 
-        {f.modalita_prezzo_base === "griglia" && grid && (
-          <div className="mt-2">
-            <div className="flex items-center gap-2 mb-1 text-sm font-medium">
-              <Grid3x3 className="h-4 w-4" /> Griglia prezzi {grid.xs.length}×{grid.ys.length} ({cellCount(grid)} prezzi) — €
-            </div>
-            {!editableGrid && <p className="text-xs text-muted-foreground mb-1">Griglia grande: modifica i singoli prezzi prossimamente. Sotto è in sola lettura.</p>}
-            <div className="overflow-auto max-h-[40vh] border rounded-md">
-              <table className="text-xs border-collapse">
-                <thead>
-                  <tr>
-                    <th className="sticky left-0 top-0 z-10 bg-muted px-2 py-1 border">A\\L</th>
-                    {grid.xs.map((x) => <th key={x} className="bg-muted px-2 py-1 border font-medium">{x}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {grid.ys.map((y, i) => (
-                    <tr key={y}>
-                      <th className="sticky left-0 bg-muted px-2 py-1 border font-medium">{y}</th>
-                      {grid.xs.map((x, j) => (
-                        <td key={x} className="border p-0">
-                          {editableGrid ? (
-                            <input
-                              className="w-16 px-1 py-0.5 text-right bg-transparent focus:bg-primary/10 outline-none"
-                              value={grid.m[i]?.[j] ?? ""}
-                              onChange={(e) => {
-                                const v = e.target.value.trim();
-                                setGrid((prev) => {
-                                  if (!prev) return prev;
-                                  const m = prev.m.map((r) => r.slice());
-                                  m[i][j] = v === "" ? null : Number(v);
-                                  return { ...prev, m };
-                                });
-                              }}
-                            />
-                          ) : <span className="block w-16 px-1 text-right">{grid.m[i]?.[j] ?? "—"}</span>}
-                        </td>
+        {f.modalita_prezzo_base === "griglia" && (
+          xs.length && ys.length ? (
+            <div className="mt-1">
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-sm font-medium flex items-center gap-2">
+                  <Grid3x3 className="h-4 w-4" /> Griglia prezzi {xs.length}×{ys.length} — € (Larghezza × Altezza, mm)
+                </div>
+                <div className="flex gap-1">
+                  <Button type="button" size="sm" variant="outline" className="h-7" onClick={addCol}><Plus className="h-3 w-3 mr-1" />Larghezza</Button>
+                  <Button type="button" size="sm" variant="outline" className="h-7" onClick={addRow}><Plus className="h-3 w-3 mr-1" />Altezza</Button>
+                </div>
+              </div>
+              <div className="overflow-auto max-h-[45vh] border rounded-md">
+                <table className="text-xs border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 top-0 z-20 bg-muted border px-1 py-1 text-muted-foreground">A\\L</th>
+                      {xs.map((x, j) => (
+                        <th key={j} className="sticky top-0 z-10 bg-muted border px-0.5 py-0.5">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <input className="w-14 text-center bg-muted font-medium outline-none rounded" value={String(x)} onChange={(e) => setX(j, parseInt(e.target.value, 10) || 0)} />
+                            <button type="button" className="text-destructive/70 hover:text-destructive" onClick={() => removeCol(j)} title="Rimuovi colonna"><Minus className="h-3 w-3" /></button>
+                          </div>
+                        </th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {ys.map((y, i) => (
+                      <tr key={i}>
+                        <th className="sticky left-0 z-10 bg-muted border px-0.5">
+                          <div className="flex items-center gap-0.5">
+                            <input className="w-14 text-center bg-muted font-medium outline-none rounded" value={String(y)} onChange={(e) => setY(i, parseInt(e.target.value, 10) || 0)} />
+                            <button type="button" className="text-destructive/70 hover:text-destructive" onClick={() => removeRow(i)} title="Rimuovi riga"><Minus className="h-3 w-3" /></button>
+                          </div>
+                        </th>
+                        {xs.map((_, j) => (
+                          <td key={j} className="border p-0">
+                            <input
+                              key={`${i}-${j}-${xs.length}x${ys.length}`}
+                              className="w-16 px-1 py-0.5 text-right bg-transparent focus:bg-primary/10 outline-none"
+                              defaultValue={mRef.current[i]?.[j] ?? ""}
+                              inputMode="numeric"
+                              onChange={(e) => {
+                                const v = e.target.value.trim();
+                                if (!mRef.current[i]) mRef.current[i] = [];
+                                mRef.current[i][j] = v === "" ? null : Number(v);
+                              }}
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1">Celle vuote = misura non quotata. Modifica intestazioni Larghezza/Altezza o aggiungi/rimuovi con i pulsanti.</p>
             </div>
-          </div>
+          ) : (
+            <Button type="button" variant="outline" size="sm" className="mt-1 self-start" onClick={createGrid}>
+              <Plus className="h-3 w-3 mr-1" /> Crea griglia prezzi L×H
+            </Button>
+          )
         )}
 
         <DialogFooter>
