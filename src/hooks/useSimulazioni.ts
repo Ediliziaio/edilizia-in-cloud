@@ -30,6 +30,38 @@ export function useSimulazioni(opts: { template?: boolean } = {}) {
   });
 }
 
+/**
+ * useContattiLite — risolve un set di `contact_id` → { id, nome } leggibile.
+ *
+ * Usato dalla lista (card → nome cliente) e dall'editor (testata) per mostrare
+ * il nome del contatto collegato senza un join nella query principale. Batch
+ * unico per gli id non nulli; nome = "Nome Cognome" || email || "—".
+ */
+export function useContattiLite(ids: (string | null | undefined)[]) {
+  const companyId = useEffectiveCompanyId();
+  const uniqueIds = Array.from(new Set(ids.filter((x): x is string => !!x))).sort();
+  return useQuery<Record<string, string>>({
+    queryKey: ["simulazioni-contatti-lite", companyId, uniqueIds],
+    enabled: !!companyId && uniqueIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await sb()
+        .from("marketing_contacts")
+        .select("id, first_name, last_name, email")
+        .eq("company_id", companyId)
+        .in("id", uniqueIds);
+      if (error) throw new Error(error.message);
+      const map: Record<string, string> = {};
+      for (const c of (data ?? []) as Array<{
+        id: string; first_name: string | null; last_name: string | null; email: string | null;
+      }>) {
+        map[c.id] = `${c.first_name || ""} ${c.last_name || ""}`.trim() || c.email || "—";
+      }
+      return map;
+    },
+  });
+}
+
 export function useSimulazione(id: string | null) {
   const companyId = useEffectiveCompanyId();
   return useQuery<SimulazioneRow | null>({

@@ -33,7 +33,8 @@ import { SimCronoprogramma } from "@/components/marketing/simulatore/SimCronopro
 import { SimScenariPanel } from "@/components/marketing/simulatore/SimScenariPanel";
 import { AggiungiVociDialog } from "@/components/marketing/simulatore/AggiungiVociDialog";
 import { TrasformaDialog } from "@/components/marketing/simulatore/TrasformaDialog";
-import { useSimulazione, useSimulazioniMutations } from "@/hooks/useSimulazioni";
+import { FvContactPicker, type FvContactLite } from "@/components/fotovoltaico/FvContactPicker";
+import { useSimulazione, useSimulazioniMutations, useContattiLite } from "@/hooks/useSimulazioni";
 import { calcolaSimulazione } from "@/lib/simulatore/calcolaSimulazione";
 import { calcolaFasi } from "@/lib/simulatore/calcoli";
 import { exportSimulazioneXlsx } from "@/lib/simulatore/exportSimulazione";
@@ -48,9 +49,10 @@ export default function SimulatoreEditor() {
   const { data: row, isLoading, isError } = useSimulazione(id);
   const { update, duplicate } = useSimulazioniMutations();
 
-  // Stato locale documento + nome. Inizializzati una sola volta dalla riga.
+  // Stato locale documento + nome + contatto. Inizializzati dalla riga.
   const [doc, setDoc] = useState<SimulazioneDoc | null>(null);
   const [nome, setNome] = useState("");
+  const [contactId, setContactId] = useState<string | null>(null);
   const hydrated = useRef(false);
   const [saved, setSaved] = useState(false);
   const [listinoOpen, setListinoOpen] = useState(false);
@@ -70,8 +72,13 @@ export default function SimulatoreEditor() {
           : DEFAULT_SCENARI,
     });
     setNome(row.nome);
+    setContactId(row.contact_id ?? null);
     hydrated.current = true;
   }, [row]);
+
+  // Nome del contatto collegato (testata). Resolve leggero su marketing_contacts.
+  const { data: contattiMap = {} } = useContattiLite([contactId]);
+  const contactNome = contactId ? contattiMap[contactId] : undefined;
 
   const risultato = useMemo(
     () => (doc ? calcolaSimulazione(doc) : null),
@@ -162,6 +169,7 @@ export default function SimulatoreEditor() {
           id,
           patch: {
             nome,
+            contact_id: contactId,
             voci: doc.voci,
             fasi: doc.fasi,
             scenari: doc.scenari,
@@ -180,7 +188,7 @@ export default function SimulatoreEditor() {
     return () => clearTimeout(t);
     // `update` è stabile (mutation); volutamente fuori dalle deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, doc, nome, risultatoConRata]);
+  }, [id, doc, nome, contactId, risultatoConRata]);
 
   // ── Stati di caricamento / errore / vuoto ──────────────────────────────────
   if (isLoading) {
@@ -229,22 +237,37 @@ export default function SimulatoreEditor() {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-start gap-3 min-w-0">
           <Button
             variant="ghost"
             size="icon"
-            className="shrink-0"
+            className="shrink-0 mt-0.5"
             onClick={() => navigate("/azienda/marketing/simulatore")}
             aria-label="Torna alla lista"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <Input
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            placeholder="Nome simulazione"
-            className="h-10 max-w-md border-transparent bg-transparent px-2 text-xl font-bold shadow-none hover:border-input focus-visible:border-input"
-          />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Input
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Nome simulazione"
+              className="h-10 w-full max-w-md border-transparent bg-transparent px-2 text-xl font-bold shadow-none hover:border-input focus-visible:border-input"
+            />
+            {/* Contatto CRM collegato (riuso del picker generico). */}
+            <div className="max-w-md">
+              <FvContactPicker
+                clienteId={contactId}
+                onSelect={(c: FvContactLite) => setContactId(c.id)}
+                onClear={() => setContactId(null)}
+              />
+              {contactNome ? (
+                <p className="px-1 text-[11px] text-muted-foreground">
+                  Cliente: <strong>{contactNome}</strong>
+                </p>
+              ) : null}
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">

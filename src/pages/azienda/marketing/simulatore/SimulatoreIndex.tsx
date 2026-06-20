@@ -22,6 +22,7 @@ import {
   FileStack,
   FilePlus2,
   Loader2,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency, formatRelativeTime } from "@/lib/formatters";
@@ -59,6 +60,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   useSimulazioni,
   useSimulazioniMutations,
+  useContattiLite,
   type SimulazioneRow,
 } from "@/hooks/useSimulazioni";
 import { NuovaSimulazioneDialog } from "@/components/marketing/simulatore/NuovaSimulazioneDialog";
@@ -98,6 +100,9 @@ export default function SimulatoreIndex() {
   const navigate = useNavigate();
   const { data: simulazioni = [], isLoading } = useSimulazioni();
   const { duplicate, remove } = useSimulazioniMutations();
+
+  // Nomi dei contatti collegati (card → cliente). Batch unico sui contact_id.
+  const { data: contattiMap = {} } = useContattiLite(simulazioni.map((s) => s.contact_id));
 
   const [nuovaOpen, setNuovaOpen] = useState(false);
   const [statoFilter, setStatoFilter] = useState<string>("tutti");
@@ -264,6 +269,12 @@ export default function SimulatoreIndex() {
                     <h3 className="font-semibold leading-tight truncate" title={sim.nome}>
                       {sim.nome}
                     </h3>
+                    {sim.contact_id ? (
+                      <p className="flex items-center gap-1 text-xs text-muted-foreground truncate">
+                        <User className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{contattiMap[sim.contact_id] ?? "—"}</span>
+                      </p>
+                    ) : null}
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <Badge variant={STATO_BADGE[sim.stato] ?? "secondary"} className="text-xs">
                         {STATO_LABELS[sim.stato] ?? sim.stato}

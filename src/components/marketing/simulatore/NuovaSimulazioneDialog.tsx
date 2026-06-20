@@ -1,10 +1,11 @@
 /**
  * NuovaSimulazioneDialog — crea una nuova simulazione contratto.
  *
- * Dialog minimale: campo "nome" obbligatorio → `create` (hook
- * useSimulazioniMutations) → naviga all'editor `/azienda/marketing/simulatore/{id}`.
- * Il collegamento al contatto CRM arriverà più avanti (Tappa B): per ora teniamo
- * la creazione snella, una simulazione nasce con voci/fasi vuote e DEFAULT_SCENARI.
+ * Dialog: campo "nome" obbligatorio + collegamento OPZIONALE a un contatto CRM
+ * (`FvContactPicker`, riusato: picker generico su `marketing_contacts`). Su
+ * create passa `nome` e `contact_id` → `create` (useSimulazioniMutations) →
+ * naviga all'editor `/azienda/marketing/simulatore/{id}`. La simulazione nasce
+ * con voci/fasi vuote e DEFAULT_SCENARI.
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -21,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FvContactPicker, type FvContactLite } from "@/components/fotovoltaico/FvContactPicker";
 import { useSimulazioniMutations } from "@/hooks/useSimulazioni";
 
 interface NuovaSimulazioneDialogProps {
@@ -28,12 +30,19 @@ interface NuovaSimulazioneDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const contactLabel = (c: FvContactLite) =>
+  `${c.first_name || ""} ${c.last_name || ""}`.trim() || c.email || "Senza nome";
+
 export function NuovaSimulazioneDialog({ open, onOpenChange }: NuovaSimulazioneDialogProps) {
   const navigate = useNavigate();
   const { create } = useSimulazioniMutations();
   const [nome, setNome] = useState("");
+  const [contatto, setContatto] = useState<FvContactLite | null>(null);
 
-  const reset = () => setNome("");
+  const reset = () => {
+    setNome("");
+    setContatto(null);
+  };
 
   const handleOpenChange = (next: boolean) => {
     if (!next) reset();
@@ -47,7 +56,7 @@ export function NuovaSimulazioneDialog({ open, onOpenChange }: NuovaSimulazioneD
       return;
     }
     try {
-      const id = await create.mutateAsync({ nome: trimmed });
+      const id = await create.mutateAsync({ nome: trimmed, contact_id: contatto?.id ?? null });
       toast.success("Simulazione creata");
       handleOpenChange(false);
       navigate(`/azienda/marketing/simulatore/${id}`);
@@ -70,21 +79,38 @@ export function NuovaSimulazioneDialog({ open, onOpenChange }: NuovaSimulazioneD
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-2 py-2">
-          <Label htmlFor="sim-nome">Nome simulazione</Label>
-          <Input
-            id="sim-nome"
-            autoFocus
-            placeholder="Es. Ristrutturazione appartamento Rossi"
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !create.isPending) {
-                e.preventDefault();
-                void handleSubmit();
-              }
-            }}
-          />
+        <div className="space-y-3 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="sim-nome">Nome simulazione</Label>
+            <Input
+              id="sim-nome"
+              autoFocus
+              placeholder="Es. Ristrutturazione appartamento Rossi"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !create.isPending) {
+                  e.preventDefault();
+                  void handleSubmit();
+                }
+              }}
+            />
+          </div>
+
+          {/* Collegamento opzionale a un contatto CRM (riuso del picker generico). */}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Cliente (opzionale)</Label>
+            <FvContactPicker
+              clienteId={contatto?.id ?? null}
+              onSelect={setContatto}
+              onClear={() => setContatto(null)}
+            />
+            {contatto ? (
+              <p className="text-[11px] text-muted-foreground">
+                Collegata a <strong>{contactLabel(contatto)}</strong>.
+              </p>
+            ) : null}
+          </div>
         </div>
 
         <DialogFooter>
