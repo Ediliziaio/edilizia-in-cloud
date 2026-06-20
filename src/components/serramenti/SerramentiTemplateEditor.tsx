@@ -12,7 +12,7 @@
  *  - Default cronoprogramma + anticipo + IVA + validità
  */
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,7 @@ const SerramentiConversionEditor = lazy(() =>
 );
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompanyAnagraficaForTemplate, inheritedPlaceholder } from "@/hooks/useCompanyAnagraficaForTemplate";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
@@ -349,6 +350,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   const { data: template, isLoading } = useTemplatePdf();
   const upsertMut = useUpsertTemplatePdf();
   const { templates: quoteTemplates, upsertTemplate: upsertQuoteTemplate } = useQuoteTemplates();
+  // Dati ereditati dal Profilo azienda → placeholder anagrafica (UX allineata).
+  const companyAnagrafica = useCompanyAnagraficaForTemplate();
 
   const [form, setForm] = useState<Partial<SrTemplatePdfRow>>({});
   const [dirty, setDirty] = useState(false);
@@ -1156,12 +1159,21 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           </div>
 
           <div className="col-span-12 md:col-span-9 grid grid-cols-12 gap-3">
+            {/* I dati arrivano dal Profilo azienda: lascia vuoto per ereditarli. */}
+            <div className="col-span-12 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50/60 p-2.5 text-[11px] text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
+              <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                Questi dati arrivano dal{" "}
+                <Link to="/azienda/impostazioni/profilo" className="font-medium underline">Profilo azienda</Link>.
+                Lascia un campo vuoto per usarli in automatico; compila solo per sovrascriverli.
+              </span>
+            </div>
             <div className="col-span-12">
               <Label className="text-xs">Ragione sociale</Label>
               <Input
                 value={form.ragione_sociale ?? ""}
                 onChange={(e) => update("ragione_sociale", e.target.value)}
-                placeholder="Es. Showroom Demo Srl"
+                placeholder={inheritedPlaceholder(companyAnagrafica?.ragione_sociale, "Es. Showroom Demo Srl")}
                 className="h-9"
               />
             </div>
@@ -1170,7 +1182,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               <Input
                 value={form.indirizzo_completo ?? ""}
                 onChange={(e) => update("indirizzo_completo", e.target.value)}
-                placeholder="Es. Via Roma 42 · 20121 Milano (MI)"
+                placeholder={inheritedPlaceholder(companyAnagrafica?.indirizzo_completo, "Es. Via Roma 42 · 20121 Milano (MI)")}
                 className="h-9"
               />
             </div>
@@ -1179,7 +1191,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               <Input
                 value={form.telefono ?? ""}
                 onChange={(e) => update("telefono", e.target.value)}
-                placeholder="+39 02 1234 5678"
+                placeholder={inheritedPlaceholder(companyAnagrafica?.telefono, "+39 02 1234 5678")}
                 className="h-9"
               />
             </div>
@@ -1188,7 +1200,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               <Input
                 value={form.email ?? ""}
                 onChange={(e) => update("email", e.target.value)}
-                placeholder="info@azienda.it"
+                placeholder={inheritedPlaceholder(companyAnagrafica?.email, "info@azienda.it")}
                 className="h-9"
                 type="email"
               />
@@ -1198,7 +1210,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               <Input
                 value={form.partita_iva ?? ""}
                 onChange={(e) => update("partita_iva", e.target.value)}
-                placeholder="IT12345670156"
+                placeholder={inheritedPlaceholder(companyAnagrafica?.partita_iva, "IT12345670156")}
                 className="h-9"
               />
             </div>
