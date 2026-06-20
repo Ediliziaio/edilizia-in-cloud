@@ -36,6 +36,8 @@ interface StockItem {
   internal_code: string | null;
   quantity: number;
   tracking_mode: "fungible" | "serialized";
+  /** Costo standard a magazzino (per precompilare il prezzo d'acquisto in entrata). */
+  unit_cost?: number;
   /** v8.6.112 — Origine dell'item: 'warehouse' (gia a magazzino) o 'listino'
    *  (nel catalogo prodotti article_families ma non ancora a stock). Quando
    *  'listino', il click creera lo stock_item al volo. */
@@ -53,14 +55,18 @@ interface Props {
   warehouseId: string | undefined;
   entries: BatchScanEntry[];
   onEntriesChange: (next: BatchScanEntry[]) => void;
+  /** Entrata merce: mostra il campo prezzo d'acquisto (precompilato dal listino)
+   *  e lo salva su entry.purchasePrice. Default false (uscita: nessun prezzo). */
+  showPurchasePrice?: boolean;
 }
 
-export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesChange }: Props) {
+export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesChange, showPurchasePrice = false }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [pendingItem, setPendingItem] = useState<StockItem | null>(null);
   const [pendingQty, setPendingQty] = useState("1");
+  const [pendingPrice, setPendingPrice] = useState("");
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 200);
@@ -81,7 +87,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
       // ── Query 1: warehouse_stock (articoli a magazzino) ─────────────────
       let wsQ = supabase
         .from("warehouse_stock")
-        .select("id, name, internal_code, quantity, tracking_mode")
+        .select("id, name, internal_code, quantity, tracking_mode, unit_cost")
         .eq("company_id", companyId!)
         .eq("warehouse_id", warehouseId!);
       if (filter) {
@@ -111,6 +117,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
         internal_code: r.internal_code,
         quantity: r.quantity,
         tracking_mode: r.tracking_mode as "fungible" | "serialized",
+        unit_cost: (r as { unit_cost?: number }).unit_cost ?? undefined,
         source: "warehouse" as const,
       }));
 
@@ -152,6 +159,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
   const handlePickItem = useCallback((item: StockItem) => {
     setPendingItem(item);
     setPendingQty("1");
+    setPendingPrice(String(item.suggested_unit_cost ?? item.unit_cost ?? ""));
     setPickerOpen(false);
   }, []);
 
@@ -173,6 +181,9 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
             company_id: companyId,
             warehouse_id: warehouseId,
             name: pendingItem.name,
+            internal_code: pendingItem.internal_code ?? null,
+            // Fase A: collega l'articolo di magazzino al prodotto di listino.
+            article_family_id: pendingItem.family_id ?? null,
             quantity: 0,
             unit_cost: pendingItem.suggested_unit_cost ?? 0,
             vat_rate: pendingItem.suggested_vat ?? 22,
@@ -191,26 +202,34 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
     }
 
     const safeQty = pendingItem.source === "listino" ? qty : Math.min(qty, realQuantityAvailable);
+    const parsedPrice = showPurchasePrice && pendingPrice.trim()
+      ? (Number.isFinite(parseFloat(pendingPrice.replace(",", "."))) ? parseFloat(pendingPrice.replace(",", ".")) : undefined)
+      : undefined;
 
-    // Se l'articolo è già in lista, somma le quantità
+    // Se l'articolo è già in lista, somma le quantità (e aggiorna il prezzo se inserito)
     const existing = entries.find((e) => e.stockItemId === realStockItemId);
     if (existing) {
       onEntriesChange(
         entries.map((e) =>
-          e.stockItemId === realStockItemId ? { ...e, quantity: e.quantity + safeQty } : e,
+          e.stockItemId === realStockItemId
+            ? { ...e, quantity: e.quantity + safeQty, purchasePrice: parsedPrice ?? e.purchasePrice }
+            : e,
         ),
       );
     } else {
+      const uuid = crypto.randomUUID();
       onEntriesChange([
         ...entries,
         {
-          id: crypto.randomUUID(),
+          id: uuid,
+          clientUuid: uuid,
           stockItemId: realStockItemId,
           itemName: pendingItem.name,
           quantity: safeQty,
           serialNumbers: [],
           rawCode: pendingItem.internal_code ?? "",
           trackingMode: pendingItem.tracking_mode,
+          purchasePrice: parsedPrice,
           resolutionStatus: "matched",
         } as BatchScanEntry,
       ]);
@@ -218,8 +237,9 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
 
     setPendingItem(null);
     setPendingQty("1");
+    setPendingPrice("");
     setSearch("");
-  }, [pendingItem, pendingQty, entries, onEntriesChange, companyId, warehouseId]);
+  }, [pendingItem, pendingQty, pendingPrice, showPurchasePrice, entries, onEntriesChange, companyId, warehouseId]);
 
   const handleRemoveEntry = useCallback(
     (entryId: string) => {
@@ -263,7 +283,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                 <Button
                   variant="outline"
                   role="combobox"
-                  className="w-full justify-start text-left font-normal h-9 truncate pr-9"
+                  className="h-11 w-full justify-start truncate pr-9 text-left font-normal sm:h-9"
                 >
                   {pendingItem ? (
                     <span className="truncate">{pendingItem.name}</span>
@@ -401,7 +421,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
               value={pendingQty}
               onChange={(e) => setPendingQty(e.target.value)}
               disabled={!pendingItem}
-              className="h-10 text-right tabular-nums md:h-9"
+              className="h-11 text-right tabular-nums md:h-9"
               max={pendingItem?.quantity ?? undefined}
             />
           </div>
@@ -410,13 +430,30 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
             type="button"
             onClick={handleAddEntry}
             disabled={!pendingItem || !pendingQty || parseFloat(pendingQty) <= 0}
-            className="h-10 shrink-0 flex-1 md:flex-none md:h-9"
+            className="h-11 shrink-0 flex-1 md:flex-none md:h-9"
           >
             <Plus className="h-4 w-4 mr-1" />
             Aggiungi
           </Button>
         </div>
       </div>
+
+      {showPurchasePrice && pendingItem && (
+        <div className="flex items-center gap-2">
+          <Label className="text-xs shrink-0">Prezzo acquisto €</Label>
+          <Input
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.01"
+            value={pendingPrice}
+            onChange={(e) => setPendingPrice(e.target.value)}
+            placeholder="dal listino"
+            className="h-11 w-32 text-right tabular-nums sm:h-9"
+          />
+          <span className="text-[11px] text-muted-foreground">precompilato dal listino, modificabile</span>
+        </div>
+      )}
 
       {/* Lista entries aggiunte */}
       {entries.length > 0 && (

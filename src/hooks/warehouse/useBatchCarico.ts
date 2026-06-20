@@ -17,6 +17,8 @@ export interface BatchCaricoInput {
   entries: BatchScanEntry[];
   ddtRicezioneId?: string | null;
   notes?: string;
+  /** Sezione/ubicazione di stoccaggio applicata a tutte le righe del carico. */
+  sectionId?: string | null;
 }
 
 export interface BatchCaricoResult {
@@ -27,7 +29,7 @@ export interface BatchCaricoResult {
 }
 
 /** Trasforma le BatchScanEntry nel payload JSONB atteso dall'RPC. */
-function entriesToScansPayload(entries: BatchScanEntry[]) {
+function entriesToScansPayload(entries: BatchScanEntry[], sectionId?: string | null) {
   return entries
     .filter((e) => e.stockItemId !== null) // entries no-match vanno escluse
     .map((e) => ({
@@ -37,6 +39,9 @@ function entriesToScansPayload(entries: BatchScanEntry[]) {
       raw_code: e.rawCode,
       scan_format: e.scanFormat ?? null,
       offline_client_uuid: e.clientUuid,
+      // Entrata merce: prezzo d'acquisto + sezione (additivi, l'RPC li legge se presenti).
+      unit_price: e.purchasePrice != null ? e.purchasePrice : null,
+      section_id: sectionId ?? null,
     }));
 }
 
@@ -45,7 +50,7 @@ export function useBatchCarico() {
 
   return useMutation({
     mutationFn: async (input: BatchCaricoInput): Promise<BatchCaricoResult> => {
-      const payload = entriesToScansPayload(input.entries);
+      const payload = entriesToScansPayload(input.entries, input.sectionId);
       if (payload.length === 0) {
         throw new Error("Nessuna entry valida da caricare");
       }

@@ -94,6 +94,9 @@ export interface BatchScanEntry {
   serialNumbers: string[];
   /** Solo modalità oda_receive: ID della riga ODA matchata. */
   odaItemId?: string | null;
+  /** Prezzo d'acquisto per unità (entrata merce): precompilato dal listino,
+   *  modificabile col prezzo del DDT. Salvato come unit_cost/purchase_price. */
+  purchasePrice?: number;
   /** Timestamp client per ordinamento UI. */
   scannedAt: number;
   /**
@@ -173,6 +176,13 @@ interface BatchBarcodeScannerProps {
   onLookupEdit?: (stockItemId: string | undefined) => void;
   /** mode='lookup': apre il dialog crea articolo con barcode precompilato. */
   onLookupCreateNew?: (rawCode: string) => void;
+  /**
+   * Modalità "conferma a ogni scan": dopo ogni scansione lo scanner si mette in
+   * pausa e mostra un popup di conferma (articolo trovato → associa, o non
+   * trovato → crea) prima di aggiungere la riga. Riusa la macchina di pausa di
+   * 'lookup'. Default off → comportamento batch rapido invariato.
+   */
+  confirmEachScan?: boolean;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -199,8 +209,11 @@ export function BatchBarcodeScanner({
   onLookupFilter,
   onLookupEdit,
   onLookupCreateNew,
+  confirmEachScan = false,
 }: BatchBarcodeScannerProps) {
   const [lookupResult, setLookupResult] = useState<BatchScanEntry | null>(null);
+  // confirmEachScan: oda_item_id della scansione in attesa di conferma.
+  const pendingOdaRef = useRef<string | null>(null);
   const [manualMode, setManualMode] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
@@ -232,13 +245,14 @@ export function BatchBarcodeScanner({
     appendEntry,
     mergeResolvedEntry,
     updateEntryQty,
+    updateEntryPrice,
     removeEntry,
     promoteNoMatch,
     trackDuplicate,
     totalScans,
     noMatchCount,
   } = useBatchScannerEntries({ initialEntries, onEntriesChange });
-  const scannerPaused = mode === "lookup" && !!lookupResult;
+  const scannerPaused = (mode === "lookup" || confirmEachScan) && !!lookupResult;
   const invalidSerializedCount = useMemo(
     () =>
       entries.filter(
@@ -285,7 +299,7 @@ export function BatchBarcodeScanner({
     async (rawCode: string, scanFormat?: string, fromQueue = false) => {
       const code = rawCode.trim();
       if (!code) return;
-      if (mode === "lookup" && lookupResult) return;
+      if ((mode === "lookup" || confirmEachScan) && lookupResult) return;
 
       // Throttle duplicati: stesso codice in <2s viene ignorato silenziosamente.
       // Saltato per le scansioni drenate dalla coda (già passate dal throttle).
@@ -373,7 +387,7 @@ export function BatchBarcodeScanner({
             serialNumbers: [],
             scannedAt: now,
           };
-          if (mode === "lookup") {
+          if (mode === "lookup" || confirmEachScan) {
             setLookupResult(noMatchEntry);
             return;
           }
@@ -493,6 +507,15 @@ export function BatchBarcodeScanner({
           }
         }
 
+        // confirmEachScan: non aggiungere subito — metti in pausa e chiedi conferma
+        // (l'articolo è stato trovato; il popup mostra nome+codice).
+        if (confirmEachScan) {
+          pendingOdaRef.current = odaItemId;
+          setLookupResult(nextEntry);
+          await successFeedback(); triggerFlash("green");
+          return;
+        }
+
         mergeResolvedEntry(nextEntry, odaItemId);
 
         await successFeedback(); triggerFlash("green");
@@ -511,6 +534,7 @@ export function BatchBarcodeScanner({
       allowedOdaItems,
       allowedOrderItems,
       appendEntry,
+      confirmEachScan,
       drainQueue,
       entries,
       lookup,
@@ -898,7 +922,34 @@ export function BatchBarcodeScanner({
         {/* Risultato lookup single-shot / Entries list batch */}
         <ScrollArea className="flex-1 min-h-0">
           <div className="p-4 space-y-2">
-            {mode === "lookup" && lookupResult ? (
+            {confirmEachScan && lookupResult ? (
+              <ConfirmAddPanel
+                result={lookupResult}
+                canCreate={!!onRequestCreateItem}
+                onConfirmAdd={(qty) => {
+                  if (lookupResult.stockItemId) {
+                    mergeResolvedEntry({ ...lookupResult, quantity: qty }, pendingOdaRef.current);
+                  }
+                  pendingOdaRef.current = null;
+                  setLookupResult(null);
+                }}
+                onCreate={async () => {
+                  if (!onRequestCreateItem) return;
+                  const created = await onRequestCreateItem(lookupResult.rawCode);
+                  if (created) {
+                    mergeResolvedEntry({
+                      ...lookupResult,
+                      stockItemId: created.stockItemId,
+                      itemName: created.itemName,
+                      trackingMode: created.trackingMode,
+                    }, pendingOdaRef.current);
+                  }
+                  pendingOdaRef.current = null;
+                  setLookupResult(null);
+                }}
+                onCancel={() => { pendingOdaRef.current = null; setLookupResult(null); }}
+              />
+            ) : mode === "lookup" && lookupResult ? (
               <LookupResultPanel
                 result={lookupResult}
                 onFilterInTable={() => {
@@ -988,6 +1039,8 @@ export function BatchBarcodeScanner({
                 <EntryRow
                   key={entry.clientUuid}
                   entry={entry}
+                  showPrice={mode === "carico"}
+                  onPriceChange={(p) => updateEntryPrice(entry.clientUuid, p)}
                   onIncrement={() => updateEntryQty(entry.clientUuid, +1)}
                   onDecrement={() => updateEntryQty(entry.clientUuid, -1)}
                   canIncrement={canIncrement}
@@ -1095,6 +1148,85 @@ export function BatchBarcodeScanner({
   );
 }
 
+// ────────────────────────────────────────────────────────────
+// ConfirmAddPanel — popup di conferma "una alla volta" (confirmEachScan).
+// Articolo trovato → associa (+ quantità per i non-serializzati);
+// non trovato → crea articolo. Sostituisce l'aggiunta automatica.
+// ────────────────────────────────────────────────────────────
+function ConfirmAddPanel({
+  result,
+  canCreate,
+  onConfirmAdd,
+  onCreate,
+  onCancel,
+}: {
+  result: BatchScanEntry;
+  canCreate: boolean;
+  onConfirmAdd: (qty: number) => void;
+  onCreate: () => void | Promise<void>;
+  onCancel: () => void;
+}) {
+  const matched = !!result.stockItemId;
+  const serialized = result.trackingMode === "serialized";
+  const [qty, setQty] = useState(1);
+  const [creating, setCreating] = useState(false);
+
+  return (
+    <div className="rounded-xl border-2 border-primary/40 bg-primary/5 p-4 space-y-4">
+      <div className="flex items-start gap-3">
+        <div className={`rounded-full p-2 shrink-0 ${matched ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+          {matched ? <Package className="h-5 w-5" /> : <PackagePlus className="h-5 w-5" />}
+        </div>
+        <div className="min-w-0 flex-1">
+          {matched ? (
+            <>
+              <p className="font-semibold text-sm leading-tight">{result.itemName || "Articolo"}</p>
+              <p className="text-xs text-emerald-700 mt-0.5">✓ Trovato a sistema</p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold text-sm leading-tight">Articolo non trovato</p>
+              <p className="text-xs text-amber-700 mt-0.5">Crealo per associarlo a questo codice</p>
+            </>
+          )}
+          <p className="text-[11px] font-mono text-muted-foreground mt-1 truncate">{result.rawCode}</p>
+          {serialized && result.serialNumbers[0] && (
+            <p className="text-[11px] text-muted-foreground">Seriale: {result.serialNumbers[0]}</p>
+          )}
+        </div>
+      </div>
+
+      {matched && !serialized && (
+        <div className="flex items-center gap-2">
+          <Label className="text-xs shrink-0">Quantità</Label>
+          <Button type="button" size="icon" variant="outline" className="h-9 w-9" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</Button>
+          <Input type="number" inputMode="numeric" min={1} value={qty}
+            onChange={(e) => setQty(Math.max(1, parseInt(e.target.value) || 1))}
+            className="h-9 w-20 text-center font-semibold tabular-nums" />
+          <Button type="button" size="icon" variant="outline" className="h-9 w-9" onClick={() => setQty((q) => q + 1)}>+</Button>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Button type="button" variant="ghost" onClick={onCancel} className="flex-1">
+          <X className="h-4 w-4 mr-1" /> Annulla
+        </Button>
+        {matched ? (
+          <Button type="button" onClick={() => onConfirmAdd(serialized ? Math.max(1, result.serialNumbers.length || 1) : qty)} className="flex-[2]">
+            <Check className="h-4 w-4 mr-1" /> Conferma e aggiungi
+          </Button>
+        ) : (
+          <Button type="button" disabled={!canCreate || creating}
+            onClick={async () => { setCreating(true); try { await onCreate(); } finally { setCreating(false); } }}
+            className="flex-[2]">
+            {creating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <PackagePlus className="h-4 w-4 mr-1" />} Crea articolo
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LookupResultPanel({
   result,
   onFilterInTable,
@@ -1179,6 +1311,8 @@ function LookupResultPanel({
 
 function EntryRow({
   entry,
+  showPrice = false,
+  onPriceChange,
   onIncrement,
   onDecrement,
   canIncrement = true,
@@ -1187,6 +1321,8 @@ function EntryRow({
   creating,
 }: {
   entry: BatchScanEntry;
+  showPrice?: boolean;
+  onPriceChange?: (price: number | undefined) => void;
   onIncrement: () => void;
   onDecrement: () => void;
   canIncrement?: boolean;
@@ -1208,6 +1344,33 @@ function EntryRow({
         <p className="text-[11px] text-muted-foreground font-mono truncate">
           {entry.rawCode}
         </p>
+        {showPrice && (
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <span className="shrink-0 text-[11px] text-muted-foreground">Prezzo acq.</span>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                €
+              </span>
+              <Input
+                type="text"
+                inputMode="decimal"
+                defaultValue={entry.purchasePrice != null ? String(entry.purchasePrice) : ""}
+                onChange={(e) => {
+                  const raw = e.target.value.trim().replace(",", ".");
+                  if (raw === "") {
+                    onPriceChange?.(undefined);
+                    return;
+                  }
+                  const n = parseFloat(raw);
+                  onPriceChange?.(Number.isFinite(n) && n >= 0 ? n : undefined);
+                }}
+                placeholder="—"
+                className="h-8 w-24 pl-5 text-sm tabular-nums"
+                aria-label={`Prezzo d'acquisto per ${entry.itemName ?? entry.rawCode}`}
+              />
+            </div>
+          </div>
+        )}
         {entry.ambiguous && !noMatch && (
           <Badge
             variant="outline"

@@ -121,6 +121,15 @@ export function useBatchScannerEntries({
     setEntries((prev) => prev.filter((entry) => entry.clientUuid !== uuid));
   }, []);
 
+  /** Entrata merce: prezzo d'acquisto per riga, editabile in revisione. */
+  const updateEntryPrice = useCallback((uuid: string, price: number | undefined) => {
+    setEntries((prev) =>
+      prev.map((entry) =>
+        entry.clientUuid === uuid ? { ...entry, purchasePrice: price } : entry,
+      ),
+    );
+  }, []);
+
   const promoteNoMatch = useCallback((uuid: string, result: PromoteNoMatchResult) => {
     setEntries((prev) =>
       prev.map((entry) =>
@@ -155,6 +164,7 @@ export function useBatchScannerEntries({
     appendEntry,
     mergeResolvedEntry,
     updateEntryQty,
+    updateEntryPrice,
     removeEntry,
     promoteNoMatch,
     trackDuplicate,

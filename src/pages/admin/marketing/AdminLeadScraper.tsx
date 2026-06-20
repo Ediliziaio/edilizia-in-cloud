@@ -154,6 +154,21 @@ function fmtFatturato(v: number | null): string {
   return `€${Math.round(v)}`;
 }
 
+// Stima il costo di una ricerca PRIMA di lanciarla (trasparenza spesa).
+function stimaCostoRicerca(source: string, n: number): { testo: string } {
+  switch (source) {
+    case "company_search": {
+      const eur = n * 0.03; // ricerca + dettaglio IT-advanced openapi.it
+      return { testo: `~${eur.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 })} (${n} aziende × ~€0,03)` };
+    }
+    case "apollo": return { testo: `consuma ~${n} crediti Apollo` };
+    case "google_maps": return { testo: "gratis (entro il cap giornaliero Google Places)" };
+    case "linkedin": return { testo: "~gratis (ricerca web)" };
+    case "internal": return { testo: "gratis (DB proprietario / scraper self-host)" };
+    default: return { testo: "" };
+  }
+}
+
 // Normalizza un numero IT in E.164 e indica se è mobile (per WhatsApp).
 function normalizeItPhone(raw: string | null): { e164: string | null; isMobile: boolean } {
   if (!raw) return { e164: null, isMobile: false };
@@ -215,6 +230,14 @@ function LeadDetailSheet({ lead, onClose, onSave, saving }: {
               {lead.website && <div><span className="text-muted-foreground">Sito:</span> <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{lead.website}</a></div>}
               {lead.partita_iva && <div><span className="text-muted-foreground">P.IVA:</span> {lead.partita_iva}</div>}
               {lead.ateco && <div><span className="text-muted-foreground">ATECO:</span> {lead.ateco} {lead.ateco_desc}</div>}
+              {(lead.fatturato != null || lead.dipendenti != null || lead.forma_giuridica || lead.anno_fondazione) && (
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                  {lead.fatturato != null && <span><span className="text-muted-foreground">Fatturato:</span> <span className="font-medium">{fmtFatturato(lead.fatturato)}</span></span>}
+                  {lead.dipendenti != null && <span><span className="text-muted-foreground">Dipendenti:</span> {lead.dipendenti}</span>}
+                  {lead.forma_giuridica && <span><span className="text-muted-foreground">Forma:</span> {lead.forma_giuridica}</span>}
+                  {lead.anno_fondazione && <span><span className="text-muted-foreground">Anno:</span> {lead.anno_fondazione}</span>}
+                </div>
+              )}
               {lead.address && <div><span className="text-muted-foreground">Indirizzo:</span> {lead.address}</div>}
               {lead.linkedin_url && <div><a href={lead.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Profilo LinkedIn ↗</a></div>}
               {lead.ai_summary && <div className="rounded bg-muted/50 p-2"><span className="text-muted-foreground">Sintesi AI: </span>{lead.ai_summary}</div>}
@@ -477,7 +500,7 @@ function EnrichCompanySheet({ open, onClose }: { open: boolean; onClose: () => v
 
   const canRun = !!(businessName.trim() || website.trim() || piva.trim());
   const copy = (t: string) => { navigator.clipboard?.writeText(t); toast.success("Copiato"); };
-  const empty = result && !result.emails?.length && !result.phones?.length && !result.partita_iva && !result.vies?.valid;
+  const empty = result && !result.emails?.length && !result.phones?.length && !result.partita_iva && !result.vies?.valid && !(result.firmografici && Object.keys(result.firmografici).length > 0);
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -531,12 +554,50 @@ function EnrichCompanySheet({ open, onClose }: { open: boolean; onClose: () => v
                 {result.instagram_url && <a href={result.instagram_url} target="_blank" rel="noopener noreferrer" title="Instagram"><Instagram className="h-4 w-4 text-[#e1306c]" /></a>}
               </div>
             )}
-            {result.firmografici && Object.keys(result.firmografici).length > 0 && (
-              <details className="rounded-lg border p-3 text-xs">
-                <summary className="cursor-pointer text-[11px] uppercase tracking-wide text-muted-foreground">Dati ufficiali (Registro Imprese)</summary>
-                <pre className="mt-2 whitespace-pre-wrap break-words text-[11px]">{JSON.stringify(result.firmografici, null, 2)}</pre>
-              </details>
-            )}
+            {result.firmografici && Object.keys(result.firmografici).length > 0 && (() => {
+              const f = result.firmografici as {
+                fatturato?: number; dipendenti?: number; ateco?: string; ateco_desc?: string;
+                forma_giuridica?: string; anno_fondazione?: number; company_size?: string; pec?: string;
+              };
+              const rows: { label: string; value: string }[] = [];
+              if (f.fatturato != null) rows.push({ label: "Fatturato", value: fmtFatturato(f.fatturato) });
+              if (f.dipendenti != null) rows.push({ label: "Dipendenti", value: String(f.dipendenti) });
+              if (f.ateco) rows.push({ label: "ATECO", value: `${f.ateco}${f.ateco_desc ? ` · ${f.ateco_desc}` : ""}` });
+              if (f.forma_giuridica) rows.push({ label: "Forma giuridica", value: f.forma_giuridica });
+              if (f.anno_fondazione) rows.push({ label: "Anno fondazione", value: String(f.anno_fondazione) });
+              if (f.company_size) rows.push({ label: "Dimensione", value: f.company_size });
+              return (
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <Building2 className="h-3 w-3" /> Dati ufficiali (Registro Imprese)
+                  </div>
+                  {rows.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      {rows.map((r) => (
+                        <div key={r.label}>
+                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{r.label}</div>
+                          <div className="text-sm font-medium">{r.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Nessun dato firmografico disponibile.</p>
+                  )}
+                  {f.pec && (
+                    <div className="mt-2 border-t pt-2">
+                      <div className="mb-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">PEC</div>
+                      <button type="button" onClick={() => copy(f.pec!)} className="flex items-center gap-1.5 text-sm hover:text-primary">
+                        <Mail className="h-3 w-3 shrink-0" />{f.pec}
+                      </button>
+                    </div>
+                  )}
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-muted-foreground">Tutti i campi</summary>
+                    <pre className="mt-1 whitespace-pre-wrap break-words text-[10px]">{JSON.stringify(result.firmografici, null, 2)}</pre>
+                  </details>
+                </div>
+              );
+            })()}
             {empty && (
               <div className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
                 Nessuna info trovata. Prova ad aggiungere il sito web.
@@ -571,12 +632,13 @@ export default function AdminLeadScraper() {
   const [massive, setMassive] = useState(false);          // scraping massivo (migliaia, asincrono)
   const [massiveTarget, setMassiveTarget] = useState("1000");
   const [jobId, setJobId] = useState<string | null>(null);
+  const activeMassiveJobRef = useRef<string | null>(null); // ferma il polling orfano del job massivo
   const [renderLimit, setRenderLimit] = useState(200);    // righe renderizzate (anti-jank su migliaia)
 
   const [progress, setProgress] = useState<{ label: string; done: number; total: number } | null>(null);
   const [filterQ, setFilterQ] = useState("");
-  const [filterFlags, setFilterFlags] = useState({ email: false, hot: false, notCrm: false, edil: false });
-  const [sortBy, setSortBy] = useState<"ai" | "intent" | "buying" | "rating" | "name">("ai");
+  const [filterFlags, setFilterFlags] = useState({ email: false, hot: false, notCrm: false, edil: false, conFatturato: false });
+  const [sortBy, setSortBy] = useState<"ai" | "intent" | "buying" | "rating" | "name" | "fatturato">("ai");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [sequenzaId, setSequenzaId] = useState<string>("");
 
@@ -686,6 +748,16 @@ export default function AdminLeadScraper() {
     queryFn: () => invoke({ action: "openapi_env" }) as Promise<{ env: string; hasToken: boolean }>,
     enabled: hasAccess && source === "company_search",
   });
+  // Quota odierna per la trasparenza costi pre-ricerca (riusa la vista usata in Analytics).
+  const { data: providerUsageInline = [] } = useQuery({
+    queryKey: ["lead-scraper", "provider-usage-inline"],
+    queryFn: async (): Promise<{ provider: string; calls_today: number }[]> => {
+      const { data } = await fromLS("lead_scraper_provider_usage").select("provider, calls_today");
+      return (data || []) as { provider: string; calls_today: number }[];
+    },
+    enabled: hasAccess && (source === "company_search" || source === "google_maps"),
+    staleTime: 60_000,
+  });
   const setOpenapiEnv = useMutation({
     mutationFn: (env: "sandbox" | "prod") => invoke({ action: "openapi_env", set: env }),
     onSuccess: (data) => {
@@ -706,6 +778,7 @@ export default function AdminLeadScraper() {
     onSuccess: (data) => {
       setCurrentSearchId(data.searchId);
       setSelected(new Set());
+      setRenderLimit(200);
       queryClient.invalidateQueries({ queryKey: ["lead-scraper", "searches"] });
       const desc = data.scrapedNew != null
         ? `${data.reused ?? 0} riusati dal DB (gratis) · ${data.scrapedNew} nuovi scrapati`
@@ -725,20 +798,22 @@ export default function AdminLeadScraper() {
       const data = await invoke({ action: "enqueue_scrape", keyword: keyword.trim(), city: city.trim(), region: region.trim(), engine: "paginegialle", target, extractEmails });
       const id = data.jobId as string;
       setJobId(id);
+      activeMassiveJobRef.current = id;
       setProgress({ label: "Scraping massivo (in coda)", done: 0, total: target });
       const poll = async () => {
+        if (activeMassiveJobRef.current !== id) return; // job non più attivo (unmount/nuovo job) → stop
         try {
           const s = await invoke({ action: "job_status", jobId: id });
           setProgress({ label: `Scraping massivo · ${s.status}`, done: s.processed || 0, total: s.total || target });
           if (s.status === "done") {
-            setProgress(null); setJobId(null);
+            setProgress(null); setJobId(null); activeMassiveJobRef.current = null;
             if (s.search_id) { setCurrentSearchId(s.search_id); setSelected(new Set()); setRenderLimit(200); }
             queryClient.invalidateQueries({ queryKey: ["lead-scraper", "searches"] });
             toast.success(`Scraping massivo completato`, { description: `${s.results_count} aziende nel DB proprietario` });
             return;
           }
           if (s.status === "error" || s.status === "canceled") {
-            setProgress(null); setJobId(null);
+            setProgress(null); setJobId(null); activeMassiveJobRef.current = null;
             toast.error("Job interrotto", { description: s.error || s.status });
             return;
           }
@@ -845,6 +920,26 @@ export default function AdminLeadScraper() {
       });
     },
     onError: (e: Error) => toast.error("Arricchimento Registro fallito", { description: e.message }),
+  });
+
+  // Valida P.IVA su VIES (gratis) → ragione sociale ufficiale. Azione edge già pronta.
+  const validateVatMutation = useMutation({
+    mutationFn: (resultIds: string[]) => batchInvoke("Valida P.IVA", "validate_vat", resultIds, 10),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      toast.success(`${data.validated} P.IVA valide (VIES)`, { description: `su ${data.attempted} con P.IVA · ragione sociale ufficiale aggiornata` });
+    },
+    onError: (e: Error) => toast.error("Validazione P.IVA fallita", { description: e.message }),
+  });
+
+  // Dati persona dal profilo LinkedIn (Proxycurl): nome/ruolo/email decisore.
+  const enrichLinkedinMutation = useMutation({
+    mutationFn: (resultIds: string[]) => batchInvoke("Dati LinkedIn", "enrich_linkedin_profile", resultIds, 6),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-scraper", "results", currentSearchId] });
+      toast.success(`${data.enriched} profili LinkedIn arricchiti`, { description: `nome/ruolo/email · su ${data.attempted} con URL LinkedIn` });
+    },
+    onError: (e: Error) => toast.error("Arricchimento LinkedIn fallito", { description: e.message }),
   });
 
   // Outreach reale — invio a freddo. channel "mailbox" = ruota sulle caselle Google/Outlook
@@ -1097,6 +1192,7 @@ export default function AdminLeadScraper() {
     enrollMutation.isPending || enrichApolloMutation.isPending || enrichPdlMutation.isPending ||
     verifyEmailMutation.isPending || buyingMutation.isPending || flagExistingMutation.isPending ||
     generateSequenceMutation.isPending || findPecMutation.isPending || enrichRegistroMutation.isPending ||
+    validateVatMutation.isPending || enrichLinkedinMutation.isPending ||
     sendOutreachMutation.isPending || pipelineRunning || jobId !== null || progress !== null;
 
   // ── filtri + ordinamento ──────────────────────────────────────────────────────
@@ -1108,9 +1204,11 @@ export default function AdminLeadScraper() {
     if (filterFlags.hot) list = list.filter((r) => r.ai_label === "hot" || (r.intent_score != null && r.intent_score >= 70));
     if (filterFlags.notCrm) list = list.filter((r) => !r.pushed_to_crm);
     if (filterFlags.edil) list = list.filter((r) => /^4[123]/.test(r.ateco || "")); // ATECO 41/42/43 = costruzioni
+    if (filterFlags.conFatturato) list = list.filter((r) => (r.fatturato ?? 0) > 0); // solo con fatturato dal Registro
     const arr = [...list];
     arr.sort((a, b) => {
       if (sortBy === "name") return a.business_name.localeCompare(b.business_name);
+      if (sortBy === "fatturato") return (b.fatturato ?? 0) - (a.fatturato ?? 0);
       const key = sortBy === "ai" ? "ai_score" : sortBy === "intent" ? "intent_score" : sortBy === "buying" ? "buying_score" : "rating";
       return (Number(b[key as keyof LeadResult] ?? -1)) - (Number(a[key as keyof LeadResult] ?? -1));
     });
@@ -1121,7 +1219,7 @@ export default function AdminLeadScraper() {
   // ── funnel ────────────────────────────────────────────────────────────────────
   const funnel = useMemo(() => ({
     total: results.length,
-    enriched: results.filter((r) => r.enrichment && (r as unknown as { enriched?: boolean }).enriched).length || results.filter((r) => r.intent_score != null).length,
+    enriched: results.filter((r) => r.enrichment != null || r.intent_score != null).length,
     qualified: results.filter((r) => r.ai_score != null).length,
     pushed: results.filter((r) => r.pushed_to_crm).length,
     opps: results.filter((r) => r.crm_opportunity_id).length,
@@ -1143,7 +1241,10 @@ export default function AdminLeadScraper() {
   });
   const allSelected = visibleResults.length > 0 && visibleResults.every((r) => selected.has(r.id));
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(visibleResults.map((r) => r.id)));
-  const selectedIds = [...selected];
+  // BUGFIX: azioni in blocco + export agiscono SOLO sui lead VISIBILI col filtro
+  // corrente (non su selezionati poi nascosti da un filtro).
+  const visibleIds = useMemo(() => new Set(visibleResults.map((r) => r.id)), [visibleResults]);
+  const selectedIds = [...selected].filter((id) => visibleIds.has(id));
 
   // ── export CSV ─────────────────────────────────────────────────────────────────
   const CSV_HEADER = ["Azienda", "Contatto", "Ruolo", "Telefono", "Email", "Stato email", "P.IVA", "Sito",
@@ -1172,7 +1273,7 @@ export default function AdminLeadScraper() {
 
   // Export rapido: selezione o risultati già in memoria (≤2000).
   const exportCsv = () => {
-    const rows = selectedIds.length ? results.filter((r) => selected.has(r.id)) : results;
+    const rows = selectedIds.length ? visibleResults.filter((r) => selected.has(r.id)) : visibleResults;
     if (!rows.length) return;
     const csv = [CSV_HEADER.join(","), ...rows.map(csvRow)].join("\n");
     downloadCsv(csv);
@@ -1383,6 +1484,20 @@ export default function AdminLeadScraper() {
                 </div>
               )}
 
+              {(() => {
+                const isSandbox = source === "company_search" && openapiEnvQuery.data?.env !== "prod";
+                const n = massive && source === "internal" ? (parseInt(massiveTarget, 10) || 0) : (parseInt(maxResults, 10) || 0);
+                const stima = stimaCostoRicerca(source, n);
+                if (!stima.testo && !isSandbox) return null;
+                const googleToday = providerUsageInline.find((p) => p.provider === "google_places")?.calls_today;
+                return (
+                  <div className="rounded-md border bg-muted/30 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                    <span>Stima costo: </span>
+                    <span className="font-medium text-foreground">{isSandbox ? "gratis (Sandbox · dati di test)" : stima.testo}</span>
+                    {source === "google_maps" && googleToday != null && <span> · Google oggi: {googleToday}/2000</span>}
+                  </div>
+                );
+              })()}
               <Button className="w-full gap-2"
                 onClick={() => (massive && source === "internal" ? runMassive() : searchMutation.mutate())}
                 disabled={busy || !keyword.trim()}>
@@ -1423,7 +1538,7 @@ export default function AdminLeadScraper() {
                     className={`group flex items-center gap-2 rounded-lg px-2 py-1.5 cursor-pointer transition-colors ${
                       currentSearchId === s.id ? "bg-primary/10" : "hover:bg-muted/50"
                     }`}
-                    onClick={() => { setCurrentSearchId(s.id); setSelected(new Set()); }}
+                    onClick={() => { setCurrentSearchId(s.id); setSelected(new Set()); setRenderLimit(200); }}
                   >
                     <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <div className="min-w-0 flex-1">
@@ -1521,6 +1636,12 @@ export default function AdminLeadScraper() {
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => enrichRegistroMutation.mutate(selectedIds)}>
                       <Building2 className="h-3.5 w-3.5 mr-2 text-sky-600" /> Registro Imprese (ATECO, fatturato, dipendenti)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => validateVatMutation.mutate(selectedIds)}>
+                      <BadgeCheck className="h-3.5 w-3.5 mr-2 text-emerald-600" /> Valida P.IVA (VIES, gratis)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => enrichLinkedinMutation.mutate(selectedIds)}>
+                      <Linkedin className="h-3.5 w-3.5 mr-2 text-[#0a66c2]" /> Dati persona da LinkedIn (Proxycurl)
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuLabel className="text-[11px]">Intento & outreach</DropdownMenuLabel>
@@ -1635,10 +1756,11 @@ export default function AdminLeadScraper() {
                     <SelectItem value="buying">Ordina: Intento d'acquisto</SelectItem>
                     <SelectItem value="intent">Ordina: Intento (fit)</SelectItem>
                     <SelectItem value="rating">Ordina: Rating</SelectItem>
+                    <SelectItem value="fatturato">Ordina: Fatturato</SelectItem>
                     <SelectItem value="name">Ordina: Nome</SelectItem>
                   </SelectContent>
                 </Select>
-                {([["email", "Con email"], ["hot", "Hot"], ["notCrm", "Non in CRM"], ["edil", "Solo edilizia"]] as const).map(([k, lbl]) => (
+                {([["email", "Con email"], ["hot", "Hot"], ["notCrm", "Non in CRM"], ["edil", "Solo edilizia"], ["conFatturato", "Con fatturato"]] as const).map(([k, lbl]) => (
                   <button key={k} type="button"
                     onClick={() => setFilterFlags((f) => ({ ...f, [k]: !f[k] }))}
                     className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${filterFlags[k] ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted/50"}`}>

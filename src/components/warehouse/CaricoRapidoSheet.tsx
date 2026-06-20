@@ -12,7 +12,7 @@
  * mobile fluido (un solo Sheet, scan continuo, niente passaggi inutili).
  */
 
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
@@ -54,6 +54,8 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  PackagePlus,
+  Sparkles,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -65,6 +67,7 @@ import type { BatchScanEntry } from "./BatchBarcodeScanner";
 const BatchBarcodeScanner = lazy(() =>
   import("./BatchBarcodeScanner").then((m) => ({ default: m.BatchBarcodeScanner })),
 );
+import { ManualArticleAdder } from "./ManualArticleAdder";
 
 interface CaricoRapidoSheetProps {
   open: boolean;
@@ -84,6 +87,7 @@ interface RelatedOrderOption {
   id: string;
   order_code: string;
   customer_name: string | null;
+  description: string | null;
 }
 
 export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps) {
@@ -132,7 +136,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       if (!companyId) return [];
       const { data, error } = await supabase
         .from("orders")
-        .select("id, order_code, customer:customer_id(first_name, last_name)")
+        .select("id, order_code, description, tipo_lavoro, customer:customer_id(first_name, last_name)")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
         .limit(80);
@@ -140,6 +144,8 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
       type RawOrder = {
         id: string;
         order_code: string | null;
+        description?: string | null;
+        tipo_lavoro?: string | null;
         customer?: { first_name?: string | null; last_name?: string | null } | null;
       };
       return ((data ?? []) as unknown as RawOrder[]).map((order) => ({
@@ -149,6 +155,8 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
           order.customer?.first_name || order.customer?.last_name
             ? `${order.customer?.first_name ?? ""} ${order.customer?.last_name ?? ""}`.trim()
             : null,
+        // Descrizione lavoro/commessa: prima `description`, poi `tipo_lavoro`.
+        description: (order.description ?? order.tipo_lavoro ?? "").trim() || null,
       }));
     },
     enabled: !!companyId,
@@ -162,20 +170,52 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
   // Default CHIUSA su mobile per ridurre clutter (l'utente la apre solo se serve).
   const [ddtSectionOpen, setDdtSectionOpen] = useState(false);
   const [receiveMode, setReceiveMode] = useState<ReceiveMode>("scan");
+  // Scansione "una alla volta": ogni scan apre un popup di conferma (trovato→associa,
+  // non trovato→crea) prima di aggiungere. Default ON (richiesta utente).
+  const [confirmEachScan, setConfirmEachScan] = useState(true);
   const [supplierId, setSupplierId] = useState<string | undefined>();
   const [warehouseId, setWarehouseId] = useState<string | undefined>();
   const [relatedOrderIds, setRelatedOrderIds] = useState<string[]>([]);
   const [orderSearch, setOrderSearch] = useState("");
   const [ddtFile, setDdtFile] = useState<File | null>(null);
+  // Analisi AI del DDT: legge foto/PDF, estrae righe prodotto e pre-compila il carico.
+  const [ddtAiLoading, setDdtAiLoading] = useState(false);
+  const [ddtAiDone, setDdtAiDone] = useState(false);
   const [notes, setNotes] = useState("");
   // Lotto opzionale: se l'utente compila il codice, dopo il carico tutti i
   // stock_units (serializzati) appena creati verranno raggruppati sotto questo
   // lotto. Caso d'uso fotovoltaico/impiantistica: 1 bancale = 1 lotto.
   const [lottoCode, setLottoCode] = useState("");
+  // B3 — scadenza lotto + sezione di stoccaggio (entrata merce).
+  const [lottoScadenza, setLottoScadenza] = useState("");
+  const [sectionId, setSectionId] = useState<string | undefined>();
+  // B3 — sezioni/ubicazioni del magazzino selezionato (per stoccaggio mirato).
+  // NB: dichiarata DOPO warehouseId/sectionId — referenziarli prima causa TDZ
+  // ("Cannot access before initialization") e fa crashare l'intera pagina.
+  const { data: sections = [] } = useQuery({
+    queryKey: ["carico-rapido-sections", companyId, warehouseId],
+    enabled: !!companyId && !!warehouseId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_sections")
+        .select("id, name")
+        .eq("company_id", companyId!)
+        .eq("warehouse_id", warehouseId)
+        .order("position", { ascending: true })
+        .order("name", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string }>;
+    },
+  });
+  const sectionName = sectionId ? sections.find((s) => s.id === sectionId)?.name ?? null : null;
   // "Incolla seriali bancale": alternativa alla camera quando il QR è denso/
   // difficile da inquadrare → incolli la lista, costruiamo le entry e si prosegue.
   const [serialPaste, setSerialPaste] = useState("");
   const [pasteSectionOpen, setPasteSectionOpen] = useState(false);
+  // B1 — "Aggiungi a mano dal listino": entrata merce senza scansione
+  // (es. arriva un bancale di articoli già a catalogo → li scegli + quantità + prezzo).
+  const [manualSectionOpen, setManualSectionOpen] = useState(false);
   const [productPhotos, setProductPhotos] = useState<File[]>([]);
   const [entries, setEntries] = useState<BatchScanEntry[]>([]);
   const [insertedAt, setInsertedAt] = useState(() => new Date());
@@ -247,7 +287,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
     const q = orderSearch.trim().toLowerCase();
     if (!q) return relatedOrders;
     return relatedOrders.filter((order) =>
-      `${order.order_code} ${order.customer_name ?? ""}`.toLowerCase().includes(q),
+      `${order.order_code} ${order.customer_name ?? ""} ${order.description ?? ""}`.toLowerCase().includes(q),
     );
   }, [orderSearch, relatedOrders]);
   const scannerContextLabel = useMemo(() => {
@@ -453,6 +493,113 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
     setStep("scan");
   };
 
+  // ── Analisi AI del DDT ──────────────────────────────────────────────
+  // Manda foto/PDF del DDT all'edge function ai-ddt-analyzer: estrae le righe
+  // prodotto, le matcha contro la giacenza e pre-compila `entries`. Stessa
+  // funzione riusabile un domani da WhatsApp/Silvio (basta file + company).
+  const handleAnalyzeDdt = useCallback(async () => {
+    if (!ddtFile || !companyId) return;
+    setDdtAiLoading(true);
+    try {
+      const fileBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const res = String(reader.result ?? "");
+          const comma = res.indexOf(",");
+          resolve(comma >= 0 ? res.slice(comma + 1) : res);
+        };
+        reader.onerror = () => reject(reader.error ?? new Error("Lettura file non riuscita"));
+        reader.readAsDataURL(ddtFile);
+      });
+
+      const { data, error } = await supabase.functions.invoke("ai-ddt-analyzer", {
+        body: {
+          file_base64: fileBase64,
+          mime: ddtFile.type || "image/jpeg",
+          company_id: companyId,
+          warehouse_id: warehouseId ?? null,
+        },
+      });
+      if (error) throw error;
+      const payload = data as {
+        success?: boolean;
+        error?: string;
+        extracted?: {
+          supplier_name?: string | null;
+          items?: Array<{
+            description?: string | null;
+            quantity?: number | string | null;
+            unit_price?: number | string | null;
+            code?: string | null;
+            barcode?: string | null;
+          }>;
+        };
+        matches?: Array<{
+          index: number;
+          stock_item_id: string | null;
+          matched_name: string | null;
+          tracking_mode: string | null;
+        }>;
+      };
+      if (!payload?.success) throw new Error(payload?.error ?? "Analisi non riuscita");
+
+      const items = payload.extracted?.items ?? [];
+      const matches = payload.matches ?? [];
+      if (items.length === 0) {
+        toast.warning("Nessun articolo rilevato nel DDT", {
+          description: "Prova con una foto più nitida, oppure aggiungi a mano dal listino.",
+        });
+        return;
+      }
+
+      const ts = Date.now();
+      const newEntries: BatchScanEntry[] = items.map((it, i) => {
+        const m = matches.find((x) => x.index === i);
+        const qtyNum = Number(it.quantity);
+        const quantity = Number.isFinite(qtyNum) && qtyNum > 0 ? Math.round(qtyNum) : 1;
+        const priceNum = it.unit_price != null ? Number(it.unit_price) : NaN;
+        const purchasePrice = Number.isFinite(priceNum) && priceNum >= 0 ? priceNum : undefined;
+        return {
+          clientUuid:
+            typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${ts}-${i}`,
+          rawCode: String(it.barcode || it.code || it.description || `riga-${i + 1}`),
+          scanFormat: "ai/ddt",
+          stockItemId: m?.stock_item_id ?? null,
+          itemName: m?.matched_name ?? (it.description ? String(it.description) : null),
+          trackingMode:
+            (m?.tracking_mode as "fungible" | "serialized" | null) ??
+            (m?.stock_item_id ? "fungible" : null),
+          quantity,
+          serialNumbers: [],
+          purchasePrice,
+          scannedAt: ts + i,
+        };
+      });
+
+      setEntries((prev) => [...prev, ...newEntries]);
+
+      // Pre-seleziona il fornitore se l'AI lo riconosce e non è già scelto.
+      const supName = payload.extracted?.supplier_name;
+      if (supName && !supplierId) {
+        const needle = String(supName).toLowerCase().slice(0, 12);
+        const sup = suppliers.find((s) => (s.name ?? "").toLowerCase().includes(needle));
+        if (sup) setSupplierId(sup.id);
+      }
+
+      const matchedCount = newEntries.filter((e) => e.stockItemId).length;
+      setDdtAiDone(true);
+      toast.success(`DDT analizzato: ${items.length} righe estratte`, {
+        description: `${matchedCount} già a catalogo, ${items.length - matchedCount} da creare. Prosegui per controllare e confermare.`,
+      });
+    } catch (e) {
+      toast.error("Analisi DDT non riuscita", {
+        description: (e as Error)?.message ?? "Riprova o aggiungi gli articoli a mano.",
+      });
+    } finally {
+      setDdtAiLoading(false);
+    }
+  }, [ddtFile, companyId, warehouseId, suppliers, supplierId]);
+
   async function handleConfirm() {
     if (!warehouseId || !supplierId) return;
 
@@ -492,6 +639,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
         supplierId,
         entries,
         notes: mergedNotes || undefined,
+        sectionId: sectionId ?? null,
       });
 
       // ── Auto-create lotto se l'utente ha compilato lottoCode ────────────
@@ -537,6 +685,9 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 warehouse_id: warehouseId,
                 quantita: scannedSerials.length,
                 unita_misura: "pz",
+                // B3 — scadenza + ubicazione di stoccaggio del lotto (entrata merce).
+                data_scadenza: lottoScadenza || null,
+                posizione: sectionName ?? null,
                 note: `Creato da carico rapido il ${insertedAt.toLocaleString("it-IT")}`,
               })
               .select("id")
@@ -651,6 +802,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             confirmLabel="Conferma carico"
             isConfirming={batchCarico.isPending}
             onRequestCreateItem={handleRequestCreateItem}
+            confirmEachScan={confirmEachScan}
             onBack={() => setStep("context")}
             backLabel="Indietro"
           />
@@ -671,8 +823,8 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!fixed !left-3 !right-3 !top-3 !bottom-[calc(5.25rem+env(safe-area-inset-bottom))] !flex !flex-col !w-auto !max-w-none !translate-x-0 !translate-y-0 gap-0 overflow-hidden p-0 sm:!left-[50%] sm:!right-auto sm:!top-[50%] sm:!bottom-auto sm:!w-full sm:!max-w-3xl sm:!max-h-[90svh] sm:!translate-x-[-50%] sm:!translate-y-[-50%]">
-        <DialogHeader className="shrink-0 px-5 py-4 border-b">
+      <DialogContent className="!fixed !inset-0 !flex !flex-col !w-auto !max-w-none !translate-x-0 !translate-y-0 gap-0 overflow-hidden rounded-none border-0 p-0 sm:!inset-auto sm:!left-[50%] sm:!top-[50%] sm:!w-full sm:!max-w-3xl sm:!max-h-[90svh] sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:rounded-lg sm:border">
+        <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-5 sm:py-4 sm:pt-4">
           <DialogTitle className="flex items-center gap-2 text-base">
             <ArrowDownToLine className="h-5 w-5 text-primary" />
             Registra arrivo merce
@@ -687,47 +839,67 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             {progressItems.map((item) => (
               <div
                 key={item.label}
-                className={`rounded-md border px-2 py-1.5 text-center text-[10px] font-medium ${
+                className={`flex flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center text-[11px] font-medium transition-colors ${
                   item.done
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
                     : "border-border bg-muted/30 text-muted-foreground"
                 }`}
               >
-                <CheckCircle2 className={`mx-auto mb-0.5 h-3.5 w-3.5 ${item.done ? "" : "opacity-35"}`} />
-                <span className="block truncate">{item.label}</span>
+                {item.done ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <span className="h-3.5 w-3.5 rounded-full border-2 border-current opacity-40" />
+                )}
+                <span className="block w-full truncate leading-tight">{item.label}</span>
               </div>
             ))}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <p className="text-xs font-medium uppercase text-muted-foreground">Inserimento</p>
-              <p className="text-sm font-semibold">{insertedAt.toLocaleString("it-IT")}</p>
-              <p className="text-xs text-muted-foreground">Da: {insertedBy}</p>
+          {/* Modalità — scelta principale: bottoni grandi e tap-friendly (icona+
+              testo impilati su mobile, inline su desktop). */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Come registri l&apos;arrivo?
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={receiveMode === "scan" ? "default" : "outline"}
+                onClick={() => setReceiveMode("scan")}
+                className="h-auto min-h-[3.25rem] flex-col gap-1 py-2.5 sm:h-12 sm:min-h-0 sm:flex-row sm:gap-2 sm:py-0"
+              >
+                <ClipboardList className="h-5 w-5 sm:h-4 sm:w-4" />
+                <span className="text-sm font-medium">Scannerizza</span>
+              </Button>
+              <Button
+                type="button"
+                variant={receiveMode === "ddt" ? "default" : "outline"}
+                onClick={() => setReceiveMode("ddt")}
+                className="h-auto min-h-[3.25rem] flex-col gap-1 py-2.5 sm:h-12 sm:min-h-0 sm:flex-row sm:gap-2 sm:py-0"
+              >
+                <FileText className="h-5 w-5 sm:h-4 sm:w-4" />
+                <span className="text-sm font-medium">Carica DDT</span>
+              </Button>
             </div>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <p className="text-xs font-medium uppercase text-muted-foreground">Modalità</p>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant={receiveMode === "scan" ? "default" : "outline"}
-                  onClick={() => setReceiveMode("scan")}
-                  className="justify-start"
-                >
-                  <ClipboardList className="mr-2 h-4 w-4" />
-                  Scannerizza
-                </Button>
-                <Button
-                  type="button"
-                  variant={receiveMode === "ddt" ? "default" : "outline"}
-                  onClick={() => setReceiveMode("ddt")}
-                  className="justify-start"
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Carica DDT
-                </Button>
-              </div>
-            </div>
+            {receiveMode === "scan" && (
+              <button
+                type="button"
+                onClick={() => setConfirmEachScan((v) => !v)}
+                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2 text-left"
+                aria-pressed={confirmEachScan}
+              >
+                <span className="min-w-0 text-xs">
+                  <span className="font-medium">Conferma una alla volta</span>
+                  <span className="block text-muted-foreground">Popup di conferma a ogni scansione (associa o crea)</span>
+                </span>
+                <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${confirmEachScan ? "bg-primary" : "bg-muted-foreground/30"}`}>
+                  <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${confirmEachScan ? "left-[22px]" : "left-0.5"}`} />
+                </span>
+              </button>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              Inserimento {insertedAt.toLocaleString("it-IT")} · {insertedBy}
+            </p>
           </div>
 
           {/* Fornitore */}
@@ -740,7 +912,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
               </div>
             ) : (
               <Select value={supplierId} onValueChange={setSupplierId}>
-                <SelectTrigger id="cr-supplier">
+                <SelectTrigger id="cr-supplier" className="h-11 sm:h-10">
                   <SelectValue placeholder="Scegli un fornitore..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -816,27 +988,63 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 className="sr-only"
                 onChange={(event) => {
                   setDdtFile(event.target.files?.[0] ?? null);
+                  setDdtAiDone(false);
                   event.currentTarget.value = "";
                 }}
               />
               {ddtFile ? (
-                <div className="flex min-w-0 items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      DDT allegato
-                    </p>
-                    <p className="truncate text-xs font-medium">{ddtFile.name}</p>
+                <div className="space-y-2">
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        DDT allegato
+                      </p>
+                      <p className="truncate text-xs font-medium">{ddtFile.name}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 min-h-8 min-w-8 shrink-0"
+                      onClick={() => {
+                        setDdtFile(null);
+                        setDdtAiDone(false);
+                      }}
+                      aria-label={`Rimuovi DDT ${ddtFile.name}`}
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </Button>
                   </div>
+                  {/* Analisi AI del DDT: estrae le righe e pre-compila il carico */}
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 min-h-8 min-w-8 shrink-0"
-                    onClick={() => setDdtFile(null)}
-                    aria-label={`Rimuovi DDT ${ddtFile.name}`}
+                    variant={ddtAiDone ? "outline" : "default"}
+                    size="sm"
+                    className="w-full gap-2"
+                    disabled={ddtAiLoading || !companyId}
+                    onClick={handleAnalyzeDdt}
                   >
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    {ddtAiLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Analisi in corso…
+                      </>
+                    ) : ddtAiDone ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        Analizzato — rianalizza
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Analizza DDT con AI
+                      </>
+                    )}
                   </Button>
+                  <p className="text-[10px] text-muted-foreground">
+                    L&apos;AI legge il DDT, estrae gli articoli e pre-compila il carico (li potrai
+                    controllare prima di confermare).
+                  </p>
                 </div>
               ) : (
                 <label
@@ -919,10 +1127,17 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                           className="mt-0.5 !h-4 !w-4 !min-h-4 !min-w-4 rounded border-muted-foreground/50 data-[state=checked]:border-primary"
                         />
                         <span className="min-w-0 flex-1 leading-tight">
-                          <span className="block truncate font-semibold text-foreground">{order.order_code}</span>
-                          {order.customer_name && (
-                            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                              {order.customer_name}
+                          <span className="flex items-center gap-1.5">
+                            <span className="truncate font-semibold text-foreground">{order.order_code}</span>
+                            {order.customer_name && (
+                              <span className="truncate text-xs font-medium text-foreground/80">
+                                · {order.customer_name}
+                              </span>
+                            )}
+                          </span>
+                          {order.description && (
+                            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                              {order.description}
                             </span>
                           )}
                         </span>
@@ -945,8 +1160,14 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 Caricamento...
               </div>
             ) : (
-              <Select value={warehouseId} onValueChange={setWarehouseId}>
-                <SelectTrigger id="cr-warehouse">
+              <Select
+                value={warehouseId}
+                onValueChange={(v) => {
+                  setWarehouseId(v);
+                  setSectionId(undefined); // sezioni dipendono dal magazzino
+                }}
+              >
+                <SelectTrigger id="cr-warehouse" className="h-11 sm:h-10">
                   <SelectValue placeholder="Scegli un magazzino..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -967,6 +1188,34 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             )}
           </div>
 
+          {/* B3 — Sezione di stoccaggio + scadenza lotto (entrata merce) */}
+          {sections.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="cr-section" className="text-xs">
+                Sezione / ubicazione di stoccaggio (opzionale)
+              </Label>
+              <Select
+                value={sectionId ?? "__none__"}
+                onValueChange={(v) => setSectionId(v === "__none__" ? undefined : v)}
+              >
+                <SelectTrigger id="cr-section" className="h-11 sm:h-10">
+                  <SelectValue placeholder="Nessuna sezione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nessuna sezione</SelectItem>
+                  {sections.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">
+                Applica scaffale/area a tutte le righe di questo carico (giacenza + seriali).
+              </p>
+            </div>
+          )}
+
           {/* Codice lotto opzionale */}
           <div className="space-y-2">
             <Label htmlFor="cr-lotto" className="text-xs">
@@ -985,6 +1234,21 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
               Se lo lasci vuoto e scansioni il QR "SERIALS" di un bancale, il codice lotto viene
               rilevato in automatico dal prefisso comune dei seriali (es. 36 pannelli → 1 lotto).
             </p>
+            <div className="space-y-1.5 pt-1">
+              <Label htmlFor="cr-lotto-scadenza" className="text-xs">
+                Scadenza lotto (opzionale)
+              </Label>
+              <Input
+                id="cr-lotto-scadenza"
+                type="date"
+                value={lottoScadenza}
+                onChange={(e) => setLottoScadenza(e.target.value)}
+                className="text-xs"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Utile per materiali deperibili o con garanzia a termine (sigillanti, collanti, additivi).
+              </p>
+            </div>
           </div>
 
           {/* Incolla seriali bancale — alternativa alla camera (QR denso/difficile) */}
@@ -1029,6 +1293,46 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 </Button>
                 {!canProceedToScan && (
                   <p className="text-[10px] text-amber-600">Scegli prima fornitore e magazzino qui sopra.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* B1 — Aggiungi a mano dal listino (senza scansione) */}
+          <div className="rounded-lg border bg-muted/20">
+            <button
+              type="button"
+              onClick={() => setManualSectionOpen((v) => !v)}
+              className="w-full flex items-center gap-2 p-3 hover:bg-muted/30 transition-colors rounded-lg"
+              aria-expanded={manualSectionOpen}
+            >
+              <PackagePlus className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
+              <div className="flex-1 text-left min-w-0">
+                <p className="text-sm font-medium">Aggiungi a mano dal listino</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Niente codice a barre? Scegli l'articolo dal listino/giacenza, quantità e prezzo d'acquisto.
+                </p>
+              </div>
+              {manualSectionOpen ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+            </button>
+            {manualSectionOpen && (
+              <div className="px-3 pb-3 border-t border-muted-foreground/10 pt-3">
+                {!canProceedToScan ? (
+                  <p className="text-[11px] text-amber-600">
+                    Scegli prima fornitore e magazzino qui sopra.
+                  </p>
+                ) : (
+                  <ManualArticleAdder
+                    companyId={companyId}
+                    warehouseId={warehouseId}
+                    entries={entries}
+                    onEntriesChange={setEntries}
+                    showPurchasePrice
+                  />
                 )}
               </div>
             )}
@@ -1104,18 +1408,22 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
           )}
         </div>
 
-        <DialogFooter className="shrink-0 border-t p-3 flex-row gap-2 bg-card">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
-            <ArrowLeft className="h-4 w-4 mr-2" />
+        <DialogFooter className="shrink-0 flex-row gap-2 border-t bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-3">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="h-12 flex-1 sm:h-10"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
             Annulla
           </Button>
           <Button
             onClick={() => setStep("scan")}
             disabled={!canContinueReceipt}
-            className="flex-[2]"
+            className="h-12 flex-[2] text-[15px] font-semibold sm:h-10 sm:text-sm"
           >
             {continueLabel}
-            <ArrowRight className="h-4 w-4 ml-2" />
+            <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </DialogFooter>
       </DialogContent>
