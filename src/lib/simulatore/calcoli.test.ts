@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { calcolaVoce, calcolaTotali, calcolaIva, calcolaFasi } from "./calcoli";
+import {
+  calcolaVoce,
+  calcolaTotali,
+  calcolaIva,
+  calcolaFasi,
+  calcolaEconomia,
+  calcolaPrezzoObiettivo,
+} from "./calcoli";
 import type { VoceSim, FaseSim } from "./tipi";
 
 const voce = (p: Partial<VoceSim>): VoceSim => ({
@@ -80,6 +87,82 @@ describe("calcolaIva", () => {
     expect(r10.imposta).toBe(60);
     expect(r22.imponibile).toBe(700);
     expect(r22.imposta).toBe(154);
+  });
+});
+
+describe("calcolaEconomia", () => {
+  it("spese generali 15% su costo 1000 → costo_pieno 1150; sconto 10% su ricavo 1500 → netto 1350, margine 200, ~14.81%", () => {
+    const e = calcolaEconomia({
+      costo_diretto: 1000,
+      ricavo_lordo: 1500,
+      spese_generali_pct: 15,
+      utile_pct: 0,
+      sconto_pct: 10,
+    });
+    expect(e.spese_generali).toBe(150);
+    expect(e.costo_pieno).toBe(1150);
+    expect(e.sconto_valore).toBe(150);
+    expect(e.ricavo_netto).toBe(1350);
+    expect(e.margine_netto_valore).toBe(200);
+    expect(e.margine_netto_pct).toBe(14.81);
+  });
+
+  it("utile_target = costo_pieno × utile_pct/100", () => {
+    const e = calcolaEconomia({
+      costo_diretto: 1000,
+      ricavo_lordo: 1500,
+      spese_generali_pct: 0,
+      utile_pct: 20,
+      sconto_pct: 0,
+    });
+    expect(e.costo_pieno).toBe(1000);
+    expect(e.utile_target).toBe(200);
+  });
+
+  it("sconto/spese a 0 → netto = lordo, pieno = diretto", () => {
+    const e = calcolaEconomia({
+      costo_diretto: 600,
+      ricavo_lordo: 1000,
+      spese_generali_pct: 0,
+      utile_pct: 0,
+      sconto_pct: 0,
+    });
+    expect(e.costo_pieno).toBe(600);
+    expect(e.ricavo_netto).toBe(1000);
+    expect(e.margine_netto_valore).toBe(400);
+    expect(e.margine_netto_pct).toBe(40);
+  });
+
+  it("margine_netto_pct=0 con ricavo_netto 0 (no NaN)", () => {
+    const e = calcolaEconomia({
+      costo_diretto: 100,
+      ricavo_lordo: 0,
+      spese_generali_pct: 0,
+      utile_pct: 0,
+      sconto_pct: 0,
+    });
+    expect(e.margine_netto_pct).toBe(0);
+  });
+});
+
+describe("calcolaPrezzoObiettivo", () => {
+  it("dato prezzo obiettivo → sconto% necessario e margine corretti", () => {
+    // costo_pieno 1150, ricavo_lordo 1500, obiettivo 1350 → sconto 10%, margine 200
+    const r = calcolaPrezzoObiettivo(1150, 1500, 1350);
+    expect(r.sconto_pct_necessario).toBe(10);
+    expect(r.margine_valore).toBe(200);
+    expect(r.margine_pct).toBe(14.81);
+  });
+
+  it("obiettivo = lordo → sconto 0", () => {
+    const r = calcolaPrezzoObiettivo(600, 1000, 1000);
+    expect(r.sconto_pct_necessario).toBe(0);
+    expect(r.margine_valore).toBe(400);
+  });
+
+  it("ricavo_lordo 0 → sconto 0 (no divisione per zero)", () => {
+    const r = calcolaPrezzoObiettivo(100, 0, 0);
+    expect(r.sconto_pct_necessario).toBe(0);
   });
 });
 

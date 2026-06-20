@@ -41,6 +41,12 @@ export interface ScenariConfig {
   iva_mode: "singola" | "mista";
   iva_rate_singola: 4 | 10 | 22;
   iva_confronto: number[];
+  /** Spese generali in % sul costo diretto (default 0). */
+  spese_generali_pct: number;
+  /** Utile d'impresa target in % sul costo pieno (default 0). */
+  utile_pct: number;
+  /** Sconto in % sul ricavo lordo, applicato al cliente (default 0). */
+  sconto_pct: number;
   finanziamento: FinanziamentoConfig | null;
 }
 
@@ -55,8 +61,30 @@ export interface RiepilogoIvaRiga { aliquota: number; imponibile: number; impost
 export interface SimulazioneRisultato {
   costo_totale: number;
   ricavo_imponibile: number;
+  /** margine NETTO (= ricavo_netto − costo_pieno); legacy denormalizzato. */
   margine_valore: number;
+  /** margine NETTO % (su ricavo_netto); legacy denormalizzato. */
   margine_pct: number;
+  // ── Economia & trattativa ───────────────────────────────────────────────
+  /** Somma dei costi delle voci (= costo_totale). */
+  costo_diretto: number;
+  /** costo_diretto × spese_generali_pct/100. */
+  spese_generali: number;
+  /** costo_diretto + spese_generali. */
+  costo_pieno: number;
+  /** ricavo_lordo × sconto_pct/100. */
+  sconto_valore: number;
+  /** Somma prezzi voci (= ricavo_imponibile, prima dello sconto). */
+  ricavo_lordo: number;
+  /** ricavo_lordo − sconto_valore (imponibile effettivo al cliente). */
+  ricavo_netto: number;
+  /** costo_pieno × utile_pct/100 (utile d'impresa atteso). */
+  utile_target: number;
+  /** ricavo_netto − costo_pieno. */
+  margine_netto_valore: number;
+  /** margine_netto_valore / ricavo_netto × 100 (0 se ricavo_netto ≤ 0). */
+  margine_netto_pct: number;
+  // ── IVA / prezzo / cronoprogramma ───────────────────────────────────────
   riepilogo_iva: RiepilogoIvaRiga[];
   iva_totale: number;
   prezzo_cliente: number;
@@ -69,5 +97,8 @@ export const DEFAULT_SCENARI: ScenariConfig = {
   iva_mode: "singola",
   iva_rate_singola: 10,
   iva_confronto: [4, 10, 22],
+  spese_generali_pct: 0,
+  utile_pct: 0,
+  sconto_pct: 0,
   finanziamento: null,
 };

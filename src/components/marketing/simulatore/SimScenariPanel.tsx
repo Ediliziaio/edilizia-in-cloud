@@ -22,11 +22,14 @@
  * Tutte le modifiche passano per `onChange(scenari)` → l'editor ricalcola e
  * autosalva. Numeri sempre arrotondati via `formatCurrency`.
  */
-import { useEffect, useMemo, useRef } from "react";
-import { Receipt, CreditCard, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Receipt, CreditCard, AlertTriangle, CheckCircle2, SlidersHorizontal, Target, TrendingDown,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -41,6 +44,7 @@ import {
   useTabellaFinanziamentoRighe,
 } from "@/hooks/useTabelleFinanziamento";
 import { calcolaFinanziamento } from "@/lib/finanziamenti/calcolaFinanziamento";
+import { calcolaPrezzoObiettivo } from "@/lib/simulatore/calcoli";
 import type { RigaTabellaFinanziamento, RisultatoCalcolo } from "@/lib/finanziamenti/types";
 import type {
   ScenariConfig, SimulazioneRisultato, FinanziamentoConfig,
@@ -74,6 +78,17 @@ function parseNonNeg(raw: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Percentuale 0–100 da input; fallback 0, mai NaN, clamp al 100. */
+function parsePct(raw: string): number {
+  const n = Math.min(100, Math.max(0, Number(raw)));
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** "12,3%" — etichetta percentuale arrotondata a 1 decimale. */
+function fmtPct(pct: number): string {
+  return `${(Math.round(pct * 10) / 10).toLocaleString("it-IT")}%`;
+}
+
 export function SimScenariPanel({
   scenari,
   risultato,
@@ -86,6 +101,20 @@ export function SimScenariPanel({
   const prezzoPerAliquota = new Map(
     risultato.confronto_iva.map((c) => [c.aliquota, c.prezzo_cliente]),
   );
+
+  // ── Prezzo obiettivo (calcolo inverso) ───────────────────────────────────
+  // Input "what-if": prezzo netto desiderato → sconto% necessario + margine.
+  // Stringa locale per non forzare un valore finché l'utente non digita.
+  const [prezzoObiettivo, setPrezzoObiettivo] = useState("");
+  const obiettivoNetto = Number(prezzoObiettivo);
+  const obiettivoValido = prezzoObiettivo !== "" && Number.isFinite(obiettivoNetto) && obiettivoNetto >= 0;
+  const obiettivo = obiettivoValido
+    ? calcolaPrezzoObiettivo(risultato.costo_pieno, risultato.ricavo_lordo, obiettivoNetto)
+    : null;
+
+  // Margine netto vs utile atteso: verde se raggiunge il target, warning sotto.
+  const utileTarget = risultato.utile_target;
+  const margineOk = risultato.margine_netto_valore >= utileTarget;
 
   // ── Finanziamento ───────────────────────────────────────────────────────
   const fin = scenari.finanziamento;
@@ -163,8 +192,167 @@ export function SimScenariPanel({
   return (
     <Card>
       <CardContent className="space-y-5 p-4">
-        {/* ── Sezione IVA ─────────────────────────────────────────────────── */}
+        {/* ── Sezione Economia & Trattativa ───────────────────────────────── */}
         <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-muted-foreground">Economia &amp; trattativa</h3>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+            {/* Spese generali % */}
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Spese generali (%)</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                max="100"
+                step="0.5"
+                value={String(scenari.spese_generali_pct)}
+                onChange={(e) => patch({ spese_generali_pct: parsePct(e.target.value) })}
+                className="h-8 text-right tabular-nums"
+              />
+              <p className="text-[10px] text-muted-foreground tabular-nums">
+                {formatCurrency(risultato.spese_generali)} · costo pieno{" "}
+                {formatCurrency(risultato.costo_pieno)}
+              </p>
+            </div>
+
+            {/* Utile d'impresa % */}
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Utile d&apos;impresa (%)</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                max="100"
+                step="0.5"
+                value={String(scenari.utile_pct)}
+                onChange={(e) => patch({ utile_pct: parsePct(e.target.value) })}
+                className="h-8 text-right tabular-nums"
+              />
+              <p className="text-[10px] text-muted-foreground tabular-nums">
+                target {formatCurrency(risultato.utile_target)}
+              </p>
+            </div>
+
+            {/* Sconto % */}
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Sconto cliente (%)</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                max="100"
+                step="0.5"
+                value={String(scenari.sconto_pct)}
+                onChange={(e) => patch({ sconto_pct: parsePct(e.target.value) })}
+                className="h-8 text-right tabular-nums"
+              />
+              <p className="text-[10px] text-muted-foreground tabular-nums">
+                −{formatCurrency(risultato.sconto_valore)} · netto{" "}
+                {formatCurrency(risultato.ricavo_netto)}
+              </p>
+            </div>
+          </div>
+
+          {/* Esito margine netto vs utile target */}
+          <div
+            className={cn(
+              "flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2.5 text-sm",
+              margineOk
+                ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/30"
+                : "border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/30",
+            )}
+          >
+            <span className="flex items-center gap-1.5 font-medium">
+              {margineOk ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              )}
+              Margine netto
+            </span>
+            <span className="flex items-center gap-2 tabular-nums">
+              <span
+                className={cn(
+                  "font-bold",
+                  margineOk
+                    ? "text-emerald-700 dark:text-emerald-300"
+                    : "text-amber-700 dark:text-amber-300",
+                )}
+              >
+                {formatCurrency(risultato.margine_netto_valore)} ({fmtPct(risultato.margine_netto_pct)})
+              </span>
+              {utileTarget > 0 ? (
+                <span className="text-[11px] text-muted-foreground">
+                  / utile target {formatCurrency(utileTarget)}
+                </span>
+              ) : null}
+            </span>
+          </div>
+
+          {/* Prezzo obiettivo (calcolo inverso) */}
+          <div className="rounded-lg border bg-secondary/30 p-3 space-y-2.5">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-muted-foreground" />
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Prezzo obiettivo
+              </p>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">Prezzo netto desiderato (€)</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="100"
+                  placeholder={String(Math.round(risultato.ricavo_netto))}
+                  value={prezzoObiettivo}
+                  onChange={(e) => setPrezzoObiettivo(e.target.value)}
+                  className="h-8 w-44 text-right tabular-nums"
+                />
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5"
+                disabled={!obiettivo}
+                onClick={() => {
+                  if (!obiettivo) return;
+                  patch({ sconto_pct: Math.max(0, obiettivo.sconto_pct_necessario) });
+                }}
+              >
+                <TrendingDown className="h-3.5 w-3.5" />
+                Applica sconto
+              </Button>
+            </div>
+            {obiettivo ? (
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs tabular-nums">
+                <span className="text-muted-foreground">
+                  Sconto necessario:{" "}
+                  <strong className="text-foreground">{fmtPct(obiettivo.sconto_pct_necessario)}</strong>
+                </span>
+                <span className="text-muted-foreground">
+                  Margine:{" "}
+                  <strong className={cn(obiettivo.margine_valore >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                    {formatCurrency(obiettivo.margine_valore)} ({fmtPct(obiettivo.margine_pct)})
+                  </strong>
+                </span>
+              </div>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                Inserisci un prezzo netto per calcolare lo sconto necessario e il margine risultante.
+              </p>
+            )}
+          </div>
+        </section>
+
+        {/* ── Sezione IVA ─────────────────────────────────────────────────── */}
+        <section className="space-y-3 border-t pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Receipt className="h-4 w-4 text-muted-foreground" />
