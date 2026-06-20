@@ -14,6 +14,8 @@ export interface RstComputoVoce {
   prezzo_unitario: number; costo_materiali: number; costo_manodopera: number;
   sconto_pct: number; importo: number; margine_eur: number; margine_pct: number;
   listino_voce_id: string | null; ordine: number;
+  /** Prezzario regionale di provenienza della voce (citazione base d'asta). NULL = voce libera/listino. */
+  fonte?: string | null;
 }
 export interface RstProgetto {
   id: string; company_id: string; code: string | null; stato: RstStato; tipo_intervento: string | null;

@@ -244,6 +244,8 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
                     costo_manodopera: v.costo_manodopera,
                     capitolo_nome: v.capitolo_nome ?? targetCapitolo,
                     listino_voce_id: v.id,
+                    // Porta avanti la citazione fonte se la voce di listino l'aveva.
+                    fonte: v.fonte,
                   })
                 }
               />
@@ -333,6 +335,8 @@ export default function AddVocePicker({ open, onOpenChange, onPick, targetCapito
                       costo_materiali: costoMat,
                       costo_manodopera: costoMano,
                       capitolo_nome: targetCapitolo,
+                      // Citazione fonte per riga: "Regione Anno" della fonte del prezzario.
+                      fonte: v.fonteLabel,
                     })
                   }
                 />

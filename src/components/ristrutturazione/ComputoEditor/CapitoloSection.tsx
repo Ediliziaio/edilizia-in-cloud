@@ -109,6 +109,7 @@ export default function CapitoloSection({
         costo_manodopera: voci[idx].costo_manodopera,
         capitolo_nome: nome,
         listino_voce_id: voci[idx].listino_voce_id,
+        fonte: voci[idx].fonte,
       },
       { progetto_id: progettoId, company_id: companyId, capitolo_nome: nome, ordine: idx + 1 },
     );

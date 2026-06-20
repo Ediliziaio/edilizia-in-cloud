@@ -257,6 +257,7 @@ function makeStyles(C: Palette) {
       borderBottom: `0.5pt solid ${C.gray200}`,
     },
     cell: { fontSize: 8.5, color: C.gray900 },
+    cellFonte: { fontSize: 7, color: C.gray500, fontStyle: "italic" as const, marginTop: 1 },
     cellNum: { fontSize: 8.5, color: C.gray900, textAlign: "right" as const },
     cellMargin: { fontSize: 7.5, color: C.accent, textAlign: "right" as const },
     capSubtotal: {
@@ -464,7 +465,11 @@ function CapitoloTable({ styles, cap, showMargine }: {
           ((Number(v.costo_materiali) || 0) + (Number(v.costo_manodopera) || 0)) * (Number(v.quantita) || 0);
         return (
           <View key={v.id} style={styles.row} wrap={false}>
-            <Text style={[styles.cell, { flex: 1 }]}>{v.descrizione || "—"}</Text>
+            <View style={{ flex: 1, paddingRight: 4 }}>
+              <Text style={styles.cell}>{v.descrizione || "—"}</Text>
+              {/* Citazione fonte (base d'asta) — discreta, solo se valorizzata. */}
+              {v.fonte ? <Text style={styles.cellFonte}>Fonte: {v.fonte}</Text> : null}
+            </View>
             <Text style={[styles.cell, { width: 34, textAlign: "center" }]}>{v.unita_misura}</Text>
             <Text style={[styles.cellNum, { width: 40 }]}>{formatQty(v.quantita)}</Text>
             <Text style={[styles.cellNum, { width: 58 }]}>{formatCurrency(v.prezzo_unitario)}</Text>

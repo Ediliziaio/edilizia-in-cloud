@@ -395,6 +395,8 @@ export interface ListinoVoceSearchOption {
   costo_materiali: number;
   costo_manodopera: number;
   capitolo_nome: string | null;
+  /** Prezzario regionale d'origine della voce (citazione base d'asta). NULL = voce libera. */
+  fonte: string | null;
 }
 
 /**
@@ -412,7 +414,7 @@ export function useListinoVociSearch(term: string) {
       let q = sb()
         .from("rst_listino_voci")
         .select(
-          "id, descrizione, codice, unita_misura, prezzo_unitario, costo_materiali, costo_manodopera, capitolo:rst_listino_capitoli(nome)",
+          "id, descrizione, codice, unita_misura, prezzo_unitario, costo_materiali, costo_manodopera, fonte, capitolo:rst_listino_capitoli(nome)",
         )
         .eq("company_id", companyId!);
       const t = term.trim();
@@ -430,6 +432,7 @@ export function useListinoVociSearch(term: string) {
           costo_materiali: (d.costo_materiali as number | null) ?? 0,
           costo_manodopera: (d.costo_manodopera as number | null) ?? 0,
           capitolo_nome: cap?.nome ?? null,
+          fonte: (d.fonte as string | null) ?? null,
         };
       });
     },

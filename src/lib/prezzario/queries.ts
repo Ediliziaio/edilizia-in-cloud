@@ -214,6 +214,7 @@ export interface AdottaPrezzarioInput {
  *   ricarico_pct     = ricaricoPct
  *   prezzo_unitario  = prezzo × (1 + ricaricoPct/100)
  *   note             = "Fonte: <nome fonte> (cod. <codice>)"
+ *   fonte            = "<nome fonte>"  (citazione base d'asta, propagata al computo)
  */
 export function useAdottaPrezzario() {
   const companyId = useEffectiveCompanyId();
@@ -252,6 +253,9 @@ export function useAdottaPrezzario() {
           ricarico_pct: input.ricaricoPct,
           prezzo_unitario,
           note,
+          // Citazione fonte per riga: il nome del prezzario d'origine (riusa quello
+          // già messo nella nota). Si propaga al computo quando la voce è richiamata.
+          fonte: nomeFonte,
           ordine: idx,
         };
       });

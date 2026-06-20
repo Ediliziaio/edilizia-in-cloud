@@ -14,9 +14,17 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, Settings2, Info, Library } from "lucide-react";
+import { Loader2, CheckCircle2, Settings2, Info, Library, HardHat, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible, CollapsibleContent, CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { ImportaPrezzarioDialog } from "@/components/ristrutturazione/ImportaPrezzarioDialog";
+import { ManodoperaLookup } from "@/components/ristrutturazione/ManodoperaLookup";
+import { REGIONI_ITALIANE } from "@/lib/prezzario/tipi";
 import { useSaveComputo, useEffectiveCompanyId } from "@/hooks/useRistrutturazioneProgetto";
 import { useListinoVociSearch } from "@/hooks/useListinoLavorazioni";
 import type { RstComputoVoce } from "@/types/ristrutturazione";
@@ -41,6 +49,9 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
   const [dirty, setDirty] = useState(false);
   const [savedOnce, setSavedOnce] = useState(false);
   const [prezzarioOpen, setPrezzarioOpen] = useState(false);
+  // Lookup tariffe manodopera (read-only, non invasivo): regione + pannello collassabile.
+  const [manodoperaOpen, setManodoperaOpen] = useState(false);
+  const [manodoperaRegione, setManodoperaRegione] = useState<string | undefined>(undefined);
 
   // Hint listino vuoto: una ricerca "" restituisce fino a 40 voci → se 0, vuoto.
   const listino = useListinoVociSearch("");
@@ -65,6 +76,7 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
       margine_eur: v.margine_eur,
       margine_pct: v.margine_pct,
       listino_voce_id: v.listino_voce_id,
+      fonte: v.fonte,
       ordine: v.ordine ?? i,
     }));
 
@@ -187,6 +199,51 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
           Aggiungi voci ufficiali al listino, poi richiamale qui nel computo.
         </span>
       </div>
+
+      {/* Tariffe manodopera di riferimento (lookup read-only, non invasivo) */}
+      <Collapsible
+        open={manodoperaOpen}
+        onOpenChange={setManodoperaOpen}
+        className="rounded-xl border border-slate-200 bg-slate-50/40"
+      >
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
+          >
+            <span className="flex items-center gap-2 text-xs font-medium text-slate-700">
+              <HardHat className="h-3.5 w-3.5 text-muted-foreground" />
+              Tariffe manodopera di riferimento
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${manodoperaOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-3 px-3 pb-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={manodoperaRegione}
+              onValueChange={(v) => setManodoperaRegione(v)}
+            >
+              <SelectTrigger className="h-8 w-[220px] text-xs">
+                <SelectValue placeholder="Seleziona una regione…" />
+              </SelectTrigger>
+              <SelectContent>
+                {REGIONI_ITALIANE.map((r) => (
+                  <SelectItem key={r} value={r} className="text-xs">
+                    {r}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-[11px] text-muted-foreground">
+              Costo orario ufficiale per qualifica (solo consultazione).
+            </span>
+          </div>
+          <ManodoperaLookup regione={manodoperaRegione} />
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Editor */}
       {companyId ? (

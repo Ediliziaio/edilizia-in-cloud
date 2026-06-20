@@ -22,6 +22,8 @@ export interface PickedVoce {
   capitolo_nome?: string;
   /** Id della voce di listino lavorazioni d'origine (tracciabilità prezzi). */
   listino_voce_id?: string | null;
+  /** Prezzario regionale d'origine (citazione base d'asta). NULL/assente = voce libera. */
+  fonte?: string | null;
 }
 
 /** Sorgente di una voce nel picker (per badge + raggruppamento). */
@@ -54,6 +56,7 @@ export function pickedToComputoVoce(
     margine_eur: 0,
     margine_pct: 0,
     listino_voce_id: picked.listino_voce_id ?? null,
+    fonte: picked.fonte ?? null,
     ordine: opts.ordine,
   };
 }
