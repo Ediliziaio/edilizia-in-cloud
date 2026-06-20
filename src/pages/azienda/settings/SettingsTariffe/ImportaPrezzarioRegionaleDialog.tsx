@@ -180,6 +180,20 @@ export function ImportaPrezzarioRegionaleDialog({
     });
   };
 
+  /** Seleziona tutte le voci attualmente mostrate (capitolo o ricerca correnti). */
+  const selezionaTutteFiltrate = () =>
+    setSelezione((prev) => {
+      const next = { ...prev };
+      for (const v of vociFiltrate) next[v.id] = v;
+      return next;
+    });
+
+  /** Azzera l'intera selezione. */
+  const azzeraSelezione = () => setSelezione({});
+
+  const tutteSelezionate =
+    vociFiltrate.length > 0 && vociFiltrate.every((v) => Boolean(selezione[v.id]));
+
   const resetState = () => {
     setFonteId(null);
     setCapitoloFiltro("__all__");
@@ -362,6 +376,35 @@ export function ImportaPrezzarioRegionaleDialog({
                       : "Nessuna voce in questo capitolo."}
                   </div>
                 ) : (
+                  <>
+                    <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-1.5">
+                      <span className="text-[11px] text-muted-foreground">
+                        {vociFiltrate.length} {vociFiltrate.length === 1 ? "voce" : "voci"}
+                        {isCercando ? " (ricerca)" : capitoloFiltro !== "__all__" ? " (capitolo)" : ""}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={selezionaTutteFiltrate}
+                          disabled={tutteSelezionate}
+                        >
+                          Seleziona tutti
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs text-muted-foreground"
+                          onClick={azzeraSelezione}
+                          disabled={selezionate.length === 0}
+                        >
+                          Azzera
+                        </Button>
+                      </div>
+                    </div>
                   <ul className="max-h-[36vh] divide-y overflow-y-auto">
                     {vociFiltrate.map((v) => {
                       const checked = Boolean(selezione[v.id]);
@@ -403,6 +446,7 @@ export function ImportaPrezzarioRegionaleDialog({
                       );
                     })}
                   </ul>
+                  </>
                 )}
               </div>
             </>
