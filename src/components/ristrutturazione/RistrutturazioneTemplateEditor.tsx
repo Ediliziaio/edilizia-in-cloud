@@ -24,7 +24,7 @@
  * stabile salvato nel template (ideale per il PDF, niente signed URL scaduti).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
@@ -36,6 +36,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -169,6 +170,34 @@ interface Props {
 
 export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
   const companyId = useEffectiveCompanyId();
+  // Profilo azienda (impostazioni/profilo): usato per mostrare i dati EREDITATI
+  // come placeholder nell'anagrafica. Se un campo del template è vuoto, nel PDF
+  // viene usato questo valore del profilo (auto-import via fallback nel renderer).
+  const { data: companyAnagrafica } = useQuery({
+    queryKey: ["rst-template-company-anagrafica", companyId],
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("companies")
+        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number")
+        .eq("id", companyId!)
+        .maybeSingle();
+      if (!data) return null;
+      const indirizzo = [
+        data.legal_address,
+        [data.legal_postal_code, data.legal_city].filter(Boolean).join(" "),
+        data.legal_province,
+      ].filter(Boolean).join(", ");
+      return {
+        ragione_sociale: (data.business_name || data.name || "").trim() || null,
+        indirizzo_completo: indirizzo || null,
+        telefono: (data.phone || "").trim() || null,
+        email: (data.email || "").trim() || null,
+        partita_iva: (data.vat_number || "").trim() || null,
+      };
+    },
+  });
   const { data: template, isLoading } = useRstTemplatePdf();
   const upsert = useUpsertRstTemplatePdf();
   // Probe: il modulo è pubblicato sul DB? Se no, l'editor mostra comunque i default
@@ -542,13 +571,26 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
 
             {/* Anagrafica azienda — dati che compaiono in header/footer del PDF */}
             <SectionCard icon={Building2} title="Anagrafica azienda" description="Dati che compaiono nell'header e nel footer di ogni preventivo PDF.">
+              {/* I dati arrivano dal Profilo azienda: se lasci un campo vuoto, nel
+                  PDF usiamo il valore del profilo (mostrato come placeholder). */}
+              <div className="mb-3 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50/60 p-2.5 text-[11px] text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
+                <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Questi dati arrivano dal{" "}
+                  <Link to="/azienda/impostazioni/profilo" className="font-medium underline">
+                    Profilo azienda
+                  </Link>
+                  . Lascia un campo vuoto per usarli in automatico; compila solo per
+                  sovrascriverli nei preventivi ristrutturazione.
+                </span>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label className="text-xs">Ragione sociale</Label>
                   <Input
                     value={form.ragione_sociale ?? ""}
                     onChange={(e) => set("ragione_sociale", e.target.value)}
-                    placeholder="Es. Edil Rossi S.r.l."
+                    placeholder={companyAnagrafica?.ragione_sociale ? `${companyAnagrafica.ragione_sociale} · dal profilo` : "Es. Edil Rossi S.r.l."}
                   />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
@@ -556,7 +598,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                   <Input
                     value={form.indirizzo_completo ?? ""}
                     onChange={(e) => set("indirizzo_completo", e.target.value)}
-                    placeholder="Es. Via Roma 42 · 20121 Milano (MI)"
+                    placeholder={companyAnagrafica?.indirizzo_completo ? `${companyAnagrafica.indirizzo_completo} · dal profilo` : "Es. Via Roma 42 · 20121 Milano (MI)"}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -564,7 +606,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                   <Input
                     value={form.telefono ?? ""}
                     onChange={(e) => set("telefono", e.target.value)}
-                    placeholder="+39 02 1234 5678"
+                    placeholder={companyAnagrafica?.telefono ? `${companyAnagrafica.telefono} · dal profilo` : "+39 02 1234 5678"}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -573,7 +615,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                     type="email"
                     value={form.email ?? ""}
                     onChange={(e) => set("email", e.target.value)}
-                    placeholder="info@azienda.it"
+                    placeholder={companyAnagrafica?.email ? `${companyAnagrafica.email} · dal profilo` : "info@azienda.it"}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -581,7 +623,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                   <Input
                     value={form.partita_iva ?? ""}
                     onChange={(e) => set("partita_iva", e.target.value)}
-                    placeholder="IT12345670156"
+                    placeholder={companyAnagrafica?.partita_iva ? `${companyAnagrafica.partita_iva} · dal profilo` : "IT12345670156"}
                   />
                 </div>
                 <div className="space-y-1.5">
