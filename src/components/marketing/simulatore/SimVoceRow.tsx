@@ -23,7 +23,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/formatters";
 import { calcolaVoce, round2 } from "@/lib/simulatore/calcoli";
-import type { VoceSim, AliquotaIva } from "@/lib/simulatore/tipi";
+import type { VoceSim, FaseSim, AliquotaIva } from "@/lib/simulatore/tipi";
+
+/** Valore sentinella del Select "Fase" per "nessuna fase" (fase_id = null). */
+const NESSUNA_FASE = "__none__";
 
 /** Unità di misura — stessi valori usati in `tariffe_aziendali` (UM_FATTURAZIONE). */
 const SIM_UM_VALUES = ["pz", "mq", "ml", "mc", "h", "gg", "a_corpo", "km"] as const;
@@ -55,9 +58,11 @@ interface SimVoceRowProps {
   onChange: (patch: Partial<VoceSim>) => void;
   onRemove: () => void;
   reorder?: ReorderControls;
+  /** Fasi disponibili per l'assegnazione della voce; omesso → niente colonna Fase. */
+  fasi?: FaseSim[];
 }
 
-export function SimVoceRow({ voce, onChange, onRemove, reorder }: SimVoceRowProps) {
+export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi }: SimVoceRowProps) {
   const { imponibile_ricavo } = calcolaVoce(voce);
 
   // Quando cambia il costo: ricalcola il prezzo da costo×(1+ricarico/100).
@@ -94,6 +99,30 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder }: SimVoceRowProp
           className="h-8 border-transparent bg-transparent px-2 shadow-none hover:border-input focus-visible:border-input"
         />
       </TableCell>
+
+      {/* Fase (opzionale) */}
+      {fasi ? (
+        <TableCell className="w-[140px]">
+          <Select
+            value={voce.fase_id ?? NESSUNA_FASE}
+            onValueChange={(v) =>
+              onChange({ fase_id: v === NESSUNA_FASE ? null : v })
+            }
+          >
+            <SelectTrigger className="h-8 px-2">
+              <SelectValue placeholder="— nessuna —" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NESSUNA_FASE}>— nessuna —</SelectItem>
+              {fasi.map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.nome || "Fase senza nome"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </TableCell>
+      ) : null}
 
       {/* Quantità */}
       <TableCell className="w-[88px]">

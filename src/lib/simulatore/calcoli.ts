@@ -1,4 +1,4 @@
-import type { VoceSim, ScenariConfig, RiepilogoIvaRiga } from "./tipi";
+import type { VoceSim, FaseSim, ScenariConfig, RiepilogoIvaRiga } from "./tipi";
 
 export const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -73,4 +73,52 @@ export function calcolaIva(
 
   const iva_totale = round2(riepilogo_iva.reduce((acc, r) => acc + r.imposta, 0));
   return { riepilogo_iva, iva_totale };
+}
+
+export interface FaseCalcolata {
+  fase_id: string;
+  costo: number;
+  manodopera_costo: number;
+  inizio: number;
+  durata: number;
+}
+
+/**
+ * calcolaFasi — aggrega costi e tempistiche per fase del cronoprogramma.
+ *
+ * Per ogni fase: `costo` = somma `imponibile_costo` delle voci con
+ * `fase_id === fase.id`; `manodopera_costo` = idem ma solo voci `is_manodopera`;
+ * `inizio`/`durata` dai campi offset/durata della fase.
+ *
+ * `durata_settimane` totale = max(`inizio_offset_settimane + durata_settimane`)
+ * su tutte le fasi (0 se nessuna fase).
+ */
+export function calcolaFasi(
+  fasi: FaseSim[],
+  voci: VoceSim[],
+): { perFase: FaseCalcolata[]; durata_settimane: number } {
+  const perFase: FaseCalcolata[] = fasi.map((fase) => {
+    let costo = 0;
+    let manodopera_costo = 0;
+    for (const v of voci) {
+      if (v.fase_id !== fase.id) continue;
+      const { imponibile_costo } = calcolaVoce(v);
+      costo += imponibile_costo;
+      if (v.is_manodopera) manodopera_costo += imponibile_costo;
+    }
+    return {
+      fase_id: fase.id,
+      costo: round2(costo),
+      manodopera_costo: round2(manodopera_costo),
+      inizio: fase.inizio_offset_settimane,
+      durata: fase.durata_settimane,
+    };
+  });
+
+  const durata_settimane = fasi.reduce(
+    (max, f) => Math.max(max, f.inizio_offset_settimane + f.durata_settimane),
+    0,
+  );
+
+  return { perFase, durata_settimane };
 }

@@ -21,9 +21,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimKpiBar } from "@/components/marketing/simulatore/SimKpiBar";
 import { SimVociGrid } from "@/components/marketing/simulatore/SimVociGrid";
+import { SimCronoprogramma } from "@/components/marketing/simulatore/SimCronoprogramma";
 import { AggiungiVociDialog } from "@/components/marketing/simulatore/AggiungiVociDialog";
 import { useSimulazione, useSimulazioniMutations } from "@/hooks/useSimulazioni";
 import { calcolaSimulazione } from "@/lib/simulatore/calcolaSimulazione";
+import { calcolaFasi } from "@/lib/simulatore/calcoli";
 import { DEFAULT_SCENARI } from "@/lib/simulatore/tipi";
 import type { SimulazioneDoc, VoceSim, FaseSim, ScenariConfig } from "@/lib/simulatore/tipi";
 
@@ -58,6 +60,11 @@ export default function SimulatoreEditor() {
 
   const risultato = useMemo(
     () => (doc ? calcolaSimulazione(doc) : null),
+    [doc],
+  );
+
+  const risultatoFasi = useMemo(
+    () => (doc ? calcolaFasi(doc.fasi, doc.voci) : { perFase: [], durata_settimane: 0 }),
     [doc],
   );
 
@@ -196,8 +203,17 @@ export default function SimulatoreEditor() {
       {/* Voci — griglia editabile (listino, prezzari, righe libere) */}
       <SimVociGrid
         voci={doc.voci}
+        fasi={doc.fasi}
         onChange={(voci) => setDoc((d) => (d ? { ...d, voci } : d))}
         onApriListino={() => setListinoOpen(true)}
+      />
+
+      {/* Cronoprogramma — fasi del lavoro + barre proporzionali */}
+      <SimCronoprogramma
+        fasi={doc.fasi}
+        voci={doc.voci}
+        onChangeFasi={(fasi) => setDoc((d) => (d ? { ...d, fasi } : d))}
+        risultatoFasi={risultatoFasi}
       />
 
       {/* Dialog "Da listino" — append delle voci scelte in coda */}

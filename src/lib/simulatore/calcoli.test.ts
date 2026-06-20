@@ -1,12 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { calcolaVoce, calcolaTotali, calcolaIva } from "./calcoli";
-import type { VoceSim } from "./tipi";
+import { calcolaVoce, calcolaTotali, calcolaIva, calcolaFasi } from "./calcoli";
+import type { VoceSim, FaseSim } from "./tipi";
 
 const voce = (p: Partial<VoceSim>): VoceSim => ({
   id: "1", fase_id: null, descrizione: "x", fonte: "libera", riferimento_id: null,
   codice: null, quantita: 1, unita: "pz", costo_unitario: 0, ricarico_pct: 0,
   prezzo_unitario: 0, vat_rate: 10, bene_significativo: false,
   valore_posa_associata: null, is_manodopera: false, ordine: 0, ...p,
+});
+
+const fase = (p: Partial<FaseSim>): FaseSim => ({
+  id: "f1", nome: "Fase", ordine: 0, durata_settimane: 1,
+  inizio_offset_settimane: 0, giorni_uomo: 0, note: null, ...p,
 });
 
 describe("calcolaVoce", () => {
@@ -75,5 +80,40 @@ describe("calcolaIva", () => {
     expect(r10.imposta).toBe(60);
     expect(r22.imponibile).toBe(700);
     expect(r22.imposta).toBe(154);
+  });
+});
+
+describe("calcolaFasi", () => {
+  it("durata totale = max(inizio_offset + durata)", () => {
+    const r = calcolaFasi(
+      [
+        fase({ id: "a", inizio_offset_settimane: 0, durata_settimane: 2 }),
+        fase({ id: "b", inizio_offset_settimane: 2, durata_settimane: 3 }), // finisce a 5
+        fase({ id: "c", inizio_offset_settimane: 1, durata_settimane: 2 }), // finisce a 3
+      ],
+      [],
+    );
+    expect(r.durata_settimane).toBe(5);
+    expect(r.perFase).toHaveLength(3);
+  });
+
+  it("durata totale = 0 senza fasi", () => {
+    expect(calcolaFasi([], []).durata_settimane).toBe(0);
+  });
+
+  it("costo e manodopera per fase", () => {
+    const r = calcolaFasi(
+      [fase({ id: "a", inizio_offset_settimane: 1, durata_settimane: 2 })],
+      [
+        voce({ id: "v1", fase_id: "a", quantita: 2, costo_unitario: 50 }), // costo 100, materiale
+        voce({ id: "v2", fase_id: "a", quantita: 1, costo_unitario: 80, is_manodopera: true }), // costo 80, manodopera
+        voce({ id: "v3", fase_id: "b", quantita: 1, costo_unitario: 999 }), // altra fase → escluso
+      ],
+    );
+    const a = r.perFase.find((p) => p.fase_id === "a")!;
+    expect(a.costo).toBe(180);
+    expect(a.manodopera_costo).toBe(80);
+    expect(a.inizio).toBe(1);
+    expect(a.durata).toBe(2);
   });
 });

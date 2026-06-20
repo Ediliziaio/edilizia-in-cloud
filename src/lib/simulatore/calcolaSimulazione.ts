@@ -8,10 +8,11 @@
  * `confronto_iva` enumera il prezzo cliente per ogni aliquota in
  * `scenari.iva_confronto` (resta utile per il pannello di confronto).
  *
- * Tappa B porterà ancora: cronoprogramma fasi (`durata_settimane` da
- * `calcolaFasi`) e finanziamenti (`rata_mensile`). Per ora restano neutri.
+ * Cronoprogramma: `durata_settimane` da `calcolaFasi(doc.fasi, doc.voci)`
+ * (max offset+durata sulle fasi). `rata_mensile` (finanziamenti) resta neutra
+ * fino al task dedicato.
  */
-import { calcolaTotali, calcolaIva, round2 } from "./calcoli";
+import { calcolaTotali, calcolaIva, calcolaFasi, round2 } from "./calcoli";
 import type { SimulazioneDoc, SimulazioneRisultato } from "./tipi";
 
 export function calcolaSimulazione(doc: SimulazioneDoc): SimulazioneRisultato {
@@ -27,6 +28,9 @@ export function calcolaSimulazione(doc: SimulazioneDoc): SimulazioneRisultato {
     prezzo_cliente: round2(ricavo_imponibile * (1 + al / 100)),
   }));
 
+  // ── Cronoprogramma (durata totale dalle fasi) ──────────────────────────────
+  const { durata_settimane } = calcolaFasi(doc.fasi, doc.voci);
+
   return {
     costo_totale,
     ricavo_imponibile,
@@ -36,7 +40,7 @@ export function calcolaSimulazione(doc: SimulazioneDoc): SimulazioneRisultato {
     iva_totale,
     prezzo_cliente,
     confronto_iva,
-    durata_settimane: 0,
+    durata_settimane,
     rata_mensile: null,
   };
 }
