@@ -31,7 +31,11 @@ import {
   Palette, FileText, Sparkles, ListChecks, Quote, Clock, Building2,
   Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, ShieldCheck, Percent,
   Library, HardHat, ChevronDown,
+  Wand2,
 } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -166,6 +170,23 @@ function templateToForm(t: RstTemplatePdf): FormState {
   };
 }
 
+/** Shape dei testi restituiti dall'edge function ai-genera-template-ristrutturazione. */
+interface GeneratedTemplateTexts {
+  cover_title?: string | null;
+  cover_subtitle?: string | null;
+  chi_siamo?: string | null;
+  esigenze?: RstListItem[];
+  soluzione?: RstListItem[];
+  usp?: RstListItem[];
+  garanzie?: RstListItem[];
+  percorso?: RstListItem[];
+  cronoprogramma?: RstCronoFase[];
+  faq?: RstFaqItem[];
+  payment_terms_text?: string | null;
+  validity_text?: string | null;
+  footer_text?: string | null;
+}
+
 interface Props {
   /** Render dentro la tab Impostazioni (no padding/header extra di pagina). */
   embedded?: boolean;
@@ -216,6 +237,58 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
       toast.error("Salvataggio non riuscito", {
         description: e instanceof Error ? e.message : "Errore sconosciuto",
       });
+    }
+  };
+
+  // ─── AI: genera la bozza dei testi del template in un click ────────────────
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiDesc, setAiDesc] = useState("");
+
+  /** Riversa i testi generati nel form (solo i campi valorizzati: non-distruttivo). */
+  const applyGenerated = (g: GeneratedTemplateTexts) => {
+    if (g.cover_title) set("cover_title", g.cover_title);
+    if (g.cover_subtitle) set("cover_subtitle", g.cover_subtitle);
+    if (g.chi_siamo) set("chi_siamo", g.chi_siamo);
+    if (g.esigenze?.length) set("esigenze", g.esigenze);
+    if (g.soluzione?.length) set("soluzione", g.soluzione);
+    if (g.usp?.length) set("usp", g.usp);
+    if (g.garanzie?.length) set("garanzie", g.garanzie);
+    if (g.percorso?.length) set("percorso", g.percorso);
+    if (g.cronoprogramma?.length) set("cronoprogramma", g.cronoprogramma);
+    if (g.faq?.length) set("faq", g.faq);
+    if (g.payment_terms_text) set("payment_terms_text", g.payment_terms_text);
+    if (g.validity_text) set("validity_text", g.validity_text);
+    if (g.footer_text) set("footer_text", g.footer_text);
+  };
+
+  const handleGenerateAi = async () => {
+    if (!companyId) {
+      toast.error("Azienda non disponibile");
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "ai-genera-template-ristrutturazione",
+        { body: { company_id: companyId, descrizione: aiDesc.trim() || undefined } },
+      );
+      if (error) throw error;
+      const payload = data as { success?: boolean; error?: string; generated?: GeneratedTemplateTexts };
+      if (!payload?.success || !payload.generated) {
+        throw new Error(payload?.error ?? "Generazione non riuscita");
+      }
+      applyGenerated(payload.generated);
+      setAiOpen(false);
+      toast.success("Bozza generata con l'AI", {
+        description: "Controlla i testi nelle sezioni e salva il template.",
+      });
+    } catch (e) {
+      toast.error("Generazione non riuscita", {
+        description: e instanceof Error ? e.message : "Riprova tra poco.",
+      });
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -332,6 +405,32 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
           </div>
         </div>
       )}
+
+      {/* ── CTA: genera la bozza dei testi con l'AI ───────────────── */}
+      <div className="rounded-xl border border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 p-4 dark:border-orange-900/40 dark:from-orange-950/30 dark:to-amber-950/20">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-500 text-white">
+              <Wand2 className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Scrivi il template con l&apos;AI</p>
+              <p className="text-[12px] text-muted-foreground">
+                In un click generi una bozza professionale di tutti i testi — chi siamo, esigenze,
+                garanzie, FAQ, condizioni… Poi rifinisci e salvi.
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            onClick={() => setAiOpen(true)}
+            className="shrink-0 gap-1.5 bg-orange-500 hover:bg-orange-600"
+          >
+            <Sparkles className="h-4 w-4" />
+            Genera testi con AI
+          </Button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-12 gap-4">
         {/* ── SIDEBAR ──────────────────────────────────────────────── */}
@@ -944,6 +1043,57 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
         companyId={companyId}
         onOpenInTab={() => void handlePreview()}
       />
+
+      {/* ── Dialog: genera testi con AI ──────────────────────────────── */}
+      <Dialog open={aiOpen} onOpenChange={(o) => !aiLoading && setAiOpen(o)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-orange-500" />
+              Genera testi con AI
+            </DialogTitle>
+            <DialogDescription>
+              Descrivi in una riga la tua impresa: l&apos;AI scrive la bozza dei testi del template.
+              Potrai modificarli prima di salvare.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label className="text-xs">La tua impresa (opzionale)</Label>
+            <Textarea
+              value={aiDesc}
+              onChange={(e) => setAiDesc(e.target.value)}
+              rows={3}
+              placeholder="Es. Ristrutturazioni complete chiavi in mano, 20 anni di esperienza, squadra interna e impianti certificati."
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Più sei specifico, più i testi saranno calzanti. Puoi anche lasciare vuoto.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAiOpen(false)} disabled={aiLoading}>
+              Annulla
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleGenerateAi()}
+              disabled={aiLoading}
+              className="gap-1.5 bg-orange-500 hover:bg-orange-600"
+            >
+              {aiLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generazione…
+                </>
+              ) : (
+                <>
+                  <Wand2 className="h-4 w-4" />
+                  Genera bozza
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
