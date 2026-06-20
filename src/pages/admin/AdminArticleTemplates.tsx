@@ -16,8 +16,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Boxes, Plus, Search, Pencil, Copy, Trash2, Download, Loader2, Grid3x3,
-  Upload, Image as ImageIcon, X, Minus,
+  Image as ImageIcon, X, Minus,
 } from "lucide-react";
+import { GlobalPhotoLibraryPicker } from "@/components/admin/GlobalPhotoLibraryPicker";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -255,40 +256,11 @@ export default function AdminArticleTemplates() {
   );
 }
 
-/** Upload foto template nel bucket pubblico article-photo-templates (super_admin). */
-async function uploadTemplateImage(file: File): Promise<string> {
-  const ext = (file.name.split(".").pop() || "png").toLowerCase();
-  const path = `templates/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-  const { error } = await supabase.storage
-    .from("article-photo-templates")
-    .upload(path, file, { contentType: file.type || "image/png", upsert: false });
-  if (error) throw error;
-  return supabase.storage.from("article-photo-templates").getPublicUrl(path).data.publicUrl;
-}
-
 function EditDialog({ template, onClose, onSaved }: { template: Template; onClose: () => void; onSaved: () => void }) {
   const isNew = !template.id;
   const [f, setF] = useState<Template>(template);
   const set = <K extends keyof Template>(k: K, v: Template[K]) => setF((p) => ({ ...p, [k]: v }));
-
-  // Foto
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const url = await uploadTemplateImage(file);
-      set("image_url", url);
-      toast.success("Foto caricata");
-    } catch (err) {
-      toast.error(`Upload fallito: ${(err as Error).message}`);
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
-    }
-  };
+  const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
 
   // Griglia prezzi: headers in state (rari), celle in ref (perf su griglie grandi)
   const [xs, setXs] = useState<number[]>(template.griglia_default?.xs ?? []);
@@ -348,11 +320,10 @@ function EditDialog({ template, onClose, onSaved }: { template: Template; onClos
               : <ImageIcon className="h-8 w-8 text-muted-foreground" />}
           </div>
           <div className="flex-1 space-y-2">
-            <Label>Foto / icona articolo</Label>
+            <Label>Foto prodotto</Label>
             <div className="flex items-center gap-2">
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickFile} />
-              <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
-                {uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />} Carica foto
+              <Button type="button" variant="outline" size="sm" onClick={() => setPhotoPickerOpen(true)}>
+                <ImageIcon className="h-4 w-4 mr-2" /> Scegli dalla libreria
               </Button>
               {f.image_url && (
                 <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => set("image_url", null)}>
@@ -360,9 +331,15 @@ function EditDialog({ template, onClose, onSaved }: { template: Template; onClos
                 </Button>
               )}
             </div>
-            <Input className="text-xs" placeholder="…oppure incolla un URL immagine" value={f.image_url ?? ""} onChange={(e) => set("image_url", e.target.value || null)} />
+            <p className="text-[11px] text-muted-foreground">Foto salvate nella libreria globale con un nome, riutilizzabili su altri articoli.</p>
           </div>
         </div>
+        <GlobalPhotoLibraryPicker
+          open={photoPickerOpen}
+          onOpenChange={setPhotoPickerOpen}
+          defaultVertical={f.vertical_slug}
+          onSelect={(p) => set("image_url", p.url)}
+        />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2"><Label>Nome</Label><Input value={f.nome} onChange={(e) => set("nome", e.target.value)} /></div>
