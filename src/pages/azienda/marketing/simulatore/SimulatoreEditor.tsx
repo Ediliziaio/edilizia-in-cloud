@@ -24,6 +24,7 @@ import { SimVociGrid } from "@/components/marketing/simulatore/SimVociGrid";
 import { SimCronoprogramma } from "@/components/marketing/simulatore/SimCronoprogramma";
 import { SimScenariPanel } from "@/components/marketing/simulatore/SimScenariPanel";
 import { AggiungiVociDialog } from "@/components/marketing/simulatore/AggiungiVociDialog";
+import { TrasformaDialog } from "@/components/marketing/simulatore/TrasformaDialog";
 import { useSimulazione, useSimulazioniMutations } from "@/hooks/useSimulazioni";
 import { calcolaSimulazione } from "@/lib/simulatore/calcolaSimulazione";
 import { calcolaFasi } from "@/lib/simulatore/calcoli";
@@ -44,6 +45,7 @@ export default function SimulatoreEditor() {
   const hydrated = useRef(false);
   const [saved, setSaved] = useState(false);
   const [listinoOpen, setListinoOpen] = useState(false);
+  const [trasformaOpen, setTrasformaOpen] = useState(false);
   // Rata mensile dal pannello finanziamento (null se nessun finanziamento valido).
   const [rataMensile, setRataMensile] = useState<number | null>(null);
 
@@ -200,7 +202,7 @@ export default function SimulatoreEditor() {
             <FileDown className="h-4 w-4" />
             Esporta
           </Button>
-          <Button disabled className="gap-2" title="Disponibile a breve">
+          <Button onClick={() => setTrasformaOpen(true)} className="gap-2">
             <Wand2 className="h-4 w-4" />
             Trasforma
           </Button>
@@ -241,6 +243,16 @@ export default function SimulatoreEditor() {
         onAdd={(nuove) =>
           setDoc((d) => (d ? { ...d, voci: [...d.voci, ...nuove] } : d))
         }
+      />
+
+      {/* Trasforma — genera preventivo o commessa dalle voci simulate */}
+      <TrasformaDialog
+        open={trasformaOpen}
+        onOpenChange={setTrasformaOpen}
+        doc={doc}
+        risultato={risultatoConRata}
+        simulazioneNome={nome}
+        contactId={row?.contact_id ?? null}
       />
     </div>
   );
