@@ -366,6 +366,8 @@ const FacebookFormsPage = lazy(() => import("@/pages/azienda/marketing/FacebookF
 const AdsManagerBeta = lazy(() => import("@/pages/azienda/marketing/AdsManagerBeta"));
 const SocialManagerBeta = lazy(() => import("@/pages/azienda/marketing/SocialManagerBeta"));
 const Preventivi = lazy(() => import("@/pages/azienda/marketing/Preventivi"));
+const SimulatoreIndex = lazy(() => import("@/pages/azienda/marketing/simulatore/SimulatoreIndex"));
+const SimulatoreEditor = lazy(() => import("@/pages/azienda/marketing/simulatore/SimulatoreEditor"));
 const QuoteBuilder = lazy(() => import("@/pages/azienda/marketing/QuoteBuilder"));
 const QuoteDetail = lazy(() => import("@/pages/azienda/marketing/QuoteDetail"));
 const QuoteMargini = lazy(() => import("@/pages/azienda/marketing/QuoteMargini"));
@@ -833,6 +835,8 @@ export default function CompanyRoutesContainer() {
         <Route path="marketing/preventivi/nuovo" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
         <Route path="marketing/preventivi/:id" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="crm_modulo"><QuoteDetail /></FeatureRoute>)} />
         <Route path="marketing/preventivi/:id/modifica" element={withCompanyPermission("canEditPreventivi", <FeatureRoute featureKey="crm_modulo"><QuoteBuilder /></FeatureRoute>)} />
+        <Route path="marketing/simulatore" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="simulatore"><SimulatoreIndex /></FeatureRoute>)} />
+        <Route path="marketing/simulatore/:id" element={withCompanyPermission("canViewMarketingOpportunities", <FeatureRoute featureKey="simulatore"><SimulatoreEditor /></FeatureRoute>)} />
         <Route path="marketing/firma-elettronica" element={withCompanyPermission("canViewFirmaElettronica", <FeatureRoute featureKey="firma_fea"><FirmaElettronicaHub /></FeatureRoute>)} />
         {/* Sprint B — Varianti Costo Manodopera: vista admin-only gated da can_view_margins */}
         <Route path="marketing/preventivi/:id/margini" element={withCompanyPermission("canViewCosts", <QuoteMargini />)} />
