@@ -158,6 +158,7 @@ const SerramentiWizard = lazy(() => import("@/pages/azienda/serramenti/Serrament
 // Modulo Ristrutturazione (gating come Serramenti: permission-based, no feature flag DB)
 const RistrutturazioneIndex = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneIndex"));
 const RistrutturazioneWizard = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneWizard"));
+const RistrutturazioneListino = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneListino"));
 const ListiniFornitoriPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.ListiniFornitoriPage })),
 );
@@ -807,6 +808,12 @@ export default function CompanyRoutesContainer() {
           withCompanyPermission(
             "canViewMarketingOpportunities",
             <ErrorBoundary title="Errore modulo Ristrutturazione"><RistrutturazioneIndex /></ErrorBoundary>,
+          )
+        } />
+        <Route path="ristrutturazione/listino" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore listino Ristrutturazione"><RistrutturazioneListino /></ErrorBoundary>,
           )
         } />
         <Route path="ristrutturazione/nuovo" element={

@@ -124,6 +124,15 @@ export default function RistrutturazioneIndex() {
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
             <Button
+              variant="outline"
+              onClick={() => navigate("/azienda/ristrutturazione/listino")}
+              className="flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+            >
+              <Layers className="h-4 w-4 mr-1.5" />
+              <span className="sm:hidden">Listino</span>
+              <span className="hidden sm:inline">Listino lavorazioni</span>
+            </Button>
+            <Button
               onClick={() => navigate("/azienda/ristrutturazione/nuovo")}
               className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm"
             >
