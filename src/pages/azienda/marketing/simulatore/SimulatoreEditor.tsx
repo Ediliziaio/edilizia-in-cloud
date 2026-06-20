@@ -44,6 +44,8 @@ export default function SimulatoreEditor() {
   const hydrated = useRef(false);
   const [saved, setSaved] = useState(false);
   const [listinoOpen, setListinoOpen] = useState(false);
+  // Rata mensile dal pannello finanziamento (null se nessun finanziamento valido).
+  const [rataMensile, setRataMensile] = useState<number | null>(null);
 
   useEffect(() => {
     if (!row || hydrated.current) return;
@@ -69,12 +71,19 @@ export default function SimulatoreEditor() {
     [doc],
   );
 
+  // Risultato + rata mensile live dal pannello finanziamento. È questa la
+  // versione mostrata in KpiBar e persistita (così `rata_mensile` finisce a DB).
+  const risultatoConRata = useMemo(
+    () => (risultato ? { ...risultato, rata_mensile: rataMensile } : null),
+    [risultato, rataMensile],
+  );
+
   // ── Autosave debounced ─────────────────────────────────────────────────────
   // Salta il primo render dopo l'idratazione: non vogliamo riscrivere subito i
   // dati appena caricati. Si attiva solo su modifiche reali di doc/nome.
   const dirty = useRef(false);
   useEffect(() => {
-    if (!id || !doc || !risultato) return;
+    if (!id || !doc || !risultatoConRata) return;
     if (!hydrated.current) return;
     if (!dirty.current) {
       // primo passaggio post-idratazione → marca pronto, non salvare
@@ -91,13 +100,13 @@ export default function SimulatoreEditor() {
             voci: doc.voci,
             fasi: doc.fasi,
             scenari: doc.scenari,
-            costo_totale: risultato.costo_totale,
-            ricavo_imponibile: risultato.ricavo_imponibile,
-            margine_valore: risultato.margine_valore,
-            margine_pct: risultato.margine_pct,
-            iva_totale: risultato.iva_totale,
-            prezzo_cliente: risultato.prezzo_cliente,
-            rata_mensile: risultato.rata_mensile,
+            costo_totale: risultatoConRata.costo_totale,
+            ricavo_imponibile: risultatoConRata.ricavo_imponibile,
+            margine_valore: risultatoConRata.margine_valore,
+            margine_pct: risultatoConRata.margine_pct,
+            iva_totale: risultatoConRata.iva_totale,
+            prezzo_cliente: risultatoConRata.prezzo_cliente,
+            rata_mensile: risultatoConRata.rata_mensile,
           },
         },
         { onSuccess: () => setSaved(true) },
@@ -106,7 +115,7 @@ export default function SimulatoreEditor() {
     return () => clearTimeout(t);
     // `update` è stabile (mutation); volutamente fuori dalle deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, doc, nome, risultato]);
+  }, [id, doc, nome, risultatoConRata]);
 
   // ── Stati di caricamento / errore / vuoto ──────────────────────────────────
   if (isLoading) {
@@ -142,7 +151,7 @@ export default function SimulatoreEditor() {
     );
   }
 
-  if (!doc || !risultato) {
+  if (!doc || !risultato || !risultatoConRata) {
     // riga caricata ma idratazione non ancora completata (transitorio)
     return (
       <div className="p-6">
@@ -199,7 +208,7 @@ export default function SimulatoreEditor() {
       </div>
 
       {/* KPI */}
-      <SimKpiBar risultato={risultato} ivaRate={doc.scenari.iva_rate_singola} />
+      <SimKpiBar risultato={risultatoConRata} ivaRate={doc.scenari.iva_rate_singola} />
 
       {/* Voci — griglia editabile (listino, prezzari, righe libere) */}
       <SimVociGrid
@@ -222,7 +231,7 @@ export default function SimulatoreEditor() {
         scenari={doc.scenari}
         risultato={risultato}
         onChange={(scenari) => setDoc((d) => (d ? { ...d, scenari } : d))}
-        onRataChange={() => undefined}
+        onRataChange={setRataMensile}
       />
 
       {/* Dialog "Da listino" — append delle voci scelte in coda */}
