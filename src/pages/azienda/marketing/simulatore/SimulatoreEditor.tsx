@@ -13,12 +13,20 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, FileDown, Wand2, Loader2, Check } from "lucide-react";
+import { ArrowLeft, FileDown, Wand2, Loader2, Check, FileSpreadsheet, FileText, FileStack } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { SimKpiBar } from "@/components/marketing/simulatore/SimKpiBar";
 import { SimVociGrid } from "@/components/marketing/simulatore/SimVociGrid";
 import { SimCronoprogramma } from "@/components/marketing/simulatore/SimCronoprogramma";
@@ -28,6 +36,7 @@ import { TrasformaDialog } from "@/components/marketing/simulatore/TrasformaDial
 import { useSimulazione, useSimulazioniMutations } from "@/hooks/useSimulazioni";
 import { calcolaSimulazione } from "@/lib/simulatore/calcolaSimulazione";
 import { calcolaFasi } from "@/lib/simulatore/calcoli";
+import { exportSimulazioneXlsx } from "@/lib/simulatore/exportSimulazione";
 import { DEFAULT_SCENARI } from "@/lib/simulatore/tipi";
 import type { SimulazioneDoc, VoceSim, FaseSim, ScenariConfig } from "@/lib/simulatore/tipi";
 
@@ -37,7 +46,7 @@ export default function SimulatoreEditor() {
   const { id = null } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: row, isLoading, isError } = useSimulazione(id);
-  const { update } = useSimulazioniMutations();
+  const { update, duplicate } = useSimulazioniMutations();
 
   // Stato locale documento + nome. Inizializzati una sola volta dalla riga.
   const [doc, setDoc] = useState<SimulazioneDoc | null>(null);
@@ -46,6 +55,7 @@ export default function SimulatoreEditor() {
   const [saved, setSaved] = useState(false);
   const [listinoOpen, setListinoOpen] = useState(false);
   const [trasformaOpen, setTrasformaOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   // Rata mensile dal pannello finanziamento (null se nessun finanziamento valido).
   const [rataMensile, setRataMensile] = useState<number | null>(null);
 
@@ -79,6 +89,59 @@ export default function SimulatoreEditor() {
     () => (risultato ? { ...risultato, rata_mensile: rataMensile } : null),
     [risultato, rataMensile],
   );
+
+  // ── Export (Excel / PDF) ────────────────────────────────────────────────────
+  const handleExportExcel = async () => {
+    if (!doc || !risultatoConRata) return;
+    setExporting(true);
+    try {
+      await exportSimulazioneXlsx(doc, risultatoConRata, nome);
+      toast.success("Excel scaricato");
+    } catch (err) {
+      console.error("Errore export Excel:", err);
+      toast.error("Errore nella generazione del file Excel");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (!doc || !risultatoConRata) return;
+    setExporting(true);
+    try {
+      // Lazy import: la lib @react-pdf è caricata solo al click su "Esporta PDF".
+      const { scaricaSimulazionePDF } = await import(
+        "@/components/marketing/simulatore/SimulazionePDF"
+      );
+      await scaricaSimulazionePDF(doc, risultatoConRata, nome);
+      toast.success("PDF scaricato");
+    } catch (err) {
+      console.error("Errore export PDF:", err);
+      toast.error("Errore nella generazione del PDF");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // ── Salva come template ─────────────────────────────────────────────────────
+  // Duplica la riga corrente come template (`is_template: true`). Non naviga:
+  // resta sulla simulazione corrente, il template è disponibile in lista.
+  const handleSalvaTemplate = async () => {
+    if (!row) return;
+    try {
+      await duplicate.mutateAsync({
+        ...row,
+        nome,
+        voci: doc?.voci ?? row.voci,
+        fasi: doc?.fasi ?? row.fasi,
+        scenari: doc?.scenari ?? row.scenari,
+        as_template: true,
+      });
+      toast.success("Template salvato");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Errore nel salvataggio del template");
+    }
+  };
 
   // ── Autosave debounced ─────────────────────────────────────────────────────
   // Salta il primo render dopo l'idratazione: non vogliamo riscrivere subito i
@@ -198,10 +261,36 @@ export default function SimulatoreEditor() {
               </>
             ) : null}
           </span>
-          <Button variant="outline" disabled className="gap-2" title="Disponibile a breve">
-            <FileDown className="h-4 w-4" />
-            Esporta
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2" disabled={exporting}>
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileDown className="h-4 w-4" />
+                )}
+                Esporta
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => void handleExportExcel()}>
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                Esporta Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => void handleExportPdf()}>
+                <FileText className="mr-2 h-4 w-4" />
+                Esporta PDF
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => void handleSalvaTemplate()}
+                disabled={duplicate.isPending}
+              >
+                <FileStack className="mr-2 h-4 w-4" />
+                Salva come template
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={() => setTrasformaOpen(true)} className="gap-2">
             <Wand2 className="h-4 w-4" />
             Trasforma

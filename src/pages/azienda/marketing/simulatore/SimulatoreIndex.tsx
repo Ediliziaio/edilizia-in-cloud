@@ -20,6 +20,7 @@ import {
   Trash2,
   ExternalLink,
   FileStack,
+  FilePlus2,
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -120,6 +121,17 @@ export default function SimulatoreIndex() {
       apri(id);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Errore nella duplicazione");
+    }
+  };
+
+  // Crea una simulazione normale a partire da un template (is_template: false).
+  const handleNuovaDaTemplate = async (row: SimulazioneRow) => {
+    try {
+      const id = await duplicate.mutateAsync({ ...row, as_template: false });
+      toast.success("Simulazione creata dal template");
+      apri(id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Errore nella creazione dal template");
     }
   };
 
@@ -281,6 +293,12 @@ export default function SimulatoreIndex() {
                         <ExternalLink className="mr-2 h-4 w-4" />
                         Apri
                       </DropdownMenuItem>
+                      {sim.is_template && (
+                        <DropdownMenuItem onClick={() => void handleNuovaDaTemplate(sim)}>
+                          <FilePlus2 className="mr-2 h-4 w-4" />
+                          Nuova da template
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem onClick={() => void handleDuplica(sim, false)}>
                         <Copy className="mr-2 h-4 w-4" />
                         Duplica
