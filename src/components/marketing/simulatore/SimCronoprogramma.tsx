@@ -62,6 +62,18 @@ function settLabel(n: number): string {
   return `${r.toLocaleString("it-IT")} sett`;
 }
 
+/**
+ * Palette barre fasi: tinte tasteful ciclate per indice di fase (indigo, sky,
+ * emerald, amber, violet). Usano classi Tailwind coerenti col tema/dark-mode.
+ */
+const FASE_BAR = [
+  "bg-indigo-500 dark:bg-indigo-500",
+  "bg-sky-500 dark:bg-sky-500",
+  "bg-emerald-500 dark:bg-emerald-500",
+  "bg-amber-500 dark:bg-amber-500",
+  "bg-violet-500 dark:bg-violet-500",
+] as const;
+
 export function SimCronoprogramma({
   fasi,
   voci: _voci,
@@ -88,12 +100,15 @@ export function SimCronoprogramma({
   };
 
   return (
-    <Card>
+    <Card className="rounded-xl">
       <CardContent className="space-y-4 p-4">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-muted-foreground">Cronoprogramma</h3>
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+              <CalendarRange className="h-4 w-4" />
+            </span>
+            <h3 className="text-sm font-semibold">Cronoprogramma</h3>
             {totale > 0 ? (
               <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
                 {settLabel(totale)} totali
@@ -110,15 +125,17 @@ export function SimCronoprogramma({
           <EmptyState
             icon={CalendarRange}
             size="sm"
+            tone="success"
             title="Nessuna fase"
-            description="Aggiungi le fasi del lavoro per costruire il cronoprogramma e ripartire i costi."
-            action={{ label: "Aggiungi fase", onClick: addFase, icon: Plus }}
+            description="Aggiungi le fasi del lavoro per costruire il cronoprogramma e ripartire i costi nel tempo."
+            action={{ label: "Aggiungi fase", onClick: addFase, icon: Plus, primary: true }}
           />
         ) : (
           <div className="space-y-2.5">
-            {ordered.map((fase) => {
+            {ordered.map((fase, idx) => {
               const calc = costoByFase.get(fase.id);
               const manodopera = calc?.manodopera_costo ?? 0;
+              const barColor = FASE_BAR[idx % FASE_BAR.length];
               // Geometria barra: offset/larghezza in % rispetto alla durata totale.
               const leftPct = Math.min(100, (fase.inizio_offset_settimane / scala) * 100);
               const widthPct = Math.max(
@@ -200,15 +217,15 @@ export function SimCronoprogramma({
 
                   {/* Barra gantt proporzionale */}
                   <div className="mt-2.5">
-                    <div className="relative h-7 w-full overflow-hidden rounded-md bg-secondary/50">
+                    <div className="relative h-7 w-full overflow-hidden rounded-full bg-muted">
                       <div
                         className={cn(
-                          "absolute inset-y-0 flex items-center rounded-md px-2",
-                          "bg-primary/85 text-primary-foreground",
+                          "absolute inset-y-0 flex items-center rounded-full px-2.5 text-white shadow-sm",
+                          barColor,
                         )}
                         style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                       >
-                        <span className="truncate text-[11px] font-medium tabular-nums">
+                        <span className="truncate text-[11px] font-semibold tabular-nums">
                           {settLabel(fase.durata_settimane)}
                           {fase.giorni_uomo > 0
                             ? ` · ${Math.round(fase.giorni_uomo).toLocaleString("it-IT")} gg-uomo`

@@ -34,7 +34,7 @@ import { SimFlussoCassa } from "@/components/marketing/simulatore/SimFlussoCassa
 import { SimScenariPanel } from "@/components/marketing/simulatore/SimScenariPanel";
 import { AggiungiVociDialog } from "@/components/marketing/simulatore/AggiungiVociDialog";
 import { TrasformaDialog } from "@/components/marketing/simulatore/TrasformaDialog";
-import { FvContactPicker, type FvContactLite } from "@/components/fotovoltaico/FvContactPicker";
+import { SimContactPicker, type SimContactLite } from "@/components/marketing/simulatore/SimContactPicker";
 import { useSimulazione, useSimulazioniMutations, useContattiLite } from "@/hooks/useSimulazioni";
 import { calcolaSimulazione } from "@/lib/simulatore/calcolaSimulazione";
 import { calcolaFasi } from "@/lib/simulatore/calcoli";
@@ -82,6 +82,11 @@ export default function SimulatoreEditor() {
   // Nome del contatto collegato (testata). Resolve leggero su marketing_contacts.
   const { data: contattiMap = {} } = useContattiLite([contactId]);
   const contactNome = contactId ? contattiMap[contactId] : undefined;
+  // Valore per il picker dell'header: l'editor tiene solo `contactId`, qui lo
+  // adattiamo a SimContactLite usando il nome risolto come first_name di display.
+  const contactValue: SimContactLite | null = contactId
+    ? { id: contactId, first_name: contactNome ?? null, last_name: null, email: null }
+    : null;
 
   const risultato = useMemo(
     () => (doc ? calcolaSimulazione(doc) : null),
@@ -250,25 +255,21 @@ export default function SimulatoreEditor() {
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="min-w-0 flex-1 space-y-2">
+          <div className="min-w-0 flex-1 space-y-1.5">
             <Input
               value={nome}
               onChange={(e) => setNome(e.target.value)}
               placeholder="Nome simulazione"
               className="h-10 w-full max-w-md border-transparent bg-transparent px-2 text-xl font-bold shadow-none hover:border-input focus-visible:border-input"
             />
-            {/* Contatto CRM collegato (riuso del picker generico). */}
-            <div className="max-w-md">
-              <FvContactPicker
-                clienteId={contactId}
-                onSelect={(c: FvContactLite) => setContactId(c.id)}
+            {/* Contatto CRM collegato — chip compatto (riuso del picker). */}
+            <div className="px-2">
+              <SimContactPicker
+                size="chip"
+                value={contactValue}
+                onSelect={(c) => setContactId(c.id)}
                 onClear={() => setContactId(null)}
               />
-              {contactNome ? (
-                <p className="px-1 text-[11px] text-muted-foreground">
-                  Cliente: <strong>{contactNome}</strong>
-                </p>
-              ) : null}
             </div>
           </div>
         </div>

@@ -190,13 +190,15 @@ export function SimScenariPanel({
   }, [rata, finOn]);
 
   return (
-    <Card>
+    <Card className="rounded-xl">
       <CardContent className="space-y-5 p-4">
         {/* ── Sezione Economia & Trattativa ───────────────────────────────── */}
         <section className="space-y-3">
           <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold text-muted-foreground">Economia &amp; trattativa</h3>
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+              <SlidersHorizontal className="h-4 w-4" />
+            </span>
+            <h3 className="text-sm font-semibold">Economia &amp; trattativa</h3>
           </div>
 
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
@@ -355,8 +357,10 @@ export function SimScenariPanel({
         <section className="space-y-3 border-t pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Receipt className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold text-muted-foreground">IVA</h3>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-950/60 dark:text-sky-400">
+                <Receipt className="h-4 w-4" />
+              </span>
+              <h3 className="text-sm font-semibold">IVA</h3>
             </div>
             <ToggleGroup
               type="single"
@@ -494,8 +498,10 @@ export function SimScenariPanel({
         <section className="space-y-3 border-t pt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold text-muted-foreground">Finanziamento</h3>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-950/60 dark:text-violet-400">
+                <CreditCard className="h-4 w-4" />
+              </span>
+              <h3 className="text-sm font-semibold">Finanziamento</h3>
             </div>
             <ToggleGroup
               type="single"

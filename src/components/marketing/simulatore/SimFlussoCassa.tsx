@@ -17,8 +17,8 @@
  */
 import { useMemo } from "react";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -32,7 +32,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { calcolaCassa } from "@/lib/simulatore/calcoli";
 import type { FaseSim, VoceSim } from "@/lib/simulatore/tipi";
 
@@ -80,6 +80,18 @@ export function SimFlussoCassa({
   // Esposizione mostrata come valore assoluto (l'utente legge "scoperto di …").
   const esposizione = Math.abs(cassa.max_esposizione);
 
+  // Offset del gradiente al passaggio per lo zero: la frazione [0..1] dell'asse Y
+  // (dall'alto) dove `netto = 0`. Sopra → verde, sotto → rosso. Trucco recharts
+  // standard per colorare un'unica area in base al segno (solo presentazione).
+  const gradientOffset = useMemo(() => {
+    const valori = cassa.serie.map((p) => p.netto);
+    const max = Math.max(...valori, 0);
+    const min = Math.min(...valori, 0);
+    if (max <= 0) return 0; // tutto ≤ 0 → tutto rosso
+    if (min >= 0) return 1; // tutto ≥ 0 → tutto verde
+    return max / (max - min);
+  }, [cassa.serie]);
+
   const inputs = (
     <div className="flex flex-wrap items-end gap-3">
       <div className="w-[120px] space-y-1">
@@ -116,15 +128,15 @@ export function SimFlussoCassa({
   );
 
   return (
-    <Card>
+    <Card className="rounded-xl">
       <CardContent className="space-y-4 p-4">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold text-muted-foreground">
-              Flusso di cassa nel tempo (SAL)
-            </h3>
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
+              <Wallet className="h-4 w-4" />
+            </span>
+            <h3 className="text-sm font-semibold">Flusso di cassa nel tempo (SAL)</h3>
           </div>
           {inputs}
         </div>
@@ -133,96 +145,119 @@ export function SimFlussoCassa({
           <EmptyState
             icon={Wallet}
             size="sm"
+            tone="success"
             title="Nessun flusso di cassa"
-            description="Aggiungi fasi nel cronoprogramma per vedere il flusso di cassa."
+            description="Aggiungi fasi nel cronoprogramma per vedere come acconto, SAL e saldo coprono i costi nel tempo."
           />
         ) : (
           <>
-            {/* Grafico netto per settimana */}
+            {/* Grafico netto cumulato per settimana — area con gradiente verde
+                (sopra zero) / rosso (sotto zero) e punto di massima esposizione. */}
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart
+              <AreaChart
                 data={cassa.serie}
                 margin={{ top: 8, right: 12, left: 4, bottom: 4 }}
               >
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <defs>
+                  {/* Stroke: verde→rosso al passaggio per lo zero (gradientOffset). */}
+                  <linearGradient id="simCassaStroke" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset={gradientOffset} stopColor="hsl(142 76% 36%)" stopOpacity={1} />
+                    <stop offset={gradientOffset} stopColor="hsl(0 84% 60%)" stopOpacity={1} />
+                  </linearGradient>
+                  {/* Fill: stessa logica, sfumato verso trasparente in basso. */}
+                  <linearGradient id="simCassaFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(142 76% 36%)" stopOpacity={0.28} />
+                    <stop offset={gradientOffset} stopColor="hsl(142 76% 36%)" stopOpacity={0.04} />
+                    <stop offset={gradientOffset} stopColor="hsl(0 84% 60%)" stopOpacity={0.04} />
+                    <stop offset="100%" stopColor="hsl(0 84% 60%)" stopOpacity={0.28} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis
                   dataKey="settimana"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                   tickFormatter={(v: number) => `S${v}`}
+                  tickLine={false}
+                  axisLine={false}
                 />
                 <YAxis
-                  tick={{ fontSize: 10 }}
-                  tickFormatter={(v: number) =>
-                    `€${(v / 1000).toLocaleString("it-IT", { maximumFractionDigits: 1 })}k`
-                  }
-                  width={56}
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tickFormatter={formatCurrencyCompact}
+                  tickLine={false}
+                  axisLine={false}
+                  width={60}
                 />
                 <Tooltip
-                  formatter={(value: number) => [formatCurrency(value), "Netto"]}
+                  formatter={(value: number) => [formatCurrency(value), "Netto cassa"]}
                   labelFormatter={(label: number) => `Settimana ${label}`}
-                  labelStyle={{ color: "hsl(var(--foreground))" }}
+                  labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
                   contentStyle={{
                     backgroundColor: "hsl(var(--card))",
                     border: "1px solid hsl(var(--border))",
                     borderRadius: 8,
                     fontSize: 12,
+                    boxShadow: "0 4px 12px hsl(var(--foreground) / 0.08)",
                   }}
                 />
-                <ReferenceLine
-                  y={0}
-                  stroke="hsl(var(--destructive))"
-                  strokeDasharray="4 2"
-                />
-                <Line
+                <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 2" />
+                <Area
                   type="monotone"
                   dataKey="netto"
                   name="Netto"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
+                  stroke="url(#simCassaStroke)"
+                  strokeWidth={2.5}
+                  fill="url(#simCassaFill)"
                   dot={false}
-                  activeDot={{ r: 4 }}
+                  activeDot={{ r: 4, strokeWidth: 0 }}
                 />
                 {puntoMax ? (
                   <ReferenceDot
                     x={puntoMax.settimana}
                     y={puntoMax.netto}
                     r={5}
-                    fill="hsl(var(--destructive))"
+                    fill="hsl(0 84% 60%)"
                     stroke="hsl(var(--card))"
                     strokeWidth={2}
+                    label={{
+                      value: `Esposizione ${formatCurrencyCompact(cassa.max_esposizione)}`,
+                      position: "top",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      fill: "hsl(0 84% 60%)",
+                    }}
                   />
                 ) : null}
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
 
             {/* Metriche */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border bg-card p-3">
-                <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+              <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3 dark:border-rose-900/60 dark:bg-rose-950/30">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-rose-600 dark:text-rose-400">
                   <TrendingDown className="h-3.5 w-3.5" />
                   Esposizione massima
                 </div>
-                <p className="mt-1 text-lg font-semibold tabular-nums text-rose-600">
+                <p className="mt-1 text-lg font-semibold tabular-nums text-rose-700 dark:text-rose-300">
                   {formatCurrency(esposizione)}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
                   alla settimana {cassa.settimana_max_esposizione}
                 </p>
               </div>
-              <div className="rounded-lg border bg-card p-3">
+              <div className="rounded-xl border bg-card p-3">
                 <div className="text-[11px] font-medium text-muted-foreground">
                   Acconto ({sal.acconto_pct.toLocaleString("it-IT")}%)
                 </div>
-                <p className="mt-1 text-lg font-semibold tabular-nums">
+                <p className="mt-1 text-lg font-semibold tabular-nums text-sky-700 dark:text-sky-300">
                   {formatCurrency(acconto)}
                 </p>
                 <p className="text-[11px] text-muted-foreground">alla firma</p>
               </div>
-              <div className="rounded-lg border bg-card p-3">
+              <div className="rounded-xl border bg-card p-3">
                 <div className="text-[11px] font-medium text-muted-foreground">
                   Saldo ({sal.saldo_pct.toLocaleString("it-IT")}%)
                 </div>
-                <p className="mt-1 text-lg font-semibold tabular-nums">
+                <p className="mt-1 text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
                   {formatCurrency(saldo)}
                 </p>
                 <p className="text-[11px] text-muted-foreground">a fine lavori</p>

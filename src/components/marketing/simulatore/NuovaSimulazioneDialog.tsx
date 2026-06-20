@@ -9,13 +9,8 @@
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Loader2, Sparkles, ChevronsUpDown, Check, X, UserRound } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { useDebounce } from "@/hooks/useDebounce";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,26 +22,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+import { SimContactPicker, type SimContactLite } from "./SimContactPicker";
 import { useSimulazioniMutations } from "@/hooks/useSimulazioni";
-
-interface ContattoLite {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-}
-
-const contactLabel = (c: ContattoLite) =>
-  `${c.first_name || ""} ${c.last_name || ""}`.trim() || c.email || "Senza nome";
 
 interface NuovaSimulazioneDialogProps {
   open: boolean;
@@ -55,37 +32,13 @@ interface NuovaSimulazioneDialogProps {
 
 export function NuovaSimulazioneDialog({ open, onOpenChange }: NuovaSimulazioneDialogProps) {
   const navigate = useNavigate();
-  const companyId = useEffectiveCompanyId();
   const { create } = useSimulazioniMutations();
   const [nome, setNome] = useState("");
-  const [contatto, setContatto] = useState<ContattoLite | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const debounced = useDebounce(search, 250);
-
-  const { data: contatti = [], isFetching } = useQuery({
-    queryKey: ["sim-contact-picker", companyId, debounced],
-    enabled: !!companyId && pickerOpen,
-    queryFn: async (): Promise<ContattoLite[]> => {
-      let q = supabase
-        .from("marketing_contacts")
-        .select("id, first_name, last_name, email")
-        .eq("company_id", companyId!)
-        .limit(20);
-      const safe = debounced.replace(/[%,()_\\]/g, " ").trim();
-      if (safe) {
-        q = q.or(`first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,email.ilike.%${safe}%`);
-      }
-      const { data, error } = await q.order("first_name", { nullsFirst: false });
-      if (error) throw error;
-      return (data ?? []) as ContattoLite[];
-    },
-  });
+  const [contatto, setContatto] = useState<SimContactLite | null>(null);
 
   const reset = () => {
     setNome("");
     setContatto(null);
-    setSearch("");
   };
   const handleOpenChange = (next: boolean) => {
     if (!next) reset();
@@ -142,71 +95,11 @@ export function NuovaSimulazioneDialog({ open, onOpenChange }: NuovaSimulazioneD
 
           <div className="space-y-2">
             <Label className="text-muted-foreground">Cliente <span className="font-normal">(opzionale)</span></Label>
-            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={pickerOpen}
-                  className="w-full justify-between font-normal"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <UserRound className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    {contatto ? (
-                      <span className="truncate">{contactLabel(contatto)}</span>
-                    ) : (
-                      <span className="text-muted-foreground">Collega un contatto dal CRM…</span>
-                    )}
-                  </span>
-                  {contatto ? (
-                    <X
-                      className="h-4 w-4 shrink-0 text-muted-foreground hover:text-foreground"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setContatto(null);
-                      }}
-                    />
-                  ) : (
-                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                <Command shouldFilter={false}>
-                  <CommandInput
-                    placeholder="Cerca contatto…"
-                    value={search}
-                    onValueChange={setSearch}
-                  />
-                  <CommandList>
-                    <CommandEmpty>
-                      {isFetching ? "Ricerca…" : "Nessun contatto trovato"}
-                    </CommandEmpty>
-                    <CommandGroup>
-                      {contatti.map((c) => (
-                        <CommandItem
-                          key={c.id}
-                          value={c.id}
-                          onSelect={() => {
-                            setContatto(c);
-                            setPickerOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              contatto?.id === c.id ? "opacity-100" : "opacity-0",
-                            )}
-                          />
-                          <span className="truncate">{contactLabel(c)}</span>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+            <SimContactPicker
+              value={contatto}
+              onSelect={setContatto}
+              onClear={() => setContatto(null)}
+            />
           </div>
         </div>
 

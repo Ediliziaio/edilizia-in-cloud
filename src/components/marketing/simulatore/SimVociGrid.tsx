@@ -144,11 +144,16 @@ export function SimVociGrid({ voci, onChange, onApriListino, fasi, ivaMode = "si
   const isEmpty = voci.length === 0;
 
   return (
-    <Card>
+    <Card className="rounded-xl">
       <CardContent className="space-y-3 p-4">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-muted-foreground">Voci</h3>
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <ListPlus className="h-4 w-4" />
+            </span>
+            <h3 className="text-sm font-semibold">Voci</h3>
+          </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={addRigaLibera} className="gap-1.5">
               <Plus className="h-4 w-4" />
@@ -166,8 +171,8 @@ export function SimVociGrid({ voci, onChange, onApriListino, fasi, ivaMode = "si
             icon={ListPlus}
             size="sm"
             title="Nessuna voce"
-            description="Aggiungi una voce da listino/prezzari o inserisci una riga libera."
-            action={{ label: "Da listino", onClick: onApriListino, icon: Library }}
+            description="Aggiungi una voce da listino o prezzari, oppure inserisci una riga libera per partire."
+            action={{ label: "Da listino", onClick: onApriListino, icon: Library, primary: true }}
             secondaryAction={{ label: "Riga libera", onClick: addRigaLibera, icon: Plus }}
           />
         ) : (
