@@ -23,13 +23,14 @@
  * path `{company_id}/ristrutturazione/template/{uuid}.{ext}` → URL pubblico
  * stabile salvato nel template (ideale per il PDF, niente signed URL scaduti).
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
   Palette, FileText, Sparkles, ListChecks, Quote, Clock, Building2,
   Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, ShieldCheck, Percent,
+  Library, HardHat, ChevronDown,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -40,10 +41,34 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { RichTextEditorSafe } from "@/components/ui/rich-text-editor-safe";
 import { useRistrutturazionePDF } from "@/hooks/useRistrutturazionePDF";
 import { RistrutturazioneTemplatePreviewDialog } from "@/components/ristrutturazione/RistrutturazioneTemplatePreviewDialog";
+import { ImportaPrezzarioDialog } from "@/components/ristrutturazione/ImportaPrezzarioDialog";
+import { ManodoperaLookup } from "@/components/ristrutturazione/ManodoperaLookup";
+import { REGIONI_ITALIANE } from "@/lib/prezzario/tipi";
+
+// PERF: il listino lavorazioni è pesante (accordion + tabelle editabili +
+// query multiple) e serve solo quando si apre la sezione "Listino & Prezzari".
+// Lazy-load per non gonfiare il bundle dell'editor template.
+const ListinoLavorazioniEditor = lazy(() =>
+  import("@/components/ristrutturazione/ListinoLavorazioniEditor").then((m) => ({
+    default: m.ListinoLavorazioniEditor,
+  })),
+);
 import {
   useRstTemplatePdf,
   useUpsertRstTemplatePdf,
@@ -236,7 +261,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
   type RstSection =
     | "brand"
     | "page_cover" | "page_chi_siamo" | "page_percorso" | "page_testimonianze" | "page_crono" | "page_condizioni"
-    | "garanzie" | "contenuti" | "opzioni";
+    | "garanzie" | "contenuti" | "opzioni" | "listino";
   const RST_SECTION_GROUPS: Array<{
     label: string;
     items: Array<{ id: RstSection; label: string; emoji: string; descr?: string }>;
@@ -245,6 +270,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
       label: "AZIENDA",
       items: [
         { id: "brand", label: "Brand & azienda", emoji: "🏢", descr: "Logo e colori del PDF" },
+        { id: "listino", label: "Listino & Prezzari", emoji: "🧱", descr: "Voci, prezzari regionali, manodopera" },
       ],
     },
     {
@@ -528,6 +554,9 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
             </SectionCard>
             </>
           )}
+
+          {/* Listino & Prezzari regionali */}
+          {activeSection === "listino" && <ListinoPrezzariSection />}
 
           {/* Copertina */}
           {activeSection === "page_cover" && (
@@ -953,6 +982,115 @@ function SectionCard({ icon: Icon, title, description, toggle, children }: Secti
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
+  );
+}
+
+// ─── Listino & Prezzari regionali ─────────────────────────────────────────────
+/**
+ * Sezione "Listino & Prezzari": punto d'ingresso, dallo stesso posto in cui
+ * l'azienda configura il modulo Ristrutturazione, per
+ *  1) importare le voci dei prezzari regionali ufficiali nel proprio listino
+ *     (`ImportaPrezzarioDialog` → adotta in `rst_listino_voci`),
+ *  2) consultare le tariffe manodopera di riferimento (`ManodoperaLookup`),
+ *  3) gestire l'intero listino lavorazioni (`ListinoLavorazioniEditor`, che a
+ *     sua volta include già il bottone d'import).
+ */
+function ListinoPrezzariSection() {
+  const [prezzarioOpen, setPrezzarioOpen] = useState(false);
+  const [manodoperaOpen, setManodoperaOpen] = useState(false);
+  const [regione, setRegione] = useState<string | undefined>(undefined);
+
+  return (
+    <div className="space-y-4">
+      {/* Card entry-point: import prezzari + lookup manodopera */}
+      <SectionCard
+        icon={Library}
+        title="Listino lavorazioni & Prezzari regionali"
+        description="Popola il tuo listino partendo dai prezzari regionali ufficiali e consulta le tariffe manodopera di riferimento."
+      >
+        <div className="space-y-4">
+          {/* Importa da prezzario regionale */}
+          <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Importa da prezzario regionale</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Aggiungi al tuo listino le voci dei prezzari regionali ufficiali
+                (Lombardia, ecc.), poi usale nei computi. Vengono copiate con il
+                margine scelto e la nota della fonte.
+              </p>
+            </div>
+            <Button
+              type="button"
+              onClick={() => setPrezzarioOpen(true)}
+              className="shrink-0 gap-1.5 bg-orange-500 hover:bg-orange-600"
+            >
+              <Library className="h-4 w-4" />
+              Importa da prezzario regionale
+            </Button>
+          </div>
+
+          {/* Tariffe manodopera di riferimento (collassabile) */}
+          <Collapsible
+            open={manodoperaOpen}
+            onOpenChange={setManodoperaOpen}
+            className="rounded-lg border"
+          >
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
+              >
+                <span className="flex items-center gap-2">
+                  <HardHat className="h-4 w-4 text-orange-600" />
+                  <span className="text-sm font-medium">Tariffe manodopera di riferimento</span>
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                    manodoperaOpen && "rotate-180",
+                  )}
+                />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-3 border-t px-3 py-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Regione</Label>
+                <Select value={regione} onValueChange={setRegione}>
+                  <SelectTrigger className="max-w-xs">
+                    <SelectValue placeholder="Scegli una regione…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REGIONI_ITALIANE.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <ManodoperaLookup regione={regione} />
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+      </SectionCard>
+
+      {/* Editor completo del listino (include già l'import in toolbar) */}
+      <Card>
+        <CardContent className="pt-6">
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin text-orange-600" /> Caricamento listino…
+              </div>
+            }
+          >
+            <ListinoLavorazioniEditor />
+          </Suspense>
+        </CardContent>
+      </Card>
+
+      <ImportaPrezzarioDialog open={prezzarioOpen} onOpenChange={setPrezzarioOpen} />
+    </div>
   );
 }
 
