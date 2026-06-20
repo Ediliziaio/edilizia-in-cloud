@@ -56,6 +56,29 @@ export function usePrezzarioFonti() {
   });
 }
 
+// ─── Fonti (TUTTE) — solo super_admin ────────────────────────────────────────
+/**
+ * Tutte le fonti, qualunque stato (bozza/pubblicato/archiviato), ordinate per
+ * `updated_at` desc (l'ultima toccata in cima). Riservata alla UI super-admin:
+ * la RLS consente la lettura delle bozze solo al super_admin, quindi per gli
+ * altri ruoli questa query ritorna solo i pubblicati (fail-safe, non un leak).
+ * Query key distinta da `QK.fonti` per non collidere con la cache azienda.
+ */
+export function usePrezzarioFontiAdmin() {
+  return useQuery<PrezzarioFonte[]>({
+    queryKey: ["prezzario", "fonti", "admin"] as const,
+    staleTime: 0, // l'admin pubblica/archivia: nessuna cache stantia
+    queryFn: async () => {
+      const { data, error } = await sb()
+        .from("prezzario_fonte")
+        .select("*")
+        .order("updated_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as PrezzarioFonte[];
+    },
+  });
+}
+
 // ─── Capitoli di una fonte ───────────────────────────────────────────────────
 export function usePrezzarioCapitoli(fonteId: string | null | undefined) {
   return useQuery<PrezzarioCapitolo[]>({

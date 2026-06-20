@@ -37,6 +37,7 @@ import {
   CheckSquare,
   MessagesSquare,
   Receipt,
+  Library,
 } from "lucide-react";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -144,6 +145,8 @@ const allNavItems: AdminNavItem[] = [
   { title: "Portale Formazione", url: "/admin/portale-formazione", icon: GraduationCap, permission: "can_manage_companies", subcategory: "sa_portale" },
   // ─── PRODOTTO ──────────────────────────────────────────────────────
   { title: "Funzionalità Azienda", url: "/admin/feature-flags", icon: Blocks, permission: "can_manage_companies", subcategory: "sa_prodotto" },
+  // Libreria Prezzari Regionali — curata dal super-admin, condivisa con le aziende.
+  { title: "Prezzari regionali", url: "/admin/prezzari-regionali", icon: Library, permission: "can_manage_companies", subcategory: "sa_prodotto" },
   { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats", subcategory: "sa_prodotto" },
   // ⚠️ "Operazioni" rimosso dalla sidebar principale: è materia di
   //    amministrazione di sistema (sync, alert, import, GDPR, audit) e

@@ -47,6 +47,8 @@ const FeatureFlags = lazy(() => import("@/pages/admin/FeatureFlags"));
 const FeatureBundles = lazy(() => import("@/pages/admin/FeatureBundles"));
 const CompanyPacchettoCustom = lazy(() => import("@/pages/admin/CompanyPacchettoCustom"));
 const AdminFvModulo = lazy(() => import("@/pages/admin/AdminFvModulo"));
+// Libreria Prezzari Regionali — UI super-admin: upload/anteprima/import/pubblica.
+const PrezzariRegionali = lazy(() => import("@/pages/admin/PrezzariRegionali"));
 const AdminSettingsSecurity = lazy(() => import("@/pages/admin/settings/AdminSettingsSecurity"));
 const Announcements = lazy(() => import("@/pages/admin/Announcements"));
 // AdminCSTasks non è più importato qui: vive come tab dentro AdminAttivita.
@@ -276,6 +278,9 @@ export default function AdminRoutesContainer() {
         <Route path="companies/:id/pacchetto-custom" element={<RequireSuperAdmin><CompanyPacchettoCustom /></RequireSuperAdmin>} />
         <Route path="implementazioni" element={<Navigate to="/admin/feature-flags" replace />} />
         <Route path="fv-modulo" element={<RequireSuperAdmin><AdminFvModulo /></RequireSuperAdmin>} />
+        {/* Libreria Prezzari Regionali — libreria condivisa curata dal super-admin
+            (upload Excel/CSV → anteprima → import bozza → pubblica). */}
+        <Route path="prezzari-regionali" element={<RequireSuperAdmin><PrezzariRegionali /></RequireSuperAdmin>} />
         {/* Hub Customer Success — 5 tab in alto. */}
         <Route path="cs" element={<RequireAdminPermission permission="can_manage_companies"><AdminCustomerSuccessHub /></RequireAdminPermission>} />
         {/* Hub Operazioni — 5 tab in alto. */}

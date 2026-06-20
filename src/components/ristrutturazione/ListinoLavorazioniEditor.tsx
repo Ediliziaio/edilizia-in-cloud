@@ -27,6 +27,7 @@ import {
   Loader2,
   FolderPlus,
   Pencil,
+  Library,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,6 +85,7 @@ import {
   type PrefillArticoloOption,
   type PrefillTariffaOption,
 } from "@/hooks/useListinoLavorazioni";
+import { ImportaPrezzarioDialog } from "@/components/ristrutturazione/ImportaPrezzarioDialog";
 
 const UNITA_OPZIONI: RstUnitaMisura[] = [
   "mq",
@@ -562,6 +564,9 @@ export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditor
   const [prefillKind, setPrefillKind] = useState<PrefillKind>(null);
   const [prefillCapitoloId, setPrefillCapitoloId] = useState<string | null>(null);
 
+  // Dialog "Importa da prezzario regionale" (adozione voci dalla libreria centrale).
+  const [prezzarioOpen, setPrezzarioOpen] = useState(false);
+
   const handleAddCapitolo = () => {
     upsertCapitolo.mutate(
       { nome: "Nuovo capitolo", ordine: capitoli.length },
@@ -687,6 +692,14 @@ export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditor
             type="button"
             variant="outline"
             size="sm"
+            onClick={() => setPrezzarioOpen(true)}
+          >
+            <Library className="mr-1.5 h-4 w-4" /> Importa da prezzario regionale
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             onClick={() => void handleImportSeed()}
             disabled={importSeed.isPending}
           >
@@ -735,6 +748,8 @@ export function ListinoLavorazioniEditor({ className }: ListinoLavorazioniEditor
         onPickArticolo={onPickArticolo}
         onPickTariffa={onPickTariffa}
       />
+
+      <ImportaPrezzarioDialog open={prezzarioOpen} onOpenChange={setPrezzarioOpen} />
     </div>
   );
 }

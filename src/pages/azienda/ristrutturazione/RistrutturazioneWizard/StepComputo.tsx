@@ -14,7 +14,9 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, Settings2, Info } from "lucide-react";
+import { Loader2, CheckCircle2, Settings2, Info, Library } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ImportaPrezzarioDialog } from "@/components/ristrutturazione/ImportaPrezzarioDialog";
 import { useSaveComputo, useEffectiveCompanyId } from "@/hooks/useRistrutturazioneProgetto";
 import { useListinoVociSearch } from "@/hooks/useListinoLavorazioni";
 import type { RstComputoVoce } from "@/types/ristrutturazione";
@@ -38,6 +40,7 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
   const [computo, setComputo] = useState<RstComputoVoce[]>(() => initialComputo);
   const [dirty, setDirty] = useState(false);
   const [savedOnce, setSavedOnce] = useState(false);
+  const [prezzarioOpen, setPrezzarioOpen] = useState(false);
 
   // Hint listino vuoto: una ricerca "" restituisce fino a 40 voci → se 0, vuoto.
   const listino = useListinoVociSearch("");
@@ -169,6 +172,22 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
         </div>
       )}
 
+      {/* Importa da prezzario regionale → popola il listino aziendale */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 text-xs"
+          onClick={() => setPrezzarioOpen(true)}
+        >
+          <Library className="h-3.5 w-3.5" /> Importa da prezzario regionale
+        </Button>
+        <span className="text-[11px] text-muted-foreground">
+          Aggiungi voci ufficiali al listino, poi richiamale qui nel computo.
+        </span>
+      </div>
+
       {/* Editor */}
       {companyId ? (
         <ComputoEditor
@@ -184,6 +203,8 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
           <Loader2 className="h-4 w-4 animate-spin" /> Caricamento azienda…
         </div>
       )}
+
+      <ImportaPrezzarioDialog open={prezzarioOpen} onOpenChange={setPrezzarioOpen} />
     </div>
   );
 }
