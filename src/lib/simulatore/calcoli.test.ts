@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcolaVoce, calcolaTotali } from "./calcoli";
+import { calcolaVoce, calcolaTotali, calcolaIva } from "./calcoli";
 import type { VoceSim } from "./tipi";
 
 const voce = (p: Partial<VoceSim>): VoceSim => ({
@@ -31,5 +31,49 @@ describe("calcolaTotali", () => {
   });
   it("margine_pct=0 con ricavo 0 (no NaN)", () => {
     expect(calcolaTotali([]).margine_pct).toBe(0);
+  });
+});
+
+describe("calcolaIva", () => {
+  it("singola: tutto a una aliquota", () => {
+    const r = calcolaIva([voce({ quantita: 1, prezzo_unitario: 1000, vat_rate: 22 })], {
+      iva_mode: "singola",
+      iva_rate_singola: 10,
+      iva_confronto: [],
+      finanziamento: null,
+    });
+    expect(r.iva_totale).toBe(100);
+    expect(r.riepilogo_iva).toEqual([{ aliquota: 10, imponibile: 1000, imposta: 100 }]);
+  });
+  it("mista: somma per aliquota di riga", () => {
+    const r = calcolaIva(
+      [
+        voce({ quantita: 1, prezzo_unitario: 1000, vat_rate: 10 }),
+        voce({ quantita: 1, prezzo_unitario: 500, vat_rate: 22 }),
+      ],
+      { iva_mode: "mista", iva_rate_singola: 10, iva_confronto: [], finanziamento: null },
+    );
+    expect(r.iva_totale).toBe(210);
+  });
+  it("mista: bene significativo split 10/22", () => {
+    // bene 1000, posa 300 → 10% su 300+300=600, 22% su 700
+    const r = calcolaIva(
+      [
+        voce({
+          quantita: 1,
+          prezzo_unitario: 1000,
+          vat_rate: 10,
+          bene_significativo: true,
+          valore_posa_associata: 300,
+        }),
+      ],
+      { iva_mode: "mista", iva_rate_singola: 10, iva_confronto: [], finanziamento: null },
+    );
+    const r10 = r.riepilogo_iva.find((x) => x.aliquota === 10)!;
+    const r22 = r.riepilogo_iva.find((x) => x.aliquota === 22)!;
+    expect(r10.imponibile).toBe(600);
+    expect(r10.imposta).toBe(60);
+    expect(r22.imponibile).toBe(700);
+    expect(r22.imposta).toBe(154);
   });
 });

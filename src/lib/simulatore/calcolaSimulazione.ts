@@ -2,26 +2,23 @@
  * calcolaSimulazione — funzione PURA che dal documento (voci/fasi/scenari)
  * produce il risultato denormalizzato mostrato in UI e salvato a DB.
  *
- * Tappa A (questo stato): solo IVA singola. `iva_totale` = ricavo imponibile ×
- * aliquota attiva; `prezzo_cliente` = imponibile + IVA; `confronto_iva` enumera
- * il prezzo cliente per ogni aliquota in `scenari.iva_confronto`.
+ * IVA: delegata a `calcolaIva(doc.voci, doc.scenari)`, che gestisce sia la
+ * modalità singola (un'unica aliquota) sia quella mista 10/22 con beni
+ * significativi. `prezzo_cliente` = ricavo imponibile + `iva_totale`;
+ * `confronto_iva` enumera il prezzo cliente per ogni aliquota in
+ * `scenari.iva_confronto` (resta utile per il pannello di confronto).
  *
- * Tappa B porterà: IVA mista 10/22 con beni significativi (via `calcolaIva`),
- * cronoprogramma fasi (`durata_settimane` da `calcolaFasi`) e finanziamenti
- * (`rata_mensile`). Per ora questi campi restano neutri (0 / null).
+ * Tappa B porterà ancora: cronoprogramma fasi (`durata_settimane` da
+ * `calcolaFasi`) e finanziamenti (`rata_mensile`). Per ora restano neutri.
  */
-import { calcolaTotali, round2 } from "./calcoli";
-import type { SimulazioneDoc, SimulazioneRisultato, RiepilogoIvaRiga } from "./tipi";
+import { calcolaTotali, calcolaIva, round2 } from "./calcoli";
+import type { SimulazioneDoc, SimulazioneRisultato } from "./tipi";
 
 export function calcolaSimulazione(doc: SimulazioneDoc): SimulazioneRisultato {
   const { costo_totale, ricavo_imponibile, margine_valore, margine_pct } = calcolaTotali(doc.voci);
 
-  // ── IVA singola (Tappa A) ──────────────────────────────────────────────────
-  const aliquota = doc.scenari.iva_rate_singola;
-  const iva_totale = round2((ricavo_imponibile * aliquota) / 100);
-  const riepilogo_iva: RiepilogoIvaRiga[] = [
-    { aliquota, imponibile: ricavo_imponibile, imposta: iva_totale },
-  ];
+  // ── IVA (singola o mista 10/22 + beni significativi) ───────────────────────
+  const { riepilogo_iva, iva_totale } = calcolaIva(doc.voci, doc.scenari);
   const prezzo_cliente = round2(ricavo_imponibile + iva_totale);
 
   // ── Confronto IVA (prezzo cliente per ogni aliquota richiesta) ─────────────
