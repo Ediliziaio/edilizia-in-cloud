@@ -29,9 +29,16 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
-import { WND_ARTICLE_TEMPLATES } from "@/data/wndArticleTemplates";
-
 interface GridDefault { xs: number[]; ys: number[]; m: (number | null)[][] }
+
+/** Riga leggera per la lista: niente griglia_default/assi_default (jsonb pesanti),
+ * caricati on-demand solo all'apertura dell'editor. */
+interface TemplateListItem {
+  id: string; nome: string; vertical_slug: string; categoria_slug: string | null;
+  tipologia: string | null; tags: string[] | null; modalita_prezzo_base: string | null;
+  image_url: string | null; is_active: boolean; sort_order: number | null;
+}
+
 interface Template {
   id: string;
   nome: string;
@@ -61,19 +68,21 @@ export default function AdminArticleTemplates() {
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState<string>("");
   const [onlyInactive, setOnlyInactive] = useState(false);
-  const [editing, setEditing] = useState<Template | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [creatingNew, setCreatingNew] = useState(false);
 
+  // Lista LEGGERA: solo colonne necessarie, niente jsonb pesanti (griglia/assi).
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["admin-article-templates"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("article_family_templates")
-        .select("*")
+        .select("id,nome,vertical_slug,categoria_slug,tipologia,tags,modalita_prezzo_base,image_url,is_active,sort_order")
         .order("vertical_slug", { ascending: true })
         .order("sort_order", { ascending: true })
         .order("nome", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as unknown as Template[];
+      return (data ?? []) as unknown as TemplateListItem[];
     },
   });
 
@@ -99,10 +108,11 @@ export default function AdminArticleTemplates() {
 
   const importWnd = useMutation({
     mutationFn: async () => {
+      // Caricamento LAZY del dataset WnD (~370KB): solo al click, non nel bundle pagina.
+      const { WND_ARTICLE_TEMPLATES } = await import("@/data/wndArticleTemplates");
       const existing = new Set(templates.map((t) => t.nome));
       const toInsert = WND_ARTICLE_TEMPLATES.filter((r) => !existing.has(r.nome));
       let ok = 0;
-      // inserimento a piccoli lotti per non superare i limiti di payload
       for (let i = 0; i < toInsert.length; i += 10) {
         const batch = toInsert.slice(i, i + 10);
         const { error } = await supabase.from("article_family_templates").insert(batch as never);
@@ -131,7 +141,7 @@ export default function AdminArticleTemplates() {
   });
 
   const toggleActive = useMutation({
-    mutationFn: async (t: Template) => {
+    mutationFn: async (t: TemplateListItem) => {
       const { error } = await supabase
         .from("article_family_templates")
         .update({ is_active: !t.is_active })
@@ -143,12 +153,17 @@ export default function AdminArticleTemplates() {
   });
 
   const duplicate = useMutation({
-    mutationFn: async (t: Template) => {
-      const { id, sort_order, ...rest } = t;
-      void id; void sort_order;
+    mutationFn: async (id: string) => {
+      // Carica la riga COMPLETA (con griglia/assi) prima di duplicare.
+      const { data: full, error: e1 } = await supabase
+        .from("article_family_templates").select("*").eq("id", id).single();
+      if (e1) throw e1;
+      const { id: _id, sort_order: _so, created_at: _ca, updated_at: _ua, created_by: _cb, ...rest } =
+        (full ?? {}) as Record<string, unknown>;
+      void _id; void _so; void _ca; void _ua; void _cb;
       const { error } = await supabase
         .from("article_family_templates")
-        .insert({ ...rest, nome: `${t.nome} (copia)`, is_active: false } as never);
+        .insert({ ...rest, nome: `${(rest as { nome?: string }).nome ?? "Template"} (copia)`, is_active: false } as never);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -184,13 +199,7 @@ export default function AdminArticleTemplates() {
             {importWnd.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
             Importa libreria WnD
           </Button>
-          <Button onClick={() => setEditing({
-            id: "", nome: "", descrizione: "", vertical_slug: "serramenti", categoria_slug: "",
-            tipologia: "", tags: [], modalita_prezzo_base: "griglia", prezzo_base_vendita: 0,
-            vat_rate: 22, unit_of_measure: "pz", griglia_asse_x_label: "Larghezza (mm)",
-            griglia_asse_y_label: "Altezza (mm)", griglia_unita: "mm", griglia_default: null,
-            image_url: null, is_active: true, sort_order: 0,
-          })}>
+          <Button onClick={() => setCreatingNew(true)}>
             <Plus className="h-4 w-4 mr-2" /> Nuovo
           </Button>
         </div>
@@ -223,7 +232,12 @@ export default function AdminArticleTemplates() {
           <div className="divide-y">
             {filtered.map((t) => (
               <div key={t.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40">
-                <button className="flex-1 min-w-0 text-left" onClick={() => setEditing(t)}>
+                <div className="h-9 w-9 rounded border bg-muted/40 overflow-hidden flex items-center justify-center shrink-0">
+                  {t.image_url
+                    ? <img src={t.image_url} alt="" className="w-full h-full object-contain" loading="lazy" />
+                    : <ImageIcon className="h-4 w-4 text-muted-foreground/50" />}
+                </div>
+                <button className="flex-1 min-w-0 text-left" onClick={() => setEditingId(t.id)}>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-sm truncate">{t.nome}</span>
                     {!t.is_active && <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-50">disattivo</Badge>}
@@ -232,15 +246,14 @@ export default function AdminArticleTemplates() {
                     {t.tipologia && <span className="font-mono">{t.tipologia}</span>}
                     {t.categoria_slug && <span>· {t.categoria_slug}</span>}
                     {t.modalita_prezzo_base === "griglia" && (
-                      <span className="inline-flex items-center gap-1">· <Grid3x3 className="h-3 w-3" />
-                        {(t.griglia_default?.xs?.length ?? 0)}×{(t.griglia_default?.ys?.length ?? 0)} ({cellCount(t.griglia_default)} prezzi)</span>
+                      <span className="inline-flex items-center gap-1">· <Grid3x3 className="h-3 w-3" /> Griglia L×H</span>
                     )}
                     {(t.tags ?? []).slice(0, 3).map((x) => <Badge key={x} variant="secondary" className="text-[10px]">{x}</Badge>)}
                   </div>
                 </button>
                 <Switch checked={t.is_active} onCheckedChange={() => toggleActive.mutate(t)} title="Attiva/disattiva" />
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditing(t)} title="Modifica"><Pencil className="h-4 w-4" /></Button>
-                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => duplicate.mutate(t)} title="Duplica"><Copy className="h-4 w-4" /></Button>
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingId(t.id)} title="Modifica"><Pencil className="h-4 w-4" /></Button>
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => duplicate.mutate(t.id)} title="Duplica"><Copy className="h-4 w-4" /></Button>
                 <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => { if (confirm(`Eliminare "${t.nome}"?`)) del.mutate(t.id); }} title="Elimina"><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))}
@@ -251,9 +264,57 @@ export default function AdminArticleTemplates() {
         </CardContent>
       </Card>
 
-      {editing && <EditDialog template={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); qc.invalidateQueries({ queryKey: ["admin-article-templates"] }); }} />}
+      {editingId && (
+        <EditDialogLoader
+          id={editingId}
+          onClose={() => setEditingId(null)}
+          onSaved={() => { setEditingId(null); qc.invalidateQueries({ queryKey: ["admin-article-templates"] }); }}
+        />
+      )}
+      {creatingNew && (
+        <EditDialog
+          template={BLANK_TEMPLATE}
+          onClose={() => setCreatingNew(false)}
+          onSaved={() => { setCreatingNew(false); qc.invalidateQueries({ queryKey: ["admin-article-templates"] }); }}
+        />
+      )}
     </div>
   );
+}
+
+const BLANK_TEMPLATE: Template = {
+  id: "", nome: "", descrizione: "", vertical_slug: "serramenti", categoria_slug: "",
+  tipologia: "", tags: [], modalita_prezzo_base: "griglia", prezzo_base_vendita: 0,
+  vat_rate: 22, unit_of_measure: "pz", griglia_asse_x_label: "Larghezza (mm)",
+  griglia_asse_y_label: "Altezza (mm)", griglia_unita: "mm", griglia_default: null,
+  image_url: null, is_active: true, sort_order: 0,
+};
+
+/** Carica la riga COMPLETA on-demand (con griglia_default/assi) e apre l'editor. */
+function EditDialogLoader({ id, onClose, onSaved }: { id: string; onClose: () => void; onSaved: () => void }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["admin-article-template", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("article_family_templates").select("*").eq("id", id).single();
+      if (error) throw error;
+      return data as unknown as Template;
+    },
+  });
+  if (isLoading || isError || !data) {
+    return (
+      <Dialog open onOpenChange={(o) => !o && onClose()}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>{isError ? "Errore" : "Caricamento template…"}</DialogTitle></DialogHeader>
+          <div className="py-6 flex items-center justify-center">
+            {isError
+              ? <span className="text-sm text-destructive">Impossibile caricare il template.</span>
+              : <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+  return <EditDialog template={data} onClose={onClose} onSaved={onSaved} />;
 }
 
 function EditDialog({ template, onClose, onSaved }: { template: Template; onClose: () => void; onSaved: () => void }) {
