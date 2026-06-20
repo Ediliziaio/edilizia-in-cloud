@@ -3,8 +3,8 @@
  *
  * Spiega all'utente come è organizzato il listino multi-verticale (gerarchia
  * macrocategorie → categorie → articoli, etichette verticali, scheda tecnica
- * dinamica). Si chiude/riapre con persistenza in localStorage così che ogni
- * utente lo veda la prima volta e poi possa nasconderlo.
+ * dinamica). Compare SEMPRE chiuso di default; l'utente può espanderlo e la
+ * scelta viene ricordata in localStorage (riapre solo se espanso esplicitamente).
  *
  * Visibile solo per company_admin (la guida è operativa: spiega cose che
  * solo l'admin può fare). Il commerciale non ne ha bisogno.
@@ -19,15 +19,16 @@ import { Card, CardContent } from "@/components/ui/card";
 const STORAGE_KEY = "listino-guide-collapsed-v1";
 
 export function ListinoGuide() {
-  // Default: aperto la prima volta, chiuso quando l'utente lo collassa
-  const [collapsed, setCollapsed] = useState(false);
+  // Default: SEMPRE chiuso. Resta aperto solo se l'utente lo ha
+  // esplicitamente espanso in precedenza (persistenza in localStorage).
+  const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved === "1") setCollapsed(true);
+      if (saved === "0") setCollapsed(false);
     } catch {
-      // localStorage non disponibile (es. SSR/incognito) → resta aperto
+      // localStorage non disponibile (es. SSR/incognito) → resta chiuso
     }
   }, []);
 
