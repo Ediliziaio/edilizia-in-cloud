@@ -443,8 +443,9 @@ function BulletList({ styles, items }: {
 }
 
 // ─── Tabella computo per capitolo ────────────────────────────────────────────
-function CapitoloTable({ styles, cap, showMargine }: {
+function CapitoloTable({ styles, cap, showMargine, mostraPrezzi, mostraQta, mostraSubtotali }: {
   styles: Styles; cap: RstPdfCapitolo; showMargine: boolean;
+  mostraPrezzi: boolean; mostraQta: boolean; mostraSubtotali: boolean;
 }) {
   return (
     <View wrap={false}>
@@ -454,9 +455,9 @@ function CapitoloTable({ styles, cap, showMargine }: {
       </View>
       <View style={styles.tableHead}>
         <Text style={[styles.tableHeadCell, { flex: 1 }]}>Descrizione</Text>
-        <Text style={[styles.tableHeadCell, { width: 34, textAlign: "center" }]}>UdM</Text>
-        <Text style={[styles.tableHeadCell, { width: 40, textAlign: "right" }]}>Q.tà</Text>
-        <Text style={[styles.tableHeadCell, { width: 58, textAlign: "right" }]}>Prezzo</Text>
+        {mostraQta && <Text style={[styles.tableHeadCell, { width: 34, textAlign: "center" }]}>UdM</Text>}
+        {mostraQta && <Text style={[styles.tableHeadCell, { width: 40, textAlign: "right" }]}>Q.tà</Text>}
+        {mostraPrezzi && <Text style={[styles.tableHeadCell, { width: 58, textAlign: "right" }]}>Prezzo</Text>}
         <Text style={[styles.tableHeadCell, { width: 62, textAlign: "right" }]}>Importo</Text>
         {showMargine && <Text style={[styles.tableHeadCell, { width: 50, textAlign: "right" }]}>Margine</Text>}
       </View>
@@ -470,17 +471,19 @@ function CapitoloTable({ styles, cap, showMargine }: {
               {/* Citazione fonte (base d'asta) — discreta, solo se valorizzata. */}
               {v.fonte ? <Text style={styles.cellFonte}>Fonte: {v.fonte}</Text> : null}
             </View>
-            <Text style={[styles.cell, { width: 34, textAlign: "center" }]}>{v.unita_misura}</Text>
-            <Text style={[styles.cellNum, { width: 40 }]}>{formatQty(v.quantita)}</Text>
-            <Text style={[styles.cellNum, { width: 58 }]}>{formatCurrency(v.prezzo_unitario)}</Text>
+            {mostraQta && <Text style={[styles.cell, { width: 34, textAlign: "center" }]}>{v.unita_misura}</Text>}
+            {mostraQta && <Text style={[styles.cellNum, { width: 40 }]}>{formatQty(v.quantita)}</Text>}
+            {mostraPrezzi && <Text style={[styles.cellNum, { width: 58 }]}>{formatCurrency(v.prezzo_unitario)}</Text>}
             <Text style={[styles.cellNum, { width: 62, fontWeight: 700 }]}>{formatCurrency(v.importo)}</Text>
             {showMargine && <Text style={[styles.cellMargin, { width: 50 }]}>{formatCurrency(margineEur)}</Text>}
           </View>
         );
       })}
-      <View style={styles.capSubtotal}>
-        <Text style={styles.capSubtotalText}>Subtotale {cap.nome}: {formatCurrency(cap.subtotale)}</Text>
-      </View>
+      {mostraSubtotali && (
+        <View style={styles.capSubtotal}>
+          <Text style={styles.capSubtotalText}>Subtotale {cap.nome}: {formatCurrency(cap.subtotale)}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -551,7 +554,14 @@ function formatPct(v: number): string {
 
 // ─── Documento ───────────────────────────────────────────────────────────────
 export function RistrutturazionePDF(props: RstPdfEnriched) {
-  const { progetto: p, template: t, company, capitoli, totali, media } = props;
+  const { progetto: p, template: t, company, capitoli, totali, media, computoOptions } = props;
+  // Opzioni computo scelte nel preventivatore (default difensivi se assenti).
+  const co = computoOptions ?? { livello: "dettagliato" as const, mostraPrezzi: true, mostraQta: true, mostraSubtotali: true };
+  const computoLivello = co.livello ?? "dettagliato";
+  const mostraPrezzi = co.mostraPrezzi !== false;
+  const mostraQta = co.mostraQta !== false;
+  const mostraSubtotali = co.mostraSubtotali !== false;
+  const importoLordoComputo = capitoli.reduce((s, c) => s + (Number(c.subtotale) || 0), 0);
   const C = makePalette(t);
   const styles = makeStyles(C);
 
@@ -767,9 +777,34 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
         <Text style={styles.sectionSub}>
           Dettaglio delle lavorazioni previste, suddivise per capitolo.
         </Text>
-        {capitoli.map((cap) => (
-          <CapitoloTable key={cap.nome} styles={styles} cap={cap} showMargine={showMargine} />
-        ))}
+        {computoLivello === "corpo" ? (
+          // A corpo: nessuna voce/capitolo, solo l'importo complessivo delle lavorazioni.
+          <View style={styles.capHeader}>
+            <Text style={styles.capHeaderTitle}>Lavorazioni a corpo</Text>
+            <Text style={styles.capHeaderSub}>{formatCurrency(importoLordoComputo)}</Text>
+          </View>
+        ) : computoLivello === "sintetico" ? (
+          // Sintetico: solo i capitoli con il loro totale, senza le singole voci.
+          capitoli.map((cap) => (
+            <View key={cap.nome} style={styles.capHeader}>
+              <Text style={styles.capHeaderTitle}>{cap.nome}</Text>
+              <Text style={styles.capHeaderSub}>{formatCurrency(cap.subtotale)}</Text>
+            </View>
+          ))
+        ) : (
+          // Dettagliato: tabella completa per capitolo (con toggle colonne/subtotali).
+          capitoli.map((cap) => (
+            <CapitoloTable
+              key={cap.nome}
+              styles={styles}
+              cap={cap}
+              showMargine={showMargine}
+              mostraPrezzi={mostraPrezzi}
+              mostraQta={mostraQta}
+              mostraSubtotali={mostraSubtotali}
+            />
+          ))
+        )}
 
         <View style={{ marginTop: 14 }} wrap={false}>
           <Text style={styles.sectionTitle}>Riepilogo economico</Text>

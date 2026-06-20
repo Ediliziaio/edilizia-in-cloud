@@ -72,7 +72,24 @@ export interface RstPdfEnriched {
   capitoli: RstPdfCapitolo[];
   totali: RstPdfTotali;
   media: RstProgettoMedia[];
+  computoOptions: RstPdfComputoOptions;
 }
+
+/** Opzioni di visualizzazione del computo nel PDF — scelte PER PREVENTIVO
+ *  (nel preventivatore, step PDF), NON a livello di template. */
+export interface RstPdfComputoOptions {
+  /** dettagliato = ogni voce; sintetico = solo capitoli+totale; corpo = solo totale. */
+  livello: "dettagliato" | "sintetico" | "corpo";
+  mostraPrezzi: boolean;
+  mostraQta: boolean;
+  mostraSubtotali: boolean;
+}
+export const DEFAULT_COMPUTO_OPTIONS: RstPdfComputoOptions = {
+  livello: "dettagliato",
+  mostraPrezzi: true,
+  mostraQta: true,
+  mostraSubtotali: true,
+};
 
 export interface RstPdfPayload {
   progetto: RstProgetto;
@@ -81,6 +98,8 @@ export interface RstPdfPayload {
   /** Se passato si riusa, altrimenti viene riletto fresco da Supabase. */
   template?: RstTemplatePdf | null;
   company?: RstPdfCompany | null;
+  /** Come mostrare il computo nel PDF (default: dettagliato, tutto visibile). */
+  pdfOptions?: RstPdfComputoOptions;
 }
 
 // ─── Helper concurrency (clone leggero da useSerramentoPDF) ──────────────────
@@ -229,6 +248,7 @@ async function enrichForPdf(opts: RstPdfPayload): Promise<RstPdfEnriched> {
     capitoli,
     totali,
     media: inlinedMedia,
+    computoOptions: opts.pdfOptions ?? DEFAULT_COMPUTO_OPTIONS,
   };
 }
 
