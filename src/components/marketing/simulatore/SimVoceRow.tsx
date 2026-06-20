@@ -93,7 +93,7 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = 
   };
 
   return (
-    <TableRow className="group">
+    <TableRow className="group transition-colors hover:bg-muted/30">
       {/* Descrizione (+ controlli bene significativo in IVA mista) */}
       <TableCell className="min-w-[200px] align-top">
         <Input
@@ -251,8 +251,8 @@ export function SimVoceRow({ voce, onChange, onRemove, reorder, fasi, ivaMode = 
         />
       </TableCell>
 
-      {/* Totale (read-only) */}
-      <TableCell className="w-[120px] text-right font-semibold tabular-nums">
+      {/* Totale (read-only) — colonna in risalto */}
+      <TableCell className="w-[120px] text-right font-bold tabular-nums text-foreground">
         {formatCurrency(imponibile_ricavo)}
       </TableCell>
 

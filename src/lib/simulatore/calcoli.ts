@@ -1,4 +1,6 @@
-import type { VoceSim, FaseSim, ScenariConfig, RiepilogoIvaRiga, ProvvigioneSim } from "./tipi";
+import type {
+  VoceSim, FaseSim, ScenariConfig, RiepilogoIvaRiga, ProvvigioneSim, SimulazioneRisultato,
+} from "./tipi";
 
 export const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -20,6 +22,75 @@ export function calcolaTotali(voci: VoceSim[]) {
   const margine_valore = round2(ricavo_imponibile - costo_totale);
   const margine_pct = ricavo_imponibile > 0 ? round2((margine_valore / ricavo_imponibile) * 100) : 0;
   return { costo_totale, ricavo_imponibile, margine_valore, margine_pct };
+}
+
+/** Esito di {@link calcolaIncidenze}: incidenze % di costo e composizione. */
+export interface IncidenzeRisultato {
+  /** € manodopera (somma `imponibile_costo` delle voci `is_manodopera`). */
+  manodopera_costo: number;
+  /** € materiali = costo_diretto − manodopera_costo (mai negativo via round2). */
+  materiali_costo: number;
+  /** Manodopera in % sul costo diretto (guard /0 → 0). */
+  manodopera_pct_costo: number;
+  /** Materiali in % sul costo diretto (guard /0 → 0). */
+  materiali_pct_costo: number;
+  /** Incidenza manodopera sul prezzo = manodopera_costo / ricavo_netto × 100. */
+  incidenza_manodopera_ricavo: number;
+  /** Costo diretto in % sul ricavo netto (quota "dove va il ricavo"). */
+  costo_diretto_pct: number;
+  /** Spese generali in % sul ricavo netto. */
+  spese_generali_pct: number;
+  /** Provvigioni in % sul ricavo netto. */
+  provvigioni_pct: number;
+  /** Margine (finale) in % sul ricavo netto. */
+  margine_pct: number;
+}
+
+/**
+ * calcolaIncidenze — incidenze percentuali di costo e composizione del costo,
+ * derivate da un {@link SimulazioneRisultato} già calcolato.
+ *
+ * - `manodopera_costo` = somma `calcolaVoce(v).imponibile_costo` per le voci
+ *   `is_manodopera`; `materiali_costo` = `costo_diretto − manodopera_costo`
+ *   (usa il `costo_diretto` del risultato, non la somma voci, così resta
+ *   coerente anche se i costi sono aggregati altrove).
+ * - `manodopera_pct_costo` / `materiali_pct_costo` = quota in % sul
+ *   `costo_diretto` (guard /0 → 0).
+ * - `incidenza_manodopera_ricavo` = `manodopera_costo / ricavo_netto × 100`.
+ * - breakdown "dove va il ricavo": `costo_diretto`, `spese_generali`,
+ *   `provvigioni_totale` e `margine_valore` (finale), ciascuno in % sul
+ *   `ricavo_netto` (guard /0 → 0); le 4 quote sommano ~100.
+ *
+ * Funzione pura, tutti i valori `round2`.
+ */
+export function calcolaIncidenze(
+  voci: VoceSim[],
+  r: SimulazioneRisultato,
+): IncidenzeRisultato {
+  const manodopera_costo = round2(
+    voci.reduce(
+      (acc, v) => acc + (v.is_manodopera ? calcolaVoce(v).imponibile_costo : 0),
+      0,
+    ),
+  );
+  const materiali_costo = round2(r.costo_diretto - manodopera_costo);
+
+  const pctCosto = (n: number) =>
+    r.costo_diretto > 0 ? round2((n / r.costo_diretto) * 100) : 0;
+  const pctRicavo = (n: number) =>
+    r.ricavo_netto > 0 ? round2((n / r.ricavo_netto) * 100) : 0;
+
+  return {
+    manodopera_costo,
+    materiali_costo,
+    manodopera_pct_costo: pctCosto(manodopera_costo),
+    materiali_pct_costo: pctCosto(materiali_costo),
+    incidenza_manodopera_ricavo: pctRicavo(manodopera_costo),
+    costo_diretto_pct: pctRicavo(r.costo_diretto),
+    spese_generali_pct: pctRicavo(r.spese_generali),
+    provvigioni_pct: pctRicavo(r.provvigioni_totale),
+    margine_pct: pctRicavo(r.margine_valore),
+  };
 }
 
 /**

@@ -9,8 +9,9 @@ import {
   calcolaProvvigione,
   calcolaProvvigioni,
   calcolaCassa,
+  calcolaIncidenze,
 } from "./calcoli";
-import type { VoceSim, FaseSim, ProvvigioneSim } from "./tipi";
+import type { VoceSim, FaseSim, ProvvigioneSim, SimulazioneRisultato } from "./tipi";
 
 const voce = (p: Partial<VoceSim>): VoceSim => ({
   id: "1", fase_id: null, descrizione: "x", fonte: "libera", riferimento_id: null,
@@ -357,5 +358,77 @@ describe("calcolaCassa", () => {
       { acconto_pct: 0, saldo_pct: 0 },
     );
     expect(r.serie.map((p) => p.costo_cum)).toEqual([0, 200, 400, 600, 800]);
+  });
+});
+
+describe("calcolaIncidenze", () => {
+  // Risultato minimo coerente per il breakdown: solo i campi usati da
+  // calcolaIncidenze, gli altri a 0 (non incidono).
+  const risultato = (p: Partial<SimulazioneRisultato>): SimulazioneRisultato => ({
+    costo_totale: 0, ricavo_imponibile: 0, margine_valore: 0, margine_pct: 0,
+    costo_diretto: 0, spese_generali: 0, costo_pieno: 0, sconto_valore: 0,
+    ricavo_lordo: 0, ricavo_netto: 0, utile_target: 0, margine_netto_valore: 0,
+    margine_netto_pct: 0, provvigioni_totale: 0, riepilogo_iva: [], iva_totale: 0,
+    prezzo_cliente: 0, confronto_iva: [], durata_settimane: 0, rata_mensile: null, ...p,
+  });
+
+  it("composizione costo: manodopera 300 + materiali 700 (costo_diretto 1000) → 30% / 70%", () => {
+    const voci = [
+      voce({ id: "m", quantita: 1, costo_unitario: 300, is_manodopera: true }),
+      voce({ id: "x", quantita: 1, costo_unitario: 700, is_manodopera: false }),
+    ];
+    const inc = calcolaIncidenze(voci, risultato({ costo_diretto: 1000, ricavo_netto: 1500 }));
+    expect(inc.manodopera_costo).toBe(300);
+    expect(inc.materiali_costo).toBe(700);
+    expect(inc.manodopera_pct_costo).toBe(30);
+    expect(inc.materiali_pct_costo).toBe(70);
+    // incidenza manodopera sul prezzo: 300/1500*100 = 20.
+    expect(inc.incidenza_manodopera_ricavo).toBe(20);
+  });
+
+  it("breakdown ricavo netto: costo diretto / spese generali / provvigioni / margine sommano ~100", () => {
+    // ricavo_netto 1500; costo_diretto 1000; spese 200; provvigioni 100;
+    // margine finale = 1500 − 1000 − 200 − 100 = 200.
+    const voci = [
+      voce({ id: "m", quantita: 1, costo_unitario: 300, is_manodopera: true }),
+      voce({ id: "x", quantita: 1, costo_unitario: 700 }),
+    ];
+    const inc = calcolaIncidenze(
+      voci,
+      risultato({
+        costo_diretto: 1000,
+        spese_generali: 200,
+        provvigioni_totale: 100,
+        ricavo_netto: 1500,
+        margine_valore: 200,
+      }),
+    );
+    expect(inc.costo_diretto_pct).toBe(66.67);
+    expect(inc.spese_generali_pct).toBe(13.33);
+    expect(inc.provvigioni_pct).toBe(6.67);
+    expect(inc.margine_pct).toBe(13.33);
+    const somma =
+      inc.costo_diretto_pct + inc.spese_generali_pct + inc.provvigioni_pct + inc.margine_pct;
+    expect(Math.round(somma)).toBe(100);
+  });
+
+  it("materiali = costo_diretto − manodopera anche se la somma voci non torna (usa costo_diretto del risultato)", () => {
+    // Solo manodopera 300 nelle voci, ma costo_diretto del risultato è 1000
+    // (es. voci materiali aggregate altrove): materiali = 1000 − 300 = 700.
+    const voci = [voce({ id: "m", quantita: 1, costo_unitario: 300, is_manodopera: true })];
+    const inc = calcolaIncidenze(voci, risultato({ costo_diretto: 1000, ricavo_netto: 1500 }));
+    expect(inc.manodopera_costo).toBe(300);
+    expect(inc.materiali_costo).toBe(700);
+  });
+
+  it("guard divisione per zero: costo_diretto 0 e ricavo_netto 0 → tutti i pct 0 (no NaN)", () => {
+    const inc = calcolaIncidenze([], risultato({ costo_diretto: 0, ricavo_netto: 0 }));
+    expect(inc.manodopera_pct_costo).toBe(0);
+    expect(inc.materiali_pct_costo).toBe(0);
+    expect(inc.incidenza_manodopera_ricavo).toBe(0);
+    expect(inc.costo_diretto_pct).toBe(0);
+    expect(inc.spese_generali_pct).toBe(0);
+    expect(inc.provvigioni_pct).toBe(0);
+    expect(inc.margine_pct).toBe(0);
   });
 });

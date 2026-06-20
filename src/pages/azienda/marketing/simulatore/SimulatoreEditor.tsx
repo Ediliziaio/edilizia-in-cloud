@@ -28,6 +28,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { SimKpiBar } from "@/components/marketing/simulatore/SimKpiBar";
+import { SimIncidenzaCosti } from "@/components/marketing/simulatore/SimIncidenzaCosti";
 import { SimVociGrid } from "@/components/marketing/simulatore/SimVociGrid";
 import { SimCronoprogramma } from "@/components/marketing/simulatore/SimCronoprogramma";
 import { SimFlussoCassa } from "@/components/marketing/simulatore/SimFlussoCassa";
@@ -327,6 +328,9 @@ export default function SimulatoreEditor() {
 
       {/* KPI */}
       <SimKpiBar risultato={risultatoConRata} ivaRate={doc.scenari.iva_rate_singola} />
+
+      {/* Incidenza & composizione costi — riepilogo analitico sotto i KPI */}
+      <SimIncidenzaCosti voci={doc.voci} risultato={risultatoConRata} />
 
       {/* Voci — griglia editabile (listino, prezzari, righe libere) */}
       <SimVociGrid

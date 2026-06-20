@@ -179,7 +179,7 @@ export function SimVociGrid({ voci, onChange, onApriListino, fasi, ivaMode = "si
           <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="bg-muted/40 hover:bg-muted/40 [&_th]:h-9 [&_th]:text-[11px] [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground">
                   <TableHead className="min-w-[200px]">Descrizione</TableHead>
                   {hasFasi ? <TableHead className="w-[140px]">Fase</TableHead> : null}
                   <TableHead className="w-[88px] text-right">Q.tà</TableHead>
