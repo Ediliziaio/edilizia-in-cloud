@@ -22,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SimKpiBar } from "@/components/marketing/simulatore/SimKpiBar";
 import { SimVociGrid } from "@/components/marketing/simulatore/SimVociGrid";
 import { SimCronoprogramma } from "@/components/marketing/simulatore/SimCronoprogramma";
+import { SimScenariPanel } from "@/components/marketing/simulatore/SimScenariPanel";
 import { AggiungiVociDialog } from "@/components/marketing/simulatore/AggiungiVociDialog";
 import { useSimulazione, useSimulazioniMutations } from "@/hooks/useSimulazioni";
 import { calcolaSimulazione } from "@/lib/simulatore/calcolaSimulazione";
@@ -214,6 +215,14 @@ export default function SimulatoreEditor() {
         voci={doc.voci}
         onChangeFasi={(fasi) => setDoc((d) => (d ? { ...d, fasi } : d))}
         risultatoFasi={risultatoFasi}
+      />
+
+      {/* Scenari di offerta — IVA (confronto/mista) + finanziamento */}
+      <SimScenariPanel
+        scenari={doc.scenari}
+        risultato={risultato}
+        onChange={(scenari) => setDoc((d) => (d ? { ...d, scenari } : d))}
+        onRataChange={() => undefined}
       />
 
       {/* Dialog "Da listino" — append delle voci scelte in coda */}
