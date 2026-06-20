@@ -13,13 +13,15 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, FileDown, Wand2, Loader2, Check, ListPlus } from "lucide-react";
+import { ArrowLeft, FileDown, Wand2, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimKpiBar } from "@/components/marketing/simulatore/SimKpiBar";
+import { SimVociGrid } from "@/components/marketing/simulatore/SimVociGrid";
+import { AggiungiVociDialog } from "@/components/marketing/simulatore/AggiungiVociDialog";
 import { useSimulazione, useSimulazioniMutations } from "@/hooks/useSimulazioni";
 import { calcolaSimulazione } from "@/lib/simulatore/calcolaSimulazione";
 import { DEFAULT_SCENARI } from "@/lib/simulatore/tipi";
@@ -38,6 +40,7 @@ export default function SimulatoreEditor() {
   const [nome, setNome] = useState("");
   const hydrated = useRef(false);
   const [saved, setSaved] = useState(false);
+  const [listinoOpen, setListinoOpen] = useState(false);
 
   useEffect(() => {
     if (!row || hydrated.current) return;
@@ -190,17 +193,21 @@ export default function SimulatoreEditor() {
       {/* KPI */}
       <SimKpiBar risultato={risultato} ivaRate={doc.scenari.iva_rate_singola} />
 
-      {/* Voci — placeholder, la griglia vera arriva nel Task 8 */}
-      {/* SimVociGrid: Task 8 */}
-      <Card>
-        <CardContent className="p-0">
-          <EmptyState
-            icon={ListPlus}
-            title="Nessuna voce"
-            description="La griglia delle voci (listino, prezzari, righe libere) arriva nel prossimo step. Da qui costruirai il computo che alimenta i KPI."
-          />
-        </CardContent>
-      </Card>
+      {/* Voci — griglia editabile (listino, prezzari, righe libere) */}
+      <SimVociGrid
+        voci={doc.voci}
+        onChange={(voci) => setDoc((d) => (d ? { ...d, voci } : d))}
+        onApriListino={() => setListinoOpen(true)}
+      />
+
+      {/* Dialog "Da listino" — append delle voci scelte in coda */}
+      <AggiungiVociDialog
+        open={listinoOpen}
+        onOpenChange={setListinoOpen}
+        onAdd={(nuove) =>
+          setDoc((d) => (d ? { ...d, voci: [...d.voci, ...nuove] } : d))
+        }
+      />
     </div>
   );
 }
