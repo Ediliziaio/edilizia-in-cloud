@@ -839,14 +839,18 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             {progressItems.map((item) => (
               <div
                 key={item.label}
-                className={`rounded-md border px-2 py-1.5 text-center text-[10px] font-medium ${
+                className={`flex flex-col items-center gap-1 rounded-lg border px-1.5 py-2 text-center text-[11px] font-medium transition-colors ${
                   item.done
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
                     : "border-border bg-muted/30 text-muted-foreground"
                 }`}
               >
-                <CheckCircle2 className={`mx-auto mb-0.5 h-3.5 w-3.5 ${item.done ? "" : "opacity-35"}`} />
-                <span className="block truncate">{item.label}</span>
+                {item.done ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <span className="h-3.5 w-3.5 rounded-full border-2 border-current opacity-40" />
+                )}
+                <span className="block w-full truncate leading-tight">{item.label}</span>
               </div>
             ))}
           </div>

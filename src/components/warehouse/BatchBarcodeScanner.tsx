@@ -245,6 +245,7 @@ export function BatchBarcodeScanner({
     appendEntry,
     mergeResolvedEntry,
     updateEntryQty,
+    updateEntryPrice,
     removeEntry,
     promoteNoMatch,
     trackDuplicate,
@@ -1038,6 +1039,8 @@ export function BatchBarcodeScanner({
                 <EntryRow
                   key={entry.clientUuid}
                   entry={entry}
+                  showPrice={mode === "carico"}
+                  onPriceChange={(p) => updateEntryPrice(entry.clientUuid, p)}
                   onIncrement={() => updateEntryQty(entry.clientUuid, +1)}
                   onDecrement={() => updateEntryQty(entry.clientUuid, -1)}
                   canIncrement={canIncrement}
@@ -1308,6 +1311,8 @@ function LookupResultPanel({
 
 function EntryRow({
   entry,
+  showPrice = false,
+  onPriceChange,
   onIncrement,
   onDecrement,
   canIncrement = true,
@@ -1316,6 +1321,8 @@ function EntryRow({
   creating,
 }: {
   entry: BatchScanEntry;
+  showPrice?: boolean;
+  onPriceChange?: (price: number | undefined) => void;
   onIncrement: () => void;
   onDecrement: () => void;
   canIncrement?: boolean;
@@ -1337,6 +1344,33 @@ function EntryRow({
         <p className="text-[11px] text-muted-foreground font-mono truncate">
           {entry.rawCode}
         </p>
+        {showPrice && (
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <span className="shrink-0 text-[11px] text-muted-foreground">Prezzo acq.</span>
+            <div className="relative">
+              <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                €
+              </span>
+              <Input
+                type="text"
+                inputMode="decimal"
+                defaultValue={entry.purchasePrice != null ? String(entry.purchasePrice) : ""}
+                onChange={(e) => {
+                  const raw = e.target.value.trim().replace(",", ".");
+                  if (raw === "") {
+                    onPriceChange?.(undefined);
+                    return;
+                  }
+                  const n = parseFloat(raw);
+                  onPriceChange?.(Number.isFinite(n) && n >= 0 ? n : undefined);
+                }}
+                placeholder="—"
+                className="h-8 w-24 pl-5 text-sm tabular-nums"
+                aria-label={`Prezzo d'acquisto per ${entry.itemName ?? entry.rawCode}`}
+              />
+            </div>
+          </div>
+        )}
         {entry.ambiguous && !noMatch && (
           <Badge
             variant="outline"

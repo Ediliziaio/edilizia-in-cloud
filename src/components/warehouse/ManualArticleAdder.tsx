@@ -283,7 +283,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
                 <Button
                   variant="outline"
                   role="combobox"
-                  className="w-full justify-start text-left font-normal h-9 truncate pr-9"
+                  className="h-11 w-full justify-start truncate pr-9 text-left font-normal sm:h-9"
                 >
                   {pendingItem ? (
                     <span className="truncate">{pendingItem.name}</span>
@@ -421,7 +421,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
               value={pendingQty}
               onChange={(e) => setPendingQty(e.target.value)}
               disabled={!pendingItem}
-              className="h-10 text-right tabular-nums md:h-9"
+              className="h-11 text-right tabular-nums md:h-9"
               max={pendingItem?.quantity ?? undefined}
             />
           </div>
@@ -430,7 +430,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
             type="button"
             onClick={handleAddEntry}
             disabled={!pendingItem || !pendingQty || parseFloat(pendingQty) <= 0}
-            className="h-10 shrink-0 flex-1 md:flex-none md:h-9"
+            className="h-11 shrink-0 flex-1 md:flex-none md:h-9"
           >
             <Plus className="h-4 w-4 mr-1" />
             Aggiungi
@@ -449,7 +449,7 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
             value={pendingPrice}
             onChange={(e) => setPendingPrice(e.target.value)}
             placeholder="dal listino"
-            className="h-9 w-32 text-right tabular-nums"
+            className="h-11 w-32 text-right tabular-nums sm:h-9"
           />
           <span className="text-[11px] text-muted-foreground">precompilato dal listino, modificabile</span>
         </div>
