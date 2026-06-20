@@ -47,6 +47,13 @@ export interface ScenariConfig {
   utile_pct: number;
   /** Sconto in % sul ricavo lordo, applicato al cliente (default 0). */
   sconto_pct: number;
+  /**
+   * Stato Avanzamento Lavori (SAL): ripartizione degli incassi nel tempo.
+   * `acconto_pct` pagato all'inizio (settimana 0), `saldo_pct` a fine lavori
+   * (ultima settimana); il resto incassato durante i lavori in proporzione
+   * all'avanzamento dei costi.
+   */
+  sal: { acconto_pct: number; saldo_pct: number };
   finanziamento: FinanziamentoConfig | null;
 }
 
@@ -100,5 +107,6 @@ export const DEFAULT_SCENARI: ScenariConfig = {
   spese_generali_pct: 0,
   utile_pct: 0,
   sconto_pct: 0,
+  sal: { acconto_pct: 30, saldo_pct: 10 },
   finanziamento: null,
 };

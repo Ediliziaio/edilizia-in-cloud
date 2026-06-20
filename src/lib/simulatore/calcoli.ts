@@ -207,3 +207,120 @@ export function calcolaFasi(
 
   return { perFase, durata_settimane };
 }
+
+export interface PuntoCassa {
+  settimana: number;
+  costo_cum: number;
+  incasso_cum: number;
+  netto: number;
+}
+
+export interface CassaRisultato {
+  serie: PuntoCassa[];
+  /** Esposizione massima = minimo del netto (più negativo); ≤ 0 quando c'è. */
+  max_esposizione: number;
+  /** Settimana in cui si verifica l'esposizione massima. */
+  settimana_max_esposizione: number;
+}
+
+/**
+ * calcolaCassa — flusso di cassa nel tempo (SAL) settimana per settimana.
+ *
+ * Durata totale `W` = max(`inizio_offset_settimane + durata_settimane`) sulle
+ * fasi (0 se nessuna fase). La serie copre le settimane `0..W` incluse: la
+ * settimana `w` (per `w ≥ 1`) rappresenta l'intervallo `(w−1, w]`.
+ *
+ * COSTI — il costo di ogni fase è distribuito linearmente sulle sue settimane
+ * `[inizio, inizio+durata)` (cioè contribuisce alle settimane
+ * `inizio+1 … inizio+durata`). Il costo della fase è la quota di `costoPieno`
+ * proporzionale al costo della fase da `calcolaFasi`; se nessuna fase ha costo,
+ * `costoPieno` è distribuito uniformemente su `W`. `costo_cum[w]` è la somma
+ * cumulata fino alla settimana `w`.
+ *
+ * INCASSI — `acconto = prezzoCliente × acconto_pct/100` alla settimana 0;
+ * `saldo = prezzoCliente × saldo_pct/100` alla settimana `W`; il "corpo"
+ * (`prezzoCliente − acconto − saldo`) è incassato durante i lavori in
+ * proporzione all'avanzamento dei costi: `(costo_cum[w]/costo_tot) × corpo`
+ * (lineare su `w/W` se `costo_tot` è 0). `incasso_cum[w] = acconto +
+ * incasso_durante[w] (+ saldo all'ultima settimana)`.
+ *
+ * `netto[w] = incasso_cum[w] − costo_cum[w]`; `max_esposizione` è il minimo dei
+ * netti (più negativo) e `settimana_max_esposizione` la settimana relativa.
+ * Tutti i valori sono arrotondati a 2 decimali.
+ */
+export function calcolaCassa(
+  fasi: FaseSim[],
+  voci: VoceSim[],
+  costoPieno: number,
+  prezzoCliente: number,
+  sal: { acconto_pct: number; saldo_pct: number },
+): CassaRisultato {
+  const { perFase, durata_settimane: W } = calcolaFasi(fasi, voci);
+
+  if (W <= 0) {
+    return { serie: [], max_esposizione: 0, settimana_max_esposizione: 0 };
+  }
+
+  // ── Distribuzione costi per settimana ──────────────────────────────────────
+  // Quota di `costoPieno` per fase ∝ costo voci della fase; se nessuna fase ha
+  // costo, ripartizione uniforme di `costoPieno` su tutte le fasi (per durata).
+  const costoFasiTot = round2(perFase.reduce((acc, f) => acc + f.costo, 0));
+  const durataFasiTot = perFase.reduce((acc, f) => acc + f.durata, 0);
+
+  // Incremento di costo per settimana (indice 1..W).
+  const costoPerSettimana = new Array<number>(W + 1).fill(0);
+  for (const f of perFase) {
+    if (f.durata <= 0) continue;
+    const quota =
+      costoFasiTot > 0
+        ? (f.costo / costoFasiTot) * costoPieno
+        : durataFasiTot > 0
+          ? (f.durata / durataFasiTot) * costoPieno
+          : 0;
+    const perWeek = quota / f.durata;
+    const da = Math.max(0, Math.floor(f.inizio));
+    for (let k = 0; k < f.durata; k++) {
+      const w = da + k + 1; // la settimana [inizio, inizio+durata) alimenta inizio+1..inizio+durata
+      if (w >= 1 && w <= W) costoPerSettimana[w] += perWeek;
+    }
+  }
+
+  // Cumulata costi.
+  const costoCum = new Array<number>(W + 1).fill(0);
+  for (let w = 1; w <= W; w++) {
+    costoCum[w] = costoCum[w - 1] + costoPerSettimana[w];
+  }
+  const costoTot = costoCum[W];
+
+  // ── Incassi (acconto / corpo proporzionale ai costi / saldo) ───────────────
+  const acconto = round2((prezzoCliente * sal.acconto_pct) / 100);
+  const saldo = round2((prezzoCliente * sal.saldo_pct) / 100);
+  const corpo = prezzoCliente - acconto - saldo;
+
+  const serie: PuntoCassa[] = [];
+  for (let w = 0; w <= W; w++) {
+    const avanzamento = costoTot > 0 ? costoCum[w] / costoTot : w / W;
+    let incasso = acconto + avanzamento * corpo;
+    if (w === W) incasso += saldo;
+    const costo_cum = round2(costoCum[w]);
+    const incasso_cum = round2(incasso);
+    serie.push({
+      settimana: w,
+      costo_cum,
+      incasso_cum,
+      netto: round2(incasso_cum - costo_cum),
+    });
+  }
+
+  // ── Esposizione massima = minimo del netto ─────────────────────────────────
+  let max_esposizione = serie[0].netto;
+  let settimana_max_esposizione = serie[0].settimana;
+  for (const p of serie) {
+    if (p.netto < max_esposizione) {
+      max_esposizione = p.netto;
+      settimana_max_esposizione = p.settimana;
+    }
+  }
+
+  return { serie, max_esposizione, settimana_max_esposizione };
+}

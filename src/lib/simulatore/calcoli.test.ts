@@ -6,6 +6,7 @@ import {
   calcolaFasi,
   calcolaEconomia,
   calcolaPrezzoObiettivo,
+  calcolaCassa,
 } from "./calcoli";
 import type { VoceSim, FaseSim } from "./tipi";
 
@@ -198,5 +199,109 @@ describe("calcolaFasi", () => {
     expect(a.manodopera_costo).toBe(80);
     expect(a.inizio).toBe(1);
     expect(a.durata).toBe(2);
+  });
+});
+
+describe("calcolaCassa", () => {
+  // Scenario base: 2 fasi note.
+  //   A: inizio 0, durata 2, costo voci 100 → settimane 1,2.
+  //   B: inizio 2, durata 2, costo voci 300 → settimane 3,4.
+  // costoPieno 800 (> costo voci 400): quota per fase ∝ costo voce →
+  //   A pesa 200 (100/wk su 1,2), B pesa 600 (300/wk su 3,4).
+  // costo_cum: [0,100,200,500,800].
+  const fasi = [
+    fase({ id: "a", inizio_offset_settimane: 0, durata_settimane: 2 }),
+    fase({ id: "b", inizio_offset_settimane: 2, durata_settimane: 2 }),
+  ];
+  const voci = [
+    voce({ id: "va", fase_id: "a", quantita: 1, costo_unitario: 100 }),
+    voce({ id: "vb", fase_id: "b", quantita: 1, costo_unitario: 300 }),
+  ];
+
+  it("acconto 30 / saldo 10: serie su 0..W, acconto iniziale, saldo finale, netto finale", () => {
+    const r = calcolaCassa(fasi, voci, 800, 1000, { acconto_pct: 30, saldo_pct: 10 });
+
+    // Durata totale W = 4 → 5 punti (0..4).
+    expect(r.serie).toHaveLength(5);
+    expect(r.serie.map((p) => p.settimana)).toEqual([0, 1, 2, 3, 4]);
+
+    // Costi cumulati attesi.
+    expect(r.serie.map((p) => p.costo_cum)).toEqual([0, 100, 200, 500, 800]);
+
+    // Acconto iniziale = 30% di 1000 = 300 alla settimana 0.
+    expect(r.serie[0].incasso_cum).toBe(300);
+
+    // Incasso finale = prezzoCliente (acconto + corpo + saldo).
+    expect(r.serie[4].incasso_cum).toBe(1000);
+
+    // Netto finale = prezzoCliente − costoPieno = 200.
+    expect(r.serie[4].netto).toBe(200);
+    expect(r.serie[4].netto).toBe(1000 - 800);
+
+    // Incassi cumulati attesi: 300 + (costo_cum/800)*600 (+100 al saldo).
+    expect(r.serie.map((p) => p.incasso_cum)).toEqual([300, 375, 450, 675, 1000]);
+    // Netti: incasso_cum − costo_cum.
+    expect(r.serie.map((p) => p.netto)).toEqual([300, 275, 250, 175, 200]);
+
+    // max_esposizione = minimo della serie netto (qui 175 alla settimana 3).
+    const minNetto = Math.min(...r.serie.map((p) => p.netto));
+    expect(r.max_esposizione).toBe(minNetto);
+    expect(r.max_esposizione).toBe(175);
+    expect(r.settimana_max_esposizione).toBe(3);
+  });
+
+  it("acconto 0 / saldo 0: esposizione massima negativa (minimo della serie)", () => {
+    const r = calcolaCassa(fasi, voci, 800, 1000, { acconto_pct: 0, saldo_pct: 0 });
+    // Senza acconto, l'incasso segue 1:1 i costi (corpo = intero prezzo).
+    // incasso_cum = (costo_cum/800)*1000 → [0,125,250,625,1000].
+    // netto = incasso_cum − costo_cum → [0,25,50,125,200]: nessun negativo,
+    // ma il minimo è 0 alla settimana 0.
+    const minNetto = Math.min(...r.serie.map((p) => p.netto));
+    expect(r.max_esposizione).toBe(minNetto);
+    expect(r.serie[4].incasso_cum).toBe(1000);
+    expect(r.serie[4].netto).toBe(200);
+  });
+
+  it("incasso anticipato sui costi → esposizione negativa quando i costi corrono avanti", () => {
+    // costoPieno alto e acconto basso: il netto va sotto zero a metà lavori.
+    // A: costo 300 su sett 1,2; B: costo 100 su sett 3,4. costoPieno 1000.
+    //   quota A = (300/400)*1000 = 750 (375/wk), quota B = 250 (125/wk).
+    // costo_cum: [0,375,750,875,1000].
+    // prezzo 1000, acconto 10% = 100, saldo 0, corpo 900.
+    // incasso_durante = (costo_cum/1000)*900 → [0,337.5,675,787.5,900].
+    // incasso_cum = 100 + durante → [100,437.5,775,887.5,1000].
+    // netto = incasso_cum − costo_cum → [100,62.5,25,12.5,0].
+    const fasi2 = [
+      fase({ id: "a", inizio_offset_settimane: 0, durata_settimane: 2 }),
+      fase({ id: "b", inizio_offset_settimane: 2, durata_settimane: 2 }),
+    ];
+    const voci2 = [
+      voce({ id: "va", fase_id: "a", quantita: 1, costo_unitario: 300 }),
+      voce({ id: "vb", fase_id: "b", quantita: 1, costo_unitario: 100 }),
+    ];
+    const r = calcolaCassa(fasi2, voci2, 1000, 1000, { acconto_pct: 10, saldo_pct: 0 });
+    expect(r.serie.map((p) => p.netto)).toEqual([100, 62.5, 25, 12.5, 0]);
+    expect(r.max_esposizione).toBe(0);
+    expect(r.settimana_max_esposizione).toBe(4);
+  });
+
+  it("senza fasi → serie vuota, esposizione 0", () => {
+    const r = calcolaCassa([], [], 1000, 1500, { acconto_pct: 30, saldo_pct: 10 });
+    expect(r.serie).toEqual([]);
+    expect(r.max_esposizione).toBe(0);
+    expect(r.settimana_max_esposizione).toBe(0);
+  });
+
+  it("fasi senza costo → costo distribuito uniformemente su W", () => {
+    // 1 fase, durata 4, nessuna voce → costoPieno 800 distribuito uniforme:
+    // 200/wk → costo_cum [0,200,400,600,800].
+    const r = calcolaCassa(
+      [fase({ id: "a", inizio_offset_settimane: 0, durata_settimane: 4 })],
+      [],
+      800,
+      1000,
+      { acconto_pct: 0, saldo_pct: 0 },
+    );
+    expect(r.serie.map((p) => p.costo_cum)).toEqual([0, 200, 400, 600, 800]);
   });
 });

@@ -30,6 +30,7 @@ import {
 import { SimKpiBar } from "@/components/marketing/simulatore/SimKpiBar";
 import { SimVociGrid } from "@/components/marketing/simulatore/SimVociGrid";
 import { SimCronoprogramma } from "@/components/marketing/simulatore/SimCronoprogramma";
+import { SimFlussoCassa } from "@/components/marketing/simulatore/SimFlussoCassa";
 import { SimScenariPanel } from "@/components/marketing/simulatore/SimScenariPanel";
 import { AggiungiVociDialog } from "@/components/marketing/simulatore/AggiungiVociDialog";
 import { TrasformaDialog } from "@/components/marketing/simulatore/TrasformaDialog";
@@ -68,7 +69,9 @@ export default function SimulatoreEditor() {
       fasi: (Array.isArray(row.fasi) ? (row.fasi as FaseSim[]) : []),
       scenari:
         row.scenari && typeof row.scenari === "object"
-          ? (row.scenari as ScenariConfig)
+          ? // Merge dei default per i campi aggiunti dopo il salvataggio della
+            // riga (es. `sal`): righe storiche non hanno `scenari.sal`.
+            { ...DEFAULT_SCENARI, ...(row.scenari as ScenariConfig) }
           : DEFAULT_SCENARI,
     });
     setNome(row.nome);
@@ -339,6 +342,18 @@ export default function SimulatoreEditor() {
         voci={doc.voci}
         onChangeFasi={(fasi) => setDoc((d) => (d ? { ...d, fasi } : d))}
         risultatoFasi={risultatoFasi}
+      />
+
+      {/* Flusso di cassa nel tempo (SAL) — netto cumulato + esposizione massima */}
+      <SimFlussoCassa
+        fasi={doc.fasi}
+        voci={doc.voci}
+        costoPieno={risultato.costo_pieno}
+        prezzoCliente={risultato.prezzo_cliente}
+        sal={doc.scenari.sal ?? DEFAULT_SCENARI.sal}
+        onChangeSal={(sal) =>
+          setDoc((d) => (d ? { ...d, scenari: { ...d.scenari, sal } } : d))
+        }
       />
 
       {/* Scenari di offerta — IVA (confronto/mista) + finanziamento */}
