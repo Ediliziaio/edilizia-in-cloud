@@ -823,8 +823,8 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!fixed !left-3 !right-3 !top-3 !bottom-[calc(5.25rem+env(safe-area-inset-bottom))] !flex !flex-col !w-auto !max-w-none !translate-x-0 !translate-y-0 gap-0 overflow-hidden p-0 sm:!left-[50%] sm:!right-auto sm:!top-[50%] sm:!bottom-auto sm:!w-full sm:!max-w-3xl sm:!max-h-[90svh] sm:!translate-x-[-50%] sm:!translate-y-[-50%]">
-        <DialogHeader className="shrink-0 px-5 py-4 border-b">
+      <DialogContent className="!fixed !inset-0 !flex !flex-col !w-auto !max-w-none !translate-x-0 !translate-y-0 gap-0 overflow-hidden rounded-none border-0 p-0 sm:!inset-auto sm:!left-[50%] sm:!top-[50%] sm:!w-full sm:!max-w-3xl sm:!max-h-[90svh] sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:rounded-lg sm:border">
+        <DialogHeader className="shrink-0 border-b px-4 py-3 pr-12 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-5 sm:py-4 sm:pt-4">
           <DialogTitle className="flex items-center gap-2 text-base">
             <ArrowDownToLine className="h-5 w-5 text-primary" />
             Registra arrivo merce
@@ -851,51 +851,51 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
             ))}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <p className="text-xs font-medium uppercase text-muted-foreground">Inserimento</p>
-              <p className="text-sm font-semibold">{insertedAt.toLocaleString("it-IT")}</p>
-              <p className="text-xs text-muted-foreground">Da: {insertedBy}</p>
+          {/* Modalità — scelta principale: bottoni grandi e tap-friendly (icona+
+              testo impilati su mobile, inline su desktop). */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Come registri l&apos;arrivo?
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={receiveMode === "scan" ? "default" : "outline"}
+                onClick={() => setReceiveMode("scan")}
+                className="h-auto min-h-[3.25rem] flex-col gap-1 py-2.5 sm:h-12 sm:min-h-0 sm:flex-row sm:gap-2 sm:py-0"
+              >
+                <ClipboardList className="h-5 w-5 sm:h-4 sm:w-4" />
+                <span className="text-sm font-medium">Scannerizza</span>
+              </Button>
+              <Button
+                type="button"
+                variant={receiveMode === "ddt" ? "default" : "outline"}
+                onClick={() => setReceiveMode("ddt")}
+                className="h-auto min-h-[3.25rem] flex-col gap-1 py-2.5 sm:h-12 sm:min-h-0 sm:flex-row sm:gap-2 sm:py-0"
+              >
+                <FileText className="h-5 w-5 sm:h-4 sm:w-4" />
+                <span className="text-sm font-medium">Carica DDT</span>
+              </Button>
             </div>
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <p className="text-xs font-medium uppercase text-muted-foreground">Modalità</p>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant={receiveMode === "scan" ? "default" : "outline"}
-                  onClick={() => setReceiveMode("scan")}
-                  className="justify-start"
-                >
-                  <ClipboardList className="mr-2 h-4 w-4" />
-                  Scannerizza
-                </Button>
-                <Button
-                  type="button"
-                  variant={receiveMode === "ddt" ? "default" : "outline"}
-                  onClick={() => setReceiveMode("ddt")}
-                  className="justify-start"
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Carica DDT
-                </Button>
-              </div>
-              {receiveMode === "scan" && (
-                <button
-                  type="button"
-                  onClick={() => setConfirmEachScan((v) => !v)}
-                  className="mt-2 flex w-full items-center justify-between gap-3 rounded-md border bg-background px-3 py-2 text-left"
-                  aria-pressed={confirmEachScan}
-                >
-                  <span className="min-w-0 text-xs">
-                    <span className="font-medium">Conferma una alla volta</span>
-                    <span className="block text-muted-foreground">Popup di conferma a ogni scansione (associa o crea)</span>
-                  </span>
-                  <span className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${confirmEachScan ? "bg-primary" : "bg-muted-foreground/30"}`}>
-                    <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${confirmEachScan ? "left-[18px]" : "left-0.5"}`} />
-                  </span>
-                </button>
-              )}
-            </div>
+            {receiveMode === "scan" && (
+              <button
+                type="button"
+                onClick={() => setConfirmEachScan((v) => !v)}
+                className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2 text-left"
+                aria-pressed={confirmEachScan}
+              >
+                <span className="min-w-0 text-xs">
+                  <span className="font-medium">Conferma una alla volta</span>
+                  <span className="block text-muted-foreground">Popup di conferma a ogni scansione (associa o crea)</span>
+                </span>
+                <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${confirmEachScan ? "bg-primary" : "bg-muted-foreground/30"}`}>
+                  <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${confirmEachScan ? "left-[22px]" : "left-0.5"}`} />
+                </span>
+              </button>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              Inserimento {insertedAt.toLocaleString("it-IT")} · {insertedBy}
+            </p>
           </div>
 
           {/* Fornitore */}
@@ -908,7 +908,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
               </div>
             ) : (
               <Select value={supplierId} onValueChange={setSupplierId}>
-                <SelectTrigger id="cr-supplier">
+                <SelectTrigger id="cr-supplier" className="h-11 sm:h-10">
                   <SelectValue placeholder="Scegli un fornitore..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -1163,7 +1163,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                   setSectionId(undefined); // sezioni dipendono dal magazzino
                 }}
               >
-                <SelectTrigger id="cr-warehouse">
+                <SelectTrigger id="cr-warehouse" className="h-11 sm:h-10">
                   <SelectValue placeholder="Scegli un magazzino..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -1194,7 +1194,7 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
                 value={sectionId ?? "__none__"}
                 onValueChange={(v) => setSectionId(v === "__none__" ? undefined : v)}
               >
-                <SelectTrigger id="cr-section">
+                <SelectTrigger id="cr-section" className="h-11 sm:h-10">
                   <SelectValue placeholder="Nessuna sezione" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1404,18 +1404,22 @@ export function CaricoRapidoSheet({ open, onOpenChange }: CaricoRapidoSheetProps
           )}
         </div>
 
-        <DialogFooter className="shrink-0 border-t p-3 flex-row gap-2 bg-card">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
-            <ArrowLeft className="h-4 w-4 mr-2" />
+        <DialogFooter className="shrink-0 flex-row gap-2 border-t bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-3">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="h-12 flex-1 sm:h-10"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
             Annulla
           </Button>
           <Button
             onClick={() => setStep("scan")}
             disabled={!canContinueReceipt}
-            className="flex-[2]"
+            className="h-12 flex-[2] text-[15px] font-semibold sm:h-10 sm:text-sm"
           >
             {continueLabel}
-            <ArrowRight className="h-4 w-4 ml-2" />
+            <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </DialogFooter>
       </DialogContent>
