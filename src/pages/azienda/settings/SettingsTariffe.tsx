@@ -12,6 +12,7 @@ import {
   TrendingUp, Percent, Package, Activity, Archive, RotateCcw, Info,
   Building2, Layers3, Wallet, CheckCircle2, Wrench, Paintbrush, AlertTriangle,
   FileSpreadsheet, ChevronDown, Download, FilterX, X, ClipboardList, Link2,
+  Library,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +57,7 @@ import {
   STANDARD_TARIFFE, PRESET_CATALOGHI, getDefaultPresetForVerticalTariffe,
 } from "./SettingsTariffe/presets";
 import { ImportPrezziarioDialog } from "./SettingsTariffe/ImportPrezziarioDialog";
+import { ImportaPrezzarioRegionaleDialog } from "./SettingsTariffe/ImportaPrezzarioRegionaleDialog";
 import { buildTariffeExportCsv } from "@/lib/tariffe/prezziarioImport";
 import { countTariffaUsage, totalTariffaUsage, countTariffaUsageBulk } from "@/lib/tariffe/tariffaUsage";
 import { BulkPriceAdjustDialog } from "@/components/settings/BulkPriceAdjustDialog";
@@ -1335,6 +1337,7 @@ export default function SettingsTariffe() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [standardOpen, setStandardOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [importRegionaleOpen, setImportRegionaleOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [verticalFilter, setVerticalFilter] = useState<VerticalFilter>("all");
   const [statoFilter, setStatoFilter] = useState<StatoFilter>("attive");
@@ -1733,6 +1736,13 @@ export default function SettingsTariffe() {
                   <span className="text-xs text-muted-foreground">Carica un CSV o Excel</span>
                 </div>
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setImportRegionaleOpen(true)} className="gap-2 cursor-pointer">
+                <Library className="h-4 w-4 text-orange-500 shrink-0" />
+                <div className="flex flex-col">
+                  <span>Importa da prezzario regionale</span>
+                  <span className="text-xs text-muted-foreground">Voci dai prezzari ufficiali regionali</span>
+                </div>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Esporta</DropdownMenuLabel>
               <DropdownMenuItem
@@ -2070,6 +2080,16 @@ export default function SettingsTariffe() {
           open={importOpen}
           onClose={() => setImportOpen(false)}
           existing={tariffe}
+          companyId={companyId}
+          isAdmin={isAdmin}
+          onImported={() => invalidateAllTariffe(queryClient)}
+        />
+      )}
+
+      {importRegionaleOpen && (
+        <ImportaPrezzarioRegionaleDialog
+          open={importRegionaleOpen}
+          onOpenChange={setImportRegionaleOpen}
           companyId={companyId}
           isAdmin={isAdmin}
           onImported={() => invalidateAllTariffe(queryClient)}
