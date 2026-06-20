@@ -38,6 +38,7 @@ import {
   MessagesSquare,
   Receipt,
   Library,
+  HardHat,
 } from "lucide-react";
 import { SidebarSubcategory } from "@/components/layouts/SidebarSubcategory";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -147,6 +148,8 @@ const allNavItems: AdminNavItem[] = [
   { title: "Funzionalità Azienda", url: "/admin/feature-flags", icon: Blocks, permission: "can_manage_companies", subcategory: "sa_prodotto" },
   // Libreria Prezzari Regionali — curata dal super-admin, condivisa con le aziende.
   { title: "Prezzari regionali", url: "/admin/prezzari-regionali", icon: Library, permission: "can_manage_companies", subcategory: "sa_prodotto" },
+  // Manodopera (costo orario) — tariffe orarie edili ufficiali, curate dal super-admin.
+  { title: "Manodopera (costo orario)", url: "/admin/manodopera-tariffe", icon: HardHat, permission: "can_manage_companies", subcategory: "sa_prodotto" },
   { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats", subcategory: "sa_prodotto" },
   // ⚠️ "Operazioni" rimosso dalla sidebar principale: è materia di
   //    amministrazione di sistema (sync, alert, import, GDPR, audit) e

@@ -24,12 +24,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
-  Library, Upload, AlertCircle, CheckCircle2, FileSpreadsheet, Loader2, Send, Archive, Globe,
+  Library, Upload, AlertCircle, CheckCircle2, FileSpreadsheet, Loader2, Send, Archive, Globe, Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
@@ -48,6 +49,8 @@ import {
   parsePrezzarioRegionale,
   summarizePrezzario,
   type ParsePrezzarioResult,
+  type ParsedVoceImport,
+  type ParsedCapitoloImport,
   type PrezzarioField,
 } from "@/lib/prezzario/import";
 import { usePrezzarioFontiAdmin } from "@/lib/prezzario/queries";
@@ -154,6 +157,14 @@ interface ImportResponse {
   voci_scartate: number;
 }
 
+/** Risposta dell'edge `prezzario-extract-ai` (estrazione AI da testo). */
+interface AiExtractResponse {
+  voci: ParsedVoceImport[];
+  capitoli: ParsedCapitoloImport[];
+  troncato: boolean;
+  voci_totali: number;
+}
+
 export default function PrezzariRegionali() {
   const { permissions } = useSuperAdminPermissions();
   const qc = useQueryClient();
@@ -163,6 +174,9 @@ export default function PrezzariRegionali() {
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [result, setResult] = useState<ParsePrezzarioResult | null>(null);
+  // Estrazione AI (PDF/testo): testo incollato + flag "risultato troncato".
+  const [aiText, setAiText] = useState("");
+  const [aiTroncato, setAiTroncato] = useState(false);
 
   const { data: fonti, isLoading: fontiLoading, error: fontiError } = usePrezzarioFontiAdmin();
 
@@ -193,6 +207,7 @@ export default function PrezzariRegionali() {
     setParsing(true);
     setParseError(null);
     setResult(null);
+    setAiTroncato(false); // l'anteprima ora proviene da un file, non dall'AI
     setFileName(file.name);
     try {
       const matrix = await fileToMatrix(file);
@@ -214,6 +229,56 @@ export default function PrezzariRegionali() {
       setParsing(false);
     }
   }
+
+  // ── Estrai con AI (PDF/testo) via edge `prezzario-extract-ai` ───────────────
+  // L'output (voci/capitoli, già nel CONTRATTO di import.ts) confluisce nella
+  // STESSA anteprima dell'Excel: costruiamo un ParsePrezzarioResult e lo
+  // mettiamo nello stesso `result`. Da lì si rivede e si importa (riuso totale).
+  const aiExtractMutation = useMutation({
+    mutationFn: async (): Promise<AiExtractResponse> => {
+      if (!form.regione) throw new Error("Seleziona prima la regione.");
+      if (!aiText.trim()) throw new Error("Incolla il testo del prezzario.");
+      const { data, error } = await supabase.functions.invoke<AiExtractResponse>(
+        "prezzario-extract-ai",
+        { body: { testo: aiText, regione: form.regione } },
+      );
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error("Risposta vuota dalla funzione di estrazione AI.");
+      return data;
+    },
+    onSuccess: (data) => {
+      // Inietta l'output AI nello stato di anteprima condiviso con l'Excel.
+      const voci = Array.isArray(data.voci) ? data.voci : [];
+      const capitoli = Array.isArray(data.capitoli) ? data.capitoli : [];
+      // detectedColumns: segnala i campi presenti così l'anteprima li mostra
+      // come "rilevati" (indice 0 — convenzionale, non c'è una matrice colonne).
+      const detectedColumns: ParsePrezzarioResult["detectedColumns"] = {};
+      if (voci.length > 0) {
+        detectedColumns.descrizione = 0;
+        detectedColumns.prezzo = 0;
+        if (voci.some((v) => v.codice)) detectedColumns.codice = 0;
+        if (voci.some((v) => v.unita_misura)) detectedColumns.unita_misura = 0;
+        if (voci.some((v) => v.incidenza_manodopera_pct != null)) detectedColumns.incidenza_manodopera = 0;
+        if (voci.some((v) => v.incidenza_sicurezza_pct != null)) detectedColumns.incidenza_sicurezza = 0;
+        if (capitoli.length > 0) detectedColumns.capitolo = 0;
+      }
+      setResult({ capitoli, voci, detectedColumns, globalErrors: [] });
+      setAiTroncato(Boolean(data.troncato));
+      setFileName(null); // l'anteprima ora proviene dall'AI, non da un file
+      if (!form.nome.trim()) {
+        set("nome", `Prezzario ${form.regione} ${form.anno}`);
+      }
+      const valide = voci.filter((v) => v.errors.length === 0).length;
+      toast.success("Estrazione AI completata", {
+        description: `${voci.length} voci estratte · ${valide} valide${data.troncato ? " · testo troncato a 30k caratteri" : ""}`,
+      });
+    },
+    onError: (err) => {
+      toast.error("Estrazione AI fallita", {
+        description: err instanceof Error ? err.message : "Errore sconosciuto.",
+      });
+    },
+  });
 
   // ── Importa (bozza) via edge function ──────────────────────────────────────
   const importMutation = useMutation({
@@ -252,6 +317,8 @@ export default function PrezzariRegionali() {
       });
       setResult(null);
       setFileName(null);
+      setAiText("");
+      setAiTroncato(false);
       void qc.invalidateQueries({ queryKey: ["prezzario", "fonti", "admin"] });
     },
     onError: (err) => {
@@ -431,6 +498,62 @@ export default function PrezzariRegionali() {
         </CardContent>
       </Card>
 
+      {/* Estrazione AI (PDF/testo) — per le regioni senza Excel importabile */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" /> Estrai con AI (PDF/testo)
+          </CardTitle>
+          <CardDescription>
+            Per le regioni che non pubblicano un Excel/CSV importabile: incolla il testo del prezzario
+            (es. copiato dal PDF) e l&apos;AI lo converte in voci. Il risultato confluisce nell&apos;anteprima qui sotto.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Estrazione AI: rivedere SEMPRE prezzi/UM prima di pubblicare</AlertTitle>
+            <AlertDescription>
+              L&apos;estrazione automatica può sbagliare prezzi, unità di misura o codici. Controlla sempre
+              le voci nell&apos;anteprima prima di importare e pubblicare.
+            </AlertDescription>
+          </Alert>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="ai-text">Testo del prezzario</Label>
+            <Textarea
+              id="ai-text"
+              value={aiText}
+              onChange={(e) => setAiText(e.target.value)}
+              placeholder="Incolla qui il testo del PDF/prezzario (codice, descrizione, U.M., prezzo, eventuale % manodopera)…"
+              rows={10}
+              className="font-mono text-xs"
+              disabled={aiExtractMutation.isPending}
+            />
+            <p className="text-xs text-muted-foreground">
+              Verranno usati al massimo 30.000 caratteri per chiamata; per prezzari lunghi estrai una sezione alla volta.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              onClick={() => aiExtractMutation.mutate()}
+              disabled={!form.regione || !aiText.trim() || aiExtractMutation.isPending}
+            >
+              {aiExtractMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 h-4 w-4" />
+              )}
+              {aiExtractMutation.isPending ? "Estrazione in corso…" : "Estrai"}
+            </Button>
+            {!form.regione && (
+              <span className="text-sm text-muted-foreground">Seleziona prima la regione.</span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Anteprima */}
       {result && (
         <Card>
@@ -452,6 +575,18 @@ export default function PrezzariRegionali() {
                       <li key={i}>{g}</li>
                     ))}
                   </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Avviso troncamento estrazione AI (testo oltre 30k caratteri) */}
+            {aiTroncato && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Testo troncato</AlertTitle>
+                <AlertDescription>
+                  Il testo superava i 30.000 caratteri ed è stato troncato: alcune voci potrebbero mancare.
+                  Estrai le sezioni rimanenti separatamente.
                 </AlertDescription>
               </Alert>
             )}

@@ -25,7 +25,7 @@ export interface PickedVoce {
 }
 
 /** Sorgente di una voce nel picker (per badge + raggruppamento). */
-export type VoceSource = "lavorazione" | "prodotto" | "manodopera" | "libera";
+export type VoceSource = "lavorazione" | "prodotto" | "manodopera" | "libera" | "prezzario";
 
 /**
  * Materializza una `PickedVoce` in una riga di computo completa con un id draft.

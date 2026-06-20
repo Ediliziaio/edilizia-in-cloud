@@ -49,6 +49,8 @@ const CompanyPacchettoCustom = lazy(() => import("@/pages/admin/CompanyPacchetto
 const AdminFvModulo = lazy(() => import("@/pages/admin/AdminFvModulo"));
 // Libreria Prezzari Regionali — UI super-admin: upload/anteprima/import/pubblica.
 const PrezzariRegionali = lazy(() => import("@/pages/admin/PrezzariRegionali"));
+// Manodopera (costo orario) — UI super-admin: tariffe orarie edili ufficiali.
+const ManodoperaTariffe = lazy(() => import("@/pages/admin/ManodoperaTariffe"));
 const AdminSettingsSecurity = lazy(() => import("@/pages/admin/settings/AdminSettingsSecurity"));
 const Announcements = lazy(() => import("@/pages/admin/Announcements"));
 // AdminCSTasks non è più importato qui: vive come tab dentro AdminAttivita.
@@ -281,6 +283,9 @@ export default function AdminRoutesContainer() {
         {/* Libreria Prezzari Regionali — libreria condivisa curata dal super-admin
             (upload Excel/CSV → anteprima → import bozza → pubblica). */}
         <Route path="prezzari-regionali" element={<RequireSuperAdmin><PrezzariRegionali /></RequireSuperAdmin>} />
+        {/* Manodopera (costo orario) — tariffe orarie edili ufficiali, gestite
+            dal super-admin (regione/provincia/anno/qualifica). */}
+        <Route path="manodopera-tariffe" element={<RequireSuperAdmin><ManodoperaTariffe /></RequireSuperAdmin>} />
         {/* Hub Customer Success — 5 tab in alto. */}
         <Route path="cs" element={<RequireAdminPermission permission="can_manage_companies"><AdminCustomerSuccessHub /></RequireAdminPermission>} />
         {/* Hub Operazioni — 5 tab in alto. */}

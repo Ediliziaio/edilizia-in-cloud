@@ -16,7 +16,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import type { PrezzarioFonte, PrezzarioCapitolo, PrezzarioVoce } from "./tipi";
+import type { PrezzarioFonte, PrezzarioCapitolo, PrezzarioVoce, StatoFonte } from "./tipi";
 
 // Tipi prezzario_* / rst_* non rigenerati: cast unico, riusato in tutto il file.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,6 +133,62 @@ export function usePrezzarioVoci(fonteId: string | null | undefined, search = ""
         .limit(500);
       if (error) throw new Error(error.message);
       return (data ?? []) as PrezzarioVoce[];
+    },
+  });
+}
+
+// ─── Ricerca globale voci (cross-fonte, solo pubblicate) ─────────────────────
+/**
+ * Voce di prezzario arricchita con i dati della fonte, per la ricerca globale
+ * usata dal picker del computo (badge "Regione Anno").
+ */
+export interface PrezzarioVoceConFonte extends PrezzarioVoce {
+  /** Fonte d'origine (regione/anno/nome), per badge e raggruppamento. */
+  fonte: { regione: string; anno: number; nome: string; stato: StatoFonte };
+  /** Etichetta compatta "Regione Anno" (es. "Lombardia 2024"). */
+  fonteLabel: string;
+}
+
+/**
+ * Ricerca voci attraverso TUTTE le fonti pubblicate (cross-regione), per il
+ * picker del computo Ristrutturazione. A differenza di `usePrezzarioVoci` non è
+ * vincolata a una fonte: filtra `fonte.stato='pubblicato'` via inner join e
+ * cerca in FTS italiana (websearch) sulla colonna `search`, con fallback `ilike`
+ * sulla descrizione. `enabled` solo da 2+ caratteri (ricerca pesante cross-fonte).
+ */
+export function usePrezzarioVociGlobalSearch(search: string) {
+  const term = search.trim();
+  return useQuery<PrezzarioVoceConFonte[]>({
+    queryKey: ["prezzario", "voci", "global-search", term] as const,
+    enabled: term.length >= 2,
+    staleTime: 5 * 60 * 1000, // 5min: dipende dalla ricerca, cache breve
+    queryFn: async () => {
+      // inner join sulla fonte + filtro pubblicato: solo voci di fonti visibili.
+      const base = () =>
+        sb()
+          .from("prezzario_voce")
+          .select("*, fonte:prezzario_fonte!inner(regione,anno,nome,stato)")
+          .eq("fonte.stato", "pubblicato");
+
+      const decorate = (rows: unknown[]): PrezzarioVoceConFonte[] =>
+        (rows ?? []).map((r) => {
+          const row = r as PrezzarioVoce & {
+            fonte: { regione: string; anno: number; nome: string; stato: StatoFonte };
+          };
+          return { ...row, fonteLabel: `${row.fonte.regione} ${row.fonte.anno}` };
+        });
+
+      const { data, error } = await base()
+        .textSearch("search", term, { type: "websearch", config: "italian" })
+        .limit(30);
+      if (!error) return decorate(data ?? []);
+
+      // Fallback ilike su descrizione se la FTS non è interpretabile.
+      const { data: data2, error: error2 } = await base()
+        .ilike("descrizione", `%${term}%`)
+        .limit(30);
+      if (error2) throw new Error(error2.message);
+      return decorate(data2 ?? []);
     },
   });
 }
