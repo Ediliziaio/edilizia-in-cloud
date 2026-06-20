@@ -49,6 +49,8 @@ const CompanyPacchettoCustom = lazy(() => import("@/pages/admin/CompanyPacchetto
 const AdminFvModulo = lazy(() => import("@/pages/admin/AdminFvModulo"));
 // Libreria Prezzari Regionali — UI super-admin: upload/anteprima/import/pubblica.
 const PrezzariRegionali = lazy(() => import("@/pages/admin/PrezzariRegionali"));
+// Libreria Template Articoli — UI super-admin: gestione article_family_templates (incl. import WnD).
+const AdminArticleTemplates = lazy(() => import("@/pages/admin/AdminArticleTemplates"));
 // Manodopera (costo orario) — UI super-admin: tariffe orarie edili ufficiali.
 const ManodoperaTariffe = lazy(() => import("@/pages/admin/ManodoperaTariffe"));
 const AdminSettingsSecurity = lazy(() => import("@/pages/admin/settings/AdminSettingsSecurity"));
@@ -283,6 +285,7 @@ export default function AdminRoutesContainer() {
         {/* Libreria Prezzari Regionali — libreria condivisa curata dal super-admin
             (upload Excel/CSV → anteprima → import bozza → pubblica). */}
         <Route path="prezzari-regionali" element={<RequireSuperAdmin><PrezzariRegionali /></RequireSuperAdmin>} />
+        <Route path="template-articoli" element={<RequireSuperAdmin><AdminArticleTemplates /></RequireSuperAdmin>} />
         {/* Manodopera (costo orario) — tariffe orarie edili ufficiali, gestite
             dal super-admin (regione/provincia/anno/qualifica). */}
         <Route path="manodopera-tariffe" element={<RequireSuperAdmin><ManodoperaTariffe /></RequireSuperAdmin>} />
