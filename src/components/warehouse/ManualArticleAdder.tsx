@@ -1,5 +1,5 @@
 /**
- * ManualArticleAdder — picker articoli "senza scansione" per ScaricoCantiereSheet.
+ * ManualArticleAdder — picker articoli "senza scansione" per UscitaMerceSheet.
  *
  * Permette di cercare articoli del magazzino sorgente per nome/codice,
  * impostare la quantità e aggiungerli alla lista entries. Alternativa al

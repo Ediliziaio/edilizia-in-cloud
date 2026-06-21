@@ -38,9 +38,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   ArrowUpFromLine,
   ArrowRight,
-  ArrowLeft,
   Loader2,
   Camera,
+  ChevronDown,
   User,
   HardHat,
   PencilLine,
@@ -105,6 +105,18 @@ function snapshotFromAnagrafica(a: AnagraficaOption): Partial<ClienteSnapshot> {
   };
 }
 
+/** Intestazione di sezione numerata (1·2·3) per un flusso lineare. */
+function StepHead({ n, label }: { n: number; label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+        {n}
+      </span>
+      <span className="text-sm font-semibold">{label}</span>
+    </div>
+  );
+}
+
 export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
@@ -129,6 +141,8 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
   const [warehouseId, setWarehouseId] = useState<string | undefined>();
   const [entries, setEntries] = useState<BatchScanEntry[]>([]);
   const [note, setNote] = useState("");
+  // Sezione "Trasportatore e note" collassata di default (mobile pulito)
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   // ── Trasportatore ─────────────────────────────────────────────
   const [vettoreTipo, setVettoreTipo] = useState<VettoreTipo>("mittente");
@@ -434,10 +448,27 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
   }
 
   const DEST_TABS: { key: DestTipo; label: string; icon: typeof User }[] = [
-    { key: "cliente", label: "Cliente finale", icon: User },
+    { key: "cliente", label: "Cliente", icon: User },
     { key: "cantiere", label: "Cantiere", icon: HardHat },
-    { key: "libero", label: "Destinazione libera", icon: PencilLine },
+    { key: "libero", label: "Libero", icon: PencilLine },
   ];
+
+  // Riepilogo del trasportatore mostrato quando la sezione dettagli è chiusa.
+  const vettoreSummary =
+    vettoreTipo === "subappaltatore"
+      ? subappaltatori.find((s) => s.id === vettoreSubId)?.ragione_sociale || "Subappaltatore"
+      : vettoreTipo === "terzo"
+        ? vettoreTerzoNome.trim() || "Vettore terzo"
+        : "Mittente (azienda)";
+
+  // Cosa manca per poter registrare (mostrato sopra il footer).
+  const missingReason = !destinatarioValid
+    ? "Scegli il destinatario"
+    : !warehouseId
+      ? "Scegli il magazzino di partenza"
+      : entries.length === 0
+        ? "Aggiungi almeno un articolo"
+        : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -453,19 +484,20 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4 space-y-3">
-          {/* Destinatario */}
-          <div className="rounded-lg border bg-card p-3 sm:p-4 space-y-3">
-            <Label className="text-sm font-semibold">Destinatario *</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {/* 1 · Destinatario */}
+          <section className="rounded-xl border bg-card p-3 sm:p-4 space-y-3">
+            <StepHead n={1} label="A chi esce la merce" />
+            <div className="grid grid-cols-3 gap-1.5">
               {DEST_TABS.map(({ key, label, icon: Icon }) => (
                 <button
                   key={key}
                   type="button"
                   onClick={() => handleDestTipoChange(key)}
-                  className={`flex items-center justify-center gap-2 text-sm sm:text-xs px-3 py-2.5 sm:py-2 rounded-md border transition-colors ${
+                  aria-pressed={destTipo === key}
+                  className={`flex flex-col items-center justify-center gap-1 rounded-lg border px-1 py-2.5 text-xs font-medium transition-colors ${
                     destTipo === key
-                      ? "bg-primary text-primary-foreground border-primary font-medium"
-                      : "bg-background hover:bg-muted text-foreground"
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
@@ -528,11 +560,11 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
                 />
               </div>
             )}
-          </div>
+          </section>
 
-          {/* Magazzino sorgente */}
-          <div className="rounded-lg border bg-card p-3 sm:p-4 space-y-2">
-            <Label htmlFor="um-warehouse" className="text-sm font-semibold">Magazzino sorgente *</Label>
+          {/* 2 · Magazzino sorgente */}
+          <section className="rounded-xl border bg-card p-3 sm:p-4 space-y-2">
+            <StepHead n={2} label="Da quale magazzino" />
             {warehousesLoading ? (
               <div className="h-10 border rounded-md flex items-center justify-center text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin mr-2" />
@@ -563,84 +595,118 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
                 </SelectContent>
               </Select>
             )}
-          </div>
+          </section>
 
-          {/* Articoli */}
-          <div className="rounded-lg border bg-card p-3 sm:p-4 space-y-2">
-            <Label className="text-sm font-semibold">Articoli in uscita *</Label>
+          {/* 3 · Articoli */}
+          <section className="rounded-xl border bg-card p-3 sm:p-4 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <StepHead n={3} label="Cosa esce" />
+              {entries.length > 0 && (
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                  {entries.length} {entries.length === 1 ? "articolo" : "articoli"}
+                </span>
+              )}
+            </div>
             <ManualArticleAdder
               companyId={companyId}
               warehouseId={warehouseId}
               entries={entries}
               onEntriesChange={setEntries}
             />
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Cerca l'articolo per nome qui sopra, oppure usa <strong>Scansiona</strong> in basso.
-            </p>
-          </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setStep("scan")}
+              disabled={!warehouseId}
+              className="w-full h-11 gap-2"
+            >
+              <Camera className="h-4 w-4" />
+              Scansiona codici a barre
+            </Button>
+          </section>
 
-          {/* Trasportatore */}
-          <div className="rounded-lg border bg-card p-3 sm:p-4 space-y-2">
-            <div className="flex items-center justify-between flex-wrap gap-1">
-              <Label className="text-sm font-semibold">Trasportatore <span className="text-muted-foreground font-normal text-xs">(opzionale)</span></Label>
-              {orderContract?.subappaltatore_id && vettoreTipo === "subappaltatore" && !vettoreManuallyChanged && (
-                <span className="text-[10px] text-emerald-600">✓ Auto-fill dalla commessa</span>
-              )}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {(["mittente", "subappaltatore", "terzo"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => { setVettoreTipo(t); setVettoreManuallyChanged(true); }}
-                  className={`text-sm sm:text-xs px-3 py-2.5 sm:py-2 rounded-md border transition-colors ${
-                    vettoreTipo === t
-                      ? "bg-primary text-primary-foreground border-primary font-medium"
-                      : "bg-background hover:bg-muted text-foreground"
-                  }`}
-                >
-                  {t === "mittente" && "Mittente (azienda)"}
-                  {t === "subappaltatore" && "Subappaltatore"}
-                  {t === "terzo" && "Vettore terzo"}
-                </button>
-              ))}
-            </div>
-            {vettoreTipo === "subappaltatore" && (
-              <Select value={vettoreSubId} onValueChange={(v) => { setVettoreSubId(v); setVettoreManuallyChanged(true); }}>
-                <SelectTrigger>
-                  <SelectValue placeholder={subappaltatori.length ? "Scegli subappaltatore dal registro" : "Nessun subappaltatore attivo"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {subappaltatori.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      <div className="flex flex-col items-start gap-0.5">
-                        <span className="font-medium">{s.ragione_sociale}</span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {s.piva ? `P.IVA ${s.piva}` : <span className="text-amber-600">⚠ P.IVA mancante</span>}
-                          {s.indirizzo ? ` · ${s.indirizzo}` : ""}
-                        </span>
+          {/* Dettagli opzionali: trasportatore + note — collassati di default */}
+          <section className="rounded-xl border bg-card overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setDetailsOpen((o) => !o)}
+              aria-expanded={detailsOpen}
+              className="flex w-full items-center justify-between gap-3 px-3 py-3 sm:px-4 text-left hover:bg-muted/40 transition-colors"
+            >
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">Trasportatore e note</span>
+                <span className="block truncate text-[11px] text-muted-foreground">
+                  {vettoreSummary}
+                  {note.trim() ? " · nota presente" : ""}
+                  {orderContract?.subappaltatore_id && vettoreTipo === "subappaltatore" && !vettoreManuallyChanged ? " · auto" : ""}
+                </span>
+              </span>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${detailsOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {detailsOpen && (
+              <div className="space-y-3 border-t px-3 py-3 sm:px-4">
+                {/* Trasportatore */}
+                <div className="space-y-2">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Trasportatore</Label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(["mittente", "subappaltatore", "terzo"] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => { setVettoreTipo(t); setVettoreManuallyChanged(true); }}
+                        aria-pressed={vettoreTipo === t}
+                        className={`rounded-lg border px-1 py-2 text-xs font-medium transition-colors ${
+                          vettoreTipo === t
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                        }`}
+                      >
+                        {t === "mittente" && "Mittente"}
+                        {t === "subappaltatore" && "Subappalto"}
+                        {t === "terzo" && "Terzo"}
+                      </button>
+                    ))}
+                  </div>
+                  {vettoreTipo === "subappaltatore" && (
+                    <Select value={vettoreSubId} onValueChange={(v) => { setVettoreSubId(v); setVettoreManuallyChanged(true); }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={subappaltatori.length ? "Scegli subappaltatore dal registro" : "Nessun subappaltatore attivo"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {subappaltatori.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            <div className="flex flex-col items-start gap-0.5">
+                              <span className="font-medium">{s.ragione_sociale}</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {s.piva ? `P.IVA ${s.piva}` : <span className="text-amber-600">⚠ P.IVA mancante</span>}
+                                {s.indirizzo ? ` · ${s.indirizzo}` : ""}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {vettoreTipo === "terzo" && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="col-span-2">
+                        <Input value={vettoreTerzoNome} onChange={(e) => setVettoreTerzoNome(e.target.value)} placeholder="Ragione sociale vettore terzo" maxLength={120} />
                       </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {vettoreTipo === "terzo" && (
-              <div className="grid grid-cols-2 gap-2">
-                <div className="col-span-2">
-                  <Input value={vettoreTerzoNome} onChange={(e) => setVettoreTerzoNome(e.target.value)} placeholder="Ragione sociale vettore terzo" maxLength={120} />
+                      <Input value={vettoreTerzoPiva} onChange={(e) => setVettoreTerzoPiva(e.target.value)} placeholder="P.IVA" maxLength={20} />
+                      <Input value={vettoreTerzoIndirizzo} onChange={(e) => setVettoreTerzoIndirizzo(e.target.value)} placeholder="Sede legale (via, città)" maxLength={200} />
+                    </div>
+                  )}
                 </div>
-                <Input value={vettoreTerzoPiva} onChange={(e) => setVettoreTerzoPiva(e.target.value)} placeholder="P.IVA" maxLength={20} />
-                <Input value={vettoreTerzoIndirizzo} onChange={(e) => setVettoreTerzoIndirizzo(e.target.value)} placeholder="Sede legale (via, città)" maxLength={200} />
+
+                {/* Note */}
+                <div className="space-y-2">
+                  <Label htmlFor="um-note" className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Note interne</Label>
+                  <Input id="um-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note interne sull'uscita…" maxLength={300} />
+                </div>
               </div>
             )}
-          </div>
-
-          {/* Note */}
-          <div className="rounded-lg border bg-card p-3 sm:p-4 space-y-2">
-            <Label htmlFor="um-note" className="text-sm font-semibold">Note <span className="text-muted-foreground font-normal text-xs">(opzionale)</span></Label>
-            <Input id="um-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note interne sull'uscita…" maxLength={300} />
-          </div>
+          </section>
 
           <Alert>
             <PackageCheck className="h-4 w-4" />
@@ -651,37 +717,32 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
           </Alert>
         </div>
 
-        <DialogFooter className="shrink-0 border-t p-3 bg-card flex-col sm:flex-row gap-2 sm:gap-2">
-          <Button
-            onClick={handleRegister}
-            disabled={!canRegister || register.isPending}
-            className="w-full sm:flex-[2] sm:order-3 h-11 sm:h-10"
-          >
-            {register.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Registrazione...
-              </>
-            ) : (
-              <>
-                Registra uscita ({entries.length})
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </>
-            )}
-          </Button>
-          <div className="flex gap-2 w-full sm:contents">
-            <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 sm:flex-none sm:shrink-0 sm:order-1 h-10">
-              <ArrowLeft className="h-4 w-4 mr-2" />
+        <DialogFooter className="shrink-0 border-t p-3 bg-card flex-col gap-2">
+          {missingReason && (
+            <p className="w-full text-center text-[11px] text-muted-foreground">
+              Per registrare manca: <strong className="text-foreground">{missingReason}</strong>
+            </p>
+          )}
+          <div className="flex w-full gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1 h-11">
               Annulla
             </Button>
             <Button
-              variant="outline"
-              onClick={() => setStep("scan")}
-              disabled={!warehouseId}
-              className="flex-1 sm:order-2 h-10"
+              onClick={handleRegister}
+              disabled={!canRegister || register.isPending}
+              className="flex-[2] h-11 gap-2"
             >
-              <Camera className="h-4 w-4 mr-2" />
-              Scansiona
+              {register.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Registrazione…
+                </>
+              ) : (
+                <>
+                  Registra uscita{entries.length ? ` (${entries.length})` : ""}
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
             </Button>
           </div>
         </DialogFooter>
