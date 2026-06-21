@@ -93,6 +93,8 @@ const adminSubcategories: Array<{ id: string; label: string; icon: React.Compone
   // ── 1. Accordion (≥2 voci) ───────────────────────────────────────────
   { id: "sa_revenue", label: "Fatturato", icon: Wallet },
   { id: "sa_prodotto", label: "Prodotto", icon: Blocks },
+  // Librerie/listini curati dal super-admin e condivisi con le aziende.
+  { id: "sa_listini", label: "Listini & Librerie", icon: Library },
   // ── 2. Flat (1 voce → render diretto come link) ──────────────────────
   { id: "sa_ai", label: "AI", icon: Sparkles },
   { id: "sa_customer_success", label: "Assistenza Clienti", icon: HeartHandshake },
@@ -115,6 +117,7 @@ const ADMIN_SIDEBAR_DEFAULTS: Record<string, boolean> = {
   sa_ai: false,
   sa_customer_success: true,
   sa_prodotto: false,
+  sa_listini: false,
   sa_operazioni: false,
   sa_growth: false,
   sa_mkt_crm: false,
@@ -147,9 +150,11 @@ const allNavItems: AdminNavItem[] = [
   // ─── PRODOTTO ──────────────────────────────────────────────────────
   { title: "Funzionalità Azienda", url: "/admin/feature-flags", icon: Blocks, permission: "can_manage_companies", subcategory: "sa_prodotto" },
   // Libreria Prezzari Regionali — curata dal super-admin, condivisa con le aziende.
-  { title: "Prezzari regionali", url: "/admin/prezzari-regionali", icon: Library, permission: "can_manage_companies", subcategory: "sa_prodotto" },
+  { title: "Prezzari regionali", url: "/admin/prezzari-regionali", icon: Library, permission: "can_manage_companies", subcategory: "sa_listini" },
+  // Libreria Template Articoli — curata dal super-admin, importabile dalle aziende nel Listino.
+  { title: "Template Articoli", url: "/admin/template-articoli", icon: Library, permission: "can_manage_companies", subcategory: "sa_listini" },
   // Manodopera (costo orario) — tariffe orarie edili ufficiali, curate dal super-admin.
-  { title: "Manodopera (costo orario)", url: "/admin/manodopera-tariffe", icon: HardHat, permission: "can_manage_companies", subcategory: "sa_prodotto" },
+  { title: "Manodopera (costo orario)", url: "/admin/manodopera-tariffe", icon: HardHat, permission: "can_manage_companies", subcategory: "sa_listini" },
   { title: "Annunci", url: "/admin/annunci", icon: Megaphone, permission: "can_view_platform_stats", subcategory: "sa_prodotto" },
   // ⚠️ "Operazioni" rimosso dalla sidebar principale: è materia di
   //    amministrazione di sistema (sync, alert, import, GDPR, audit) e

@@ -14,7 +14,7 @@
  * Niente setState-in-effect né `Date.now()`/`Math.random()` in render: i totali
  * derivano da `useMemo`, la company da react-query.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   FileText, Download, Eye, Loader2, Check, AlertCircle, AlertTriangle,
@@ -24,6 +24,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { calcTotaliComputo } from "@/lib/ristrutturazione/calcoli";
@@ -56,6 +57,13 @@ export default function StepPdf({ progetto, computo, media }: Props) {
   const companyId = useEffectiveCompanyId();
   const { data: template } = useRstTemplatePdf();
   const { downloadPDF, previewPDF, isGenerating } = useRistrutturazionePDF();
+
+  // Come mostrare il computo nel PDF — scelta PER QUESTO PREVENTIVO (non template).
+  const [computoLivello, setComputoLivello] = useState<"dettagliato" | "sintetico" | "corpo">("dettagliato");
+  const [mostraPrezzi, setMostraPrezzi] = useState(true);
+  const [mostraQta, setMostraQta] = useState(true);
+  const [mostraSubtotali, setMostraSubtotali] = useState(true);
+  const soloDettaglio = computoLivello === "dettagliato"; // i toggle colonne hanno senso solo qui
 
   // Company per intestazione/contatti del PDF (best-effort; l'hook ha comunque
   // un fallback che la rilegge se non la passiamo).
@@ -144,7 +152,15 @@ export default function StepPdf({ progetto, computo, media }: Props) {
   ];
   const erroriCount = checks.filter((c) => !c.ok).length;
 
-  const payload = { progetto, computo, media, template: template ?? null, company: company ?? null };
+  const payload = {
+    progetto, computo, media, template: template ?? null, company: company ?? null,
+    pdfOptions: {
+      livello: computoLivello,
+      mostraPrezzi: soloDettaglio ? mostraPrezzi : true,
+      mostraQta: soloDettaglio ? mostraQta : true,
+      mostraSubtotali: soloDettaglio ? mostraSubtotali : true,
+    },
+  };
   const handleDownload = () => { void downloadPDF(payload); };
   const handlePreview = () => { void previewPDF(payload); };
 
@@ -172,6 +188,65 @@ export default function StepPdf({ progetto, computo, media }: Props) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Come mostrare il computo nel PDF — scelta PER QUESTO PREVENTIVO (non template) */}
+      {!computoVuoto && (
+        <Card>
+          <CardContent className="space-y-3 p-4">
+            <div className="flex items-center gap-2">
+              <Settings2 className="h-4 w-4 text-orange-600" />
+              <h2 className="text-sm font-semibold text-slate-900">Come mostrare il computo nel PDF</h2>
+            </div>
+            <p className="-mt-1 text-[11px] text-muted-foreground">
+              Vale solo per questo preventivo — non modifica il template.
+            </p>
+            {/* Livello di dettaglio */}
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { v: "dettagliato", label: "Dettagliato", hint: "Ogni voce" },
+                { v: "sintetico", label: "Sintetico", hint: "Solo capitoli" },
+                { v: "corpo", label: "A corpo", hint: "Solo totale" },
+              ] as const).map((opt) => {
+                const active = computoLivello === opt.v;
+                return (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    onClick={() => setComputoLivello(opt.v)}
+                    aria-pressed={active}
+                    className={cn(
+                      "rounded-lg border px-2 py-2 text-center transition-all",
+                      active
+                        ? "border-orange-400 bg-orange-50 ring-1 ring-orange-300"
+                        : "border-input hover:border-orange-300 hover:bg-orange-50/50",
+                    )}
+                  >
+                    <span className="block text-xs font-semibold">{opt.label}</span>
+                    <span className="block text-[10px] text-muted-foreground">{opt.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Toggle colonne — solo in modalità "dettagliato" */}
+            {soloDettaglio && (
+              <div className="space-y-2 border-t pt-3">
+                <label className="flex items-center justify-between gap-3">
+                  <span className="text-xs">Mostra prezzi unitari</span>
+                  <Switch checked={mostraPrezzi} onCheckedChange={setMostraPrezzi} />
+                </label>
+                <label className="flex items-center justify-between gap-3">
+                  <span className="text-xs">Mostra quantità e U.M.</span>
+                  <Switch checked={mostraQta} onCheckedChange={setMostraQta} />
+                </label>
+                <label className="flex items-center justify-between gap-3">
+                  <span className="text-xs">Mostra subtotali per capitolo</span>
+                  <Switch checked={mostraSubtotali} onCheckedChange={setMostraSubtotali} />
+                </label>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Checklist */}
       <Card className={cn(computoVuoto ? "border-amber-200" : "")}>

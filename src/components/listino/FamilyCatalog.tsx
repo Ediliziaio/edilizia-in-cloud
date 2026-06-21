@@ -1193,11 +1193,11 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                                   immagine_url, così niente placeholder vuoto
                                   che sprecava spazio verticale prezioso. */}
                               {f.immagine_url ? (
-                                <div className="relative -mt-3 sm:-mt-4 -mx-6 mb-3 aspect-[4/3] bg-muted rounded-t-lg overflow-hidden">
+                                <div className="relative -mt-3 sm:-mt-4 -mx-6 mb-3 aspect-[4/3] bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-t-lg overflow-hidden ring-1 ring-inset ring-black/5 dark:ring-white/5">
                                   <img
                                     src={f.immagine_url}
                                     alt={`Anteprima ${f.nome}`}
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                                     loading="lazy"
                                     onError={(e) => {
                                       // Fallback: nascondi img se URL invalido
@@ -1209,7 +1209,7 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                               ) : null}
                               <div className="flex items-start justify-between gap-2">
                                 <CardTitle
-                                  className="text-sm sm:text-base leading-tight line-clamp-2 min-w-0 break-words"
+                                  className="text-sm sm:text-base leading-tight line-clamp-2 min-w-0"
                                   title={f.nome}
                                 >
                                   {f.nome}
@@ -1260,26 +1260,20 @@ export function FamilyCatalog({ headerActions }: FamilyCatalogProps = {}) {
                               ) : null}
                             </CardHeader>
                             <CardContent className="pt-0 space-y-2 mt-auto">
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                                 <span
-                                  className="inline-flex items-center gap-1"
+                                  className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5"
                                   title="Unità di misura"
                                 >
-                                  <Ruler
-                                    className="h-3 w-3"
-                                    aria-hidden="true"
-                                  />
+                                  <Ruler className="h-3 w-3" aria-hidden="true" />
                                   {f.unit_of_measure}
                                 </span>
                                 {nAssi > 0 && (
                                   <span
-                                    className="inline-flex items-center gap-1"
+                                    className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5"
                                     title={`${nAssi} ${nAssi === 1 ? "variabile" : "variabili"} · ${nValori} ${nValori === 1 ? "valore" : "valori"}`}
                                   >
-                                    <Grid3x3
-                                      className="h-3 w-3"
-                                      aria-hidden="true"
-                                    />
+                                    <Grid3x3 className="h-3 w-3" aria-hidden="true" />
                                     {nAssi}×{nValori}
                                   </span>
                                 )}
