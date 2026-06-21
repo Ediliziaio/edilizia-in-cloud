@@ -19,6 +19,10 @@ import { useCreateDocumento } from "@/hooks/useDocumentiFiscali";
 import { useLinkFatturaOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import type { Installment } from "@/lib/orderUtils";
 import type { ClienteSnapshot, RigaDocumento } from "@/types/fatturazione";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { DetrazioniFiscaliFields } from "@/components/orders/DetrazioniFiscaliFields";
+import { type DetrazioneValue, EMPTY_DETRAZIONE } from "@/lib/fatturazione/detrazioniEdilizie";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -245,6 +249,24 @@ export function CreaFatturaDialog({
   const createMutation = useCreateDocumento();
   const linkMutation = useLinkFatturaOrdine();
 
+  // Detrazioni fiscali edilizie + causale/note editabile (richiesta utente:
+  // "permetti anche la modifica" + clausole detrazioni per l'edilizia).
+  const [detrazione, setDetrazione] = useState<DetrazioneValue>(EMPTY_DETRAZIONE);
+  const [noteOverride, setNoteOverride] = useState<string | null>(null);
+  const autoNote = useMemo(() => {
+    const rataLabel = selectedInstallment
+      ? `${selectedInstallment.label || LABEL_MAP[selectedInstallment.type] || "Pagamento"} — `
+      : "";
+    return `${rataLabel}Rif. commessa ${orderCode || ""} — ${orderDescription}`.trim();
+  }, [selectedInstallment, orderCode, orderDescription]);
+  // Reset a dialog chiusa.
+  useEffect(() => {
+    if (!open) {
+      setDetrazione(EMPTY_DETRAZIONE);
+      setNoteOverride(null);
+    }
+  }, [open]);
+
   const handleCreaFattura = () => {
     // Blocca la creazione di una fattura senza righe (non emettibile).
     if (previewRighe.length === 0) {
@@ -276,11 +298,16 @@ export function CreaFatturaDialog({
 
     const earliestDate = selectedInstallment?.expected_date || undefined;
 
-    // Build causale/note
-    const rataLabel = selectedInstallment
-      ? `${selectedInstallment.label || LABEL_MAP[selectedInstallment.type] || "Pagamento"} — `
-      : "";
-    const noteDoc = `${rataLabel}Rif. commessa ${orderCode || ""} — ${orderDescription}`.trim();
+    // Causale/note: base editabile (autoNote o override) + eventuale dettaglio
+    // manodopera. La clausola detrazioni va nel campo Causale (XML FatturaPA).
+    const baseNote = (noteOverride ?? autoNote).trim();
+    const extraNote: string[] = [];
+    if (detrazione.active && detrazione.manodoperaEvidenzia && detrazione.manodoperaImporto.trim()) {
+      extraNote.push(`Di cui costo manodopera: € ${detrazione.manodoperaImporto.trim()}`);
+    }
+    const noteDoc = [baseNote, ...extraNote].filter(Boolean).join(" — ");
+    const causaleArr =
+      detrazione.active && detrazione.clausola.trim() ? [detrazione.clausola.trim()] : undefined;
 
     createMutation.mutate(
       {
@@ -290,6 +317,7 @@ export function CreaFatturaDialog({
         righe: previewRighe,
         ordine_id: orderId,
         note_documento: noteDoc,
+        ...(causaleArr && { causale: causaleArr }),
         ...(earliestDate && { data_scadenza: earliestDate }),
         ...(matchedAnagrafica?.metodo_pagamento_default && {
           metodo_pagamento_codice: matchedAnagrafica.metodo_pagamento_default,
@@ -498,6 +526,28 @@ export function CreaFatturaDialog({
               </div>
             </div>
           )}
+        </div>
+
+        {/* Causale editabile + detrazioni fiscali edilizie */}
+        <Separator />
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="fattura-note" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Causale / note in fattura
+            </Label>
+            <Textarea
+              id="fattura-note"
+              value={noteOverride ?? autoNote}
+              onChange={(e) => setNoteOverride(e.target.value)}
+              rows={2}
+              className="text-xs"
+              maxLength={500}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Modificabile. Righe e importi li rifinisci nell'editor che si apre dopo la creazione.
+            </p>
+          </div>
+          <DetrazioniFiscaliFields value={detrazione} onChange={setDetrazione} />
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
