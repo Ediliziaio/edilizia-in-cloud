@@ -90,6 +90,7 @@ import WarehouseListView from "@/components/warehouse/WarehouseListView";
 import WarehouseStockTab from "@/components/warehouse/WarehouseStockTab";
 import WarehouseLottiTab from "@/components/warehouse/WarehouseLottiTab";
 import { WarehouseDDTTab } from "@/components/warehouse/WarehouseDDTTab";
+import { WarehouseUsciteTab } from "@/components/warehouse/WarehouseUsciteTab";
 import WarehousePurchaseListTab from "@/components/warehouse/WarehousePurchaseListTab";
 import { WarehouseValorizzazionePanel } from "@/components/warehouse/WarehouseValorizzazionePanel";
 import WarehouseMovementsTab from "@/components/warehouse/WarehouseMovementsTab";
@@ -1054,6 +1055,10 @@ export default function Warehouse() {
                     <FileText className="h-4 w-4" />
                     <span className="text-[11px] sm:text-sm">DDT</span>
                   </TabsTrigger>
+                  <TabsTrigger value="uscite" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista uscite merce">
+                    <ArrowUpFromLine className="h-4 w-4" />
+                    <span className="text-[11px] sm:text-sm">Uscite</span>
+                  </TabsTrigger>
                   <TabsTrigger value="valuation" className="shrink-0 gap-1.5 px-2.5" aria-label="Vista valorizzazione magazzino">
                     <Calculator className="h-4 w-4" />
                     <span className="text-[11px] sm:text-sm">Valore</span>
@@ -1361,6 +1366,8 @@ export default function Warehouse() {
         />
       ) : viewMode === "ddt" ? (
         <WarehouseDDTTab warehouseFilter={warehouseFilter} onRegisterArrival={isCommercialistaMode ? undefined : () => openStockAction("receive")} />
+      ) : viewMode === "uscite" ? (
+        <WarehouseUsciteTab warehouseFilter={warehouseFilter} />
       ) : viewMode === "lotti" ? (
         <WarehouseLottiTab readOnly={isCommercialistaMode} />
       ) : viewMode === "valuation" ? (
