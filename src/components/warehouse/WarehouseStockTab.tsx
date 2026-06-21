@@ -52,8 +52,10 @@ const CaricoRapidoSheet = lazy(() =>
 const OdaReceiveSheet = lazy(() =>
   import("./OdaReceiveSheet").then((m) => ({ default: m.OdaReceiveSheet })),
 );
-const ScaricoCantiereSheet = lazy(() =>
-  import("./ScaricoCantiereSheet").then((m) => ({ default: m.ScaricoCantiereSheet })),
+// Uscita merce a 2 fasi (registra uscita → poi DDT separato). Sostituisce il
+// vecchio ScaricoCantiereSheet (scarico+DDT atomico) come flusso "uscita merce".
+const UscitaMerceSheet = lazy(() =>
+  import("./UscitaMerceSheet").then((m) => ({ default: m.UscitaMerceSheet })),
 );
 
 interface WarehouseStockTabProps {
@@ -99,16 +101,16 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
   const [quickScanOpen, setQuickScanOpen] = useState(false);
   /** Barcode pre-compilato quando l'utente arriva da Quick Scan no-match. */
   const [prefillBarcodeForDialog, setPrefillBarcodeForDialog] = useState<string | undefined>();
-  // Carico rapido + ODA Reverse (MP2 P1a) + Scarico cantiere (MP3 P1b)
+  // Carico rapido + ODA Reverse (MP2 P1a) + Uscita merce 2 fasi (MP3 P1b)
   const [caricoOpen, setCaricoOpen] = useState(false);
   const [odaReceiveOpen, setOdaReceiveOpen] = useState(false);
-  const [scaricoOpen, setScaricoOpen] = useState(false);
+  const [uscitaOpen, setUscitaOpen] = useState(false);
   const [zonesDialogOpen, setZonesDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!actionRequest || readOnly) return;
     if (actionRequest.type === "receive") setCaricoOpen(true);
-    if (actionRequest.type === "ship") setScaricoOpen(true);
+    if (actionRequest.type === "ship") setUscitaOpen(true);
   }, [actionRequest, readOnly]);
 
   // DnD sensors — require 8px movement before activating to avoid interfering with clicks
@@ -666,12 +668,12 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => setScaricoOpen(true)}
-                  aria-label="Spedisci merce a cantiere — genera DDT"
+                  onClick={() => setUscitaOpen(true)}
+                  aria-label="Registra uscita merce (cliente, cantiere o destinazione libera)"
                   className="h-auto py-2.5 flex flex-col items-center justify-center gap-1 text-xs"
                 >
                   <Truck className="h-5 w-5" />
-                  <span className="leading-tight">Spedisci<br />cantiere</span>
+                  <span className="leading-tight">Uscita<br />merce</span>
                 </Button>
               </div>
 
@@ -742,12 +744,12 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
               {/* Operazioni di SCARICO */}
               <Button
                 variant="outline"
-                onClick={() => setScaricoOpen(true)}
-                aria-label="Spedisci merce a cantiere — genera DDT"
+                onClick={() => setUscitaOpen(true)}
+                aria-label="Registra uscita merce (cliente, cantiere o destinazione libera)"
                 className="flex-1 sm:flex-initial"
               >
                 <Truck className="h-4 w-4 sm:mr-2" />
-                <span className="hidden sm:inline">Spedisci a cantiere</span>
+                <span className="hidden sm:inline">Uscita merce</span>
               </Button>
 
               {/* Aggiunta manuale articolo */}
@@ -1056,10 +1058,10 @@ export default function WarehouseStockTab({ warehouseFilter = null, actionReques
           )}
         </Suspense>
 
-        {/* Scarico cantiere → DDT in bozza (MP3 P1b) */}
+        {/* Uscita merce a 2 fasi: registra l'uscita → poi DDT separato (MP3 P1b) */}
         <Suspense fallback={null}>
-          {scaricoOpen && (
-            <ScaricoCantiereSheet open={scaricoOpen} onOpenChange={setScaricoOpen} />
+          {uscitaOpen && (
+            <UscitaMerceSheet open={uscitaOpen} onOpenChange={setUscitaOpen} />
           )}
         </Suspense>
       </div>
