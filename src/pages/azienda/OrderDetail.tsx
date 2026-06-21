@@ -67,6 +67,8 @@ import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
 import { CreaFatturaDialog } from "@/components/orders/CreaFatturaDialog";
 import { CreaDDTDialog } from "@/components/orders/CreaDDTDialog";
+import { OrderUsciteCard } from "@/components/orders/OrderUsciteCard";
+import { OrderCommunicationsCard } from "@/components/orders/OrderCommunicationsCard";
 import { CreaProformaDialog } from "@/components/orders/CreaProformaDialog";
 import { CreaNotaCreditoDialog } from "@/components/orders/CreaNotaCreditoDialog";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
@@ -1411,6 +1413,12 @@ function OrderDetailInner() {
               <OrderErrors orderId={id!} />
               <LinkedTasks orderId={id} category="ordini" />
               <LinkedAppointments orderId={id!} />
+              <OrderUsciteCard orderId={id!} />
+              <OrderCommunicationsCard
+                customerId={order.customer_id}
+                customerEmail={order.customer?.email}
+                customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
+              />
               <LinkedPurchaseOrdersCard
                 orderId={id!}
                 orderCode={order.order_code}
@@ -1752,6 +1760,12 @@ function OrderDetailInner() {
             {/* Task e appuntamenti */}
             <LinkedTasks orderId={id} category="ordini" />
             <LinkedAppointments orderId={id!} />
+            <OrderUsciteCard orderId={id!} />
+            <OrderCommunicationsCard
+              customerId={order.customer_id}
+              customerEmail={order.customer?.email}
+              customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
+            />
 
             {/* Ritenute di Garanzia */}
             <RitenuteTab orderId={id!} />

@@ -123,3 +123,20 @@ export function useWarehouseUscite(warehouseFilter: string | null) {
     },
   });
 }
+
+/** Uscite registrate per una specifica commessa/ordine (per il dettaglio commessa). */
+export function useUsciteByOrder(orderId: string | undefined) {
+  return useQuery({
+    queryKey: ["warehouse-uscite-order", orderId ?? "*"],
+    enabled: !!orderId,
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("warehouse_uscite")
+        .select("id,numero,data,destinatario_tipo,customer_id,order_id,destinatario_libero,cliente_snapshot,vettore,righe,stato,documento_id,note,warehouse_id,created_at")
+        .eq("order_id", orderId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as UscitaRow[];
+    },
+  });
+}
