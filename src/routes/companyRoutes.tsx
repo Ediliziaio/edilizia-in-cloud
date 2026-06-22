@@ -314,6 +314,8 @@ const CalendarOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/Ca
 // (script postMessage bloccato). Stesso pattern di calendar-callback.
 const GbpOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/GbpOAuthCallbackPage"));
 const GoogleAdsOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/GoogleAdsOAuthCallbackPage"));
+// Callback OAuth Fatture in Cloud (fatturazione esterna) — stesso pattern.
+const FicOAuthCallbackPage = lazy(() => import("@/pages/azienda/settings/FicOAuthCallbackPage"));
 const AIPersonasHub = lazy(() => import("@/pages/azienda/impostazioni/AIPersonasHub"));
 const SettingsAIAutomazioni = lazy(() => import("@/pages/azienda/impostazioni/SettingsAIAutomazioni"));
 // Preferenze canale notifiche personali (parte del bulk scheduler)
@@ -610,6 +612,8 @@ export default function CompanyRoutesContainer() {
             calendar-callback (CSP sandbox sul gateway edge function). */}
         <Route path="impostazioni/integrazioni/gbp-callback" element={<GbpOAuthCallbackPage />} />
         <Route path="impostazioni/integrazioni/google-ads-callback" element={<GoogleAdsOAuthCallbackPage />} />
+        {/* Callback OAuth Fatture in Cloud (fatturazione esterna). */}
+        <Route path="impostazioni/integrazioni/fic-callback" element={<FicOAuthCallbackPage />} />
         {/* GAP 9b legacy: ai-memoria stand-alone → ora vive in impostazioni.
             Mantengo redirect 301 lato client per non rompere bookmark esistenti. */}
         <Route path="ai-memoria" element={<Navigate to="/azienda/impostazioni/ai-memoria" replace />} />

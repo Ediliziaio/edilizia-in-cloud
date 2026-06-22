@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -213,19 +213,52 @@ export default function SettingsBilling() {
   const [newCompanyExternalId, setNewCompanyExternalId] = useState("");
   const [testing, setTesting] = useState<string | null>(null);
 
+  // ── OAuth2 Fatture in Cloud: apre il popup di autorizzazione ──────────────
+  const connectFic = async () => {
+    const { data, error } = await supabase.functions.invoke("billing-connect", {
+      body: { action: "get_fic_auth_url" },
+    });
+    const res = data as { auth_url?: string; error?: string } | null;
+    if (error || !res?.auth_url) {
+      throw new Error(
+        res?.error || error?.message ||
+        "Impossibile avviare il collegamento. Verifica che l'app OAuth di Fatture in Cloud (FIC_CLIENT_ID / FIC_REDIRECT_URI) sia configurata sui secret.",
+      );
+    }
+    const w = 620, h = 760;
+    const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+    const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+    const popup = window.open(res.auth_url, "fic-oauth", `width=${w},height=${h},left=${left},top=${top}`);
+    if (!popup) throw new Error("Popup bloccato dal browser: abilita i popup per questo sito e riprova.");
+    popup.focus();
+  };
+
+  // Esito dell'OAuth FIC dalla pagina di callback (postMessage).
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      const d = e.data as { source?: string; status?: string; message?: string; companyName?: string } | null;
+      if (!d || d.source !== "fic-oauth") return;
+      if (d.status === "ok") {
+        toast.success("Fatture in Cloud collegato", {
+          description: d.companyName ? `Account: ${d.companyName}` : undefined,
+        });
+        queryClient.invalidateQueries({ queryKey: ["billing_integrations"] });
+      } else {
+        toast.error("Collegamento Fatture in Cloud non riuscito", { description: d.message || undefined });
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [queryClient]);
+
   // Fix #6: Use server-side validation via billing-connect edge function
   const addMutation = useMutation({
     mutationFn: async () => {
       if (newProvider === "fattureincloud") {
-        // OAuth flow — just save minimal record, user will complete OAuth separately
-        const { error } = await supabase.from("billing_integrations").insert({
-          company_id: companyId!,
-          provider: newProvider,
-          company_external_id: newCompanyExternalId || null,
-          is_active: false, // Not active until OAuth completes
-          is_primary: integrations.length === 0,
-        } as any);
-        if (error) throw error;
+        // OAuth2 FIC: apre la finestra di autorizzazione. Il collegamento si
+        // completa via postMessage dalla pagina di callback (fic-callback),
+        // che scambia il code con il token (azione fic_oauth_callback).
+        await connectFic();
         return;
       }
       // API key / bearer providers — validate server-side
@@ -244,7 +277,13 @@ export default function SettingsBilling() {
       if (data?.error) throw new Error(data.error);
     },
     onSuccess: () => {
-      toast.success("Integrazione aggiunta e verificata");
+      if (newProvider === "fattureincloud") {
+        toast.info("Autorizza nella finestra di Fatture in Cloud", {
+          description: "Completa l'accesso nel popup: al termine l'integrazione si attiva da sola.",
+        });
+      } else {
+        toast.success("Integrazione aggiunta e verificata");
+      }
       setShowAdd(false);
       setNewProvider("");
       setNewApiKey("");
@@ -486,9 +525,16 @@ export default function SettingsBilling() {
                     )}
 
                     {newProvider === "fattureincloud" && (
-                      <div className="bg-muted/50 rounded-md p-3 text-sm text-muted-foreground">
-                        Per Fatture in Cloud è necessario completare il flusso OAuth.
-                        Inserisci l'ID azienda e configura le credenziali OAuth nelle impostazioni avanzate.
+                      <div className="bg-blue-50 dark:bg-blue-950/40 rounded-md p-3 text-sm text-muted-foreground space-y-1">
+                        <p className="font-medium text-foreground">Collegamento con OAuth</p>
+                        <p>
+                          Premi <strong>Connetti con OAuth</strong>: si apre la finestra di Fatture in Cloud dove
+                          autorizzi l'accesso. Al termine torni qui e l'integrazione si attiva da sola — non serve inserire chiavi.
+                        </p>
+                        <p className="text-xs">
+                          Le fatture emesse su Fatture in Cloud verranno importate e monitorate in EiC (numero, cliente,
+                          importi, stato SDI e pagamento).
+                        </p>
                       </div>
                     )}
 
@@ -509,7 +555,7 @@ export default function SettingsBilling() {
                         disabled={!newProvider || (newProvider !== "fattureincloud" && !newApiKey) || addMutation.isPending}
                       >
                         {addMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                        Salva
+                        {newProvider === "fattureincloud" ? "Connetti con OAuth" : "Salva"}
                       </Button>
                       <Button variant="outline" onClick={() => { setShowAdd(false); setNewProvider(""); setNewApiKey(""); setNewCompanyExternalId(""); }}>
                         Annulla
