@@ -623,6 +623,9 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
               <Camera className="h-4 w-4" />
               Scansiona codici a barre
             </Button>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Articoli serializzati (codice univoco per pezzo, es. pannelli FV): aggiungi i <strong>seriali</strong> nella riga dell'articolo, oppure scansionali.
+            </p>
           </section>
 
           {/* Dettagli opzionali: trasportatore + note — collassati di default */}

@@ -12,7 +12,6 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronsUpDown, Search, CalendarClock, MapPin, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Command,
   CommandEmpty,
@@ -64,7 +63,10 @@ function fmtDate(d: string | null): string {
   }
 }
 
-function relativeBadge(workStart: string | null, workEnd: string | null, expected: string | null) {
+// Restituisce label + classi COMPLETE (sfondo + testo) sempre leggibili.
+// Bug precedente: usava variant 'default' (sfondo primary/blu) con testo
+// colorato (blu/emerald) → testo blu su sfondo blu, illeggibile.
+function relativeBadge(workStart: string | null, workEnd: string | null, expected: string | null): { label: string; cls: string } | null {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const ref = workStart ?? expected ?? workEnd;
@@ -76,13 +78,13 @@ function relativeBadge(workStart: string | null, workEnd: string | null, expecte
     return null;
   }
   const days = differenceInDays(date, today);
-  if (days < -7) return { label: fmtDate(ref), variant: "outline" as const, tone: "text-muted-foreground" };
-  if (days < 0) return { label: `${Math.abs(days)}gg fa`, variant: "outline" as const, tone: "text-amber-600" };
-  if (days === 0) return { label: "OGGI", variant: "default" as const, tone: "text-emerald-600 font-bold" };
-  if (days <= 3) return { label: `${days}gg`, variant: "default" as const, tone: "text-emerald-600" };
-  if (days <= 14) return { label: `${days}gg`, variant: "secondary" as const, tone: "text-blue-600" };
-  if (days <= 30) return { label: fmtDate(ref), variant: "secondary" as const, tone: "text-muted-foreground" };
-  return { label: fmtDate(ref), variant: "outline" as const, tone: "text-muted-foreground" };
+  if (days < -7) return { label: fmtDate(ref), cls: "bg-muted text-muted-foreground" };
+  if (days < 0) return { label: `${Math.abs(days)}gg fa`, cls: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" };
+  if (days === 0) return { label: "OGGI", cls: "bg-emerald-600 text-white" };
+  if (days <= 3) return { label: `${days}gg`, cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" };
+  if (days <= 14) return { label: `${days}gg`, cls: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" };
+  if (days <= 30) return { label: fmtDate(ref), cls: "bg-muted text-muted-foreground" };
+  return { label: fmtDate(ref), cls: "bg-muted text-muted-foreground" };
 }
 
 export function OrderSelectCombobox({ companyId, value, onChange, disabled, placeholder }: Props) {
@@ -377,10 +379,10 @@ function OrderGroup({
                 <span className="text-xs text-muted-foreground truncate">· {o.customer_name}</span>
               )}
               {badge && (
-                <Badge variant={badge.variant} className={cn("ml-auto text-[10px] h-5 shrink-0", badge.tone)}>
-                  <CalendarClock className="h-2.5 w-2.5 mr-1" />
+                <span className={cn("ml-auto inline-flex items-center gap-1 rounded-full px-2 h-5 text-[10px] font-medium shrink-0", badge.cls)}>
+                  <CalendarClock className="h-2.5 w-2.5" />
                   {badge.label}
-                </Badge>
+                </span>
               )}
             </div>
             {o.indirizzo_lavori && (

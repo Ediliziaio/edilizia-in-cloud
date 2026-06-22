@@ -67,6 +67,9 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
   const [pendingItem, setPendingItem] = useState<StockItem | null>(null);
   const [pendingQty, setPendingQty] = useState("1");
   const [pendingPrice, setPendingPrice] = useState("");
+  // Bozza seriale per-entry: per articoli serializzati (codice univoco per pezzo,
+  // es. pannelli FV) l'utente inserisce i seriali a mano qui, oppure li scansiona.
+  const [serialDraft, setSerialDraft] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 200);
@@ -252,6 +255,37 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
     (entryId: string, newQty: number) => {
       onEntriesChange(
         entries.map((e) => (e.id === entryId ? { ...e, quantity: Math.max(0, newQty) } : e)),
+      );
+    },
+    [entries, onEntriesChange],
+  );
+
+  // Seriali manuali per articoli serializzati: la quantità segue il numero di
+  // seriali inseriti (1 seriale = 1 pezzo). Niente duplicati.
+  const addSerial = useCallback(
+    (entry: BatchScanEntry, code: string) => {
+      const trimmed = code.trim();
+      if (!trimmed || entry.serialNumbers.includes(trimmed)) return;
+      const nextSerials = [...entry.serialNumbers, trimmed];
+      onEntriesChange(
+        entries.map((e) =>
+          e.id === entry.id ? { ...e, serialNumbers: nextSerials, quantity: nextSerials.length } : e,
+        ),
+      );
+      setSerialDraft((d) => ({ ...d, [entry.id]: "" }));
+    },
+    [entries, onEntriesChange],
+  );
+
+  const removeSerial = useCallback(
+    (entry: BatchScanEntry, code: string) => {
+      const nextSerials = entry.serialNumbers.filter((s) => s !== code);
+      onEntriesChange(
+        entries.map((e) =>
+          e.id === entry.id
+            ? { ...e, serialNumbers: nextSerials, quantity: nextSerials.length > 0 ? nextSerials.length : e.quantity }
+            : e,
+        ),
       );
     },
     [entries, onEntriesChange],
@@ -467,33 +501,93 @@ export function ManualArticleAdder({ companyId, warehouseId, entries, onEntriesC
             </span>
           </div>
           <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
-            {entries.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex items-center gap-2 bg-background rounded-md border px-2 py-1.5 text-xs"
-              >
-                <span className="truncate flex-1 min-w-0">
-                  {entry.itemName ?? entry.rawCode ?? "—"}
-                </span>
-                <Input
-                  type="number"
-                  min="1"
-                  value={entry.quantity}
-                  onChange={(e) => handleUpdateQty(entry.id, parseFloat(e.target.value) || 0)}
-                  className="h-7 w-16 text-right tabular-nums text-xs"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                  onClick={() => handleRemoveEntry(entry.id)}
-                  aria-label="Rimuovi"
+            {entries.map((entry) => {
+              const isSerialized = entry.trackingMode === "serialized";
+              const qtyLocked = isSerialized && entry.serialNumbers.length > 0;
+              return (
+                <div
+                  key={entry.id}
+                  className="bg-background rounded-md border px-2 py-1.5 text-xs space-y-1.5"
                 >
-                  <X className="h-3 w-3 text-destructive" />
-                </Button>
-              </div>
-            ))}
+                  <div className="flex items-center gap-2">
+                    <span className="flex flex-1 min-w-0 items-center gap-1">
+                      <span className="truncate">{entry.itemName ?? entry.rawCode ?? "—"}</span>
+                      {isSerialized && (
+                        <span className="shrink-0 rounded bg-secondary px-1 text-[9px] font-semibold text-secondary-foreground">SN</span>
+                      )}
+                    </span>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={entry.quantity}
+                      onChange={(e) => handleUpdateQty(entry.id, parseFloat(e.target.value) || 0)}
+                      disabled={qtyLocked}
+                      title={qtyLocked ? "Quantità = numero di seriali inseriti" : undefined}
+                      className="h-7 w-16 text-right tabular-nums text-xs disabled:opacity-70"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={() => handleRemoveEntry(entry.id)}
+                      aria-label="Rimuovi"
+                    >
+                      <X className="h-3 w-3 text-destructive" />
+                    </Button>
+                  </div>
+
+                  {/* Articoli serializzati: inserimento manuale dei codici univoci
+                      (in alternativa allo scanner). 1 seriale = 1 pezzo. */}
+                  {isSerialized && (
+                    <div className="space-y-1.5 border-t pt-1.5">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="text-[10px] text-muted-foreground">
+                          Seriali / codici univoci ({entry.serialNumbers.length})
+                        </span>
+                        {entry.serialNumbers.map((sn) => (
+                          <span key={sn} className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono">
+                            {sn}
+                            <button
+                              type="button"
+                              onClick={() => removeSerial(entry, sn)}
+                              aria-label={`Rimuovi seriale ${sn}`}
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-1">
+                        <Input
+                          value={serialDraft[entry.id] ?? ""}
+                          onChange={(e) => setSerialDraft((d) => ({ ...d, [entry.id]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addSerial(entry, serialDraft[entry.id] ?? "");
+                            }
+                          }}
+                          placeholder="Codice univoco del pezzo + Invio (oppure scansiona)"
+                          className="h-7 text-xs font-mono"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 shrink-0"
+                          onClick={() => addSerial(entry, serialDraft[entry.id] ?? "")}
+                          disabled={!(serialDraft[entry.id] ?? "").trim()}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
