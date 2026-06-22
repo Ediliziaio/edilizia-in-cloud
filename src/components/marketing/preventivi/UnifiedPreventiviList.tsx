@@ -37,7 +37,7 @@ import {
 import {
   Search, ChevronRight, ChevronLeft, FileText, RectangleVertical, Sun,
   Inbox, X, Target, TrendingUp, Clock, FileCheck2, Euro,
-  SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind,
+  SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, isSameMonth } from "date-fns";
@@ -56,7 +56,7 @@ import {
   type UnifiedStato,
 } from "@/lib/preventivi/statoUnificato";
 
-export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione";
+export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione" | "elettrico";
 export type { UnifiedStato };
 
 export interface UnifiedRow {
@@ -81,6 +81,7 @@ export const TIPO_LABEL: Record<PreventivoTipo, { label: string; className: stri
   bagni:            { label: "Bagni",            className: "bg-cyan-100 text-cyan-700 border-cyan-200",       color: "#0891b2", Icon: Bath },
   tetti:            { label: "Tetti",            className: "bg-stone-100 text-stone-700 border-stone-200",    color: "#78716c", Icon: Home },
   climatizzazione:  { label: "Climatizzazione",  className: "bg-sky-100 text-sky-700 border-sky-200",          color: "#0284c7", Icon: Wind },
+  elettrico:        { label: "Elettrico",        className: "bg-amber-100 text-amber-700 border-amber-200",    color: "#d97706", Icon: Zap },
 };
 
 export const STATO_UNIF_LABEL: Record<UnifiedStato, { label: string; className: string }> = {
@@ -160,6 +161,10 @@ export function UnifiedPreventiviList() {
   );
   const climatizzazioneEnabled = useMemo(
     () => moduli.find((m) => m.modulo.slug === "climatizzazione")?.isEnabled ?? false,
+    [moduli],
+  );
+  const elettricoEnabled = useMemo(
+    () => moduli.find((m) => m.modulo.slug === "elettrico")?.isEnabled ?? false,
     [moduli],
   );
 
@@ -333,6 +338,27 @@ export function UnifiedPreventiviList() {
     },
   });
 
+  const { data: elettricoData = [], isLoading: loadingElettrico } = useQuery({
+    queryKey: ["unified-prev-elettrico", companyId],
+    enabled: !!companyId && elettricoEnabled,
+    queryFn: async () => {
+      // Tabella ele_* non ancora nei tipi generati → query via (supabase as any).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("ele_progetti")
+        .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
+        .eq("company_id", companyId!)
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .limit(1000);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null;
+        stato: string; totale: number | null;
+        created_by: string | null; created_at: string; updated_at: string | null;
+      }>;
+    },
+  });
+
   const { data: profiles = [] } = useQuery({
     queryKey: ["unified-prev-profiles", companyId],
     enabled: !!companyId,
@@ -475,8 +501,22 @@ export function UnifiedPreventiviList() {
         href: `/azienda/climatizzazione/${c.id}/modifica`,
       });
     }
+    for (const e of elettricoData) {
+      rows.push({
+        id: e.id, tipo: "elettrico",
+        numero: e.code ?? "—",
+        cliente: [e.cliente_nome, e.cliente_cognome].filter(Boolean).join(" ") || "—",
+        commerciale_id: e.created_by,
+        commerciale_nome: e.created_by ? commercialeNameById.get(e.created_by) ?? null : null,
+        stato_unif: mapRistrutturazioneStato(e.stato),
+        stato_raw: e.stato,
+        totale: e.totale != null ? Number(e.totale) : null,
+        data: e.updated_at ?? e.created_at,
+        href: `/azienda/elettrico/${e.id}/modifica`,
+      });
+    }
     return rows;
-  }, [quotesData, serramentiData, fvData, ristrutturazioneData, bagniData, tettiData, climatizzazioneData, commercialeNameById]);
+  }, [quotesData, serramentiData, fvData, ristrutturazioneData, bagniData, tettiData, climatizzazioneData, elettricoData, commercialeNameById]);
 
   // ─── KPI globali (su dataset completo) ───────────────────────────────────
   const kpi = useMemo(() => {
@@ -527,7 +567,7 @@ export function UnifiedPreventiviList() {
 
   // ─── Chart data: distribuzione per tipo ─────────────────────────────────
   const tipoDist = useMemo(() => {
-    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0, ristrutturazione: 0, bagni: 0, tetti: 0, climatizzazione: 0 };
+    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0, ristrutturazione: 0, bagni: 0, tetti: 0, climatizzazione: 0, elettrico: 0 };
     allRows.forEach((r) => { counts[r.tipo]++; });
     return [
       { name: "Classico",         value: counts.classico,         color: TIPO_LABEL.classico.color },
@@ -537,6 +577,7 @@ export function UnifiedPreventiviList() {
       { name: "Bagni",            value: counts.bagni,            color: TIPO_LABEL.bagni.color },
       { name: "Tetti",            value: counts.tetti,            color: TIPO_LABEL.tetti.color },
       { name: "Climatizzazione",  value: counts.climatizzazione,  color: TIPO_LABEL.climatizzazione.color },
+      { name: "Elettrico",        value: counts.elettrico,        color: TIPO_LABEL.elettrico.color },
     ].filter((d) => d.value > 0);
   }, [allRows]);
 
@@ -699,7 +740,7 @@ export function UnifiedPreventiviList() {
     }
   };
 
-  const isLoading = loadingQuotes || loadingSerramenti || loadingFv || loadingRistrutturazione || loadingBagni || loadingTetti || loadingClimatizzazione;
+  const isLoading = loadingQuotes || loadingSerramenti || loadingFv || loadingRistrutturazione || loadingBagni || loadingTetti || loadingClimatizzazione || loadingElettrico;
 
   const tabCounts = {
     all: allRows.length,
@@ -733,6 +774,7 @@ export function UnifiedPreventiviList() {
             bagniData.length > 0 ? `${bagniData.length} bagni` : null,
             tettiData.length > 0 ? `${tettiData.length} tetti` : null,
             climatizzazioneData.length > 0 ? `${climatizzazioneData.length} climatizzazione` : null,
+            elettricoData.length > 0 ? `${elettricoData.length} elettrico` : null,
           ].filter(Boolean).join(" · ") || "totale preventivi"} />
         </div>
       </div>
@@ -1038,6 +1080,7 @@ export function UnifiedPreventiviList() {
         bagniEnabled={bagniEnabled}
         tettiEnabled={tettiEnabled}
         climatizzazioneEnabled={climatizzazioneEnabled}
+        elettricoEnabled={elettricoEnabled}
         totalResults={filtered.length}
       />
     </div>

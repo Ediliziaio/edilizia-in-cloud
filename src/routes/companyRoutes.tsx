@@ -171,6 +171,10 @@ const TettiListino = lazy(() => import("@/pages/azienda/tetti/TettiListino"));
 const ClimatizzazioneIndex = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneIndex"));
 const ClimatizzazioneWizard = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneWizard"));
 const ClimatizzazioneListino = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneListino"));
+// Modulo Elettrico/Domotica (clone Ristrutturazione: permission-based, no feature flag DB)
+const ElettricoIndex = lazy(() => import("@/pages/azienda/elettrico/ElettricoIndex"));
+const ElettricoWizard = lazy(() => import("@/pages/azienda/elettrico/ElettricoWizard"));
+const ElettricoListino = lazy(() => import("@/pages/azienda/elettrico/ElettricoListino"));
 const ListiniFornitoriPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.ListiniFornitoriPage })),
 );
@@ -915,6 +919,31 @@ export default function CompanyRoutesContainer() {
           withCompanyPermission(
             "canEditMarketingOpportunities",
             <ErrorBoundary title="Errore wizard Climatizzazione"><ClimatizzazioneWizard /></ErrorBoundary>,
+          )
+        } />
+        {/* Modulo Elettrico/Domotica — stesso guard di Ristrutturazione/Bagni (permission-based). */}
+        <Route path="elettrico" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore modulo Elettrico"><ElettricoIndex /></ErrorBoundary>,
+          )
+        } />
+        <Route path="elettrico/listino" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore listino Elettrico"><ElettricoListino /></ErrorBoundary>,
+          )
+        } />
+        <Route path="elettrico/nuovo" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Elettrico"><ElettricoWizard /></ErrorBoundary>,
+          )
+        } />
+        <Route path="elettrico/:id/modifica" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Elettrico"><ElettricoWizard /></ErrorBoundary>,
           )
         } />
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />

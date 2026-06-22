@@ -58,6 +58,7 @@ const TIPO_OPTIONS: Array<{ value: PreventivoTipo; label: string; emoji: string 
   { value: "bagni",            label: "Bagni",            emoji: "🛁" },
   { value: "tetti",            label: "Tetti",            emoji: "🏠" },
   { value: "climatizzazione",  label: "Climatizzazione",  emoji: "❄️" },
+  { value: "elettrico",        label: "Elettrico",        emoji: "⚡" },
 ];
 
 const STATO_OPTIONS: Array<{ value: UnifiedStato; label: string; toneCls: string }> = [
@@ -88,12 +89,13 @@ interface Props {
   bagniEnabled: boolean;
   tettiEnabled: boolean;
   climatizzazioneEnabled: boolean;
+  elettricoEnabled: boolean;
   totalResults: number;
 }
 
 export function UnifiedFiltersSheet({
   open, onOpenChange, filters, onApply, commerciali,
-  serramentiEnabled, fotovoltaicoEnabled, ristrutturazioneEnabled, bagniEnabled, tettiEnabled, climatizzazioneEnabled, totalResults,
+  serramentiEnabled, fotovoltaicoEnabled, ristrutturazioneEnabled, bagniEnabled, tettiEnabled, climatizzazioneEnabled, elettricoEnabled, totalResults,
 }: Props) {
   const toggleTipo = (t: PreventivoTipo) => {
     const set = new Set(filters.tipi);
@@ -138,6 +140,7 @@ export function UnifiedFiltersSheet({
                 if (t.value === "bagni" && !bagniEnabled) return null;
                 if (t.value === "tetti" && !tettiEnabled) return null;
                 if (t.value === "climatizzazione" && !climatizzazioneEnabled) return null;
+                if (t.value === "elettrico" && !elettricoEnabled) return null;
                 const on = filters.tipi.includes(t.value);
                 return (
                   <button

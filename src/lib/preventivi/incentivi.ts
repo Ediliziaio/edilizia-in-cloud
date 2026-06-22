@@ -1,6 +1,6 @@
 /**
  * Incentivi fiscali edilizi — catalogo preset + calcolo del detraibile con
- * MASSIMALE di spesa. Condiviso tra i verticali (Ristrutturazione, Bagni, Tetti, Climatizzazione).
+ * MASSIMALE di spesa. Condiviso tra i verticali (Ristrutturazione, Bagni, Tetti, Climatizzazione, Elettrico).
  *
  * Il detraibile non è semplicemente `imponibile × %`: le detrazioni hanno un
  * tetto di spesa (es. Bonus Casa 50% su max 96.000 €). `calcDetraibile` applica
@@ -56,6 +56,13 @@ export const INCENTIVI_TETTI: readonly Incentivo[] = [
 export const INCENTIVI_CLIMATIZZAZIONE: readonly Incentivo[] = [
   { key: "ecobonus", label: "Ecobonus 65%", pct: 65, massimale: 46154, hint: "Climatizzatori / pompe di calore ad alta efficienza in sostituzione dell'impianto. Tetto di spesa indic. 46.154 €." },
   { key: "bonus_casa", label: "Bonus Casa 50%", pct: 50, massimale: 96000, hint: "Nuovo impianto di climatizzazione nell'ambito di una ristrutturazione edilizia. Tetto 96.000 €." },
+  NESSUNO,
+];
+
+/** Preset per gli impianti elettrici: ristrutturazione + domotica/building automation. */
+export const INCENTIVI_ELETTRICO: readonly Incentivo[] = [
+  { key: "bonus_casa", label: "Bonus Casa 50%", pct: 50, massimale: 96000, hint: "Rifacimento/adeguamento impianto elettrico come manutenzione straordinaria. Tetto 96.000 € per unità." },
+  { key: "ecobonus", label: "Ecobonus 65%", pct: 65, massimale: 15000, hint: "Building automation / domotica per la gestione efficiente di riscaldamento, climatizzazione e produzione ACS." },
   NESSUNO,
 ];
 

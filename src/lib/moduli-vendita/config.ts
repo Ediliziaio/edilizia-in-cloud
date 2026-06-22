@@ -11,7 +11,7 @@
  */
 
 import type { LucideIcon } from "lucide-react";
-import { Sun, PanelTop, Home, Bath, Layers, Thermometer, Hammer, Wind } from "lucide-react";
+import { Sun, PanelTop, Home, Bath, Layers, Thermometer, Hammer, Wind, Zap } from "lucide-react";
 
 export type ModuloVendutaSlug =
   | "fotovoltaico"
@@ -20,6 +20,7 @@ export type ModuloVendutaSlug =
   | "tetti"
   | "bagni"
   | "climatizzazione"
+  | "elettrico"
   | "cappotto"
   | "pompe_calore";
 
@@ -30,6 +31,7 @@ export type ModuloFeatureKey =
   | "modulo_tetti_attivo"
   | "modulo_bagni_attivo"
   | "modulo_climatizzazione_attivo"
+  | "modulo_elettrico_attivo"
   | "modulo_cappotto_attivo"
   | "modulo_pompe_calore_attivo";
 
@@ -175,6 +177,25 @@ export const MODULI_VENDITA: readonly ModuloVendutaConfig[] = [
       "Listini materiali e manodopera aziendali",
       "Margini per voce/capitolo sotto controllo",
       "Incentivi Ecobonus / Conto Termico",
+      "Preventivo PDF brandizzato a più pagine",
+    ],
+    prezzoMensile: 149,
+  },
+  {
+    slug: "elettrico",
+    nome: "Elettrico / Domotica",
+    tagline: "Impianti elettrici e building automation",
+    descrizione:
+      "Preventivatore impianti elettrici civili e domotici (CEI 64-8): quadro, punti luce/presa, linee, forza motrice, illuminazione e building automation. Computo metrico dai listini aziendali, gestione incentivi e preventivo PDF brandizzato.",
+    icon: Zap,
+    flag: "modulo_elettrico_attivo",
+    href: "/azienda/elettrico",
+    availability: "available",
+    benefici: [
+      "Computo per punti luce/presa, linee e quadro",
+      "Livelli impianto CEI 64-8 (base/standard/domotico)",
+      "Domotica e building automation",
+      "Incentivi ristrutturazione + Ecobonus domotica",
       "Preventivo PDF brandizzato a più pagine",
     ],
     prezzoMensile: 149,
