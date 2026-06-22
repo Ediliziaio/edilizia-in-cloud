@@ -167,6 +167,10 @@ const BagniListino = lazy(() => import("@/pages/azienda/bagni/BagniListino"));
 const TettiIndex = lazy(() => import("@/pages/azienda/tetti/TettiIndex"));
 const TettiWizard = lazy(() => import("@/pages/azienda/tetti/TettiWizard"));
 const TettiListino = lazy(() => import("@/pages/azienda/tetti/TettiListino"));
+// Modulo Climatizzazione (clone Ristrutturazione: permission-based, no feature flag DB)
+const ClimatizzazioneIndex = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneIndex"));
+const ClimatizzazioneWizard = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneWizard"));
+const ClimatizzazioneListino = lazy(() => import("@/pages/azienda/climatizzazione/ClimatizzazioneListino"));
 const ListiniFornitoriPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.ListiniFornitoriPage })),
 );
@@ -886,6 +890,31 @@ export default function CompanyRoutesContainer() {
           withCompanyPermission(
             "canEditMarketingOpportunities",
             <ErrorBoundary title="Errore wizard Tetti"><TettiWizard /></ErrorBoundary>,
+          )
+        } />
+        {/* Modulo Climatizzazione — stesso guard di Ristrutturazione/Bagni (permission-based). */}
+        <Route path="climatizzazione" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore modulo Climatizzazione"><ClimatizzazioneIndex /></ErrorBoundary>,
+          )
+        } />
+        <Route path="climatizzazione/listino" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore listino Climatizzazione"><ClimatizzazioneListino /></ErrorBoundary>,
+          )
+        } />
+        <Route path="climatizzazione/nuovo" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Climatizzazione"><ClimatizzazioneWizard /></ErrorBoundary>,
+          )
+        } />
+        <Route path="climatizzazione/:id/modifica" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Climatizzazione"><ClimatizzazioneWizard /></ErrorBoundary>,
           )
         } />
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />

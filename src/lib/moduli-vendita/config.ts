@@ -11,7 +11,7 @@
  */
 
 import type { LucideIcon } from "lucide-react";
-import { Sun, PanelTop, Home, Bath, Layers, Thermometer, Hammer } from "lucide-react";
+import { Sun, PanelTop, Home, Bath, Layers, Thermometer, Hammer, Wind } from "lucide-react";
 
 export type ModuloVendutaSlug =
   | "fotovoltaico"
@@ -19,6 +19,7 @@ export type ModuloVendutaSlug =
   | "ristrutturazione"
   | "tetti"
   | "bagni"
+  | "climatizzazione"
   | "cappotto"
   | "pompe_calore";
 
@@ -28,6 +29,7 @@ export type ModuloFeatureKey =
   | "modulo_ristrutturazione_attivo"
   | "modulo_tetti_attivo"
   | "modulo_bagni_attivo"
+  | "modulo_climatizzazione_attivo"
   | "modulo_cappotto_attivo"
   | "modulo_pompe_calore_attivo";
 
@@ -155,6 +157,25 @@ export const MODULI_VENDITA: readonly ModuloVendutaConfig[] = [
       "Configuratore sanitari e rivestimenti",
       "Computo metrico automatico",
       "Gestione subappalti idraulico/elettrico",
+    ],
+    prezzoMensile: 149,
+  },
+  {
+    slug: "climatizzazione",
+    nome: "Climatizzazione",
+    tagline: "Impianti split, multisplit e VRF",
+    descrizione:
+      "Preventivatore impianti di climatizzazione: split, multisplit e VRF. Computo metrico dai listini aziendali (unità interne/esterne, linee frigorifere, opere elettriche), gestione incentivi e preventivo PDF brandizzato pronto per il cliente, integrato col CRM EiC.",
+    icon: Wind,
+    flag: "modulo_climatizzazione_attivo",
+    href: "/azienda/climatizzazione",
+    availability: "available",
+    benefici: [
+      "Computo per unità interne/esterne e linee frigo",
+      "Listini materiali e manodopera aziendali",
+      "Margini per voce/capitolo sotto controllo",
+      "Incentivi Ecobonus / Conto Termico",
+      "Preventivo PDF brandizzato a più pagine",
     ],
     prezzoMensile: 149,
   },
