@@ -429,7 +429,7 @@ export default function BagniWizard() {
                 progettoId={id}
                 initialComputo={detail.computo}
                 scontoPct={Number(form.sconto_pct ?? detail.progetto.sconto_pct ?? 0)}
-                ivaPct={Number(form.iva_pct ?? detail.progetto.iva_pct ?? 22)}
+                ivaPct={Number(form.iva_pct ?? detail.progetto.iva_pct ?? 10)}
               />
             )}
             {currentStep === "media" && id && detail && (

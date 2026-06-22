@@ -109,7 +109,7 @@ export default function StepPdf({ progetto, computo, media }: Props) {
           costo_materiali: v.costo_materiali,
           costo_manodopera: v.costo_manodopera,
         })),
-        { sconto_pct: Number(progetto.sconto_pct) || 0, iva_pct: Number(progetto.iva_pct ?? 22) },
+        { sconto_pct: Number(progetto.sconto_pct) || 0, iva_pct: Number(progetto.iva_pct ?? 10) },
       ),
     [computo, progetto.sconto_pct, progetto.iva_pct],
   );

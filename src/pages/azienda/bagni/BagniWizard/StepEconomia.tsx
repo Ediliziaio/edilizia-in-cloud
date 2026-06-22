@@ -46,7 +46,7 @@ const toPct = (raw: string): number => {
 
 export default function StepEconomia({ form, onChange, computo }: Props) {
   const scontoPct = Number(form.sconto_pct ?? 0);
-  const ivaPct = Number(form.iva_pct ?? 22);
+  const ivaPct = Number(form.iva_pct ?? 10);
   const detrazionePct = Number(form.detrazione_pct ?? 0);
 
   // Totali ricalcolati live (puro, memoizzato): single source of truth dei numeri.
@@ -165,7 +165,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
               <PctField
                 id="bgn-iva"
                 label="IVA"
-                value={form.iva_pct ?? 22}
+                value={form.iva_pct ?? 10}
                 onCommit={(v) => onChange("iva_pct", v)}
                 hint="In edilizia spesso 10% (bagni) o 4% (prima casa)."
               />

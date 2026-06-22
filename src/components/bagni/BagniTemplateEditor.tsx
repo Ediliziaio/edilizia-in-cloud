@@ -313,7 +313,7 @@ export function BagniTemplateEditor({ embedded = false }: Props) {
     });
     const progetto: BgnProgetto = {
       id: "preview", company_id: companyId, code: "ANTEPRIMA", stato: "bozza",
-      tipo_intervento: "Bagni completa",
+      tipo_intervento: "Bagno completo",
       cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,
       cantiere_indirizzo: "Via Roma 1", cantiere_citta: "Milano", cantiere_provincia: "MI", cantiere_cap: "20100",
       immobile_tipo: "Appartamento", immobile_superficie_mq: 90, immobile_anno: 1975, immobile_piani: 1,

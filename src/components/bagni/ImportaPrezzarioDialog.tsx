@@ -48,8 +48,10 @@ import {
   usePrezzarioFonti,
   usePrezzarioCapitoli,
   usePrezzarioVoci,
-  useAdottaPrezzario,
 } from "@/lib/prezzario/queries";
+// useAdottaPrezzario: versione bgn-scoped (scrive su bgn_listino_voci) — NON quella
+// di @/lib/prezzario/queries, che è rst-scoped (scriverebbe nel listino Ristrutturazione).
+import { useAdottaPrezzario } from "@/hooks/useBagniListino";
 import type { PrezzarioFonte, PrezzarioVoce } from "@/lib/prezzario/tipi";
 
 const RICARICO_DEFAULT = 15;

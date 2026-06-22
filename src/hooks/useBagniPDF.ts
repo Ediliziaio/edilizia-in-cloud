@@ -188,7 +188,7 @@ async function enrichForPdf(opts: BgnPdfPayload): Promise<BgnPdfEnriched> {
 
   // 4) Totali complessivi (single source of truth = calcTotaliComputo).
   const scontoPct = Number(progetto.sconto_pct) || 0;
-  const ivaPct = Number(progetto.iva_pct ?? 22);
+  const ivaPct = Number(progetto.iva_pct ?? 10);
   const detrazionePct = Number(progetto.detrazione_pct) || 0;
   const allRows: ComputoRigaInput[] = computo.map((v) => ({
     capitolo_nome: v.capitolo_nome,

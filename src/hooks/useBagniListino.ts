@@ -24,6 +24,7 @@ import type {
   BgnListinoVoce,
   BgnUnitaMisura,
 } from "@/types/bagni";
+import type { AdottaPrezzarioInput } from "@/lib/prezzario/queries";
 
 // Tipi bgn_* non rigenerati: cast unico, riusato in tutto il file.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -252,6 +253,60 @@ export function useImportSeedListino() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: K.capitoli(companyId) });
       void qc.invalidateQueries({ queryKey: ["bgn-listino-voci", companyId] });
+    },
+  });
+}
+
+/**
+ * Adozione di voci da un prezzario regionale ufficiale nel listino BAGNI
+ * (`bgn_listino_voci`). Gemello bgn-scoped di `useAdottaPrezzario` di
+ * `@/lib/prezzario/queries` (che scrive sul listino Ristrutturazione): qui le
+ * voci finiscono nel listino Bagni e si invalidano le query key `bgn-listino-*`.
+ */
+export function useAdottaPrezzario() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: AdottaPrezzarioInput): Promise<{ inserite: number }> => {
+      if (!companyId) throw new Error("Azienda non disponibile");
+      if (input.voci.length === 0) return { inserite: 0 };
+      // Nome fonte per la nota (una sola lettura, riusata su tutte le voci).
+      const { data: fonteRow, error: fonteErr } = await sb()
+        .from("prezzario_fonte")
+        .select("nome")
+        .eq("id", input.fonteId)
+        .maybeSingle();
+      if (fonteErr) throw new Error(fonteErr.message);
+      const nomeFonte = (fonteRow?.nome as string | undefined) ?? "Prezzario";
+      const rows = input.voci.map((v, idx) => {
+        const prezzo = Number(v.prezzo) || 0;
+        const incid = v.incidenza_manodopera_pct ?? 0;
+        const costo_manodopera = Math.round(prezzo * incid * 100) / 100;
+        const costo_materiali = Math.round((prezzo - costo_manodopera) * 100) / 100;
+        const prezzo_unitario = Math.round(prezzo * (1 + input.ricaricoPct / 100) * 100) / 100;
+        const note = v.codice ? `Fonte: ${nomeFonte} (cod. ${v.codice})` : `Fonte: ${nomeFonte}`;
+        return {
+          company_id: companyId,
+          capitolo_id: input.capitoloId ?? null,
+          codice: v.codice ?? null,
+          descrizione: v.descrizione,
+          unita_misura: v.unita_misura ?? "cad",
+          costo_materiali,
+          costo_manodopera,
+          ricarico_pct: input.ricaricoPct,
+          prezzo_unitario,
+          note,
+          fonte: nomeFonte,
+          ordine: idx,
+        };
+      });
+      const { error } = await sb().from("bgn_listino_voci").insert(rows);
+      if (error) throw new Error(error.message);
+      return { inserite: rows.length };
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["bgn-listino-voci", companyId] });
+      void qc.invalidateQueries({ queryKey: ["bgn-listino-capitoli", companyId] });
     },
   });
 }
