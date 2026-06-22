@@ -54,7 +54,7 @@ export function OrderCommunicationsCard({ customerId, customerEmail, customerNam
   })();
 
   // ── Email (in arrivo + inviate) per indirizzo del cliente ──────────────────
-  const { data: emails = [] } = useQuery({
+  const emailQ = useQuery({
     queryKey: ["order-comm-email", customerId, companyId, emailLookup],
     enabled: !!companyId && !!emailLookup,
     staleTime: 60_000,
@@ -87,7 +87,7 @@ export function OrderCommunicationsCard({ customerId, customerEmail, customerNam
   });
 
   // ── Messaggi WhatsApp/SMS dalla RPC conversazione_timeline ──────────────────
-  const { data: messaggi = [] } = useQuery({
+  const messaggiQ = useQuery({
     queryKey: ["order-comm-msg", customerId],
     enabled: !!customerId,
     staleTime: 60_000,
@@ -109,6 +109,8 @@ export function OrderCommunicationsCard({ customerId, customerEmail, customerNam
   });
 
   const items: CommItem[] = useMemo(() => {
+    const emails = emailQ.data ?? [];
+    const messaggi = messaggiQ.data ?? [];
     const fromEmails: CommItem[] = (emails as Array<{ id?: string; from_email?: string; subject?: string; received_at?: string; preview?: string }>).map((e) => ({
       id: `mail-${e.id}`,
       canale: "email",
@@ -129,7 +131,10 @@ export function OrderCommunicationsCard({ customerId, customerEmail, customerNam
       .filter((x) => x.ts)
       .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
       .slice(0, 8);
-  }, [emails, messaggi, emailLookup]);
+  }, [emailQ.data, messaggiQ.data, emailLookup]);
+
+  // Caricamento attivo (evita l'empty-state prematuro mentre le query girano).
+  const loading = (emailQ.isFetching || messaggiQ.isFetching) && items.length === 0;
 
   // Commessa senza cliente collegato → niente comunicazioni da mostrare.
   if (!customerId) {
@@ -165,7 +170,9 @@ export function OrderCommunicationsCard({ customerId, customerEmail, customerNam
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
-        {items.length === 0 ? (
+        {loading ? (
+          <div className="px-4 pb-4 text-sm text-muted-foreground">Caricamento…</div>
+        ) : items.length === 0 ? (
           <div className="px-4 pb-4 text-sm text-muted-foreground">Nessuna comunicazione recente con questo cliente.</div>
         ) : (
           <div className="divide-y">
