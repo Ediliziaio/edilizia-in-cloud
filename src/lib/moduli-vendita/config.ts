@@ -11,7 +11,7 @@
  */
 
 import type { LucideIcon } from "lucide-react";
-import { Sun, PanelTop, Home, Bath, Layers, Thermometer, Hammer, Wind, Zap } from "lucide-react";
+import { Sun, PanelTop, Home, Bath, Layers, Thermometer, Hammer, Wind, Zap, Flame } from "lucide-react";
 
 export type ModuloVendutaSlug =
   | "fotovoltaico"
@@ -21,6 +21,7 @@ export type ModuloVendutaSlug =
   | "bagni"
   | "climatizzazione"
   | "elettrico"
+  | "termoidraulico"
   | "cappotto"
   | "pompe_calore";
 
@@ -32,6 +33,7 @@ export type ModuloFeatureKey =
   | "modulo_bagni_attivo"
   | "modulo_climatizzazione_attivo"
   | "modulo_elettrico_attivo"
+  | "modulo_termoidraulico_attivo"
   | "modulo_cappotto_attivo"
   | "modulo_pompe_calore_attivo";
 
@@ -196,6 +198,25 @@ export const MODULI_VENDITA: readonly ModuloVendutaConfig[] = [
       "Livelli impianto CEI 64-8 (base/standard/domotico)",
       "Domotica e building automation",
       "Incentivi ristrutturazione + Ecobonus domotica",
+      "Preventivo PDF brandizzato a più pagine",
+    ],
+    prezzoMensile: 149,
+  },
+  {
+    slug: "termoidraulico",
+    nome: "Termoidraulico",
+    tagline: "Riscaldamento, caldaie e idrosanitario",
+    descrizione:
+      "Preventivatore impianti termoidraulici: caldaie a condensazione, pompe di calore, sistemi ibridi, radiatori, pannelli radianti e idrosanitario. Computo metrico dai listini aziendali, incentivi (Ecobonus/Conto Termico) e preventivo PDF brandizzato.",
+    icon: Flame,
+    flag: "modulo_termoidraulico_attivo",
+    href: "/azienda/termoidraulico",
+    availability: "available",
+    benefici: [
+      "Computo per generatore, terminali e distribuzione",
+      "Caldaia condensazione / pompa di calore / ibrido",
+      "Pannelli radianti e idrosanitario",
+      "Incentivi Ecobonus 65% + Conto Termico",
       "Preventivo PDF brandizzato a più pagine",
     ],
     prezzoMensile: 149,

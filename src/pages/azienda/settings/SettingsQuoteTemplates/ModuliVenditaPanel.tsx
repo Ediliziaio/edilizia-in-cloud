@@ -9,7 +9,7 @@
 import React, { lazy, Suspense, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft, Bath, Hammer, Home, Loader2, RectangleVertical, ShoppingBag, Sun, Wind, Zap,
+  ArrowLeft, Bath, Hammer, Home, Loader2, RectangleVertical, ShoppingBag, Sun, Wind, Zap, Flame,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,6 +37,9 @@ const ClimatizzazioneTemplateEditor = lazy(() =>
 );
 const ElettricoTemplateEditor = lazy(() =>
   import("@/components/elettrico/ElettricoTemplateEditor").then((m) => ({ default: m.ElettricoTemplateEditor })),
+);
+const TermoidraulicoTemplateEditor = lazy(() =>
+  import("@/components/termoidraulico/TermoidraulicoTemplateEditor").then((m) => ({ default: m.TermoidraulicoTemplateEditor })),
 );
 
 interface ModuloVendita {
@@ -130,6 +133,18 @@ const MODULI_VENDITA: ModuloVendita[] = [
     render: () => (
       <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-orange-600" /></div>}>
         <ElettricoTemplateEditor embedded />
+      </Suspense>
+    ),
+  },
+  {
+    slug: "termoidraulico",
+    nome: "Termoidraulico",
+    icon: Flame,
+    description: "Template del PDF Preventivatore Termoidraulico: branding, copertina, chi siamo, esigenze, USP, testimonianze, cronoprogramma, condizioni.",
+    available: true,
+    render: () => (
+      <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-orange-600" /></div>}>
+        <TermoidraulicoTemplateEditor embedded />
       </Suspense>
     ),
   },

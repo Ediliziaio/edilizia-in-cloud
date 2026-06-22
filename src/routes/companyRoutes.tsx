@@ -175,6 +175,10 @@ const ClimatizzazioneListino = lazy(() => import("@/pages/azienda/climatizzazion
 const ElettricoIndex = lazy(() => import("@/pages/azienda/elettrico/ElettricoIndex"));
 const ElettricoWizard = lazy(() => import("@/pages/azienda/elettrico/ElettricoWizard"));
 const ElettricoListino = lazy(() => import("@/pages/azienda/elettrico/ElettricoListino"));
+// Modulo Termoidraulico (clone Ristrutturazione: permission-based, no feature flag DB)
+const TermoidraulicoIndex = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoIndex"));
+const TermoidraulicoWizard = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoWizard"));
+const TermoidraulicoListino = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoListino"));
 const ListiniFornitoriPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.ListiniFornitoriPage })),
 );
@@ -944,6 +948,31 @@ export default function CompanyRoutesContainer() {
           withCompanyPermission(
             "canEditMarketingOpportunities",
             <ErrorBoundary title="Errore wizard Elettrico"><ElettricoWizard /></ErrorBoundary>,
+          )
+        } />
+        {/* Modulo Termoidraulico — stesso guard di Ristrutturazione/Bagni (permission-based). */}
+        <Route path="termoidraulico" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore modulo Termoidraulico"><TermoidraulicoIndex /></ErrorBoundary>,
+          )
+        } />
+        <Route path="termoidraulico/listino" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore listino Termoidraulico"><TermoidraulicoListino /></ErrorBoundary>,
+          )
+        } />
+        <Route path="termoidraulico/nuovo" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Termoidraulico"><TermoidraulicoWizard /></ErrorBoundary>,
+          )
+        } />
+        <Route path="termoidraulico/:id/modifica" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Termoidraulico"><TermoidraulicoWizard /></ErrorBoundary>,
           )
         } />
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />
