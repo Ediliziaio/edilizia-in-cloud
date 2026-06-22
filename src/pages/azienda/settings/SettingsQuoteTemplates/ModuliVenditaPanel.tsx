@@ -9,7 +9,7 @@
 import React, { lazy, Suspense, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft, Bath, Hammer, Home, Loader2, RectangleVertical, ShoppingBag, Sun, Wind, Zap, Flame, LayoutGrid,
+  ArrowLeft, Bath, Hammer, Home, Loader2, RectangleVertical, ShoppingBag, Sun, Wind, Zap, Flame, LayoutGrid, Waves,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,6 +43,9 @@ const TermoidraulicoTemplateEditor = lazy(() =>
 );
 const PavimentiTemplateEditor = lazy(() =>
   import("@/components/pavimenti/PavimentiTemplateEditor").then((m) => ({ default: m.PavimentiTemplateEditor })),
+);
+const PiscineTemplateEditor = lazy(() =>
+  import("@/components/piscine/PiscineTemplateEditor").then((m) => ({ default: m.PiscineTemplateEditor })),
 );
 
 interface ModuloVendita {
@@ -160,6 +163,18 @@ const MODULI_VENDITA: ModuloVendita[] = [
     render: () => (
       <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-orange-600" /></div>}>
         <PavimentiTemplateEditor embedded />
+      </Suspense>
+    ),
+  },
+  {
+    slug: "piscine",
+    nome: "Piscine",
+    icon: Waves,
+    description: "Template del PDF Preventivatore Piscine: branding, copertina, chi siamo, esigenze, USP, testimonianze, cronoprogramma, condizioni.",
+    available: true,
+    render: () => (
+      <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-orange-600" /></div>}>
+        <PiscineTemplateEditor embedded />
       </Suspense>
     ),
   },

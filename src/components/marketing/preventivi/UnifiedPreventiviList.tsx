@@ -37,7 +37,7 @@ import {
 import {
   Search, ChevronRight, ChevronLeft, FileText, RectangleVertical, Sun,
   Inbox, X, Target, TrendingUp, Clock, FileCheck2, Euro,
-  SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind, Zap, Flame, LayoutGrid,
+  SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind, Zap, Flame, LayoutGrid, Waves,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, isSameMonth } from "date-fns";
@@ -56,7 +56,7 @@ import {
   type UnifiedStato,
 } from "@/lib/preventivi/statoUnificato";
 
-export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione" | "elettrico" | "termoidraulico" | "pavimenti";
+export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione" | "elettrico" | "termoidraulico" | "pavimenti" | "piscine";
 export type { UnifiedStato };
 
 export interface UnifiedRow {
@@ -84,6 +84,7 @@ export const TIPO_LABEL: Record<PreventivoTipo, { label: string; className: stri
   elettrico:        { label: "Elettrico",        className: "bg-amber-100 text-amber-700 border-amber-200",    color: "#d97706", Icon: Zap },
   termoidraulico:   { label: "Termoidraulico",   className: "bg-rose-100 text-rose-700 border-rose-200",       color: "#e11d48", Icon: Flame },
   pavimenti:        { label: "Pavimenti",        className: "bg-teal-100 text-teal-700 border-teal-200",       color: "#0d9488", Icon: LayoutGrid },
+  piscine:          { label: "Piscine",          className: "bg-blue-100 text-blue-700 border-blue-200",       color: "#2563eb", Icon: Waves },
 };
 
 export const STATO_UNIF_LABEL: Record<UnifiedStato, { label: string; className: string }> = {
@@ -175,6 +176,10 @@ export function UnifiedPreventiviList() {
   );
   const pavimentiEnabled = useMemo(
     () => moduli.find((m) => m.modulo.slug === "pavimenti")?.isEnabled ?? false,
+    [moduli],
+  );
+  const piscineEnabled = useMemo(
+    () => moduli.find((m) => m.modulo.slug === "piscine")?.isEnabled ?? false,
     [moduli],
   );
 
@@ -411,6 +416,27 @@ export function UnifiedPreventiviList() {
     },
   });
 
+  const { data: piscineData = [], isLoading: loadingPiscine } = useQuery({
+    queryKey: ["unified-prev-piscine", companyId],
+    enabled: !!companyId && piscineEnabled,
+    queryFn: async () => {
+      // Tabella pis_* non ancora nei tipi generati → query via (supabase as any).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("pis_progetti")
+        .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
+        .eq("company_id", companyId!)
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .limit(1000);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null;
+        stato: string; totale: number | null;
+        created_by: string | null; created_at: string; updated_at: string | null;
+      }>;
+    },
+  });
+
   const { data: profiles = [] } = useQuery({
     queryKey: ["unified-prev-profiles", companyId],
     enabled: !!companyId,
@@ -595,8 +621,22 @@ export function UnifiedPreventiviList() {
         href: `/azienda/pavimenti/${pv.id}/modifica`,
       });
     }
+    for (const ps of piscineData) {
+      rows.push({
+        id: ps.id, tipo: "piscine",
+        numero: ps.code ?? "—",
+        cliente: [ps.cliente_nome, ps.cliente_cognome].filter(Boolean).join(" ") || "—",
+        commerciale_id: ps.created_by,
+        commerciale_nome: ps.created_by ? commercialeNameById.get(ps.created_by) ?? null : null,
+        stato_unif: mapRistrutturazioneStato(ps.stato),
+        stato_raw: ps.stato,
+        totale: ps.totale != null ? Number(ps.totale) : null,
+        data: ps.updated_at ?? ps.created_at,
+        href: `/azienda/piscine/${ps.id}/modifica`,
+      });
+    }
     return rows;
-  }, [quotesData, serramentiData, fvData, ristrutturazioneData, bagniData, tettiData, climatizzazioneData, elettricoData, termoidraulicoData, pavimentiData, commercialeNameById]);
+  }, [quotesData, serramentiData, fvData, ristrutturazioneData, bagniData, tettiData, climatizzazioneData, elettricoData, termoidraulicoData, pavimentiData, piscineData, commercialeNameById]);
 
   // ─── KPI globali (su dataset completo) ───────────────────────────────────
   const kpi = useMemo(() => {
@@ -647,7 +687,7 @@ export function UnifiedPreventiviList() {
 
   // ─── Chart data: distribuzione per tipo ─────────────────────────────────
   const tipoDist = useMemo(() => {
-    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0, ristrutturazione: 0, bagni: 0, tetti: 0, climatizzazione: 0, elettrico: 0, termoidraulico: 0, pavimenti: 0 };
+    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0, ristrutturazione: 0, bagni: 0, tetti: 0, climatizzazione: 0, elettrico: 0, termoidraulico: 0, pavimenti: 0, piscine: 0 };
     allRows.forEach((r) => { counts[r.tipo]++; });
     return [
       { name: "Classico",         value: counts.classico,         color: TIPO_LABEL.classico.color },
@@ -660,6 +700,7 @@ export function UnifiedPreventiviList() {
       { name: "Elettrico",        value: counts.elettrico,        color: TIPO_LABEL.elettrico.color },
       { name: "Termoidraulico",   value: counts.termoidraulico,   color: TIPO_LABEL.termoidraulico.color },
       { name: "Pavimenti",        value: counts.pavimenti,        color: TIPO_LABEL.pavimenti.color },
+      { name: "Piscine",          value: counts.piscine,          color: TIPO_LABEL.piscine.color },
     ].filter((d) => d.value > 0);
   }, [allRows]);
 
@@ -822,7 +863,7 @@ export function UnifiedPreventiviList() {
     }
   };
 
-  const isLoading = loadingQuotes || loadingSerramenti || loadingFv || loadingRistrutturazione || loadingBagni || loadingTetti || loadingClimatizzazione || loadingElettrico || loadingTermoidraulico || loadingPavimenti;
+  const isLoading = loadingQuotes || loadingSerramenti || loadingFv || loadingRistrutturazione || loadingBagni || loadingTetti || loadingClimatizzazione || loadingElettrico || loadingTermoidraulico || loadingPavimenti || loadingPiscine;
 
   const tabCounts = {
     all: allRows.length,
@@ -859,6 +900,7 @@ export function UnifiedPreventiviList() {
             elettricoData.length > 0 ? `${elettricoData.length} elettrico` : null,
             termoidraulicoData.length > 0 ? `${termoidraulicoData.length} termoidraulico` : null,
             pavimentiData.length > 0 ? `${pavimentiData.length} pavimenti` : null,
+            piscineData.length > 0 ? `${piscineData.length} piscine` : null,
           ].filter(Boolean).join(" · ") || "totale preventivi"} />
         </div>
       </div>
@@ -1167,6 +1209,7 @@ export function UnifiedPreventiviList() {
         elettricoEnabled={elettricoEnabled}
         termoidraulicoEnabled={termoidraulicoEnabled}
         pavimentiEnabled={pavimentiEnabled}
+        piscineEnabled={piscineEnabled}
         totalResults={filtered.length}
       />
     </div>

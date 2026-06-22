@@ -1,6 +1,6 @@
 /**
  * Incentivi fiscali edilizi — catalogo preset + calcolo del detraibile con
- * MASSIMALE di spesa. Condiviso tra i verticali (Ristrutturazione, Bagni, Tetti, Climatizzazione, Elettrico, Termoidraulico, Pavimenti).
+ * MASSIMALE di spesa. Condiviso tra i verticali (Ristrutturazione, Bagni, Tetti, Climatizzazione, Elettrico, Termoidraulico, Pavimenti, Piscine).
  *
  * Il detraibile non è semplicemente `imponibile × %`: le detrazioni hanno un
  * tetto di spesa (es. Bonus Casa 50% su max 96.000 €). `calcDetraibile` applica
@@ -76,6 +76,12 @@ export const INCENTIVI_TERMOIDRAULICO: readonly Incentivo[] = [
 /** Preset per pavimenti & resine: ristrutturazione edilizia. */
 export const INCENTIVI_PAVIMENTI: readonly Incentivo[] = [
   { key: "bonus_casa", label: "Bonus Casa 50%", pct: 50, massimale: 96000, hint: "Rifacimento pavimenti nell'ambito di una manutenzione straordinaria / ristrutturazione. Tetto 96.000 € per unità." },
+  NESSUNO,
+];
+
+/** Preset per le piscine: agevolazioni limitate — la piscina in sé NON accede ai bonus edilizi. */
+export const INCENTIVI_PISCINE: readonly Incentivo[] = [
+  { key: "ecobonus", label: "Ecobonus 65% (solo PdC)", pct: 65, massimale: 30000, hint: "Limitato alla sola pompa di calore per il riscaldamento dell'acqua. La realizzazione della piscina non è agevolata." },
   NESSUNO,
 ];
 

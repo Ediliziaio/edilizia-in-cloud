@@ -11,7 +11,7 @@
  */
 
 import type { LucideIcon } from "lucide-react";
-import { Sun, PanelTop, Home, Bath, Layers, Thermometer, Hammer, Wind, Zap, Flame, LayoutGrid } from "lucide-react";
+import { Sun, PanelTop, Home, Bath, Layers, Thermometer, Hammer, Wind, Zap, Flame, LayoutGrid, Waves } from "lucide-react";
 
 export type ModuloVendutaSlug =
   | "fotovoltaico"
@@ -23,6 +23,7 @@ export type ModuloVendutaSlug =
   | "elettrico"
   | "termoidraulico"
   | "pavimenti"
+  | "piscine"
   | "cappotto"
   | "pompe_calore";
 
@@ -36,6 +37,7 @@ export type ModuloFeatureKey =
   | "modulo_elettrico_attivo"
   | "modulo_termoidraulico_attivo"
   | "modulo_pavimenti_attivo"
+  | "modulo_piscine_attivo"
   | "modulo_cappotto_attivo"
   | "modulo_pompe_calore_attivo";
 
@@ -238,6 +240,25 @@ export const MODULI_VENDITA: readonly ModuloVendutaConfig[] = [
       "Gres, parquet, resina, microcemento, pietra",
       "Levigatura e lucidatura in opera",
       "Incentivo Bonus Casa 50%",
+      "Preventivo PDF brandizzato a più pagine",
+    ],
+    prezzoMensile: 149,
+  },
+  {
+    slug: "piscine",
+    nome: "Piscine",
+    tagline: "Costruzione e ristrutturazione piscine",
+    descrizione:
+      "Preventivatore piscine interrate e fuori terra: scavo, struttura (cemento/vetroresina/pannelli), impermeabilizzazione, impianto idraulico, filtrazione e trattamento, coperture e sicurezza. Computo metrico dai listini aziendali e preventivo PDF brandizzato.",
+    icon: Waves,
+    flag: "modulo_piscine_attivo",
+    href: "/azienda/piscine",
+    availability: "available",
+    benefici: [
+      "Computo per scavo, struttura e impianti",
+      "Cemento, vetroresina, pannelli, liner",
+      "Filtrazione, trattamento e pompa di calore",
+      "Coperture, sicurezza e accessori",
       "Preventivo PDF brandizzato a più pagine",
     ],
     prezzoMensile: 149,

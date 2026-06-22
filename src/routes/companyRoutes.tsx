@@ -183,6 +183,10 @@ const TermoidraulicoListino = lazy(() => import("@/pages/azienda/termoidraulico/
 const PavimentiIndex = lazy(() => import("@/pages/azienda/pavimenti/PavimentiIndex"));
 const PavimentiWizard = lazy(() => import("@/pages/azienda/pavimenti/PavimentiWizard"));
 const PavimentiListino = lazy(() => import("@/pages/azienda/pavimenti/PavimentiListino"));
+// Modulo Piscine (clone Ristrutturazione: permission-based, no feature flag DB)
+const PiscineIndex = lazy(() => import("@/pages/azienda/piscine/PiscineIndex"));
+const PiscineWizard = lazy(() => import("@/pages/azienda/piscine/PiscineWizard"));
+const PiscineListino = lazy(() => import("@/pages/azienda/piscine/PiscineListino"));
 const ListiniFornitoriPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.ListiniFornitoriPage })),
 );
@@ -1002,6 +1006,31 @@ export default function CompanyRoutesContainer() {
           withCompanyPermission(
             "canEditMarketingOpportunities",
             <ErrorBoundary title="Errore wizard Pavimenti"><PavimentiWizard /></ErrorBoundary>,
+          )
+        } />
+        {/* Modulo Piscine — stesso guard di Ristrutturazione/Bagni (permission-based). */}
+        <Route path="piscine" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore modulo Piscine"><PiscineIndex /></ErrorBoundary>,
+          )
+        } />
+        <Route path="piscine/listino" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore listino Piscine"><PiscineListino /></ErrorBoundary>,
+          )
+        } />
+        <Route path="piscine/nuovo" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Piscine"><PiscineWizard /></ErrorBoundary>,
+          )
+        } />
+        <Route path="piscine/:id/modifica" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Piscine"><PiscineWizard /></ErrorBoundary>,
           )
         } />
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />
