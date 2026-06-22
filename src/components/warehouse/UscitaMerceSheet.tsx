@@ -47,6 +47,7 @@ import {
   PackageCheck,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useRegisterUscita, type UscitaScan, type UscitaDestinatario, type VettoreJson } from "@/hooks/warehouse/useWarehouseUscita";
 import { supabase } from "@/integrations/supabase/client";
 import type { ClienteSnapshot } from "@/types/fatturazione";
@@ -121,6 +122,8 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const register = useRegisterUscita();
+  // Lo scanner usa la fotocamera: ha senso solo su mobile/tablet, non su desktop.
+  const isMobile = useIsMobile();
 
   const [step, setStep] = useState<Step>("context");
 
@@ -613,18 +616,25 @@ export function UscitaMerceSheet({ open, onOpenChange }: UscitaMerceSheetProps) 
               entries={entries}
               onEntriesChange={setEntries}
             />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setStep("scan")}
-              disabled={!warehouseId}
-              className="w-full h-11 gap-2"
-            >
-              <Camera className="h-4 w-4" />
-              Scansiona codici a barre
-            </Button>
+            {isMobile ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStep("scan")}
+                disabled={!warehouseId}
+                className="w-full h-11 gap-2"
+              >
+                <Camera className="h-4 w-4" />
+                Scansiona codici a barre
+              </Button>
+            ) : (
+              <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Camera className="h-3.5 w-3.5 shrink-0" />
+                Scansione disponibile da <strong>telefono o tablet</strong>. Da computer aggiungi gli articoli a mano qui sopra.
+              </p>
+            )}
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              Articoli serializzati (codice univoco per pezzo, es. pannelli FV): aggiungi i <strong>seriali</strong> nella riga dell'articolo, oppure scansionali.
+              Articoli serializzati (codice univoco per pezzo, es. pannelli FV): aggiungi i <strong>seriali</strong> nella riga dell'articolo{isMobile ? ", oppure scansionali" : ""}.
             </p>
           </section>
 
