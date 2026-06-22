@@ -23,6 +23,7 @@ const PROVIDERS = [
   { value: "fattura24", label: "Fattura24", authType: "api_key", icon: "📄" },
   { value: "aruba", label: "Aruba Fatturazione", authType: "bearer", icon: "🅰️" },
   { value: "invoicetronic", label: "Invoicetronic", authType: "api_key", icon: "⚡" },
+  { value: "itala", label: "ITALA (SDI)", authType: "bearer", icon: "🧾" },
 ] as const;
 
 // Istruzioni per-provider: dove l'azienda trova la PROPRIA chiave/token (ognuna
@@ -43,6 +44,11 @@ const PROVIDER_HELP: Record<string, { text: string; link: string; linkLabel: str
     link: "https://fatturazioneelettronica.aruba.it/apidoc/docs.html",
     linkLabel: "Doc API Aruba",
     warn: "Il token Aruba scade: se la connessione smette di funzionare, rigeneralo e reincollalo.",
+  },
+  itala: {
+    text: "Registrati su fattura-elettronica-api.it (intermediario SDI accreditato) e usa come chiave il Bearer token del tuo account. Importa fatture e stato SDI (non lo stato di pagamento).",
+    link: "https://www.fattura-elettronica-api.it/documentazione/",
+    linkLabel: "Doc ITALA REST 2.0",
   },
 };
 

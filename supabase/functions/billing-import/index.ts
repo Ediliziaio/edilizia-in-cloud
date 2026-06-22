@@ -3,6 +3,8 @@ import { createAdapter } from "../_shared/billingAdapter.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+const FIC_CLIENT_ID = Deno.env.get("FIC_CLIENT_ID") || "";
+const FIC_CLIENT_SECRET = Deno.env.get("FIC_CLIENT_SECRET") || "";
 
 Deno.serve(async (req) => {
   const cors = { ...getCorsHeaders(req), "Access-Control-Allow-Methods": "POST, OPTIONS" };
@@ -206,11 +208,44 @@ async function fetchProviderInvoices(adapter: any, integ: any): Promise<any[]> {
   if (provider === "fattura24") return await fetchFattura24Invoices(integ);
   if (provider === "aruba") return await fetchArubaInvoices(integ);
   if (provider === "invoicetronic") return await fetchInvoicetronicInvoices(integ);
+  if (provider === "itala") return await fetchItalaInvoices(integ);
 
   return [];
 }
 
+// FIX AUDIT: l'import non rinfrescava il token FIC (lo faceva solo billing-sync)
+// → dopo la scadenza l'import andava in 401. Ora, se il token è scaduto/quasi,
+// lo rinnoviamo col refresh_token e aggiorniamo il DB prima di chiamare l'API.
+async function ensureFreshFicToken(integ: any): Promise<void> {
+  const exp = integ.token_expires_at ? new Date(integ.token_expires_at).getTime() : 0;
+  if (exp && exp - Date.now() > 60_000) return; // ancora valido (>60s)
+  if (!integ.refresh_token || !FIC_CLIENT_ID || !FIC_CLIENT_SECRET) return; // niente refresh possibile
+  try {
+    const r = await fetch("https://api.fattureincloud.it/v2/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: FIC_CLIENT_ID,
+        client_secret: FIC_CLIENT_SECRET,
+        refresh_token: integ.refresh_token,
+      }),
+    });
+    if (!r.ok) return; // lascia il token vecchio: l'API darà 401 con messaggio chiaro
+    const td = await r.json();
+    if (!td.access_token) return;
+    integ.access_token = td.access_token; // aggiorna in-memory per questa run
+    await supabase.from("billing_integrations").update({
+      access_token: td.access_token,
+      refresh_token: td.refresh_token || integ.refresh_token,
+      token_expires_at: new Date(Date.now() + (td.expires_in || 86400) * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq("id", integ.id);
+  } catch { /* best effort: se il refresh fallisce procediamo col token attuale */ }
+}
+
 async function fetchFICInvoices(integ: any): Promise<any[]> {
+  await ensureFreshFicToken(integ);
   const base = `https://api.fattureincloud.it/v2/c/${integ.company_external_id}`;
   const h = { Authorization: `Bearer ${integ.access_token}`, "Content-Type": "application/json" };
 
@@ -361,6 +396,46 @@ async function fetchInvoicetronicInvoices(integ: any): Promise<any[]> {
     total: doc.importo_totale || 0,
     subtotal: 0,
     taxAmount: 0,
+    lines: [],
+  }));
+}
+
+// ITALA (fattura-elettronica-api.it) — intermediario SDI. Bearer token per-account.
+// GET /fatture paginato (per_page max 1000). Stato SDI in sdi_stato.
+// NOTA: i nomi esatti dei campi della risposta non sono stati verificati su un
+// account reale → mapping difensivo. Da validare al primo collegamento vero.
+async function fetchItalaInvoices(integ: any): Promise<any[]> {
+  const base = "https://fattura-elettronica-api.it/ws2.0/prod";
+  const h = { Authorization: `Bearer ${integ.api_key}`, "Content-Type": "application/json" };
+  const all: any[] = [];
+  let page = 1;
+  while (true) {
+    const r = await fetch(`${base}/fatture?per_page=100&page=${page}`, { headers: h });
+    if (r.status === 401) throw new Error("Token ITALA non valido. Verifica la chiave in Impostazioni → Provider esterni.");
+    if (!r.ok) throw new Error(`ITALA API error: ${r.status}`);
+    const d = await r.json();
+    const docs = d.fatture || d.data || (Array.isArray(d) ? d : []);
+    all.push(...docs);
+    if (docs.length < 100) break;
+    page++;
+    if (page > 20) break; // safety cap
+  }
+  const statusMap: Record<string, string> = {
+    INVI: "sent", PREN: "sent", CONS: "delivered", ERRO: "issued", NONC: "issued",
+    ACCE: "delivered", RIFI: "issued", DECO: "delivered",
+  };
+  return all.map((doc: any) => ({
+    externalId: (doc.id ?? doc.sdi_id ?? doc.sdi_identificativo)?.toString(),
+    documentType: "invoice",
+    number: doc.numero ?? doc.number,
+    status: statusMap[doc.sdi_stato] || "issued",
+    clientName: doc.cliente?.denominazione ?? doc.denominazione ?? "",
+    clientVat: doc.cliente?.partita_iva ?? doc.partita_iva,
+    issueDate: doc.data ?? doc.data_documento,
+    dueDate: doc.data_scadenza,
+    total: doc.totale ?? doc.importo_totale ?? 0,
+    subtotal: doc.imponibile ?? 0,
+    taxAmount: doc.imposta ?? 0,
     lines: [],
   }));
 }

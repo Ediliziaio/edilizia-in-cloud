@@ -8,7 +8,21 @@ export type BillingProvider =
   | "fattura24"
   | "aruba"
   | "invoicetronic"
+  | "itala"
   | "standalone";
+
+// Capacità per-provider. I provider "puri SDI" espongono SOLO lo stato di
+// trasmissione (inviata/consegnata/scartata), NON lo stato di pagamento: quello
+// esiste solo nei provider che sono anche gestionali completi. L'import e la UI
+// usano questo flag per non mostrare/derivare un "pagato" inesistente.
+export const PROVIDER_CAPABILITIES: Record<string, { supportsPaymentStatus: boolean; label: string }> = {
+  fattureincloud: { supportsPaymentStatus: true, label: "Fatture in Cloud" },
+  fattura24: { supportsPaymentStatus: true, label: "Fattura24" },
+  aruba: { supportsPaymentStatus: false, label: "Aruba" },
+  invoicetronic: { supportsPaymentStatus: false, label: "Invoicetronic" },
+  itala: { supportsPaymentStatus: false, label: "ITALA (fattura-elettronica-api.it)" },
+  standalone: { supportsPaymentStatus: false, label: "Standalone" },
+};
 
 export interface ProviderStatusResult {
   success: boolean;
@@ -175,7 +189,47 @@ export class InvoicetronicAdapter implements BillingProviderAdapter {
   }
 }
 
-// ── ADAPTER 5: STANDALONE ─────────────────────────────────────
+// ── ADAPTER 5: ITALA (fattura-elettronica-api.it) ─────────────
+// Intermediario SDI accreditato. Auth: Bearer token (o Basic) per-account.
+// Listing: GET /fatture (paginato). Stato singolo: GET /fatture/{id} → sdi_stato.
+// Solo stato SDI (nessuno stato pagamento).
+
+export class ItalaAdapter implements BillingProviderAdapter {
+  provider: BillingProvider = "itala";
+  private token: string;
+  private base = "https://fattura-elettronica-api.it/ws2.0/prod";
+
+  constructor(bearerToken: string) { this.token = bearerToken; }
+  private get h() { return { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" }; }
+
+  async testConnection() {
+    try {
+      const r = await fetch(`${this.base}/fatture?per_page=1`, { headers: this.h });
+      if (!r.ok) return { success: false, error: `HTTP ${r.status}` };
+      return { success: true, companyName: "Account ITALA" };
+    } catch (e) { return { success: false, error: String(e) }; }
+  }
+
+  async fetchStatus(externalId: string): Promise<ProviderStatusResult> {
+    const r = await fetch(`${this.base}/fatture/${externalId}`, { headers: this.h });
+    if (!r.ok) return { success: false, internalStatus: "sent", error: `HTTP ${r.status}` };
+    const d = await r.json();
+    // Enum sdi_stato (privati): INVI/PREN inviata, CONS consegnata, ERRO/NONC scartata.
+    // PA: ACCE accettata, RIFI rifiutata, DECO decorrenza termini.
+    const map: Record<string, ProviderStatusResult["internalStatus"]> = {
+      INVI: "sent", PREN: "sent", CONS: "delivered", ERRO: "issued", NONC: "issued",
+      ACCE: "delivered", RIFI: "issued", DECO: "delivered",
+    };
+    return {
+      success: true,
+      internalStatus: map[d.sdi_stato] || "issued",
+      externalStatus: d.sdi_stato,
+      sdiId: d.sdi_identificativo?.toString(),
+    };
+  }
+}
+
+// ── ADAPTER 6: STANDALONE ─────────────────────────────────────
 
 export class StandaloneAdapter implements BillingProviderAdapter {
   provider: BillingProvider = "standalone";
@@ -207,6 +261,9 @@ export function createAdapter(integration: {
     case "invoicetronic":
       if (!integration.api_key) throw new Error("Invoicetronic: api_key richiesta");
       return new InvoicetronicAdapter(integration.api_key);
+    case "itala":
+      if (!integration.api_key) throw new Error("ITALA: bearer token richiesto");
+      return new ItalaAdapter(integration.api_key);
     default:
       return new StandaloneAdapter();
   }
