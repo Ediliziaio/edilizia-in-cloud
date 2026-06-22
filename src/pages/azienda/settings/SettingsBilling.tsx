@@ -25,6 +25,27 @@ const PROVIDERS = [
   { value: "invoicetronic", label: "Invoicetronic", authType: "api_key", icon: "⚡" },
 ] as const;
 
+// Istruzioni per-provider: dove l'azienda trova la PROPRIA chiave/token (ognuna
+// usa le proprie credenziali, nessuna app a livello piattaforma serve qui).
+const PROVIDER_HELP: Record<string, { text: string; link: string; linkLabel: string; warn?: string }> = {
+  fattura24: {
+    text: "Nel tuo account Fattura24: Configurazione → App e servizi esterni → API (gruppo \"E-commerce e API\") → imposta Attivo su SÌ e premi GENERA, poi incolla qui la Key.",
+    link: "https://www.fattura24.com/api/introduzione/",
+    linkLabel: "Guida API Fattura24",
+  },
+  invoicetronic: {
+    text: "Registrati su Invoicetronic → Dashboard → API keys → copia la chiave di PRODUZIONE (inizia con ik_live_). La ik_test_ è solo per la sandbox.",
+    link: "https://invoicetronic.com/en/docs/prerequisites/",
+    linkLabel: "Doc Invoicetronic",
+  },
+  aruba: {
+    text: "Serve un Bearer token dell'API Fatturazione Elettronica di Aruba, ottenuto autenticandoti con le credenziali del tuo account FE Aruba.",
+    link: "https://fatturazioneelettronica.aruba.it/apidoc/docs.html",
+    linkLabel: "Doc API Aruba",
+    warn: "Il token Aruba scade: se la connessione smette di funzionare, rigeneralo e reincollalo.",
+  },
+};
+
 /* ─── Mode Selector ──────────────────────────────────────────── */
 function BillingModeSelector() {
   const { mode, switchMode } = useBillingMode();
@@ -513,14 +534,33 @@ export default function SettingsBilling() {
                     </div>
 
                     {newProvider && newProvider !== "fattureincloud" && (
-                      <div>
-                        <Label>{newProvider === "aruba" ? "Bearer Token" : "API Key"}</Label>
-                        <Input
-                          type="password"
-                          value={newApiKey}
-                          onChange={(e) => setNewApiKey(e.target.value)}
-                          placeholder={newProvider === "aruba" ? "Token di autenticazione Aruba" : "Inserisci la chiave API"}
-                        />
+                      <div className="space-y-2">
+                        {PROVIDER_HELP[newProvider] && (
+                          <div className="bg-muted/50 rounded-md p-3 text-xs text-muted-foreground space-y-1.5">
+                            <p className="font-medium text-foreground">Dove trovo la chiave</p>
+                            <p>{PROVIDER_HELP[newProvider].text}</p>
+                            {PROVIDER_HELP[newProvider].warn && (
+                              <p className="text-amber-600">⚠ {PROVIDER_HELP[newProvider].warn}</p>
+                            )}
+                            <a
+                              href={PROVIDER_HELP[newProvider].link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-primary hover:underline"
+                            >
+                              {PROVIDER_HELP[newProvider].linkLabel} <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        )}
+                        <div>
+                          <Label>{newProvider === "aruba" ? "Bearer Token" : "API Key"}</Label>
+                          <Input
+                            type="password"
+                            value={newApiKey}
+                            onChange={(e) => setNewApiKey(e.target.value)}
+                            placeholder={newProvider === "aruba" ? "Token di autenticazione Aruba" : "Inserisci la chiave API"}
+                          />
+                        </div>
                       </div>
                     )}
 
