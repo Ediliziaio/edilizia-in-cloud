@@ -258,6 +258,7 @@ export function useSaveComputo(progettoId: string | undefined) {
           margine_pct,
           listino_voce_id: r.listino_voce_id ?? null,
           fonte: r.fonte ?? null,
+          ambiente: r.ambiente ?? null,
           ordine: r.ordine ?? idx,
         };
       });

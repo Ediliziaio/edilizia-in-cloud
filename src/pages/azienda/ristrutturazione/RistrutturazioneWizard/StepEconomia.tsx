@@ -22,10 +22,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Euro, Percent, TrendingUp, BadgePercent, Info } from "lucide-react";
+import { Euro, Percent, TrendingUp, BadgePercent, Info, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
-import { calcTotaliComputo } from "@/lib/ristrutturazione/calcoli";
+import { calcTotaliComputo, calcRigaImporto } from "@/lib/ristrutturazione/calcoli";
 import { INCENTIVI_RISTRUTTURAZIONE, calcDetraibile, superaMassimale } from "@/lib/preventivi/incentivi";
 import type { RstComputoVoce, RstProgetto } from "@/types/ristrutturazione";
 import type { RstFormPatch } from "./types";
@@ -76,6 +76,21 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
   const massimale = form.massimale_detrazione ?? null;
   const detraibileEur = calcDetraibile(totali.imponibile, detrazionePct, massimale);
   const oltreMassimale = detrazionePct > 0 && superaMassimale(totali.imponibile, massimale);
+
+  // Riepilogo per ambiente (computo per stanza): solo se almeno una voce ha un ambiente.
+  const perAmbiente = useMemo(() => {
+    if (!computo.some((v) => v.ambiente?.trim())) return [] as Array<{ ambiente: string; importo: number; voci: number }>;
+    const map = new Map<string, { ambiente: string; importo: number; voci: number }>();
+    for (const v of computo) {
+      const amb = v.ambiente?.trim() || "Non assegnato";
+      const imp = calcRigaImporto({ quantita: v.quantita, prezzo_unitario: v.prezzo_unitario, sconto_pct: v.sconto_pct });
+      const cur = map.get(amb) ?? { ambiente: amb, importo: 0, voci: 0 };
+      cur.importo += imp;
+      cur.voci += 1;
+      map.set(amb, cur);
+    }
+    return [...map.values()].sort((a, b) => b.importo - a.importo);
+  }, [computo]);
 
   const hasComputo = computo.length > 0;
 
@@ -288,6 +303,33 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
           </Card>
         </div>
       </div>
+
+      {/* ─── Riepilogo per ambiente (computo per stanza) ─── */}
+      {perAmbiente.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-1.5 text-sm">
+              <MapPin className="h-4 w-4 text-orange-600" /> Riepilogo per ambiente
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <table className="w-full text-sm">
+              <tbody>
+                {perAmbiente.map((a) => (
+                  <tr key={a.ambiente} className="border-b last:border-0">
+                    <td className="px-4 py-2 font-medium text-slate-800">{a.ambiente}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{a.voci} voci</td>
+                    <td className="px-4 py-2 text-right font-semibold tabular-nums text-slate-900">{formatCurrency(a.importo)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="px-4 py-2 text-[10px] text-muted-foreground">
+              Importi lordi per ambiente (pre sconto globale). Assegna l'ambiente alle voci nello step Computo (dettagli voce).
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -20,7 +20,7 @@ import { useMemo, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  GripVertical, Copy, Trash2, Percent, ChevronDown, Package, HardHat,
+  GripVertical, Copy, Trash2, Percent, ChevronDown, Package, HardHat, MapPin,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -238,57 +238,73 @@ export default function VoceRow({ voce, onChange, onDelete, onDuplicate, showMar
             </div>
           </div>
 
-          {/* Breakdown materiali + manodopera (espandibile) */}
-          {hasCosto && (
-            <Collapsible open={breakdownOpen} onOpenChange={setBreakdownOpen}>
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="mt-1 ml-1.5 inline-flex items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <ChevronDown className={cn("h-3 w-3 transition-transform", breakdownOpen && "rotate-180")} />
-                  Costo unitario {formatCurrency(costoUnit)} · margine {marginePct.toFixed(0)}%
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="mt-1.5 ml-1.5 space-y-1.5 rounded-lg bg-muted/40 p-2">
-                  {/* Barra proporzionale materiali/manodopera */}
-                  <div className="flex h-2 overflow-hidden rounded-full bg-muted">
-                    <div className="bg-sky-400" style={{ width: `${matQuota}%` }} title="Materiali" />
-                    <div className="bg-violet-400" style={{ width: `${100 - matQuota}%` }} title="Manodopera" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="flex items-center gap-1.5 text-[11px]">
-                      <Package className="h-3 w-3 text-sky-500" />
-                      <span className="text-muted-foreground">Materiali</span>
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        step="0.01"
-                        value={Number.isFinite(voce.costo_materiali) ? voce.costo_materiali : 0}
-                        onChange={(e) => onChange({ costo_materiali: num(e.target.value) })}
-                        className="h-6 w-full px-1.5 text-right text-[11px] tabular-nums"
-                      />
-                    </label>
-                    <label className="flex items-center gap-1.5 text-[11px]">
-                      <HardHat className="h-3 w-3 text-violet-500" />
-                      <span className="text-muted-foreground">Manodopera</span>
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        step="0.01"
-                        value={Number.isFinite(voce.costo_manodopera) ? voce.costo_manodopera : 0}
-                        onChange={(e) => onChange({ costo_manodopera: num(e.target.value) })}
-                        className="h-6 w-full px-1.5 text-right text-[11px] tabular-nums"
-                      />
-                    </label>
-                  </div>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          )}
+          {/* Dettagli espandibili: ambiente/stanza + breakdown costi */}
+          <Collapsible open={breakdownOpen} onOpenChange={setBreakdownOpen}>
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="mt-1 ml-1.5 inline-flex items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <ChevronDown className={cn("h-3 w-3 transition-transform", breakdownOpen && "rotate-180")} />
+                {hasCosto
+                  ? `Costo unitario ${formatCurrency(costoUnit)} · margine ${marginePct.toFixed(0)}%`
+                  : "Dettagli voce"}
+                {voce.ambiente ? ` · 📍 ${voce.ambiente}` : ""}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-1.5 ml-1.5 space-y-2 rounded-lg bg-muted/40 p-2">
+                {/* Ambiente / stanza (opzionale) */}
+                <label className="flex items-center gap-1.5 text-[11px]">
+                  <MapPin className="h-3 w-3 text-orange-500" />
+                  <span className="text-muted-foreground">Ambiente</span>
+                  <Input
+                    value={voce.ambiente ?? ""}
+                    onChange={(e) => onChange({ ambiente: e.target.value || null })}
+                    placeholder="es. Bagno, Cucina, Zona notte…"
+                    className="h-6 flex-1 px-1.5 text-[11px]"
+                  />
+                </label>
+                {hasCosto && (
+                  <>
+                    {/* Barra proporzionale materiali/manodopera */}
+                    <div className="flex h-2 overflow-hidden rounded-full bg-muted">
+                      <div className="bg-sky-400" style={{ width: `${matQuota}%` }} title="Materiali" />
+                      <div className="bg-violet-400" style={{ width: `${100 - matQuota}%` }} title="Manodopera" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="flex items-center gap-1.5 text-[11px]">
+                        <Package className="h-3 w-3 text-sky-500" />
+                        <span className="text-muted-foreground">Materiali</span>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          step="0.01"
+                          value={Number.isFinite(voce.costo_materiali) ? voce.costo_materiali : 0}
+                          onChange={(e) => onChange({ costo_materiali: num(e.target.value) })}
+                          className="h-6 w-full px-1.5 text-right text-[11px] tabular-nums"
+                        />
+                      </label>
+                      <label className="flex items-center gap-1.5 text-[11px]">
+                        <HardHat className="h-3 w-3 text-violet-500" />
+                        <span className="text-muted-foreground">Manodopera</span>
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          step="0.01"
+                          value={Number.isFinite(voce.costo_manodopera) ? voce.costo_manodopera : 0}
+                          onChange={(e) => onChange({ costo_manodopera: num(e.target.value) })}
+                          className="h-6 w-full px-1.5 text-right text-[11px] tabular-nums"
+                        />
+                      </label>
+                    </div>
+                  </>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
 
         {/* Azioni (hover / sempre su mobile) */}
