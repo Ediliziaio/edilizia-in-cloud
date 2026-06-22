@@ -15,7 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Home, MapPin } from "lucide-react";
+import { Home, MapPin, Calculator } from "lucide-react";
+import { stimaSuperficiVani } from "@/lib/ristrutturazione/calcoli";
 import type { RstProgetto } from "@/types/ristrutturazione";
 import type { RstFormPatch } from "./types";
 
@@ -56,6 +57,10 @@ const toNum = (raw: string): number | null => {
 };
 
 export default function StepImmobile({ form, onChange }: Props) {
+  // Stima superfici da vani (puro, nessuno stato): pavimenti/soffitti/pareti/tinteggiature.
+  const superfici = form.immobile_superficie_mq != null && form.immobile_superficie_mq > 0
+    ? stimaSuperficiVani(form.immobile_superficie_mq, form.altezza_media_m ?? 2.7, form.numero_vani ?? 1)
+    : null;
   return (
     <Card>
       <CardContent className="p-4 sm:p-5 space-y-4">
@@ -184,6 +189,48 @@ export default function StepImmobile({ form, onChange }: Props) {
               placeholder="1"
               className="h-9 tabular-nums"
             />
+          </div>
+        </div>
+
+        {/* ─── Calcolatore superfici da vani ──────────────────────────────────── */}
+        <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3 space-y-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Calculator className="h-3.5 w-3.5 text-orange-600" />
+            <span className="text-xs font-semibold text-slate-800">Calcolatore superfici</span>
+            <span className="text-[10px] text-muted-foreground">— stima da superficie + n. vani + altezza</span>
+          </div>
+          <div className="grid grid-cols-12 gap-3 items-end">
+            <div className="col-span-6 sm:col-span-3">
+              <Label className="text-xs">N. vani</Label>
+              <Input
+                type="number" inputMode="numeric" min={1}
+                value={form.numero_vani ?? ""}
+                onChange={(e) => onChange("numero_vani", toNum(e.target.value))}
+                placeholder="4" className="h-9 tabular-nums"
+              />
+            </div>
+            <div className="col-span-6 sm:col-span-3">
+              <Label className="text-xs">Altezza media (m)</Label>
+              <Input
+                type="number" inputMode="decimal" min={0}
+                value={form.altezza_media_m ?? ""}
+                onChange={(e) => onChange("altezza_media_m", toNum(e.target.value))}
+                placeholder="2,7" className="h-9 tabular-nums"
+              />
+            </div>
+            <div className="col-span-12 sm:col-span-6">
+              {superfici ? (
+                <p className="text-[11px] text-slate-700">
+                  Stima: <span className="font-semibold tabular-nums">{superfici.pavimenti} m²</span> pavimenti/soffitti ·{" "}
+                  <span className="font-semibold tabular-nums">≈ {superfici.pareti} m²</span> pareti ·{" "}
+                  <span className="font-semibold tabular-nums">≈ {superfici.tinteggiature} m²</span> tinteggiature. Da usare nel computo.
+                </p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">
+                  Inserisci la superficie (sopra), il n. di vani e l'altezza: stimo pavimenti, pareti e tinteggiature.
+                </p>
+              )}
+            </div>
           </div>
         </div>
 

@@ -6,6 +6,27 @@ export function calcRigaImporto(r: { quantita: number; prezzo_unitario: number; 
 export function calcPrezzoVoce(v: { costo_materiali: number; costo_manodopera: number; ricarico_pct: number }): number {
   return (Math.max(0, n(v.costo_materiali)) + Math.max(0, n(v.costo_manodopera))) * (1 + Math.max(0, n(v.ricarico_pct)) / 100);
 }
+
+/**
+ * Stima delle superfici di lavorazione da: superficie calpestabile totale (mq),
+ * altezza media (m) e numero di vani. Pavimenti/soffitti = superficie; le pareti
+ * sono stimate assumendo vani ~quadrati (perimetro = 4×√area_vano) × altezza.
+ * Tinteggiature = pareti + soffitti. Valori di stima, arrotondati al mq.
+ */
+export function stimaSuperficiVani(
+  mqTotali: number,
+  hMedia: number,
+  nVani: number,
+): { pavimenti: number; soffitti: number; pareti: number; tinteggiature: number } {
+  const mq = Math.max(0, n(mqTotali));
+  const h = Math.max(0, n(hMedia));
+  const vani = Math.max(1, Math.floor(Math.max(0, n(nVani))) || 1);
+  const areaVano = mq / vani;
+  const paretiTot = Math.round(4 * Math.sqrt(areaVano) * h * vani);
+  const pavimenti = Math.round(mq);
+  const soffitti = Math.round(mq);
+  return { pavimenti, soffitti, pareti: paretiTot, tinteggiature: paretiTot + soffitti };
+}
 export interface ComputoRigaInput {
   capitolo_nome: string; quantita: number; prezzo_unitario: number; sconto_pct: number;
   costo_materiali: number; costo_manodopera: number;
