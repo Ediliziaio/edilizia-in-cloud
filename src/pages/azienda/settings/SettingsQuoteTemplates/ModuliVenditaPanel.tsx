@@ -9,7 +9,7 @@
 import React, { lazy, Suspense, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft, FileText, Hammer, Loader2, RectangleVertical, ShoppingBag, Sun,
+  ArrowLeft, Bath, FileText, Hammer, Loader2, RectangleVertical, ShoppingBag, Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +25,9 @@ const FotovoltaicoTemplateEditor = lazy(() =>
 );
 const RistrutturazioneTemplateEditor = lazy(() =>
   import("@/components/ristrutturazione/RistrutturazioneTemplateEditor").then((m) => ({ default: m.RistrutturazioneTemplateEditor })),
+);
+const BagniTemplateEditor = lazy(() =>
+  import("@/components/bagni/BagniTemplateEditor").then((m) => ({ default: m.BagniTemplateEditor })),
 );
 
 interface ModuloVendita {
@@ -70,6 +73,18 @@ const MODULI_VENDITA: ModuloVendita[] = [
     render: () => (
       <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-orange-600" /></div>}>
         <RistrutturazioneTemplateEditor embedded />
+      </Suspense>
+    ),
+  },
+  {
+    slug: "bagni",
+    nome: "Bagni",
+    icon: Bath,
+    description: "Template del PDF Preventivatore Bagni: branding, copertina, chi siamo, esigenze, USP, testimonianze, cronoprogramma, condizioni.",
+    available: true,
+    render: () => (
+      <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-orange-600" /></div>}>
+        <BagniTemplateEditor embedded />
       </Suspense>
     ),
   },
