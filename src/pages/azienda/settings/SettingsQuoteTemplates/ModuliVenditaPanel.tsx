@@ -9,10 +9,12 @@
 import React, { lazy, Suspense, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft, Bath, Hammer, Home, Loader2, RectangleVertical, ShoppingBag, Sun, Wind, Zap, Flame, LayoutGrid, Waves,
+  ArrowLeft, Bath, Eye, Hammer, Home, Loader2, RectangleVertical, ShoppingBag, Sun, Wind, Zap, Flame, LayoutGrid, Waves,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { useModuliVendita, useModuliVisibilita } from "@/lib/moduli-vendita";
 import { buildQuoteTemplatesModuleParams } from "@/lib/settingsQuoteTemplatesRoute";
 
 // PERF: lazy-load editor pesanti (Serramenti ~150KB, Fotovoltaico ~120KB)
@@ -180,6 +182,73 @@ const MODULI_VENDITA: ModuloVendita[] = [
   },
 ];
 
+/**
+ * Sezione "Moduli preventivo attivi": l'azienda sceglie quali preventivatori
+ * (a cui ha già accesso) mostrare alla propria squadra. È una preferenza di
+ * VISIBILITÀ per-azienda — non tocca l'entitlement (gestito dal super admin).
+ */
+function ModuliVisibilitaSection() {
+  const { moduli } = useModuliVendita();
+  const { isModuloVisibile, setModuloVisibile, isSaving } = useModuliVisibilita();
+
+  // Solo i moduli sbloccati per l'azienda: ha senso mostrare/nascondere questi.
+  const sbloccati = moduli.filter((m) => m.stato === "attivo");
+  if (sbloccati.length === 0) return null;
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start gap-3">
+          <div className="h-9 w-9 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+            <Eye className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-base font-bold leading-tight">Moduli preventivo attivi</h2>
+            <p className="text-xs text-muted-foreground">
+              Scegli quali preventivatori mostrare alla tua squadra. Quelli disattivati
+              spariscono dal menu <strong>“Nuovo preventivo”</strong> e dal catalogo, ma puoi
+              riattivarli quando vuoi. Il preventivo “Classico” è sempre disponibile.
+            </p>
+          </div>
+        </div>
+        <div className="divide-y rounded-lg border">
+          {sbloccati.map((m) => {
+            const Icon = m.modulo.icon;
+            const visibile = isModuloVisibile(m.modulo.slug);
+            return (
+              <div key={m.modulo.slug} className="flex items-center gap-3 px-3 py-2.5">
+                <div
+                  className={
+                    "h-8 w-8 rounded-md flex items-center justify-center shrink-0 " +
+                    (visibile ? "bg-orange-100 text-orange-600" : "bg-slate-100 text-slate-400")
+                  }
+                >
+                  <Icon className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={"text-sm font-semibold " + (visibile ? "" : "text-muted-foreground")}>
+                    {m.modulo.nome}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground truncate">{m.modulo.tagline}</p>
+                </div>
+                <span className="text-[11px] text-muted-foreground w-16 text-right shrink-0">
+                  {visibile ? "Attivo" : "Nascosto"}
+                </span>
+                <Switch
+                  checked={visibile}
+                  disabled={isSaving}
+                  onCheckedChange={(v) => setModuloVisibile(m.modulo.slug, v)}
+                  aria-label={`${visibile ? "Nascondi" : "Mostra"} il modulo ${m.modulo.nome}`}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
   // Se arriva via deeplink un modulo valido E available, lo pre-seleziono.
   // Altrimenti mostro la landing con la grid di selezione.
@@ -240,6 +309,17 @@ export function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }
     return (
       <div className="space-y-4">
         {header}
+
+        {/* Attivazione/visibilità moduli per-azienda */}
+        <ModuliVisibilitaSection />
+
+        {/* Personalizzazione template PDF per-modulo */}
+        <div className="pt-1">
+          <h2 className="text-base font-bold leading-tight">Template PDF dei moduli</h2>
+          <p className="text-xs text-muted-foreground">
+            Scegli un modulo per configurarne il PDF (logo, copertina, recensioni, USP, cronoprogramma).
+          </p>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {MODULI_VENDITA.map((m) => {
             const Icon = m.icon;

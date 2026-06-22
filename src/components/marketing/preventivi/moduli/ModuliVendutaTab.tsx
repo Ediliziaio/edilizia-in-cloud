@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, LayoutGrid, ShoppingBag } from "lucide-react";
-import { useModuliVendita, type ModuloVenditaView } from "@/lib/moduli-vendita";
+import { useModuliVendita, useModuliVisibilita, type ModuloVenditaView } from "@/lib/moduli-vendita";
 import { ModuloCard } from "./ModuloCard";
 import { ModuloLockedDialog } from "./ModuloLockedDialog";
 
@@ -15,8 +15,14 @@ import { ModuloLockedDialog } from "./ModuloLockedDialog";
  */
 export function ModuliVendutaTab() {
   const { moduli, isLoading, isError, countAttivi } = useModuliVendita();
+  const { isModuloVisibile, hiddenSlugs } = useModuliVisibilita();
   const [selectedView, setSelectedView] = useState<ModuloVenditaView | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Nascondiamo dal catalogo i moduli che l'azienda ha disattivato nelle
+  // impostazioni (preferenza di visibilità per-azienda). I moduli premium
+  // bloccati/coming_soon restano visibili come upsell.
+  const moduliVisibili = moduli.filter((view) => isModuloVisibile(view.modulo.slug));
 
   const handleLockedClick = (view: ModuloVenditaView) => {
     setSelectedView(view);
@@ -78,7 +84,7 @@ export function ModuliVendutaTab() {
       {/* ─── Grid moduli ─────────────────────────────────────────── */}
       {!isLoading && !isError && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {moduli.map((view) => (
+          {moduliVisibili.map((view) => (
             <ModuloCard
               key={view.modulo.slug}
               view={view}
@@ -86,6 +92,14 @@ export function ModuliVendutaTab() {
             />
           ))}
         </div>
+      )}
+
+      {/* ─── Hint moduli nascosti dalle impostazioni ─────────────── */}
+      {!isLoading && !isError && hiddenSlugs.size > 0 && (
+        <p className="text-xs text-muted-foreground text-center">
+          {hiddenSlugs.size === 1 ? "1 modulo è nascosto" : `${hiddenSlugs.size} moduli sono nascosti`} dalle
+          impostazioni della tua azienda. Riattivali da <strong>Impostazioni › Template preventivi</strong>.
+        </p>
       )}
 
       {/* ─── Footer informativo ──────────────────────────────────── */}

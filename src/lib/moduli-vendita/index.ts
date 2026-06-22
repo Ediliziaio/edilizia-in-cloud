@@ -12,3 +12,7 @@ export {
   type ModuloVenditaView,
   type UseModuliVenditaResult,
 } from "./useModuliVendita";
+export {
+  useModuliVisibilita,
+  type UseModuliVisibilitaResult,
+} from "./useModuliVisibilita";

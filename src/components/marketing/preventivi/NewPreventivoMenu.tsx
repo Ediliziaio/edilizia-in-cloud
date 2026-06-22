@@ -23,7 +23,7 @@ import {
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Plus, ChevronDown, FileText } from "lucide-react";
-import { useModuliVendita } from "@/lib/moduli-vendita";
+import { useModuliVendita, useModuliVisibilita } from "@/lib/moduli-vendita";
 import { cn } from "@/lib/utils";
 
 export interface NewPreventivoMenuProps {
@@ -48,6 +48,7 @@ export function NewPreventivoMenu({
 }: NewPreventivoMenuProps) {
   const navigate = useNavigate();
   const { moduli } = useModuliVendita();
+  const { isModuloVisibile } = useModuliVisibilita();
 
   // Query string riusabile per pre-linking CRM
   const qs = useMemo(() => {
@@ -57,10 +58,17 @@ export function NewPreventivoMenu({
     return p.toString();
   }, [contactId, opportunityId]);
 
-  // Moduli attivi (escluso quelli non attivi/coming_soon non sbloccati)
+  // Moduli attivi (sbloccati dal super admin) E non nascosti dall'azienda nelle
+  // impostazioni. La visibilità è una preferenza per-azienda cosmetica.
   const enabledModuli = useMemo(
-    () => moduli.filter((m) => m.isEnabled && m.modulo.availability === "available"),
-    [moduli],
+    () =>
+      moduli.filter(
+        (m) =>
+          m.isEnabled &&
+          m.modulo.availability === "available" &&
+          isModuloVisibile(m.modulo.slug),
+      ),
+    [moduli, isModuloVisibile],
   );
 
   const classicoHref = `/azienda/marketing/preventivi/nuovo${qs ? `?${qs}` : ""}`;
