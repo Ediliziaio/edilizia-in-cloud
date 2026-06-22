@@ -291,3 +291,21 @@ export function syncLegacyMarketingFlags(perms: StaffPermissions): StaffPermissi
     can_edit_marketing: hasAnyEdit,
   };
 }
+
+/**
+ * Costruisce il payload di UPDATE per `staff_permissions` dallo stato del dialog
+ * permessi. UNICA FONTE DI VERITÀ usata sia dal path azienda (SettingsUserDetail)
+ * sia dal path super-admin (useCompanyDetail):
+ *  - filtra alle SOLE chiavi note (evita di rispedire id/user_id/company_id/
+ *    created_at/updated_at, che romperebbero l'UPDATE);
+ *  - normalizza i valori mancanti al default (booleani → false, visible_areas → []);
+ *  - sincronizza i flag legacy aggregati (settings + marketing) dai granulari.
+ */
+export function buildStaffPermissionsUpdate(permissions: StaffPermissions): StaffPermissions {
+  const allowedKeys = Object.keys(DEFAULT_PERMISSIONS) as (keyof StaffPermissions)[];
+  const base: Record<string, unknown> = {};
+  for (const key of allowedKeys) {
+    base[key] = permissions[key] ?? DEFAULT_PERMISSIONS[key];
+  }
+  return syncLegacySettingsFlags(syncLegacyMarketingFlags(base as StaffPermissions));
+}

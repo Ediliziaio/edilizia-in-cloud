@@ -10,8 +10,9 @@ import { useSuperAdminPermissions } from "@/hooks/useSuperAdminPermissions";
 import { toast } from "sonner";
 import { addDays, differenceInDays } from "date-fns";
 import type { Company, CompanyStatus, CompanySector } from "@/types/auth";
-import type { StaffUserFormData } from "@/components/users/StaffUserDialog";
+import type { StaffUserFormData, StaffRoleType } from "@/components/users/StaffUserDialog";
 import type { StaffPermissions } from "@/components/users/PermissionsDialog";
+import { buildStaffPermissionsUpdate } from "@/components/users/permissionsDefaults";
 import type { EmployeeFormData } from "@/components/employees/EmployeeDialog";
 
 const formSchema = z.object({
@@ -61,6 +62,7 @@ export function useCompanyDetail(id: string | undefined) {
   // Team management state
   const [createStaffOpen, setCreateStaffOpen] = useState(false);
   const [createStaffLoading, setCreateStaffLoading] = useState(false);
+  const [createStaffRole, setCreateStaffRole] = useState<StaffRoleType>("company_staff");
   const [createSalespersonOpen, setCreateSalespersonOpen] = useState(false);
   const [createEmployeeOpen, setCreateEmployeeOpen] = useState(false);
   const [permissionsUser, setPermissionsUser] = useState<{ id: string; name: string; permissions: StaffPermissions } | null>(null);
@@ -492,12 +494,26 @@ export function useCompanyDetail(id: string | undefined) {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const resp = await supabase.functions.invoke("create-company-staff", {
-        body: { first_name: data.first_name, last_name: data.last_name, email: data.email, company_id: id },
+        body: { first_name: data.first_name, last_name: data.last_name, email: data.email, role_type: data.role_type, company_id: id },
         headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
       });
       if (resp.error || !resp.data?.success) throw new Error(resp.data?.error || resp.error?.message || "Errore creazione staff");
+
+      // Applica i permessi iniziali scelti nel dialog: l'edge function crea la
+      // riga staff_permissions coi soli default. Gli admin non hanno permessi
+      // granulari (accesso pieno) → si salta.
+      const newUserId = resp.data.user_id as string | undefined;
+      if (newUserId && data.permissions && data.role_type !== "company_admin") {
+        const { error: permErr } = await supabase
+          .from("staff_permissions")
+          .update(buildStaffPermissionsUpdate(data.permissions))
+          .eq("user_id", newUserId)
+          .eq("company_id", id!);
+        if (permErr) console.error("[create-staff] applicazione permessi iniziali fallita:", permErr.message);
+      }
+
       await refreshTeamData();
-      toast.success("Staff creato con successo");
+      toast.success(data.role_type === "company_admin" ? "Amministratore creato con successo" : "Utente creato con successo");
       return { temporaryPassword: resp.data.temporary_password };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Errore sconosciuto";
@@ -512,23 +528,29 @@ export function useCompanyDetail(id: string | undefined) {
     if (!permissionsUser) return;
     setSavingPermissions(true);
     try {
-      const syncedPermissions = {
-        ...permissions,
-        can_view_marketing: [
-          "can_view_marketing_dashboard", "can_view_marketing_contacts",
-          "can_view_marketing_opportunities", "can_view_marketing_activities",
-          "can_view_marketing_appointments", "can_view_marketing_automations",
-          "can_view_marketing_ai_agent", "can_view_marketing_email",
-          "can_view_marketing_whatsapp", "can_view_marketing_reports",
-        ].some((k) => permissions[k as keyof StaffPermissions] === true),
-        can_edit_marketing: [
-          "can_edit_marketing_contacts",
-          "can_edit_marketing_opportunities",
-        ].some((k) => permissions[k as keyof StaffPermissions] === true),
-      };
-      const { error } = await supabase.from("staff_permissions").update(syncedPermissions).eq("user_id", permissionsUser.id).eq("company_id", id!);
+      // Stesso path del lato azienda: filtra alle chiavi note + sincronizza i
+      // flag legacy aggregati (settings + marketing) via helper condiviso —
+      // così concedere i granulari di Impostazioni accende anche can_view_settings.
+      const { error } = await supabase
+        .from("staff_permissions")
+        .update(buildStaffPermissionsUpdate(permissions))
+        .eq("user_id", permissionsUser.id)
+        .eq("company_id", id!);
       if (error) throw error;
       await refreshTeamData();
+      // Audit log (best-effort): traccia chi modifica i permessi di chi.
+      if (user?.id && id) {
+        void supabase.from("user_audit_log").insert({
+          company_id: id,
+          actor_id: user.id,
+          target_user_id: permissionsUser.id,
+          action: "permissions_updated",
+          details: {},
+          is_impersonated: false,
+        }).then(({ error: auditErr }) => {
+          if (auditErr) console.error("[audit-log] insert fallito:", auditErr.message);
+        });
+      }
       toast.success("Permessi aggiornati");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Errore sconosciuto";
@@ -537,6 +559,11 @@ export function useCompanyDetail(id: string | undefined) {
       setSavingPermissions(false);
     }
   };
+
+  // Apertura dialog "Nuovo utente" preimpostato sul ruolo: Staff (operatore)
+  // dalla card Staff, Amministratore (ruolo bloccato) dalla card Admin Azienda.
+  const openCreateStaff = () => { setCreateStaffRole("company_staff"); setCreateStaffOpen(true); };
+  const openCreateAdmin = () => { setCreateStaffRole("company_admin"); setCreateStaffOpen(true); };
 
   // Payload per creazione venditore: replica i campi del form salesperson.
   // Tipato qui per evitare `any` sul mutation payload e sul handler.
@@ -816,7 +843,7 @@ export function useCompanyDetail(id: string | undefined) {
     checkoutUrl,
     // UI state
     changePlanDialog, setChangePlanDialog, selectedPlanId, setSelectedPlanId, isSaving, sameAsLegal, setSameAsLegal,
-    createStaffOpen, setCreateStaffOpen, createStaffLoading,
+    createStaffOpen, setCreateStaffOpen, createStaffLoading, createStaffRole, openCreateStaff, openCreateAdmin,
     createSalespersonOpen, setCreateSalespersonOpen, savingSalesperson: createSalespersonMutation.isPending,
     createEmployeeOpen, setCreateEmployeeOpen, savingEmployee: createEmployeeMutation.isPending,
     permissionsUser, setPermissionsUser, savingPermissions,

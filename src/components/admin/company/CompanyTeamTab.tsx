@@ -69,6 +69,7 @@ interface CompanyTeamTabProps {
   teamData: TeamData | null | undefined;
   totalTeam: number;
   onCreateStaff: () => void;
+  onCreateAdmin?: () => void;
   onCreateSalesperson: () => void;
   onCreateEmployee: () => void;
   onEditPermissions: (user: { id: string; name: string; permissions: StaffPermissions }) => void;
@@ -187,7 +188,7 @@ function csvEscape(v: string | number | null | undefined): string {
 
 export function CompanyTeamTab({
   teamData, totalTeam,
-  onCreateStaff, onCreateSalesperson, onCreateEmployee,
+  onCreateStaff, onCreateAdmin, onCreateSalesperson, onCreateEmployee,
   onEditPermissions, onCreateAccount, creatingAccountFor,
   onDeleteUser, onResetPassword, isDeletingUser, isResettingPassword: _isResettingPassword,
   isRefreshing, onRefresh,
@@ -582,9 +583,14 @@ export function CompanyTeamTab({
           <div className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-emerald-600" />
             <CardTitle className="text-base">Admin Azienda</CardTitle>
-            <Badge variant="secondary" className="ml-auto">
+            <Badge variant="secondary">
               {filtered.admins.length}
             </Badge>
+            {onCreateAdmin && (
+              <Button size="sm" variant="outline" className="ml-auto" onClick={onCreateAdmin}>
+                <Plus className="h-4 w-4 mr-1" /> Aggiungi
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0">

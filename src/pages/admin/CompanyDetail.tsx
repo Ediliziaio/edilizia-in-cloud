@@ -472,7 +472,8 @@ export default function CompanyDetail() {
         <TabsContent value="team">
           {isTabMounted("team") && <CompanyTeamTab
             teamData={h.teamData} totalTeam={totalTeam}
-            onCreateStaff={() => h.setCreateStaffOpen(true)}
+            onCreateStaff={h.openCreateStaff}
+            onCreateAdmin={h.openCreateAdmin}
             onCreateSalesperson={() => h.setCreateSalespersonOpen(true)}
             onCreateEmployee={() => h.setCreateEmployeeOpen(true)}
             onEditPermissions={h.setPermissionsUser}
@@ -581,7 +582,7 @@ export default function CompanyDetail() {
       </Dialog>
 
       {/* Team Dialogs */}
-      <StaffUserDialog open={h.createStaffOpen} onOpenChange={h.setCreateStaffOpen} onSubmit={h.handleCreateStaff} isLoading={h.createStaffLoading} />
+      <StaffUserDialog key={h.createStaffRole} open={h.createStaffOpen} onOpenChange={h.setCreateStaffOpen} onSubmit={h.handleCreateStaff} isLoading={h.createStaffLoading} defaultRoleType={h.createStaffRole} lockRoleType={h.createStaffRole === "company_admin"} />
       {h.permissionsUser && (
         <PermissionsDialog open={!!h.permissionsUser} onOpenChange={(open) => !open && h.setPermissionsUser(null)}
           userName={h.permissionsUser.name} currentPermissions={h.permissionsUser.permissions}

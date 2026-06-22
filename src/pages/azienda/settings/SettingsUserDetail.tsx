@@ -18,7 +18,7 @@ import { UserSessionsTab } from "@/components/users/UserSessionsTab";
 import { UserActivityLogTab } from "@/components/users/UserActivityLogTab";
 import { UserSecurityTab } from "@/components/users/UserSecurityTab";
 import { StaffPermissions } from "@/components/users/PermissionsDialog";
-import { DEFAULT_PERMISSIONS, syncLegacyMarketingFlags, syncLegacySettingsFlags } from "@/components/users/permissionsDefaults";
+import { buildStaffPermissionsUpdate } from "@/components/users/permissionsDefaults";
 import { usePermissions } from "@/hooks/usePermissions";
 import { normalizeCompanyAccessRole } from "@/lib/auth/multiCompany";
 import type { Database, Json } from "@/integrations/supabase/types";
@@ -310,15 +310,8 @@ export default function SettingsUserDetail() {
         throw new Error("company_id mancante nel profilo utente");
       }
 
-      // Filter to only known permission keys to avoid sending id, user_id, created_at etc.
-      const allowedKeys = Object.keys(DEFAULT_PERMISSIONS) as (keyof StaffPermissions)[];
-      const base: Record<string, boolean> = {};
-      for (const key of allowedKeys) {
-        base[key] = (permissions[key] as boolean) ?? false;
-      }
-
-      // Sync legacy aggregate flags using the shared helpers (single source of truth)
-      const synced = syncLegacySettingsFlags(syncLegacyMarketingFlags(base as unknown as StaffPermissions));
+      // Filtra alle chiavi note + sincronizza i flag legacy (helper condiviso).
+      const synced = buildStaffPermissionsUpdate(permissions);
 
       const { error } = await supabase
         .from("staff_permissions")

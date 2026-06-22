@@ -29,6 +29,10 @@ interface StaffUserDialogProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: StaffUserFormData) => Promise<{ temporaryPassword?: string }>;
   isLoading?: boolean;
+  /** Ruolo preselezionato all'apertura (default "company_staff"). */
+  defaultRoleType?: StaffRoleType;
+  /** Se true, il ruolo è fissato a `defaultRoleType` e il selettore è nascosto. */
+  lockRoleType?: boolean;
 }
 
 export type StaffRoleType = "company_admin" | "company_staff" | "salesperson" | "call_center" | "employee" | "subcontractor";
@@ -79,12 +83,17 @@ export function StaffUserDialog({
   onOpenChange,
   onSubmit,
   isLoading,
+  defaultRoleType,
+  lockRoleType,
 }: StaffUserDialogProps) {
   const { toast } = useToast();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [roleType, setRoleType] = useState<StaffRoleType>("company_staff");
+  // Init dal ruolo di default. Il reset al cambio di `defaultRoleType` tra
+  // un'apertura e l'altra è gestito dal `key` sul componente (CompanyDetail),
+  // che forza il remount — niente setState-in-effect.
+  const [roleType, setRoleType] = useState<StaffRoleType>(defaultRoleType ?? "company_staff");
   const [permissions, setPermissions] = useState<StaffPermissions>({ ...DEFAULT_PERMISSIONS });
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -151,11 +160,13 @@ export function StaffUserDialog({
 
   const handleClose = () => {
     setFirstName(""); setLastName(""); setEmail("");
-    setRoleType("company_staff");
+    setRoleType(defaultRoleType ?? "company_staff");
     setPermissions({ ...DEFAULT_PERMISSIONS });
     setTemporaryPassword(null); setCopied(false);
     onOpenChange(false);
   };
+
+  const selectedRoleOption = ROLE_OPTIONS.find((o) => o.value === roleType) ?? ROLE_OPTIONS[0];
 
   const renderSection = (section: typeof ALL_PERMISSION_SECTIONS[0]) => (
     <div key={section.viewKey} className="space-y-1.5">
@@ -222,33 +233,48 @@ export function StaffUserDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nuovo Utente Aziendale</DialogTitle>
+          <DialogTitle>{lockRoleType ? `Nuovo ${ROLE_LABELS[roleType]}` : "Nuovo Utente Aziendale"}</DialogTitle>
           <DialogDescription>
-            Crea un nuovo utente per la tua azienda. Scegli il tipo di ruolo e compila i dati.
+            {lockRoleType
+              ? `Crea un nuovo account "${ROLE_LABELS[roleType]}" per questa azienda. Compila i dati.`
+              : "Crea un nuovo utente per la tua azienda. Scegli il tipo di ruolo e compila i dati."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Tipo utente *</Label>
-            <div className="grid grid-cols-2 gap-3">
-              {ROLE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setRoleType(opt.value)}
-                  className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${roleType === opt.value ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"}`}
-                  disabled={isLoading}
-                >
-                  <opt.icon className={`h-5 w-5 shrink-0 ${roleType === opt.value ? "text-primary" : "text-muted-foreground"}`} />
-                  <div>
-                    <p className="font-medium text-sm">{opt.label}</p>
-                    <p className="text-xs text-muted-foreground">{opt.description}</p>
-                  </div>
-                </button>
-              ))}
+          {lockRoleType ? (
+            <div className="space-y-2">
+              <Label>Tipo utente</Label>
+              <div className="flex items-center gap-3 p-3 rounded-lg border-2 border-primary bg-primary/5">
+                <selectedRoleOption.icon className="h-5 w-5 shrink-0 text-primary" />
+                <div>
+                  <p className="font-medium text-sm">{selectedRoleOption.label}</p>
+                  <p className="text-xs text-muted-foreground">{selectedRoleOption.description}</p>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Tipo utente *</Label>
+              <div className="grid grid-cols-2 gap-3">
+                {ROLE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setRoleType(opt.value)}
+                    className={`flex items-center gap-3 p-3 rounded-lg border-2 text-left transition-colors ${roleType === opt.value ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/30"}`}
+                    disabled={isLoading}
+                  >
+                    <opt.icon className={`h-5 w-5 shrink-0 ${roleType === opt.value ? "text-primary" : "text-muted-foreground"}`} />
+                    <div>
+                      <p className="font-medium text-sm">{opt.label}</p>
+                      <p className="text-xs text-muted-foreground">{opt.description}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-4">
