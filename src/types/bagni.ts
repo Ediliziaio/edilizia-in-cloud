@@ -18,7 +18,7 @@ export interface BgnComputoVoce {
   fonte?: string | null;
 }
 export interface BgnProgetto {
-  id: string; company_id: string; code: string | null; stato: BgnStato; tipo_intervento: string | null;
+  id: string; company_id: string; code: string | null; stato: BgnStato; tipo_intervento: string | null; numero_bagni: number | null;
   cliente_nome: string | null; cliente_cognome: string | null; cliente_email: string | null; cliente_telefono: string | null;
   cantiere_indirizzo: string | null; cantiere_citta: string | null; cantiere_provincia: string | null; cantiere_cap: string | null;
   immobile_tipo: string | null; immobile_superficie_mq: number | null; immobile_anno: number | null; immobile_piani: number | null;

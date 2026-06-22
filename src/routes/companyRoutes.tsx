@@ -159,6 +159,10 @@ const SerramentiWizard = lazy(() => import("@/pages/azienda/serramenti/Serrament
 const RistrutturazioneIndex = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneIndex"));
 const RistrutturazioneWizard = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneWizard"));
 const RistrutturazioneListino = lazy(() => import("@/pages/azienda/ristrutturazione/RistrutturazioneListino"));
+// Modulo Bagni (clone Ristrutturazione: permission-based, no feature flag DB)
+const BagniIndex = lazy(() => import("@/pages/azienda/bagni/BagniIndex"));
+const BagniWizard = lazy(() => import("@/pages/azienda/bagni/BagniWizard"));
+const BagniListino = lazy(() => import("@/pages/azienda/bagni/BagniListino"));
 const ListiniFornitoriPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.ListiniFornitoriPage })),
 );
@@ -828,6 +832,31 @@ export default function CompanyRoutesContainer() {
           withCompanyPermission(
             "canEditMarketingOpportunities",
             <ErrorBoundary title="Errore wizard Ristrutturazione"><RistrutturazioneWizard /></ErrorBoundary>,
+          )
+        } />
+        {/* Modulo Bagni — stesso guard di Ristrutturazione/Serramenti (permission-based). */}
+        <Route path="bagni" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore modulo Bagni"><BagniIndex /></ErrorBoundary>,
+          )
+        } />
+        <Route path="bagni/listino" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore listino Bagni"><BagniListino /></ErrorBoundary>,
+          )
+        } />
+        <Route path="bagni/nuovo" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Bagni"><BagniWizard /></ErrorBoundary>,
+          )
+        } />
+        <Route path="bagni/:id/modifica" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Bagni"><BagniWizard /></ErrorBoundary>,
           )
         } />
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />

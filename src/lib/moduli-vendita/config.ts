@@ -148,8 +148,8 @@ export const MODULI_VENDITA: readonly ModuloVendutaConfig[] = [
       "Configuratore ristrutturazione bagno completo: sanitari, rivestimenti, impianti idraulici ed elettrici. Pacchetti pre-confezionati e personalizzazione live.",
     icon: Bath,
     flag: "modulo_bagni_attivo",
-    href: "/azienda/marketing/bagni",
-    availability: "coming_soon",
+    href: "/azienda/bagni",
+    availability: "available",
     benefici: [
       "Pacchetti chiavi in mano",
       "Configuratore sanitari e rivestimenti",
