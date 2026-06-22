@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcRigaImporto, calcPrezzoVoce, calcTotaliComputo } from "./calcoli";
+import { calcRigaImporto, calcPrezzoVoce, calcTotaliComputo, calcSuperficieFalda, stimaLattoneria } from "./calcoli";
 
 describe("tetti/calcoli", () => {
   describe("calcRigaImporto", () => {
@@ -53,6 +53,33 @@ describe("tetti/calcoli", () => {
       const t = calcTotaliComputo(righe, { sconto_pct: 0, iva_pct: 10 });
       expect(t.perCapitolo).toHaveLength(2);
       expect(t.perCapitolo.find((c) => c.nome === "Sanitari")?.imponibile).toBe(1000);
+    });
+  });
+
+  describe("calcSuperficieFalda", () => {
+    it("falda piana (pendenza 0) = superficie in pianta", () => {
+      expect(calcSuperficieFalda(100, 0)).toBe(100);
+    });
+    it("pendenza 30% aumenta la superficie (~+4,4%)", () => {
+      expect(calcSuperficieFalda(100, 30)).toBeCloseTo(104.4, 1);
+    });
+    it("pendenza 100% (45°) ≈ ×1,414", () => {
+      expect(calcSuperficieFalda(100, 100)).toBeCloseTo(141.42, 1);
+    });
+    it("input negativi → 0", () => {
+      expect(calcSuperficieFalda(-50, 30)).toBe(0);
+    });
+  });
+
+  describe("stimaLattoneria", () => {
+    it("gronde ≈ perimetro, 1 pluviale ogni ~12 m", () => {
+      expect(stimaLattoneria(48)).toEqual({ gronde_ml: 48, pluviali_n: 4 });
+    });
+    it("perimetro piccolo → minimo 2 pluviali", () => {
+      expect(stimaLattoneria(10)).toEqual({ gronde_ml: 10, pluviali_n: 2 });
+    });
+    it("perimetro 0 → nessuna stima", () => {
+      expect(stimaLattoneria(0)).toEqual({ gronde_ml: 0, pluviali_n: 0 });
     });
   });
 });

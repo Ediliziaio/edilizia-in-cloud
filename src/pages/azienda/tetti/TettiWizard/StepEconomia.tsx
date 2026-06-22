@@ -44,6 +44,13 @@ const toPct = (raw: string): number => {
   return Math.min(100, Math.max(0, v));
 };
 
+/** Preset incentivi tipici per le coperture (impostano la % di detrazione con un click). */
+const INCENTIVI_PRESET = [
+  { label: "Ecobonus 65%", pct: 65, hint: "Coibentazione/isolamento termico della copertura (riqualificazione energetica)." },
+  { label: "Bonus Casa 50%", pct: 50, hint: "Rifacimento tetto come manutenzione straordinaria (ristrutturazione edilizia)." },
+  { label: "Nessuno", pct: 0, hint: "Nessuna detrazione." },
+] as const;
+
 export default function StepEconomia({ form, onChange, computo }: Props) {
   const scontoPct = Number(form.sconto_pct ?? 0);
   const ivaPct = Number(form.iva_pct ?? 10);
@@ -177,6 +184,31 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
                 icon={BadgePercent}
               />
+              {/* Preset incentivi copertura: 1-click → imposta la detrazione */}
+              <div>
+                <p className="mb-1 text-[10px] text-muted-foreground">Incentivi rapidi (coperture):</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {INCENTIVI_PRESET.map((p) => {
+                    const active = Number(form.detrazione_pct ?? 0) === p.pct;
+                    return (
+                      <button
+                        key={p.label}
+                        type="button"
+                        title={p.hint}
+                        onClick={() => onChange("detrazione_pct", p.pct)}
+                        className={cn(
+                          "rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors",
+                          active
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/50",
+                        )}
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </CardContent>
           </Card>
 

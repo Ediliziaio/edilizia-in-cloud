@@ -12,10 +12,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Home, MapPin } from "lucide-react";
+import { Home, MapPin, Calculator, ShieldAlert, AlertTriangle, HardHat } from "lucide-react";
+import { calcSuperficieFalda, stimaLattoneria } from "@/lib/tetti/calcoli";
 import type { TetProgetto } from "@/types/tetti";
 import type { TetFormPatch } from "./types";
 
@@ -56,6 +59,10 @@ const toNum = (raw: string): number | null => {
 };
 
 export default function StepImmobile({ form, onChange }: Props) {
+  // Derivati roof-specific (puri, nessuno stato): superficie reale di falda + stima lattoneria.
+  const piantaMq = form.superficie_pianta_mq;
+  const faldaMq = piantaMq != null && piantaMq > 0 ? calcSuperficieFalda(piantaMq, form.pendenza_pct ?? 0) : null;
+  const lattoneria = form.perimetro_ml != null && form.perimetro_ml > 0 ? stimaLattoneria(form.perimetro_ml) : null;
   return (
     <Card>
       <CardContent className="p-4 sm:p-5 space-y-4">
@@ -196,6 +203,112 @@ export default function StepImmobile({ form, onChange }: Props) {
               placeholder="2"
               className="h-9 tabular-nums"
             />
+          </div>
+        </div>
+
+        {/* ─── Calcolatore copertura (roof-specific) ──────────────────────────── */}
+        <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3 space-y-3">
+          <div className="flex items-center gap-1.5">
+            <Calculator className="h-3.5 w-3.5 text-orange-600" />
+            <span className="text-xs font-semibold text-slate-800">Calcolatore copertura</span>
+          </div>
+
+          {/* Calcolatore falde: pianta + pendenza → superficie reale */}
+          <div className="grid grid-cols-12 gap-3 items-end">
+            <div className="col-span-6 sm:col-span-3">
+              <Label className="text-xs">Superficie in pianta (m²)</Label>
+              <Input
+                type="number" inputMode="decimal" min={0}
+                value={form.superficie_pianta_mq ?? ""}
+                onChange={(e) => onChange("superficie_pianta_mq", toNum(e.target.value))}
+                placeholder="120" className="h-9 tabular-nums"
+              />
+            </div>
+            <div className="col-span-6 sm:col-span-3">
+              <Label className="text-xs">Pendenza (%)</Label>
+              <Input
+                type="number" inputMode="decimal" min={0}
+                value={form.pendenza_pct ?? ""}
+                onChange={(e) => onChange("pendenza_pct", toNum(e.target.value))}
+                placeholder="30" className="h-9 tabular-nums"
+              />
+            </div>
+            <div className="col-span-12 sm:col-span-6">
+              {faldaMq !== null ? (
+                <div className="flex items-center justify-between gap-2 rounded-lg border bg-white px-3 py-2">
+                  <span className="text-[11px] text-muted-foreground">
+                    Superficie reale di falda{" "}
+                    <span className="font-semibold text-slate-900 tabular-nums">
+                      ≈ {faldaMq.toLocaleString("it-IT", { maximumFractionDigits: 1 })} m²
+                    </span>
+                  </span>
+                  <Button
+                    type="button" size="sm" variant="outline" className="h-7 text-[11px] shrink-0"
+                    onClick={() => onChange("immobile_superficie_mq", Math.round(faldaMq * 10) / 10)}
+                  >
+                    Applica
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">
+                  Inserisci pianta e pendenza: la falda inclinata è più grande della proiezione in pianta.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Stima lattoneria dal perimetro */}
+          <div className="grid grid-cols-12 gap-3 items-end">
+            <div className="col-span-6 sm:col-span-3">
+              <Label className="text-xs">Perimetro edificio (m)</Label>
+              <Input
+                type="number" inputMode="decimal" min={0}
+                value={form.perimetro_ml ?? ""}
+                onChange={(e) => onChange("perimetro_ml", toNum(e.target.value))}
+                placeholder="48" className="h-9 tabular-nums"
+              />
+            </div>
+            <div className="col-span-12 sm:col-span-9">
+              {lattoneria ? (
+                <p className="text-[11px] text-slate-700">
+                  Stima lattoneria:{" "}
+                  <span className="font-semibold tabular-nums">≈ {lattoneria.gronde_ml} m</span> di gronde/scossaline e{" "}
+                  <span className="font-semibold tabular-nums">~{lattoneria.pluviali_n}</span> pluviali. Valori di partenza, regolabili nel computo.
+                </p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">
+                  Inserisci il perimetro per una stima rapida di gronde e pluviali.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ─── Amianto / sicurezza ────────────────────────────────────────────── */}
+        <div className="rounded-xl border p-3 space-y-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="tet-amianto" className="flex items-center gap-1.5 text-xs font-medium text-slate-800 cursor-pointer">
+              <ShieldAlert className="h-3.5 w-3.5 text-rose-600" />
+              Presenza di amianto / eternit
+            </Label>
+            <Switch id="tet-amianto" checked={form.amianto ?? false} onCheckedChange={(v) => onChange("amianto", v)} />
+          </div>
+          {form.amianto && (
+            <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50/70 px-3 py-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
+              <p className="text-[11px] text-rose-900">
+                Copertura con amianto: obbligo di <strong>piano di lavoro e notifica all'ASL</strong> (D.Lgs. 81/08) e
+                smaltimento da ditta autorizzata. Nel listino trovi il capitolo <strong>"Bonifica e smaltimento amianto"</strong> da
+                aggiungere al computo.
+              </p>
+            </div>
+          )}
+          <div className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2">
+            <HardHat className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+            <p className="text-[11px] text-slate-600">
+              Lavori in quota &gt; 2 m: previsti <strong>ponteggio</strong> e <strong>linea vita</strong> (UNI 11578) — voci già
+              presenti nei capitoli "Allestimento cantiere e ponteggi" e "Sicurezza e opere accessorie".
+            </p>
           </div>
         </div>
 

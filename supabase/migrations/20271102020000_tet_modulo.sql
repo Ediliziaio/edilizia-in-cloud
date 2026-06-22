@@ -43,6 +43,9 @@ CREATE TABLE IF NOT EXISTS public.tet_progetti (
   cliente_nome text, cliente_cognome text, cliente_email text, cliente_telefono text,
   cantiere_indirizzo text, cantiere_citta text, cantiere_provincia text, cantiere_cap text,
   immobile_tipo text, immobile_superficie_mq numeric, immobile_anno int, immobile_piani int,
+  -- Dati copertura roof-specific (calcolatore falde, stima lattoneria, amianto):
+  superficie_pianta_mq numeric, pendenza_pct numeric, perimetro_ml numeric,
+  amianto boolean NOT NULL DEFAULT false,
   opportunita_id uuid, cliente_id uuid,
   template_id uuid,
   sconto_pct numeric NOT NULL DEFAULT 0,

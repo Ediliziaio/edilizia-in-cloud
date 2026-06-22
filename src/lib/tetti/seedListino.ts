@@ -46,6 +46,15 @@ export const SEED_LISTINO: SeedCapitolo[] = [
     ],
   },
   {
+    nome: "Bonifica e smaltimento amianto",
+    voci: [
+      v("Piano di lavoro amianto e notifica all'ASL (D.Lgs. 81/08)", "corpo", 0, 450),
+      v("Incapsulamento/rimozione lastre in cemento-amianto (eternit)", "mq", 8, 22),
+      v("Confezionamento, trasporto e smaltimento a discarica autorizzata", "mq", 14, 8),
+      v("Certificazione di avvenuto smaltimento (restituibilità)", "corpo", 0, 180),
+    ],
+  },
+  {
     nome: "Struttura e orditura",
     voci: [
       v("Revisione e sostituzione di travetti e listellatura in legno", "mq", 14, 16),
