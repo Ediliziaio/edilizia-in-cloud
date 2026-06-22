@@ -494,7 +494,7 @@ export function useCompanyDetail(id: string | undefined) {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const resp = await supabase.functions.invoke("create-company-staff", {
-        body: { first_name: data.first_name, last_name: data.last_name, email: data.email, role_type: data.role_type, company_id: id },
+        body: { first_name: data.first_name, last_name: data.last_name, email: data.email, role_type: data.role_type, password: data.password, company_id: id },
         headers: { Authorization: `Bearer ${sessionData.session?.access_token}` },
       });
       if (resp.error || !resp.data?.success) throw new Error(resp.data?.error || resp.error?.message || "Errore creazione staff");

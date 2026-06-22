@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Copy, Check, ShieldCheck, User, TrendingUp, Phone, HardHat, Building2, LayoutDashboard, Euro, Users2, Megaphone, Zap, Settings, ChevronDown } from "lucide-react";
+import { Loader2, Copy, Check, ShieldCheck, User, TrendingUp, Phone, HardHat, Building2, LayoutDashboard, Euro, Users2, Megaphone, Zap, Settings, ChevronDown, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -42,6 +42,8 @@ export interface StaffUserFormData {
   last_name: string;
   email: string;
   role_type: StaffRoleType;
+  /** Password temporanea definita dall'admin. Se assente, l'edge function ne genera una. */
+  password?: string;
   permissions?: StaffPermissions;
 }
 
@@ -97,6 +99,8 @@ export function StaffUserDialog({
   const [permissions, setPermissions] = useState<StaffPermissions>({ ...DEFAULT_PERMISSIONS });
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleTogglePermission = (key: keyof StaffPermissions, value: boolean) => {
     setPermissions((prev) => {
@@ -127,10 +131,23 @@ export function StaffUserDialog({
     setPermissions((prev) => ({ ...DEFAULT_PERMISSIONS, only_assigned: prev.only_assigned }));
   };
 
+  const handleGeneratePassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*";
+    const rnd = new Uint32Array(14);
+    crypto.getRandomValues(rnd);
+    setPassword(Array.from(rnd, (n) => chars[n % chars.length]).join(""));
+    setShowPassword(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!firstName.trim() || !lastName.trim() || !email.trim()) {
       toast({ title: "Errore", description: "Tutti i campi sono obbligatori", variant: "destructive" });
+      return;
+    }
+    const pwd = password.trim();
+    if (pwd && pwd.length < 8) {
+      toast({ title: "Errore", description: "La password temporanea deve avere almeno 8 caratteri", variant: "destructive" });
       return;
     }
     try {
@@ -139,6 +156,7 @@ export function StaffUserDialog({
         last_name: lastName.trim(),
         email: email.trim().toLowerCase(),
         role_type: roleType,
+        password: pwd || undefined,
         permissions: ROLES_WITH_PERMISSIONS.includes(roleType) ? permissions : undefined,
       });
       if (result.temporaryPassword) {
@@ -163,6 +181,7 @@ export function StaffUserDialog({
     setRoleType(defaultRoleType ?? "company_staff");
     setPermissions({ ...DEFAULT_PERMISSIONS });
     setTemporaryPassword(null); setCopied(false);
+    setPassword(""); setShowPassword(false);
     onOpenChange(false);
   };
 
@@ -291,6 +310,37 @@ export function StaffUserDialog({
               <Label htmlFor="email">Email *</Label>
               <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="mario.rossi@example.com" disabled={isLoading} />
               <p className="text-xs text-muted-foreground">L'utente userà questa email per accedere al sistema</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tempPassword">Password temporanea <span className="font-normal text-muted-foreground">(opzionale)</span></Label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    id="tempPassword"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Lascia vuoto per generarla in automatico"
+                    autoComplete="new-password"
+                    disabled={isLoading}
+                    className="pr-10 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((s) => !s)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                    aria-label={showPassword ? "Nascondi password" : "Mostra password"}
+                    disabled={isLoading}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <Button type="button" variant="outline" size="icon" onClick={handleGeneratePassword} disabled={isLoading} title="Genera password sicura">
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Minimo 8 caratteri. Se vuota, il sistema ne genera una sicura. Verrà mostrata dopo la creazione.</p>
             </div>
           </div>
 
