@@ -179,6 +179,10 @@ const ElettricoListino = lazy(() => import("@/pages/azienda/elettrico/ElettricoL
 const TermoidraulicoIndex = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoIndex"));
 const TermoidraulicoWizard = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoWizard"));
 const TermoidraulicoListino = lazy(() => import("@/pages/azienda/termoidraulico/TermoidraulicoListino"));
+// Modulo Pavimenti & Resine (clone Ristrutturazione: permission-based, no feature flag DB)
+const PavimentiIndex = lazy(() => import("@/pages/azienda/pavimenti/PavimentiIndex"));
+const PavimentiWizard = lazy(() => import("@/pages/azienda/pavimenti/PavimentiWizard"));
+const PavimentiListino = lazy(() => import("@/pages/azienda/pavimenti/PavimentiListino"));
 const ListiniFornitoriPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.ListiniFornitoriPage })),
 );
@@ -973,6 +977,31 @@ export default function CompanyRoutesContainer() {
           withCompanyPermission(
             "canEditMarketingOpportunities",
             <ErrorBoundary title="Errore wizard Termoidraulico"><TermoidraulicoWizard /></ErrorBoundary>,
+          )
+        } />
+        {/* Modulo Pavimenti & Resine — stesso guard di Ristrutturazione/Bagni (permission-based). */}
+        <Route path="pavimenti" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore modulo Pavimenti"><PavimentiIndex /></ErrorBoundary>,
+          )
+        } />
+        <Route path="pavimenti/listino" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore listino Pavimenti"><PavimentiListino /></ErrorBoundary>,
+          )
+        } />
+        <Route path="pavimenti/nuovo" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Pavimenti"><PavimentiWizard /></ErrorBoundary>,
+          )
+        } />
+        <Route path="pavimenti/:id/modifica" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Pavimenti"><PavimentiWizard /></ErrorBoundary>,
           )
         } />
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />

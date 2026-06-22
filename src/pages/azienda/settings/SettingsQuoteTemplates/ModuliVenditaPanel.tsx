@@ -9,7 +9,7 @@
 import React, { lazy, Suspense, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft, Bath, Hammer, Home, Loader2, RectangleVertical, ShoppingBag, Sun, Wind, Zap, Flame,
+  ArrowLeft, Bath, Hammer, Home, Loader2, RectangleVertical, ShoppingBag, Sun, Wind, Zap, Flame, LayoutGrid,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,6 +40,9 @@ const ElettricoTemplateEditor = lazy(() =>
 );
 const TermoidraulicoTemplateEditor = lazy(() =>
   import("@/components/termoidraulico/TermoidraulicoTemplateEditor").then((m) => ({ default: m.TermoidraulicoTemplateEditor })),
+);
+const PavimentiTemplateEditor = lazy(() =>
+  import("@/components/pavimenti/PavimentiTemplateEditor").then((m) => ({ default: m.PavimentiTemplateEditor })),
 );
 
 interface ModuloVendita {
@@ -145,6 +148,18 @@ const MODULI_VENDITA: ModuloVendita[] = [
     render: () => (
       <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-orange-600" /></div>}>
         <TermoidraulicoTemplateEditor embedded />
+      </Suspense>
+    ),
+  },
+  {
+    slug: "pavimenti",
+    nome: "Pavimenti & Resine",
+    icon: LayoutGrid,
+    description: "Template del PDF Preventivatore Pavimenti: branding, copertina, chi siamo, esigenze, USP, testimonianze, cronoprogramma, condizioni.",
+    available: true,
+    render: () => (
+      <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-orange-600" /></div>}>
+        <PavimentiTemplateEditor embedded />
       </Suspense>
     ),
   },

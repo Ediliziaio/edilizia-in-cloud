@@ -60,6 +60,7 @@ const TIPO_OPTIONS: Array<{ value: PreventivoTipo; label: string; emoji: string 
   { value: "climatizzazione",  label: "Climatizzazione",  emoji: "❄️" },
   { value: "elettrico",        label: "Elettrico",        emoji: "⚡" },
   { value: "termoidraulico",   label: "Termoidraulico",   emoji: "🔥" },
+  { value: "pavimenti",        label: "Pavimenti",        emoji: "🟫" },
 ];
 
 const STATO_OPTIONS: Array<{ value: UnifiedStato; label: string; toneCls: string }> = [
@@ -92,12 +93,13 @@ interface Props {
   climatizzazioneEnabled: boolean;
   elettricoEnabled: boolean;
   termoidraulicoEnabled: boolean;
+  pavimentiEnabled: boolean;
   totalResults: number;
 }
 
 export function UnifiedFiltersSheet({
   open, onOpenChange, filters, onApply, commerciali,
-  serramentiEnabled, fotovoltaicoEnabled, ristrutturazioneEnabled, bagniEnabled, tettiEnabled, climatizzazioneEnabled, elettricoEnabled, termoidraulicoEnabled, totalResults,
+  serramentiEnabled, fotovoltaicoEnabled, ristrutturazioneEnabled, bagniEnabled, tettiEnabled, climatizzazioneEnabled, elettricoEnabled, termoidraulicoEnabled, pavimentiEnabled, totalResults,
 }: Props) {
   const toggleTipo = (t: PreventivoTipo) => {
     const set = new Set(filters.tipi);
@@ -144,6 +146,7 @@ export function UnifiedFiltersSheet({
                 if (t.value === "climatizzazione" && !climatizzazioneEnabled) return null;
                 if (t.value === "elettrico" && !elettricoEnabled) return null;
                 if (t.value === "termoidraulico" && !termoidraulicoEnabled) return null;
+                if (t.value === "pavimenti" && !pavimentiEnabled) return null;
                 const on = filters.tipi.includes(t.value);
                 return (
                   <button

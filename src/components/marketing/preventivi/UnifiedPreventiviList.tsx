@@ -37,7 +37,7 @@ import {
 import {
   Search, ChevronRight, ChevronLeft, FileText, RectangleVertical, Sun,
   Inbox, X, Target, TrendingUp, Clock, FileCheck2, Euro,
-  SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind, Zap, Flame,
+  SlidersHorizontal, Download, Loader2, Hammer, Bath, Home, Wind, Zap, Flame, LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, isSameMonth } from "date-fns";
@@ -56,7 +56,7 @@ import {
   type UnifiedStato,
 } from "@/lib/preventivi/statoUnificato";
 
-export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione" | "elettrico" | "termoidraulico";
+export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione" | "elettrico" | "termoidraulico" | "pavimenti";
 export type { UnifiedStato };
 
 export interface UnifiedRow {
@@ -83,6 +83,7 @@ export const TIPO_LABEL: Record<PreventivoTipo, { label: string; className: stri
   climatizzazione:  { label: "Climatizzazione",  className: "bg-sky-100 text-sky-700 border-sky-200",          color: "#0284c7", Icon: Wind },
   elettrico:        { label: "Elettrico",        className: "bg-amber-100 text-amber-700 border-amber-200",    color: "#d97706", Icon: Zap },
   termoidraulico:   { label: "Termoidraulico",   className: "bg-rose-100 text-rose-700 border-rose-200",       color: "#e11d48", Icon: Flame },
+  pavimenti:        { label: "Pavimenti",        className: "bg-teal-100 text-teal-700 border-teal-200",       color: "#0d9488", Icon: LayoutGrid },
 };
 
 export const STATO_UNIF_LABEL: Record<UnifiedStato, { label: string; className: string }> = {
@@ -170,6 +171,10 @@ export function UnifiedPreventiviList() {
   );
   const termoidraulicoEnabled = useMemo(
     () => moduli.find((m) => m.modulo.slug === "termoidraulico")?.isEnabled ?? false,
+    [moduli],
+  );
+  const pavimentiEnabled = useMemo(
+    () => moduli.find((m) => m.modulo.slug === "pavimenti")?.isEnabled ?? false,
     [moduli],
   );
 
@@ -385,6 +390,27 @@ export function UnifiedPreventiviList() {
     },
   });
 
+  const { data: pavimentiData = [], isLoading: loadingPavimenti } = useQuery({
+    queryKey: ["unified-prev-pavimenti", companyId],
+    enabled: !!companyId && pavimentiEnabled,
+    queryFn: async () => {
+      // Tabella pav_* non ancora nei tipi generati → query via (supabase as any).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("pav_progetti")
+        .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
+        .eq("company_id", companyId!)
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .limit(1000);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null;
+        stato: string; totale: number | null;
+        created_by: string | null; created_at: string; updated_at: string | null;
+      }>;
+    },
+  });
+
   const { data: profiles = [] } = useQuery({
     queryKey: ["unified-prev-profiles", companyId],
     enabled: !!companyId,
@@ -555,8 +581,22 @@ export function UnifiedPreventiviList() {
         href: `/azienda/termoidraulico/${td.id}/modifica`,
       });
     }
+    for (const pv of pavimentiData) {
+      rows.push({
+        id: pv.id, tipo: "pavimenti",
+        numero: pv.code ?? "—",
+        cliente: [pv.cliente_nome, pv.cliente_cognome].filter(Boolean).join(" ") || "—",
+        commerciale_id: pv.created_by,
+        commerciale_nome: pv.created_by ? commercialeNameById.get(pv.created_by) ?? null : null,
+        stato_unif: mapRistrutturazioneStato(pv.stato),
+        stato_raw: pv.stato,
+        totale: pv.totale != null ? Number(pv.totale) : null,
+        data: pv.updated_at ?? pv.created_at,
+        href: `/azienda/pavimenti/${pv.id}/modifica`,
+      });
+    }
     return rows;
-  }, [quotesData, serramentiData, fvData, ristrutturazioneData, bagniData, tettiData, climatizzazioneData, elettricoData, termoidraulicoData, commercialeNameById]);
+  }, [quotesData, serramentiData, fvData, ristrutturazioneData, bagniData, tettiData, climatizzazioneData, elettricoData, termoidraulicoData, pavimentiData, commercialeNameById]);
 
   // ─── KPI globali (su dataset completo) ───────────────────────────────────
   const kpi = useMemo(() => {
@@ -607,7 +647,7 @@ export function UnifiedPreventiviList() {
 
   // ─── Chart data: distribuzione per tipo ─────────────────────────────────
   const tipoDist = useMemo(() => {
-    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0, ristrutturazione: 0, bagni: 0, tetti: 0, climatizzazione: 0, elettrico: 0, termoidraulico: 0 };
+    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0, ristrutturazione: 0, bagni: 0, tetti: 0, climatizzazione: 0, elettrico: 0, termoidraulico: 0, pavimenti: 0 };
     allRows.forEach((r) => { counts[r.tipo]++; });
     return [
       { name: "Classico",         value: counts.classico,         color: TIPO_LABEL.classico.color },
@@ -619,6 +659,7 @@ export function UnifiedPreventiviList() {
       { name: "Climatizzazione",  value: counts.climatizzazione,  color: TIPO_LABEL.climatizzazione.color },
       { name: "Elettrico",        value: counts.elettrico,        color: TIPO_LABEL.elettrico.color },
       { name: "Termoidraulico",   value: counts.termoidraulico,   color: TIPO_LABEL.termoidraulico.color },
+      { name: "Pavimenti",        value: counts.pavimenti,        color: TIPO_LABEL.pavimenti.color },
     ].filter((d) => d.value > 0);
   }, [allRows]);
 
@@ -781,7 +822,7 @@ export function UnifiedPreventiviList() {
     }
   };
 
-  const isLoading = loadingQuotes || loadingSerramenti || loadingFv || loadingRistrutturazione || loadingBagni || loadingTetti || loadingClimatizzazione || loadingElettrico || loadingTermoidraulico;
+  const isLoading = loadingQuotes || loadingSerramenti || loadingFv || loadingRistrutturazione || loadingBagni || loadingTetti || loadingClimatizzazione || loadingElettrico || loadingTermoidraulico || loadingPavimenti;
 
   const tabCounts = {
     all: allRows.length,
@@ -817,6 +858,7 @@ export function UnifiedPreventiviList() {
             climatizzazioneData.length > 0 ? `${climatizzazioneData.length} climatizzazione` : null,
             elettricoData.length > 0 ? `${elettricoData.length} elettrico` : null,
             termoidraulicoData.length > 0 ? `${termoidraulicoData.length} termoidraulico` : null,
+            pavimentiData.length > 0 ? `${pavimentiData.length} pavimenti` : null,
           ].filter(Boolean).join(" · ") || "totale preventivi"} />
         </div>
       </div>
@@ -1124,6 +1166,7 @@ export function UnifiedPreventiviList() {
         climatizzazioneEnabled={climatizzazioneEnabled}
         elettricoEnabled={elettricoEnabled}
         termoidraulicoEnabled={termoidraulicoEnabled}
+        pavimentiEnabled={pavimentiEnabled}
         totalResults={filtered.length}
       />
     </div>

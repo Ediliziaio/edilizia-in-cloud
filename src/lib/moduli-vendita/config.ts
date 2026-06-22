@@ -11,7 +11,7 @@
  */
 
 import type { LucideIcon } from "lucide-react";
-import { Sun, PanelTop, Home, Bath, Layers, Thermometer, Hammer, Wind, Zap, Flame } from "lucide-react";
+import { Sun, PanelTop, Home, Bath, Layers, Thermometer, Hammer, Wind, Zap, Flame, LayoutGrid } from "lucide-react";
 
 export type ModuloVendutaSlug =
   | "fotovoltaico"
@@ -22,6 +22,7 @@ export type ModuloVendutaSlug =
   | "climatizzazione"
   | "elettrico"
   | "termoidraulico"
+  | "pavimenti"
   | "cappotto"
   | "pompe_calore";
 
@@ -34,6 +35,7 @@ export type ModuloFeatureKey =
   | "modulo_climatizzazione_attivo"
   | "modulo_elettrico_attivo"
   | "modulo_termoidraulico_attivo"
+  | "modulo_pavimenti_attivo"
   | "modulo_cappotto_attivo"
   | "modulo_pompe_calore_attivo";
 
@@ -217,6 +219,25 @@ export const MODULI_VENDITA: readonly ModuloVendutaConfig[] = [
       "Caldaia condensazione / pompa di calore / ibrido",
       "Pannelli radianti e idrosanitario",
       "Incentivi Ecobonus 65% + Conto Termico",
+      "Preventivo PDF brandizzato a più pagine",
+    ],
+    prezzoMensile: 149,
+  },
+  {
+    slug: "pavimenti",
+    nome: "Pavimenti & Resine",
+    tagline: "Posa gres, parquet, resine e microcemento",
+    descrizione:
+      "Preventivatore posa pavimenti: gres porcellanato, parquet, laminato, resine, microcemento e pietra naturale. Massetti, sottofondi e levigatura. Computo metrico dai listini aziendali, incentivi e preventivo PDF brandizzato.",
+    icon: LayoutGrid,
+    flag: "modulo_pavimenti_attivo",
+    href: "/azienda/pavimenti",
+    availability: "available",
+    benefici: [
+      "Computo per massetti, posa e finiture",
+      "Gres, parquet, resina, microcemento, pietra",
+      "Levigatura e lucidatura in opera",
+      "Incentivo Bonus Casa 50%",
       "Preventivo PDF brandizzato a più pagine",
     ],
     prezzoMensile: 149,
