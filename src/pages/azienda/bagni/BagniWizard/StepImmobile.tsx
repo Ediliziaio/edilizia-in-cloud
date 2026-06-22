@@ -15,7 +15,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Home, MapPin } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Home, MapPin, Calculator, Accessibility, AlertTriangle } from "lucide-react";
+import { calcRivestimenti } from "@/lib/bagni/calcoli";
 import type { BgnProgetto } from "@/types/bagni";
 import type { BgnFormPatch } from "./types";
 
@@ -55,6 +57,10 @@ const toNum = (raw: string): number | null => {
 };
 
 export default function StepImmobile({ form, onChange }: Props) {
+  // Calcolatore rivestimenti (puro, nessuno stato): pavimento + pareti dal perimetro × altezza.
+  const riv = form.perimetro_ml != null && form.perimetro_ml > 0
+    ? calcRivestimenti(form.immobile_superficie_mq ?? 0, form.perimetro_ml, form.altezza_rivestimento_m ?? 2.1)
+    : null;
   return (
     <Card>
       <CardContent className="p-4 sm:p-5 space-y-4">
@@ -196,6 +202,66 @@ export default function StepImmobile({ form, onChange }: Props) {
               className="h-9 tabular-nums"
             />
           </div>
+        </div>
+
+        {/* ─── Calcolatore rivestimenti ───────────────────────────────────────── */}
+        <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3 space-y-3">
+          <div className="flex items-center gap-1.5">
+            <Calculator className="h-3.5 w-3.5 text-orange-600" />
+            <span className="text-xs font-semibold text-slate-800">Calcolatore rivestimenti</span>
+          </div>
+          <div className="grid grid-cols-12 gap-3 items-end">
+            <div className="col-span-6 sm:col-span-3">
+              <Label className="text-xs">Perimetro bagno (m)</Label>
+              <Input
+                type="number" inputMode="decimal" min={0}
+                value={form.perimetro_ml ?? ""}
+                onChange={(e) => onChange("perimetro_ml", toNum(e.target.value))}
+                placeholder="10" className="h-9 tabular-nums"
+              />
+            </div>
+            <div className="col-span-6 sm:col-span-3">
+              <Label className="text-xs">Altezza rivestimento (m)</Label>
+              <Input
+                type="number" inputMode="decimal" min={0}
+                value={form.altezza_rivestimento_m ?? ""}
+                onChange={(e) => onChange("altezza_rivestimento_m", toNum(e.target.value))}
+                placeholder="2,1" className="h-9 tabular-nums"
+              />
+            </div>
+            <div className="col-span-12 sm:col-span-6">
+              {riv ? (
+                <p className="text-[11px] text-slate-700">
+                  Pavimento: <span className="font-semibold tabular-nums">{riv.pavimento_mq} m²</span> · Rivestimento pareti:{" "}
+                  <span className="font-semibold tabular-nums">≈ {riv.rivestimento_mq} m²</span>. Usa questi m² nelle voci pavimento/rivestimento del computo.
+                </p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">
+                  Inserisci perimetro e altezza: stimo i m² di pavimento (= superficie bagno) e di rivestimento pareti.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ─── Bagno accessibile ──────────────────────────────────────────────── */}
+        <div className="rounded-xl border p-3 space-y-2.5">
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="bgn-accessibile" className="flex items-center gap-1.5 text-xs font-medium text-slate-800 cursor-pointer">
+              <Accessibility className="h-3.5 w-3.5 text-blue-600" />
+              Bagno accessibile (disabili / anziani)
+            </Label>
+            <Switch id="bgn-accessibile" checked={form.accessibile ?? false} onCheckedChange={(v) => onChange("accessibile", v)} />
+          </div>
+          {form.accessibile && (
+            <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50/70 px-3 py-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+              <p className="text-[11px] text-blue-900">
+                Bagno accessibile: valuta <strong>maniglioni</strong>, <strong>piatto doccia a filo pavimento</strong> e sanitari ergonomici.
+                Questi interventi rientrano nel <strong>Bonus Barriere 75%</strong> — impostalo dai chip incentivi nello step Economia.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Vincoli / note */}

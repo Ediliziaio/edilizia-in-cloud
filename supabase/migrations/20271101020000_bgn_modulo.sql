@@ -43,6 +43,9 @@ CREATE TABLE IF NOT EXISTS public.bgn_progetti (
   cliente_nome text, cliente_cognome text, cliente_email text, cliente_telefono text,
   cantiere_indirizzo text, cantiere_citta text, cantiere_provincia text, cantiere_cap text,
   immobile_tipo text, immobile_superficie_mq numeric, immobile_anno int, immobile_piani int,
+  -- Migliorie bagno: calcolatore rivestimenti, accessibilità, massimale detrazione:
+  perimetro_ml numeric, altezza_rivestimento_m numeric,
+  accessibile boolean NOT NULL DEFAULT false, massimale_detrazione numeric,
   opportunita_id uuid, cliente_id uuid,
   template_id uuid,
   sconto_pct numeric NOT NULL DEFAULT 0,

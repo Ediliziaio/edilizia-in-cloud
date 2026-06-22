@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcRigaImporto, calcPrezzoVoce, calcTotaliComputo } from "./calcoli";
+import { calcRigaImporto, calcPrezzoVoce, calcTotaliComputo, calcRivestimenti } from "./calcoli";
 
 describe("bagni/calcoli", () => {
   describe("calcRigaImporto", () => {
@@ -53,6 +53,19 @@ describe("bagni/calcoli", () => {
       const t = calcTotaliComputo(righe, { sconto_pct: 0, iva_pct: 10 });
       expect(t.perCapitolo).toHaveLength(2);
       expect(t.perCapitolo.find((c) => c.nome === "Sanitari")?.imponibile).toBe(1000);
+    });
+  });
+
+  describe("calcRivestimenti", () => {
+    it("pavimento = superficie, rivestimento = perimetro × altezza", () => {
+      // bagno 6 mq, perimetro 10 m, h rivestimento 2,1 m → pavimento 6, rivestimento 21
+      expect(calcRivestimenti(6, 10, 2.1)).toEqual({ pavimento_mq: 6, rivestimento_mq: 21 });
+    });
+    it("arrotonda a 0,1 mq", () => {
+      expect(calcRivestimenti(5.55, 9.8, 2.05)).toEqual({ pavimento_mq: 5.6, rivestimento_mq: 20.1 });
+    });
+    it("input negativi → 0", () => {
+      expect(calcRivestimenti(-6, -10, 2.1)).toEqual({ pavimento_mq: 0, rivestimento_mq: 0 });
     });
   });
 });

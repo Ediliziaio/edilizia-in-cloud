@@ -14,7 +14,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, Settings2, Info, Library, HardHat, ChevronDown } from "lucide-react";
+import { Loader2, CheckCircle2, Settings2, Info, Library, HardHat, ChevronDown, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
@@ -29,6 +29,7 @@ import { useSaveComputo, useEffectiveCompanyId } from "@/hooks/useBagniProgetto"
 import { useListinoVociSearch } from "@/hooks/useBagniListino";
 import type { BgnComputoVoce } from "@/types/bagni";
 import ComputoEditor from "@/components/bagni/ComputoEditor/ComputoEditor";
+import { PACCHETTI_BAGNO, buildPacchettoRows, type Pacchetto } from "@/lib/bagni/pacchetti";
 
 interface Props {
   progettoId: string;
@@ -60,6 +61,16 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
   const handleChange = (next: BgnComputoVoce[]) => {
     setComputo(next);
     setDirty(true);
+  };
+
+  // Pacchetti chiavi-in-mano: appende le voci-tipo del pacchetto al computo corrente.
+  const handleLoadPacchetto = (p: Pacchetto) => {
+    if (!companyId) return;
+    const rows = buildPacchettoRows(p, progettoId, companyId);
+    handleChange([...computo, ...rows]);
+    toast.success(`Pacchetto "${p.label}" aggiunto`, {
+      description: `${rows.length} voci aggiunte al computo. Personalizza prezzi e quantità.`,
+    });
   };
 
   // Mappa lo stato locale nel payload del save (riusato da autosave e flush).
@@ -183,6 +194,31 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
           </div>
         </div>
       )}
+
+      {/* Pacchetti chiavi-in-mano: parti da un bagno tipo in 1 click */}
+      <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3">
+        <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+          <Package className="h-3.5 w-3.5 text-orange-600" />
+          <span className="text-xs font-semibold text-slate-800">Pacchetti chiavi-in-mano</span>
+          <span className="text-[10px] text-muted-foreground">— bagno tipo ~6 m², le voci si aggiungono al computo</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {PACCHETTI_BAGNO.map((p) => (
+            <Button
+              key={p.key}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 text-xs"
+              title={p.descrizione}
+              disabled={!companyId}
+              onClick={() => handleLoadPacchetto(p)}
+            >
+              <Package className="h-3.5 w-3.5" /> {p.label}
+            </Button>
+          ))}
+        </div>
+      </div>
 
       {/* Importa da prezzario regionale → popola il listino aziendale */}
       <div className="flex flex-wrap items-center gap-2">

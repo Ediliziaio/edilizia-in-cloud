@@ -6,6 +6,26 @@ export function calcRigaImporto(r: { quantita: number; prezzo_unitario: number; 
 export function calcPrezzoVoce(v: { costo_materiali: number; costo_manodopera: number; ricarico_pct: number }): number {
   return (Math.max(0, n(v.costo_materiali)) + Math.max(0, n(v.costo_manodopera))) * (1 + Math.max(0, n(v.ricarico_pct)) / 100);
 }
+
+/**
+ * Superfici per il computo del bagno:
+ *  - pavimento = superficie del bagno (mq)
+ *  - rivestimento pareti = perimetro × altezza di rivestimento (mq, lordo aperture)
+ * Valori arrotondati a 0,1 mq, da usare nelle voci pavimento/rivestimento del computo.
+ */
+export function calcRivestimenti(
+  pavimentoMq: number,
+  perimetroMl: number,
+  hRivestimento: number,
+): { pavimento_mq: number; rivestimento_mq: number } {
+  const pav = Math.max(0, n(pavimentoMq));
+  const per = Math.max(0, n(perimetroMl));
+  const h = Math.max(0, n(hRivestimento));
+  return {
+    pavimento_mq: Math.round(pav * 10) / 10,
+    rivestimento_mq: Math.round(per * h * 10) / 10,
+  };
+}
 export interface ComputoRigaInput {
   capitolo_nome: string; quantita: number; prezzo_unitario: number; sconto_pct: number;
   costo_materiali: number; costo_manodopera: number;

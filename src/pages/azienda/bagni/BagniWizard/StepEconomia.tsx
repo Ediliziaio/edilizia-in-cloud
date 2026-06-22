@@ -26,6 +26,7 @@ import { Euro, Percent, TrendingUp, BadgePercent, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/formatters";
 import { calcTotaliComputo } from "@/lib/bagni/calcoli";
+import { INCENTIVI_BAGNI, calcDetraibile, superaMassimale } from "@/lib/preventivi/incentivi";
 import type { BgnComputoVoce, BgnProgetto } from "@/types/bagni";
 import type { BgnFormPatch } from "./types";
 
@@ -72,7 +73,9 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
     [totali.perCapitolo],
   );
   const scontoGlobaleEur = Math.max(0, lordoCapitoli - totali.imponibile);
-  const detraibileEur = (totali.imponibile * Math.min(100, Math.max(0, detrazionePct))) / 100;
+  const massimale = form.massimale_detrazione ?? null;
+  const detraibileEur = calcDetraibile(totali.imponibile, detrazionePct, massimale);
+  const oltreMassimale = detrazionePct > 0 && superaMassimale(totali.imponibile, massimale);
 
   const hasComputo = computo.length > 0;
 
@@ -177,6 +180,36 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
                 icon={BadgePercent}
               />
+              {/* Preset incentivi bagno: 1-click → imposta detrazione + massimale di spesa */}
+              <div>
+                <p className="mb-1 text-[10px] text-muted-foreground">Incentivi rapidi (bagno):</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {INCENTIVI_BAGNI.map((inc) => {
+                    const active =
+                      Number(form.detrazione_pct ?? 0) === inc.pct &&
+                      (form.massimale_detrazione ?? null) === inc.massimale;
+                    return (
+                      <button
+                        key={inc.key}
+                        type="button"
+                        title={inc.hint}
+                        onClick={() => {
+                          onChange("detrazione_pct", inc.pct);
+                          onChange("massimale_detrazione", inc.massimale);
+                        }}
+                        className={cn(
+                          "rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors",
+                          active
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-emerald-200 hover:bg-emerald-50/50",
+                        )}
+                      >
+                        {inc.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -208,7 +241,10 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                     </span>
                   </div>
                   <p className="mt-0.5 text-[10px] text-emerald-700/80">
-                    Stima su imponibile netto. Non sostituisce la valutazione di un fiscalista.
+                    {massimale != null
+                      ? `Calcolata sul tetto di spesa di ${formatCurrency(massimale)}${oltreMassimale ? " — spesa oltre il massimale" : ""}. `
+                      : "Stima su imponibile netto. "}
+                    Non sostituisce la valutazione di un fiscalista.
                   </p>
                 </div>
               )}
