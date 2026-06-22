@@ -127,34 +127,144 @@ export class Fattura24Adapter implements BillingProviderAdapter {
 }
 
 // ── ADAPTER 3: ARUBA FATTURAZIONE ELETTRONICA ─────────────────
+// API REST verificata su doc ufficiale (fatturazioneelettronica.aruba.it/apidoc).
+// Auth = OAuth2 password grant (user+password dell'account Aruba) → access_token
+// 30 min + refresh_token. ⚠️ /auth/signin è limitato a 1 richiesta/minuto: il token
+// VA cachato e rinnovato col refresh, mai re-signin a ogni chiamata.
+// Lista emesse = GET /services/invoice/out/findByUsername (paginata, NO importi).
+
+export const ARUBA_AUTH = (demo = false) =>
+  demo ? "https://demoauth.fatturazioneelettronica.aruba.it" : "https://auth.fatturazioneelettronica.aruba.it";
+export const ARUBA_WS = (demo = false) =>
+  demo ? "https://demows.fatturazioneelettronica.aruba.it" : "https://ws.fatturazioneelettronica.aruba.it";
+
+export interface ArubaToken {
+  access_token: string;
+  refresh_token?: string;
+  expires_in: number; // secondi (tipicamente 1800)
+}
+
+// Mappa stato Aruba (stringa) → stato interno. Aruba espone solo lo stato SDI
+// (nessuno stato di pagamento): vedi PROVIDER_CAPABILITIES.supportsPaymentStatus=false.
+export const ARUBA_STATUS_MAP: Record<string, ProviderStatusResult["internalStatus"]> = {
+  "Presa in carico": "sent",        // 1 — accettata da Aruba, in lavorazione
+  "Errore elaborazione": "issued",  // 2 — errore in elaborazione
+  "Inviata": "sent",                // 3 — trasmessa a SDI
+  "Scartata": "issued",             // 4 — scartata da SDI (NS)
+  "Non consegnata": "sent",         // 5 — SDI non ha potuto consegnare (ritenta)
+  "Recapito impossibile": "delivered", // 6 — MC: depositata nel cassetto fiscale
+  "Consegnata": "delivered",        // 7 — consegnata (RC)
+  "Accettata": "delivered",         // 8 — accettata dal destinatario (PA)
+  "Rifiutata": "issued",            // 9 — rifiutata dal destinatario (PA)
+  "Decorrenza termini": "delivered", // 10 — DT (PA)
+};
+
+export async function arubaSignin(username: string, password: string, demo = false): Promise<ArubaToken> {
+  const r = await fetch(`${ARUBA_AUTH(demo)}/auth/signin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: new URLSearchParams({ grant_type: "password", username, password }),
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => "");
+    throw new Error(r.status === 429
+      ? "Aruba: troppe richieste di login (limite 1/min). Riprova tra un minuto."
+      : `Aruba signin HTTP ${r.status}${t ? ` — ${t.slice(0, 120)}` : ""}`);
+  }
+  const d = await r.json();
+  if (!d.access_token) throw new Error("Aruba: credenziali non valide");
+  return { access_token: d.access_token, refresh_token: d.refresh_token, expires_in: d.expires_in ?? 1800 };
+}
+
+export async function arubaRefresh(refresh_token: string, demo = false): Promise<ArubaToken> {
+  const r = await fetch(`${ARUBA_AUTH(demo)}/auth/signin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: new URLSearchParams({ grant_type: "refresh_token", refresh_token }),
+  });
+  if (!r.ok) throw new Error(`Aruba refresh HTTP ${r.status}`);
+  const d = await r.json();
+  if (!d.access_token) throw new Error("Aruba: refresh token non valido");
+  return { access_token: d.access_token, refresh_token: d.refresh_token || refresh_token, expires_in: d.expires_in ?? 1800 };
+}
+
+export async function arubaFindByUsername(
+  token: string,
+  username: string,
+  opts: { page?: number; size?: number; startDate?: string; endDate?: string; demo?: boolean } = {},
+): Promise<{ errorCode?: string; content?: Record<string, unknown>[]; totalPages?: number; totalElements?: number }> {
+  const qs = new URLSearchParams({
+    username,
+    page: String(opts.page ?? 1),
+    size: String(Math.min(opts.size ?? 50, 100)),
+  });
+  if (opts.startDate) qs.set("startDate", opts.startDate);
+  if (opts.endDate) qs.set("endDate", opts.endDate);
+  const r = await fetch(`${ARUBA_WS(opts.demo)}/services/invoice/out/findByUsername?${qs}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (!r.ok) throw new Error(r.status === 429 ? "Aruba: limite richieste superato (12/min)." : `Aruba list HTTP ${r.status}`);
+  const d = await r.json();
+  if (d.errorCode && d.errorCode !== "0000") throw new Error(`Aruba: ${d.errorDescription || d.errorCode}`);
+  return d;
+}
 
 export class ArubaAdapter implements BillingProviderAdapter {
   provider: BillingProvider = "aruba";
-  private token: string;
-  private base = "https://fatturazioneelettronica.aruba.it/v1";
+  private username: string;
+  private password: string;
+  private demo: boolean;
+  private cachedToken?: string;
+  /** Popolato dopo testConnection(): permette al chiamante di persistere il token
+   *  ottenuto nel signin di test, evitando un secondo signin (limite 1/min). */
+  lastToken?: ArubaToken;
 
-  constructor(bearerToken: string) { this.token = bearerToken; }
-  private get h() { return { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" }; }
+  constructor(username: string, password: string, opts: { accessToken?: string; demo?: boolean } = {}) {
+    this.username = username;
+    this.password = password;
+    this.cachedToken = opts.accessToken;
+    this.demo = opts.demo ?? false;
+  }
+
+  private async token(): Promise<string> {
+    if (this.cachedToken) return this.cachedToken;
+    const t = await arubaSignin(this.username, this.password, this.demo);
+    this.lastToken = t;
+    this.cachedToken = t.access_token;
+    return t.access_token;
+  }
 
   async testConnection() {
     try {
-      const r = await fetch(`${this.base}/info`, { headers: this.h });
-      if (!r.ok) return { success: false, error: `HTTP ${r.status}` };
-      const d = await r.json();
-      return { success: true, companyName: d?.company?.name || "Account Aruba" };
-    } catch (e) { return { success: false, error: String(e) }; }
+      const t = await arubaSignin(this.username, this.password, this.demo);
+      this.lastToken = t;
+      this.cachedToken = t.access_token;
+      const list = await arubaFindByUsername(t.access_token, this.username, { size: 1, demo: this.demo });
+      const name = (list.content?.[0]?.sender as Record<string, unknown> | undefined)?.description as string | undefined;
+      return { success: true, companyName: name || "Account Aruba" };
+    } catch (e) { return { success: false, error: String(e instanceof Error ? e.message : e) }; }
   }
 
   async fetchStatus(externalId: string): Promise<ProviderStatusResult> {
-    const r = await fetch(`${this.base}/documents/${externalId}`, { headers: this.h });
-    if (!r.ok) return { success: false, internalStatus: "sent", error: `HTTP ${r.status}` };
-    const d = await r.json();
-    const map: Record<string, ProviderStatusResult["internalStatus"]> = {
-      CONSEGNATA: "delivered", INVIATA: "sent", IN_ELABORAZIONE: "sent",
-      ERRORE: "issued", SCARTATA: "issued",
-      PAGATA: "paid", PAGATO: "paid",
-    };
-    return { success: true, internalStatus: map[d.status] || "issued", externalStatus: d.status, sdiId: d.sdiId?.toString() };
+    try {
+      const token = await this.token();
+      const r = await fetch(`${ARUBA_WS(this.demo)}/services/invoice/out/${externalId}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      });
+      if (!r.ok) return { success: false, internalStatus: "sent", error: `HTTP ${r.status}` };
+      const d = await r.json();
+      // Il dettaglio può tornare come singolo oggetto o dentro content[]; lo stato sta in invoices[].status.
+      const node = (d.content?.[0] ?? d) as Record<string, any>;
+      const statusStr = node?.invoices?.[0]?.status ?? node?.status;
+      return {
+        success: true,
+        internalStatus: ARUBA_STATUS_MAP[statusStr] || "issued",
+        externalStatus: statusStr,
+        sdiId: node?.idSdi?.toString(),
+      };
+    } catch (e) {
+      return { success: false, internalStatus: "sent", error: String(e instanceof Error ? e.message : e) };
+    }
   }
 }
 
@@ -256,8 +366,12 @@ export function createAdapter(integration: {
       if (!integration.api_key) throw new Error("Fattura24: api_key richiesta");
       return new Fattura24Adapter(integration.api_key);
     case "aruba":
-      if (!integration.api_key) throw new Error("Aruba: bearer token richiesto");
-      return new ArubaAdapter(integration.api_key);
+      // Aruba: company_external_id = username, api_key = password (account Aruba FE).
+      if (!integration.company_external_id || !integration.api_key)
+        throw new Error("Aruba: username e password richiesti");
+      return new ArubaAdapter(integration.company_external_id, integration.api_key, {
+        accessToken: integration.access_token || undefined,
+      });
     case "invoicetronic":
       if (!integration.api_key) throw new Error("Invoicetronic: api_key richiesta");
       return new InvoicetronicAdapter(integration.api_key);

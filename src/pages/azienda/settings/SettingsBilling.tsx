@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 const PROVIDERS = [
   { value: "fattureincloud", label: "Fatture in Cloud", authType: "oauth", icon: "🇮🇹" },
   { value: "fattura24", label: "Fattura24", authType: "api_key", icon: "📄" },
-  { value: "aruba", label: "Aruba Fatturazione", authType: "bearer", icon: "🅰️" },
+  { value: "aruba", label: "Aruba Fatturazione", authType: "userpass", icon: "🅰️" },
   { value: "invoicetronic", label: "Invoicetronic", authType: "api_key", icon: "⚡" },
   { value: "itala", label: "ITALA (SDI)", authType: "bearer", icon: "🧾" },
 ] as const;
@@ -40,10 +40,10 @@ const PROVIDER_HELP: Record<string, { text: string; link: string; linkLabel: str
     linkLabel: "Doc Invoicetronic",
   },
   aruba: {
-    text: "Serve un Bearer token dell'API Fatturazione Elettronica di Aruba, ottenuto autenticandoti con le credenziali del tuo account FE Aruba.",
+    text: "Usa le credenziali del tuo account Aruba Fatturazione Elettronica (lo stesso username e password con cui accedi al pannello). EiC le usa per leggere le fatture emesse e lo stato SDI — non lo stato di pagamento.",
     link: "https://fatturazioneelettronica.aruba.it/apidoc/docs.html",
     linkLabel: "Doc API Aruba",
-    warn: "Il token Aruba scade: se la connessione smette di funzionare, rigeneralo e reincollalo.",
+    warn: "Servono le credenziali di un utente abilitato ai Web Service Aruba: verifica nel pannello Aruba che l'accesso alle API sia attivo.",
   },
   itala: {
     text: "Registrati su fattura-elettronica-api.it (intermediario SDI accreditato) e usa come chiave il Bearer token del tuo account. Importa fatture e stato SDI (non lo stato di pagamento).",
@@ -237,6 +237,8 @@ export default function SettingsBilling() {
   const [showAdd, setShowAdd] = useState(false);
   const [newProvider, setNewProvider] = useState("");
   const [newApiKey, setNewApiKey] = useState("");
+  const [newUsername, setNewUsername] = useState(""); // Aruba (e futuri provider user/password)
+  const [newPassword, setNewPassword] = useState("");
   const [newCompanyExternalId, setNewCompanyExternalId] = useState("");
   const [testing, setTesting] = useState<string | null>(null);
 
@@ -288,11 +290,12 @@ export default function SettingsBilling() {
         await connectFic();
         return;
       }
-      // API key / bearer providers — validate server-side
-      const action = newProvider === "aruba" ? "configure_aruba" : "configure_apikey";
-      const bodyPayload = newProvider === "aruba"
-        ? { bearer_token: newApiKey }
-        : { provider: newProvider, api_key: newApiKey };
+      // API key / bearer / user+password providers — validate server-side
+      const isAruba = newProvider === "aruba";
+      const action = isAruba ? "configure_aruba" : "configure_apikey";
+      const bodyPayload = isAruba
+        ? { username: newUsername.trim(), password: newPassword }
+        : { provider: newProvider, api_key: newApiKey.trim() };
       const { data, error } = await supabase.functions.invoke("billing-connect", {
         body: { action, ...bodyPayload },
       });
@@ -314,6 +317,8 @@ export default function SettingsBilling() {
       setShowAdd(false);
       setNewProvider("");
       setNewApiKey("");
+      setNewUsername("");
+      setNewPassword("");
       setNewCompanyExternalId("");
       queryClient.invalidateQueries({ queryKey: ["billing_integrations"] });
     },
@@ -558,15 +563,39 @@ export default function SettingsBilling() {
                             </a>
                           </div>
                         )}
-                        <div>
-                          <Label>{newProvider === "aruba" ? "Bearer Token" : "API Key"}</Label>
-                          <Input
-                            type="password"
-                            value={newApiKey}
-                            onChange={(e) => setNewApiKey(e.target.value)}
-                            placeholder={newProvider === "aruba" ? "Token di autenticazione Aruba" : "Inserisci la chiave API"}
-                          />
-                        </div>
+                        {newProvider === "aruba" ? (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div>
+                              <Label>Username Aruba</Label>
+                              <Input
+                                autoComplete="off"
+                                value={newUsername}
+                                onChange={(e) => setNewUsername(e.target.value)}
+                                placeholder="Username account Aruba FE"
+                              />
+                            </div>
+                            <div>
+                              <Label>Password Aruba</Label>
+                              <Input
+                                type="password"
+                                autoComplete="new-password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="Password account Aruba FE"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <Label>{newProvider === "itala" ? "Bearer Token" : "API Key"}</Label>
+                            <Input
+                              type="password"
+                              value={newApiKey}
+                              onChange={(e) => setNewApiKey(e.target.value)}
+                              placeholder={newProvider === "itala" ? "Bearer token ITALA" : "Inserisci la chiave API"}
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -584,7 +613,7 @@ export default function SettingsBilling() {
                       </div>
                     )}
 
-                    {newProvider && (
+                    {newProvider && newProvider !== "fattureincloud" && newProvider !== "aruba" && (
                       <div>
                         <Label>ID Azienda esterno (opzionale)</Label>
                         <Input
@@ -598,7 +627,13 @@ export default function SettingsBilling() {
                     <div className="flex gap-2">
                       <Button
                         onClick={() => addMutation.mutate()}
-                        disabled={!newProvider || (newProvider !== "fattureincloud" && !newApiKey) || addMutation.isPending}
+                        disabled={
+                          !newProvider ||
+                          (newProvider === "aruba"
+                            ? (!newUsername || !newPassword)
+                            : newProvider !== "fattureincloud" && !newApiKey) ||
+                          addMutation.isPending
+                        }
                       >
                         {addMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                         {newProvider === "fattureincloud" ? "Connetti con OAuth" : "Salva"}

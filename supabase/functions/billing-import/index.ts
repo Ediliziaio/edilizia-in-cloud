@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createAdapter } from "../_shared/billingAdapter.ts";
+import { createAdapter, arubaSignin, arubaRefresh, arubaFindByUsername, ARUBA_STATUS_MAP } from "../_shared/billingAdapter.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -343,33 +343,71 @@ async function fetchFattura24Invoices(integ: any): Promise<any[]> {
   }));
 }
 
-async function fetchArubaInvoices(integ: any): Promise<any[]> {
-  const r = await fetch("https://fatturazioneelettronica.aruba.it/v1/documents?type=out&limit=50", {
-    headers: { Authorization: `Bearer ${integ.api_key}`, "Content-Type": "application/json" },
-  });
-  if (!r.ok) throw new Error(`Aruba API error: ${r.status}`);
-  const d = await r.json();
-  
-  const statusMap: Record<string, string> = {
-    CONSEGNATA: "delivered", INVIATA: "sent", IN_ELABORAZIONE: "sent",
-    SCARTATA: "issued", ERRORE: "issued",
-    PAGATA: "paid", PAGATO: "paid",
-  };
+// Aruba: cache del token (reuse → refresh → signin). /auth/signin è limitato a
+// 1/min, quindi rinnoviamo via refresh_token quando possibile e rifacciamo il signin
+// (con username+password salvati) solo se il refresh non è disponibile/scaduto.
+async function ensureFreshArubaToken(integ: any): Promise<string> {
+  const exp = integ.token_expires_at ? new Date(integ.token_expires_at).getTime() : 0;
+  if (integ.access_token && exp - Date.now() > 120_000) return integ.access_token; // valido >2min
 
-  return (d.documents || []).map((doc: any) => ({
-    externalId: doc.documentId?.toString(),
-    documentType: doc.tipoDocumento === "TD04" ? "credit_note" : "invoice",
-    number: doc.numero,
-    status: statusMap[doc.status] || "issued",
-    clientName: doc.destinatario?.denominazione || "",
-    clientVat: doc.destinatario?.partitaIva,
-    issueDate: doc.data,
-    dueDate: doc.dataScadenza,
-    total: doc.importoTotale || 0,
-    subtotal: doc.imponibile || 0,
-    taxAmount: doc.imposta || 0,
-    lines: [],
-  }));
+  let tok: { access_token: string; refresh_token?: string; expires_in: number } | null = null;
+  if (integ.refresh_token) {
+    try { tok = await arubaRefresh(integ.refresh_token); } catch { /* refresh scaduto → signin */ }
+  }
+  if (!tok) {
+    if (!integ.company_external_id || !integ.api_key)
+      throw new Error("Aruba: credenziali mancanti. Riconnetti l'account in Impostazioni → Provider esterni.");
+    tok = await arubaSignin(integ.company_external_id, integ.api_key);
+  }
+
+  integ.access_token = tok.access_token; // aggiorna in-memory per questa run
+  await supabase.from("billing_integrations").update({
+    access_token: tok.access_token,
+    refresh_token: tok.refresh_token || integ.refresh_token,
+    token_expires_at: new Date(Date.now() + tok.expires_in * 1000).toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq("id", integ.id);
+  return tok.access_token;
+}
+
+async function fetchArubaInvoices(integ: any): Promise<any[]> {
+  const token = await ensureFreshArubaToken(integ);
+  const username = integ.company_external_id;
+  const out: any[] = [];
+  let page = 1;
+  while (true) {
+    const d = await arubaFindByUsername(token, username, { page, size: 50 });
+    const content = (d.content || []) as any[];
+    for (const item of content) {
+      const sdiId = item.idSdi?.toString();
+      const receiver = item.receiver || {};
+      // Un singolo file XML può contenere più fatture (ordinaria): iteriamo invoices[].
+      for (const inv of (item.invoices || [])) {
+        out.push({
+          externalId: item.id?.toString() ?? `${item.filename}:${inv.number}`,
+          documentType: "invoice", // il tipo TD reale è nell'XML, non nella lista Aruba
+          number: inv.number,
+          status: ARUBA_STATUS_MAP[inv.status] || "issued",
+          externalStatus: inv.status,
+          clientName: receiver.description || "",
+          clientVat: receiver.vatCode,
+          clientFiscalCode: receiver.fiscalCode,
+          clientCountry: receiver.countryCode || "IT",
+          issueDate: inv.invoiceDate,
+          // ⚠️ Aruba NON espone gli importi nella lista (servirebbe l'XML p7m firmato):
+          // header + stato SDI sono importati; i totali restano 0 (limite API Aruba).
+          total: 0, subtotal: 0, taxAmount: 0,
+          sdiId,
+          lines: [],
+        });
+      }
+    }
+    const totalPages = d.totalPages || 1;
+    if (page >= totalPages) break;
+    page++;
+    if (page > 20) break; // safety cap: max ~1000 fatture
+  }
+  return out;
 }
 
 async function fetchInvoicetronicInvoices(integ: any): Promise<any[]> {

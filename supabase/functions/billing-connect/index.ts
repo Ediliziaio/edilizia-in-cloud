@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createAdapter } from "../_shared/billingAdapter.ts";
+import { createAdapter, ArubaAdapter } from "../_shared/billingAdapter.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -45,7 +45,9 @@ Deno.serve(async (req) => {
       `client_id=${FIC_CLIENT_ID}` +
       `&redirect_uri=${encodeURIComponent(FIC_REDIRECT_URI)}` +
       `&response_type=code` +
-      `&scope=issued_documents:r+issued_documents:w+clients:r+clients:w+info:r` +
+      // Sola lettura (import/monitoraggio): nessuno scope di scrittura — l'adapter
+      // non crea/modifica nulla su FIC. issued+received per fatture attive/passive, info per l'azienda.
+      `&scope=issued_documents:r+received_documents:r+info:r` +
       `&state=${state}`;
     return json({ auth_url: authUrl });
   }
@@ -110,18 +112,29 @@ Deno.serve(async (req) => {
     return json({ success: true, company_name: test.companyName });
   }
 
-  // ── Configura Aruba (Bearer token)
+  // ── Configura Aruba (username + password account Fatturazione Elettronica)
+  // Aruba usa OAuth2 password grant: salviamo user (company_external_id) + password
+  // (api_key, serve per il re-signin quando scade il refresh) + il token ottenuto nel
+  // test, così l'import non rifà un secondo signin entro il minuto (limite 1/min).
   if (action === "configure_aruba" && req.method === "POST") {
-    const { bearer_token } = body as { bearer_token: string };
-    const adapter = createAdapter({ provider: "aruba", api_key: bearer_token });
+    const { username, password } = body as { username: string; password: string };
+    if (!username || !password) return json({ error: "Username e password Aruba richiesti" }, 400);
+
+    const adapter = new ArubaAdapter(username, password);
     const test = await adapter.testConnection();
-    if (!test.success) return json({ error: "Bearer token Aruba non valido" }, 400);
+    if (!test.success) return json({ error: test.error || "Credenziali Aruba non valide" }, 400);
 
     await supabase.from("billing_integrations").upsert({
       company_id: companyId,
       provider: "aruba",
       is_active: true,
-      api_key: bearer_token,
+      company_external_id: username,
+      api_key: password,
+      access_token: adapter.lastToken?.access_token ?? null,
+      refresh_token: adapter.lastToken?.refresh_token ?? null,
+      token_expires_at: adapter.lastToken
+        ? new Date(Date.now() + adapter.lastToken.expires_in * 1000).toISOString()
+        : null,
       provider_company_name: test.companyName,
       auto_sync: true,
       updated_at: new Date().toISOString(),
