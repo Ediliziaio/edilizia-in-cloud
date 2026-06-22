@@ -77,14 +77,16 @@ function relativeBadge(workStart: string | null, workEnd: string | null, expecte
   } catch {
     return null;
   }
+  // Sfondo saturo + testo BIANCO: massimo contrasto, indipendente dal tema
+  // (chiaro/scuro). Niente testo colorato su sfondo colorato.
   const days = differenceInDays(date, today);
-  if (days < -7) return { label: fmtDate(ref), cls: "bg-muted text-muted-foreground" };
-  if (days < 0) return { label: `${Math.abs(days)}gg fa`, cls: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" };
+  if (days < -7) return { label: fmtDate(ref), cls: "bg-muted text-foreground" };
+  if (days < 0) return { label: `${Math.abs(days)}gg fa`, cls: "bg-amber-500 text-white" };
   if (days === 0) return { label: "OGGI", cls: "bg-emerald-600 text-white" };
-  if (days <= 3) return { label: `${days}gg`, cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" };
-  if (days <= 14) return { label: `${days}gg`, cls: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" };
-  if (days <= 30) return { label: fmtDate(ref), cls: "bg-muted text-muted-foreground" };
-  return { label: fmtDate(ref), cls: "bg-muted text-muted-foreground" };
+  if (days <= 3) return { label: `${days}gg`, cls: "bg-emerald-600 text-white" };
+  if (days <= 14) return { label: `${days}gg`, cls: "bg-blue-600 text-white" };
+  if (days <= 30) return { label: fmtDate(ref), cls: "bg-muted text-foreground" };
+  return { label: fmtDate(ref), cls: "bg-muted text-foreground" };
 }
 
 export function OrderSelectCombobox({ companyId, value, onChange, disabled, placeholder }: Props) {
