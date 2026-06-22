@@ -130,8 +130,8 @@ export const MODULI_VENDITA: readonly ModuloVendutaConfig[] = [
       "Modulo per progettazione e vendita coperture: rifacimento tetto, isolamento termico, lattoneria e linee vita. Calcolo automatico delle quantità e abbinamento incentivi.",
     icon: Home,
     flag: "modulo_tetti_attivo",
-    href: "/azienda/marketing/tetti",
-    availability: "coming_soon",
+    href: "/azienda/tetti",
+    availability: "available",
     benefici: [
       "Rilievo digitale superfici",
       "Stratigrafie certificate",

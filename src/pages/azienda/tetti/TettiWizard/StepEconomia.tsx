@@ -1,0 +1,328 @@
+/**
+ * StepEconomia — parametri economici e riepilogo del preventivo (Task 19).
+ *
+ * Mostra:
+ *  - riepilogo totali PER CAPITOLO + complessivo (da `calcTotaliComputo`)
+ *  - input sconto globale %, IVA %, detrazione/bonus % (opzionale)
+ *  - importo detraibile indicativo (= imponibile × detrazione%)
+ *  - margine complessivo (€/%)
+ *
+ * I tre parametri (`sconto_pct`, `iva_pct`, `detrazione_pct`) sono controllati
+ * via `form`/`onChange`: l'autosave del wizard li persiste su `tet_progetti`.
+ * I totali si ricalcolano con `useMemo` (nessun setState-in-effect, nessun
+ * `Date.now()`/`Math.random()` in render). Numeri it-IT EUR via `formatCurrency`.
+ *
+ * Nota sul calcolo: `calcTotaliComputo` ritorna `perCapitolo[].imponibile` come
+ * somma delle righe (LORDA, pre sconto globale) mentre `imponibile` top-level è
+ * POST sconto globale. Per coerenza visiva mostriamo i subtotali per capitolo e,
+ * sotto, una riga esplicita "Sconto globale" che riconcilia con l'imponibile.
+ */
+import { useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Euro, Percent, TrendingUp, BadgePercent, Info } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/formatters";
+import { calcTotaliComputo } from "@/lib/tetti/calcoli";
+import type { TetComputoVoce, TetProgetto } from "@/types/tetti";
+import type { TetFormPatch } from "./types";
+
+interface Props {
+  form: Partial<TetProgetto>;
+  onChange: <K extends keyof TetFormPatch>(key: K, value: TetFormPatch[K]) => void;
+  computo: TetComputoVoce[];
+}
+
+/** Coerce numerico controllato: stringa vuota → 0, clamp [0,100] per le percentuali. */
+const toPct = (raw: string): number => {
+  const t = raw.trim();
+  if (t === "") return 0;
+  const v = Number(t.replace(",", "."));
+  if (!Number.isFinite(v)) return 0;
+  return Math.min(100, Math.max(0, v));
+};
+
+export default function StepEconomia({ form, onChange, computo }: Props) {
+  const scontoPct = Number(form.sconto_pct ?? 0);
+  const ivaPct = Number(form.iva_pct ?? 10);
+  const detrazionePct = Number(form.detrazione_pct ?? 0);
+
+  // Totali ricalcolati live (puro, memoizzato): single source of truth dei numeri.
+  const totali = useMemo(
+    () =>
+      calcTotaliComputo(
+        computo.map((v) => ({
+          capitolo_nome: v.capitolo_nome,
+          quantita: v.quantita,
+          prezzo_unitario: v.prezzo_unitario,
+          sconto_pct: v.sconto_pct,
+          costo_materiali: v.costo_materiali,
+          costo_manodopera: v.costo_manodopera,
+        })),
+        { sconto_pct: scontoPct, iva_pct: ivaPct },
+      ),
+    [computo, scontoPct, ivaPct],
+  );
+
+  // Imponibile lordo (somma capitoli, pre sconto globale) per la riga di riconciliazione.
+  const lordoCapitoli = useMemo(
+    () => totali.perCapitolo.reduce((s, c) => s + c.imponibile, 0),
+    [totali.perCapitolo],
+  );
+  const scontoGlobaleEur = Math.max(0, lordoCapitoli - totali.imponibile);
+  const detraibileEur = (totali.imponibile * Math.min(100, Math.max(0, detrazionePct))) / 100;
+
+  const hasComputo = computo.length > 0;
+
+  return (
+    <div className="space-y-3">
+      {/* Header */}
+      <div>
+        <h2 className="text-sm font-semibold text-slate-900">Economia</h2>
+        <p className="text-[11px] text-muted-foreground">
+          Sconto, IVA, eventuale detrazione fiscale e riepilogo del preventivo. I totali derivano dal computo.
+        </p>
+      </div>
+
+      {!hasComputo && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2.5">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+          <p className="text-[11px] text-amber-900">
+            Il computo è ancora vuoto: torna allo step <span className="font-medium">Computo</span> per
+            aggiungere le lavorazioni. Qui vedrai i totali aggregati.
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_minmax(280px,360px)]">
+        {/* ─── Riepilogo per capitolo ─────────────────────────────────────── */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-1.5 text-sm">
+              <Euro className="h-4 w-4 text-orange-600" /> Riepilogo per capitolo
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {totali.perCapitolo.length === 0 ? (
+              <p className="px-4 pb-4 text-xs text-muted-foreground">
+                Nessuna voce nel computo.
+              </p>
+            ) : (
+              <div className="overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
+                      <th className="px-4 py-2 text-left font-medium">Capitolo</th>
+                      <th className="px-2 py-2 text-right font-medium">Voci</th>
+                      <th className="px-4 py-2 text-right font-medium">Imponibile</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {totali.perCapitolo.map((c) => (
+                      <tr key={c.nome} className="border-b last:border-0">
+                        <td className="px-4 py-2 font-medium text-slate-800">{c.nome}</td>
+                        <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{c.voci}</td>
+                        <td className="px-4 py-2 text-right font-semibold tabular-nums text-slate-900">
+                          {formatCurrency(c.imponibile)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t bg-muted/30">
+                      <td className="px-4 py-2 text-xs font-medium text-muted-foreground" colSpan={2}>
+                        Subtotale lavorazioni
+                      </td>
+                      <td className="px-4 py-2 text-right font-semibold tabular-nums text-slate-900">
+                        {formatCurrency(lordoCapitoli)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ─── Parametri + totali complessivi ──────────────────────────────── */}
+        <div className="space-y-3">
+          {/* Parametri economici */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-1.5 text-sm">
+                <Percent className="h-4 w-4 text-orange-600" /> Parametri
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <PctField
+                id="tet-sconto"
+                label="Sconto globale"
+                value={form.sconto_pct ?? 0}
+                onCommit={(v) => onChange("sconto_pct", v)}
+              />
+              <PctField
+                id="tet-iva"
+                label="IVA"
+                value={form.iva_pct ?? 10}
+                onCommit={(v) => onChange("iva_pct", v)}
+                hint="In edilizia spesso 10% (tetti) o 4% (prima casa)."
+              />
+              <PctField
+                id="tet-detrazione"
+                label="Detrazione / bonus"
+                value={form.detrazione_pct ?? 0}
+                onCommit={(v) => onChange("detrazione_pct", v)}
+                hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
+                icon={BadgePercent}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Totali complessivi */}
+          <Card className="border-orange-200 bg-gradient-to-b from-orange-50/50 to-transparent">
+            <CardContent className="space-y-2 p-4">
+              <SummaryRow label="Imponibile (lordo)" value={lordoCapitoli} muted />
+              {scontoGlobaleEur > 0 && (
+                <SummaryRow
+                  label={`Sconto globale (${scontoPct.toLocaleString("it-IT")}%)`}
+                  value={-scontoGlobaleEur}
+                  tone="discount"
+                />
+              )}
+              <SummaryRow label="Imponibile netto" value={totali.imponibile} />
+              <SummaryRow label={`IVA (${ivaPct.toLocaleString("it-IT")}%)`} value={totali.iva} muted />
+              <div className="my-1 border-t" />
+              <SummaryRow label="Totale" value={totali.totale} emphasize />
+
+              {detrazionePct > 0 && (
+                <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-800">
+                      <BadgePercent className="h-3.5 w-3.5" />
+                      Detrazione indicativa ({detrazionePct.toLocaleString("it-IT")}%)
+                    </span>
+                    <span className="text-sm font-semibold tabular-nums text-emerald-700">
+                      {formatCurrency(detraibileEur)}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[10px] text-emerald-700/80">
+                    Stima su imponibile netto. Non sostituisce la valutazione di un fiscalista.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Margine complessivo */}
+          <Card>
+            <CardContent className="flex items-center justify-between gap-2 p-4">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+                  <TrendingUp className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-800">Margine complessivo</p>
+                  <p className="text-[10px] text-muted-foreground">Imponibile netto − costi</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p
+                  className={cn(
+                    "text-base font-bold tabular-nums",
+                    totali.margineEur >= 0 ? "text-emerald-600" : "text-rose-600",
+                  )}
+                >
+                  {formatCurrency(totali.margineEur)}
+                </p>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px] tabular-nums",
+                    totali.margineEur >= 0
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-rose-200 bg-rose-50 text-rose-700",
+                  )}
+                >
+                  {totali.marginePct.toLocaleString("it-IT", { maximumFractionDigits: 1 })}%
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Campo percentuale controllato ──────────────────────────────────────────
+interface PctFieldProps {
+  id: string;
+  label: string;
+  value: number;
+  onCommit: (value: number) => void;
+  hint?: string;
+  icon?: React.FC<React.SVGProps<SVGSVGElement>>;
+}
+
+function PctField({ id, label, value, onCommit, hint, icon: Icon }: PctFieldProps) {
+  return (
+    <div className="space-y-1">
+      <Label htmlFor={id} className="flex items-center gap-1 text-xs">
+        {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
+        {label}
+      </Label>
+      <div className="relative">
+        <Input
+          id={id}
+          type="number"
+          inputMode="decimal"
+          min={0}
+          max={100}
+          step="0.5"
+          value={Number.isFinite(value) ? String(value) : "0"}
+          onChange={(e) => onCommit(toPct(e.target.value))}
+          className="h-9 pr-7 text-sm tabular-nums"
+        />
+        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+          %
+        </span>
+      </div>
+      {hint && <p className="text-[10px] text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+// ─── Riga di riepilogo ──────────────────────────────────────────────────────
+function SummaryRow({
+  label, value, muted, emphasize, tone,
+}: {
+  label: string;
+  value: number;
+  muted?: boolean;
+  emphasize?: boolean;
+  tone?: "discount";
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span
+        className={cn(
+          emphasize ? "text-sm font-semibold text-slate-900" : "text-xs",
+          muted ? "text-muted-foreground" : tone === "discount" ? "text-rose-600" : "text-slate-700",
+        )}
+      >
+        {label}
+      </span>
+      <span
+        className={cn(
+          "tabular-nums",
+          emphasize ? "text-lg font-bold text-orange-600" : "text-sm font-medium",
+          muted ? "text-muted-foreground" : tone === "discount" ? "text-rose-600" : "text-slate-900",
+        )}
+      >
+        {formatCurrency(value)}
+      </span>
+    </div>
+  );
+}

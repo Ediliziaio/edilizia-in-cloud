@@ -37,7 +37,7 @@ import {
 import {
   Search, ChevronRight, ChevronLeft, FileText, RectangleVertical, Sun,
   Inbox, X, Target, TrendingUp, Clock, FileCheck2, Euro,
-  SlidersHorizontal, Download, Loader2, Hammer, Bath,
+  SlidersHorizontal, Download, Loader2, Hammer, Bath, Home,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, isSameMonth } from "date-fns";
@@ -56,7 +56,7 @@ import {
   type UnifiedStato,
 } from "@/lib/preventivi/statoUnificato";
 
-export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni";
+export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti";
 export type { UnifiedStato };
 
 export interface UnifiedRow {
@@ -79,6 +79,7 @@ export const TIPO_LABEL: Record<PreventivoTipo, { label: string; className: stri
   fotovoltaico:     { label: "Fotovoltaico",     className: "bg-amber-100 text-amber-800 border-amber-200",    color: "#f59e0b", Icon: Sun },
   ristrutturazione: { label: "Ristrutturazione", className: "bg-teal-100 text-teal-700 border-teal-200",       color: "#0d9488", Icon: Hammer },
   bagni:            { label: "Bagni",            className: "bg-cyan-100 text-cyan-700 border-cyan-200",       color: "#0891b2", Icon: Bath },
+  tetti:            { label: "Tetti",            className: "bg-stone-100 text-stone-700 border-stone-200",    color: "#78716c", Icon: Home },
 };
 
 export const STATO_UNIF_LABEL: Record<UnifiedStato, { label: string; className: string }> = {
@@ -150,6 +151,10 @@ export function UnifiedPreventiviList() {
   );
   const bagniEnabled = useMemo(
     () => moduli.find((m) => m.modulo.slug === "bagni")?.isEnabled ?? false,
+    [moduli],
+  );
+  const tettiEnabled = useMemo(
+    () => moduli.find((m) => m.modulo.slug === "tetti")?.isEnabled ?? false,
     [moduli],
   );
 
@@ -281,6 +286,27 @@ export function UnifiedPreventiviList() {
     },
   });
 
+  const { data: tettiData = [], isLoading: loadingTetti } = useQuery({
+    queryKey: ["unified-prev-tetti", companyId],
+    enabled: !!companyId && tettiEnabled,
+    queryFn: async () => {
+      // Tabella tet_* non ancora nei tipi generati → query via (supabase as any).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("tet_progetti")
+        .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
+        .eq("company_id", companyId!)
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .limit(1000);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null;
+        stato: string; totale: number | null;
+        created_by: string | null; created_at: string; updated_at: string | null;
+      }>;
+    },
+  });
+
   const { data: profiles = [] } = useQuery({
     queryKey: ["unified-prev-profiles", companyId],
     enabled: !!companyId,
@@ -395,8 +421,22 @@ export function UnifiedPreventiviList() {
         href: `/azienda/bagni/${b.id}/modifica`,
       });
     }
+    for (const t of tettiData) {
+      rows.push({
+        id: t.id, tipo: "tetti",
+        numero: t.code ?? "—",
+        cliente: [t.cliente_nome, t.cliente_cognome].filter(Boolean).join(" ") || "—",
+        commerciale_id: t.created_by,
+        commerciale_nome: t.created_by ? commercialeNameById.get(t.created_by) ?? null : null,
+        stato_unif: mapRistrutturazioneStato(t.stato),
+        stato_raw: t.stato,
+        totale: t.totale != null ? Number(t.totale) : null,
+        data: t.updated_at ?? t.created_at,
+        href: `/azienda/tetti/${t.id}/modifica`,
+      });
+    }
     return rows;
-  }, [quotesData, serramentiData, fvData, ristrutturazioneData, bagniData, commercialeNameById]);
+  }, [quotesData, serramentiData, fvData, ristrutturazioneData, bagniData, tettiData, commercialeNameById]);
 
   // ─── KPI globali (su dataset completo) ───────────────────────────────────
   const kpi = useMemo(() => {
@@ -447,7 +487,7 @@ export function UnifiedPreventiviList() {
 
   // ─── Chart data: distribuzione per tipo ─────────────────────────────────
   const tipoDist = useMemo(() => {
-    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0, ristrutturazione: 0, bagni: 0 };
+    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0, ristrutturazione: 0, bagni: 0, tetti: 0 };
     allRows.forEach((r) => { counts[r.tipo]++; });
     return [
       { name: "Classico",         value: counts.classico,         color: TIPO_LABEL.classico.color },
@@ -455,6 +495,7 @@ export function UnifiedPreventiviList() {
       { name: "Fotovoltaico",     value: counts.fotovoltaico,     color: TIPO_LABEL.fotovoltaico.color },
       { name: "Ristrutturazione", value: counts.ristrutturazione, color: TIPO_LABEL.ristrutturazione.color },
       { name: "Bagni",            value: counts.bagni,            color: TIPO_LABEL.bagni.color },
+      { name: "Tetti",            value: counts.tetti,            color: TIPO_LABEL.tetti.color },
     ].filter((d) => d.value > 0);
   }, [allRows]);
 
@@ -617,7 +658,7 @@ export function UnifiedPreventiviList() {
     }
   };
 
-  const isLoading = loadingQuotes || loadingSerramenti || loadingFv || loadingRistrutturazione || loadingBagni;
+  const isLoading = loadingQuotes || loadingSerramenti || loadingFv || loadingRistrutturazione || loadingBagni || loadingTetti;
 
   const tabCounts = {
     all: allRows.length,
@@ -649,6 +690,7 @@ export function UnifiedPreventiviList() {
             fvData.length > 0 ? `${fvData.length} fotovoltaico` : null,
             ristrutturazioneData.length > 0 ? `${ristrutturazioneData.length} ristrutturazione` : null,
             bagniData.length > 0 ? `${bagniData.length} bagni` : null,
+            tettiData.length > 0 ? `${tettiData.length} tetti` : null,
           ].filter(Boolean).join(" · ") || "totale preventivi"} />
         </div>
       </div>
@@ -952,6 +994,7 @@ export function UnifiedPreventiviList() {
         fotovoltaicoEnabled={fotovoltaicoEnabled}
         ristrutturazioneEnabled={ristrutturazioneEnabled}
         bagniEnabled={bagniEnabled}
+        tettiEnabled={tettiEnabled}
         totalResults={filtered.length}
       />
     </div>

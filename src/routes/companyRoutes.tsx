@@ -163,6 +163,10 @@ const RistrutturazioneListino = lazy(() => import("@/pages/azienda/ristrutturazi
 const BagniIndex = lazy(() => import("@/pages/azienda/bagni/BagniIndex"));
 const BagniWizard = lazy(() => import("@/pages/azienda/bagni/BagniWizard"));
 const BagniListino = lazy(() => import("@/pages/azienda/bagni/BagniListino"));
+// Modulo Tetti (clone Ristrutturazione: permission-based, no feature flag DB)
+const TettiIndex = lazy(() => import("@/pages/azienda/tetti/TettiIndex"));
+const TettiWizard = lazy(() => import("@/pages/azienda/tetti/TettiWizard"));
+const TettiListino = lazy(() => import("@/pages/azienda/tetti/TettiListino"));
 const ListiniFornitoriPage = lazy(() =>
   import("@/features/serramenti-listini").then((m) => ({ default: m.ListiniFornitoriPage })),
 );
@@ -857,6 +861,31 @@ export default function CompanyRoutesContainer() {
           withCompanyPermission(
             "canEditMarketingOpportunities",
             <ErrorBoundary title="Errore wizard Bagni"><BagniWizard /></ErrorBoundary>,
+          )
+        } />
+        {/* Modulo Tetti — stesso guard di Ristrutturazione/Bagni (permission-based). */}
+        <Route path="tetti" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore modulo Tetti"><TettiIndex /></ErrorBoundary>,
+          )
+        } />
+        <Route path="tetti/listino" element={
+          withCompanyPermission(
+            "canViewMarketingOpportunities",
+            <ErrorBoundary title="Errore listino Tetti"><TettiListino /></ErrorBoundary>,
+          )
+        } />
+        <Route path="tetti/nuovo" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Tetti"><TettiWizard /></ErrorBoundary>,
+          )
+        } />
+        <Route path="tetti/:id/modifica" element={
+          withCompanyPermission(
+            "canEditMarketingOpportunities",
+            <ErrorBoundary title="Errore wizard Tetti"><TettiWizard /></ErrorBoundary>,
           )
         } />
         <Route path="marketing/preventivi" element={withCompanyPermission("canViewPreventivi", <FeatureRoute featureKey="crm_modulo"><Preventivi /></FeatureRoute>)} />

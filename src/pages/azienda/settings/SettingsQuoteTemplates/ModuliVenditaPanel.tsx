@@ -9,7 +9,7 @@
 import React, { lazy, Suspense, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft, Bath, FileText, Hammer, Loader2, RectangleVertical, ShoppingBag, Sun,
+  ArrowLeft, Bath, Hammer, Home, Loader2, RectangleVertical, ShoppingBag, Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,6 +28,9 @@ const RistrutturazioneTemplateEditor = lazy(() =>
 );
 const BagniTemplateEditor = lazy(() =>
   import("@/components/bagni/BagniTemplateEditor").then((m) => ({ default: m.BagniTemplateEditor })),
+);
+const TettiTemplateEditor = lazy(() =>
+  import("@/components/tetti/TettiTemplateEditor").then((m) => ({ default: m.TettiTemplateEditor })),
 );
 
 interface ModuloVendita {
@@ -91,10 +94,14 @@ const MODULI_VENDITA: ModuloVendita[] = [
   {
     slug: "tetti",
     nome: "Tetti",
-    icon: FileText,
-    description: "In arrivo.",
-    available: false,
-    render: () => null,
+    icon: Home,
+    description: "Template del PDF Preventivatore Tetti: branding, copertina, chi siamo, esigenze, USP, testimonianze, cronoprogramma, condizioni.",
+    available: true,
+    render: () => (
+      <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-orange-600" /></div>}>
+        <TettiTemplateEditor embedded />
+      </Suspense>
+    ),
   },
 ];
 
