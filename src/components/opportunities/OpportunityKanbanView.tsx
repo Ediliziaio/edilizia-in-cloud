@@ -208,7 +208,9 @@ export function OpportunityKanbanView({ stages, opportunities, selectedIds, onSe
               />
             ))}
           </div>
-          <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
+          {/* dropAnimation null: la card non "vola indietro" al rilascio — l'update
+              ottimistico la posiziona subito nella nuova colonna (drop snappy). */}
+          <DragOverlay dropAnimation={null}>
             {activeItem ? (
               // Card "in volo": rotazione + ombra forte + ring colorato = feedback chiaro
               <div className="rotate-2 scale-105 shadow-2xl ring-2 ring-primary rounded-md cursor-grabbing">

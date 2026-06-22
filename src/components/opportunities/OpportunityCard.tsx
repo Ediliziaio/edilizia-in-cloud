@@ -2,7 +2,6 @@ import { memo, useState, useMemo, forwardRef } from "react";
 import { differenceInDays } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { Phone, Mail, Tag, StickyNote, Calendar, Folder, Trash2, UserCircle, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
@@ -38,16 +37,18 @@ export const OpportunityCard = memo(forwardRef<HTMLDivElement, OpportunityCardPr
   const [confirmDelete, setConfirmDelete] = useState(false);
   const { activeFields, layout, isFieldActive } = useCardFieldPreferences();
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, isDragging } = useSortable({
     id: opportunity.id,
     data: { type: "opportunity", stageId: opportunity.stage_id },
     disabled: isOverlay || !canEdit,
   });
 
-  const style = isOverlay ? undefined : {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+  // Card in lista FERME durante il drag: niente transform/transition di riordino
+  // (con le colonne virtualizzate causavano scatti e card che "saltavano"). Il
+  // feedback visivo è dato dalla DragOverlay (card "in volo") + l'highlight della
+  // colonna di destinazione; lo spostamento reale avviene con l'update ottimistico
+  // al rilascio → trascinamento fluido da una fase all'altra.
+  const style = undefined;
 
   const fullName = contact
     ? `${contact.first_name || ""} ${contact.last_name || ""}`.trim()
