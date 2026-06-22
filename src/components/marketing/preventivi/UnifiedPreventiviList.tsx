@@ -37,7 +37,7 @@ import {
 import {
   Search, ChevronRight, ChevronLeft, FileText, RectangleVertical, Sun,
   Inbox, X, Target, TrendingUp, Clock, FileCheck2, Euro,
-  SlidersHorizontal, Download, Loader2, Hammer,
+  SlidersHorizontal, Download, Loader2, Hammer, Bath,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subMonths, startOfMonth, isSameMonth } from "date-fns";
@@ -56,7 +56,7 @@ import {
   type UnifiedStato,
 } from "@/lib/preventivi/statoUnificato";
 
-export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione";
+export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni";
 export type { UnifiedStato };
 
 export interface UnifiedRow {
@@ -78,6 +78,7 @@ export const TIPO_LABEL: Record<PreventivoTipo, { label: string; className: stri
   serramenti:       { label: "Serramenti",       className: "bg-orange-100 text-orange-700 border-orange-200", color: "#f97316", Icon: RectangleVertical },
   fotovoltaico:     { label: "Fotovoltaico",     className: "bg-amber-100 text-amber-800 border-amber-200",    color: "#f59e0b", Icon: Sun },
   ristrutturazione: { label: "Ristrutturazione", className: "bg-teal-100 text-teal-700 border-teal-200",       color: "#0d9488", Icon: Hammer },
+  bagni:            { label: "Bagni",            className: "bg-cyan-100 text-cyan-700 border-cyan-200",       color: "#0891b2", Icon: Bath },
 };
 
 export const STATO_UNIF_LABEL: Record<UnifiedStato, { label: string; className: string }> = {
@@ -145,6 +146,10 @@ export function UnifiedPreventiviList() {
   );
   const ristrutturazioneEnabled = useMemo(
     () => moduli.find((m) => m.modulo.slug === "ristrutturazione")?.isEnabled ?? false,
+    [moduli],
+  );
+  const bagniEnabled = useMemo(
+    () => moduli.find((m) => m.modulo.slug === "bagni")?.isEnabled ?? false,
     [moduli],
   );
 
@@ -241,6 +246,28 @@ export function UnifiedPreventiviList() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("rst_progetti")
+        .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
+        .eq("company_id", companyId!)
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .limit(1000);
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string; code: string | null; cliente_nome: string | null; cliente_cognome: string | null;
+        stato: string; totale: number | null;
+        created_by: string | null; created_at: string; updated_at: string | null;
+      }>;
+    },
+  });
+
+  const { data: bagniData = [], isLoading: loadingBagni } = useQuery({
+    queryKey: ["unified-prev-bagni", companyId],
+    enabled: !!companyId && bagniEnabled,
+    queryFn: async () => {
+      // Tabella bgn_* non ancora nei tipi generati → query via (supabase as any),
+      // stesso pattern di rst_progetti.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("bgn_progetti")
         .select("id, code, cliente_nome, cliente_cognome, stato, totale, created_by, created_at, updated_at")
         .eq("company_id", companyId!)
         .order("updated_at", { ascending: false, nullsFirst: false })
@@ -354,8 +381,22 @@ export function UnifiedPreventiviList() {
         href: `/azienda/ristrutturazione/${r.id}/modifica`,
       });
     }
+    for (const b of bagniData) {
+      rows.push({
+        id: b.id, tipo: "bagni",
+        numero: b.code ?? "—",
+        cliente: [b.cliente_nome, b.cliente_cognome].filter(Boolean).join(" ") || "—",
+        commerciale_id: b.created_by,
+        commerciale_nome: b.created_by ? commercialeNameById.get(b.created_by) ?? null : null,
+        stato_unif: mapRistrutturazioneStato(b.stato),
+        stato_raw: b.stato,
+        totale: b.totale != null ? Number(b.totale) : null,
+        data: b.updated_at ?? b.created_at,
+        href: `/azienda/bagni/${b.id}/modifica`,
+      });
+    }
     return rows;
-  }, [quotesData, serramentiData, fvData, ristrutturazioneData, commercialeNameById]);
+  }, [quotesData, serramentiData, fvData, ristrutturazioneData, bagniData, commercialeNameById]);
 
   // ─── KPI globali (su dataset completo) ───────────────────────────────────
   const kpi = useMemo(() => {
@@ -406,13 +447,14 @@ export function UnifiedPreventiviList() {
 
   // ─── Chart data: distribuzione per tipo ─────────────────────────────────
   const tipoDist = useMemo(() => {
-    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0, ristrutturazione: 0 };
+    const counts: Record<PreventivoTipo, number> = { classico: 0, serramenti: 0, fotovoltaico: 0, ristrutturazione: 0, bagni: 0 };
     allRows.forEach((r) => { counts[r.tipo]++; });
     return [
       { name: "Classico",         value: counts.classico,         color: TIPO_LABEL.classico.color },
       { name: "Serramenti",       value: counts.serramenti,       color: TIPO_LABEL.serramenti.color },
       { name: "Fotovoltaico",     value: counts.fotovoltaico,     color: TIPO_LABEL.fotovoltaico.color },
       { name: "Ristrutturazione", value: counts.ristrutturazione, color: TIPO_LABEL.ristrutturazione.color },
+      { name: "Bagni",            value: counts.bagni,            color: TIPO_LABEL.bagni.color },
     ].filter((d) => d.value > 0);
   }, [allRows]);
 
@@ -575,7 +617,7 @@ export function UnifiedPreventiviList() {
     }
   };
 
-  const isLoading = loadingQuotes || loadingSerramenti || loadingFv || loadingRistrutturazione;
+  const isLoading = loadingQuotes || loadingSerramenti || loadingFv || loadingRistrutturazione || loadingBagni;
 
   const tabCounts = {
     all: allRows.length,
@@ -606,6 +648,7 @@ export function UnifiedPreventiviList() {
             serramentiData.length > 0 ? `${serramentiData.length} serramenti` : null,
             fvData.length > 0 ? `${fvData.length} fotovoltaico` : null,
             ristrutturazioneData.length > 0 ? `${ristrutturazioneData.length} ristrutturazione` : null,
+            bagniData.length > 0 ? `${bagniData.length} bagni` : null,
           ].filter(Boolean).join(" · ") || "totale preventivi"} />
         </div>
       </div>
@@ -908,6 +951,7 @@ export function UnifiedPreventiviList() {
         serramentiEnabled={serramentiEnabled}
         fotovoltaicoEnabled={fotovoltaicoEnabled}
         ristrutturazioneEnabled={ristrutturazioneEnabled}
+        bagniEnabled={bagniEnabled}
         totalResults={filtered.length}
       />
     </div>
