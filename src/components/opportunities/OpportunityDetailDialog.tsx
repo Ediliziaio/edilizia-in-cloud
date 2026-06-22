@@ -28,7 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Trash2, StickyNote, FileText, CalendarDays, Activity,
   Settings2, User, Mail, Phone, UserPlus, DatabaseZap, RefreshCw, Folder,
-  Target, AlertTriangle, Trophy, MessageCircle, ExternalLink, History, Calculator,
+  Target, AlertTriangle, Trophy, MessageCircle, ExternalLink, History,
 } from "lucide-react";
 import { useUpdateOpportunityMutation } from "@/hooks/useSalesOS";
 import { format } from "date-fns";
@@ -46,7 +46,6 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { cleanPhone } from "@/lib/contactUtils";
 import { QuickContactSendDialog, type QuickSendChannel } from "@/components/contacts/QuickContactSendDialog";
 import { ContactActivityRegister } from "@/components/contacts/ContactActivityRegister";
-import { RoiSimulatorDialog } from "@/components/marketing/RoiSimulatorDialog";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 
@@ -76,7 +75,7 @@ const SELECT_TRIGGER_CLS =
 
 export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab, canEdit = true }: Props) {
   const navigate = useNavigate();
-  const { effectiveCompany, role } = useAuth();
+  const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
   const canEditOpportunity = canEdit && (permissions.canEditMarketingOpportunities || permissions.canEditMarketing);
@@ -100,7 +99,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
   const [tab, setTab] = useState<Tab>("details");
   const [hideEmpty, setHideEmpty] = useState(false);
-  const [roiOpen, setRoiOpen] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -530,20 +528,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                   label="Preventivo"
                 />
               </div>
-            )}
-            {/* Simulatore ROI — strumento di vendita EiC: solo super_admin, non a livello azienda. */}
-            {role === "super_admin" && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setRoiOpen(true)}
-                className="shrink-0 h-9 sm:h-8 gap-1.5 mt-0.5 sm:mt-0"
-                title="Apri il Simulatore ROI per questo cliente"
-              >
-                <Calculator className="h-4 w-4 text-primary" />
-                <span className="hidden sm:inline">Simulatore ROI</span>
-              </Button>
             )}
             <button
               type="button"
@@ -1209,17 +1193,6 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
           queryClient.invalidateQueries({ queryKey: ["reg-wa"] });
           queryClient.invalidateQueries({ queryKey: ["reg-email-out"] });
         }}
-      />
-    )}
-
-    {opportunity?.id && roiOpen && role === "super_admin" && (
-      <RoiSimulatorDialog
-        open={roiOpen}
-        onOpenChange={setRoiOpen}
-        opportunityId={opportunity.id}
-        contactId={opportunity.contact_id ?? null}
-        defaultClientName={fullName || opportunity.name || ""}
-        defaultContactEmail={contact?.email ?? null}
       />
     )}
     </>
