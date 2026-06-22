@@ -392,49 +392,19 @@ export function OpportunityQuotesTab({ contactId, companyId, opportunityId }: Pr
   if (contactId) builderQs.set("contact_id", contactId);
   if (opportunityId) builderQs.set("opportunity_id", opportunityId);
 
-  const serramentiQs = new URLSearchParams();
-  if (contactId) serramentiQs.set("contact_id", contactId);
-  if (opportunityId) serramentiQs.set("opportunity_id", opportunityId);
-
-  const fvQs = new URLSearchParams();
-  if (contactId) fvQs.set("contact_id", contactId);
-  if (opportunityId) fvQs.set("opportunity_id", opportunityId);
-
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h3 className="text-sm font-semibold">Preventivi</h3>
         <div className="flex gap-2 flex-wrap">
-          {serramentiEnabled && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-orange-300 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
-              onClick={() => navigate(`/azienda/serramenti/nuovo?${serramentiQs.toString()}`)}
-            >
-              <RectangleVertical className="h-3.5 w-3.5 mr-1 text-orange-600" />
-              Preventivo Serramenti
-            </Button>
-          )}
-          {fotovoltaicoEnabled && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
-              onClick={() => navigate(`/azienda/marketing/fotovoltaico/nuovo?${fvQs.toString()}`)}
-            >
-              <Sun className="h-3.5 w-3.5 mr-1 text-amber-500" />
-              Preventivo Fotovoltaico
-            </Button>
-          )}
           <Button
             size="sm"
             variant="outline"
             onClick={() => navigate(`/azienda/marketing/preventivi/nuovo?${builderQs.toString()}`)}
           >
             <ExternalLink className="h-3.5 w-3.5 mr-1" />
-            Builder completo
+            Preventivo avanzato
           </Button>
         </div>
       </div>
