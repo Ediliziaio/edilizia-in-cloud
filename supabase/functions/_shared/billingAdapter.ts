@@ -9,6 +9,7 @@ export type BillingProvider =
   | "aruba"
   | "invoicetronic"
   | "itala"
+  | "acube"
   | "standalone";
 
 // Capacità per-provider. I provider "puri SDI" espongono SOLO lo stato di
@@ -21,6 +22,7 @@ export const PROVIDER_CAPABILITIES: Record<string, { supportsPaymentStatus: bool
   aruba: { supportsPaymentStatus: false, label: "Aruba" },
   invoicetronic: { supportsPaymentStatus: false, label: "Invoicetronic" },
   itala: { supportsPaymentStatus: false, label: "ITALA (fattura-elettronica-api.it)" },
+  acube: { supportsPaymentStatus: false, label: "A-Cube" },
   standalone: { supportsPaymentStatus: false, label: "Standalone" },
 };
 
@@ -339,7 +341,104 @@ export class ItalaAdapter implements BillingProviderAdapter {
   }
 }
 
-// ── ADAPTER 6: STANDALONE ─────────────────────────────────────
+// ── ADAPTER 6: A-CUBE (acubeapi.com) ──────────────────────────
+// BETA. Auth verificata (doc ufficiale): login email/password → JWT 24h su host
+// "common"; le risorse gov-it stanno su un host separato. ⚠️ Host risorse gov-it e
+// nomi-campo per-fattura NON verificati (doc reference JS-rendered): testConnection
+// valida PRIMA host+credenziali, così un host errato fallisce subito invece di
+// importare dati sbagliati. Stato SDI nel campo `marking`. Nessuno stato pagamento.
+
+export const ACUBE_AUTH = (demo = false) =>
+  demo ? "https://common-sandbox.api.acubeapi.com" : "https://common.api.acubeapi.com";
+// Host risorse gov-it (Italia) — DA VALIDARE sullo swagger sandbox (api-sandbox.acubeapi.com/docs.html).
+export const ACUBE_API = (demo = false) =>
+  demo ? "https://api-sandbox.acubeapi.com" : "https://api.acubeapi.com";
+
+export const ACUBE_MARKING_MAP: Record<string, ProviderStatusResult["internalStatus"]> = {
+  waiting: "sent", quarantena: "sent", sent: "sent", "invoice-error": "issued",
+  received: "delivered", rejected: "issued", delivered: "delivered",
+  "delivered-pa": "delivered", "not-delivered": "delivered", "deadline-terms": "delivered",
+};
+
+export async function acubeLogin(email: string, password: string, demo = false): Promise<string> {
+  const r = await fetch(`${ACUBE_AUTH(demo)}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!r.ok) throw new Error(r.status === 401 ? "A-Cube: credenziali non valide" : `A-Cube login HTTP ${r.status}`);
+  const d = await r.json();
+  if (!d.token) throw new Error("A-Cube: token non ricevuto");
+  return d.token as string;
+}
+
+export async function acubeListInvoices(
+  token: string,
+  opts: { page?: number; itemsPerPage?: number; demo?: boolean } = {},
+): Promise<Record<string, any>> {
+  const qs = new URLSearchParams({
+    page: String(opts.page ?? 1),
+    itemsPerPage: String(Math.min(opts.itemsPerPage ?? 100, 100)),
+  });
+  const r = await fetch(`${ACUBE_API(opts.demo)}/invoices?${qs}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/ld+json" },
+  });
+  if (!r.ok) throw new Error(`A-Cube list HTTP ${r.status}`);
+  return await r.json();
+}
+
+export class AcubeAdapter implements BillingProviderAdapter {
+  provider: BillingProvider = "acube";
+  private email: string;
+  private password: string;
+  private demo: boolean;
+  private cachedToken?: string;
+  /** Token JWT (24h) ottenuto nel login: il chiamante lo persiste per riusarlo. */
+  lastToken?: string;
+
+  constructor(email: string, password: string, opts: { accessToken?: string; demo?: boolean } = {}) {
+    this.email = email;
+    this.password = password;
+    this.cachedToken = opts.accessToken;
+    this.demo = opts.demo ?? false;
+  }
+
+  private async token(): Promise<string> {
+    if (this.cachedToken) return this.cachedToken;
+    const t = await acubeLogin(this.email, this.password, this.demo);
+    this.lastToken = t;
+    this.cachedToken = t;
+    return t;
+  }
+
+  async testConnection() {
+    try {
+      const t = await acubeLogin(this.email, this.password, this.demo);
+      this.lastToken = t;
+      this.cachedToken = t;
+      // Valida l'host risorse: se è errato/non raggiungibile, fallisce QUI (niente import sbagliato).
+      await acubeListInvoices(t, { itemsPerPage: 1, demo: this.demo });
+      return { success: true, companyName: "Account A-Cube" };
+    } catch (e) { return { success: false, error: String(e instanceof Error ? e.message : e) }; }
+  }
+
+  async fetchStatus(externalId: string): Promise<ProviderStatusResult> {
+    try {
+      const token = await this.token();
+      const r = await fetch(`${ACUBE_API(this.demo)}/invoices/${externalId}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      });
+      if (!r.ok) return { success: false, internalStatus: "sent", error: `HTTP ${r.status}` };
+      const d = await r.json();
+      const marking = d?.marking;
+      return { success: true, internalStatus: ACUBE_MARKING_MAP[marking] || "issued", externalStatus: marking };
+    } catch (e) {
+      return { success: false, internalStatus: "sent", error: String(e instanceof Error ? e.message : e) };
+    }
+  }
+}
+
+// ── ADAPTER 7: STANDALONE ─────────────────────────────────────
 
 export class StandaloneAdapter implements BillingProviderAdapter {
   provider: BillingProvider = "standalone";
@@ -378,6 +477,13 @@ export function createAdapter(integration: {
     case "itala":
       if (!integration.api_key) throw new Error("ITALA: bearer token richiesto");
       return new ItalaAdapter(integration.api_key);
+    case "acube":
+      // A-Cube: company_external_id = email, api_key = password.
+      if (!integration.company_external_id || !integration.api_key)
+        throw new Error("A-Cube: email e password richieste");
+      return new AcubeAdapter(integration.company_external_id, integration.api_key, {
+        accessToken: integration.access_token || undefined,
+      });
     default:
       return new StandaloneAdapter();
   }

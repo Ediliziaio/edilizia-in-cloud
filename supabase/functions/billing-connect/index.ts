@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createAdapter, ArubaAdapter } from "../_shared/billingAdapter.ts";
+import { createAdapter, ArubaAdapter, AcubeAdapter } from "../_shared/billingAdapter.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -134,6 +134,35 @@ Deno.serve(async (req) => {
       refresh_token: adapter.lastToken?.refresh_token ?? null,
       token_expires_at: adapter.lastToken
         ? new Date(Date.now() + adapter.lastToken.expires_in * 1000).toISOString()
+        : null,
+      provider_company_name: test.companyName,
+      auto_sync: true,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "company_id,provider" });
+
+    return json({ success: true, company_name: test.companyName });
+  }
+
+  // ── Configura A-Cube (email + password account A-Cube) — BETA
+  // Login email/password → JWT 24h: salviamo email (company_external_id) + password
+  // (api_key, per il re-login) + il token ottenuto nel test (valido 24h).
+  if (action === "configure_acube" && req.method === "POST") {
+    const { email, password } = body as { email: string; password: string };
+    if (!email || !password) return json({ error: "Email e password A-Cube richieste" }, 400);
+
+    const adapter = new AcubeAdapter(email, password);
+    const test = await adapter.testConnection();
+    if (!test.success) return json({ error: test.error || "Credenziali A-Cube non valide" }, 400);
+
+    await supabase.from("billing_integrations").upsert({
+      company_id: companyId,
+      provider: "acube",
+      is_active: true,
+      company_external_id: email,
+      api_key: password,
+      access_token: adapter.lastToken ?? null,
+      token_expires_at: adapter.lastToken
+        ? new Date(Date.now() + 24 * 3600 * 1000).toISOString()
         : null,
       provider_company_name: test.companyName,
       auto_sync: true,

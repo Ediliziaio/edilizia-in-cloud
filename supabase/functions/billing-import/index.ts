@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createAdapter, arubaSignin, arubaRefresh, arubaFindByUsername, ARUBA_STATUS_MAP } from "../_shared/billingAdapter.ts";
+import { createAdapter, arubaSignin, arubaRefresh, arubaFindByUsername, ARUBA_STATUS_MAP, acubeLogin, acubeListInvoices, ACUBE_MARKING_MAP } from "../_shared/billingAdapter.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -209,6 +209,7 @@ async function fetchProviderInvoices(adapter: any, integ: any): Promise<any[]> {
   if (provider === "aruba") return await fetchArubaInvoices(integ);
   if (provider === "invoicetronic") return await fetchInvoicetronicInvoices(integ);
   if (provider === "itala") return await fetchItalaInvoices(integ);
+  if (provider === "acube") return await fetchAcubeInvoices(integ);
 
   return [];
 }
@@ -406,6 +407,56 @@ async function fetchArubaInvoices(integ: any): Promise<any[]> {
     if (page >= totalPages) break;
     page++;
     if (page > 20) break; // safety cap: max ~1000 fatture
+  }
+  return out;
+}
+
+// A-Cube (BETA): JWT 24h. Riusa il token finché valido, altrimenti rifà il login
+// (la doc raccomanda di non rifarlo più spesso di ogni 24h).
+async function ensureFreshAcubeToken(integ: any): Promise<string> {
+  const exp = integ.token_expires_at ? new Date(integ.token_expires_at).getTime() : 0;
+  if (integ.access_token && exp - Date.now() > 300_000) return integ.access_token; // valido >5min
+  if (!integ.company_external_id || !integ.api_key)
+    throw new Error("A-Cube: credenziali mancanti. Riconnetti l'account.");
+  const token = await acubeLogin(integ.company_external_id, integ.api_key);
+  integ.access_token = token;
+  await supabase.from("billing_integrations").update({
+    access_token: token,
+    token_expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq("id", integ.id);
+  return token;
+}
+
+async function fetchAcubeInvoices(integ: any): Promise<any[]> {
+  const token = await ensureFreshAcubeToken(integ);
+  const out: any[] = [];
+  let page = 1;
+  while (true) {
+    const d = await acubeListInvoices(token, { page, itemsPerPage: 100 });
+    const members = (d["hydra:member"] || []) as any[];
+    for (const m of members) {
+      // ⚠️ A-Cube BETA: id (uuid) e stato (marking) sono verificati; gli altri campi
+      // (numero/data/importi/cliente) hanno nomi NON confermati → best-effort multi-chiave,
+      // da validare su account sandbox prima di farci affidamento sugli importi.
+      out.push({
+        externalId: (m.uuid || m["@id"] || "").toString(),
+        documentType: "invoice",
+        number: m.number ?? m.invoice_number ?? m.document_number ?? null,
+        status: ACUBE_MARKING_MAP[m.marking] || "issued",
+        externalStatus: m.marking,
+        clientName: m.recipient_name ?? m.customer_name ?? m.cessionario?.denominazione ?? "",
+        clientVat: m.recipient_vat ?? m.customer_vat ?? null,
+        issueDate: m.date ?? m.invoice_date ?? m.created_at ?? null,
+        total: Number(m.amount ?? m.total ?? m.amount_total ?? 0) || 0,
+        subtotal: 0, taxAmount: 0,
+        lines: [],
+      });
+    }
+    const next = (d["hydra:view"] as any)?.["hydra:next"];
+    if (!next || members.length === 0) break;
+    page++;
+    if (page > 20) break; // safety cap
   }
   return out;
 }
