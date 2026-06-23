@@ -20,6 +20,7 @@ import {
   TrendingUp, TrendingDown, Layers, Target, Trophy, UserPlus, Flame, Loader2, BarChart3,
 } from "lucide-react";
 import { CrmTemperatureCard, CrmWinLossCard } from "@/components/admin/crm-dashboard/CrmSegmentDonuts";
+import { CrmFunnelCard, CrmChannelsCard, CrmClustersCard } from "@/components/admin/crm-dashboard/CrmSegmentBars";
 
 type PeriodKey = "7" | "30" | "90" | "365";
 const PERIODS: { key: PeriodKey; label: string }[] = [
@@ -306,8 +307,17 @@ export default function AdminMarketingCommercialDashboard() {
         <CrmWinLossCard companyId={companyId} />
       </div>
 
+      {/* Funnel + fonti */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <CrmFunnelCard companyId={companyId} />
+        <CrmChannelsCard companyId={companyId} />
+      </div>
+
+      {/* Cluster mestiere + zona */}
+      <CrmClustersCard companyId={companyId} />
+
       <p className="px-1 text-xs text-muted-foreground">
-        Altre sezioni (fonti &amp; ROI, cluster, Aziende, team, alert e riepilogo AI) in arrivo.
+        Altre sezioni (Aziende/Account, team, alert e riepilogo AI) in arrivo.
       </p>
     </div>
   );
