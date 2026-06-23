@@ -172,6 +172,7 @@ const allNavItems: AdminNavItem[] = [
 ];
 
 const adminMarketingNavItems: AdminNavItem[] = [
+  { title: "Dashboard", url: "/admin/marketing/dashboard", icon: LayoutDashboard, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
   { title: "Outreach", url: "/admin/marketing", icon: BarChart3, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
   { title: "Contatti & Lead", url: "/admin/marketing/contatti", icon: Users, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },
   { title: "Lead Scraper", url: "/admin/marketing/lead-scraper", icon: Search, permission: "can_manage_marketing", subcategory: "sa_mkt_crm" },

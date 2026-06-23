@@ -71,6 +71,7 @@ const AdminSettingsWebhookLogs = lazy(() => import("@/pages/admin/settings/Admin
 const AdminSettingsBankingOverview = lazy(() => import("@/pages/admin/settings/AdminSettingsBankingOverview"));
 const AdminSettingsAIUsage = lazy(() => import("@/pages/admin/settings/AdminSettingsAIUsage"));
 const AdminMarketingDashboard = lazy(() => import("@/pages/admin/marketing/AdminMarketingDashboard"));
+const AdminMarketingCommercialDashboard = lazy(() => import("@/pages/admin/marketing/AdminMarketingCommercialDashboard"));
 const AdminMarketingContacts = lazy(() => import("@/pages/admin/marketing/AdminMarketingContacts"));
 const AdminLeadScraper = lazy(() => import("@/pages/admin/marketing/AdminLeadScraper"));
 const AdminMarketingOpportunities = lazy(() => import("@/pages/admin/marketing/AdminMarketingOpportunities"));
@@ -315,6 +316,7 @@ export default function AdminRoutesContainer() {
         <Route path="chat" element={<RequireAdminPermission permission="can_manage_companies"><AdminTeamChat /></RequireAdminPermission>} />
         <Route path="gdpr" element={<Navigate to="/admin/operazioni?tab=gdpr" replace />} />
         <Route path="marketing" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingDashboard /></RequireAdminPermission>} />
+        <Route path="marketing/dashboard" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingCommercialDashboard /></RequireAdminPermission>} />
         <Route path="marketing/contatti" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingContacts /></RequireAdminPermission>} />
         <Route path="marketing/contatti/:id" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingContactDetail /></RequireAdminPermission>} />
         <Route path="marketing/lead-scraper" element={<RequireAdminPermission permission="can_manage_marketing"><AdminLeadScraper /></RequireAdminPermission>} />
