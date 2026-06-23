@@ -119,7 +119,7 @@ export default function InvoicesList() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success("Sincronizzazione completata", {
-        description: `${data?.imported || 0} fatture importate, ${data?.updated || 0} aggiornate`,
+        description: `${data?.imported || 0} importate, ${data?.updated || 0} aggiornate${data?.failed ? `, ${data.failed} fallite` : ""}`,
       });
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
     } catch (e) {

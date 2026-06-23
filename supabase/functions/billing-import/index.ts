@@ -55,6 +55,8 @@ Deno.serve(async (req) => {
 
     let imported = 0;
     let updated = 0;
+    let failed = 0;
+    const importErrors: string[] = [];
 
     for (const inv of invoices) {
       const externalId = inv.externalId;
@@ -98,20 +100,29 @@ Deno.serve(async (req) => {
       };
 
       if (existing) {
-        await supabase.from("invoices").update(invoiceData).eq("id", existing.id);
-        
+        // NB: controllare SEMPRE l'errore — prima veniva ingoiato e il conteggio
+        // mentiva ("100 importate" con 0 righe scritte se un trigger falliva).
+        const { error: updErr } = await supabase.from("invoices").update(invoiceData).eq("id", existing.id);
+        if (updErr) { failed++; if (importErrors.length < 5) importErrors.push(`#${inv.number}: ${updErr.message}`); continue; }
+
         // Fix #5: Atomic line update — insert new first, then delete old
         if (inv.lines?.length) {
           await updateInvoiceLinesAtomically(existing.id, inv.lines);
         }
         updated++;
       } else {
-        const { data: newInv } = await supabase.from("invoices").insert({
+        const { data: newInv, error: insErr } = await supabase.from("invoices").insert({
           ...invoiceData,
           created_by: user.id,
         }).select("id").single();
 
-        if (newInv && inv.lines?.length) {
+        if (insErr || !newInv) {
+          failed++;
+          if (importErrors.length < 5) importErrors.push(`#${inv.number}: ${insErr?.message ?? "insert nullo"}`);
+          continue;
+        }
+
+        if (inv.lines?.length) {
           await supabase.from("invoice_lines").insert(
             mapLinesToDb(newInv.id, inv.lines)
           );
@@ -134,10 +145,10 @@ Deno.serve(async (req) => {
       direction: "pull",
       action: "import",
       status: "success",
-      response_payload: { imported, updated, total: invoices.length },
+      response_payload: { imported, updated, failed, total: invoices.length, errors: importErrors },
     });
 
-    return json({ success: true, imported, updated, total: invoices.length });
+    return json({ success: true, imported, updated, failed, total: invoices.length, errors: importErrors });
   } catch (e) {
     console.error("billing-import error:", e);
 
