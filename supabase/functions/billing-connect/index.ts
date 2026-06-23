@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
   // ── OAuth2 FIC: ottieni URL autorizzazione
   if (action === "get_fic_auth_url") {
     const state = btoa(JSON.stringify({ company_id: companyId, ts: Date.now() }));
-    const authUrl = `https://api.fattureincloud.it/v2/oauth/authorize?` +
+    const authUrl = `https://api-v2.fattureincloud.it/oauth/authorize?` +
       `client_id=${FIC_CLIENT_ID}` +
       `&redirect_uri=${encodeURIComponent(FIC_REDIRECT_URI)}` +
       `&response_type=code` +
@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
   // ── OAuth2 FIC: scambia codice con token
   if (action === "fic_oauth_callback" && req.method === "POST") {
     const { code } = body as { code: string };
-    const tokenRes = await fetch("https://api.fattureincloud.it/v2/oauth/token", {
+    const tokenRes = await fetch("https://api-v2.fattureincloud.it/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     if (!tokenRes.ok) return json({ error: "Token exchange failed" }, 400);
     const td = await tokenRes.json();
 
-    const compRes = await fetch("https://api.fattureincloud.it/v2/user/companies", {
+    const compRes = await fetch("https://api-v2.fattureincloud.it/user/companies", {
       headers: { Authorization: `Bearer ${td.access_token}` },
     });
     const compData = compRes.ok ? await compRes.json() : null;

@@ -231,7 +231,7 @@ async function ensureFreshFicToken(integ: any): Promise<void> {
   if (exp && exp - Date.now() > 60_000) return; // ancora valido (>60s)
   if (!integ.refresh_token || !FIC_CLIENT_ID || !FIC_CLIENT_SECRET) return; // niente refresh possibile
   try {
-    const r = await fetch("https://api.fattureincloud.it/v2/oauth/token", {
+    const r = await fetch("https://api-v2.fattureincloud.it/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
@@ -256,7 +256,7 @@ async function ensureFreshFicToken(integ: any): Promise<void> {
 
 async function fetchFICInvoices(integ: any): Promise<any[]> {
   await ensureFreshFicToken(integ);
-  const base = `https://api.fattureincloud.it/v2/c/${integ.company_external_id}`;
+  const base = `https://api-v2.fattureincloud.it/c/${integ.company_external_id}`;
   const h = { Authorization: `Bearer ${integ.access_token}`, "Content-Type": "application/json" };
 
   // Paginate through all results (100 per page max)

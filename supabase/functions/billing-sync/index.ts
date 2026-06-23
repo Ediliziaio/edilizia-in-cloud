@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
               integration.access_token = freshIntegration!.access_token as string;
             } else {
               // Eseguire il refresh
-              const r = await fetch("https://api.fattureincloud.it/v2/oauth/token", {
+              const r = await fetch("https://api-v2.fattureincloud.it/oauth/token", {
                 method: "POST",
                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
                 body: new URLSearchParams({

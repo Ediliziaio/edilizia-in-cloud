@@ -54,12 +54,12 @@ export class FattureInCloudAdapter implements BillingProviderAdapter {
     this.ficCompanyId = ficCompanyId;
   }
 
-  private get base() { return `https://api.fattureincloud.it/v2/c/${this.ficCompanyId}`; }
+  private get base() { return `https://api-v2.fattureincloud.it/c/${this.ficCompanyId}`; }
   private get h() { return { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" }; }
 
   async testConnection() {
     try {
-      const r = await fetch("https://api.fattureincloud.it/v2/user/companies", { headers: this.h });
+      const r = await fetch("https://api-v2.fattureincloud.it/user/companies", { headers: this.h });
       if (!r.ok) return { success: false, error: `HTTP ${r.status}` };
       const d = await r.json();
       const co = d?.data?.companies?.find((c: Record<string, unknown>) => c.id?.toString() === this.ficCompanyId);
