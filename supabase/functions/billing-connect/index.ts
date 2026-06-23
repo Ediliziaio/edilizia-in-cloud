@@ -60,7 +60,10 @@ Deno.serve(async (req) => {
       // né "info:r". Servono invoices + credit_notes (documenti emessi importati) +
       // entity.clients (anagrafica cliente embeddata nelle fatture). Separatore = spazio (qui "+").
       `&scope=issued_documents.invoices:r+issued_documents.credit_notes:r+entity.clients:r` +
-      `&state=${state}`;
+      // ⚠️ encodeURIComponent OBBLIGATORIO: btoa() produce base64 con `+`, `/`, `=` che nel
+      // querystring vengono interpretati (es. `+`→spazio) corrompendo lo state → al callback
+      // atob() fallisce e company_id va perso (token salvato sull'azienda sbagliata).
+      `&state=${encodeURIComponent(state)}`;
     return json({ auth_url: authUrl });
   }
 
@@ -80,12 +83,17 @@ Deno.serve(async (req) => {
     });
     if (!tokenRes.ok) return json({ error: "Token exchange failed" }, 400);
     const td = await tokenRes.json();
+    // Guard: senza access_token NON salvare un'integrazione "attiva" inutilizzabile
+    // (darebbe errore a ogni import). Meglio fallire subito con messaggio chiaro.
+    if (!td.access_token) return json({ error: "Fatture in Cloud non ha restituito un token valido. Riprova il collegamento." }, 400);
 
     const compRes = await fetch("https://api-v2.fattureincloud.it/user/companies", {
       headers: { Authorization: `Bearer ${td.access_token}` },
     });
     const compData = compRes.ok ? await compRes.json() : null;
     const ficCo = compData?.data?.companies?.[0];
+    // Senza company_external_id l'import non sa quale azienda FIC interrogare (/c/{id}).
+    if (!ficCo?.id) return json({ error: "Nessuna azienda trovata sul tuo account Fatture in Cloud." }, 400);
 
     await supabase.from("billing_integrations").upsert({
       company_id: companyId,
@@ -93,7 +101,9 @@ Deno.serve(async (req) => {
       is_active: true,
       access_token: td.access_token,
       refresh_token: td.refresh_token,
-      token_expires_at: new Date(Date.now() + td.expires_in * 1000).toISOString(),
+      // expires_in difensivo: se mancasse, new Date(NaN) lancerebbe (Invalid time value).
+      // Access token FIC dura ~24h.
+      token_expires_at: new Date(Date.now() + (td.expires_in || 86400) * 1000).toISOString(),
       company_external_id: ficCo?.id?.toString(),
       provider_company_name: ficCo?.name,
       provider_vat_number: ficCo?.vat_number,

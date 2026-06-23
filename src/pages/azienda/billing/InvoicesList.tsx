@@ -46,11 +46,12 @@ export default function InvoicesList() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices")
-        // NB: client_company_name/paid_amount/document_type/external_provider sono USATE da
-        // KPI, ricerca e card — senza di esse PostgREST ritorna undefined → KPI sempre 0,00 €,
-        // ricerca per cliente muta, card senza intestatario. (Il tipo della select lunga degrada
-        // a loose, quindi tsc non lo segnala.)
-        .select("id, company_id, invoice_number, invoice_type, status, issue_date, due_date, total, subtotal, vat_amount, currency, customer_id, order_id, notes, provider, external_id, pdf_url, xml_url, created_at, updated_at, client_company_name, paid_amount, document_type, external_provider")
+        // ⚠️ Selezionare SOLO colonne esistenti: PostgREST ritorna 400 sull'INTERA query
+        // se anche una sola colonna non esiste (NON undefined) → la lista resta vuota.
+        // Nomi reali verificati a schema: tax_amount (non vat_amount), document_type (non
+        // invoice_type), external_provider (non provider), external_xml_url (non xml_url).
+        // currency/customer_id NON esistono → rimosse.
+        .select("id, company_id, invoice_number, document_type, status, issue_date, due_date, total, subtotal, tax_amount, order_id, notes, external_id, pdf_url, external_xml_url, created_at, updated_at, client_company_name, paid_amount, external_provider")
         .eq("company_id", companyId!)
         .order("issue_date", { ascending: false, nullsFirst: false })
         .limit(500);
@@ -156,10 +157,12 @@ export default function InvoicesList() {
   const kpis = useMemo(() => {
     const now = new Date();
     const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const receivable = invoices
+    // Le note di credito sono storni, NON crediti da incassare: escluse dai KPI €.
+    const billable = invoices.filter((i) => i.document_type !== "credit_note");
+    const receivable = billable
       .filter((i) => ["issued", "sent", "delivered", "overdue"].includes(i.status))
       .reduce((s, i) => s + Number(i.total) - Number(i.paid_amount), 0);
-    const overdue = invoices.filter((i) => {
+    const overdue = billable.filter((i) => {
       if (["paid", "cancelled"].includes(i.status)) return false;
       return i.due_date && new Date(i.due_date) < now;
     });

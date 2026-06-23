@@ -101,7 +101,10 @@ Deno.serve(async (req) => {
                 integration.access_token = td.access_token;
                 await supabase.from("billing_integrations").update({
                   access_token: td.access_token,
-                  token_expires_at: new Date(Date.now() + td.expires_in * 1000).toISOString(),
+                  // FIC RUOTA il refresh_token: se non lo persistiamo, il prossimo refresh
+                  // usa quello vecchio (ormai invalido) → 401 e l'integrazione si scollega.
+                  refresh_token: td.refresh_token || integration.refresh_token,
+                  token_expires_at: new Date(Date.now() + (td.expires_in || 86400) * 1000).toISOString(),
                 }).eq("id", integration.id);
               }
             }

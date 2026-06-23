@@ -122,9 +122,16 @@ Deno.serve(async (req) => {
         const { error: updErr } = await supabase.from("invoices").update(invoiceData).eq("id", existing.id);
         if (updErr) { failed++; if (importErrors.length < 5) importErrors.push(`#${inv.number}: ${updErr.message}`); continue; }
 
-        // Fix #5: Atomic line update — insert new first, then delete old
+        // Aggiorna le righe in modo atomico. Avvolto in try/catch PER FATTURA: un errore
+        // sulle righe di una singola fattura non deve abortire l'intero import (prima il
+        // throw di updateInvoiceLinesAtomically propagava al catch globale → 500 su tutto
+        // il batch). La testata è comunque aggiornata: contiamo l'update e segnaliamo.
         if (inv.lines?.length) {
-          await updateInvoiceLinesAtomically(existing.id, inv.lines);
+          try {
+            await updateInvoiceLinesAtomically(existing.id, inv.lines);
+          } catch (lineErr) {
+            if (importErrors.length < 5) importErrors.push(`#${inv.number} (righe): ${String(lineErr)}`);
+          }
         }
         updated++;
       } else {
@@ -140,19 +147,24 @@ Deno.serve(async (req) => {
         }
 
         if (inv.lines?.length) {
-          await supabase.from("invoice_lines").insert(
+          // Controllare SEMPRE l'errore: prima veniva ingoiato → testata importata ma
+          // righe mancanti silenziosamente (fattura senza dettaglio).
+          const { error: lineErr } = await supabase.from("invoice_lines").insert(
             mapLinesToDb(newInv.id, inv.lines)
           );
+          if (lineErr && importErrors.length < 5) importErrors.push(`#${inv.number} (righe): ${lineErr.message}`);
         }
         imported++;
       }
     }
 
-    // Update last sync
+    // Update last sync — lo stato riflette le fallite: "partial" se qualcosa è andato
+    // storto, così l'header non mostra "success" mascherando import incompleti.
+    const syncStatus = failed > 0 ? "partial" : "success";
     await supabase.from("billing_integrations").update({
       last_sync_at: new Date().toISOString(),
-      last_sync_status: "success",
-      last_sync_error: null,
+      last_sync_status: syncStatus,
+      last_sync_error: failed > 0 ? importErrors.join(" | ") : null,
     }).eq("id", integ.id);
 
     // Fix #8: Use correct column names for billing_sync_log
@@ -161,7 +173,7 @@ Deno.serve(async (req) => {
       provider: provider!,
       direction: "pull",
       action: "import",
-      status: "success",
+      status: syncStatus,
       response_payload: { imported, updated, failed, total: invoices.length, errors: importErrors },
     });
 
@@ -287,39 +299,49 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
   const base = `https://api-v2.fattureincloud.it/c/${integ.company_external_id}`;
   const h = { Authorization: `Bearer ${integ.access_token}`, "Content-Type": "application/json" };
 
-  // Paginate through all results (100 per page max)
-  const allDocs: any[] = [];
-  let currentPage = 1;
-  while (true) {
-    const r = await fetch(`${base}/issued_documents?type=invoice&per_page=100&page=${currentPage}&sort=-date`, { headers: h });
-    if (r.status === 401) throw new Error("Token FattureInCloud scaduto. Vai in Impostazioni → Integrazioni e riconnetti l'account.");
-    if (!r.ok) throw new Error(`FIC API error: ${r.status}`);
-    const d = await r.json();
+  // FIC distingue fatture e note di credito su ENDPOINT/FILTRO `type` separati:
+  // `?type=invoice` NON restituisce mai le note di credito. Le importiamo entrambe,
+  // altrimenti le note di credito emesse risultano del tutto assenti dal gestionale.
+  const fetchByType = async (docType: "invoice" | "credit_note"): Promise<any[]> => {
+    const collected: any[] = [];
+    let currentPage = 1;
+    while (true) {
+      const r = await fetch(`${base}/issued_documents?type=${docType}&per_page=100&page=${currentPage}&sort=-date`, { headers: h });
+      if (r.status === 401) throw new Error("Token FattureInCloud scaduto. Vai in Impostazioni → Integrazioni e riconnetti l'account.");
+      if (!r.ok) throw new Error(`FIC API error: ${r.status}`);
+      const d = await r.json();
+      const docs = d.data || [];
+      collected.push(...docs);
+      // FIC v2 espone la paginazione al TOP LEVEL (current_page/last_page/next_page_url),
+      // NON dentro un oggetto `pagination`. Il vecchio `!d.pagination.next_page` era SEMPRE
+      // truthy → si fermava SEMPRE a pagina 1 (max 100 doc importati). Criterio di stop
+      // robusto e indipendente dal nome del campo: pagina non piena.
+      if (docs.length < 100) break;
+      if (d.last_page && currentPage >= d.last_page) break;
+      currentPage++;
+      if (currentPage > 20) break; // safety cap: max 2000 doc per tipo
+    }
+    return collected;
+  };
 
-    const docs = d.data || [];
-    allDocs.push(...docs);
-
-    // Stop if last page
-    const pagination = d.pagination || {};
-    if (!pagination.next_page || docs.length < 100) break;
-    currentPage++;
-    if (currentPage > 20) break; // safety cap: max 2000 invoices
-  }
+  const allDocs = [...(await fetchByType("invoice")), ...(await fetchByType("credit_note"))];
 
   const statusMap: Record<string, string> = {
     ok: "delivered", sending: "sent", not_sent: "issued", error: "issued",
   };
 
   return allDocs.map((doc: any) => {
-    const isPaid = doc.is_marked === true || (doc.payments_sum != null && doc.payments_sum >= (doc.amount_gross || 0) && doc.amount_gross > 0);
+    const isCreditNote = doc.type === "credit_note";
+    // Una nota di credito è uno storno, non un incasso: non applichiamo la logica "pagata".
+    const isPaid = !isCreditNote && (doc.is_marked === true || (doc.payments_sum != null && doc.payments_sum >= (doc.amount_gross || 0) && doc.amount_gross > 0));
     const resolvedStatus = isPaid ? "paid" : (statusMap[doc.status] || "issued");
 
     return {
       externalId: doc.id?.toString(),
-      documentType: doc.type === "credit_note" ? "credit_note" : "invoice",
+      documentType: isCreditNote ? "credit_note" : "invoice",
       number: doc.number?.value || doc.number,
       status: resolvedStatus,
-      paidAmount: isPaid ? doc.amount_gross : (doc.payments_sum || 0),
+      paidAmount: isCreditNote ? 0 : (isPaid ? doc.amount_gross : (doc.payments_sum || 0)),
       clientName: doc.entity?.name || "",
       clientVat: doc.entity?.vat_number,
       clientFiscalCode: doc.entity?.tax_code,
