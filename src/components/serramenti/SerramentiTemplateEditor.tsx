@@ -84,6 +84,56 @@ import { generateBrandPalette, CURATED_PALETTES } from "@/lib/utils/colorPalette
 const DEFAULT_RENDER_DISCLAIMER =
   "Il render AI è una simulazione indicativa pensata per aiutare il cliente a immaginare il risultato estetico. Non sostituisce rilievo tecnico, schede prodotto e verifica di fattibilità: misure, materiali, colori e finiture definitive vengono confermati prima dell'ordine.";
 
+// Campi personalizzati {placeholder} sostituiti nel PDF (vedi renderSubheroTemplate
+// in SerramentoPDF.tsx). Devono restare allineati a quella mappa.
+const SR_PLACEHOLDERS = [
+  "cliente_nome", "cliente_cognome", "cliente_nome_completo",
+  "cantiere_citta", "cantiere_provincia", "num_serramenti",
+  "data_consegna_stimata", "tipo_intervento", "anno",
+] as const;
+
+/** Chip cliccabili che inseriscono un campo personalizzato nel campo collegato.
+ *  Con `targetRef` inserisce al cursore; senza, appende in coda. Riutilizzabile
+ *  su qualsiasi Textarea/Input dell'editor. */
+function PlaceholderChips({
+  value, onChange, targetRef, label = "Inserisci campo personalizzato (cliccabile):",
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  targetRef?: { current: HTMLTextAreaElement | HTMLInputElement | null };
+  label?: string;
+}) {
+  const insert = (name: string) => {
+    const token = `{${name}}`;
+    const el = targetRef?.current;
+    const v = value ?? "";
+    if (!el || el.selectionStart == null) { onChange(v + token); return; }
+    const start = el.selectionStart ?? v.length;
+    const end = el.selectionEnd ?? v.length;
+    onChange(v.slice(0, start) + token + v.slice(end));
+    requestAnimationFrame(() => {
+      try { el.focus(); const pos = start + token.length; el.setSelectionRange(pos, pos); } catch { /* input non selezionabile */ }
+    });
+  };
+  return (
+    <div className="mt-1.5">
+      <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1">
+        {SR_PLACEHOLDERS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => insert(n)}
+            className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:border-orange-300 text-slate-600 hover:text-orange-700 transition-colors"
+          >
+            {`{${n}}`}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function decodeHtmlEntities(value: string): string {
   return value
     .replace(/&nbsp;/g, " ")
@@ -2182,6 +2232,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     placeholder="★ La tua proposta personalizzata"
                     className="h-8 text-xs"
                   />
+                  <PlaceholderChips
+                    value={form.pdf_cover_eyebrow ?? ""}
+                    onChange={(v) => update("pdf_cover_eyebrow", v || null)}
+                  />
                 </div>
 
                 {/* Titolo */}
@@ -2197,6 +2251,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     placeholder="La tua casa, finalmente al caldo."
                     rows={2}
                     className="text-sm"
+                  />
+                  <PlaceholderChips
+                    value={form.pdf_cover_hero ?? ""}
+                    onChange={(v) => update("pdf_cover_hero", v || null)}
                   />
                 </div>
 
@@ -2231,26 +2289,15 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     rows={2}
                     className="text-sm font-mono"
                   />
-                  <details className="mt-1.5">
-                    <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground select-none">
-                      Placeholder disponibili ({9} variabili)
-                    </summary>
-                    <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground font-mono pl-3">
-                      <div>{"{cliente_nome}"}</div>
-                      <div>{"{cliente_cognome}"}</div>
-                      <div>{"{cliente_nome_completo}"}</div>
-                      <div>{"{cantiere_citta}"}</div>
-                      <div>{"{cantiere_provincia}"}</div>
-                      <div>{"{num_serramenti}"}</div>
-                      <div>{"{data_consegna_stimata}"}</div>
-                      <div>{"{tipo_intervento}"}</div>
-                      <div>{"{anno}"}</div>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-1 italic">
-                      Esempio: il template di esempio nel placeholder genera<br/>
-                      <span className="text-foreground not-italic">"Per la casa di Mario Rossi a Bolzano · 8 serramenti · Consegna entro 30 marzo"</span>
-                    </p>
-                  </details>
+                  <PlaceholderChips
+                    value={form.pdf_cover_subhero_template ?? ""}
+                    onChange={(v) => update("pdf_cover_subhero_template", v || null)}
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1.5 italic">
+                    Clicca un campo per aggiungerlo. Questi campi funzionano anche negli altri
+                    testi e titoli del template (cover, Chi siamo, CTA): scrivi es. {"{cliente_nome}"} e
+                    verrà sostituito nel PDF.
+                  </p>
                 </div>
               </div>
             </div>
@@ -2639,6 +2686,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       placeholder="Es. Serramenti su misura, posati con metodo"
                       className="h-9 text-xs"
                     />
+                    <PlaceholderChips
+                      value={form.chi_siamo_titolo ?? ""}
+                      onChange={(v) => update("chi_siamo_titolo", v || null)}
+                    />
                   </div>
                   <div>
                     <Label className="text-xs">Testo descrizione azienda</Label>
@@ -2725,6 +2776,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   onChange={(e) => update("pdf_cta_finale_titolo", e.target.value || null)}
                   placeholder="Cosa fare adesso (default)"
                   className="h-9 text-xs"
+                />
+                <PlaceholderChips
+                  value={form.pdf_cta_finale_titolo ?? ""}
+                  onChange={(v) => update("pdf_cta_finale_titolo", v || null)}
                 />
               </div>
               <div className="col-span-12">

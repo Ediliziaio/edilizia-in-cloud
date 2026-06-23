@@ -1628,17 +1628,26 @@ export function SerramentoPDF({
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tpl = (template ?? {}) as any;
-  const coverHero = tpl.pdf_cover_hero || "La tua casa,\nfinalmente al caldo.";
+
+  // Sostituzione campi personalizzati {placeholder} su QUALSIASI testo/titolo del
+  // template (non più solo il subhero cover). No-op sui testi senza placeholder, quindi
+  // sicura anche sui valori di default. Variabili: cliente_nome, cliente_cognome,
+  // cliente_nome_completo, cantiere_citta, cantiere_provincia, num_serramenti,
+  // data_consegna_stimata, tipo_intervento, anno.
+  const ph = (s: string | null | undefined): string =>
+    typeof s === "string" && s ? renderSubheroTemplate(s, detail) : "";
+
+  const coverHero = ph(tpl.pdf_cover_hero) || "La tua casa,\nfinalmente al caldo.";
 
   // ─── Milestone 4 · Cover subhero dinamico con placeholders ────────────
   // Priorità: pdf_cover_subhero_template (con placeholders) → pdf_cover_subhero
   // (statico) → sintesi auto-generata da BOM.
   const coverSubhero = (() => {
     const tmpl = tpl.pdf_cover_subhero_template as string | null | undefined;
-    if (!tmpl?.trim()) return tpl.pdf_cover_subhero || sintesi;
+    if (!tmpl?.trim()) return ph(tpl.pdf_cover_subhero) || sintesi;
     return renderSubheroTemplate(tmpl, detail);
   })();
-  const coverEyebrow = tpl.pdf_cover_eyebrow || "LA TUA PROPOSTA PERSONALIZZATA";
+  const coverEyebrow = ph(tpl.pdf_cover_eyebrow) || "LA TUA PROPOSTA PERSONALIZZATA";
   const coverImageUrl = tpl.pdf_cover_image_url || null;
   const coverOverlayOpacity = typeof tpl.pdf_cover_overlay_opacity === "number"
     ? Math.max(0, Math.min(100, tpl.pdf_cover_overlay_opacity)) / 100
@@ -1741,9 +1750,9 @@ export function SerramentoPDF({
     .slice(0, 4); // max 4 per riga A4
 
 
-  const ctaTitle = tpl.pdf_cta_finale_titolo || "Cosa fare adesso";
+  const ctaTitle = ph(tpl.pdf_cta_finale_titolo) || "Cosa fare adesso";
   const ctaSteps = (Array.isArray(tpl.pdf_cta_finale_passi) && tpl.pdf_cta_finale_passi.length > 0)
-    ? tpl.pdf_cta_finale_passi as string[]
+    ? (tpl.pdf_cta_finale_passi as string[]).map((s) => ph(s))
 	    : [
 	        "Chiarisci eventuali dubbi tecnici o commerciali",
 	        "Conferma misure, finiture e condizioni definitive",
@@ -1754,8 +1763,8 @@ export function SerramentoPDF({
   // "Chi siamo" — pagina opzionale subito dopo la cover
   const chiSiamoAttivo = !!tpl.chi_siamo_attivo;
   const chiSiamoFotoUrl = tpl.chi_siamo_foto_url || null;
-  const chiSiamoTitolo = tpl.chi_siamo_titolo || `Chi siamo · ${companyName}`;
-  const chiSiamoTesto = tpl.chi_siamo_testo || null;
+  const chiSiamoTitolo = ph(tpl.chi_siamo_titolo) || `Chi siamo · ${companyName}`;
+  const chiSiamoTesto = tpl.chi_siamo_testo ? ph(tpl.chi_siamo_testo) : null;
 
   // Recensioni — toggle
   const recensioniAttivo = tpl.recensioni_attivo !== false;
