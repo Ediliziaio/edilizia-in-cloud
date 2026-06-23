@@ -1565,6 +1565,92 @@ function renderSubheroTemplate(template: string, detail: SrProgettoDetail): stri
   });
 }
 
+// ─── Mini-renderer HTML (output rich-text TipTap) → nodi react-pdf ──────────
+// @react-pdf NON interpreta l'HTML: senza questo i tag <p>/<strong>/<span> escono
+// LETTERALI nel PDF. Parser regex bounded (no DOM) che supporta i tag prodotti
+// dall'editor: <p>, <h1-6>, <ul>/<ol>/<li>, <br>, <strong>/<b>, <em>/<i>, <u>,
+// <s>/<strike>, <span style="font-size:Npx">. Per il testo semplice (senza tag)
+// il chiamante usa il rendering classico (split paragrafi/bullet).
+function isLikelyHtml(s: string): boolean {
+  return /<\/?(p|br|strong|b|em|i|u|s|span|ul|ol|li|h[1-6]|div)\b[^>]*>/i.test(s);
+}
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&rsquo;/g, "’")
+    .replace(/&ldquo;/g, "“").replace(/&rdquo;/g, "”").replace(/&egrave;/g, "è")
+    .replace(/&agrave;/g, "à").replace(/&ograve;/g, "ò").replace(/&ugrave;/g, "ù");
+}
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function parseInlineHtml(frag: string, kp: string): any[] {
+  const out: any[] = [];
+  const re = /<(strong|b|em|i|u|s|strike|span)([^>]*)>([\s\S]*?)<\/\1>|<br\s*\/?>/gi;
+  let last = 0, k = 0, m: RegExpExecArray | null;
+  const pushText = (raw: string) => {
+    const t = decodeEntities(raw.replace(/<[^>]+>/g, ""));
+    if (t) out.push(<Text key={`${kp}t${k++}`}>{t}</Text>);
+  };
+  while ((m = re.exec(frag))) {
+    if (m.index > last) pushText(frag.slice(last, m.index));
+    if (/^<br/i.test(m[0])) {
+      out.push(<Text key={`${kp}br${k++}`}>{"\n"}</Text>);
+    } else {
+      const tag = m[1].toLowerCase();
+      const st: any = {};
+      if (tag === "strong" || tag === "b") st.fontWeight = 700;
+      else if (tag === "em" || tag === "i") st.fontStyle = "italic";
+      else if (tag === "u") st.textDecoration = "underline";
+      else if (tag === "s" || tag === "strike") st.textDecoration = "line-through";
+      else if (tag === "span") {
+        const fs = (m[2] || "").match(/font-size:\s*(\d+(?:\.\d+)?)/i);
+        if (fs) st.fontSize = Math.max(7, Math.min(28, Math.round(Number(fs[1]))));
+      }
+      out.push(<Text key={`${kp}s${k++}`} style={st}>{parseInlineHtml(m[3], `${kp}${k}-`)}</Text>);
+    }
+    last = re.lastIndex;
+  }
+  if (last < frag.length) pushText(frag.slice(last));
+  return out.length ? out : [<Text key={`${kp}e`}>{decodeEntities(frag.replace(/<[^>]+>/g, ""))}</Text>];
+}
+function htmlToPdfNodes(html: string, baseStyle: any, keyPrefix: string): any[] {
+  const nodes: any[] = [];
+  const blockRe = /<(p|h[1-6]|ul|ol)([^>]*)>([\s\S]*?)<\/\1>/gi;
+  let mb: RegExpExecArray | null, bi = 0, matched = false;
+  while ((mb = blockRe.exec(html))) {
+    matched = true;
+    const tag = mb[1].toLowerCase();
+    if (tag === "ul" || tag === "ol") {
+      const items = [...mb[3].matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)];
+      nodes.push(
+        <View key={`${keyPrefix}L${bi++}`} style={{ marginBottom: 6 }}>
+          {items.map((it, li) => (
+            <View key={li} style={{ flexDirection: "row", marginBottom: 2 }}>
+              <Text style={[baseStyle, { marginRight: 4 }]}>{"•"}</Text>
+              <Text style={baseStyle}>{parseInlineHtml(it[1], `${keyPrefix}L${bi}-${li}-`)}</Text>
+            </View>
+          ))}
+        </View>
+      );
+    } else {
+      const isH = tag.startsWith("h");
+      nodes.push(
+        <Text key={`${keyPrefix}P${bi++}`} style={[baseStyle, { marginBottom: 6 }, isH ? { fontWeight: 700 } : {}]}>
+          {parseInlineHtml(mb[3], `${keyPrefix}P${bi}-`)}
+        </Text>
+      );
+    }
+  }
+  if (!matched) {
+    nodes.push(
+      <Text key={`${keyPrefix}P0`} style={[baseStyle, { marginBottom: 6 }]}>
+        {parseInlineHtml(html, `${keyPrefix}0-`)}
+      </Text>
+    );
+  }
+  return nodes;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 // ─── Tipo input ────────────────────────────────────────────────────────────
 
 export interface SerramentoPDFProps {
@@ -2174,23 +2260,28 @@ export function SerramentoPDF({
                 )}
                 {chiSiamoTesto && (
                   <View>
-                    {chiSiamoTesto.split(/\n\n+/).map((para, i) => {
-                      const lines = para.split("\n").map((l) => l.trim()).filter(Boolean);
-                      const allBullets = lines.length > 0 && lines.every((l) => l.startsWith("- ") || l.startsWith("• "));
-                      if (allBullets) {
-                        return (
-                          <View key={i} style={{ marginBottom: 8 }}>
-                            {lines.map((l, li) => (
-                              <View key={li} style={styles.bulletItem} wrap={false}>
-                                <View style={styles.bulletDot} />
-                                <Text style={[styles.bulletText, { fontSize: 10 }]}>{l.replace(/^[-•]\s*/, "")}</Text>
+                    {isLikelyHtml(chiSiamoTesto)
+                      // Testo dal rich-text editor (HTML): rende grassetto/corsivo/
+                      // sottolineato/dimensioni/liste via mini-renderer.
+                      ? htmlToPdfNodes(chiSiamoTesto, styles.chiSiamoText, "cs-")
+                      // Testo semplice (legacy): split paragrafi + bullet "- ".
+                      : chiSiamoTesto.split(/\n\n+/).map((para, i) => {
+                          const lines = para.split("\n").map((l) => l.trim()).filter(Boolean);
+                          const allBullets = lines.length > 0 && lines.every((l) => l.startsWith("- ") || l.startsWith("• "));
+                          if (allBullets) {
+                            return (
+                              <View key={i} style={{ marginBottom: 8 }}>
+                                {lines.map((l, li) => (
+                                  <View key={li} style={styles.bulletItem} wrap={false}>
+                                    <View style={styles.bulletDot} />
+                                    <Text style={[styles.bulletText, { fontSize: 10 }]}>{l.replace(/^[-•]\s*/, "")}</Text>
+                                  </View>
+                                ))}
                               </View>
-                            ))}
-                          </View>
-                        );
-                      }
-                      return <Text key={i} style={[styles.chiSiamoText, { marginBottom: 8 }]}>{para}</Text>;
-                    })}
+                            );
+                          }
+                          return <Text key={i} style={[styles.chiSiamoText, { marginBottom: 8 }]}>{para}</Text>;
+                        })}
                   </View>
                 )}
                 {/* Strip certificazioni: 5-6 badge qualità in fondo a chi siamo
