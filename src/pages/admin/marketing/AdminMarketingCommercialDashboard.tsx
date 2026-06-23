@@ -22,6 +22,7 @@ import {
 import { CrmTemperatureCard, CrmWinLossCard } from "@/components/admin/crm-dashboard/CrmSegmentDonuts";
 import { CrmFunnelCard, CrmChannelsCard, CrmClustersCard } from "@/components/admin/crm-dashboard/CrmSegmentBars";
 import { CrmAccountsCard, CrmTeamCard, CrmAlertsCard } from "@/components/admin/crm-dashboard/CrmAccountsTeamAlerts";
+import { CrmAiInsightsBanner } from "@/components/admin/crm-dashboard/CrmAiInsightsBanner";
 
 type PeriodKey = "7" | "30" | "90" | "365";
 const PERIODS: { key: PeriodKey; label: string }[] = [
@@ -199,6 +200,27 @@ export default function AdminMarketingCommercialDashboard() {
     return { rows, maxCount, total: o.length };
   }, [opps.data, stages.data]);
 
+  // Snapshot compatto da passare alla edge function crm-ai-insights.
+  const aiMetrics = useMemo<Record<string, unknown>>(
+    () => ({
+      periodo_giorni: days,
+      pipeline_aperta_eur: Math.round(kpis.pipelineOpenValue),
+      forecast_pesato_eur: Math.round(kpis.forecast),
+      vinto_eur: Math.round(kpis.wonValue),
+      vinti_n: kpis.wonCount,
+      win_rate_pct: Math.round(kpis.winRate),
+      lead_nuovi: kpis.newLeads,
+      lead_nuovi_delta_pct: Math.round(kpis.newLeadsDelta),
+      caldi_senza_followup: kpis.hotNoFollowup,
+      pipeline_per_stadio: pipelineByStage.rows.map((r) => ({
+        stadio: r.name,
+        opportunita: r.count,
+        valore_eur: Math.round(r.value),
+      })),
+    }),
+    [kpis, pipelineByStage, days],
+  );
+
   return (
     <div className="space-y-5 p-1">
       {/* Header + filtro periodo */}
@@ -230,6 +252,9 @@ export default function AdminMarketingCommercialDashboard() {
           ))}
         </div>
       </div>
+
+      {/* Riepilogo AI del periodo */}
+      <CrmAiInsightsBanner metrics={aiMetrics} />
 
       {isError && (
         <Card>

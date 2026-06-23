@@ -89,6 +89,11 @@ verify_jwt = true
 [functions.outreach-ai-summary]
 verify_jwt = true
 
+# crm-ai-insights: dato il riepilogo metriche della Dashboard commerciale,
+# genera 3-5 insight azionabili. Solo super_admin (JWT richiesto).
+[functions.crm-ai-insights]
+verify_jwt = true
+
 # Anteprima/test email nodi automazione — auth JWT manuale (qualsiasi utente loggato).
 [functions.automation-email-render]
 verify_jwt = false
