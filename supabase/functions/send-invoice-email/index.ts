@@ -52,12 +52,14 @@ function buildEmailHtml(invoice: Record<string, any>, lines: Record<string, any>
 <!-- Body -->
 <tr><td style="padding:32px;">
 
-${customMessage ? `<p style="font-size:14px;color:#334155;margin:0 0 24px;line-height:1.6;">${escHtml(customMessage)}</p>` : ""}
-
-<p style="font-size:14px;color:#334155;margin:0 0 16px;">
-  Gentile <strong>${escHtml(invoice.client_company_name)}</strong>,<br>
-  ${customMessage ? "" : `di seguito i dettagli della ${docLabel.toLowerCase()} N° <strong>${escHtml(invoice.invoice_number) || "—"}</strong>.`}
-</p>
+${customMessage
+  // Messaggio personalizzato = corpo completo (contiene già il saluto). white-space:pre-line
+  // preserva gli a-capo del template scritto dall'utente. Niente blocco "Gentile" duplicato.
+  ? `<p style="font-size:14px;color:#334155;margin:0 0 24px;line-height:1.6;white-space:pre-line;">${escHtml(customMessage)}</p>`
+  : `<p style="font-size:14px;color:#334155;margin:0 0 16px;">
+      Gentile <strong>${escHtml(invoice.client_company_name)}</strong>,<br>
+      di seguito i dettagli della ${docLabel.toLowerCase()} N° <strong>${escHtml(invoice.invoice_number) || "—"}</strong>.
+    </p>`}
 
 <!-- Invoice Summary -->
 <table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;background:#f8fafc;border-radius:8px;">

@@ -306,7 +306,10 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
     const collected: any[] = [];
     let currentPage = 1;
     while (true) {
-      const r = await fetch(`${base}/issued_documents?type=${docType}&per_page=100&page=${currentPage}&sort=-date`, { headers: h });
+      // fieldset=detailed: l'endpoint LIST di default restituisce un RIASSUNTO senza
+      // items_list → le righe fattura risultavano vuote nel dettaglio. "detailed" include
+      // items_list/payments_list/dati cliente completi.
+      const r = await fetch(`${base}/issued_documents?type=${docType}&fieldset=detailed&per_page=100&page=${currentPage}&sort=-date`, { headers: h });
       if (r.status === 401) throw new Error("Token FattureInCloud scaduto. Vai in Impostazioni → Integrazioni e riconnetti l'account.");
       if (!r.ok) throw new Error(`FIC API error: ${r.status}`);
       const d = await r.json();

@@ -110,9 +110,33 @@ export default function InvoiceDetail() {
   const [emailMessage, setEmailMessage] = useState("");
   const [sendingEmail, setSendingEmail] = useState(false);
 
+  // Alla apertura della dialog precompiliamo destinatario, oggetto e un MESSAGGIO
+  // TEMPLATE professionale (modificabile), così l'invio non parte da un campo vuoto.
+  // Solo se i campi sono ancora vuoti: non sovrascrive le modifiche dell'utente.
   useEffect(() => {
-    if (emailOpen && invoice?.client_email) setEmailTo(invoice.client_email);
-  }, [emailOpen, invoice?.client_email]);
+    if (!emailOpen || !invoice) return;
+    const docLabel = invoice.document_type === "credit_note" ? "Nota di credito"
+      : invoice.document_type === "proforma" ? "Proforma" : "Fattura";
+    if (invoice.client_email) setEmailTo((p) => p || invoice.client_email);
+    const azienda = effectiveCompany?.name || "";
+    setEmailSubject((p) => p || `${docLabel} N° ${invoice.invoice_number || "—"}${azienda ? ` — ${azienda}` : ""}`);
+    setEmailMessage((p) => {
+      if (p) return p;
+      const dataEm = invoice.issue_date ? format(new Date(invoice.issue_date), "dd/MM/yyyy", { locale: it }) : "";
+      const importo = formatCurrency(Number(invoice.total || 0));
+      const scadenza = invoice.due_date ? format(new Date(invoice.due_date), "dd/MM/yyyy", { locale: it }) : "";
+      return [
+        `Gentile ${invoice.client_company_name || "Cliente"},`,
+        ``,
+        `in allegato trovate la ${docLabel.toLowerCase()} N° ${invoice.invoice_number || "—"}${dataEm ? ` del ${dataEm}` : ""} per un importo di ${importo}.`,
+        scadenza ? `Vi ricordiamo che il termine di pagamento è il ${scadenza}.` : ``,
+        `Per qualsiasi necessità restiamo a vostra disposizione.`,
+        ``,
+        `Cordiali saluti,`,
+        azienda || `Lo staff`,
+      ].filter((l, i, arr) => !(l === "" && arr[i - 1] === "")).join("\n");
+    });
+  }, [emailOpen, invoice, effectiveCompany?.name]);
 
   const sendInvoiceEmail = async () => {
     if (!emailTo) { toast.error("Inserisci un indirizzo email"); return; }
@@ -179,8 +203,9 @@ export default function InvoiceDetail() {
                   <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder={`Fattura N° ${invoice.invoice_number || "—"}`} />
                 </div>
                 <div>
-                  <Label>Messaggio personalizzato (opzionale)</Label>
-                  <Textarea value={emailMessage} onChange={(e) => setEmailMessage(e.target.value)} placeholder="Aggiungi un messaggio..." rows={3} />
+                  <Label>Messaggio (template precompilato, modificabile)</Label>
+                  <Textarea value={emailMessage} onChange={(e) => setEmailMessage(e.target.value)} placeholder="Aggiungi un messaggio..." rows={9} className="resize-y" />
+                  <p className="text-xs text-muted-foreground mt-1">Il riepilogo della fattura (righe e totali) viene aggiunto automaticamente sotto il messaggio.</p>
                 </div>
               </div>
               <DialogFooter>

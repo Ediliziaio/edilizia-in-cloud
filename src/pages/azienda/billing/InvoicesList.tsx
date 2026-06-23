@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +40,7 @@ export default function InvoicesList() {
   const companyId = effectiveCompany?.id;
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [yearFilter, setYearFilter] = useState("all");
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ["invoices", companyId],
@@ -140,8 +141,16 @@ export default function InvoicesList() {
     }
   };
 
+  // Anni disponibili (dalle date fattura) per il filtro, decrescenti.
+  const years = useMemo(() => {
+    const set = new Set<string>();
+    for (const i of invoices) if (i.issue_date) set.add(i.issue_date.slice(0, 4));
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [invoices]);
+
   const filtered = useMemo(() => {
     let list = invoices;
+    if (yearFilter !== "all") list = list.filter((i) => i.issue_date?.startsWith(yearFilter));
     if (statusFilter !== "all") list = list.filter((i) => i.status === statusFilter);
     if (search) {
       const s = search.toLowerCase();
@@ -151,7 +160,27 @@ export default function InvoicesList() {
       );
     }
     return list;
-  }, [invoices, statusFilter, search]);
+  }, [invoices, yearFilter, statusFilter, search]);
+
+  // Raggruppamento per MESE (decrescente), con totale e conteggio per mese.
+  // Le fatture sono già ordinate per data desc dalla query.
+  const grouped = useMemo(() => {
+    const map = new Map<string, typeof filtered>();
+    for (const inv of filtered) {
+      const key = inv.issue_date ? inv.issue_date.slice(0, 7) : "0000-00"; // YYYY-MM
+      const arr = map.get(key);
+      if (arr) arr.push(inv); else map.set(key, [inv]);
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([key, rows]) => {
+        const label = key === "0000-00"
+          ? "Senza data"
+          : format(new Date(`${key}-01T00:00:00`), "MMMM yyyy", { locale: it });
+        const total = rows.reduce((s, i) => s + Number(i.total || 0), 0);
+        return { key, label: label.charAt(0).toUpperCase() + label.slice(1), rows, total };
+      });
+  }, [filtered]);
 
   // KPIs
   const kpis = useMemo(() => {
@@ -271,6 +300,19 @@ export default function InvoicesList() {
                 <TabsTrigger value="overdue">Scadute</TabsTrigger>
               </TabsList>
             </Tabs>
+            {years.length > 0 && (
+              <select
+                value={yearFilter}
+                onChange={(e) => setYearFilter(e.target.value)}
+                aria-label="Filtra per anno"
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="all">Tutti gli anni</option>
+                {years.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            )}
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Cerca cliente o numero..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
@@ -290,31 +332,41 @@ export default function InvoicesList() {
             </div>
           ) : (
             <>
-            {/* Mobile card list */}
-            <div className="sm:hidden divide-y border rounded-lg">
-              {filtered.map((inv) => {
-                const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.draft;
-                return (
-                  <div key={inv.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs">{inv.invoice_number || "—"}</span>
-                        <Badge variant="secondary" className={`text-xs ${cfg.color}`}>{cfg.label}</Badge>
-                      </div>
-                      <p className="font-medium text-sm mt-0.5 truncate">{inv.client_company_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}
-                        {inv.due_date ? ` · scad. ${format(new Date(inv.due_date), "dd/MM/yy", { locale: it })}` : ""}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className="font-semibold text-sm">{formatCurrency(Number(inv.total))}</span>
-                    </div>
+            {/* Mobile card list — raggruppata per mese */}
+            <div className="sm:hidden space-y-4">
+              {grouped.map((g) => (
+                <div key={g.key} className="border rounded-lg overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2 bg-muted/60 border-b">
+                    <span className="text-sm font-semibold">{g.label}</span>
+                    <span className="text-xs text-muted-foreground">{g.rows.length} fatt. · {formatCurrency(g.total)}</span>
                   </div>
-                );
-              })}
+                  <div className="divide-y">
+                    {g.rows.map((inv) => {
+                      const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.draft;
+                      return (
+                        <div key={inv.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs">{inv.invoice_number || "—"}</span>
+                              <Badge variant="secondary" className={`text-xs ${cfg.color}`}>{cfg.label}</Badge>
+                            </div>
+                            <p className="font-medium text-sm mt-0.5 truncate">{inv.client_company_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}
+                              {inv.due_date ? ` · scad. ${format(new Date(inv.due_date), "dd/MM/yy", { locale: it })}` : ""}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="font-semibold text-sm">{formatCurrency(Number(inv.total))}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
-            {/* Desktop table */}
+            {/* Desktop table — intestazioni di mese con subtotale */}
             <div className="hidden sm:block rounded-lg border overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -330,47 +382,56 @@ export default function InvoicesList() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((inv) => {
-                    const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.draft;
-                    return (
-                      <tr key={inv.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
-                        <td className="p-3 font-mono text-xs">{inv.invoice_number || "—"}</td>
-                        <td className="p-3 font-medium">{inv.client_company_name}</td>
-                        <td className="p-3 text-muted-foreground">{inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}</td>
-                        <td className="p-3 text-muted-foreground">{inv.due_date ? format(new Date(inv.due_date), "dd/MM/yy", { locale: it }) : "—"}</td>
-                        <td className="p-3 text-right font-medium">{fmtEur(Number(inv.total))}</td>
-                        <td className="p-3">
-                          <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
-                        </td>
-                        <td className="p-3">
-                          {inv.external_provider ? (
-                            <Badge variant="outline" className="text-xs">
-                              {PROVIDER_LABELS[inv.external_provider] || inv.external_provider}
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Locale</span>
-                          )}
-                        </td>
-                        <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
-                                <Eye className="h-4 w-4 mr-2" /> Visualizza
-                              </DropdownMenuItem>
-                              {!["paid", "cancelled"].includes(inv.status) && (
-                                <DropdownMenuItem onClick={() => markPaidMutation.mutate({ id: inv.id, total: Number(inv.total) })}>
-                                  <CreditCard className="h-4 w-4 mr-2" /> Segna come pagata
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
+                  {grouped.map((g) => (
+                    <Fragment key={g.key}>
+                      <tr className="bg-muted/40 border-b">
+                        <td colSpan={4} className="px-3 py-2 font-semibold text-sm">{g.label}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-sm">{fmtEur(g.total)}</td>
+                        <td colSpan={3} className="px-3 py-2 text-xs text-muted-foreground">{g.rows.length} fatture</td>
                       </tr>
-                    );
-                  })}
+                      {g.rows.map((inv) => {
+                        const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.draft;
+                        return (
+                          <tr key={inv.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
+                            <td className="p-3 font-mono text-xs">{inv.invoice_number || "—"}</td>
+                            <td className="p-3 font-medium">{inv.client_company_name}</td>
+                            <td className="p-3 text-muted-foreground">{inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}</td>
+                            <td className="p-3 text-muted-foreground">{inv.due_date ? format(new Date(inv.due_date), "dd/MM/yy", { locale: it }) : "—"}</td>
+                            <td className="p-3 text-right font-medium">{fmtEur(Number(inv.total))}</td>
+                            <td className="p-3">
+                              <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
+                            </td>
+                            <td className="p-3">
+                              {inv.external_provider ? (
+                                <Badge variant="outline" className="text-xs">
+                                  {PROVIDER_LABELS[inv.external_provider] || inv.external_provider}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Locale</span>
+                              )}
+                            </td>
+                            <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
+                                    <Eye className="h-4 w-4 mr-2" /> Visualizza
+                                  </DropdownMenuItem>
+                                  {!["paid", "cancelled"].includes(inv.status) && (
+                                    <DropdownMenuItem onClick={() => markPaidMutation.mutate({ id: inv.id, total: Number(inv.total) })}>
+                                      <CreditCard className="h-4 w-4 mr-2" /> Segna come pagata
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
                 </tbody>
               </table>
             </div>
