@@ -86,7 +86,7 @@ const allSections: AppSection[] = [
   {
     title: "Marketing & Vendita",
     items: [
-      { icon: BarChart3, label: "MKT Dashboard", url: "/admin/marketing", color: "text-blue-600 bg-blue-50", permission: "can_manage_marketing" },
+      { icon: BarChart3, label: "Outreach", url: "/admin/marketing", color: "text-blue-600 bg-blue-50", permission: "can_manage_marketing" },
       { icon: Users, label: "Contatti", url: "/admin/marketing/contatti", color: "text-indigo-600 bg-indigo-50", permission: "can_manage_marketing" },
       { icon: Target, label: "Opportunita", url: "/admin/marketing/opportunita", color: "text-emerald-600 bg-emerald-50", permission: "can_manage_marketing" },
       { icon: CalendarDays, label: "Calendario", url: "/admin/marketing/calendario", color: "text-orange-600 bg-orange-50", permission: "can_manage_marketing" },
