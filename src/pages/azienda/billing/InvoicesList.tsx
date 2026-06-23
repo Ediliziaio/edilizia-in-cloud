@@ -121,7 +121,12 @@ export default function InvoicesList() {
       toast.success("Sincronizzazione completata", {
         description: `${data?.imported || 0} importate, ${data?.updated || 0} aggiornate${data?.failed ? `, ${data.failed} fallite` : ""}`,
       });
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      // Aggiorna SIA la lista fatture SIA l'integrazione (ultimo sync). Senza il
+      // secondo invalidate l'header restava su un orario di sync vecchio e, con la
+      // cache PWA persistente, la pagina sembrava "non sincronizzata". refetchType
+      // 'all' forza il refetch anche se i dati sono ancora nello staleTime.
+      await queryClient.invalidateQueries({ queryKey: ["invoices"], refetchType: "all" });
+      await queryClient.invalidateQueries({ queryKey: ["billing_integration"], refetchType: "all" });
     } catch (e) {
       toast.error("Errore sincronizzazione", { description: String(e) });
     } finally {
