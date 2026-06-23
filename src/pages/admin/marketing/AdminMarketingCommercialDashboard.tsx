@@ -19,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   TrendingUp, TrendingDown, Layers, Target, Trophy, UserPlus, Flame, Loader2, BarChart3,
 } from "lucide-react";
+import { CrmTemperatureCard, CrmWinLossCard } from "@/components/admin/crm-dashboard/CrmSegmentDonuts";
 
 type PeriodKey = "7" | "30" | "90" | "365";
 const PERIODS: { key: PeriodKey; label: string }[] = [
@@ -299,8 +300,14 @@ export default function AdminMarketingCommercialDashboard() {
         </CardContent>
       </Card>
 
+      {/* Segmentazione: temperatura + win/loss */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <CrmTemperatureCard companyId={companyId} />
+        <CrmWinLossCard companyId={companyId} />
+      </div>
+
       <p className="px-1 text-xs text-muted-foreground">
-        Altre sezioni (temperatura, fonti &amp; ROI, cluster, Aziende, team, alert e riepilogo AI) in arrivo.
+        Altre sezioni (fonti &amp; ROI, cluster, Aziende, team, alert e riepilogo AI) in arrivo.
       </p>
     </div>
   );
