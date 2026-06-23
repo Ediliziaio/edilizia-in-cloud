@@ -47,6 +47,12 @@ export default function FicOAuthCallbackPage() {
 
     const code = searchParams.get("code");
     const oauthError = searchParams.get("error_description") || searchParams.get("error");
+    // company_id è codificato nello `state` generato da get_fic_auth_url ({company_id, ts}).
+    let companyIdFromState: string | null = null;
+    try {
+      const stateRaw = searchParams.get("state");
+      if (stateRaw) companyIdFromState = (JSON.parse(atob(stateRaw)) as { company_id?: string })?.company_id ?? null;
+    } catch { /* state non decodificabile: la function userà l'azienda effettiva */ }
 
     (async () => {
       if (oauthError || !code) {
@@ -58,7 +64,7 @@ export default function FicOAuthCallbackPage() {
       }
       try {
         const { data, error } = await supabase.functions.invoke("billing-connect", {
-          body: { action: "fic_oauth_callback", code },
+          body: { action: "fic_oauth_callback", code, company_id: companyIdFromState },
         });
         const errBody = data as { error?: string; company_name?: string } | null;
         if (error || errBody?.error) {

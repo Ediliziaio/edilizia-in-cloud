@@ -252,7 +252,7 @@ export default function SettingsBilling() {
   // ── OAuth2 Fatture in Cloud: apre il popup di autorizzazione ──────────────
   const connectFic = async () => {
     const { data, error } = await supabase.functions.invoke("billing-connect", {
-      body: { action: "get_fic_auth_url" },
+      body: { action: "get_fic_auth_url", company_id: companyId },
     });
     const res = data as { auth_url?: string; error?: string } | null;
     if (error || !res?.auth_url) {
@@ -307,7 +307,7 @@ export default function SettingsBilling() {
             : { username: newUsername.trim(), password: newPassword })
         : { provider: newProvider, api_key: newApiKey.trim() };
       const { data, error } = await supabase.functions.invoke("billing-connect", {
-        body: { action, ...bodyPayload },
+        body: { action, company_id: companyId, ...bodyPayload },
       });
       if (error) {
         let errBody: any = null;

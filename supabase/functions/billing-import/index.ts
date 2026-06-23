@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createAdapter, arubaSignin, arubaRefresh, arubaFindByUsername, ARUBA_STATUS_MAP, acubeLogin, acubeListInvoices, ACUBE_MARKING_MAP } from "../_shared/billingAdapter.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { resolveEffectiveCompanyId, canAccessCompany } from "../_shared/effectiveCompany.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const FIC_CLIENT_ID = Deno.env.get("FIC_CLIENT_ID") || "";
@@ -24,13 +25,21 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser(token);
     if (!user) return json({ error: "Unauthorized" }, 401);
 
-    const { data: cu } = await supabase
-      .from("company_users").select("company_id").eq("user_id", user.id).single();
-    if (!cu?.company_id) return json({ error: "Company not found" }, 404);
-    companyId = cu.company_id;
-
     const body = await req.json();
     provider = body.provider;
+
+    // Risoluzione azienda — NON esiste alcuna tabella company_users. company_id dal
+    // client (verificato con canAccessCompany) oppure quella effettiva in fallback.
+    let resolvedCompanyId: string | null =
+      (typeof body.company_id === "string" && body.company_id) ? body.company_id : null;
+    if (resolvedCompanyId) {
+      const ok = await canAccessCompany(supabase, user.id, resolvedCompanyId);
+      if (!ok) return json({ error: "Accesso negato a questa azienda" }, 403);
+    } else {
+      resolvedCompanyId = await resolveEffectiveCompanyId(supabase, user.id);
+    }
+    if (!resolvedCompanyId) return json({ error: "Nessuna azienda associata all'utente" }, 404);
+    companyId = resolvedCompanyId;
 
     // Get integration
     const { data: integ } = await supabase

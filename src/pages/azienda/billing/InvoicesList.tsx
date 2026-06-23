@@ -114,7 +114,7 @@ export default function InvoicesList() {
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("billing-import", {
-        body: { provider: integration.provider },
+        body: { provider: integration.provider, company_id: companyId },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);

@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { createAdapter, ArubaAdapter, AcubeAdapter } from "../_shared/billingAdapter.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { resolveEffectiveCompanyId, canAccessCompany } from "../_shared/effectiveCompany.ts";
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const FIC_CLIENT_ID     = Deno.env.get("FIC_CLIENT_ID") || "";
@@ -11,13 +12,17 @@ Deno.serve(async (req) => {
   const CORS = { ...getCorsHeaders(req), "Access-Control-Allow-Methods": "POST, GET, OPTIONS" };
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+
+  try {
   const url = new URL(req.url);
   let action = url.searchParams.get("action");
 
   const token = req.headers.get("Authorization")?.replace("Bearer ", "");
-  if (!token) return new Response("Unauthorized", { status: 401 });
+  if (!token) return json({ error: "Non autenticato" }, 401);
   const { data: { user } } = await supabase.auth.getUser(token);
-  if (!user) return new Response("Unauthorized", { status: 401 });
+  if (!user) return json({ error: "Sessione non valida" }, 401);
 
   // Fix #1: Parse body once and read action from body as fallback
   let body: Record<string, unknown> = {};
@@ -30,13 +35,18 @@ Deno.serve(async (req) => {
     }
   }
 
-  const { data: cu } = await supabase
-    .from("company_users").select("company_id").eq("user_id", user.id).single();
-  if (!cu?.company_id) return new Response("Company not found", { status: 404 });
-  const companyId = cu.company_id;
-
-  const json = (data: unknown, status = 200) =>
-    new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+  // Risoluzione azienda — NON esiste alcuna tabella company_users. Usiamo l'azienda
+  // passata dal client (verificata con canAccessCompany: super_admin/impersonation/
+  // multi-company) oppure, in fallback, quella effettiva (profiles.company_id + impersonation).
+  let companyId: string | null =
+    (typeof body.company_id === "string" && body.company_id) ? body.company_id : null;
+  if (companyId) {
+    const ok = await canAccessCompany(supabase, user.id, companyId);
+    if (!ok) return json({ error: "Accesso negato a questa azienda" }, 403);
+  } else {
+    companyId = await resolveEffectiveCompanyId(supabase, user.id);
+  }
+  if (!companyId) return json({ error: "Nessuna azienda associata all'utente" }, 404);
 
   // ── OAuth2 FIC: ottieni URL autorizzazione
   if (action === "get_fic_auth_url") {
@@ -226,4 +236,8 @@ Deno.serve(async (req) => {
   }
 
   return json({ error: "Unknown action" }, 404);
+  } catch (e) {
+    console.error("billing-connect error:", e);
+    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+  }
 });
