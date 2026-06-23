@@ -637,7 +637,9 @@ export default function CompanyRoutesContainer() {
         <Route path="documenti" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard></FeatureRoute>)} />
         <Route path="documenti/nuovo" element={withCompanyPermissionOrCommercialista("canViewBilling", <CommercialistaWriteGuard fallback="/azienda/documenti"><FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute></CommercialistaWriteGuard>)} />
         <Route path="documenti/cassetto-sdi" element={<Navigate to="/azienda/documenti?tab=sdi" replace />} />
-        <Route path="documenti/fatture-ricevute" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><FattureRicevutePage /></BillingModeGuard></FeatureRoute>)} />
+        {/* Fatture ricevute = passive: valgono per QUALSIASI modalità (anche provider
+            esterno tipo FIC) → niente BillingModeGuard requiredMode="native". */}
+        <Route path="documenti/fatture-ricevute" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><FattureRicevutePage /></FeatureRoute>)} />
         <Route path="documenti/ddt" element={<Navigate to="/azienda/documenti?tipo=ddt" replace />} />
         <Route path="documenti/incassi" element={<Navigate to="/azienda/documenti?tab=incassi" replace />} />
         <Route path="documenti/registro-iva" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><RegistroIVA /></BillingModeGuard></FeatureRoute>)} />

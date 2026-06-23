@@ -125,8 +125,10 @@ export default function InvoicesList() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      const rec = data?.received;
+      const recTxt = rec && (rec.imported || rec.updated) ? ` · ${(rec.imported || 0) + (rec.updated || 0)} ricevute` : "";
       toast.success("Sincronizzazione completata", {
-        description: `${data?.imported || 0} importate, ${data?.updated || 0} aggiornate${data?.failed ? `, ${data.failed} fallite` : ""}`,
+        description: `${data?.imported || 0} importate, ${data?.updated || 0} aggiornate${data?.failed ? `, ${data.failed} fallite` : ""}${recTxt}`,
       });
       // Aggiorna SIA la lista fatture SIA l'integrazione (ultimo sync). Senza il
       // secondo invalidate l'header restava su un orario di sync vecchio e, con la
