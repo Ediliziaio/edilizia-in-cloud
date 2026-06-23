@@ -64,7 +64,7 @@ export default defineConfig(() => ({
           for (const m of allMatches) {
             const href = m[1];
             const fullTag = m[0];
-            const isEntry = /\/assets-cb1\/index-[^/]+\.css$/.test(href);
+            const isEntry = /\/assets-cb2\/index-[^/]+\.css$/.test(href);
             if (!isEntry) {
               // RIMUOVI: chunk CSS lazy. Sarà caricato dal JS lazy.
               out = out.replace(fullTag, "");
@@ -138,7 +138,7 @@ export default defineConfig(() => ({
               const full = join(dir, entry);
               if (statSync(full).isDirectory()) {
                 // Skip assets / icons / images dir
-                if (["assets-cb1", "assets", "icons", "images", "_routes"].includes(entry)) continue;
+                if (["assets-cb2", "assets-cb1", "assets", "icons", "images", "_routes"].includes(entry)) continue;
                 yield* findHtmlFiles(full);
               } else if (entry.endsWith(".html")) {
                 yield full;
@@ -375,7 +375,7 @@ export default defineConfig(() => ({
     // namespaces. Cloudflare Pages SPA fallback has served index.html for JS
     // asset URLs during deploy races; a new assets directory gives every
     // bundle a clean URL.
-    assetsDir: "assets-cb1",
+    assetsDir: "assets-cb2",
     chunkSizeWarningLimit: 1500,
     // ─────────────────────────────────────────────────────────────
     // modulePreload filtrato (Velocity V3, Sprint 1.A)
