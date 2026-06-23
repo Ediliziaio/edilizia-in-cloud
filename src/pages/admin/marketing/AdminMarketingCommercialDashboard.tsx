@@ -23,6 +23,7 @@ import { CrmTemperatureCard, CrmWinLossCard } from "@/components/admin/crm-dashb
 import { CrmFunnelCard, CrmChannelsCard, CrmClustersCard } from "@/components/admin/crm-dashboard/CrmSegmentBars";
 import { CrmAccountsCard, CrmTeamCard, CrmAlertsCard } from "@/components/admin/crm-dashboard/CrmAccountsTeamAlerts";
 import { CrmAiInsightsBanner } from "@/components/admin/crm-dashboard/CrmAiInsightsBanner";
+import { CrmVelocityCard } from "@/components/admin/crm-dashboard/CrmVelocityCard";
 
 type PeriodKey = "7" | "30" | "90" | "365";
 const PERIODS: { key: PeriodKey; label: string }[] = [
@@ -342,6 +343,9 @@ export default function AdminMarketingCommercialDashboard() {
       {/* Cluster mestiere + zona */}
       <CrmClustersCard companyId={companyId} />
 
+      {/* Velocity tra gli stadi */}
+      <CrmVelocityCard companyId={companyId} />
+
       {/* Aziende / Account B2B */}
       <CrmAccountsCard companyId={companyId} />
 
@@ -351,9 +355,6 @@ export default function AdminMarketingCommercialDashboard() {
         <CrmAlertsCard companyId={companyId} />
       </div>
 
-      <p className="px-1 text-xs text-muted-foreground">
-        Ultimo blocco: riepilogo AI (crm-ai-insights) in arrivo.
-      </p>
     </div>
   );
 }
