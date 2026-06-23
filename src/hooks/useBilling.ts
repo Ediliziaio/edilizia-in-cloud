@@ -263,7 +263,16 @@ export function useStartCardSetup() {
           return_to: typeof window !== "undefined" ? window.location.pathname : undefined,
         },
       });
-      if (error) throw error;
+      if (error) {
+        // Mostra il messaggio REALE della edge function (es. "Stripe non configurato")
+        // invece del generico "Edge Function returned a non-2xx status code".
+        let real: string | null = null;
+        try {
+          const ctx = (error as { context?: unknown }).context;
+          if (ctx instanceof Response) real = ((await ctx.json().catch(() => null)) as { error?: string } | null)?.error ?? null;
+        } catch { /* ignore */ }
+        throw new Error(real ?? error.message);
+      }
       const res = data as { url?: string; error?: string };
       if (res?.error) throw new Error(res.error);
       if (!res?.url) throw new Error("URL checkout non disponibile");
