@@ -58,8 +58,12 @@ export default function InvoicesList() {
       return data;
     },
     enabled: !!companyId,
-    staleTime: 3 * 60 * 1000,
+    staleTime: 30 * 1000,
     gcTime: 10 * 60 * 1000,
+    // Con cache PWA persistente i dati vecchi venivano serviti senza refetch:
+    // forziamo il refetch a ogni apertura pagina così le fatture importate dal
+    // gestionale (o dal cron) compaiono subito.
+    refetchOnMount: "always",
   });
 
   // Check if provider is connected
@@ -78,6 +82,7 @@ export default function InvoicesList() {
       return data;
     },
     enabled: !!companyId,
+    refetchOnMount: "always",
   });
 
   const markPaidMutation = useMutation({

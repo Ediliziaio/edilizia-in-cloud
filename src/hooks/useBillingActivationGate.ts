@@ -8,7 +8,8 @@ import { GIFTED_EXEMPT_METHODS } from "@/lib/paymentStatus";
  *   1. i dati di fatturazione (ragione sociale, P.IVA, indirizzo legale), E
  *   2. un metodo di pagamento registrato.
  *
- * Vale per TUTTE le aziende — free, trial e attive — ANCHE col piano gratuito.
+ * Vale per le aziende free e attive — ANCHE col piano gratuito. Il TRIAL è esentato
+ * durante il periodo di prova (vedi sotto): si blocca solo a prova scaduta.
  * Metodi che sbloccano: carta (Stripe), addebito SEPA, bonifico.
  *  - "stripe"       = carta o SEPA registrati via Stripe (addebito automatico)
  *  - "sepa_debit"   = addebito SEPA (qualora etichettato distintamente)
@@ -61,7 +62,16 @@ export function useBillingActivationGate(): BillingActivationState {
   const isGifted = GIFTED_EXEMPT_METHODS.has(method);
   const roleExempt = !!role && EXEMPT_ROLES.has(role);
 
-  const exempt = !effectiveCompany || isDemoCompany || isGifted || roleExempt;
+  // Trial attivo: durante il periodo di prova NON blocchiamo il gestionale. L'utente
+  // può comunque inserire dati di fatturazione + carta dall'app (Impostazioni); il gate
+  // scatta SOLO a trial scaduto (status 'trial' con trial_ends_at passato → status flippa
+  // a expired/active/free e il blocco si riattiva). Senza data di fine = prova aperta.
+  const status = String((company as Record<string, unknown> | null)?.status ?? "").toLowerCase();
+  const trialEndsRaw = (company as Record<string, unknown> | null)?.trial_ends_at;
+  const trialEndsAtMs = trialEndsRaw ? Date.parse(String(trialEndsRaw)) : NaN;
+  const isActiveTrial = status === "trial" && (!Number.isFinite(trialEndsAtMs) || trialEndsAtMs > Date.now());
+
+  const exempt = !effectiveCompany || isDemoCompany || isGifted || roleExempt || isActiveTrial;
 
   const needsBillingData = !exempt && !billingComplete;
   const needsPaymentMethod = !exempt && !hasPaymentMethod;
