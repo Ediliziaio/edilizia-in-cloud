@@ -55,9 +55,11 @@ Deno.serve(async (req) => {
       `client_id=${FIC_CLIENT_ID}` +
       `&redirect_uri=${encodeURIComponent(FIC_REDIRECT_URI)}` +
       `&response_type=code` +
-      // Sola lettura (import/monitoraggio): nessuno scope di scrittura — l'adapter
-      // non crea/modifica nulla su FIC. issued+received per fatture attive/passive, info per l'azienda.
-      `&scope=issued_documents:r+received_documents:r+info:r` +
+      // Sola lettura (import/monitoraggio). Scope GRANULARI validi FIC v2 (verificati su
+      // developers.fattureincloud.it/docs/basics/scopes): NON esiste "issued_documents:r"
+      // né "info:r". Servono invoices + credit_notes (documenti emessi importati) +
+      // entity.clients (anagrafica cliente embeddata nelle fatture). Separatore = spazio (qui "+").
+      `&scope=issued_documents.invoices:r+issued_documents.credit_notes:r+entity.clients:r` +
       `&state=${state}`;
     return json({ auth_url: authUrl });
   }
