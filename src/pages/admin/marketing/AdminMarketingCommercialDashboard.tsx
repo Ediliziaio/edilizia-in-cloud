@@ -25,6 +25,7 @@ import { CrmAccountsCard, CrmTeamCard, CrmAlertsCard } from "@/components/admin/
 import { CrmAiInsightsBanner } from "@/components/admin/crm-dashboard/CrmAiInsightsBanner";
 import { CrmVelocityCard } from "@/components/admin/crm-dashboard/CrmVelocityCard";
 import { CrmAgentTargetsCard } from "@/components/admin/crm-dashboard/CrmAgentTargetsCard";
+import { CrmFirmographicsCard } from "@/components/admin/crm-dashboard/CrmFirmographicsCard";
 
 type PeriodKey = "7" | "30" | "90" | "365";
 const PERIODS: { key: PeriodKey; label: string }[] = [
@@ -343,6 +344,9 @@ export default function AdminMarketingCommercialDashboard() {
 
       {/* Cluster mestiere + zona */}
       <CrmClustersCard companyId={companyId} />
+
+      {/* Settore (ATECO) + dimensione */}
+      <CrmFirmographicsCard companyId={companyId} />
 
       {/* Velocity tra gli stadi */}
       <CrmVelocityCard companyId={companyId} />
