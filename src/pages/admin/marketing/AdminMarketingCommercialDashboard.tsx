@@ -24,6 +24,7 @@ import { CrmFunnelCard, CrmChannelsCard, CrmClustersCard } from "@/components/ad
 import { CrmAccountsCard, CrmTeamCard, CrmAlertsCard } from "@/components/admin/crm-dashboard/CrmAccountsTeamAlerts";
 import { CrmAiInsightsBanner } from "@/components/admin/crm-dashboard/CrmAiInsightsBanner";
 import { CrmVelocityCard } from "@/components/admin/crm-dashboard/CrmVelocityCard";
+import { CrmAgentTargetsCard } from "@/components/admin/crm-dashboard/CrmAgentTargetsCard";
 
 type PeriodKey = "7" | "30" | "90" | "365";
 const PERIODS: { key: PeriodKey; label: string }[] = [
@@ -354,6 +355,9 @@ export default function AdminMarketingCommercialDashboard() {
         <CrmTeamCard companyId={companyId} />
         <CrmAlertsCard companyId={companyId} />
       </div>
+
+      {/* Obiettivi per agente */}
+      <CrmAgentTargetsCard companyId={companyId} />
 
     </div>
   );
