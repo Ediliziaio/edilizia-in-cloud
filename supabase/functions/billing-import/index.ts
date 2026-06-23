@@ -20,26 +20,43 @@ Deno.serve(async (req) => {
   let integId: string | null = null;
 
   try {
-    const token = req.headers.get("Authorization")?.replace("Bearer ", "");
-    if (!token) return json({ error: "Unauthorized" }, 401);
-    const { data: { user } } = await supabase.auth.getUser(token);
-    if (!user) return json({ error: "Unauthorized" }, 401);
-
-    const body = await req.json();
+    let createdBy: string | null = null;
+    const body = await req.json().catch(() => ({}));
     provider = body.provider;
 
-    // Risoluzione azienda — NON esiste alcuna tabella company_users. company_id dal
-    // client (verificato con canAccessCompany) oppure quella effettiva in fallback.
-    let resolvedCompanyId: string | null =
-      (typeof body.company_id === "string" && body.company_id) ? body.company_id : null;
-    if (resolvedCompanyId) {
-      const ok = await canAccessCompany(supabase, user.id, resolvedCompanyId);
-      if (!ok) return json({ error: "Accesso negato a questa azienda" }, 403);
+    // Auth: utente (Bearer JWT) OPPURE chiamata automatica/cron (header x-cron-secret
+    // come gli altri cron del progetto, o service-role key). In modalità cron NON c'è
+    // un utente: company_id + provider arrivano dal body (la billing_auto_sync_all li
+    // passa per ogni integrazione attiva).
+    const token = req.headers.get("Authorization")?.replace("Bearer ", "") || "";
+    const cronHeader = req.headers.get("x-cron-secret") || "";
+    const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const isCron =
+      (!!cronHeader && (cronHeader === Deno.env.get("PROACTIVE_CRON_SECRET") || cronHeader === Deno.env.get("INTERNAL_CRON_SECRET"))) ||
+      (!!token && token === SERVICE_ROLE);
+
+    if (isCron) {
+      companyId = (typeof body.company_id === "string" && body.company_id) ? body.company_id : null;
+      if (!companyId || !provider) return json({ error: "cron: company_id e provider richiesti" }, 400);
     } else {
-      resolvedCompanyId = await resolveEffectiveCompanyId(supabase, user.id);
+      if (!token) return json({ error: "Unauthorized" }, 401);
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (!user) return json({ error: "Unauthorized" }, 401);
+      createdBy = user.id;
+
+      // Risoluzione azienda — NON esiste alcuna tabella company_users. company_id dal
+      // client (verificato con canAccessCompany) oppure quella effettiva in fallback.
+      let resolvedCompanyId: string | null =
+        (typeof body.company_id === "string" && body.company_id) ? body.company_id : null;
+      if (resolvedCompanyId) {
+        const ok = await canAccessCompany(supabase, user.id, resolvedCompanyId);
+        if (!ok) return json({ error: "Accesso negato a questa azienda" }, 403);
+      } else {
+        resolvedCompanyId = await resolveEffectiveCompanyId(supabase, user.id);
+      }
+      if (!resolvedCompanyId) return json({ error: "Nessuna azienda associata all'utente" }, 404);
+      companyId = resolvedCompanyId;
     }
-    if (!resolvedCompanyId) return json({ error: "Nessuna azienda associata all'utente" }, 404);
-    companyId = resolvedCompanyId;
 
     // Get integration
     const { data: integ } = await supabase
@@ -113,7 +130,7 @@ Deno.serve(async (req) => {
       } else {
         const { data: newInv, error: insErr } = await supabase.from("invoices").insert({
           ...invoiceData,
-          created_by: user.id,
+          created_by: createdBy,
         }).select("id").single();
 
         if (insErr || !newInv) {
