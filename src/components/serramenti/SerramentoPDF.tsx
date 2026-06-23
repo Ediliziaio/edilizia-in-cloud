@@ -1704,6 +1704,10 @@ export function SerramentoPDF({
     : coverLogoPosition === "top_center"
       ? { position: "absolute" as const, top: 54, left: 54, right: 54, alignItems: "center" as const }
       : { position: "absolute" as const, top: 54, left: 54, alignItems: coverTextAlign === "center" ? "center" as const : "flex-start" as const };
+  // Scala dimensione logo cover: % (60–160) → fattore moltiplicativo su maxWidth/height base.
+  const coverLogoScale = typeof tpl.pdf_cover_logo_size === "number"
+    ? Math.max(60, Math.min(160, tpl.pdf_cover_logo_size)) / 100
+    : 1;
   const coverTextBlockStyle = {
     position: "absolute" as const,
     top: coverContentTop,
@@ -2068,7 +2072,7 @@ export function SerramentoPDF({
           <View wrap={false} style={coverLogoPositionStyle}>
             <View style={styles.coverLogoBox}>
             {logoUrl ? (
-              <Image src={logoUrl} style={styles.coverLogoImage} />
+              <Image src={logoUrl} style={[styles.coverLogoImage, { maxWidth: 220 * coverLogoScale, height: 70 * coverLogoScale }]} />
             ) : (
               <View style={styles.coverLogoCircle}>
                 <Text style={{ color: "#FFFFFF", fontSize: 28, fontWeight: 700 }}>
@@ -3504,9 +3508,14 @@ export function SerramentoPDF({
                     return (
                       <View key={i} style={styles.testimonialBox} wrap={false}>
                         <Text style={styles.testimonialQuote}>&ldquo;{t.quote}&rdquo;</Text>
-                        <Text style={styles.testimonialAuthor}>
-                          — {t.autore}{sub ? ` · ${sub}` : ""}
-                        </Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 3 }}>
+                          {t.foto_url ? (
+                            <Image src={t.foto_url} style={{ width: 22, height: 22, borderRadius: 11, marginRight: 6, objectFit: "cover" }} />
+                          ) : null}
+                          <Text style={styles.testimonialAuthor}>
+                            — {t.autore}{sub ? ` · ${sub}` : ""}
+                          </Text>
+                        </View>
                       </View>
                     );
                   })}

@@ -52,6 +52,8 @@ export interface SrTestimonianza {
   autore: string;
   citta?: string;
   intervento?: string;
+  /** Foto/avatar opzionale del cliente (URL storage). Mostrata nel PDF se presente. */
+  foto_url?: string;
 }
 
 export interface SrPianoFinanziamento {
@@ -421,6 +423,8 @@ export interface SrTemplatePdfRow {
   /** M17 · Posizione logo cover. 'top_left' (default) | 'top_right' |
    *  'top_center' | 'hidden'. Solo cover, non altre pagine. */
   pdf_cover_logo_position: "top_left" | "top_right" | "top_center" | "hidden";
+  /** Dimensione del logo in copertina come scala % (60–160). NULL = 100% (base). */
+  pdf_cover_logo_size: number | null;
   /** M18 · Allineamento verticale blocco testo cover. 'bottom' (default) |
    *  'center' | 'top'. Indipendente da pdf_cover_text_align (orizzontale). */
   pdf_cover_text_vertical: "top" | "center" | "bottom";

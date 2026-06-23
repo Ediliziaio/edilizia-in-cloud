@@ -774,6 +774,38 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     }
   };
 
+  /** Upload foto opzionale di una recensione. Stesso pattern (bucket sr-progetti +
+   *  signed URL 1 anno). Salva in testimonianze_default[idx].foto_url. */
+  const [uploadingTestFoto, setUploadingTestFoto] = useState<number | null>(null);
+  const handleTestimonianzaFotoUpload = async (idx: number, file: File) => {
+    if (!file.type.startsWith("image/")) { toast.error("Carica un file immagine (PNG, JPG, WebP)"); return; }
+    if (file.size > 8 * 1024 * 1024) { toast.error("File troppo grande (max 8 MB)"); return; }
+    setUploadingTestFoto(idx);
+    try {
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) throw new Error("Non autenticato");
+      const { data: profile } = await supabase
+        .from("profiles" as never).select("company_id").eq("id", userId).maybeSingle();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const companyId = (profile as any)?.company_id;
+      if (!companyId) throw new Error("Profilo senza azienda");
+      const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";
+      const storagePath = `${companyId}/template-recensioni/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("sr-progetti").upload(storagePath, file, { contentType: file.type, upsert: false });
+      if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
+      const { data: signed } = await supabase.storage
+        .from("sr-progetti").createSignedUrl(storagePath, 60 * 60 * 24 * 365);
+      updateTestimonianza(idx, "foto_url", signed?.signedUrl ?? "");
+      toast.success("Foto recensione caricata. Salva per applicare.");
+    } catch (e) {
+      console.error("[serramenti-template-editor] testimonianza foto upload", e);
+      toast.error("Errore upload foto", { description: String(e) });
+    } finally {
+      setUploadingTestFoto(null);
+    }
+  };
+
   /**
    * Upload immagine di sfondo cover (pagina 1 del PDF).
    * Stesso pattern logo/chi-siamo: bucket sr-progetti + signed URL 1 anno.
@@ -1562,6 +1594,32 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     placeholder="Tipo intervento"
                     className="h-9 text-xs"
                   />
+                </div>
+                <div className="col-span-12 flex items-center gap-2">
+                  {t.foto_url ? (
+                    <img src={t.foto_url} alt="" className="h-10 w-10 rounded-full object-cover border" />
+                  ) : (
+                    <span className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                      <ImageIcon className="h-4 w-4" />
+                    </span>
+                  )}
+                  <label className="text-xs">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded border cursor-pointer hover:bg-muted">
+                      {uploadingTestFoto === idx ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                      {t.foto_url ? "Cambia foto" : "Foto cliente (opzionale)"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) handleTestimonianzaFotoUpload(idx, f); e.target.value = ""; }}
+                    />
+                  </label>
+                  {t.foto_url && (
+                    <button type="button" onClick={() => updateTestimonianza(idx, "foto_url", "")} className="text-xs text-rose-600 hover:underline">
+                      Rimuovi
+                    </button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -2362,6 +2420,26 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     className="w-full accent-orange-500"
                   />
                 </div>
+                {/* Dimensione logo cover (scala %) — disabilitata se logo nascosto */}
+                {(form.pdf_cover_logo_position ?? "top_left") !== "hidden" && (
+                  <div className="col-span-12 md:col-span-4">
+                    <Label className="text-[11px] flex items-center justify-between mb-1">
+                      <span>Dimensione logo</span>
+                      <span className="font-mono text-muted-foreground">
+                        {form.pdf_cover_logo_size ?? 100}%
+                      </span>
+                    </Label>
+                    <input
+                      type="range"
+                      min={60}
+                      max={160}
+                      step={5}
+                      value={form.pdf_cover_logo_size ?? 100}
+                      onChange={(e) => update("pdf_cover_logo_size", Number(e.target.value))}
+                      className="w-full accent-orange-500"
+                    />
+                  </div>
+                )}
 
                 {/* Allineamento testo */}
                 <div className="col-span-12 md:col-span-4">
