@@ -10,6 +10,8 @@
 // usa la stessa definizione per compilare subject/html_body/text_body.
 // ============================================================================
 
+import { SYSTEM_EMAIL_META } from "./system-email-meta.generated";
+
 export interface PlaceholderDef {
   /** Nome della variabile (usato come `{{key}}` nel template). */
   key: string;
@@ -705,6 +707,11 @@ export const TEMPLATE_META: Record<string, TemplateMeta> = {
     },
   },
 };
+
+// Aggiunge le 58 email di sistema (copy riscritti) al catalogo del builder.
+// Le chiavi sovrapposte (welcome, password_reset, lifecycle_*, ...) vengono
+// aggiornate; le ~45 nuove vengono aggiunte. Vedi system-email-meta.generated.ts.
+Object.assign(TEMPLATE_META, SYSTEM_EMAIL_META as Record<string, TemplateMeta>);
 
 /** Tutti i template_key supportati dall'editor. */
 export const EDITABLE_TEMPLATE_KEYS = Object.keys(TEMPLATE_META);

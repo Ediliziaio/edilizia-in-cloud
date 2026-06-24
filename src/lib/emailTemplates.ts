@@ -22,3 +22,8 @@ export {
   extractPlaceholderKeys,
   htmlToPlainText,
 } from "../../supabase/functions/_shared/email-templates/applyPlaceholders";
+
+export {
+  SYSTEM_EMAIL_CONTENT,
+  type SystemEmailContent,
+} from "../../supabase/functions/_shared/email-templates/system-email-content.generated";

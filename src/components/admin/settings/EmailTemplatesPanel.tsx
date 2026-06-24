@@ -98,6 +98,7 @@ import {
   TEMPLATE_META,
   EDITABLE_TEMPLATE_KEYS,
   applyPlaceholders,
+  SYSTEM_EMAIL_CONTENT,
   type TemplateMeta,
   type PlaceholderDef,
 } from "@/lib/emailTemplates";
@@ -137,8 +138,15 @@ import { toast } from "sonner";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const CATEGORY_LABELS: Record<string, string> = {
-  onboarding: "Onboarding",
-  account: "Account",
+  onboarding: "Onboarding & account azienda",
+  account: "Password & sicurezza",
+  inviti: "Team, inviti & accessi",
+  billing: "Abbonamento & fatturazione",
+  partner: "Programma partner",
+  prodotto: "Notifiche di prodotto",
+  fiscale: "Edilizia / fiscale",
+  lifecycle: "Lifecycle & retention",
+  sistema: "Sistema & compliance",
   documenti: "Documenti",
   notifiche: "Notifiche",
 };
@@ -1039,14 +1047,26 @@ export function EmailTemplatesPanel() {
       setDesignBlocks(designToBlocks(selectedRow.design_json, selectedRow.html_body, selectedKey));
       setLastEditedMode(selectedRow.design_json ? "visual" : "html");
     } else {
-      setSubject(selectedMeta?.label ?? "");
-      const blocks = defaultVisualBlocksFor(selectedKey);
-      setDesignBlocks(blocks);
-      setHtmlBody(generateEmailBodyHtml(blocks));
-      setTextBody("");
+      // Default dai copy riscritti (58 email di sistema) se disponibile,
+      // altrimenti starter generico. L'editor HTML mostra il contenuto ricco;
+      // il visuale lo apre come singolo blocco HTML (modificabile).
+      const gen = SYSTEM_EMAIL_CONTENT[selectedKey];
+      if (gen) {
+        setSubject(gen.subject || selectedMeta?.label || "");
+        setHtmlBody(gen.html_body);
+        setTextBody(gen.text_body ?? "");
+        setDesignBlocks(htmlToVisualBlocks(gen.html_body, selectedKey));
+        setLastEditedMode("html");
+      } else {
+        setSubject(selectedMeta?.label ?? "");
+        const blocks = defaultVisualBlocksFor(selectedKey);
+        setDesignBlocks(blocks);
+        setHtmlBody(generateEmailBodyHtml(blocks));
+        setTextBody("");
+        setLastEditedMode("visual");
+      }
       setNotes("");
       setEnabled(true);
-      setLastEditedMode("visual");
     }
     setDirty(false);
     setSaveStatus(selectedRow ? "saved" : "idle");
@@ -1326,7 +1346,10 @@ export function EmailTemplatesPanel() {
       groups.get(cat)!.push({ key, meta });
     }
     // Ordine categorie consistente
-    const orderedCats = ["onboarding", "account", "documenti", "notifiche"];
+    const orderedCats = [
+      "onboarding", "account", "inviti", "billing", "partner",
+      "prodotto", "fiscale", "lifecycle", "sistema", "documenti", "notifiche",
+    ];
     return orderedCats
       .map((cat) => ({ category: cat, label: CATEGORY_LABELS[cat] ?? cat, items: groups.get(cat) ?? [] }))
       .filter((g) => g.items.length > 0)
