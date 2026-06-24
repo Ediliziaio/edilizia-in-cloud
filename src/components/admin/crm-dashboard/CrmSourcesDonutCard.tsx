@@ -82,7 +82,7 @@ export function CrmSourcesDonutCard({ companyId }: { companyId: string }) {
         ) : segments.length === 0 ? (
           <p className="py-12 text-center text-sm text-muted-foreground">Nessun lead con fonte ancora.</p>
         ) : (
-          <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:gap-8">
+          <div className="flex flex-col items-center gap-5">
             {/* Donut */}
             <div className="shrink-0" onMouseLeave={() => setActive(null)}>
               <DonutChart

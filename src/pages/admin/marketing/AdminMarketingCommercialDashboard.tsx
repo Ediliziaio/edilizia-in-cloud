@@ -294,7 +294,7 @@ export default function AdminMarketingCommercialDashboard() {
         </TabsList>
 
         {/* ─── OVERVIEW ─────────────────────────────────────────────── */}
-        <TabsContent value="overview" className="space-y-5 pt-5">
+        <TabsContent value="overview" className="space-y-4 pt-5">
           <CrmAiInsightsBanner metrics={aiMetrics} />
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
@@ -319,12 +319,18 @@ export default function AdminMarketingCommercialDashboard() {
             />
           </div>
 
-          <CrmTrendCard companyId={companyId} />
-
-          <CrmSourcesDonutCard companyId={companyId} />
+          {/* Riga: andamento (2/3) + fonti (1/3) */}
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <CrmTrendCard companyId={companyId} />
+            </div>
+            <CrmSourcesDonutCard companyId={companyId} />
+          </div>
 
           <CrmHotLeadsCard companyId={companyId} />
 
+          {/* Riga: pipeline per stadio + alert */}
+          <div className="grid items-start gap-4 lg:grid-cols-2">
           <Card>
             <CardContent className="p-4 sm:p-5">
               <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
@@ -365,9 +371,10 @@ export default function AdminMarketingCommercialDashboard() {
               )}
             </CardContent>
           </Card>
+            <CrmAlertsCard companyId={companyId} />
+          </div>
 
           <CrmAccountsCard companyId={companyId} />
-          <CrmAlertsCard companyId={companyId} />
         </TabsContent>
 
         {/* ─── PIPELINE ─────────────────────────────────────────────── */}
