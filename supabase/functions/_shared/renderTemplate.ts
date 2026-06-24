@@ -19,6 +19,7 @@ import * as purchaseConfirmed from "./email-templates/purchase-confirmed.ts";
 import { renderLayout } from "./email-templates/layout.ts";
 import { resolveTemplate } from "./email-templates/resolveTemplate.ts";
 import { applyPlaceholders, htmlToPlainText } from "./email-templates/applyPlaceholders.ts";
+import { SYSTEM_EMAIL_CONTENT } from "./email-templates/system-email-content.generated.ts";
 
 /** Mappa template-name → renderer. Aggiungere qui nuovi template. */
 const TEMPLATE_REGISTRY = {
@@ -188,11 +189,16 @@ export async function renderEmailTemplate<K extends TemplateName>(params: {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  const rendererFn = TEMPLATE_REGISTRY[params.templateName] as unknown as (
-    props: unknown,
-    branding: Branding,
-  ) => RenderedTemplate;
-  if (!rendererFn) {
+  const rendererFn = TEMPLATE_REGISTRY[params.templateName] as unknown as
+    | ((props: unknown, branding: Branding) => RenderedTemplate)
+    | undefined;
+  // Contenuto di sistema (58 copy riscritti) per le chiavi senza renderer code.
+  const systemContent = (SYSTEM_EMAIL_CONTENT as Record<
+    string,
+    { subject: string; html_body: string; text_body: string }
+  >)[params.templateName as string];
+
+  if (!rendererFn && !systemContent) {
     throw new Error(
       `Unknown template "${params.templateName}". Available: ${AVAILABLE_TEMPLATES.join(", ")}`,
     );
@@ -207,31 +213,33 @@ export async function renderEmailTemplate<K extends TemplateName>(params: {
     ...params.brandingOverride,
   };
 
-  // ── DB-first: controlla se il super_admin ha personalizzato il template ───
-  // Se presente, render del body con substitution + layout condiviso.
-  // Se assente o errore → fallback silenzioso al renderer hardcoded.
+  // ── DB-first: override personalizzato dal super_admin nel builder ─────────
+  // Ordine sorgente contenuto:
+  //   1. override DB (platform_email_templates) — l'edit nel builder
+  //   2. SYSTEM_EMAIL_CONTENT (copy riscritti) per le chiavi senza renderer code
+  //   3. renderer code hardcoded (per i template documenti legacy)
+  // 1 e 2 passano dal layout condiviso + substitution {{var}}.
   const override = await resolveTemplate(admin, params.templateName, params.roleVariant ?? null);
-  if (override) {
-    // Placeholder data: props + branding-derived (companyName ecc.)
+  const source = override ??
+    (!rendererFn && systemContent
+      ? { subject: systemContent.subject, html_body: systemContent.html_body, text_body: systemContent.text_body || null }
+      : null);
+
+  if (source) {
     const placeholderData: Record<string, unknown> = {
       ...(params.props as unknown as Record<string, unknown>),
       companyName: branding.companyName,
     };
 
-    const innerBodyHtml = applyPlaceholders(override.html_body, placeholderData, true);
-    const subject = applyPlaceholders(override.subject, placeholderData, false);
-    const rawText = override.text_body
-      ? applyPlaceholders(override.text_body, placeholderData, false)
+    const innerBodyHtml = applyPlaceholders(source.html_body, placeholderData, true);
+    const subject = applyPlaceholders(source.subject, placeholderData, false);
+    const rawText = source.text_body
+      ? applyPlaceholders(source.text_body, placeholderData, false)
       : htmlToPlainText(innerBodyHtml);
 
-    const html = renderLayout({
-      branding,
-      innerBodyHtml,
-      preheaderText: subject,
-    });
-
+    const html = renderLayout({ branding, innerBodyHtml, preheaderText: subject });
     return { subject, html, text: rawText };
   }
 
-  return rendererFn(params.props, branding);
+  return rendererFn!(params.props, branding);
 }

@@ -92,6 +92,7 @@ import {
   Undo2,
   Variable,
   Redo2,
+  AlertTriangle,
 } from "lucide-react";
 
 import {
@@ -1006,6 +1007,20 @@ export function EmailTemplatesPanel() {
     () => getAvailablePlaceholders(selectedMeta, platformCustomPlaceholders),
     [selectedMeta, platformCustomPlaceholders],
   );
+  // Validazione: variabili {{...}} usate in oggetto/corpo che NON sono nella
+  // palette del template (probabile refuso). link_url_N e companyName sono sempre ok.
+  const unknownVars = useMemo(() => {
+    const allowed = new Set(availablePlaceholders.map((p) => p.key));
+    const used = new Set<string>();
+    const re = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*\}\}/g;
+    for (const text of [subject, htmlBody]) {
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(text)) !== null) used.add(m[1]);
+    }
+    return [...used].filter(
+      (k) => !allowed.has(k) && !/^link_url_\d+$/.test(k) && k !== "companyName",
+    );
+  }, [subject, htmlBody, availablePlaceholders]);
   const currentSaveInput = useMemo<EmailTemplateUpsert>(
     () => ({
       template_key: selectedKey,
@@ -1739,6 +1754,17 @@ export function EmailTemplatesPanel() {
                   Anteprima
                 </TabsTrigger>
               </TabsList>
+
+              {unknownVars.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span className="font-medium">Variabili non riconosciute per questo template:</span>
+                  {unknownVars.map((v) => (
+                    <code key={v} className="rounded bg-amber-100 px-1.5 py-0.5 font-mono">{`{{${v}}}`}</code>
+                  ))}
+                  <span className="text-amber-700">— resteranno in chiaro nell'email. Controlla che il nome sia corretto.</span>
+                </div>
+              )}
 
               <TabsContent value="visual" className="space-y-4">
                 <VisualTemplateBuilder
