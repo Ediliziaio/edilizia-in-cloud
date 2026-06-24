@@ -139,7 +139,6 @@ const SettingsWhatsAppBot = lazy(() => import("@/pages/azienda/settings/Settings
 const SettingsCostCategories = lazy(() => import("@/pages/azienda/settings/SettingsCostCategories"));
 const SettingsFinanceAutomation = lazy(() => import("@/pages/azienda/settings/SettingsFinanceAutomation"));
 const SettingsCredits = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
-const SettingsQuoteMaterials = lazy(() => import("@/pages/azienda/settings/SettingsQuoteMaterials"));
 const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
 const AITestLab = lazy(() => import("@/pages/azienda/settings/AITestLab"));
 const SettingsFirmaElettronica = lazy(() => import("@/pages/azienda/settings/SettingsFirmaElettronica"));
@@ -1147,7 +1146,6 @@ export default function CompanyRoutesContainer() {
           <Route path="preferenze-email" element={withCompanyPermission("canViewMarketingEmail", <SettingsEmailPreferences />)} />
           <Route path="privacy" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=privacy" replace />} />
           <Route path="branding" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBranding />)} />
-          <Route path="materiali-preventivi" element={withCompanyPermission("canViewSettingsPricing", <SettingsQuoteMaterials />)} />
           <Route path="template-preventivi" element={withCompanyPermission("canViewSettingsPricing", <SettingsQuoteTemplates />)} />
           {/* AI Test Lab — gated all'interno della pagina (auto-redirect se non autorizzato) */}
           <Route path="ai-test-lab" element={<AITestLab />} />

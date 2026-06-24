@@ -29,7 +29,6 @@ const SECTION_MAP: Record<string, SectionMeta> = {
   "campi-personalizzati": { title: "Campi personalizzati",     description: "Crea campi aggiuntivi per i tuoi record" },
   sequenze:               { title: "Sequenze",                 description: "Configura le sequenze di follow-up automatico" },
   "form-builder":         { title: "Form & UTM",               description: "Crea form di acquisizione lead e traccia le campagne" },
-  "materiali-preventivi": { title: "Materiali preventivi",     description: "Gestisci i materiali usati nei preventivi" },
   "template-preventivi":  { title: "Template offerte",         description: "Crea e modifica i template per le offerte commerciali" },
   "firma-elettronica":    { title: "Firma Elettronica",        description: "Configura FEA, OTP, consenso e flussi firma per preventivi e documenti operativi" },
   sopralluoghi:           { title: "Sopralluoghi",             description: "Configura le impostazioni del modulo Sopralluoghi" },
