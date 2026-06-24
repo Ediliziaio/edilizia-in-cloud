@@ -35,6 +35,8 @@ import { CrmSourcesDonutCard } from "@/components/admin/crm-dashboard/CrmSources
 import { CrmOperationalFunnel } from "@/components/admin/crm-dashboard/CrmOperationalFunnel";
 import { CrmNetworksStrip } from "@/components/admin/crm-dashboard/CrmNetworksStrip";
 import { CrmUnitEconomics } from "@/components/admin/crm-dashboard/CrmUnitEconomics";
+import { CrmChannelRoi } from "@/components/admin/crm-dashboard/CrmChannelRoi";
+import { CrmGrowthLevers } from "@/components/admin/crm-dashboard/CrmGrowthLevers";
 import { motion } from "framer-motion";
 
 type PeriodKey = "7" | "30" | "90" | "365";
@@ -325,6 +327,11 @@ export default function AdminMarketingCommercialDashboard() {
           <CrmOperationalFunnel companyId={companyId} />
 
           <CrmUnitEconomics companyId={companyId} days={days} />
+
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <CrmChannelRoi companyId={companyId} days={days} />
+            <CrmGrowthLevers companyId={companyId} />
+          </div>
 
           {/* Riga: andamento (2/3) + fonti (1/3) */}
           <div className="grid gap-4 lg:grid-cols-3">
