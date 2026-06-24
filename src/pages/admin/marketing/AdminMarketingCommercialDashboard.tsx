@@ -17,8 +17,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAdminMarketing } from "@/hooks/useAdminMarketing";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  TrendingUp, TrendingDown, Layers, Target, Trophy, UserPlus, Flame, Loader2, BarChart3,
+  TrendingUp, TrendingDown, Layers, Target, Trophy, UserPlus, Flame, Loader2, BarChart3, Crosshair, Package, Share2,
 } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CrmTemperatureCard, CrmWinLossCard } from "@/components/admin/crm-dashboard/CrmSegmentDonuts";
 import { CrmFunnelCard, CrmChannelsCard, CrmClustersCard } from "@/components/admin/crm-dashboard/CrmSegmentBars";
 import { CrmAccountsCard, CrmTeamCard, CrmAlertsCard } from "@/components/admin/crm-dashboard/CrmAccountsTeamAlerts";
@@ -224,18 +225,21 @@ export default function AdminMarketingCommercialDashboard() {
     [kpis, pipelineByStage, days],
   );
 
+  const dateLabel = useMemo(() => {
+    const s = new Intl.DateTimeFormat("it-IT", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(nowMs));
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }, [nowMs]);
+
   return (
     <div className="space-y-5 p-1">
       {/* Header + filtro periodo */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <BarChart3 className="h-5 w-5 text-primary" aria-hidden="true" />
-          </span>
-          <div>
-            <h1 className="text-xl font-bold leading-tight sm:text-2xl">Dashboard commerciale</h1>
-            <p className="text-sm text-muted-foreground">Pipeline, lead, team e revenue — dati live del CRM</p>
-          </div>
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold leading-tight sm:text-2xl">Dashboard commerciale — AEDIX</h1>
+          <p className="text-sm text-muted-foreground">
+            {dateLabel} · <span className="font-medium text-emerald-600">● Live</span>
+          </p>
         </div>
         <div className="inline-flex overflow-hidden rounded-lg border">
           {PERIODS.map((p) => (
@@ -256,9 +260,6 @@ export default function AdminMarketingCommercialDashboard() {
         </div>
       </div>
 
-      {/* Riepilogo AI del periodo */}
-      <CrmAiInsightsBanner metrics={aiMetrics} />
-
       {isError && (
         <Card>
           <CardContent className="p-6 text-center text-sm text-muted-foreground">
@@ -267,101 +268,128 @@ export default function AdminMarketingCommercialDashboard() {
         </Card>
       )}
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-        <Kpi icon={Layers} label="Pipeline aperta" value={eurCompact(kpis.pipelineOpenValue)} loading={isLoading} />
-        <Kpi icon={Target} label="Forecast pesato" value={eurCompact(kpis.forecast)} loading={isLoading} />
-        <Kpi
-          icon={Trophy}
-          label={`Vinto (${days}g)`}
-          value={`${eurCompact(kpis.wonValue)} · ${kpis.wonCount}`}
-          delta={kpis.wonDelta}
-          loading={isLoading}
-        />
-        <Kpi icon={TrendingUp} label="Win rate" value={pct(kpis.winRate)} deltaPt={kpis.winRateDeltaPt} loading={isLoading} />
-        <Kpi icon={UserPlus} label="Lead nuovi" value={String(kpis.newLeads)} delta={kpis.newLeadsDelta} loading={isLoading} />
-        <Kpi
-          icon={Flame}
-          label="Caldi senza follow-up"
-          value={String(kpis.hotNoFollowup)}
-          tone="warn"
-          hint="da 5+ giorni"
-          loading={isLoading}
-        />
-      </div>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+          <TabsTrigger value="overview" className="gap-1.5 rounded-lg border data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
+            <BarChart3 className="h-4 w-4" aria-hidden="true" /> Overview
+          </TabsTrigger>
+          <TabsTrigger value="pipeline" className="gap-1.5 rounded-lg border data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
+            <Crosshair className="h-4 w-4" aria-hidden="true" /> Pipeline
+          </TabsTrigger>
+          <TabsTrigger value="cluster" className="gap-1.5 rounded-lg border data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
+            <Package className="h-4 w-4" aria-hidden="true" /> Cluster &amp; LTV
+          </TabsTrigger>
+          <TabsTrigger value="partner" className="gap-1.5 rounded-lg border data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
+            <Share2 className="h-4 w-4" aria-hidden="true" /> Partner &amp; Referral
+          </TabsTrigger>
+          <TabsTrigger value="team" className="gap-1.5 rounded-lg border data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
+            <Trophy className="h-4 w-4" aria-hidden="true" /> Team
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Pipeline per stadio */}
-      <Card>
-        <CardContent className="p-4 sm:p-5">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-            <Layers className="h-4 w-4" aria-hidden="true" /> Pipeline per stadio
-            <span className="ml-auto text-xs font-normal text-muted-foreground">
-              {pipelineByStage.total} opportunità aperte
-            </span>
+        {/* ─── OVERVIEW ─────────────────────────────────────────────── */}
+        <TabsContent value="overview" className="space-y-5 pt-5">
+          <CrmAiInsightsBanner metrics={aiMetrics} />
+
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+            <Kpi icon={Layers} label="Pipeline aperta" value={eurCompact(kpis.pipelineOpenValue)} loading={isLoading} />
+            <Kpi icon={Target} label="Forecast pesato" value={eurCompact(kpis.forecast)} loading={isLoading} />
+            <Kpi
+              icon={Trophy}
+              label={`Vinto (${days}g)`}
+              value={`${eurCompact(kpis.wonValue)} · ${kpis.wonCount}`}
+              delta={kpis.wonDelta}
+              loading={isLoading}
+            />
+            <Kpi icon={TrendingUp} label="Win rate" value={pct(kpis.winRate)} deltaPt={kpis.winRateDeltaPt} loading={isLoading} />
+            <Kpi icon={UserPlus} label="Lead nuovi" value={String(kpis.newLeads)} delta={kpis.newLeadsDelta} loading={isLoading} />
+            <Kpi
+              icon={Flame}
+              label="Caldi senza follow-up"
+              value={String(kpis.hotNoFollowup)}
+              tone="warn"
+              hint="da 5+ giorni"
+              loading={isLoading}
+            />
           </div>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-10 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-            </div>
-          ) : pipelineByStage.rows.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              Nessuno stadio configurato o nessuna opportunità aperta.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-2.5 text-[13px]">
-              {pipelineByStage.rows.map((r) => (
-                <div key={r.name}>
-                  <div className="mb-1 flex justify-between">
-                    <span>{r.name}</span>
-                    <span className="text-muted-foreground">
-                      {r.count} · {eurCompact(r.value)}
-                    </span>
-                  </div>
-                  <div className="h-2 rounded bg-muted">
-                    <div
-                      className="h-2 rounded bg-primary"
-                      style={{ width: `${Math.max(2, (r.count / pipelineByStage.maxCount) * 100)}%` }}
-                    />
-                  </div>
+
+          <Card>
+            <CardContent className="p-4 sm:p-5">
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                <Layers className="h-4 w-4" aria-hidden="true" /> Pipeline per stadio
+                <span className="ml-auto text-xs font-normal text-muted-foreground">
+                  {pipelineByStage.total} opportunità aperte
+                </span>
+              </div>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-10 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              ) : pipelineByStage.rows.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  Nessuno stadio configurato o nessuna opportunità aperta.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2.5 text-[13px]">
+                  {pipelineByStage.rows.map((r) => (
+                    <div key={r.name}>
+                      <div className="mb-1 flex justify-between">
+                        <span>{r.name}</span>
+                        <span className="text-muted-foreground">
+                          {r.count} · {eurCompact(r.value)}
+                        </span>
+                      </div>
+                      <div className="h-2 rounded bg-muted">
+                        <div
+                          className="h-2 rounded bg-primary"
+                          style={{ width: `${Math.max(2, (r.count / pipelineByStage.maxCount) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-      {/* Segmentazione: temperatura + win/loss */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <CrmTemperatureCard companyId={companyId} />
-        <CrmWinLossCard companyId={companyId} />
-      </div>
+          <CrmAccountsCard companyId={companyId} />
+          <CrmAlertsCard companyId={companyId} />
+        </TabsContent>
 
-      {/* Funnel + fonti */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <CrmFunnelCard companyId={companyId} />
-        <CrmChannelsCard companyId={companyId} />
-      </div>
+        {/* ─── PIPELINE ─────────────────────────────────────────────── */}
+        <TabsContent value="pipeline" className="space-y-5 pt-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            <CrmFunnelCard companyId={companyId} />
+            <CrmWinLossCard companyId={companyId} />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <CrmTemperatureCard companyId={companyId} />
+            <CrmVelocityCard companyId={companyId} />
+          </div>
+        </TabsContent>
 
-      {/* Cluster mestiere + zona */}
-      <CrmClustersCard companyId={companyId} />
+        {/* ─── CLUSTER & LTV ────────────────────────────────────────── */}
+        <TabsContent value="cluster" className="space-y-5 pt-5">
+          <CrmChannelsCard companyId={companyId} />
+          <CrmClustersCard companyId={companyId} />
+          <CrmFirmographicsCard companyId={companyId} />
+        </TabsContent>
 
-      {/* Settore (ATECO) + dimensione */}
-      <CrmFirmographicsCard companyId={companyId} />
+        {/* ─── PARTNER & REFERRAL ───────────────────────────────────── */}
+        <TabsContent value="partner" className="space-y-5 pt-5">
+          <Card>
+            <CardContent className="p-10 text-center text-sm text-muted-foreground">
+              Partner Rivenditori &amp; Referral clienti — in arrivo nel prossimo blocco.
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {/* Velocity tra gli stadi */}
-      <CrmVelocityCard companyId={companyId} />
-
-      {/* Aziende / Account B2B */}
-      <CrmAccountsCard companyId={companyId} />
-
-      {/* Team + alert */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <CrmTeamCard companyId={companyId} />
-        <CrmAlertsCard companyId={companyId} />
-      </div>
-
-      {/* Obiettivi per agente */}
-      <CrmAgentTargetsCard companyId={companyId} />
+        {/* ─── TEAM ─────────────────────────────────────────────────── */}
+        <TabsContent value="team" className="space-y-5 pt-5">
+          <CrmTeamCard companyId={companyId} />
+          <CrmAgentTargetsCard companyId={companyId} />
+        </TabsContent>
+      </Tabs>
 
     </div>
   );
