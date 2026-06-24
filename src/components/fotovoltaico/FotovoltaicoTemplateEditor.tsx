@@ -640,26 +640,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
     }
   }, [activeSection, searchParams]);
 
-  // Scroll-to-top al cambio sezione (parità Serramenti). Lo scroller reale è il
-  // SidebarInset (antenato), non window: scrollIntoView sul sentinel in cima al
-  // contenuto resetta lo scroll corretto. Prima il cambio sezione lasciava la
-  // pagina a metà → sembrava che la nuova sezione fosse "rotta".
-  useEffect(() => {
-    // Scroll-to-top al cambio sezione (parità Serramenti). Lo scroller reale del
-    // layout (SidebarInset) NON è un antenato diretto del contenuto, quindi
-    // resettiamo window + documentElement + tutti i contenitori con overflow
-    // effettivamente scrollati. Prima il cambio sezione lasciava la pagina a
-    // metà → la nuova sezione sembrava "rotta".
-    if (typeof window === "undefined") return;
-    // Reset ISTANTANEO (niente "behavior: smooth") così la nuova sezione appare
-    // subito in cima, senza animazione di scroll visibile ad ogni cambio.
-    window.scrollTo({ top: 0 });
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
-    document.querySelectorAll<HTMLElement>("main, .overflow-auto, .overflow-y-auto").forEach((el) => {
-      if (el.scrollTop > 0) el.scrollTop = 0;
-    });
-  }, [activeSection]);
+  // NB: nessuno scroll-to-top al cambio sezione — l'utente vuole restare nella
+  // stessa posizione di scroll quando passa da una sezione all'altra.
 
   const selectSection = (section: FvEditorSection) => {
     setActiveSection(section);
