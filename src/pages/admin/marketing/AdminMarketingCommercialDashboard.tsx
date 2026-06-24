@@ -30,6 +30,7 @@ import { CrmFirmographicsCard } from "@/components/admin/crm-dashboard/CrmFirmog
 import { CrmProductCards } from "@/components/admin/crm-dashboard/CrmProductCards";
 import { CrmHotLeadsCard } from "@/components/admin/crm-dashboard/CrmHotLeadsCard";
 import { CrmPartnerReferralCard } from "@/components/admin/crm-dashboard/CrmPartnerReferralCard";
+import { CrmTrendCard } from "@/components/admin/crm-dashboard/CrmTrendCard";
 
 type PeriodKey = "7" | "30" | "90" | "365";
 const PERIODS: { key: PeriodKey; label: string }[] = [
@@ -315,6 +316,8 @@ export default function AdminMarketingCommercialDashboard() {
               loading={isLoading}
             />
           </div>
+
+          <CrmTrendCard companyId={companyId} />
 
           <CrmHotLeadsCard companyId={companyId} />
 
