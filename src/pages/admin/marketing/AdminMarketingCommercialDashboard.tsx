@@ -27,6 +27,7 @@ import { CrmAiInsightsBanner } from "@/components/admin/crm-dashboard/CrmAiInsig
 import { CrmVelocityCard } from "@/components/admin/crm-dashboard/CrmVelocityCard";
 import { CrmAgentTargetsCard } from "@/components/admin/crm-dashboard/CrmAgentTargetsCard";
 import { CrmFirmographicsCard } from "@/components/admin/crm-dashboard/CrmFirmographicsCard";
+import { CrmProductCards } from "@/components/admin/crm-dashboard/CrmProductCards";
 
 type PeriodKey = "7" | "30" | "90" | "365";
 const PERIODS: { key: PeriodKey; label: string }[] = [
@@ -370,6 +371,7 @@ export default function AdminMarketingCommercialDashboard() {
 
         {/* ─── CLUSTER & LTV ────────────────────────────────────────── */}
         <TabsContent value="cluster" className="space-y-5 pt-5">
+          <CrmProductCards companyId={companyId} />
           <CrmChannelsCard companyId={companyId} />
           <CrmClustersCard companyId={companyId} />
           <CrmFirmographicsCard companyId={companyId} />
