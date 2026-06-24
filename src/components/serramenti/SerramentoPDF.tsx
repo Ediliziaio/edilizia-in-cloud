@@ -3549,7 +3549,7 @@ export function SerramentoPDF({
                 ))}
               </View>
 
-              {publicUrl && (
+              {publicUrl && tpl.pdf_mostra_firma_online === true && (
                 <View style={styles.signatureBox} wrap={false}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.signatureTitle}>Firma e conferma online</Text>
