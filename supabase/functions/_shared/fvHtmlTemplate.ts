@@ -143,6 +143,13 @@ export interface FvPdfTemplateData {
     pdf_cover_text_align?: string | null;
     pdf_cover_logo_position?: string | null;
     pdf_cover_show_client_card?: boolean | null;
+    // Parità layout cover con l'editor (migration 20271109000000_fv_cover_parity).
+    pdf_cover_show_decoration?: boolean | null;
+    pdf_cover_text_vertical?: string | null;
+    pdf_cover_overlay_style?: string | null;
+    pdf_cover_title_size?: number | null;
+    pdf_cover_subtitle_size?: number | null;
+    pdf_cover_eyebrow_size?: number | null;
     presentazione_impresa_html?: string | null;
     foto_team_url?: string | null;
     chi_siamo_titolo?: string | null;
@@ -279,6 +286,7 @@ p { margin-bottom: 2mm; }
 .cover { background: linear-gradient(135deg, #0F2542 0%, #1E3A5F 60%, #2C5184 100%); color: white; height: 100%; position: relative; overflow: hidden; }
 .cover::before { content: ""; position: absolute; top: -20%; right: -20%; width: 80%; height: 80%; background: radial-gradient(circle, rgba(249,115,22,0.4) 0%, transparent 60%); }
 .cover::after { content: "☀"; position: absolute; top: 25mm; right: 25mm; font-size: 100pt; opacity: 0.15; color: #FBBF24; }
+.cover--flat::after { content: none; }
 .cover-bg-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .cover-overlay { position: absolute; inset: 0; }
 .cover-content { position: relative; padding: 24mm 22mm; height: 100%; display: flex; flex-direction: column; }
@@ -839,22 +847,50 @@ function pageCover(d: FvPdfTemplateData): string {
   const brandJustify = logoPosition === "top_right" ? "flex-end" : logoPosition === "top_center" ? "center" : "flex-start";
   const showBrand = logoPosition !== "hidden";
   const showClientCard = d.template?.pdf_cover_show_client_card !== false;
+  // ─── Parità layout cover con l'editor: posizione verticale, overlay style,
+  // dimensioni font. La DECORAZIONE resta il ☀ ambientale FV (CSS .cover::after);
+  // il toggle "Mostra" la accende/spegne (classe .cover--flat). Lo stile decoro
+  // (anelli/linea…) NON si applica al PDF FV per scelta — vedi memoria
+  // project_cover_template_system.
+  const showDecoration = d.template?.pdf_cover_show_decoration !== false;
+  const overlayStyle = plainText(d.template?.pdf_cover_overlay_style) || "flat";
+  const textVertical = plainText(d.template?.pdf_cover_text_vertical) || "bottom";
+  const clampSize = (v: unknown, lo: number, hi: number, def: number) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : def;
+  };
+  const titleSize = clampSize(d.template?.pdf_cover_title_size, 28, 64, 46);
+  const subtitleSize = clampSize(d.template?.pdf_cover_subtitle_size, 10, 18, 16);
+  const eyebrowSize = clampSize(d.template?.pdf_cover_eyebrow_size, 8, 14, 10);
+  const overlayBg = overlayStyle === "gradient"
+    ? `linear-gradient(to bottom, rgba(15,37,66,${(overlayOpacity * 0.15).toFixed(2)}) 0%, rgba(15,37,66,${(overlayOpacity * 0.55).toFixed(2)}) 55%, rgba(15,37,66,${overlayOpacity.toFixed(2)}) 100%)`
+    : overlayStyle === "gradient_diag"
+      ? `linear-gradient(135deg, rgba(15,37,66,${(overlayOpacity * 0.2).toFixed(2)}) 0%, rgba(15,37,66,${overlayOpacity.toFixed(2)}) 100%)`
+      : overlayStyle === "vignette"
+        ? `radial-gradient(ellipse at center, rgba(15,37,66,${(overlayOpacity * 0.1).toFixed(2)}) 0%, rgba(15,37,66,${(overlayOpacity * 0.5).toFixed(2)}) 70%, rgba(15,37,66,${(overlayOpacity * 0.95).toFixed(2)}) 100%)`
+        : `rgba(15,37,66,${overlayOpacity.toFixed(2)})`;
+  const mainMargin = textVertical === "top"
+    ? "margin-top:0;margin-bottom:auto;"
+    : textVertical === "center"
+      ? "margin-top:auto;margin-bottom:auto;"
+      : "margin-top:auto;margin-bottom:0;";
+  const brandMb = textVertical === "bottom" ? "auto" : "0";
 
-  return `<div class="page"><div class="cover" style="background:${escHtml(bgColor)};color:${escHtml(textColor)};">
+  return `<div class="page"><div class="cover${showDecoration ? "" : " cover--flat"}" style="background:${escHtml(bgColor)};color:${escHtml(textColor)};">
     ${imageUrl ? `<img class="cover-bg-img" src="${escHtml(imageUrl)}" alt="Copertina fotovoltaico"/>` : ""}
-    ${imageUrl ? `<div class="cover-overlay" style="background:rgba(15,37,66,${overlayOpacity.toFixed(2)});"></div>` : ""}
+    ${imageUrl ? `<div class="cover-overlay" style="background:${overlayBg};"></div>` : ""}
     <div class="cover-content" style="color:${escHtml(textColor)};text-align:${align};align-items:${align === "center" ? "center" : "stretch"};">
-    ${showBrand ? `<div class="cover-brand" style="justify-content:${brandJustify};width:100%;">
+    ${showBrand ? `<div class="cover-brand" style="justify-content:${brandJustify};width:100%;margin-bottom:${brandMb};">
       ${logoUrl ? `<img class="logo-img" src="${escHtml(logoUrl)}" alt="${escHtml(d.azienda.name)}"/>` : `<div class="icon">☀</div>`}
       <div>
         <div class="name">${escHtml(d.azienda.name)}</div>
         ${d.azienda.tagline ? `<div class="tagline">${escHtml(d.azienda.tagline)}</div>` : ""}
       </div>
-    </div>` : `<div style="margin-bottom:auto;"></div>`}
-    <div class="cover-main" style="max-width:${align === "center" ? "150mm" : "165mm"};">
-      <div class="cover-eyebrow">${escHtml(eyebrow)}</div>
-      <h1 style="color:${escHtml(textColor)};">${renderCoverLines(hero)}</h1>
-      <div class="subtitle" style="max-width:${align === "center" ? "100%" : "75%"};">${renderCoverLines(subtitle)}</div>
+    </div>` : `<div style="margin-bottom:${brandMb};"></div>`}
+    <div class="cover-main" style="max-width:${align === "center" ? "150mm" : "165mm"};${mainMargin}">
+      <div class="cover-eyebrow" style="font-size:${eyebrowSize}pt;">${escHtml(eyebrow)}</div>
+      <h1 style="color:${escHtml(textColor)};font-size:${titleSize}pt;">${renderCoverLines(hero)}</h1>
+      <div class="subtitle" style="max-width:${align === "center" ? "100%" : "75%"};font-size:${subtitleSize}pt;">${renderCoverLines(subtitle)}</div>
     </div>
     ${showClientCard ? `<div class="cover-client">
       <div class="client-label">Preparato per</div>
