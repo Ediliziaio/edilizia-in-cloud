@@ -20,7 +20,7 @@ import {
   TrendingUp, TrendingDown, Layers, Target, Trophy, UserPlus, Flame, Loader2, BarChart3, Crosshair, Package, Share2,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { CrmTemperatureCard, CrmWinLossCard } from "@/components/admin/crm-dashboard/CrmSegmentDonuts";
+import { CrmWinLossCard } from "@/components/admin/crm-dashboard/CrmSegmentDonuts";
 import { CrmFunnelCard, CrmChannelsCard, CrmClustersCard } from "@/components/admin/crm-dashboard/CrmSegmentBars";
 import { CrmAccountsCard, CrmTeamCard, CrmAlertsCard } from "@/components/admin/crm-dashboard/CrmAccountsTeamAlerts";
 import { CrmAiInsightsBanner } from "@/components/admin/crm-dashboard/CrmAiInsightsBanner";
@@ -31,6 +31,7 @@ import { CrmProductCards } from "@/components/admin/crm-dashboard/CrmProductCard
 import { CrmHotLeadsCard } from "@/components/admin/crm-dashboard/CrmHotLeadsCard";
 import { CrmPartnerReferralCard } from "@/components/admin/crm-dashboard/CrmPartnerReferralCard";
 import { CrmTrendCard } from "@/components/admin/crm-dashboard/CrmTrendCard";
+import { CrmSourcesDonutCard } from "@/components/admin/crm-dashboard/CrmSourcesDonutCard";
 import { motion } from "framer-motion";
 
 type PeriodKey = "7" | "30" | "90" | "365";
@@ -320,7 +321,7 @@ export default function AdminMarketingCommercialDashboard() {
 
           <CrmTrendCard companyId={companyId} />
 
-          <CrmTemperatureCard companyId={companyId} />
+          <CrmSourcesDonutCard companyId={companyId} />
 
           <CrmHotLeadsCard companyId={companyId} />
 
