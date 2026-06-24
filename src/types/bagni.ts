@@ -84,4 +84,33 @@ export interface BgnTemplatePdf {
   default_iva_pct: number | null;
   default_detrazione_pct: number | null;
   default_validita_giorni: number | null;
+  // ─── Cover PDF "1-click" parity con sr_template_pdf (migration
+  // 20271110000000_bagni_cover_parity). Layout completo della copertina:
+  // sfondo/immagine + overlay (stile+opacità) + testo (eyebrow/hero/subhero +
+  // dimensioni font + allineamento orizzontale/verticale + colore) +
+  // decorazione SVG + posizione/scala logo + card cliente. I nomi delle
+  // colonne sono IDENTICI a Serramenti per riuso di preset e renderer. ──────
+  pdf_cover_bg_color: string | null;
+  pdf_cover_image_url: string | null;
+  pdf_cover_eyebrow: string | null;
+  pdf_cover_hero: string | null;
+  pdf_cover_subhero: string | null;
+  pdf_cover_subhero_template: string | null;
+  pdf_cover_text_color: string | null;
+  pdf_cover_text_align: "left" | "center" | null;
+  pdf_cover_overlay_opacity: number | null;
+  pdf_cover_eyebrow_size: number | null;
+  pdf_cover_title_size: number | null;
+  pdf_cover_subtitle_size: number | null;
+  pdf_cover_logo_size: number | null;
+  pdf_cover_show_client_card: boolean | null;
+  pdf_cover_show_decoration: boolean | null;
+  /** 'square' (default) | 'circle' | 'line' | 'pattern' | 'none'. */
+  pdf_cover_decoration_style: "square" | "circle" | "line" | "pattern" | "none";
+  /** 'top' | 'center' | 'bottom' (default). */
+  pdf_cover_text_vertical: "top" | "center" | "bottom";
+  /** 'flat' (default) | 'gradient' | 'gradient_diag' | 'vignette'. */
+  pdf_cover_overlay_style: "flat" | "gradient" | "gradient_diag" | "vignette";
+  /** 'top_left' (default) | 'top_center' | 'top_right' | 'hidden'. */
+  pdf_cover_logo_position: "top_left" | "top_center" | "top_right" | "hidden";
 }

@@ -453,6 +453,29 @@ function normalizeTemplate(row: Record<string, unknown> | null, companyId: strin
     default_iva_pct: (r.default_iva_pct as number | null) ?? 10,
     default_detrazione_pct: (r.default_detrazione_pct as number | null) ?? 50,
     default_validita_giorni: (r.default_validita_giorni as number | null) ?? 30,
+    // Cover PDF "1-click" (parity sr_template_pdf). Le colonne pdf_cover_*
+    // possono mancare se la migration non è ancora applicata → default in-memory
+    // identici a quelli del DB (decoration_style/text_vertical/overlay_style/
+    // logo_position con default NOT NULL; il resto nullable).
+    pdf_cover_bg_color: (r.pdf_cover_bg_color as string | null) ?? null,
+    pdf_cover_image_url: (r.pdf_cover_image_url as string | null) ?? null,
+    pdf_cover_eyebrow: (r.pdf_cover_eyebrow as string | null) ?? null,
+    pdf_cover_hero: (r.pdf_cover_hero as string | null) ?? null,
+    pdf_cover_subhero: (r.pdf_cover_subhero as string | null) ?? null,
+    pdf_cover_subhero_template: (r.pdf_cover_subhero_template as string | null) ?? null,
+    pdf_cover_text_color: (r.pdf_cover_text_color as string | null) ?? null,
+    pdf_cover_text_align: (r.pdf_cover_text_align as BgnTemplatePdf["pdf_cover_text_align"]) ?? null,
+    pdf_cover_overlay_opacity: (r.pdf_cover_overlay_opacity as number | null) ?? null,
+    pdf_cover_eyebrow_size: (r.pdf_cover_eyebrow_size as number | null) ?? null,
+    pdf_cover_title_size: (r.pdf_cover_title_size as number | null) ?? null,
+    pdf_cover_subtitle_size: (r.pdf_cover_subtitle_size as number | null) ?? null,
+    pdf_cover_logo_size: (r.pdf_cover_logo_size as number | null) ?? null,
+    pdf_cover_show_client_card: (r.pdf_cover_show_client_card as boolean | null) ?? null,
+    pdf_cover_show_decoration: (r.pdf_cover_show_decoration as boolean | null) ?? null,
+    pdf_cover_decoration_style: (r.pdf_cover_decoration_style as BgnTemplatePdf["pdf_cover_decoration_style"]) ?? "square",
+    pdf_cover_text_vertical: (r.pdf_cover_text_vertical as BgnTemplatePdf["pdf_cover_text_vertical"]) ?? "bottom",
+    pdf_cover_overlay_style: (r.pdf_cover_overlay_style as BgnTemplatePdf["pdf_cover_overlay_style"]) ?? "flat",
+    pdf_cover_logo_position: (r.pdf_cover_logo_position as BgnTemplatePdf["pdf_cover_logo_position"]) ?? "top_left",
   };
 }
 

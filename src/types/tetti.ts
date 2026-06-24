@@ -81,6 +81,18 @@ export interface TetTemplatePdf {
   show_percorso: boolean;
   cover_title_size: number | null;
   cover_text_align: "left" | "center" | "right" | null;
+  // ─── Cover parity (preset 1-click, stesso set di sr_template_pdf) ──────────
+  // Schema `cover_*` del modulo tetti che mappa 1:1 le `pdf_cover_*` di Serramenti.
+  cover_bg_color: string | null;
+  cover_eyebrow: string | null;
+  cover_eyebrow_size: number | null;
+  cover_subtitle_size: number | null;
+  cover_logo_size: number | null;
+  cover_overlay_style: "flat" | "gradient" | "gradient_diag" | "vignette" | null;
+  cover_text_vertical: "top" | "center" | "bottom" | null;
+  cover_decoration_style: "square" | "circle" | "line" | "pattern" | "none" | null;
+  cover_show_decoration: boolean | null;
+  cover_show_client_card: boolean | null;
   default_iva_pct: number | null;
   default_detrazione_pct: number | null;
   default_validita_giorni: number | null;

@@ -23,7 +23,7 @@
  * path `{company_id}/tetti/template/{uuid}.{ext}` → URL pubblico
  * stabile salvato nel template (ideale per il PDF, niente signed URL scaduti).
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -60,6 +60,7 @@ import type {
   TetTemplatePdf, TetListItem, TetFaqItem, TetTestimonianza, TetCronoFase,
   TetProgetto, TetComputoVoce,
 } from "@/types/tetti";
+import { COVER_PRESETS, detectActiveCoverPreset } from "@/components/tetti/coverPresets";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -75,15 +76,6 @@ const PALETTE_PRESETS: Array<{ nome: string; color_primary: string; color_second
   { nome: "Indaco moderno",    color_primary: "#3730A3", color_secondary: "#EC4899", color_accent: "#10B981", color_text: "#1E1B4B" },
 ];
 
-// Stili copertina: combinano colore testo + opacità velo + posizione logo
-// (campi già esistenti della copertina). Pura UI, nessun nuovo campo.
-const COVER_PRESETS: Array<{ nome: string; cover_text_color: string; cover_overlay_opacity: number; cover_logo_position: "top_left" | "top_center" | "top_right" | "hidden" }> = [
-  { nome: "Scuro elegante",  cover_text_color: "#FFFFFF", cover_overlay_opacity: 0.55, cover_logo_position: "top_left" },
-  { nome: "Minimale chiaro", cover_text_color: "#FFFFFF", cover_overlay_opacity: 0.30, cover_logo_position: "top_center" },
-  { nome: "Brand forte",     cover_text_color: "#FFFFFF", cover_overlay_opacity: 0.70, cover_logo_position: "top_left" },
-  { nome: "Senza velo",      cover_text_color: "#0F172A", cover_overlay_opacity: 0.00, cover_logo_position: "top_right" },
-];
-
 // Forma del form locale: stesso shape del patch persistito.
 type FormState = Required<Pick<TetTemplatePdf,
   | "logo_url" | "color_primary" | "color_secondary" | "color_accent" | "color_text"
@@ -96,6 +88,10 @@ type FormState = Required<Pick<TetTemplatePdf,
   | "cover_logo_position" | "cover_text_color" | "cover_overlay_opacity"
   | "garanzie" | "faq" | "percorso" | "show_garanzie" | "show_percorso"
   | "cover_title_size" | "cover_text_align"
+  // Cover parity (preset 1-click) — stesso set di sr_template_pdf (schema cover_*).
+  | "cover_bg_color" | "cover_eyebrow" | "cover_eyebrow_size" | "cover_subtitle_size"
+  | "cover_logo_size" | "cover_overlay_style" | "cover_text_vertical"
+  | "cover_decoration_style" | "cover_show_decoration" | "cover_show_client_card"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
 >>;
 
@@ -140,6 +136,17 @@ function templateToForm(t: TetTemplatePdf): FormState {
     show_percorso: t.show_percorso ?? true,
     cover_title_size: t.cover_title_size ?? 30,
     cover_text_align: t.cover_text_align ?? "left",
+    // Cover parity (preset 1-click) — default difensivi allineati a normalizeTemplate.
+    cover_bg_color: t.cover_bg_color ?? null,
+    cover_eyebrow: t.cover_eyebrow ?? null,
+    cover_eyebrow_size: t.cover_eyebrow_size ?? null,
+    cover_subtitle_size: t.cover_subtitle_size ?? null,
+    cover_logo_size: t.cover_logo_size ?? null,
+    cover_overlay_style: t.cover_overlay_style ?? "flat",
+    cover_text_vertical: t.cover_text_vertical ?? "bottom",
+    cover_decoration_style: t.cover_decoration_style ?? "square",
+    cover_show_decoration: t.cover_show_decoration ?? true,
+    cover_show_client_card: t.cover_show_client_card ?? true,
     default_iva_pct: t.default_iva_pct ?? 10,
     default_detrazione_pct: t.default_detrazione_pct ?? 50,
     default_validita_giorni: t.default_validita_giorni ?? 30,
@@ -227,6 +234,22 @@ export function TettiTemplateEditor({ embedded = false }: Props) {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
     setDirty(true);
   };
+
+  // ─── Preset cover 1-click ──────────────────────────────────────────────
+  // Applica in batch tutti i campi cover_* del preset selezionato. L'immagine
+  // sfondo dei preset 'solid' viene azzerata (cover_image_url: null); per i
+  // preset 'photo' il patch porta una stock image suggerita.
+  const applyCoverPreset = useCallback((presetId: string) => {
+    const preset = COVER_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    setForm((prev) => (prev ? { ...prev, ...preset.patch } : prev));
+    setDirty(true);
+  }, []);
+  // Detection live del preset attivo (per evidenziare la card selezionata).
+  const activeCoverPresetId = useMemo(
+    () => (form ? detectActiveCoverPreset(form) : null),
+    [form],
+  );
 
   const handleSave = async () => {
     if (!form) return;
@@ -672,7 +695,7 @@ export function TettiTemplateEditor({ embedded = false }: Props) {
 
           {/* Copertina */}
           {activeSection === "page_cover" && (
-            <SectionCard icon={FileText} title="Copertina" description="Titolo, sottotitolo e immagine della prima pagina.">
+            <SectionCard icon={FileText} title="Copertina" description="Titolo, sottotitolo, immagine e stile della prima pagina.">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-3">
                   <div className="space-y-1.5">
@@ -691,6 +714,14 @@ export function TettiTemplateEditor({ embedded = false }: Props) {
                       placeholder="La tua casa, rinnovata chiavi in mano"
                     />
                   </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Eyebrow (testo piccolo sopra il titolo)</Label>
+                    <Input
+                      value={form.cover_eyebrow ?? ""}
+                      onChange={(e) => set("cover_eyebrow", e.target.value || null)}
+                      placeholder="★ La tua proposta personalizzata"
+                    />
+                  </div>
                 </div>
                 <ImageUploadField
                   label="Immagine copertina"
@@ -702,119 +733,503 @@ export function TettiTemplateEditor({ embedded = false }: Props) {
                 />
               </div>
 
-              {/* Stili copertina: preset che impostano testo + velo + logo in un click */}
-              <div className="mt-4 border-t pt-4">
-                <div className="mb-2 flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5 text-orange-500" />
-                  <Label className="text-xs font-medium">Stili copertina</Label>
+              {/* ─── Preset stili cover — anteprima reale 1-click ──────────────
+                   Gallery con 8 preset di LAYOUT (no solo colore): ogni preset
+                   combina bg/immagine + posizione testo (top/center/bottom) +
+                   decorazione + overlay. Divisi in 2 gruppi: 🎨 Solid (4) e
+                   📷 Photo (4). Click → applica in batch su cover_*. */}
+              <div className="mt-4 space-y-3 rounded-lg border bg-gradient-to-br from-orange-50 to-amber-50/30 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <Label className="text-xs font-semibold uppercase tracking-wide text-orange-700">
+                      ✨ Preset stili — anteprima reale 1-click
+                    </Label>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      Configurazione completa (colori, font, layout) in un click.
+                    </p>
+                  </div>
+                  {activeCoverPresetId && (
+                    <span className="inline-flex h-5 items-center gap-1 rounded-full border border-orange-300 bg-orange-100 px-2 text-[10px] font-medium text-orange-800">
+                      <span className="text-sm leading-none">{COVER_PRESETS.find((p) => p.id === activeCoverPresetId)?.emoji}</span>
+                      Attivo: {COVER_PRESETS.find((p) => p.id === activeCoverPresetId)?.nome}
+                    </span>
+                  )}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {COVER_PRESETS.map((c) => {
-                    const isActive =
-                      form.cover_text_color === c.cover_text_color &&
-                      form.cover_overlay_opacity === c.cover_overlay_opacity &&
-                      form.cover_logo_position === c.cover_logo_position;
-                    return (
-                      <button
-                        key={c.nome}
-                        type="button"
-                        onClick={() => {
-                          set("cover_text_color", c.cover_text_color);
-                          set("cover_overlay_opacity", c.cover_overlay_opacity);
-                          set("cover_logo_position", c.cover_logo_position);
-                        }}
-                        aria-pressed={isActive}
-                        className={cn(
-                          "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-all hover:border-orange-300 hover:bg-orange-50",
-                          isActive
-                            ? "border-orange-400 bg-orange-50 ring-2 ring-orange-300"
-                            : "border-input bg-background",
-                        )}
-                      >
-                        {/* Mini-anteprima: rettangolo con velo + pallino colore testo */}
-                        <span className="relative flex h-6 w-9 shrink-0 items-center justify-center overflow-hidden rounded border border-black/10 bg-gradient-to-br from-slate-300 to-slate-500">
-                          <span className="absolute inset-0 bg-black" style={{ opacity: c.cover_overlay_opacity }} />
-                          <span
-                            className="relative h-2.5 w-2.5 rounded-full border border-black/20"
-                            style={{ backgroundColor: c.cover_text_color }}
-                          />
-                        </span>
-                        <span className="text-[11px] font-medium text-foreground">{c.nome}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="mt-1.5 text-[10px] text-muted-foreground">
-                  Imposta colore testo, velo e posizione logo in modo coordinato.
-                </p>
+                {(["solid", "photo"] as const).map((cat) => {
+                  const presetsInCat = COVER_PRESETS.filter((p) => p.category === cat);
+                  if (presetsInCat.length === 0) return null;
+                  const catLabel = cat === "solid"
+                    ? { emoji: "🎨", title: "Solo colore (no immagine)", subtitle: "Sfondo solido con titolo e accent" }
+                    : { emoji: "📷", title: "Con immagine sfondo", subtitle: "Foto come sfondo + overlay scuro per leggibilità" };
+                  return (
+                    <div key={cat} className="space-y-2">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm">{catLabel.emoji}</span>
+                        <span className="text-xs font-bold uppercase tracking-wide text-slate-700">{catLabel.title}</span>
+                        <span className="text-[10px] text-muted-foreground">{catLabel.subtitle}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4">
+                        {presetsInCat.map((p) => {
+                          const isActive = activeCoverPresetId === p.id;
+                          const tv = p.patch.cover_text_vertical ?? "bottom";
+                          const ta = p.patch.cover_text_align ?? "left";
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => applyCoverPreset(p.id)}
+                              title={p.descrizione}
+                              className={cn(
+                                "group relative overflow-hidden rounded-lg border-2 bg-white text-left transition-all focus:outline-none focus:ring-2 focus:ring-orange-400",
+                                isActive
+                                  ? "border-orange-500 shadow-md ring-2 ring-orange-300"
+                                  : "border-slate-200 hover:border-orange-300 hover:shadow-sm",
+                              )}
+                            >
+                              {/* Mini-anteprima A4 — aspect 210/297 */}
+                              <div
+                                className="relative flex w-full flex-col overflow-hidden p-2"
+                                style={{ aspectRatio: "210/297", backgroundColor: p.swatchBg, color: p.swatchText }}
+                              >
+                                {p.category === "photo" && (
+                                  <div
+                                    className="pointer-events-none absolute inset-0 opacity-40"
+                                    style={{ backgroundImage: "linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.25) 100%)" }}
+                                  />
+                                )}
+                                <div
+                                  className="absolute left-1.5 top-1.5 z-10 rounded-sm px-1 py-px text-[7px] font-bold uppercase tracking-wider"
+                                  style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#475569" }}
+                                >
+                                  {p.category === "solid" ? "● colore" : "📷 foto"}
+                                </div>
+                                <div
+                                  className="relative z-[1] flex flex-1 flex-col"
+                                  style={{ justifyContent: tv === "top" ? "flex-start" : tv === "center" ? "center" : "flex-end" }}
+                                >
+                                  {tv === "top" && (
+                                    <div
+                                      className="mb-2 flex items-center gap-1"
+                                      style={{
+                                        justifyContent: p.patch.cover_logo_position === "top_right" ? "flex-end"
+                                          : p.patch.cover_logo_position === "top_center" ? "center" : "flex-start",
+                                      }}
+                                    >
+                                      <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.swatchAccent, opacity: 0.7 }} />
+                                      <div className="h-1 w-5 rounded-full opacity-30" style={{ backgroundColor: p.swatchText }} />
+                                    </div>
+                                  )}
+                                  <div style={{ textAlign: ta === "center" ? "center" : "left" }}>
+                                    <div className="mb-1 font-bold uppercase tracking-wider" style={{ fontSize: 5, color: p.swatchAccent, opacity: 0.9 }}>
+                                      ★ Proposta
+                                    </div>
+                                    <div
+                                      className="whitespace-pre-line font-bold leading-tight"
+                                      style={{ fontSize: Math.max(7, (p.patch.cover_title_size ?? 30) * 0.2) }}
+                                    >
+                                      {p.sampleTitle}
+                                    </div>
+                                    {p.patch.cover_show_client_card !== false && (
+                                      <div className="mt-1 inline-block rounded-sm px-1 py-0.5" style={{ backgroundColor: "rgba(255,255,255,0.12)" }}>
+                                        <div className="h-0.5 w-3 rounded-full opacity-50" style={{ backgroundColor: p.swatchText }} />
+                                        <div className="mt-0.5 h-1 w-4 rounded-full" style={{ backgroundColor: p.swatchText }} />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="border-t border-slate-100 bg-white px-2 py-1.5">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-sm leading-none">{p.emoji}</span>
+                                  <span className="truncate text-[11px] font-semibold text-slate-900">{p.nome}</span>
+                                </div>
+                                <div className="mt-0.5 flex items-center gap-1">
+                                  <span className="rounded bg-slate-100 px-1 py-px text-[8px] font-semibold uppercase tracking-wide text-slate-600">{p.tag}</span>
+                                </div>
+                              </div>
+                              {isActive && (
+                                <div className="absolute right-1.5 top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white shadow-md">
+                                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                                    <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                {!activeCoverPresetId && (
+                  <p className="inline-block rounded bg-amber-100/60 px-2 py-1 text-[10px] text-amber-700">
+                    💡 Configurazione personalizzata — non corrisponde a nessun preset. I tuoi valori vengono mantenuti.
+                  </p>
+                )}
               </div>
 
-              {/* Controlli avanzati copertina: posizione logo, colore testo, velo */}
-              <div className="mt-4 grid gap-4 border-t pt-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Posizione logo</Label>
-                  <select
-                    value={form.cover_logo_position ?? "top_left"}
-                    onChange={(e) => set("cover_logo_position", e.target.value as FormState["cover_logo_position"])}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              {/* ─── Anteprima live A4 + controlli ──────────────────────────── */}
+              <div className="mt-4 grid grid-cols-12 gap-4 border-t pt-4">
+                {/* PREVIEW LIVE — formato A4 portrait scalato (fedele a TettiPDF) */}
+                <div className="col-span-12 md:col-span-5">
+                  <Label className="mb-1.5 block text-xs">Anteprima cover</Label>
+                  <div
+                    className="relative w-full overflow-hidden rounded-lg border-2 border-slate-200 shadow-sm"
+                    style={{ aspectRatio: "210/297", backgroundColor: form.cover_bg_color || "#0F1B2A" }}
                   >
-                    <option value="top_left">In alto a sinistra</option>
-                    <option value="top_center">In alto al centro</option>
-                    <option value="top_right">In alto a destra</option>
-                    <option value="hidden">Nascosto</option>
-                  </select>
-                </div>
-                <ColorField
-                  label="Colore testo copertina"
-                  value={form.cover_text_color}
-                  onChange={(v) => set("cover_text_color", v)}
-                />
-                <div className="space-y-1.5 sm:col-span-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs">Opacità velo scuro sull'immagine</Label>
-                    <span className="text-xs font-mono text-muted-foreground">
-                      {Math.round((form.cover_overlay_opacity ?? 0.4) * 100)}%
-                    </span>
+                    {form.cover_image_url && (
+                      <img loading="lazy" src={form.cover_image_url} alt="cover bg" className="absolute inset-0 h-full w-full object-cover" />
+                    )}
+                    {/* Overlay scuro su immagine — stile selezionabile (CSS replica del PDF SVG). */}
+                    {form.cover_image_url && (() => {
+                      const op = form.cover_overlay_opacity ?? 0.4;
+                      const style = form.cover_overlay_style ?? "flat";
+                      let bgValue = "#000000";
+                      let opacityValue: number = op;
+                      if (style === "gradient") {
+                        bgValue = `linear-gradient(to bottom, rgba(0,0,0,${op * 0.15}) 0%, rgba(0,0,0,${op * 0.55}) 55%, rgba(0,0,0,${op}) 100%)`;
+                        opacityValue = 1;
+                      } else if (style === "gradient_diag") {
+                        bgValue = `linear-gradient(135deg, rgba(0,0,0,${op * 0.2}) 0%, rgba(0,0,0,${op}) 100%)`;
+                        opacityValue = 1;
+                      } else if (style === "vignette") {
+                        bgValue = `radial-gradient(ellipse at center, rgba(0,0,0,${op * 0.1}) 0%, rgba(0,0,0,${op * 0.5}) 70%, rgba(0,0,0,${op * 0.95}) 100%)`;
+                        opacityValue = 1;
+                      }
+                      return <div className="pointer-events-none absolute inset-0" style={{ background: bgValue, opacity: opacityValue }} />;
+                    })()}
+                    {/* Decoro in alto a destra — FEDELE al PDF (CoverDecorationSvg):
+                        rispetta cover_decoration_style e usa il colore del TESTO cover. */}
+                    {form.cover_show_decoration !== false && (() => {
+                      const v = form.cover_decoration_style ?? "square";
+                      if (v === "none") return null;
+                      const c = form.cover_text_color || "#FFFFFF";
+                      return (
+                        <svg viewBox="0 0 180 180" aria-hidden className="pointer-events-none absolute right-3 top-3 h-11 w-11">
+                          {v === "circle" ? (
+                            <>
+                              <circle cx={90} cy={90} r={80} stroke={c} strokeWidth={3} fill="none" opacity={0.7} />
+                              <circle cx={90} cy={90} r={56} stroke={c} strokeWidth={1.5} fill="none" opacity={0.4} />
+                              <circle cx={90} cy={90} r={32} stroke={c} strokeWidth={1} fill="none" opacity={0.25} />
+                            </>
+                          ) : v === "line" ? (
+                            <>
+                              <path d="M 90 10 L 90 170" stroke={c} strokeWidth={2.5} opacity={0.7} />
+                              <path d="M 70 40 L 110 40" stroke={c} strokeWidth={1.5} opacity={0.5} />
+                              <path d="M 70 140 L 110 140" stroke={c} strokeWidth={1.5} opacity={0.5} />
+                            </>
+                          ) : v === "pattern" ? (
+                            <g opacity={0.45} fill={c}>
+                              {Array.from({ length: 25 }).map((_, i) => (
+                                <circle key={i} cx={30 + (i % 5) * 30} cy={30 + Math.floor(i / 5) * 30} r={3} />
+                              ))}
+                            </g>
+                          ) : (
+                            <>
+                              <g opacity={0.7} stroke={c} fill="none">
+                                <rect x={20} y={20} width={140} height={140} rx={6} strokeWidth={3} />
+                                <path d="M 90 25 L 90 155" strokeWidth={2} />
+                                <path d="M 25 90 L 155 90" strokeWidth={2} />
+                              </g>
+                              <circle cx={84} cy={90} r={3} fill={c} opacity={0.7} />
+                              <g opacity={0.3} stroke={c}>
+                                <path d="M 0 90 L 18 90" strokeWidth={1.5} />
+                                <path d="M 162 90 L 180 90" strokeWidth={1.5} />
+                                <path d="M 90 0 L 90 18" strokeWidth={1.5} />
+                                <path d="M 90 162 L 90 180" strokeWidth={1.5} />
+                              </g>
+                            </>
+                          )}
+                        </svg>
+                      );
+                    })()}
+                    {/* Contenuto testuale */}
+                    <div
+                      className="absolute inset-0 flex flex-col p-4"
+                      style={{
+                        color: form.cover_text_color || "#FFFFFF",
+                        textAlign: form.cover_text_align === "center" ? "center" : "left",
+                        alignItems: form.cover_text_align === "center" ? "center" : "flex-start",
+                      }}
+                    >
+                      {(form.cover_logo_position ?? "top_left") !== "hidden" && (
+                        <div
+                          className="mb-auto flex w-full items-center gap-2"
+                          style={{
+                            justifyContent: form.cover_logo_position === "top_right" ? "flex-end"
+                              : form.cover_logo_position === "top_center" ? "center" : "flex-start",
+                          }}
+                        >
+                          {form.logo_url ? (
+                            <img width={28} height={28} loading="lazy" src={form.logo_url} alt="logo" className="h-7 w-7 rounded bg-white/10 object-contain p-0.5" />
+                          ) : (
+                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-[10px] font-bold">A</div>
+                          )}
+                          <span className="text-[10px] font-semibold uppercase tracking-wide">
+                            {form.ragione_sociale || companyAnagrafica?.ragione_sociale ? "Azienda" : "Il tuo brand"}
+                          </span>
+                        </div>
+                      )}
+                      <div
+                        className="mb-4 w-full"
+                        style={{
+                          marginTop: (form.cover_text_vertical ?? "bottom") === "top" ? 0 : "auto",
+                          marginBottom: form.cover_text_vertical === "center" ? "auto" : "1rem",
+                        }}
+                      >
+                        <div
+                          className="mb-2 font-semibold uppercase tracking-wider"
+                          style={{ color: form.color_primary || "#1E3A5F", fontSize: `${(form.cover_eyebrow_size ?? 11) * 0.6}px` }}
+                        >
+                          {form.cover_eyebrow || "★ La tua proposta personalizzata"}
+                        </div>
+                        <div
+                          className="mb-1.5 whitespace-pre-wrap font-bold leading-tight"
+                          style={{ fontSize: `${(form.cover_title_size ?? 30) * 0.5}px` }}
+                        >
+                          {form.cover_title || "Preventivo di tetti"}
+                        </div>
+                        <div className="line-clamp-2 opacity-80" style={{ fontSize: `${(form.cover_subtitle_size ?? 13) * 0.6}px` }}>
+                          {form.cover_subtitle || "La tua casa, rinnovata chiavi in mano"}
+                        </div>
+                        {form.cover_show_client_card !== false && (
+                          <div className="mt-3 rounded-md bg-white/10 p-2 text-left backdrop-blur-sm">
+                            <div className="text-[8px] uppercase opacity-70">Preparato per</div>
+                            <div className="text-xs font-semibold">Mario Rossi</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <Slider
-                    value={[form.cover_overlay_opacity ?? 0.4]}
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    onValueChange={(v) => set("cover_overlay_opacity", v[0])}
-                    className="mt-1"
-                  />
-                  <p className="text-[10px] text-muted-foreground">
-                    Aumenta il velo per rendere il testo più leggibile su immagini chiare.
+                  <p className="mt-1.5 text-[10px] text-muted-foreground">
+                    Anteprima approssimativa · il PDF finale può differire leggermente per tipografia.
                   </p>
                 </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs">Dimensione titolo copertina</Label>
-                    <span className="text-xs font-mono text-muted-foreground">
-                      {form.cover_title_size ?? 30} pt
-                    </span>
+
+                {/* CONTROLLI */}
+                <div className="col-span-12 space-y-3 md:col-span-7">
+                  {/* Sfondo: opacità + stile overlay (con immagine) oppure colore (senza) */}
+                  {form.cover_image_url ? (
+                    <div className="space-y-2">
+                      <div>
+                        <Label className="mb-1 flex items-center justify-between text-xs">
+                          <span>Opacità velo scuro sull'immagine</span>
+                          <span className="font-mono text-muted-foreground">{Math.round((form.cover_overlay_opacity ?? 0.4) * 100)}%</span>
+                        </Label>
+                        <Slider
+                          value={[form.cover_overlay_opacity ?? 0.4]}
+                          min={0}
+                          max={1}
+                          step={0.05}
+                          onValueChange={(v) => set("cover_overlay_opacity", v[0])}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="mb-1 block text-xs">Stile overlay</Label>
+                        <div className="grid grid-cols-4 gap-1">
+                          {([
+                            { v: "flat", label: "Piatto", hint: "Nero uniforme" },
+                            { v: "gradient", label: "Gradient ↓", hint: "Trasparente in alto, scuro in basso" },
+                            { v: "gradient_diag", label: "Gradient ↘", hint: "Diagonale alto-sx → basso-dx" },
+                            { v: "vignette", label: "Vignette", hint: "Centro chiaro, angoli scuri" },
+                          ] as const).map((opt) => {
+                            const isActive = (form.cover_overlay_style ?? "flat") === opt.v;
+                            return (
+                              <button
+                                key={opt.v}
+                                type="button"
+                                title={opt.hint}
+                                onClick={() => set("cover_overlay_style", opt.v)}
+                                className={cn(
+                                  "rounded border px-1 py-1 text-[10px] transition-all",
+                                  isActive ? "border-orange-500 bg-orange-500 font-semibold text-white" : "border-slate-200 bg-white text-slate-700 hover:border-orange-300",
+                                )}
+                              >
+                                {opt.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="mt-0.5 text-[10px] text-muted-foreground">Gradient migliora la leggibilità del testo su foto chiare.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Colore di sfondo cover</Label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={form.cover_bg_color || "#0F1B2A"}
+                          onChange={(e) => set("cover_bg_color", e.target.value)}
+                          className="h-8 w-12 cursor-pointer rounded border"
+                        />
+                        <Input
+                          value={form.cover_bg_color ?? ""}
+                          onChange={(e) => set("cover_bg_color", e.target.value || null)}
+                          placeholder="#0F1B2A"
+                          className="h-8 flex-1 font-mono text-xs"
+                        />
+                        {form.cover_bg_color && (
+                          <Button size="sm" variant="ghost" onClick={() => set("cover_bg_color", null)} className="h-8 text-[11px]">
+                            Reset
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Senza immagine, la cover usa questo colore pieno di sfondo.</p>
+                    </div>
+                  )}
+
+                  {/* Posizione logo + colore testo */}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Posizione logo</Label>
+                      <select
+                        value={form.cover_logo_position ?? "top_left"}
+                        onChange={(e) => set("cover_logo_position", e.target.value as FormState["cover_logo_position"])}
+                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        <option value="top_left">In alto a sinistra</option>
+                        <option value="top_center">In alto al centro</option>
+                        <option value="top_right">In alto a destra</option>
+                        <option value="hidden">Nascosto</option>
+                      </select>
+                    </div>
+                    <ColorField label="Colore testo copertina" value={form.cover_text_color} onChange={(v) => set("cover_text_color", v)} />
                   </div>
-                  <Slider
-                    value={[form.cover_title_size ?? 30]}
-                    min={20}
-                    max={44}
-                    step={1}
-                    onValueChange={(v) => set("cover_title_size", v[0])}
-                    className="mt-1"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Allineamento titolo</Label>
-                  <select
-                    value={form.cover_text_align ?? "left"}
-                    onChange={(e) => set("cover_text_align", e.target.value as FormState["cover_text_align"])}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="left">Sinistra</option>
-                    <option value="center">Centro</option>
-                    <option value="right">Destra</option>
-                  </select>
+
+                  {/* Allineamento orizzontale + posizione verticale */}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Allineamento titolo</Label>
+                      <select
+                        value={form.cover_text_align ?? "left"}
+                        onChange={(e) => set("cover_text_align", e.target.value as FormState["cover_text_align"])}
+                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        <option value="left">Sinistra</option>
+                        <option value="center">Centro</option>
+                        <option value="right">Destra</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Posizione testo (verticale)</Label>
+                      <div className="grid grid-cols-3 gap-1">
+                        {([
+                          { v: "top", label: "↑ Alto", title: "Testo subito sotto al logo" },
+                          { v: "center", label: "↕ Centro", title: "Testo centrato verticalmente" },
+                          { v: "bottom", label: "↓ Basso", title: "Testo in fondo (default)" },
+                        ] as const).map((opt) => {
+                          const isActive = (form.cover_text_vertical ?? "bottom") === opt.v;
+                          return (
+                            <button
+                              key={opt.v}
+                              type="button"
+                              title={opt.title}
+                              onClick={() => set("cover_text_vertical", opt.v)}
+                              className={cn(
+                                "h-9 rounded border text-[10px] font-semibold transition-all",
+                                isActive ? "border-orange-500 bg-orange-500 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-orange-300",
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dimensioni font: eyebrow / titolo / sottotitolo */}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label className="flex items-center justify-between text-[11px]">
+                        <span>Eyebrow</span>
+                        <span className="font-mono text-muted-foreground">{form.cover_eyebrow_size ?? 11} pt</span>
+                      </Label>
+                      <Slider value={[form.cover_eyebrow_size ?? 11]} min={8} max={20} step={1} onValueChange={(v) => set("cover_eyebrow_size", v[0])} className="mt-1" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="flex items-center justify-between text-[11px]">
+                        <span>Titolo</span>
+                        <span className="font-mono text-muted-foreground">{form.cover_title_size ?? 30} pt</span>
+                      </Label>
+                      <Slider value={[form.cover_title_size ?? 30]} min={20} max={48} step={1} onValueChange={(v) => set("cover_title_size", v[0])} className="mt-1" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="flex items-center justify-between text-[11px]">
+                        <span>Sottotitolo</span>
+                        <span className="font-mono text-muted-foreground">{form.cover_subtitle_size ?? 13} pt</span>
+                      </Label>
+                      <Slider value={[form.cover_subtitle_size ?? 13]} min={9} max={22} step={1} onValueChange={(v) => set("cover_subtitle_size", v[0])} className="mt-1" />
+                    </div>
+                  </div>
+
+                  {/* Dimensione logo (solo se visibile) */}
+                  {(form.cover_logo_position ?? "top_left") !== "hidden" && (
+                    <div className="space-y-1.5">
+                      <Label className="flex items-center justify-between text-[11px]">
+                        <span>Dimensione logo</span>
+                        <span className="font-mono text-muted-foreground">{form.cover_logo_size ?? 100}%</span>
+                      </Label>
+                      <Slider value={[form.cover_logo_size ?? 100]} min={60} max={160} step={5} onValueChange={(v) => set("cover_logo_size", v[0])} className="mt-1" />
+                    </div>
+                  )}
+
+                  {/* Elementi visibili: decorazione + card cliente */}
+                  <div className="space-y-1.5">
+                    <Label className="block text-[11px]">Elementi visibili</Label>
+                    <label className="flex cursor-pointer items-center gap-2 text-[11px]">
+                      <input
+                        type="checkbox"
+                        checked={form.cover_show_decoration !== false}
+                        onChange={(e) => set("cover_show_decoration", e.target.checked)}
+                        className="h-3.5 w-3.5 accent-orange-500"
+                      />
+                      Decorazione SVG (alto destra)
+                    </label>
+                    <label className="flex cursor-pointer items-center gap-2 text-[11px]">
+                      <input
+                        type="checkbox"
+                        checked={form.cover_show_client_card !== false}
+                        onChange={(e) => set("cover_show_client_card", e.target.checked)}
+                        className="h-3.5 w-3.5 accent-orange-500"
+                      />
+                      Card "Preparato per" (cliente)
+                    </label>
+                  </div>
+
+                  {/* Stile decorazione (solo se decorazione ON) */}
+                  {form.cover_show_decoration !== false && (
+                    <div className="space-y-1.5">
+                      <Label className="block text-[11px]">Stile decorazione</Label>
+                      <div className="grid grid-cols-5 gap-1">
+                        {([
+                          { v: "square", label: "⊞ Box", title: "Riquadro stilizzato (default)" },
+                          { v: "circle", label: "◯ Cerchio", title: "Cerchi concentrici outline" },
+                          { v: "line", label: "│ Linea", title: "Linea verticale + tick" },
+                          { v: "pattern", label: "⋮⋮ Dots", title: "Pattern 5×5 dots geometrico" },
+                          { v: "none", label: "✕ None", title: "Nessuna decorazione" },
+                        ] as const).map((opt) => {
+                          const isActive = (form.cover_decoration_style ?? "square") === opt.v;
+                          return (
+                            <button
+                              key={opt.v}
+                              type="button"
+                              title={opt.title}
+                              onClick={() => set("cover_decoration_style", opt.v)}
+                              className={cn(
+                                "h-8 rounded border text-[10px] font-semibold transition-all",
+                                isActive ? "border-orange-500 bg-orange-500 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-orange-300",
+                              )}
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </SectionCard>

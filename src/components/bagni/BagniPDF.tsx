@@ -23,7 +23,7 @@
 import * as React from "react";
 import {
   Document, Page, Text, View, StyleSheet, Image, Svg, Rect, Defs,
-  LinearGradient, Stop, Font,
+  LinearGradient, RadialGradient, Stop, Font, Path, Circle, G,
 } from "@react-pdf/renderer";
 import { formatCurrency } from "@/lib/formatters";
 import type { BgnPdfEnriched, BgnPdfCapitolo, BgnPdfTotali } from "@/hooks/useBagniPDF";
@@ -61,6 +61,73 @@ function RichText({ html, style }: { html: string | null | undefined; style?: Re
         ),
       )}
     </View>
+  );
+}
+
+// ─── Decorazione SVG cover (parity SerramentoPDF · CoverDecorationSvg) ───────
+// Disegnata col colore del TESTO cover: armonizza sempre col fondo e resta
+// coerente con l'anteprima live dell'editor. 5 varianti.
+function CoverDecorationSvg({
+  color,
+  variant = "square",
+}: {
+  color: string;
+  variant?: "square" | "circle" | "line" | "pattern" | "none";
+}) {
+  if (variant === "none") return null;
+
+  const svgProps = { viewBox: "0 0 180 180", style: { width: 180, height: 180 } as never };
+
+  if (variant === "circle") {
+    return (
+      <Svg {...svgProps}>
+        <Circle cx={90} cy={90} r={80} stroke={color} strokeWidth={3} fill="none" opacity={0.7} />
+        <Circle cx={90} cy={90} r={56} stroke={color} strokeWidth={1.5} fill="none" opacity={0.4} />
+        <Circle cx={90} cy={90} r={32} stroke={color} strokeWidth={1} fill="none" opacity={0.25} />
+      </Svg>
+    );
+  }
+
+  if (variant === "line") {
+    return (
+      <Svg {...svgProps}>
+        <Path d="M 90 10 L 90 170" stroke={color} strokeWidth={2.5} opacity={0.7} />
+        <Path d="M 70 40 L 110 40" stroke={color} strokeWidth={1.5} opacity={0.5} />
+        <Path d="M 70 140 L 110 140" stroke={color} strokeWidth={1.5} opacity={0.5} />
+      </Svg>
+    );
+  }
+
+  if (variant === "pattern") {
+    const dots = [];
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        dots.push(
+          <Circle key={`${r}-${c}`} cx={30 + c * 30} cy={30 + r * 30} r={3} fill={color} opacity={0.45} />,
+        );
+      }
+    }
+    return <Svg {...svgProps}><G>{dots}</G></Svg>;
+  }
+
+  // variant === "square" (default — finestra/riquadro stilizzato)
+  return (
+    <Svg {...svgProps}>
+      <G opacity={0.7}>
+        <Rect x={20} y={20} width={140} height={140} rx={6} stroke={color} strokeWidth={3} fill="none" />
+        <Path d={`M 90 25 L 90 155`} stroke={color} strokeWidth={2} />
+        <Path d={`M 25 90 L 155 90`} stroke={color} strokeWidth={2} />
+        <Circle cx={84} cy={90} r={3} fill={color} />
+        <Path d={`M 35 35 L 55 35 L 35 55 Z`} fill={color} opacity={0.25} />
+        <Path d={`M 95 95 L 115 95 L 95 115 Z`} fill={color} opacity={0.25} />
+      </G>
+      <G opacity={0.3}>
+        <Path d="M 0 90 L 18 90" stroke={color} strokeWidth={1.5} />
+        <Path d="M 162 90 L 180 90" stroke={color} strokeWidth={1.5} />
+        <Path d="M 90 0 L 90 18" stroke={color} strokeWidth={1.5} />
+        <Path d="M 90 162 L 90 180" stroke={color} strokeWidth={1.5} />
+      </G>
+    </Svg>
   );
 }
 
@@ -206,6 +273,18 @@ function makeStyles(C: Palette) {
     },
     coverTotalLabel: { fontSize: 8, color: C.white, textTransform: "uppercase" as const, letterSpacing: 0.5 },
     coverTotalValue: { fontSize: 24, fontWeight: 700, color: C.white, marginTop: 2 },
+    // Cover parity (pdf_cover_*): decoro SVG + eyebrow + blocco testo flessibile.
+    coverDecoSvg: { position: "absolute", top: 50, right: 50, width: 180, height: 180, opacity: 0.8 },
+    coverLogoBox: { flexDirection: "row", alignItems: "center", gap: 10 },
+    coverCompanyName: { fontSize: 12, fontWeight: 700, color: C.white },
+    coverCompanyTag: { fontSize: 8, color: C.gray300, marginTop: 1 },
+    coverEyebrow: {
+      fontSize: 10, color: hexToTint(C.secondary, 0.2), fontWeight: 700,
+      letterSpacing: 1.3, textTransform: "uppercase" as const, marginBottom: 8,
+    },
+    coverClientLabel: { fontSize: 7.5, color: C.gray300, textTransform: "uppercase" as const, letterSpacing: 0.5 },
+    coverClientName: { fontSize: 16, fontWeight: 700, color: C.white, marginTop: 2 },
+    coverClientAddr: { fontSize: 9, color: C.gray300, marginTop: 2 },
     // Bullet list (esigenze/soluzione/usp)
     bullet: { flexDirection: "row", marginBottom: 7 },
     bulletDot: {
@@ -580,15 +659,69 @@ export function BagniPDF(props: BgnPdfEnriched) {
   const logoUrl = t.logo_url ?? company?.logo_url ?? null;
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
-  const coverTitle = (t.cover_title ?? "").trim() || "Preventivo di bagni";
-  const coverSubtitle = (t.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano";
-  // Controlli copertina (builder): colore testo, posizione logo, opacità velo.
-  const coverTextColor = (t.cover_text_color ?? "").trim() || "#FFFFFF";
-  const coverLogoPosition = t.cover_logo_position ?? "top_left";
+  // ─── Cover PDF "1-click" (parity SerramentoPDF) ──────────────────────────
+  // I campi pdf_cover_* sono la sorgente di verità; ripiego sui campi cover_*
+  // "legacy" per i template salvati prima della migration cover-parity. Letti
+  // via cast `any` perché bgn_template_pdf non è nei types generati.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tc = t as any;
+  const coverTitle =
+    (tc.pdf_cover_hero ?? "").trim() || (t.cover_title ?? "").trim() || "Preventivo di bagni";
+  const coverSubtitle =
+    (tc.pdf_cover_subhero ?? "").trim() || (t.cover_subtitle ?? "").trim() ||
+    "La tua casa, rinnovata chiavi in mano";
+  const coverEyebrow = (tc.pdf_cover_eyebrow ?? "").trim() || "La tua proposta personalizzata";
+  const coverImageUrl: string | null = tc.pdf_cover_image_url ?? t.cover_image_url ?? null;
+  const coverBgColor = (tc.pdf_cover_bg_color ?? "").trim() || null; // null = usa C.coverBg
+  // Opacità velo: pdf_cover_overlay_opacity è 0..100 (come Serramenti) → /100;
+  // il legacy cover_overlay_opacity è già 0..1. Default 0.55 con immagine.
+  const coverOverlayOpacity =
+    typeof tc.pdf_cover_overlay_opacity === "number"
+      ? Math.max(0, Math.min(100, tc.pdf_cover_overlay_opacity)) / 100
+      : typeof t.cover_overlay_opacity === "number"
+        ? t.cover_overlay_opacity
+        : 0.55;
+  const coverOverlayStyle: "flat" | "gradient" | "gradient_diag" | "vignette" =
+    (["flat", "gradient", "gradient_diag", "vignette"] as const).includes(tc.pdf_cover_overlay_style)
+      ? tc.pdf_cover_overlay_style
+      : "flat";
+  const coverTextColor =
+    (tc.pdf_cover_text_color ?? "").trim() || (t.cover_text_color ?? "").trim() || "#FFFFFF";
+  const coverTextAlign: "left" | "center" =
+    (tc.pdf_cover_text_align ?? t.cover_text_align) === "center" ? "center" : "left";
+  const coverTextVertical: "top" | "center" | "bottom" =
+    (["top", "center", "bottom"] as const).includes(tc.pdf_cover_text_vertical)
+      ? tc.pdf_cover_text_vertical
+      : "bottom";
+  const coverDecorationStyle: "square" | "circle" | "line" | "pattern" | "none" =
+    (["square", "circle", "line", "pattern", "none"] as const).includes(tc.pdf_cover_decoration_style)
+      ? tc.pdf_cover_decoration_style
+      : "square";
+  const coverShowDecoration = tc.pdf_cover_show_decoration === true; // default off (legacy non aveva decoro)
+  const coverShowClientCard = tc.pdf_cover_show_client_card !== false; // default on
+  const coverTitleSize =
+    typeof tc.pdf_cover_title_size === "number" ? Math.max(20, Math.min(64, tc.pdf_cover_title_size))
+      : typeof t.cover_title_size === "number" ? t.cover_title_size
+      : 30;
+  const coverSubtitleSize =
+    typeof tc.pdf_cover_subtitle_size === "number" ? Math.max(10, Math.min(18, tc.pdf_cover_subtitle_size)) : 13;
+  const coverEyebrowSize =
+    typeof tc.pdf_cover_eyebrow_size === "number" ? Math.max(8, Math.min(14, tc.pdf_cover_eyebrow_size)) : 10;
+  const coverLogoPosition: "top_left" | "top_center" | "top_right" | "hidden" =
+    (["top_left", "top_center", "top_right", "hidden"] as const).includes(tc.pdf_cover_logo_position)
+      ? tc.pdf_cover_logo_position
+      : (t.cover_logo_position ?? "top_left");
+  const coverLogoScale =
+    typeof tc.pdf_cover_logo_size === "number" ? Math.max(60, Math.min(160, tc.pdf_cover_logo_size)) / 100 : 1;
   const coverLogoJustify =
     coverLogoPosition === "top_right" ? "flex-end" :
     coverLogoPosition === "top_center" ? "center" : "flex-start";
-  const coverOverlayOpacity = typeof t.cover_overlay_opacity === "number" ? t.cover_overlay_opacity : 0.4;
+  // Posizione verticale del blocco testo (eyebrow/hero/subhero). Bottom è il
+  // default storico (testo a metà pagina, sopra le card cliente in basso).
+  const coverTextBlockTop =
+    coverTextVertical === "top" ? (coverLogoPosition === "hidden" ? 110 : 150)
+      : coverTextVertical === "center" ? 250
+      : 300;
 
   const esigenze = t.esigenze ?? [];
   const soluzione = t.soluzione ?? [];
@@ -633,36 +766,80 @@ export function BagniPDF(props: BgnPdfEnriched) {
       subject={`Preventivo bagni per ${cliente}`}
     >
       {/* ─── PAGINA 1 — COVER ─────────────────────────────────────────────── */}
-      <Page size="A4" style={styles.cover}>
-        {t.cover_image_url && (
+      <Page
+        size="A4"
+        style={[styles.cover, coverBgColor ? { backgroundColor: coverBgColor } : undefined, { color: coverTextColor }]}
+      >
+        {coverImageUrl && (
           <Image
-            src={t.cover_image_url}
+            src={coverImageUrl}
             style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, objectFit: "cover" }}
           />
         )}
-        {/* Velo scuro configurabile sull'immagine (builder: cover_overlay_opacity) */}
-        {t.cover_image_url && (
-          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, backgroundColor: "#000", opacity: coverOverlayOpacity }} />
+        {/* Overlay sopra immagine — parity Serramenti (M13): 4 stili.
+            flat = View nero piatto; gradient/gradient_diag/vignette = SVG. */}
+        {coverImageUrl && coverOverlayStyle === "flat" && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, backgroundColor: "#000000", opacity: coverOverlayOpacity }} />
         )}
-        {/* Overlay scuro per leggibilità (gradiente verticale) */}
-        <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
-          <Svg width={595} height={841} viewBox="0 0 595 841">
-            <Defs>
-              <LinearGradient id="bgn-cover-grad" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.55 : 1} />
-                <Stop offset="0.6" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.72 : 1} />
-                <Stop offset="1" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.92 : 1} />
-              </LinearGradient>
-            </Defs>
-            <Rect x={0} y={0} width={595} height={841} fill="url(#bgn-cover-grad)" />
-          </Svg>
-        </View>
+        {coverImageUrl && coverOverlayStyle !== "flat" && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
+            <Svg width={595} height={841} viewBox="0 0 595 841">
+              <Defs>
+                {coverOverlayStyle === "gradient" && (
+                  <LinearGradient id="bgn-cover-overlay" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.15} />
+                    <Stop offset="0.55" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.55} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity} />
+                  </LinearGradient>
+                )}
+                {coverOverlayStyle === "gradient_diag" && (
+                  <LinearGradient id="bgn-cover-overlay" x1="0" y1="0" x2="1" y2="1">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.2} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity} />
+                  </LinearGradient>
+                )}
+                {coverOverlayStyle === "vignette" && (
+                  <RadialGradient id="bgn-cover-overlay" cx="0.5" cy="0.5" rx="0.7" ry="0.85" fx="0.5" fy="0.5">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.1} />
+                    <Stop offset="0.7" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.5} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.95} />
+                  </RadialGradient>
+                )}
+              </Defs>
+              <Rect x={0} y={0} width={595} height={841} fill="url(#bgn-cover-overlay)" />
+            </Svg>
+          </View>
+        )}
+        {/* Scrim brandizzato: solo SENZA immagine (riempie il fondo solido con un
+            gradiente del colore cover, look originale Bagni). Con immagine lo
+            saltiamo: ci pensa l'overlay sopra. */}
+        {!coverImageUrl && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
+            <Svg width={595} height={841} viewBox="0 0 595 841">
+              <Defs>
+                <LinearGradient id="bgn-cover-grad" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={coverBgColor ?? C.coverBg} stopOpacity={1} />
+                  <Stop offset="0.6" stopColor={coverBgColor ?? C.coverBg} stopOpacity={1} />
+                  <Stop offset="1" stopColor={coverBgColor ?? C.coverBg} stopOpacity={1} />
+                </LinearGradient>
+              </Defs>
+              <Rect x={0} y={0} width={595} height={841} fill="url(#bgn-cover-grad)" />
+            </Svg>
+          </View>
+        )}
+
+        {/* Decoro SVG in alto a destra — colore = TESTO cover (armonizza col fondo). */}
+        {coverShowDecoration && coverDecorationStyle !== "none" && (
+          <View style={styles.coverDecoSvg}>
+            <CoverDecorationSvg color={coverTextColor} variant={coverDecorationStyle} />
+          </View>
+        )}
 
         {coverLogoPosition !== "hidden" && (
           <View style={{ position: "absolute", top: 48, left: 44, right: 44 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: coverLogoJustify }}>
+            <View style={[styles.coverLogoBox, { justifyContent: coverLogoJustify }]}>
               {logoUrl ? (
-                <Image src={logoUrl} style={styles.coverLogo} />
+                <Image src={logoUrl} style={[styles.coverLogo, { maxWidth: 180 * coverLogoScale, height: 52 * coverLogoScale }]} />
               ) : (
                 <View style={styles.coverLogoCircle}>
                   <Text style={{ color: C.white, fontSize: 24, fontWeight: 700 }}>
@@ -674,28 +851,33 @@ export function BagniPDF(props: BgnPdfEnriched) {
           </View>
         )}
 
-        <View style={{ position: "absolute", top: 300, left: 44, right: 44 }}>
-          <Text style={[styles.coverTitle, { color: coverTextColor, fontSize: t.cover_title_size ?? 30, textAlign: t.cover_text_align ?? "left" }]}>{coverTitle}</Text>
-          <Text style={[styles.coverSubtitle, { color: coverTextColor, textAlign: t.cover_text_align ?? "left" }]}>{coverSubtitle}</Text>
+        {/* Blocco testo: eyebrow + titolo + sottotitolo, con posizione verticale
+            configurabile (top/center/bottom). */}
+        <View style={{ position: "absolute", top: coverTextBlockTop, left: 44, right: 44, alignItems: coverTextAlign === "center" ? "center" : "flex-start" }}>
+          <Text style={[styles.coverEyebrow, { color: coverTextColor, fontSize: coverEyebrowSize, textAlign: coverTextAlign }]}>{coverEyebrow}</Text>
+          <Text style={[styles.coverTitle, { color: coverTextColor, fontSize: coverTitleSize, textAlign: coverTextAlign }]}>{coverTitle}</Text>
+          <Text style={[styles.coverSubtitle, { color: coverTextColor, fontSize: coverSubtitleSize, textAlign: coverTextAlign }]}>{coverSubtitle}</Text>
         </View>
 
         <View style={{ position: "absolute", bottom: 70, left: 44, right: 44 }}>
-          <View style={{ flexDirection: "row", marginHorizontal: -6 }}>
-            <View style={{ flex: 1, paddingHorizontal: 6 }}>
-              <View style={styles.coverCard}>
-                <Text style={styles.coverCardLabel}>Preparato per</Text>
-                <Text style={styles.coverCardValue}>{cliente}</Text>
-                {cantiere ? <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>{cantiere}</Text> : null}
+          {coverShowClientCard && (
+            <View style={{ flexDirection: "row", marginHorizontal: -6 }}>
+              <View style={{ flex: 1, paddingHorizontal: 6 }}>
+                <View style={styles.coverCard}>
+                  <Text style={styles.coverCardLabel}>Preparato per</Text>
+                  <Text style={styles.coverCardValue}>{cliente}</Text>
+                  {cantiere ? <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>{cantiere}</Text> : null}
+                </View>
+              </View>
+              <View style={{ flex: 1, paddingHorizontal: 6 }}>
+                <View style={styles.coverCard}>
+                  <Text style={styles.coverCardLabel}>Riferimento</Text>
+                  <Text style={styles.coverCardValue}>{p.code ?? "—"}</Text>
+                  <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>Data: {dateStr()}</Text>
+                </View>
               </View>
             </View>
-            <View style={{ flex: 1, paddingHorizontal: 6 }}>
-              <View style={styles.coverCard}>
-                <Text style={styles.coverCardLabel}>Riferimento</Text>
-                <Text style={styles.coverCardValue}>{p.code ?? "—"}</Text>
-                <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>Data: {dateStr()}</Text>
-              </View>
-            </View>
-          </View>
+          )}
           <View style={styles.coverTotalBox}>
             <Text style={styles.coverTotalLabel}>Investimento totale (IVA inclusa)</Text>
             <Text style={styles.coverTotalValue}>{formatCurrency(totali.totale)}</Text>
