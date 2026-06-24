@@ -255,7 +255,6 @@ type FvEditorSection =
   | "prodotti"
   | "strategia"
   | "contenuti"
-  | "fiducia"
   | "default"
   | "page_cover"
   | "page_chi_siamo"
@@ -341,21 +340,15 @@ const FV_EDITOR_SECTIONS: Array<{
   },
   {
     id: "strategia",
-    label: "Strategia",
+    label: "Costi tecnici",
     icon: "ROI",
-    description: "Margini, CPL, capacita e noleggio B2B.",
+    description: "Costi base, default preventivo e noleggio B2B.",
   },
   {
     id: "contenuti",
     label: "Contenuti",
     icon: "PDF",
     description: "Presentazione, valore, garanzie, FAQ e condizioni.",
-  },
-  {
-    id: "fiducia",
-    label: "Fiducia",
-    icon: "Trust",
-    description: "Recensioni, certificazioni e prova sociale.",
   },
   {
     id: "default",
@@ -389,7 +382,7 @@ const FV_EDITOR_SECTION_GROUPS: Array<{
   },
   {
     title: "Dati & contenuti",
-    sections: ["prodotti", "strategia", "contenuti", "fiducia", "default"],
+    sections: ["prodotti", "strategia", "contenuti", "default"],
   },
 ];
 
@@ -646,6 +639,25 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       setActiveSection(section);
     }
   }, [activeSection, searchParams]);
+
+  // Scroll-to-top al cambio sezione (parità Serramenti). Lo scroller reale è il
+  // SidebarInset (antenato), non window: scrollIntoView sul sentinel in cima al
+  // contenuto resetta lo scroll corretto. Prima il cambio sezione lasciava la
+  // pagina a metà → sembrava che la nuova sezione fosse "rotta".
+  useEffect(() => {
+    // Scroll-to-top al cambio sezione (parità Serramenti). Lo scroller reale del
+    // layout (SidebarInset) NON è un antenato diretto del contenuto, quindi
+    // resettiamo window + documentElement + tutti i contenitori con overflow
+    // effettivamente scrollati. Prima il cambio sezione lasciava la pagina a
+    // metà → la nuova sezione sembrava "rotta".
+    if (typeof window === "undefined") return;
+    window.scrollTo({ top: 0 });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    document.querySelectorAll<HTMLElement>("main, .overflow-auto, .overflow-y-auto").forEach((el) => {
+      if (el.scrollTop > 0) el.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }, [activeSection]);
 
   const selectSection = (section: FvEditorSection) => {
     setActiveSection(section);
@@ -1946,63 +1958,11 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       {activeSection === "strategia" && (
         <>
       <FvSectionHeader
-        title="Strategia economica e vendita"
-        description="Margine, capacità, CPL e noleggio operativo: qui il modulo decide se un'offerta è sostenibile prima di venderla o scalarla."
+        title="Default tecnici e noleggio"
+        description="Costi base €/kWp, default di preventivo e noleggio operativo B2B usati per il calcolo dell'offerta."
         number={3}
       />
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <FvSettingsCard
-          title="Strategia economica e commerciale"
-          description="Serve per capire se l'offerta FV e le campagne hanno senso prima di scalare budget."
-          icon={<ShieldCheck className="h-4 w-4" />}
-        >
-          <div className="grid grid-cols-12 gap-3">
-            <div className="col-span-6 md:col-span-4">
-              <Label className="text-xs">Margine target %</Label>
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                step={1}
-                value={Math.round((form.margine_target_pct ?? 0) * 100)}
-                onChange={(e) => update("margine_target_pct", (optionalNumber(e.target.value) ?? 0) / 100)}
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="col-span-6 md:col-span-4">
-              <Label className="text-xs">CPL max sostenibile</Label>
-              <Input
-                type="number"
-                min={0}
-                value={form.cpl_max_sostenibile ?? ""}
-                onChange={(e) => update("cpl_max_sostenibile", optionalNumber(e.target.value))}
-                placeholder="120"
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="col-span-12 md:col-span-4">
-              <Label className="text-xs">Installazioni/mese</Label>
-              <Input
-                type="number"
-                min={0}
-                value={form.capacita_installazioni_mese ?? ""}
-                onChange={(e) => update("capacita_installazioni_mese", optionalNumber(e.target.value))}
-                placeholder="6"
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="col-span-12">
-              <Label className="text-xs">Zona servita e vincoli commerciali</Label>
-              <Textarea
-                value={form.zona_servita_note ?? ""}
-                onChange={(e) => update("zona_servita_note", e.target.value)}
-                placeholder="Es. Monza Brianza, Milano nord, Lecco. Escludere tetti non accessibili o condomini senza delibera."
-                rows={3}
-              />
-            </div>
-          </div>
-        </FvSettingsCard>
-
         <FvSettingsCard
           title="Default tecnici Fotovoltaico"
           description="Valori di controllo per preventivi rapidi, margine e confronto con listini reali."
@@ -2437,7 +2397,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       )}
 
       {/* Recensioni */}
-      {(activeSection === "fiducia" || activeSection === "page_recensioni") && (
+      {activeSection === "page_recensioni" && (
         <>
       <FvSectionHeader
         title="Fiducia e prova sociale"
