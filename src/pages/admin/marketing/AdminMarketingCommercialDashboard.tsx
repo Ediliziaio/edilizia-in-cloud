@@ -33,6 +33,7 @@ import { CrmPartnerReferralCard } from "@/components/admin/crm-dashboard/CrmPart
 import { CrmTrendCard } from "@/components/admin/crm-dashboard/CrmTrendCard";
 import { CrmSourcesDonutCard } from "@/components/admin/crm-dashboard/CrmSourcesDonutCard";
 import { CrmOperationalFunnel } from "@/components/admin/crm-dashboard/CrmOperationalFunnel";
+import { CrmNetworksStrip } from "@/components/admin/crm-dashboard/CrmNetworksStrip";
 import { motion } from "framer-motion";
 
 type PeriodKey = "7" | "30" | "90" | "365";
@@ -376,6 +377,8 @@ export default function AdminMarketingCommercialDashboard() {
           </Card>
             <CrmAlertsCard companyId={companyId} />
           </div>
+
+          <CrmNetworksStrip />
 
           <CrmAccountsCard companyId={companyId} />
         </TabsContent>
