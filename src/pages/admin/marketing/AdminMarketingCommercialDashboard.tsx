@@ -29,6 +29,7 @@ import { CrmAgentTargetsCard } from "@/components/admin/crm-dashboard/CrmAgentTa
 import { CrmFirmographicsCard } from "@/components/admin/crm-dashboard/CrmFirmographicsCard";
 import { CrmProductCards } from "@/components/admin/crm-dashboard/CrmProductCards";
 import { CrmHotLeadsCard } from "@/components/admin/crm-dashboard/CrmHotLeadsCard";
+import { CrmPartnerReferralCard } from "@/components/admin/crm-dashboard/CrmPartnerReferralCard";
 
 type PeriodKey = "7" | "30" | "90" | "365";
 const PERIODS: { key: PeriodKey; label: string }[] = [
@@ -382,11 +383,7 @@ export default function AdminMarketingCommercialDashboard() {
 
         {/* ─── PARTNER & REFERRAL ───────────────────────────────────── */}
         <TabsContent value="partner" className="space-y-5 pt-5">
-          <Card>
-            <CardContent className="p-10 text-center text-sm text-muted-foreground">
-              Partner Rivenditori &amp; Referral clienti — in arrivo nel prossimo blocco.
-            </CardContent>
-          </Card>
+          <CrmPartnerReferralCard />
         </TabsContent>
 
         {/* ─── TEAM ─────────────────────────────────────────────────── */}
