@@ -31,6 +31,7 @@ import { CrmProductCards } from "@/components/admin/crm-dashboard/CrmProductCard
 import { CrmHotLeadsCard } from "@/components/admin/crm-dashboard/CrmHotLeadsCard";
 import { CrmPartnerReferralCard } from "@/components/admin/crm-dashboard/CrmPartnerReferralCard";
 import { CrmTrendCard } from "@/components/admin/crm-dashboard/CrmTrendCard";
+import { motion } from "framer-motion";
 
 type PeriodKey = "7" | "30" | "90" | "365";
 const PERIODS: { key: PeriodKey; label: string }[] = [
@@ -319,6 +320,8 @@ export default function AdminMarketingCommercialDashboard() {
 
           <CrmTrendCard companyId={companyId} />
 
+          <CrmTemperatureCard companyId={companyId} />
+
           <CrmHotLeadsCard companyId={companyId} />
 
           <Card>
@@ -347,10 +350,12 @@ export default function AdminMarketingCommercialDashboard() {
                           {r.count} · {eurCompact(r.value)}
                         </span>
                       </div>
-                      <div className="h-2 rounded bg-muted">
-                        <div
+                      <div className="h-2 overflow-hidden rounded bg-muted">
+                        <motion.div
                           className="h-2 rounded bg-primary"
-                          style={{ width: `${Math.max(2, (r.count / pipelineByStage.maxCount) * 100)}%` }}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.max(2, (r.count / pipelineByStage.maxCount) * 100)}%` }}
+                          transition={{ duration: 0.7, ease: "easeOut" }}
                         />
                       </div>
                     </div>
@@ -370,10 +375,7 @@ export default function AdminMarketingCommercialDashboard() {
             <CrmFunnelCard companyId={companyId} />
             <CrmWinLossCard companyId={companyId} />
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <CrmTemperatureCard companyId={companyId} />
-            <CrmVelocityCard companyId={companyId} />
-          </div>
+          <CrmVelocityCard companyId={companyId} />
         </TabsContent>
 
         {/* ─── CLUSTER & LTV ────────────────────────────────────────── */}

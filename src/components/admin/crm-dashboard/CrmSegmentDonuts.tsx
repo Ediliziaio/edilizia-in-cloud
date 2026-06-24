@@ -7,11 +7,13 @@
  * ognuno fa la propria query React Query con cap, e renderizza una donut
  * Recharts che usa la palette --chart-* dell'app. Empty-state onesto.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
+import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
+import { DonutChart, type DonutChartSegment } from "@/components/ui/donut-chart";
+import { cn } from "@/lib/utils";
 import { Thermometer, CircleX, Loader2 } from "lucide-react";
 
 interface Slice {
@@ -35,6 +37,11 @@ function DonutCard({
   emptyText: string;
 }) {
   const data = slices.filter((s) => s.value > 0);
+  const [active, setActive] = useState<string | null>(null);
+  const total = data.reduce((sum, s) => sum + s.value, 0);
+  const activeSlice = data.find((s) => s.label === active) ?? null;
+  const pct = (v: number) => (total > 0 ? Math.round((v / total) * 100) : 0);
+
   return (
     <Card>
       <CardContent className="p-4 sm:p-5">
@@ -48,35 +55,48 @@ function DonutCard({
         ) : data.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">{emptyText}</p>
         ) : (
-          <div className="flex items-center gap-4">
-            <div className="h-[120px] w-[120px] shrink-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={data}
-                    dataKey="value"
-                    nameKey="label"
-                    innerRadius={38}
-                    outerRadius={56}
-                    paddingAngle={2}
-                    stroke="none"
-                  >
-                    {data.map((s) => (
-                      <Cell key={s.label} fill={s.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex min-w-0 flex-col gap-1.5 text-xs">
-              {slices.map((s) => (
-                <span key={s.label} className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: s.color }} aria-hidden="true" />
-                  <span className="truncate">
-                    {s.label} · <strong className="font-medium">{s.value}</strong>
-                    {s.hint ? ` · ${s.hint}` : ""}
+          <div className="flex flex-col items-center gap-4">
+            <DonutChart
+              data={data as DonutChartSegment[]}
+              size={168}
+              strokeWidth={22}
+              animationDuration={1}
+              activeLabel={active}
+              onSegmentHover={(s) => setActive(s?.label ?? null)}
+              centerContent={
+                <div className="text-center">
+                  <div className="text-2xl font-bold leading-none text-foreground">{activeSlice ? activeSlice.value : total}</div>
+                  <div className="mt-1 max-w-[110px] truncate text-[11px] font-medium text-muted-foreground">
+                    {activeSlice ? activeSlice.label : "Totale"}
+                  </div>
+                  {activeSlice && <div className="text-[11px] text-muted-foreground">{pct(activeSlice.value)}%</div>}
+                </div>
+              }
+            />
+            <div className="flex w-full flex-col gap-0.5 text-xs">
+              {slices.map((s, i) => (
+                <motion.button
+                  key={s.label}
+                  type="button"
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.15 + i * 0.05, duration: 0.3 }}
+                  onMouseEnter={() => setActive(s.label)}
+                  onMouseLeave={() => setActive(null)}
+                  className={cn(
+                    "flex items-center justify-between gap-2 rounded-md px-2 py-1 text-left transition-colors",
+                    active === s.label && "bg-muted",
+                  )}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: s.color }} aria-hidden="true" />
+                    <span className="truncate">
+                      {s.label}
+                      {s.hint ? ` · ${s.hint}` : ""}
+                    </span>
                   </span>
-                </span>
+                  <span className="shrink-0 font-medium text-muted-foreground">{s.value}</span>
+                </motion.button>
               ))}
             </div>
           </div>
