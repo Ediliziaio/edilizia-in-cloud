@@ -673,10 +673,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       next.set("section", id);
       return next;
     }, { replace: true });
-    // Scroll top al cambio sezione per una transizione "pulita"
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    // NB: nessuno scroll-to-top al cambio sezione — si resta nella posizione di
+    // scroll corrente (richiesta utente: "torno in alto non va bene").
   };
   // Mobile sidebar drawer open state
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
