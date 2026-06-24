@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditorSafe as RichTextEditor } from "@/components/ui/rich-text-editor-safe";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -1630,11 +1631,11 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               </div>
               <div className="col-span-12">
                 <Label className="text-xs">Testo Chi siamo</Label>
-                <Textarea
+                <RichTextEditor
                   value={form.presentazione_impresa_html ?? ""}
-                  onChange={(e) => update("presentazione_impresa_html", e.target.value)}
-                  placeholder="<p>Siamo specializzati in fotovoltaico chiavi in mano, pratiche e assistenza post-installazione...</p>"
-                  rows={8}
+                  onChange={(html) => update("presentazione_impresa_html", html)}
+                  placeholder="Siamo specializzati in fotovoltaico chiavi in mano, pratiche e assistenza post-installazione…"
+                  minHeight={180}
                 />
               </div>
             </div>
@@ -1653,11 +1654,11 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             title="Introduzione percorso cliente"
             icon={<FileText className="h-4 w-4" />}
           >
-            <Textarea
+            <RichTextEditor
               value={form.percorso_cliente_intro ?? ""}
-              onChange={(e) => update("percorso_cliente_intro", e.target.value)}
-              rows={6}
-              placeholder="<p>Dal sopralluogo alla connessione, ti accompagniamo in ogni fase...</p>"
+              onChange={(html) => update("percorso_cliente_intro", html)}
+              minHeight={140}
+              placeholder="Dal sopralluogo alla connessione, ti accompagniamo in ogni fase…"
             />
           </FvSettingsCard>
         </>
@@ -1674,10 +1675,10 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             title="Descrizione consulente"
             icon={<Quote className="h-4 w-4" />}
           >
-            <Textarea
+            <RichTextEditor
               value={form.consulente_descrizione_default ?? ""}
-              onChange={(e) => update("consulente_descrizione_default", e.target.value || null)}
-              rows={5}
+              onChange={(html) => update("consulente_descrizione_default", html || null)}
+              minHeight={120}
               placeholder="Il consulente resta il riferimento unico per firma, pratiche, finanziamento e installazione."
             />
           </FvSettingsCard>
@@ -2072,17 +2073,17 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       />
       <FvSettingsCard
         title="Presentazione dell'impresa"
-        description="Testo che compare nella sezione 'Chi siamo' del PDF. Puoi usare HTML semplice."
+        description="Testo che compare nella sezione 'Chi siamo' del PDF. Formatta con la toolbar (grassetto, liste, allineamento)."
         icon={<Sparkles className="h-4 w-4" />}
       >
-        <Textarea
+        <RichTextEditor
           value={form.presentazione_impresa_html ?? ""}
-          onChange={(e) => update("presentazione_impresa_html", e.target.value)}
-          placeholder="<p>Siamo un'azienda specializzata in impianti fotovoltaici chiavi in mano dal 2015...</p>"
-          rows={6}
+          onChange={(html) => update("presentazione_impresa_html", html)}
+          placeholder="Siamo un'azienda specializzata in impianti fotovoltaici chiavi in mano dal 2015…"
+          minHeight={160}
         />
         <p className="text-[10px] text-muted-foreground mt-1">
-          Tag supportati: <code>&lt;p&gt;</code>, <code>&lt;br&gt;</code>, <code>&lt;strong&gt;</code>, <code>&lt;em&gt;</code>, <code>&lt;ul&gt;</code>, <code>&lt;li&gt;</code>
+          Usa la toolbar per formattare (grassetto, corsivo, liste, allineamento).
         </p>
       </FvSettingsCard>
 
@@ -2094,11 +2095,11 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
         <div className="space-y-5">
           <div>
             <Label className="text-xs">Proposta di valore FV</Label>
-            <Textarea
+            <RichTextEditor
               value={form.valore_proposta_html ?? ""}
-              onChange={(e) => update("valore_proposta_html", e.target.value)}
-              placeholder="<p>Analizziamo consumi, tetto, incentivi, accumulo e ritorno economico prima di proporre l'impianto.</p>"
-              rows={4}
+              onChange={(html) => update("valore_proposta_html", html)}
+              placeholder="Analizziamo consumi, tetto, incentivi, accumulo e ritorno economico prima di proporre l'impianto."
+              minHeight={120}
             />
           </div>
 
