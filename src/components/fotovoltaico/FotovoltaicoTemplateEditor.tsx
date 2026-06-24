@@ -45,6 +45,7 @@ import {
   useUpsertTemplatePdf as useFvUpsertTemplatePdf,
 } from "@/lib/fotovoltaico/queries";
 import { COVER_PRESETS, detectActiveCoverPreset } from "./coverPresets";
+import { useCompanyAnagraficaForTemplate, inheritedPlaceholder } from "@/hooks/useCompanyAnagraficaForTemplate";
 import {
   buildFvTemplateQualityItems,
   DEFAULT_FV_FAQ,
@@ -584,6 +585,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   const initialSection: FvEditorSection = isFvEditorSection(sectionParam) ? sectionParam : "brand";
 
   const [form, setForm] = useState<FvTemplate>({});
+  // Dati ereditati dal Profilo azienda → placeholder anagrafica (UX allineata a Serramenti).
+  const companyAnagrafica = useCompanyAnagraficaForTemplate();
   const [dirty, setDirty] = useState(false);
   const [activeSection, setActiveSection] = useState<FvEditorSection>(initialSection);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -1559,7 +1562,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               <Input
                 value={form.contatto_telefono ?? ""}
                 onChange={(e) => update("contatto_telefono", e.target.value)}
-                placeholder="+39 02 1234 5678"
+                placeholder={inheritedPlaceholder(companyAnagrafica?.telefono, "+39 02 1234 5678")}
                 className="h-9"
               />
             </div>
@@ -1578,7 +1581,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                 type="email"
                 value={form.contatto_email ?? ""}
                 onChange={(e) => update("contatto_email", e.target.value)}
-                placeholder="info@azienda.it"
+                placeholder={inheritedPlaceholder(companyAnagrafica?.email, "info@azienda.it")}
                 className="h-9"
               />
             </div>
