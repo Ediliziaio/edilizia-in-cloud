@@ -2144,13 +2144,12 @@ export function SerramentoPDF({
             </Svg>
           </View>
         )}
-        {/* Decoro SVG finestra in alto a destra (toggle template).
-            Usa il colore PRIMARIO (non l'accent) per coerenza con la preview
-            visuale del template editor, che mostra appunto un blocco accent
-            del colore primario in quella posizione. */}
+        {/* Decoro SVG in alto a destra (toggle template). Usa il colore del
+            TESTO cover (non il brand): armonizza sempre col fondo della cover e
+            resta coerente con l'anteprima del template editor. */}
         {coverShowDecoration && (
           <View style={styles.coverDecoSvg}>
-            <CoverDecorationSvg color={primaryColor} variant={coverDecorationStyle} />
+            <CoverDecorationSvg color={coverTextColor} variant={coverDecorationStyle} />
           </View>
         )}
 

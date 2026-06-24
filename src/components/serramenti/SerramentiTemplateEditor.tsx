@@ -1840,13 +1840,6 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                               >
                                 {p.category === "solid" ? "● colore" : "📷 foto"}
                               </div>
-                              {/* Decoration top-right (se preset la mostra) */}
-                              {p.patch.pdf_cover_show_decoration !== false && (
-                                <div
-                                  className="absolute top-1.5 right-1.5 w-3 h-3 rounded-sm opacity-80"
-                                  style={{ backgroundColor: p.swatchAccent }}
-                                />
-                              )}
 
                               {/* Contenitore del blocco testo con justify-content
                                   dinamico per simulare top/center/bottom. */}
@@ -1975,15 +1968,54 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       />
                     );
                   })()}
-                  {/* Decoro accent in alto a destra (toggle) */}
-                  {form.pdf_cover_show_decoration !== false && (
-                    <div
-                      className="absolute top-3 right-3 w-12 h-12 rounded-md opacity-70"
-                      style={{
-                        backgroundColor: form.colore_primario || "#2D7D5C",
-                      }}
-                    />
-                  )}
+                  {/* Decoro in alto a destra — FEDELE al PDF (CoverDecorationSvg):
+                      rispetta pdf_cover_decoration_style (finestra/anelli/linea/
+                      pattern) e usa il colore del TESTO cover, che armonizza
+                      sempre col fondo. Prima era un blocco piatto in colore brand
+                      (ignorava lo stile e stonava). */}
+                  {form.pdf_cover_show_decoration !== false && (() => {
+                    const v = form.pdf_cover_decoration_style ?? "square";
+                    if (v === "none") return null;
+                    const c = form.pdf_cover_text_color || "#FFFFFF";
+                    return (
+                      <svg viewBox="0 0 180 180" aria-hidden className="absolute top-3 right-3 w-11 h-11 pointer-events-none">
+                        {v === "circle" ? (
+                          <>
+                            <circle cx={90} cy={90} r={80} stroke={c} strokeWidth={3} fill="none" opacity={0.7} />
+                            <circle cx={90} cy={90} r={56} stroke={c} strokeWidth={1.5} fill="none" opacity={0.4} />
+                            <circle cx={90} cy={90} r={32} stroke={c} strokeWidth={1} fill="none" opacity={0.25} />
+                          </>
+                        ) : v === "line" ? (
+                          <>
+                            <path d="M 90 10 L 90 170" stroke={c} strokeWidth={2.5} opacity={0.7} />
+                            <path d="M 70 40 L 110 40" stroke={c} strokeWidth={1.5} opacity={0.5} />
+                            <path d="M 70 140 L 110 140" stroke={c} strokeWidth={1.5} opacity={0.5} />
+                          </>
+                        ) : v === "pattern" ? (
+                          <g opacity={0.45} fill={c}>
+                            {Array.from({ length: 25 }).map((_, i) => (
+                              <circle key={i} cx={30 + (i % 5) * 30} cy={30 + Math.floor(i / 5) * 30} r={3} />
+                            ))}
+                          </g>
+                        ) : (
+                          <>
+                            <g opacity={0.7} stroke={c} fill="none">
+                              <rect x={20} y={20} width={140} height={140} rx={6} strokeWidth={3} />
+                              <path d="M 90 25 L 90 155" strokeWidth={2} />
+                              <path d="M 25 90 L 155 90" strokeWidth={2} />
+                            </g>
+                            <circle cx={84} cy={90} r={3} fill={c} opacity={0.7} />
+                            <g opacity={0.3} stroke={c}>
+                              <path d="M 0 90 L 18 90" strokeWidth={1.5} />
+                              <path d="M 162 90 L 180 90" strokeWidth={1.5} />
+                              <path d="M 90 0 L 90 18" strokeWidth={1.5} />
+                              <path d="M 90 162 L 90 180" strokeWidth={1.5} />
+                            </g>
+                          </>
+                        )}
+                      </svg>
+                    );
+                  })()}
                   {/* Contenuto testuale */}
                   <div
                     className="absolute inset-0 p-4 flex flex-col"
