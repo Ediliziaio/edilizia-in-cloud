@@ -17,6 +17,7 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { renderSystemEmail } from "../_shared/email-templates/renderSystemEmail.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -51,34 +52,6 @@ function generateCode(): string {
   crypto.getRandomValues(buf);
   const n = buf[0] % 1_000_000;
   return n.toString().padStart(6, "0");
-}
-
-function buildEmailHtml(code: string, ttlMin: number): string {
-  return `<!DOCTYPE html>
-<html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f3f4f6;padding:24px">
-  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border:1px solid #e5e7eb">
-    <h2 style="color:#173b67;margin:0 0 16px;font-size:20px">🔐 Codice di sicurezza · Edilizia in Cloud</h2>
-    <p style="color:#374151;margin:0 0 24px">Hai appena effettuato l'accesso con la tua password. Per completare l'autenticazione inserisci questo codice di sicurezza:</p>
-    <div style="background:#fff7ed;border:2px solid #fed7aa;border-radius:8px;padding:24px;text-align:center;margin:24px 0">
-      <div style="font-size:36px;font-weight:700;letter-spacing:12px;font-family:monospace;color:#9a3412">${code}</div>
-    </div>
-    <p style="color:#6b7280;font-size:14px;margin:24px 0 8px">Il codice scade tra <strong>${ttlMin} minuti</strong>.</p>
-    <p style="color:#9ca3af;font-size:12px;margin:16px 0 0">⚠️ Se NON sei stato tu, qualcuno ha la tua password. Cambiala immediatamente.</p>
-  </div>
-  <p style="text-align:center;color:#9ca3af;font-size:11px;margin:16px 0 0">© Edilizia in Cloud · app.ediliziaincloud.com</p>
-</body></html>`;
-}
-
-function buildEmailText(code: string, ttlMin: number): string {
-  return `Codice di sicurezza Edilizia in Cloud
-
-Hai appena fatto l'accesso. Inserisci questo codice per completare l'autenticazione:
-
-${code}
-
-Scade tra ${ttlMin} minuti.
-
-Se NON sei stato tu, cambia immediatamente la password.`;
 }
 
 Deno.serve(async (req) => {
@@ -235,7 +208,8 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Provider email non configurato" }, 500);
   }
 
-  // 6. Invio email via Resend API
+  // 6. Invio email via Resend API — copy dal registro "codice-otp-login-2fa-9"
+  const otpEmail = renderSystemEmail("codice-otp-login-2fa-9", { codice_otp: code });
   if (provider === "resend") {
     try {
       const res = await fetch("https://api.resend.com/emails", {
@@ -248,9 +222,9 @@ Deno.serve(async (req) => {
           from: `${fromName} <${fromAddr}>`,
           to: [email],
           ...(replyTo ? { reply_to: replyTo } : {}),
-          subject: `Codice di accesso: ${code}`,
-          html: buildEmailHtml(code, TTL_MIN),
-          text: buildEmailText(code, TTL_MIN),
+          subject: otpEmail.subject,
+          html: otpEmail.html,
+          text: otpEmail.text,
         }),
       });
       if (!res.ok) {

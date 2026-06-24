@@ -45,11 +45,30 @@ export function getSystemEmail(key: string): SystemEmailDef | null {
   return (SYSTEM_EMAILS as Record<string, SystemEmailDef>)[key] ?? null;
 }
 
+/** Estrae una versione testuale leggibile dall'HTML email (per il fallback text/plain). */
+function htmlToText(html: string): string {
+  let t = html;
+  // rimuovi lo span preheader nascosto
+  t = t.replace(/<span[^>]*display:none[^>]*>[\s\S]*?<\/span>/gi, "");
+  // i link diventano "testo (url)"
+  t = t.replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href, label) => {
+    const lbl = label.replace(/<[^>]+>/g, "").trim();
+    return href && href !== "#" ? `${lbl} (${href})` : lbl;
+  });
+  t = t.replace(/<\/(p|div|tr|h1|h2|h3|li)>/gi, "\n");
+  t = t.replace(/<li[^>]*>/gi, "• ");
+  t = t.replace(/<[^>]+>/g, "");
+  t = t.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&euro;/g, "€")
+       .replace(/&copy;/g, "©").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  t = t.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").split("\n").map(l => l.trim()).join("\n").trim();
+  return t;
+}
+
 export function renderSystemEmail(
   key: string,
   vars: SystemEmailVars = {},
   opts: RenderSystemEmailOpts = {},
-): { subject: string; html: string; def: SystemEmailDef } {
+): { subject: string; html: string; text: string; def: SystemEmailDef } {
   const def = getSystemEmail(key);
   if (!def) throw new Error(`renderSystemEmail: chiave email sconosciuta "${key}"`);
 
@@ -82,5 +101,6 @@ export function renderSystemEmail(
 
   // escAttr riservato per usi futuri (evita lint unused)
   void escAttr;
-  return { subject, html, def };
+  const text = htmlToText(html);
+  return { subject, html, text, def };
 }
