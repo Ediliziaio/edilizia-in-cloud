@@ -32,6 +32,7 @@ import { CrmHotLeadsCard } from "@/components/admin/crm-dashboard/CrmHotLeadsCar
 import { CrmPartnerReferralCard } from "@/components/admin/crm-dashboard/CrmPartnerReferralCard";
 import { CrmTrendCard } from "@/components/admin/crm-dashboard/CrmTrendCard";
 import { CrmSourcesDonutCard } from "@/components/admin/crm-dashboard/CrmSourcesDonutCard";
+import { CrmOperationalFunnel } from "@/components/admin/crm-dashboard/CrmOperationalFunnel";
 import { motion } from "framer-motion";
 
 type PeriodKey = "7" | "30" | "90" | "365";
@@ -318,6 +319,8 @@ export default function AdminMarketingCommercialDashboard() {
               loading={isLoading}
             />
           </div>
+
+          <CrmOperationalFunnel companyId={companyId} />
 
           {/* Riga: andamento (2/3) + fonti (1/3) */}
           <div className="grid gap-4 lg:grid-cols-3">
