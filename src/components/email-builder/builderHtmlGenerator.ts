@@ -21,7 +21,12 @@ function renderBlockHtml(block: BuilderBlock): string {
   switch (block.type) {
     case "text": {
       const p = block.props as TextProps;
-      return `<div style="font-family:${p.fontFamily},Arial,sans-serif;font-size:${p.fontSize};color:${p.color};text-align:${p.textAlign};font-weight:${p.fontWeight};line-height:1.6;padding:10px 0;">${normalizeTextContent(p.content)}</div>`;
+      const bg = p.backgroundColor ? `background-color:${p.backgroundColor};` : "";
+      const pad = p.backgroundColor ? "padding:16px;" : "padding:10px 0;";
+      const italic = p.italic ? "font-style:italic;" : "";
+      const underline = p.underline ? "text-decoration:underline;" : "";
+      const lh = p.lineHeight || "1.6";
+      return `<div style="font-family:${p.fontFamily},Arial,sans-serif;font-size:${p.fontSize};color:${p.color};text-align:${p.textAlign};font-weight:${p.fontWeight};line-height:${lh};${italic}${underline}${bg}${pad}border-radius:${p.backgroundColor ? "8px" : "0"};">${normalizeTextContent(p.content)}</div>`;
     }
     case "image": {
       const p = block.props as ImageProps;
@@ -31,8 +36,12 @@ function renderBlockHtml(block: BuilderBlock): string {
     case "button": {
       const p = block.props as ButtonProps;
       const alignStyle = p.align === "center" ? "text-align:center;" : p.align === "right" ? "text-align:right;" : "text-align:left;";
-      return `<div style="${alignStyle}padding:14px 0;">
-        <a href="${p.url}" target="_blank" style="display:inline-block;background-color:${p.backgroundColor};color:${p.textColor};padding:13px 26px;border-radius:${p.borderRadius};text-decoration:none;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;line-height:1.2;">${p.text}</a>
+      const py = p.paddingY || "13px";
+      const px = p.paddingX || "26px";
+      const fs = p.fontSize || "16px";
+      const widthStyle = p.fullWidth ? "display:block;width:100%;text-align:center;box-sizing:border-box;" : "display:inline-block;";
+      return `<div style="${p.fullWidth ? "" : alignStyle}padding:14px 0;">
+        <a href="${p.url}" target="_blank" style="${widthStyle}background-color:${p.backgroundColor};color:${p.textColor};padding:${py} ${px};border-radius:${p.borderRadius};text-decoration:none;font-family:Arial,sans-serif;font-size:${fs};font-weight:bold;line-height:1.2;">${p.text}</a>
       </div>`;
     }
     case "divider": {

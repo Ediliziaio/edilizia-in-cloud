@@ -2219,6 +2219,31 @@ function VisualTemplateBuilder({
     [blocks, handleSelectBlock, updateBlocks],
   );
 
+  // Applica una trasformazione a TUTTI i blocchi, ricorsivamente (incl. colonne).
+  const applyDeep = useCallback(
+    (fn: (b: BuilderBlockType) => BuilderBlockType) => {
+      const walk = (list: BuilderBlockType[]): BuilderBlockType[] =>
+        list.map((b) => {
+          const mapped = fn(b);
+          if (mapped.children) {
+            return { ...mapped, children: mapped.children.map((col) => walk(col)) };
+          }
+          return mapped;
+        });
+      updateBlocks(walk(blocks));
+    },
+    [blocks, updateBlocks],
+  );
+
+  const handleApplyButtonColor = useCallback(
+    (color: string) => applyDeep((b) => b.type === "button" ? { ...b, props: { ...b.props, backgroundColor: color } } : b),
+    [applyDeep],
+  );
+  const handleApplyTextColor = useCallback(
+    (color: string) => applyDeep((b) => b.type === "text" ? { ...b, props: { ...b.props, color } } : b),
+    [applyDeep],
+  );
+
   const resolvedSelectedBlock = selectedChildBlock
     ? (() => {
         for (const block of blocks) {
@@ -2344,6 +2369,8 @@ function VisualTemplateBuilder({
           placeholders={placeholders}
           onInsertVariable={handleInsertVariableBlock}
           onAddQuickSection={handleAddQuickSection}
+          onApplyButtonColor={handleApplyButtonColor}
+          onApplyTextColor={handleApplyTextColor}
         />
       </div>
 

@@ -8,7 +8,14 @@ export interface TextProps {
   color: string;
   textAlign: "left" | "center" | "right";
   fontFamily: string;
-  fontWeight: "normal" | "bold";
+  /** "300" | "400" | "600" | "700" | "800" (o legacy "normal"/"bold"). */
+  fontWeight: string;
+  /** Interlinea (es. "1.6"). */
+  lineHeight?: string;
+  /** Colore di sfondo del blocco testo (opzionale). */
+  backgroundColor?: string;
+  italic?: boolean;
+  underline?: boolean;
 }
 
 export interface ImageProps {
@@ -25,6 +32,13 @@ export interface ButtonProps {
   textColor: string;
   borderRadius: string;
   align: "left" | "center" | "right";
+  fontSize?: string;
+  /** Padding verticale (es. "13px"). */
+  paddingY?: string;
+  /** Padding orizzontale (es. "26px"). */
+  paddingX?: string;
+  /** Pulsante a tutta larghezza del contenitore. */
+  fullWidth?: boolean;
 }
 
 export interface DividerProps {
@@ -62,7 +76,10 @@ export const DEFAULT_PROPS: Record<BlockType, BlockProps> = {
     color: "#333333",
     textAlign: "left",
     fontFamily: "Arial",
-    fontWeight: "normal",
+    fontWeight: "400",
+    lineHeight: "1.6",
+    italic: false,
+    underline: false,
   } as TextProps,
   image: {
     src: "",
@@ -73,10 +90,14 @@ export const DEFAULT_PROPS: Record<BlockType, BlockProps> = {
   button: {
     text: "Apri piattaforma",
     url: "#",
-    backgroundColor: "#1d4ed8",
+    backgroundColor: "#F97316",
     textColor: "#FFFFFF",
     borderRadius: "6px",
     align: "center",
+    fontSize: "16px",
+    paddingY: "13px",
+    paddingX: "26px",
+    fullWidth: false,
   } as ButtonProps,
   divider: {
     thickness: "1px",
