@@ -43,6 +43,7 @@ import {
   useTemplatePdf as useFvTemplatePdf,
   useUpsertTemplatePdf as useFvUpsertTemplatePdf,
 } from "@/lib/fotovoltaico/queries";
+import { COVER_PRESETS, detectActiveCoverPreset } from "./coverPresets";
 import {
   buildFvTemplateQualityItems,
   DEFAULT_FV_FAQ,
@@ -87,6 +88,15 @@ interface FvTemplate {
   pdf_cover_text_align?: "left" | "center" | null;
   pdf_cover_logo_position?: "top_left" | "top_right" | "top_center" | "hidden" | null;
   pdf_cover_show_client_card?: boolean | null;
+  // Cover parity con Serramenti (preset 1-click + layout completo).
+  // Colonne aggiunte da migration 20271109000000_fv_cover_parity.sql.
+  pdf_cover_show_decoration?: boolean | null;
+  pdf_cover_decoration_style?: "square" | "circle" | "line" | "pattern" | "none" | null;
+  pdf_cover_text_vertical?: "top" | "center" | "bottom" | null;
+  pdf_cover_overlay_style?: "flat" | "gradient" | "gradient_diag" | "vignette" | null;
+  pdf_cover_title_size?: number | null;
+  pdf_cover_subtitle_size?: number | null;
+  pdf_cover_eyebrow_size?: number | null;
   pdf_pages_order?: FvPdfPageOrderItem[] | null;
   presentazione_impresa_html?: string | null;
   foto_team_url?: string | null;
@@ -613,6 +623,17 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
     setDirty(true);
   };
 
+  // ─── Cover presets 1-click (parità Serramenti) ───────────────────────────
+  // Applica in batch tutti i campi pdf_cover_* del preset selezionato.
+  const applyCoverPreset = useCallback((presetId: string) => {
+    const preset = COVER_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    setForm((prev) => ({ ...prev, ...preset.patch }));
+    setDirty(true);
+  }, []);
+  // Detection live del preset attivo (evidenzia la card). null = personalizzato.
+  const activeCoverPresetId = useMemo(() => detectActiveCoverPreset(form), [form]);
+
   const handleSave = () => {
     // Cast a Record perché upsert FV accetta Record<string, unknown>
     upsertMut.mutate(sanitizeTemplatePayload(form), {
@@ -989,6 +1010,94 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             description="Come nel serramento: puoi controllare immagine, titolo, sottotitolo dinamico, colori e card cliente della prima pagina."
             number={1}
           />
+          {/* ─── Preset stili cover 1-click (parità Serramenti) ───────────── */}
+          <div className="rounded-lg border bg-gradient-to-br from-sky-50 to-cyan-50/30 p-3 space-y-3 mb-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <Label className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                  ✨ Preset stili — anteprima reale 1-click
+                </Label>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Configurazione completa (colori, font, layout) in un click. L'immagine di sfondo non viene modificata.
+                </p>
+              </div>
+              {activeCoverPresetId && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 border border-sky-300 text-sky-800 px-2 h-5 text-[10px]">
+                  <span className="text-sm leading-none">{COVER_PRESETS.find((p) => p.id === activeCoverPresetId)?.emoji}</span>
+                  Attivo: {COVER_PRESETS.find((p) => p.id === activeCoverPresetId)?.nome}
+                </span>
+              )}
+            </div>
+            {(["solid", "photo"] as const).map((cat) => {
+              const presetsInCat = COVER_PRESETS.filter((p) => p.category === cat);
+              if (presetsInCat.length === 0) return null;
+              const catLabel = cat === "solid"
+                ? { emoji: "🎨", title: "Solo colore (no immagine)", subtitle: "Background solido con titolo e accent" }
+                : { emoji: "📷", title: "Con immagine sfondo", subtitle: "Foto come sfondo + overlay scuro per leggibilità" };
+              return (
+                <div key={cat} className="space-y-2">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm">{catLabel.emoji}</span>
+                    <span className="text-xs font-bold uppercase tracking-wide text-slate-700">{catLabel.title}</span>
+                    <span className="text-[10px] text-muted-foreground">{catLabel.subtitle}</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                    {presetsInCat.map((p) => {
+                      const isActive = activeCoverPresetId === p.id;
+                      const tv = p.patch.pdf_cover_text_vertical ?? "bottom";
+                      const ta = p.patch.pdf_cover_text_align ?? "left";
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => applyCoverPreset(p.id)}
+                          title={p.descrizione}
+                          className={
+                            "group relative rounded-lg overflow-hidden transition-all text-left focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white border-2 " +
+                            (isActive ? "border-sky-500 shadow-md ring-2 ring-sky-300" : "border-slate-200 hover:border-sky-300 hover:shadow-sm")
+                          }
+                        >
+                          <div className="relative w-full overflow-hidden flex flex-col p-2" style={{ aspectRatio: "210/297", backgroundColor: p.swatchBg, color: p.swatchText }}>
+                            {p.category === "photo" && (
+                              <div className="absolute inset-0 pointer-events-none opacity-40" style={{ backgroundImage: "linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.25) 100%)" }} />
+                            )}
+                            <div className="absolute top-1.5 left-1.5 text-[7px] font-bold uppercase tracking-wider px-1 py-px rounded-sm z-10" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#475569" }}>
+                              {p.category === "solid" ? "● colore" : "📷 foto"}
+                            </div>
+                            <div className="relative flex-1 flex flex-col z-[1]" style={{ justifyContent: tv === "top" ? "flex-start" : tv === "center" ? "center" : "flex-end" }}>
+                              <div style={{ textAlign: ta === "center" ? "center" : "left" }}>
+                                <div className="font-bold uppercase tracking-wider mb-1" style={{ fontSize: 5, color: p.swatchAccent, opacity: 0.9 }}>★ Proposta</div>
+                                <div className="font-bold leading-tight whitespace-pre-line" style={{ fontSize: Math.max(7, (p.patch.pdf_cover_title_size ?? 40) * 0.16) }}>{p.sampleTitle}</div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="px-2 py-1.5 bg-white border-t border-slate-100">
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm leading-none">{p.emoji}</span>
+                              <span className="text-[11px] font-semibold text-slate-900 truncate">{p.nome}</span>
+                            </div>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-[8px] uppercase tracking-wide bg-slate-100 text-slate-600 px-1 py-px rounded font-semibold">{p.tag}</span>
+                            </div>
+                          </div>
+                          {isActive && (
+                            <div className="absolute top-1.5 right-1.5 bg-sky-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow-md z-10">
+                              <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            {!activeCoverPresetId && (
+              <p className="text-[10px] text-amber-700 bg-amber-100/60 rounded px-2 py-1 inline-block">
+                💡 Configurazione personalizzata — non corrisponde a nessun preset. I tuoi valori vengono mantenuti.
+              </p>
+            )}
+          </div>
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
             <FvSettingsCard
               title="Testi e stile copertina"
@@ -1128,6 +1237,70 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     className="h-9 text-xs"
                   />
                 </div>
+                {/* ─── Layout cover (parità Serramenti): posizione verticale,
+                     overlay, decorazione, dimensioni font ─────────────────── */}
+                <div className="col-span-12">
+                  <Label className="text-xs">Posizione verticale testo</Label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {([["top", "In alto"], ["center", "Centro"], ["bottom", "In basso"]] as const).map(([v, lbl]) => (
+                      <Button key={v} type="button" size="sm"
+                        variant={(form.pdf_cover_text_vertical ?? "bottom") === v ? "default" : "outline"}
+                        onClick={() => update("pdf_cover_text_vertical", v)}
+                        className={(form.pdf_cover_text_vertical ?? "bottom") === v ? "bg-sky-700 hover:bg-sky-800" : ""}
+                      >{lbl}</Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="col-span-12 md:col-span-6">
+                  <Label className="text-xs">Stile overlay (su immagine)</Label>
+                  <select
+                    value={form.pdf_cover_overlay_style ?? "flat"}
+                    onChange={(e) => update("pdf_cover_overlay_style", e.target.value as FvTemplate["pdf_cover_overlay_style"])}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs"
+                  >
+                    <option value="flat">Piatto</option>
+                    <option value="gradient">Gradient (dal basso)</option>
+                    <option value="gradient_diag">Gradient diagonale</option>
+                    <option value="vignette">Vignette</option>
+                  </select>
+                </div>
+                <div className="col-span-12 md:col-span-6">
+                  <Label className="text-xs">Decorazione angolo</Label>
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 text-xs whitespace-nowrap">
+                      <input type="checkbox" checked={form.pdf_cover_show_decoration !== false}
+                        onChange={(e) => update("pdf_cover_show_decoration", e.target.checked)} />
+                      Mostra
+                    </label>
+                    <select
+                      value={form.pdf_cover_decoration_style ?? "square"}
+                      onChange={(e) => update("pdf_cover_decoration_style", e.target.value as FvTemplate["pdf_cover_decoration_style"])}
+                      disabled={form.pdf_cover_show_decoration === false}
+                      className="h-9 flex-1 rounded-md border border-input bg-background px-2 py-1 text-xs disabled:opacity-50"
+                    >
+                      <option value="square">Finestra</option>
+                      <option value="circle">Anelli</option>
+                      <option value="line">Linea</option>
+                      <option value="pattern">Pattern</option>
+                      <option value="none">Nessuna</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-xs">Dim. titolo ({form.pdf_cover_title_size ?? 40})</Label>
+                  <input type="range" min={28} max={64} value={form.pdf_cover_title_size ?? 40}
+                    onChange={(e) => update("pdf_cover_title_size", Number(e.target.value))} className="w-full" />
+                </div>
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-xs">Dim. sottotitolo ({form.pdf_cover_subtitle_size ?? 13})</Label>
+                  <input type="range" min={10} max={18} value={form.pdf_cover_subtitle_size ?? 13}
+                    onChange={(e) => update("pdf_cover_subtitle_size", Number(e.target.value))} className="w-full" />
+                </div>
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-xs">Dim. eyebrow ({form.pdf_cover_eyebrow_size ?? 11})</Label>
+                  <input type="range" min={8} max={14} value={form.pdf_cover_eyebrow_size ?? 11}
+                    onChange={(e) => update("pdf_cover_eyebrow_size", Number(e.target.value))} className="w-full" />
+                </div>
               </div>
             </FvSettingsCard>
 
@@ -1158,17 +1331,56 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     aria-hidden="true"
                   />
                 )}
-                {form.pdf_cover_image_url && (
-                  <div
-                    className="absolute inset-0 bg-slate-950"
-                    style={{ opacity: (form.pdf_cover_overlay_opacity ?? 62) / 100 }}
-                  />
-                )}
-                <div className="relative flex h-full flex-col">
+                {form.pdf_cover_image_url && (() => {
+                  const op = (form.pdf_cover_overlay_opacity ?? 62) / 100;
+                  const st = form.pdf_cover_overlay_style ?? "flat";
+                  let bg = "#000000"; let o: number = op;
+                  if (st === "gradient") { bg = `linear-gradient(to bottom, rgba(0,0,0,${op * 0.15}) 0%, rgba(0,0,0,${op * 0.55}) 55%, rgba(0,0,0,${op}) 100%)`; o = 1; }
+                  else if (st === "gradient_diag") { bg = `linear-gradient(135deg, rgba(0,0,0,${op * 0.2}) 0%, rgba(0,0,0,${op}) 100%)`; o = 1; }
+                  else if (st === "vignette") { bg = `radial-gradient(ellipse at center, rgba(0,0,0,${op * 0.1}) 0%, rgba(0,0,0,${op * 0.5}) 70%, rgba(0,0,0,${op * 0.95}) 100%)`; o = 1; }
+                  return <div className="absolute inset-0 pointer-events-none" style={{ background: bg, opacity: o }} />;
+                })()}
+                {/* Decoro angolo style-aware (colore = testo cover → armonizza, come Serramenti) */}
+                {form.pdf_cover_show_decoration !== false && (() => {
+                  const v = form.pdf_cover_decoration_style ?? "square";
+                  if (v === "none") return null;
+                  const c = form.pdf_cover_text_color || "#FFFFFF";
+                  return (
+                    <svg viewBox="0 0 180 180" aria-hidden className="absolute top-3 right-3 w-10 h-10 pointer-events-none z-[1]">
+                      {v === "circle" ? (
+                        <>
+                          <circle cx={90} cy={90} r={80} stroke={c} strokeWidth={3} fill="none" opacity={0.7} />
+                          <circle cx={90} cy={90} r={56} stroke={c} strokeWidth={1.5} fill="none" opacity={0.4} />
+                          <circle cx={90} cy={90} r={32} stroke={c} strokeWidth={1} fill="none" opacity={0.25} />
+                        </>
+                      ) : v === "line" ? (
+                        <>
+                          <path d="M 90 10 L 90 170" stroke={c} strokeWidth={2.5} opacity={0.7} />
+                          <path d="M 70 40 L 110 40" stroke={c} strokeWidth={1.5} opacity={0.5} />
+                          <path d="M 70 140 L 110 140" stroke={c} strokeWidth={1.5} opacity={0.5} />
+                        </>
+                      ) : v === "pattern" ? (
+                        <g opacity={0.45} fill={c}>
+                          {Array.from({ length: 25 }).map((_, i) => (<circle key={i} cx={30 + (i % 5) * 30} cy={30 + Math.floor(i / 5) * 30} r={3} />))}
+                        </g>
+                      ) : (
+                        <>
+                          <g opacity={0.7} stroke={c} fill="none">
+                            <rect x={20} y={20} width={140} height={140} rx={6} strokeWidth={3} />
+                            <path d="M 90 25 L 90 155" strokeWidth={2} />
+                            <path d="M 25 90 L 155 90" strokeWidth={2} />
+                          </g>
+                          <circle cx={84} cy={90} r={3} fill={c} opacity={0.7} />
+                        </>
+                      )}
+                    </svg>
+                  );
+                })()}
+                <div className="relative z-[1] flex h-full flex-col">
                   {(form.pdf_cover_logo_position ?? "top_left") !== "hidden" && (
                     <div
                       className={
-                        "mb-auto flex items-center gap-2 " +
+                        "flex items-center gap-2 " +
                         (form.pdf_cover_logo_position === "top_right"
                           ? "justify-end"
                           : form.pdf_cover_logo_position === "top_center"
@@ -1186,14 +1398,20 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                       <span className="text-xs font-semibold">Azienda</span>
                     </div>
                   )}
-                  <div className="mt-auto space-y-3">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-orange-200">
+                  <div
+                    className="space-y-3"
+                    style={{
+                      marginTop: (form.pdf_cover_text_vertical ?? "bottom") === "top" ? "1rem" : "auto",
+                      marginBottom: (form.pdf_cover_text_vertical ?? "bottom") === "bottom" ? 0 : "auto",
+                    }}
+                  >
+                    <div className="font-bold uppercase tracking-widest text-orange-200" style={{ fontSize: `${(form.pdf_cover_eyebrow_size ?? 11) * 0.85}px` }}>
                       {form.pdf_cover_eyebrow || "La tua proposta personalizzata"}
                     </div>
-                    <div className="whitespace-pre-line text-3xl font-black leading-none">
+                    <div className="whitespace-pre-line font-black leading-none" style={{ fontSize: `${(form.pdf_cover_title_size ?? 40) * 0.7}px` }}>
                       {form.pdf_cover_hero || "Il sole\ndiventa tuo."}
                     </div>
-                    <div className="text-xs leading-relaxed opacity-85">
+                    <div className="leading-relaxed opacity-85" style={{ fontSize: `${(form.pdf_cover_subtitle_size ?? 13) * 0.92}px` }}>
                       {form.pdf_cover_subhero_template || form.pdf_cover_subhero || "Impianto fotovoltaico {potenza_kwp} {accumulo_kwh} per {indirizzo}."}
                     </div>
                     {form.pdf_cover_show_client_card !== false && (
