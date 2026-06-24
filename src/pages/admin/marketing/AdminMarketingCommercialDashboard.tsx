@@ -28,6 +28,7 @@ import { CrmVelocityCard } from "@/components/admin/crm-dashboard/CrmVelocityCar
 import { CrmAgentTargetsCard } from "@/components/admin/crm-dashboard/CrmAgentTargetsCard";
 import { CrmFirmographicsCard } from "@/components/admin/crm-dashboard/CrmFirmographicsCard";
 import { CrmProductCards } from "@/components/admin/crm-dashboard/CrmProductCards";
+import { CrmHotLeadsCard } from "@/components/admin/crm-dashboard/CrmHotLeadsCard";
 
 type PeriodKey = "7" | "30" | "90" | "365";
 const PERIODS: { key: PeriodKey; label: string }[] = [
@@ -313,6 +314,8 @@ export default function AdminMarketingCommercialDashboard() {
               loading={isLoading}
             />
           </div>
+
+          <CrmHotLeadsCard companyId={companyId} />
 
           <Card>
             <CardContent className="p-4 sm:p-5">
