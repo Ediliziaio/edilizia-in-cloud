@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Users, Send, Eye, MessageSquare, Target, Trophy, Loader2, Wallet } from "lucide-react";
+import { Users, Send, Eye, MessageSquare, Target, Trophy, Loader2, Wallet, AlertTriangle } from "lucide-react";
 
 const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(n || 0));
 
@@ -92,6 +92,16 @@ export function CrmOperationalFunnel({ companyId }: { companyId: string }) {
     : [];
   const base = Math.max(1, stages[0]?.n ?? 1);
   const overallConv = d && d.contatti > 0 ? (d.vinti / d.contatti) * 100 : 0;
+  const constraint = (() => {
+    let worst: { r: number; from: string; to: string } | null = null;
+    for (let i = 1; i < stages.length; i++) {
+      const prev = stages[i - 1].n;
+      if (prev <= 0) continue;
+      const r = stages[i].n / prev;
+      if (worst == null || r < worst.r) worst = { r, from: stages[i - 1].label, to: stages[i].label };
+    }
+    return worst;
+  })();
 
   return (
     <Card className="overflow-hidden">
@@ -173,6 +183,15 @@ export function CrmOperationalFunnel({ companyId }: { companyId: string }) {
                 </div>
               </div>
             </div>
+
+            {constraint && constraint.r < 1 && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-[12px]" style={{ borderColor: "hsl(0 84% 60% / 0.35)" }}>
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" aria-hidden="true" />
+                <span>
+                  <strong>Collo di bottiglia:</strong> {constraint.from} → {constraint.to} — passa solo il {Math.round(constraint.r * 100)}%. È qui che perdi di più: agisci su questo step prima di alzare il volume.
+                </span>
+              </div>
+            )}
           </>
         )}
       </CardContent>
