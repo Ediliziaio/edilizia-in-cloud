@@ -134,6 +134,27 @@ function PlaceholderChips({
   );
 }
 
+// Modello standard di condizioni contrattuali per serramentista (base editabile).
+const CONDIZIONI_STANDARD_SERRAMENTI = [
+  "1. OGGETTO — Il presente preventivo ha per oggetto la fornitura e posa in opera dei serramenti e accessori indicati, secondo quantità, materiali e finiture descritti nelle pagine precedenti.",
+  "",
+  "2. VALIDITÀ — L'offerta è valida per il periodo indicato in copertina. Trascorso tale termine, prezzi e disponibilità potranno essere riconfermati.",
+  "",
+  "3. PAGAMENTO — 30% di acconto alla firma del contratto, 60% all'avviso di merce pronta / inizio posa, saldo 10% alla consegna e collaudo. Modalità: bonifico bancario.",
+  "",
+  "4. TEMPI DI CONSEGNA — I tempi indicati sono stimati e decorrono dalla firma del contratto e dal versamento dell'acconto. Eventuali ritardi dei fornitori non imputabili all'azienda saranno comunicati tempestivamente.",
+  "",
+  "5. POSA IN OPERA — La posa è eseguita a regola d'arte secondo la norma UNI 11673. Salvo diversa indicazione sono escluse opere murarie, elettriche, da imbianchino e lo smaltimento di serramenti preesistenti oltre il primo.",
+  "",
+  "6. GARANZIA — 10 anni sul prodotto e 10 anni sulla posa. La garanzia non copre danni da uso improprio, mancata manutenzione o interventi di terzi.",
+  "",
+  "7. RECESSO — Ai sensi degli artt. 52 e segg. del D.Lgs. 206/2005 il cliente consumatore può recedere entro 14 giorni dalla conclusione del contratto, salvo le esclusioni previste per beni realizzati su misura.",
+  "",
+  "8. RESPONSABILITÀ — Misure e quote definitive sono confermate in fase di rilievo tecnico prima dell'ordine. L'azienda non risponde di difformità derivanti da misure fornite dal cliente.",
+  "",
+  "9. FORO COMPETENTE — Per ogni controversia è competente il Foro della sede legale dell'azienda, fatte salve le competenze inderogabili a tutela del consumatore.",
+].join("\n");
+
 function decodeHtmlEntities(value: string): string {
   return value
     .replace(/&nbsp;/g, " ")
@@ -594,7 +615,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     | "page_cta"
     | "page_conversione"
     | "page_ordine"
-    | "contenuti" | "macro" | "garanzie" | "default";
+    | "contenuti" | "macro" | "garanzie" | "default" | "condizioni";
 
   // Sezioni raggruppate per UX: la sidebar mostra 3 gruppi con header,
   // le voci della famiglia "Pagine PDF" sono ora top-level (no più tab interne).
@@ -628,6 +649,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         { id: "contenuti", label: "Contenuti commerciali", emoji: "📝", descr: "Esigenze, USP, incluso, recensioni" },
         { id: "macro",     label: "Linee prodotto",        emoji: "📦", descr: "Pagine dedicate macrocategoria" },
         { id: "garanzie",  label: "Garanzie & metriche",   emoji: "🛡️", descr: "Garanzie e perché noi" },
+        { id: "condizioni", label: "Condizioni contrattuali", emoji: "📜", descr: "Termini di vendita nel PDF" },
         { id: "default",   label: "Default tecnici",       emoji: "⚙️", descr: "IVA, anticipo, validità" },
       ],
     },
@@ -3310,6 +3332,64 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         </div>
       </SrCard>
       </>)}{/* === END SEZIONE GARANZIE & METRICHE === */}
+
+      {/* === SEZIONE: CONDIZIONI CONTRATTUALI === */}
+      {activeSection === "condizioni" && (<>
+      <SectionHeader
+        title="📜 Condizioni contrattuali"
+        description="I termini di vendita stampati come pagina dedicata in fondo al preventivo PDF. Modificabili e riusabili su tutti i template."
+      />
+      <SrCard>
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <Switch
+              checked={form.condizioni_legali_attivo !== false}
+              onCheckedChange={(checked) => update("condizioni_legali_attivo", checked)}
+            />
+            <span className="text-sm font-medium">Mostra la pagina &ldquo;Condizioni&rdquo; nel PDF</span>
+          </label>
+          {form.condizioni_legali_attivo !== false && (
+            <>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const cur = String(form.condizioni_legali_testo ?? "").trim();
+                    if (cur && !window.confirm("Sovrascrivere il testo attuale con il modello standard serramentista?")) return;
+                    update("condizioni_legali_testo", CONDIZIONI_STANDARD_SERRAMENTI);
+                  }}
+                >
+                  <Sparkles className="h-3.5 w-3.5 mr-1" /> Inserisci modello standard serramentista
+                </Button>
+              </div>
+              <Textarea
+                value={form.condizioni_legali_testo ?? ""}
+                onChange={(e) => update("condizioni_legali_testo", e.target.value || null)}
+                placeholder={
+                  "Es.\n1. PAGAMENTO — 30% acconto alla firma, saldo alla consegna.\n" +
+                  "2. TEMPI — Consegna stimata in X giorni lavorativi.\n" +
+                  "3. GARANZIA — 10 anni prodotto, 10 anni posa (UNI 11673).\n" +
+                  "4. RECESSO — entro 14 giorni (D.Lgs. 206/2005), salvo beni su misura.\n" +
+                  "5. FORO COMPETENTE — Foro della sede legale."
+                }
+                rows={16}
+                className="text-xs font-mono"
+              />
+              <PlaceholderChips
+                value={form.condizioni_legali_testo ?? ""}
+                onChange={(v) => update("condizioni_legali_testo", v || null)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Puoi inserire i campi personalizzati (es. {"{cliente_nome_completo}"}) anche qui.
+                Per riusare queste condizioni su tutti i template, salvale nella tua libreria dalla tab
+                ⚡ Conversione → &ldquo;8. Condizioni e disclaimer&rdquo; → &ldquo;Salva nei Template offerte&rdquo;.
+              </p>
+            </>
+          )}
+        </div>
+      </SrCard>
+      </>)}{/* === END SEZIONE CONDIZIONI CONTRATTUALI === */}
 
       {/* === SEZIONE: DEFAULT TECNICI === */}
       {activeSection === "default" && (<>
