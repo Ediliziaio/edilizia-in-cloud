@@ -76,7 +76,9 @@ export async function resolveSender(
       from: `${platformName} <${platformEmail}>`,
       fromEmail: platformEmail,
       fromName: platformName,
-      replyTo: platformEmail,
+      // Reply-To: il "From" resta il noreply, ma le risposte vanno a una casella
+      // monitorata (platform_settings email_default_reply_to). Fallback: il from.
+      replyTo: (await getPlatformSetting("email_default_reply_to")) || platformEmail,
       usingCustomDomain: false,
       domain: fallbackSubdomain,
       provider,
@@ -96,7 +98,8 @@ export async function resolveSender(
   const senderPrefix = (prefs?.sender_prefix as string | undefined) ?? "no-reply";
   const senderName = (prefs?.sender_name as string | undefined) ?? fallbackFromName;
   const replyTo =
-    (prefs?.reply_to_email as string | undefined) ??
+    (prefs?.reply_to_email as string | undefined) ||
+    (await getPlatformSetting("email_default_reply_to")) ||
     `no-reply@${fallbackSubdomain}`;
 
   const domainIdKey =

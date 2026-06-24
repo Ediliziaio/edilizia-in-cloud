@@ -221,9 +221,11 @@ Deno.serve(async (req) => {
       "email_transactional_from_address",
       "email_transactional_from_name",
       "email_transactional_provider",
+      "email_default_reply_to",
     ]);
   const cfgMap = new Map((cfg ?? []).map((r: { key: string; value: string }) => [r.key, r.value]));
   const apiKey = cfgMap.get("email_transactional_api_key");
+  const replyTo = cfgMap.get("email_default_reply_to");
   const fromAddr = cfgMap.get("email_transactional_from_address") ?? "noreply@notifiche.ediliziaincloud.it";
   const fromName = cfgMap.get("email_transactional_from_name") ?? "Edilizia in Cloud";
   const provider = cfgMap.get("email_transactional_provider") ?? "resend";
@@ -245,6 +247,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           from: `${fromName} <${fromAddr}>`,
           to: [email],
+          ...(replyTo ? { reply_to: replyTo } : {}),
           subject: `Codice di accesso: ${code}`,
           html: buildEmailHtml(code, TTL_MIN),
           text: buildEmailText(code, TTL_MIN),
