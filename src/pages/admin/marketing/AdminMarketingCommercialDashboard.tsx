@@ -37,6 +37,8 @@ import { CrmNetworksStrip } from "@/components/admin/crm-dashboard/CrmNetworksSt
 import { CrmUnitEconomics } from "@/components/admin/crm-dashboard/CrmUnitEconomics";
 import { CrmChannelRoi } from "@/components/admin/crm-dashboard/CrmChannelRoi";
 import { CrmGrowthLevers } from "@/components/admin/crm-dashboard/CrmGrowthLevers";
+import { CrmSpeedToLead } from "@/components/admin/crm-dashboard/CrmSpeedToLead";
+import { CrmForecast } from "@/components/admin/crm-dashboard/CrmForecast";
 import { motion } from "framer-motion";
 
 type PeriodKey = "7" | "30" | "90" | "365";
@@ -331,6 +333,11 @@ export default function AdminMarketingCommercialDashboard() {
           <div className="grid items-start gap-4 lg:grid-cols-2">
             <CrmChannelRoi companyId={companyId} days={days} />
             <CrmGrowthLevers companyId={companyId} />
+          </div>
+
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <CrmSpeedToLead companyId={companyId} days={days} />
+            <CrmForecast companyId={companyId} />
           </div>
 
           {/* Riga: andamento (2/3) + fonti (1/3) */}
