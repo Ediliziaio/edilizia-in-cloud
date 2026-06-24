@@ -378,7 +378,7 @@ export default function AdminMarketingCommercialDashboard() {
         </TabsContent>
 
         {/* ─── PIPELINE ─────────────────────────────────────────────── */}
-        <TabsContent value="pipeline" className="space-y-5 pt-5">
+        <TabsContent value="pipeline" className="space-y-4 pt-5">
           <div className="grid gap-4 md:grid-cols-2">
             <CrmFunnelCard companyId={companyId} />
             <CrmWinLossCard companyId={companyId} />
@@ -387,22 +387,26 @@ export default function AdminMarketingCommercialDashboard() {
         </TabsContent>
 
         {/* ─── CLUSTER & LTV ────────────────────────────────────────── */}
-        <TabsContent value="cluster" className="space-y-5 pt-5">
+        <TabsContent value="cluster" className="space-y-4 pt-5">
           <CrmProductCards companyId={companyId} />
           <CrmChannelsCard companyId={companyId} />
-          <CrmClustersCard companyId={companyId} />
-          <CrmFirmographicsCard companyId={companyId} />
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <CrmClustersCard companyId={companyId} />
+            <CrmFirmographicsCard companyId={companyId} />
+          </div>
         </TabsContent>
 
         {/* ─── PARTNER & REFERRAL ───────────────────────────────────── */}
-        <TabsContent value="partner" className="space-y-5 pt-5">
+        <TabsContent value="partner" className="space-y-4 pt-5">
           <CrmPartnerReferralCard />
         </TabsContent>
 
         {/* ─── TEAM ─────────────────────────────────────────────────── */}
-        <TabsContent value="team" className="space-y-5 pt-5">
-          <CrmTeamCard companyId={companyId} />
-          <CrmAgentTargetsCard companyId={companyId} />
+        <TabsContent value="team" className="space-y-4 pt-5">
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <CrmTeamCard companyId={companyId} />
+            <CrmAgentTargetsCard companyId={companyId} />
+          </div>
         </TabsContent>
       </Tabs>
 
