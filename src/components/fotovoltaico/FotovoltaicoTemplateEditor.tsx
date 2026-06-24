@@ -651,11 +651,13 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
     // effettivamente scrollati. Prima il cambio sezione lasciava la pagina a
     // metà → la nuova sezione sembrava "rotta".
     if (typeof window === "undefined") return;
+    // Reset ISTANTANEO (niente "behavior: smooth") così la nuova sezione appare
+    // subito in cima, senza animazione di scroll visibile ad ogni cambio.
     window.scrollTo({ top: 0 });
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
     document.querySelectorAll<HTMLElement>("main, .overflow-auto, .overflow-y-auto").forEach((el) => {
-      if (el.scrollTop > 0) el.scrollTo({ top: 0, behavior: "smooth" });
+      if (el.scrollTop > 0) el.scrollTop = 0;
     });
   }, [activeSection]);
 
