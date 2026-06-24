@@ -19,9 +19,34 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { renderSystemEmail } from "../_shared/email-templates/renderSystemEmail.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+// Mappa template_key DB → chiave registro copy riscritti (Fase 1).
+const LIFECYCLE_REGISTRY_KEY: Record<string, string> = {
+  lifecycle_trial_ending: "trial-in-scadenza-25",
+  lifecycle_monthly_summary: "lifecycle-riepilogo-mensile-50",
+  lifecycle_d3_no_activation: "lifecycle-d-3-non-attivato-51",
+  lifecycle_d7_features: "lifecycle-d-7-funzioni-52",
+};
+
+/** Traduce le vars camelCase del lifecycle nei token {snake} del registro. */
+function toRegistryVars(vars: Record<string, string | number>): Record<string, string | number> {
+  return {
+    nome_utente: vars.recipientName,
+    nome_azienda: vars.companyName,
+    giorni_rimanenti: vars.daysRemaining,
+    numero_commesse: vars.ordersCount,
+    numero_clienti: vars.customersCount,
+    mese: vars.monthName,
+    fatturato_mese: vars.revenueFormatted,
+    ore_risparmiate: vars.hoursSaved,
+    url1: vars.upgradeUrl ?? vars.dashboardUrl ?? vars.loginUrl ?? vars.tutorialUrl ??
+      "https://app.ediliziaincloud.com/azienda",
+  };
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -84,9 +109,21 @@ async function sendEmail(
   vars: Record<string, string | number>,
   template: TemplateRow,
 ): Promise<{ ok: boolean; error?: string }> {
-  const subject = applyPlaceholders(template.subject, vars);
-  const html = applyPlaceholders(template.html_body, vars);
-  const text = template.text_body ? applyPlaceholders(template.text_body, vars) : null;
+  // Copy nuovo dal registro se mappato; altrimenti fallback al template DB.
+  let subject: string;
+  let html: string;
+  let text: string | null;
+  const regKey = LIFECYCLE_REGISTRY_KEY[templateKey];
+  if (regKey) {
+    const r = renderSystemEmail(regKey, toRegistryVars(vars));
+    subject = r.subject;
+    html = r.html;
+    text = r.text;
+  } else {
+    subject = applyPlaceholders(template.subject, vars);
+    html = applyPlaceholders(template.html_body, vars);
+    text = template.text_body ? applyPlaceholders(template.text_body, vars) : null;
+  }
 
   // Invochiamo send-transactional-v2 internamente per beneficiare di
   // branding, suppression, log_delivery.
