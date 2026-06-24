@@ -46,6 +46,8 @@ import {
 } from "@/lib/fotovoltaico/queries";
 import { COVER_PRESETS, detectActiveCoverPreset } from "./coverPresets";
 import { useCompanyAnagraficaForTemplate, inheritedPlaceholder } from "@/hooks/useCompanyAnagraficaForTemplate";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from "./coverStockImages";
 import {
   buildFvTemplateQualityItems,
   DEFAULT_FV_FAQ,
@@ -140,6 +142,37 @@ interface FvTemplate {
   noleggio_fattore_default?: number | null;
   noleggio_aliquota_fiscale_pct?: number | null;
   noleggio_note_legali?: string | null;
+}
+
+// Campi personalizzati cliccabili (parità Serramenti). Inseriscono {token} in coda.
+const FV_PLACEHOLDERS = [
+  "cliente_nome", "potenza_kwp", "accumulo_kwh",
+  "numero_pannelli", "indirizzo", "comune",
+] as const;
+function PlaceholderChips({
+  value, onChange, label = "Inserisci campo personalizzato (cliccabile):",
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  label?: string;
+}) {
+  return (
+    <div className="mt-1.5">
+      <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1">
+        {FV_PLACEHOLDERS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onChange((value ?? "") + `{${n}}`)}
+            className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-sky-300 text-slate-600 hover:text-sky-700 transition-colors"
+          >
+            {`{${n}}`}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 interface Props {
@@ -638,6 +671,19 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   // Detection live del preset attivo (evidenzia la card). null = personalizzato.
   const activeCoverPresetId = useMemo(() => detectActiveCoverPreset(form), [form]);
 
+  // ─── Galleria immagini stock cover (parità Serramenti) ───────────────────
+  const [stockDialogOpen, setStockDialogOpen] = useState(false);
+  const [stockCategory, setStockCategory] = useState<CoverStockImage["categoria"] | "all">("all");
+  const stockFiltered = useMemo(
+    () => (stockCategory === "all" ? COVER_STOCK_IMAGES : COVER_STOCK_IMAGES.filter((img) => img.categoria === stockCategory)),
+    [stockCategory],
+  );
+  const applyStockImage = useCallback((img: CoverStockImage) => {
+    setForm((prev) => ({ ...prev, pdf_cover_image_url: img.url }));
+    setDirty(true);
+    setStockDialogOpen(false);
+  }, []);
+
   const handleSave = () => {
     // Cast a Record perché upsert FV accetta Record<string, unknown>
     upsertMut.mutate(sanitizeTemplatePayload(form), {
@@ -1117,6 +1163,10 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     placeholder="La tua proposta personalizzata"
                     className="h-9 text-xs"
                   />
+                  <PlaceholderChips
+                    value={form.pdf_cover_eyebrow ?? ""}
+                    onChange={(v) => update("pdf_cover_eyebrow", v || null)}
+                  />
                 </div>
                 <div className="col-span-12 md:col-span-6">
                   <Label className="text-xs">Titolo hero</Label>
@@ -1125,6 +1175,10 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     onChange={(e) => update("pdf_cover_hero", e.target.value || null)}
                     rows={2}
                     placeholder={"Il sole\ndiventa tuo."}
+                  />
+                  <PlaceholderChips
+                    value={form.pdf_cover_hero ?? ""}
+                    onChange={(v) => update("pdf_cover_hero", v || null)}
                   />
                 </div>
                 <div className="col-span-12">
@@ -1144,9 +1198,10 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     rows={2}
                     placeholder="Impianto fotovoltaico {potenza_kwp} {accumulo_kwh} per {indirizzo}."
                   />
-                  <p className="mt-1 text-[10px] text-muted-foreground">
-                    Placeholder: {"{cliente_nome}"}, {"{potenza_kwp}"}, {"{accumulo_kwh}"}, {"{indirizzo}"}, {"{comune}"}, {"{numero_pannelli}"}.
-                  </p>
+                  <PlaceholderChips
+                    value={form.pdf_cover_subhero_template ?? ""}
+                    onChange={(v) => update("pdf_cover_subhero_template", v || null)}
+                  />
                 </div>
                 <div className="col-span-12 md:col-span-4">
                   <Label className="text-xs">Sfondo solido</Label>
@@ -1181,14 +1236,18 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                   </div>
                 </div>
                 <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Overlay immagine</Label>
-                  <Input
-                    type="number"
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Opacità overlay</Label>
+                    <span className="text-[11px] font-semibold text-sky-700">{form.pdf_cover_overlay_opacity ?? 62}%</span>
+                  </div>
+                  <input
+                    type="range"
                     min={0}
                     max={100}
                     value={form.pdf_cover_overlay_opacity ?? 62}
-                    onChange={(e) => update("pdf_cover_overlay_opacity", Number(e.target.value) || 0)}
-                    className="h-9 text-xs"
+                    onChange={(e) => update("pdf_cover_overlay_opacity", Number(e.target.value))}
+                    className="w-full mt-2 accent-sky-600"
+                    aria-label="Opacità overlay scuro"
                   />
                 </div>
                 <div className="col-span-12 flex flex-wrap gap-2">
@@ -1441,7 +1500,16 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                   className="flex-1 gap-1"
                 >
                   <Upload className="h-3.5 w-3.5" />
-                  Carica immagine
+                  {form.pdf_cover_image_url ? "Cambia" : "Carica"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStockDialogOpen(true)}
+                  className="flex-1 gap-1 border-sky-200 text-sky-700 hover:bg-sky-50"
+                >
+                  📷 Galleria stock
                 </Button>
                 {form.pdf_cover_image_url && (
                   <Button
@@ -2556,6 +2624,68 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
           </Button>
         </div>
       )}
+
+      {/* Galleria immagini stock cover (parità Serramenti) */}
+      <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="p-4 pb-3 border-b">
+            <DialogTitle className="text-base">📷 Galleria immagini stock</DialogTitle>
+            <DialogDescription className="text-xs">
+              Click su un'immagine per usarla come sfondo cover. Tutte libere da licenza (Unsplash) — uso commerciale incluso.
+            </DialogDescription>
+            <div className="flex flex-wrap gap-1 pt-2">
+              {COVER_STOCK_CATEGORIE.map((cat) => {
+                const isActive = stockCategory === cat.value;
+                return (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => setStockCategory(cat.value)}
+                    className={
+                      "text-[11px] px-2 py-1 rounded-md border transition-all gap-1 inline-flex items-center " +
+                      (isActive ? "bg-sky-600 text-white border-sky-600 font-semibold" : "bg-white border-slate-200 hover:border-sky-300 text-slate-700")
+                    }
+                  >
+                    <span>{cat.emoji}</span>{cat.label}
+                  </button>
+                );
+              })}
+            </div>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {stockFiltered.map((img) => {
+                const isActive = form.pdf_cover_image_url === img.url;
+                return (
+                  <button
+                    key={img.id}
+                    type="button"
+                    onClick={() => applyStockImage(img)}
+                    className={
+                      "group relative aspect-[4/3] rounded-lg overflow-hidden border-2 transition-all focus:outline-none focus:ring-2 focus:ring-sky-400 " +
+                      (isActive ? "border-sky-500 shadow-md ring-2 ring-sky-300" : "border-slate-200 hover:border-sky-300 hover:shadow-sm")
+                    }
+                    title={img.label}
+                  >
+                    <img src={img.thumb} alt={img.label} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                      <span className="text-[10px] font-semibold text-white">{img.label}</span>
+                    </div>
+                    {isActive && (
+                      <div className="absolute top-1.5 right-1.5 bg-sky-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {stockFiltered.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-8">Nessuna immagine in questa categoria.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog conferma rimozione recensione */}
       <AlertDialog open={delRecIdx !== null} onOpenChange={(o) => !o && setDelRecIdx(null)}>
