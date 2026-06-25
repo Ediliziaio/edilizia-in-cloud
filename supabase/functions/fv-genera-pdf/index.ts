@@ -21,6 +21,12 @@
  *   tipo='mobile'  → idem
  *
  * Output: { url, size_bytes, pages_count, duration_ms, format: 'html' }
+ *
+ * Redeploy-marker: questa function include `_shared/fvHtmlTemplate.ts`
+ * (cover PDF con preset 1-click + layout: posizione verticale testo, font,
+ * overlay style, decorazione). La CI rileva i cambi solo nella dir propria
+ * della function ed ESCLUDE `_shared/`: quando cambia solo il template
+ * condiviso, basta un bump qui per far ridistribuire la function dal sorgente.
  */
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
