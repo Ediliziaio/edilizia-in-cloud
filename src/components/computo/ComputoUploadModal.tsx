@@ -71,6 +71,14 @@ interface Props {
    *   l'AI estrae righe e fa matching col listino prodotti.
    */
   intent?: "computo" | "foto";
+  /**
+   * Modalità "ritorna voci" (es. computo di Ristrutturazione/altri moduli): se
+   * fornito, alla conferma in revisione NON genera un preventivo marketing ma
+   * richiama onConfirmVoci con le voci INCLUSE riviste e chiude il modale.
+   */
+  onConfirmVoci?: (voci: ComputoVoceLocal[]) => void;
+  /** Etichetta del bottone di conferma in revisione (default "Genera Preventivo"). */
+  confirmLabel?: string;
 }
 
 const ACCEPTED_TYPES = [
@@ -100,7 +108,7 @@ function getFileIcon(name: string) {
   return <FileUp className="h-8 w-8 text-slate-400" />;
 }
 
-export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComputoId = null, intent = "computo" }: Props) {
+export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComputoId = null, intent = "computo", onConfirmVoci, confirmLabel }: Props) {
   const isFotoMode = intent === "foto";
   const navigate = useNavigate();
   const {
@@ -322,6 +330,14 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
 
   // ── Step 4 → Generate ──────────────────────────────────────────────────────
   const handleGenerate = () => {
+    // Modalità "ritorna voci" (es. Ristrutturazione): consegna al chiamante le voci
+    // incluse riviste invece di generare un preventivo marketing, e chiude.
+    if (onConfirmVoci) {
+      onConfirmVoci(vociLocali.filter((v) => v._isIncluded));
+      handleClose();
+      return;
+    }
+
     const incluse = vociLocali
       .filter((v) => v._isIncluded)
       .map((v, index) => buildComputoQuoteItemPayload(v, index));
@@ -701,7 +717,7 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
                     ) : (
                       <CheckCircle2 className="h-4 w-4 mr-1" />
                     )}
-                    Genera Preventivo
+                    {confirmLabel ?? "Genera Preventivo"}
                   </Button>
                 </div>
               </div>
