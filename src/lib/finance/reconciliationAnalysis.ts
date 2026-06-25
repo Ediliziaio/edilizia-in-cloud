@@ -29,6 +29,29 @@ export function fuzzyMatch(a: string, b: string): boolean {
 }
 
 /**
+ * Riconosce il numero fattura dentro la causale di un bonifico (es. "SALDO FATTURA
+ * 415/2026", "Fatt. 412-2026", "ns. ft 5/2026"). È il segnale più forte: la banca
+ * cita esplicitamente la fattura. Per i numeri corti (<3 char) richiede la parola
+ * "fattura/fatt/ft/n." vicino, per evitare falsi positivi (es. un "5" qualsiasi).
+ */
+export function invoiceNumberInCausale(description: string, invoiceNumber: string): boolean {
+  if (!description || !invoiceNumber) return false;
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const inv = norm(invoiceNumber);
+  if (inv.length < 2) return false;
+  const desc = norm(description);
+  // Numero "ricco" (>=3 char, es. 4152026): basta che compaia nella causale.
+  if (inv.length >= 3 && desc.includes(inv)) return true;
+  // Numero corto: serve un marcatore "fattura/fatt/ft/n." vicino al numero.
+  const m = description.toLowerCase().match(/(?:fattura|fatt\.?|ft\.?|n\.?)\s*0*([0-9]{1,6})(?:\s*[\/\-]\s*([0-9]{2,4}))?/);
+  if (m) {
+    const candidate = norm(m[1] + (m[2] || ""));
+    if (candidate === inv || norm(m[1]) === inv) return true;
+  }
+  return false;
+}
+
+/**
  * Calcola un punteggio di compatibilità tra una transazione bancaria e una
  * fattura aperta. Restituisce null sotto la soglia minima (score < 50).
  * Pesi: importo esatto +50 / simile +35, IBAN +30, nome +20.
@@ -39,6 +62,12 @@ export function computeMatchScore(tx: any, inv: any): MatchSuggestion | null {
   const txAmount = Math.abs(tx.amount);
   const invTotal = Number(inv.total || 0) - Number(inv.paid_amount || 0);
 
+  // N° fattura nella causale del bonifico: segnale più forte (la banca cita la fattura).
+  if (invoiceNumberInCausale(tx.description || "", inv.invoice_number || "")) {
+    score += 60;
+    reasons.push("N° fattura in causale");
+  }
+
   // Amount match (within 1% or €5)
   const diff = Math.abs(txAmount - invTotal);
   const tolerance = Math.max(invTotal * 0.01, 5);
@@ -48,6 +77,11 @@ export function computeMatchScore(tx: any, inv: any): MatchSuggestion | null {
   } else if (diff <= tolerance) {
     score += 35;
     reasons.push(`Importo simile (diff. ${fmtEur(diff)})`);
+  } else if (txAmount > 0 && invTotal > 0 && txAmount < invTotal) {
+    // Acconto: il bonifico salda solo PARTE della fattura. Punti modesti (da solo non
+    // basta la soglia; rilevante se combinato con n° fattura / IBAN / nome).
+    score += 10;
+    reasons.push(`Possibile acconto (residuo ${fmtEur(invTotal - txAmount)})`);
   }
 
   // IBAN match
