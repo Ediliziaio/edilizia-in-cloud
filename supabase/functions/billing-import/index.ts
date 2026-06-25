@@ -113,19 +113,42 @@ Deno.serve(async (req) => {
       return null;
     };
 
+    // Commessa per "convenzione codice": se il codice commessa (order_code) compare
+    // nell'oggetto / note / numero della fattura esterna, la colleghiamo. Cache dei codici
+    // dell'azienda caricata una volta sola. Best-effort.
+    let orderCodes: { id: string; code: string }[] | null = null;
+    const resolveOrderId = async (x: any): Promise<string | null> => {
+      const hay = `${x.number || ""} ${x.ficObject || ""} ${x.notes || ""}`.toUpperCase();
+      if (!hay.trim()) return null;
+      if (orderCodes === null) {
+        const { data } = await supabase.from("orders")
+          .select("id, order_code").eq("company_id", companyId)
+          .not("order_code", "is", null).is("deleted_at", null);
+        orderCodes = (data || [])
+          .filter((o: any) => o.order_code && String(o.order_code).trim().length >= 4)
+          .map((o: any) => ({ id: o.id as string, code: String(o.order_code).trim().toUpperCase() }));
+      }
+      // match del codice più lungo presente nel testo (evita falsi positivi su codici corti)
+      const hit = orderCodes
+        .filter((o) => hay.includes(o.code))
+        .sort((a, b) => b.code.length - a.code.length)[0];
+      return hit ? hit.id : null;
+    };
+
     for (const inv of invoices) {
       const externalId = inv.externalId;
       
       // Check if already exists
       const { data: existing } = await supabase
         .from("invoices")
-        .select("id, external_id")
+        .select("id, external_id, order_id")
         .eq("company_id", companyId)
         .eq("external_id", externalId)
         .eq("external_provider", provider!)
         .maybeSingle();
 
       const clientId = await resolveClientId(inv);
+      const convOrderId = await resolveOrderId(inv);
 
       const invoiceData = {
         company_id: companyId,
@@ -160,7 +183,9 @@ Deno.serve(async (req) => {
       if (existing) {
         // NB: controllare SEMPRE l'errore — prima veniva ingoiato e il conteggio
         // mentiva ("100 importate" con 0 righe scritte se un trigger falliva).
-        const { error: updErr } = await supabase.from("invoices").update(invoiceData).eq("id", existing.id);
+        const { error: updErr } = await supabase.from("invoices")
+          .update(convOrderId && !existing.order_id ? { ...invoiceData, order_id: convOrderId } : invoiceData)
+          .eq("id", existing.id);
         if (updErr) { failed++; if (importErrors.length < 5) importErrors.push(`#${inv.number}: ${updErr.message}`); continue; }
 
         // Aggiorna le righe in modo atomico. Avvolto in try/catch PER FATTURA: un errore
@@ -179,6 +204,7 @@ Deno.serve(async (req) => {
         const { data: newInv, error: insErr } = await supabase.from("invoices").insert({
           ...invoiceData,
           created_by: createdBy,
+          order_id: convOrderId,
         }).select("id").single();
 
         if (insErr || !newInv) {
@@ -405,6 +431,8 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
       externalId: doc.id?.toString(),
       documentType: isCreditNote ? "credit_note" : "invoice",
       number: doc.number?.value || doc.number,
+      notes: doc.notes || null,
+      ficObject: doc.subject || doc.visible_subject || null,
       status: resolvedStatus,
       paidAmount: _paidAmt,
       clientName: doc.entity?.name || "",

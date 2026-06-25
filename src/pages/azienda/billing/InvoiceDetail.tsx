@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,7 +15,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowLeft, Download, Mail, Loader2, RefreshCw, ExternalLink, Link2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Download, Mail, Loader2, RefreshCw, ExternalLink, Link2, Briefcase } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: string }> = {
@@ -68,6 +69,54 @@ export default function InvoiceDetail() {
     },
     enabled: !!id,
   });
+
+  // Commesse dell'azienda — per collegare la fattura a una commessa (utile soprattutto
+  // per le fatture importate da gestionali esterni, che non nascono da una commessa).
+  const queryClient = useQueryClient();
+  const [linkingOrder, setLinkingOrder] = useState(false);
+  const { data: orders } = useQuery({
+    queryKey: ["orders-for-invoice-link", effectiveCompany?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("orders")
+        .select("id, order_code, description, client_company, client_name, status")
+        .eq("company_id", effectiveCompany!.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(500);
+      return data || [];
+    },
+    enabled: !!effectiveCompany?.id,
+  });
+
+  const linkedOrder = useMemo(
+    () => (invoice?.order_id ? orders?.find((o) => o.id === invoice.order_id) ?? null : null),
+    [orders, invoice],
+  );
+
+  // Suggerimento per cliente (solo se univoco): match per nome azienda/cliente, normalizzato.
+  const suggestedOrder = useMemo(() => {
+    if (!invoice || invoice.order_id || !orders?.length) return null;
+    const norm = (s?: string | null) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const target = norm(invoice.client_company_name);
+    if (target.length < 3) return null;
+    const matches = orders.filter((o) => {
+      const a = norm(o.client_company), b = norm(o.client_name);
+      return (a && (a === target || a.includes(target) || target.includes(a))) ||
+             (b && (b === target || b.includes(target) || target.includes(b)));
+    });
+    return matches.length === 1 ? matches[0] : null;
+  }, [invoice, orders]);
+
+  async function linkOrder(orderId: string | null) {
+    if (!id || !effectiveCompany?.id) return;
+    setLinkingOrder(true);
+    const { error } = await supabase.from("invoices").update({ order_id: orderId }).eq("id", id).eq("company_id", effectiveCompany.id);
+    setLinkingOrder(false);
+    if (error) { toast.error("Errore nel collegamento della commessa"); return; }
+    toast.success(orderId ? "Commessa collegata" : "Commessa scollegata");
+    queryClient.invalidateQueries({ queryKey: queryKeys.invoices.detail(id) });
+  }
 
   const lines = useMemo(() => {
     if (!invoice?.invoice_lines) return [];
@@ -374,6 +423,50 @@ export default function InvoiceDetail() {
                   <p className="text-muted-foreground text-xs">Note</p>
                   <p className="text-sm mt-1">{invoice.notes}</p>
                 </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Commessa — collega la fattura a una commessa (manuale + auto-suggerimento per cliente).
+              Utile soprattutto per le fatture importate da gestionali esterni, prive di commessa. */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><Briefcase className="h-4 w-4" /> Commessa</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {invoice.order_id ? (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{linkedOrder?.order_code || "Commessa collegata"}</p>
+                    {linkedOrder?.description && <p className="text-xs text-muted-foreground truncate">{linkedOrder.description}</p>}
+                  </div>
+                  <Button variant="ghost" size="sm" disabled={linkingOrder} onClick={() => linkOrder(null)}>Scollega</Button>
+                </div>
+              ) : (
+                <>
+                  {suggestedOrder && (
+                    <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 p-2">
+                      <div className="min-w-0 text-sm">
+                        <span className="text-muted-foreground text-xs">Suggerita: </span>
+                        <span className="font-medium">{suggestedOrder.order_code || suggestedOrder.client_company}</span>
+                      </div>
+                      <Button size="sm" disabled={linkingOrder} onClick={() => linkOrder(suggestedOrder.id)}>Collega</Button>
+                    </div>
+                  )}
+                  <Select onValueChange={(v) => linkOrder(v)}>
+                    <SelectTrigger className="h-9"><SelectValue placeholder="Collega a una commessa…" /></SelectTrigger>
+                    <SelectContent>
+                      {(orders || []).map((o) => (
+                        <SelectItem key={o.id} value={o.id}>
+                          {o.order_code ? `${o.order_code} — ` : ""}{o.description || o.client_company || o.client_name || o.id.slice(0, 8)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Le fatture da gestionali esterni non hanno una commessa: collegala qui, oppure scrivi il codice commessa nell'oggetto della fattura sul gestionale per il collegamento automatico all'import.
+                  </p>
+                </>
               )}
             </CardContent>
           </Card>

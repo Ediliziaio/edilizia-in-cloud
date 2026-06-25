@@ -695,13 +695,13 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                         <ArrowRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                         <span className="font-medium">{inv?.invoice_number || "Fattura"}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <div className="text-xs text-muted-foreground">
                         {fmtEur(Number(rec.matched_amount))} ·{" "}
                         <Badge variant="outline" className="text-[10px] px-1">
                           {rec.match_type === "auto" ? "Auto" : "Manuale"}
                         </Badge>
                         {rec.notes && ` · ${rec.notes}`}
-                      </p>
+                      </div>
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => setUnlinkTarget(rec)}>
                       <Unlink className="h-4 w-4" />
