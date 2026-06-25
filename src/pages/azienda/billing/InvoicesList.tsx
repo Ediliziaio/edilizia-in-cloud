@@ -37,6 +37,18 @@ function giorniScaduta(due?: string | null): number | null {
 
 const MONTH_ABBR = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
 
+type DocTab = "fatture" | "note_credito" | "proforma" | "cestino";
+
+/** Filtro per il tab tipo-documento (stile Fatture in Cloud). Le annullate vivono nel Cestino. */
+function matchDocTab(inv: { document_type?: string | null; status: string }, tab: DocTab): boolean {
+  if (tab === "cestino") return inv.status === "cancelled";
+  if (inv.status === "cancelled") return false;
+  if (tab === "note_credito") return inv.document_type === "credit_note";
+  if (tab === "proforma") return inv.document_type === "proforma";
+  // "fatture": fattura/ricevuta (tutto ciò che non è NC/proforma/annullata)
+  return inv.document_type !== "credit_note" && inv.document_type !== "proforma";
+}
+
 /** Iniziali del cliente per l'avatar (max 2 lettere). */
 function clienteInitials(name?: string | null): string {
   return (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
@@ -96,6 +108,8 @@ export default function InvoicesList() {
   const [yearFilter, setYearFilter] = useState("all");
   // Striscia mesi stile Fatture in Cloud: "01".."12" | "prec" | "succ" | null (tutto l'anno).
   const [monthFilter, setMonthFilter] = useState<string | null>(null);
+  // Tab tipo documento stile Fatture in Cloud.
+  const [docTab, setDocTab] = useState<DocTab>("fatture");
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ["invoices", companyId],
@@ -216,16 +230,28 @@ export default function InvoicesList() {
     };
     for (let m = 1; m <= 12; m++) cells[String(m).padStart(2, "0")] = { count: 0, total: 0 };
     for (const i of invoices) {
-      if (!i.issue_date) continue;
+      if (!i.issue_date || !matchDocTab(i, docTab)) continue;
       const y = i.issue_date.slice(0, 4);
       const cell = y < stripYear ? cells.prec : y > stripYear ? cells.succ : cells[i.issue_date.slice(5, 7)];
       if (cell) { cell.count++; cell.total += Number(i.total || 0); }
     }
     return cells;
-  }, [invoices, stripYear]);
+  }, [invoices, stripYear, docTab]);
+
+  // Conteggi per i tab tipo-documento (sempre sull'intero set, indipendenti dai filtri).
+  const docCounts = useMemo(() => {
+    const c = { fatture: 0, note_credito: 0, proforma: 0, cestino: 0 };
+    for (const i of invoices) {
+      if (i.status === "cancelled") c.cestino++;
+      else if (i.document_type === "credit_note") c.note_credito++;
+      else if (i.document_type === "proforma") c.proforma++;
+      else c.fatture++;
+    }
+    return c;
+  }, [invoices]);
 
   const filtered = useMemo(() => {
-    let list = invoices;
+    let list = invoices.filter((i) => matchDocTab(i, docTab));
     // Filtro striscia mesi: prec/succ prevalgono sull'anno; il mese numerico filtra dentro stripYear.
     if (monthFilter === "prec") {
       list = list.filter((i) => i.issue_date && i.issue_date.slice(0, 4) < stripYear);
@@ -244,7 +270,7 @@ export default function InvoicesList() {
       );
     }
     return list;
-  }, [invoices, yearFilter, monthFilter, stripYear, statusFilter, search]);
+  }, [invoices, docTab, yearFilter, monthFilter, stripYear, statusFilter, search]);
 
   // Raggruppamento per MESE (decrescente), con totale e conteggio per mese.
   // Le fatture sono già ordinate per data desc dalla query.
@@ -370,6 +396,32 @@ export default function InvoicesList() {
                 <p className="text-xl font-bold">{invoices.length}</p>
               </CardContent>
             </Card>
+          </div>
+
+          {/* Tab tipo documento (stile Fatture in Cloud) */}
+          <div className="flex flex-wrap items-center gap-1 border-b">
+            {([
+              { key: "fatture" as DocTab, label: "Fatture", n: docCounts.fatture },
+              { key: "note_credito" as DocTab, label: "Note di Credito", n: docCounts.note_credito },
+              { key: "proforma" as DocTab, label: "Pro forma", n: docCounts.proforma },
+              { key: "cestino" as DocTab, label: "Cestino", n: docCounts.cestino },
+            ]).map(({ key, label, n }) => {
+              const active = docTab === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => { setDocTab(key); setMonthFilter(null); }}
+                  className={
+                    "px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors " +
+                    (active ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")
+                  }
+                >
+                  {label}
+                  <span className={"ml-1.5 text-xs " + (active ? "text-primary" : "text-muted-foreground/70")}>{n}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Striscia mesi (stile Fatture in Cloud): n° doc + € per mese dell'anno, cliccabile per filtrare */}
