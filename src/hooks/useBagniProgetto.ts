@@ -194,6 +194,80 @@ export function useDeleteProgetto() {
   });
 }
 
+// ─── Clona progetto (inizia da un preventivo esistente) ─────────────────────────
+// Crea un nuovo preventivo riusando uno passato come "modello": copia le
+// condizioni (tipo intervento, sconto/IVA/detrazione, note, template) + TUTTE le
+// voci del computo, ma LASCIA VUOTI cliente/cantiere/immobile (è un nuovo cliente).
+export function useClonaProgetto() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (sourceId: string): Promise<BgnProgetto> => {
+      if (!companyId) throw new Error("Company non disponibile");
+
+      // 1) Carica origine (condizioni) + voci computo, scoping per company.
+      const [{ data: src, error: sErr }, { data: voci, error: vErr }] = await Promise.all([
+        sb().from("bgn_progetti").select("*").eq("id", sourceId).eq("company_id", companyId).maybeSingle(),
+        sb().from("bgn_computo_voci").select("*").eq("progetto_id", sourceId).eq("company_id", companyId)
+          .order("ordine", { ascending: true }),
+      ]);
+      if (sErr) throw new Error(sErr.message);
+      if (vErr) throw new Error(vErr.message);
+      if (!src) throw new Error("Preventivo di origine non trovato");
+
+      // 2) Nuovo progetto: copia SOLO condizioni/economia; cliente/cantiere/immobile vuoti.
+      const code = await generateProgettoCode(companyId);
+      const { data: nuovo, error: cErr } = await sb()
+        .from("bgn_progetti")
+        .insert({
+          company_id: companyId,
+          code,
+          stato: "bozza",
+          tipo_intervento: src.tipo_intervento,
+          sconto_pct: src.sconto_pct,
+          iva_pct: src.iva_pct,
+          detrazione_pct: src.detrazione_pct,
+          note: src.note,
+          template_id: src.template_id,
+          totale_imponibile: src.totale_imponibile,
+          totale: src.totale,
+        })
+        .select()
+        .single();
+      if (cErr) throw new Error(cErr.message);
+
+      // 3) Copia le voci del computo nel nuovo progetto (importi già calcolati a monte).
+      if (voci && voci.length > 0) {
+        const rows = voci.map((v, idx) => ({
+          progetto_id: nuovo.id,
+          company_id: companyId,
+          capitolo_nome: v.capitolo_nome,
+          descrizione: v.descrizione,
+          unita_misura: v.unita_misura,
+          quantita: v.quantita,
+          prezzo_unitario: v.prezzo_unitario,
+          costo_materiali: v.costo_materiali,
+          costo_manodopera: v.costo_manodopera,
+          sconto_pct: v.sconto_pct,
+          importo: v.importo,
+          margine_eur: v.margine_eur,
+          margine_pct: v.margine_pct,
+          listino_voce_id: v.listino_voce_id ?? null,
+          fonte: v.fonte ?? null,
+          ordine: v.ordine ?? idx,
+        }));
+        const { error: iErr } = await sb().from("bgn_computo_voci").insert(rows);
+        if (iErr) throw new Error(iErr.message);
+      }
+
+      return nuovo as BgnProgetto;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: K.progetti(companyId) });
+    },
+  });
+}
+
 // ─── Salvataggio computo (replace bulk) ──────────────────────────────────────
 /** Riga di computo in input al salvataggio (id opzionale: viene rigenerato). */
 export type ComputoVoceInput = Omit<

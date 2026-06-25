@@ -28,8 +28,11 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Hammer, Plus, Search, Trash2, Loader2, ChevronRight, ArrowLeft, FileText,
-  Wallet, Layers, X,
+  Wallet, Layers, X, CopyPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -39,6 +42,7 @@ import { formatCurrency } from "@/lib/formatters";
 import {
   useClimatizzazioneProgetti,
   useDeleteProgetto,
+  useClonaProgetto,
 } from "@/hooks/useClimatizzazioneProgetto";
 import { CLM_STATI_LABEL } from "./ClimatizzazioneWizard/helpers";
 import type { ClmStato } from "@/types/climatizzazione";
@@ -47,10 +51,13 @@ export default function ClimatizzazioneIndex() {
   const navigate = useNavigate();
   const { data: progetti = [], isLoading, isError, refetch } = useClimatizzazioneProgetti();
   const deleteMut = useDeleteProgetto();
+  const cloneMut = useClonaProgetto();
 
   const [search, setSearch] = useState("");
   const [filtroStato, setFiltroStato] = useState<string>("all");
   const [toDelete, setToDelete] = useState<{ id: string; code: string | null } | null>(null);
+  const [cloneOpen, setCloneOpen] = useState(false);
+  const [cloningId, setCloningId] = useState<string | null>(null);
 
   const progettiFiltrati = useMemo(() => {
     const s = search.trim().toLowerCase();
@@ -84,6 +91,24 @@ export default function ClimatizzazioneIndex() {
       });
     } finally {
       setToDelete(null);
+    }
+  };
+
+  const handleClone = async (sourceId: string) => {
+    setCloningId(sourceId);
+    try {
+      const nuovo = await cloneMut.mutateAsync(sourceId);
+      toast.success("Preventivo duplicato", {
+        description: "Computo e condizioni copiati. Compila il cliente del nuovo preventivo.",
+      });
+      setCloneOpen(false);
+      navigate(`/azienda/climatizzazione/${nuovo.id}/modifica`);
+    } catch (e) {
+      toast.error("Duplicazione fallita", {
+        description: e instanceof Error ? e.message : "Errore sconosciuto",
+      });
+    } finally {
+      setCloningId(null);
     }
   };
 
@@ -122,7 +147,7 @@ export default function ClimatizzazioneIndex() {
               Computo metrico e preventivi di climatizzazione sotto controllo.
             </p>
           </div>
-          <div className="flex gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
               onClick={() => navigate("/azienda/climatizzazione/listino")}
@@ -132,6 +157,17 @@ export default function ClimatizzazioneIndex() {
               <span className="sm:hidden">Listino</span>
               <span className="hidden sm:inline">Listino lavorazioni</span>
             </Button>
+            {progetti.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setCloneOpen(true)}
+                className="flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              >
+                <CopyPlus className="h-4 w-4 mr-1.5" />
+                <span className="sm:hidden">Da esistente</span>
+                <span className="hidden sm:inline">Inizia da esistente</span>
+              </Button>
+            )}
             <Button
               onClick={() => navigate("/azienda/climatizzazione/nuovo")}
               className="bg-gradient-to-br from-orange-500 to-amber-400 hover:from-orange-600 hover:to-amber-500 text-white shadow-lg border-0 flex-1 sm:flex-initial h-10 sm:h-11 text-xs sm:text-sm"
@@ -345,6 +381,55 @@ export default function ClimatizzazioneIndex() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Inizia da un preventivo esistente — clona computo + condizioni */}
+      <Dialog open={cloneOpen} onOpenChange={(o) => { if (!cloneMut.isPending) setCloneOpen(o); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Inizia da un preventivo esistente</DialogTitle>
+            <DialogDescription>
+              Copia computo e condizioni di un preventivo passato in uno nuovo. Cliente, cantiere e immobile restano da compilare.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[55vh] space-y-1.5 overflow-y-auto px-0.5">
+            {progetti.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                Non hai ancora preventivi da cui partire.
+              </p>
+            ) : (
+              progetti.map((p) => {
+                const cliente = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ");
+                const busy = cloningId === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    disabled={cloneMut.isPending}
+                    onClick={() => handleClone(p.id)}
+                    className="flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors hover:border-orange-300 hover:bg-orange-50/50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-semibold text-orange-600">{p.code ?? "—"}</span>
+                        <span className="truncate text-xs text-slate-700">{cliente || "Senza cliente"}</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        {Number(p.totale) > 0 ? formatCurrency(p.totale) : "Nessun totale"}
+                        {p.tipo_intervento ? ` · ${p.tipo_intervento}` : ""}
+                      </p>
+                    </div>
+                    {busy ? (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-orange-500" />
+                    ) : (
+                      <CopyPlus className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
