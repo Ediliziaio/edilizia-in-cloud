@@ -75,6 +75,44 @@ Deno.serve(async (req) => {
     let failed = 0;
     const importErrors: string[] = [];
 
+    // Anagrafica: aggancia (o crea) il contatto cliente → invoices.client_id (FK marketing_contacts).
+    // Cache per-run su P.IVA/CF: più fatture dello stesso cliente puntano allo stesso contatto
+    // e non lo si ricrea. Best-effort: se fallisce, la fattura resta senza link (non blocca il sync).
+    const contactCache = new Map<string, string>();
+    const resolveClientId = async (x: any): Promise<string | null> => {
+      const vat = (x.clientVat || "").trim();
+      const cf = (x.clientFiscalCode || "").trim();
+      if (!vat && !cf) return null;
+      const key = (vat || cf).toUpperCase();
+      if (contactCache.has(key)) return contactCache.get(key)!;
+      try {
+        let q = supabase.from("marketing_contacts").select("id")
+          .eq("company_id", companyId).is("deleted_at", null).limit(1);
+        q = vat ? q.eq("vat_number", vat) : q.eq("fiscal_code", cf);
+        const { data: found } = await q.maybeSingle();
+        if (found?.id) { contactCache.set(key, found.id); return found.id; }
+        const { data: created } = await supabase.from("marketing_contacts").insert({
+          company_id: companyId,
+          first_name: (x.clientName || "").trim() || "Cliente",
+          company_name: x.clientName || null,
+          vat_number: vat || null,
+          fiscal_code: cf || null,
+          email: x.clientEmail || null,
+          address: x.clientAddress || null,
+          city: x.clientCity || null,
+          postal_code: x.clientZip || null,
+          country: x.clientCountry || "IT",
+          contact_type: "company",
+          source: "fatturazione",
+          tags: ["fatturazione"],
+          unsubscribed: false,
+          score: 0,
+        }).select("id").single();
+        if (created?.id) { contactCache.set(key, created.id); return created.id; }
+      } catch { /* best-effort */ }
+      return null;
+    };
+
     for (const inv of invoices) {
       const externalId = inv.externalId;
       
@@ -87,11 +125,14 @@ Deno.serve(async (req) => {
         .eq("external_provider", provider!)
         .maybeSingle();
 
+      const clientId = await resolveClientId(inv);
+
       const invoiceData = {
         company_id: companyId,
         document_type: inv.documentType || "invoice",
         status: inv.status || "issued",
         invoice_number: inv.number,
+        client_id: clientId,
         client_company_name: inv.clientName,
         client_vat_number: inv.clientVat || null,
         client_fiscal_code: inv.clientFiscalCode || null,
@@ -347,7 +388,17 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
   return allDocs.map((doc: any) => {
     const isCreditNote = doc.type === "credit_note";
     // Una nota di credito è uno storno, non un incasso: non applichiamo la logica "pagata".
-    const isPaid = !isCreditNote && (doc.is_marked === true || (doc.payments_sum != null && doc.payments_sum >= (doc.amount_gross || 0) && doc.amount_gross > 0));
+    // Pagato: FIC tiene le rate in payments_list[] ({amount, due_date, paid_date, status}).
+    // `payments_sum` NON è un campo del fieldset list → il vecchio check era sempre falso
+    // (0/193 incassate). Sommiamo le rate effettivamente saldate (paid_date o status 'paid').
+    const _payList: any[] = Array.isArray(doc.payments_list) ? doc.payments_list : [];
+    const _paidFromList = _payList
+      .filter((p: any) => p && (p.paid_date || p.status === "paid"))
+      .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+    const _gross = Number(doc.amount_gross || 0);
+    const _paidAmt = isCreditNote ? 0
+      : (doc.is_marked === true && _paidFromList === 0 ? _gross : Math.round(_paidFromList * 100) / 100);
+    const isPaid = !isCreditNote && _gross > 0 && _paidAmt >= _gross - 0.01;
     const resolvedStatus = isPaid ? "paid" : (statusMap[doc.status] || "issued");
 
     return {
@@ -355,8 +406,9 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
       documentType: isCreditNote ? "credit_note" : "invoice",
       number: doc.number?.value || doc.number,
       status: resolvedStatus,
-      paidAmount: isCreditNote ? 0 : (isPaid ? doc.amount_gross : (doc.payments_sum || 0)),
+      paidAmount: _paidAmt,
       clientName: doc.entity?.name || "",
+      clientEmail: doc.entity?.email || null,
       clientVat: doc.entity?.vat_number,
       clientFiscalCode: doc.entity?.tax_code,
       clientAddress: doc.entity?.address_street,
@@ -373,6 +425,7 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
       taxAmount: doc.amount_vat,
       total: doc.amount_gross,
       paymentMethod: doc.payment_method?.name,
+      iban: doc.payment_account?.iban || null,
       lines: (doc.items_list || []).map((item: any) => {
         const taxRate = item.vat?.value || 22;
         const lineNet = Math.round(item.net_price * item.qty * (1 - (item.discount || 0) / 100) * 100) / 100;
