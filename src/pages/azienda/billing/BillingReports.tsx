@@ -225,6 +225,7 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
                     <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" tickFormatter={formatCurrencyCompact} />
                     <Tooltip
                       formatter={(value: number) => fmtEur(value)}
+                      cursor={{ fill: "hsl(var(--muted))", opacity: 0.4 }}
                       contentStyle={{ borderRadius: 8, border: "1px solid hsl(var(--border))", background: "hsl(var(--popover))", color: "hsl(var(--popover-foreground))" }}
                     />
                     <Bar dataKey="fatturato" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Imponibile" />
@@ -246,25 +247,44 @@ export default function BillingReports({ embedded = false }: { embedded?: boolea
                 {vatBreakdown.length === 0 ? (
                   <p className="text-center text-muted-foreground py-8 text-sm">Nessun dato</p>
                 ) : (
-                  <ResponsiveContainer width="100%" height={260}>
-                    <RechartsPie>
-                      <Pie
-                        data={vatBreakdown}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={90}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        labelLine={false}
-                      >
-                        {vatBreakdown.map((_, i) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value: number) => fmtEur(value)} />
-                    </RechartsPie>
-                  </ResponsiveContainer>
+                  <>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <RechartsPie>
+                        <Pie
+                          data={vatBreakdown}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={85}
+                          paddingAngle={vatBreakdown.length > 1 ? 2 : 0}
+                          dataKey="value"
+                        >
+                          {vatBreakdown.map((_, i) => (
+                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value: number) => fmtEur(value)} />
+                      </RechartsPie>
+                    </ResponsiveContainer>
+                    {/* Legenda pulita (niente etichette esterne che si tagliano) */}
+                    <div className="mt-3 space-y-1.5">
+                      {(() => {
+                        const tot = vatBreakdown.reduce((s, d) => s + d.value, 0) || 1;
+                        return vatBreakdown.map((d, i) => (
+                          <div key={d.name} className="flex items-center justify-between text-sm">
+                            <span className="flex items-center gap-2 min-w-0">
+                              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                              <span className="truncate text-muted-foreground">{d.name}</span>
+                            </span>
+                            <span className="shrink-0 font-medium tabular-nums">
+                              {fmtEur(d.value)}
+                              <span className="ml-1 text-xs text-muted-foreground">({Math.round((d.value / tot) * 100)}%)</span>
+                            </span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
