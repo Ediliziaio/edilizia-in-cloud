@@ -57,6 +57,10 @@ export interface Bundle {
   vertical: string | null;
   tipo_lavoro: BundleTipoLavoro | null;
   is_template: boolean;
+  // Attributi FV (solo bundle vertical='fotovoltaico'): il kit dichiara taglia + prezzo offerta.
+  fv_kwp: number | null;
+  fv_accumulo_kwh: number | null;
+  prezzo_offerta: number | null;
   created_at: string;
   voci?: BundleVoce[];
 }
@@ -74,6 +78,9 @@ export interface BundleUpsertInput {
   vertical?: string | null;
   tipo_lavoro?: BundleTipoLavoro | null;
   is_template?: boolean;
+  fv_kwp?: number | null;
+  fv_accumulo_kwh?: number | null;
+  prezzo_offerta?: number | null;
   voci: BundleVoceInput[];
 }
 
@@ -168,6 +175,9 @@ export function useUpsertBundle() {
         vertical: input.vertical ?? null,
         tipo_lavoro: input.tipo_lavoro ?? null,
         is_template: input.is_template ?? false,
+        fv_kwp: input.fv_kwp ?? null,
+        fv_accumulo_kwh: input.fv_accumulo_kwh ?? null,
+        prezzo_offerta: input.prezzo_offerta ?? null,
       };
 
       let bundleId = input.id;

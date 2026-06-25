@@ -15,6 +15,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useBundlesList, type Bundle } from "@/hooks/useBundles";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -258,6 +259,8 @@ export default function FotovoltaicoWizard() {
   const { data: inverter = [] } = useArticoliFv("inverter");
   const { data: accumuli = [] } = useArticoliFv("accumulo");
   const { data: tariffeFv = [] } = useTariffeFv();
+  // Kit/offerte FV dal listino (bundle vertical='fotovoltaico'): selezionabili in Fase 5.
+  const { bundles: kitFvBundles } = useBundlesList({ vertical: "fotovoltaico" });
   const { data: fvTemplate } = useTemplatePdf();
   const { data: serviziCatalogo = [] } = useServiziCatalogo();
   const { data: progettoEsistente } = useProgetto(progettoId ?? undefined);
@@ -361,6 +364,9 @@ export default function FotovoltaicoWizard() {
       capacita_accumulo_kwh: progettoEsistente.capacita_accumulo_kwh ?? 0,
       con_wallbox: progettoEsistente.con_wallbox ?? false,
       con_ottimizzatori: progettoEsistente.con_ottimizzatori ?? false,
+      kit_bundle_id: (progettoEsistente as { kit_bundle_id?: string | null }).kit_bundle_id ?? null,
+      kit_nome: (progettoEsistente as { kit_nome?: string | null }).kit_nome ?? null,
+      kit_prezzo: (progettoEsistente as { kit_prezzo?: number | null }).kit_prezzo ?? null,
     }));
     // Marca tutti gli step "passati" del progetto come completati.
     // Un progetto già emesso ha tutti gli 8 step completati.
@@ -466,6 +472,12 @@ export default function FotovoltaicoWizard() {
         return { valido: true };
       }
       case 5: {
+        // Kit FV: se hai scelto un kit dal listino basta quello (porta kWp + prezzo).
+        if (data.kit_bundle_id) {
+          return data.potenza_kwp > 0
+            ? { valido: true }
+            : { valido: false, motivo: "Il kit selezionato non ha una potenza (kWp) valida" };
+        }
         if (data.potenza_kwp <= 0 || data.numero_pannelli_scelti <= 0)
           return { valido: false, motivo: "Configura almeno un pannello" };
         // Fix #17 Sprint 3: pannello e inverter sono obbligatori per il calcolo
@@ -797,6 +809,9 @@ export default function FotovoltaicoWizard() {
           capacita_accumulo_kwh: data.capacita_accumulo_kwh,
           con_wallbox: data.con_wallbox,
           con_ottimizzatori: data.con_ottimizzatori,
+          kit_bundle_id: data.kit_bundle_id,
+          kit_nome: data.kit_nome,
+          kit_prezzo: data.kit_prezzo,
         } as never,
       });
 
@@ -818,6 +833,28 @@ export default function FotovoltaicoWizard() {
         ordinamento: number;
       }> = [];
 
+      if (data.kit_bundle_id && data.kit_prezzo != null) {
+        // Kit FV: un'unica voce col prezzo d'offerta del kit (chiavi in mano).
+        // Costo stimato al 75% del prezzo (margine ~25%) in assenza del dettaglio voci.
+        const venditaKit = data.kit_prezzo;
+        const nettoKit = Math.round(venditaKit * 0.75);
+        comp.push({
+          progetto_id: progettoId,
+          articolo_id: null,
+          categoria: "altro",
+          descrizione: data.kit_nome ?? `Kit FV ${data.potenza_kwp} kWp`,
+          quantita: 1,
+          unita_misura: "kit",
+          prezzo_unitario_netto: nettoKit,
+          prezzo_unitario_vendita: venditaKit,
+          margine_pct: venditaKit > 0 ? (venditaKit - nettoKit) / venditaKit : null,
+          potenza_unitaria_w: null,
+          potenza_unitaria_kw: data.potenza_kwp,
+          capacita_kwh: data.con_accumulo ? data.capacita_accumulo_kwh : null,
+          garanzia_anni: 25,
+          ordinamento: 1,
+        });
+      } else {
       const pannello = pannelli.find((p) => (p as { id: string }).id === data.pannello_id);
       if (pannello) {
         const p = pannello as Record<string, unknown>;
@@ -903,6 +940,7 @@ export default function FotovoltaicoWizard() {
           });
         }
       }
+      } // chiude il ramo "configurazione manuale" (vs kit)
 
       await upsertComponenti.mutateAsync({
         progetto_id: progettoId,
@@ -1485,6 +1523,7 @@ export default function FotovoltaicoWizard() {
               inverter={inverter as never}
               accumuli={accumuli as never}
               tariffeFv={tariffeFv}
+              kitFv={kitFvBundles}
               serviziCatalogoCount={serviziCatalogo.length}
             />
           )}
@@ -2434,6 +2473,7 @@ function Step5Configurazione({
   inverter,
   accumuli,
   tariffeFv,
+  kitFv,
   serviziCatalogoCount,
 }: {
   data: WizardData;
@@ -2443,6 +2483,7 @@ function Step5Configurazione({
   inverter: Array<Record<string, unknown>>;
   accumuli: Array<Record<string, unknown>>;
   tariffeFv: FvTariffaAziendale[];
+  kitFv: Bundle[];
   serviziCatalogoCount: number;
 }) {
   // Auto-calcolo potenza_kwp da numero pannelli. In sola lettura NON scrive:
@@ -2450,6 +2491,7 @@ function Step5Configurazione({
   // partirebbe spurio al mount dello step.
   useEffect(() => {
     if (readOnlyMode) return;
+    if (data.kit_bundle_id) return; // kit: la potenza arriva dal kit, niente auto-calcolo
     if (data.pannello_id) {
       const p = pannelli.find((x) => (x as { id: string }).id === data.pannello_id);
       const w = (p?.potenza_w as number) ?? 540;
@@ -2458,7 +2500,7 @@ function Step5Configurazione({
       update("potenza_kwp", Math.round((data.numero_pannelli_scelti * 540) / 10) / 100);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.numero_pannelli_scelti, data.pannello_id]);
+  }, [data.numero_pannelli_scelti, data.pannello_id, data.kit_bundle_id]);
 
   // Auto-suggerimento accumulo (5 kWh per profili serali/misti).
   const suggerisciAccumulo = shouldSuggestFvAccumulo(data.profilo_consumo);
@@ -2517,6 +2559,81 @@ function Step5Configurazione({
           </>
         }
       />
+
+      {/* Kit/offerta dal listino (Bundle FV): prefill potenza + accumulo + prezzo */}
+      {kitFv.some((k) => k.attivo && k.fv_kwp != null) && (
+        <div className="mb-4">
+          <FvCard title="Parti da un kit / offerta del listino">
+            {data.kit_bundle_id ? (
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-sm">
+                  <span className="font-semibold text-emerald-700">{data.kit_nome}</span>
+                  <span className="text-slate-600">
+                    {" "}· {data.potenza_kwp} kWp
+                    {data.con_accumulo && data.capacita_accumulo_kwh > 0
+                      ? ` · ${data.capacita_accumulo_kwh} kWh`
+                      : ""}
+                    {data.kit_prezzo != null
+                      ? ` · ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(data.kit_prezzo)}`
+                      : ""}
+                  </span>
+                </div>
+                {!readOnlyMode && (
+                  <button
+                    type="button"
+                    className="text-xs text-slate-500 underline hover:text-slate-700"
+                    onClick={() => {
+                      update("kit_bundle_id", null);
+                      update("kit_nome", null);
+                      update("kit_prezzo", null);
+                    }}
+                  >
+                    Rimuovi kit / configura manualmente
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 flex-wrap">
+                <p className="text-sm text-slate-600 flex-1 min-w-[200px]">
+                  Scegli un kit pronto: imposta automaticamente potenza, accumulo e prezzo. Le fasi successive usano il prezzo del kit.
+                </p>
+                <Select
+                  value=""
+                  disabled={readOnlyMode}
+                  onValueChange={(id) => {
+                    const k = kitFv.find((b) => b.id === id);
+                    if (!k) return;
+                    update("kit_bundle_id", k.id);
+                    update("kit_nome", k.nome);
+                    update("kit_prezzo", k.prezzo_offerta ?? null);
+                    if (k.fv_kwp != null) update("potenza_kwp", Number(k.fv_kwp));
+                    const acc = Number(k.fv_accumulo_kwh ?? 0);
+                    update("con_accumulo", acc > 0);
+                    update("capacita_accumulo_kwh", acc);
+                  }}
+                >
+                  <SelectTrigger className="w-[280px]">
+                    <SelectValue placeholder="Scegli un kit…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {kitFv
+                      .filter((k) => k.attivo && k.fv_kwp != null)
+                      .map((k) => (
+                        <SelectItem key={k.id} value={k.id}>
+                          {k.nome} — {k.fv_kwp} kWp
+                          {k.fv_accumulo_kwh ? ` + ${k.fv_accumulo_kwh} kWh` : ""}
+                          {k.prezzo_offerta != null
+                            ? ` · ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(k.prezzo_offerta))}`
+                            : ""}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </FvCard>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <FvKpi label="Potenza" value={data.potenza_kwp.toFixed(2)} unit="kWp" variant="orange" />

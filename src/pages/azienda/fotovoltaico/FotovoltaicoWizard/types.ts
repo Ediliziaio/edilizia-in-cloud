@@ -75,6 +75,12 @@ export interface WizardData {
   pannello_id: string | null;
   inverter_id: string | null;
   accumulo_id: string | null;
+  /** Kit/bundle scelto dal listino (Fase 5): alternativa alla configurazione manuale.
+   *  Se valorizzato, kWp/accumulo/prezzo arrivano dal kit e il salvataggio crea
+   *  un'unica voce-kit col prezzo offerta (niente pannello/inverter separati). */
+  kit_bundle_id: string | null;
+  kit_nome: string | null;
+  kit_prezzo: number | null;
   /** Tariffa di manodopera scelta (FK a tariffe_aziendali). Se null usa default 30/40. */
   tariffa_installazione_id: string | null;
   // Step 6: Finanziamento

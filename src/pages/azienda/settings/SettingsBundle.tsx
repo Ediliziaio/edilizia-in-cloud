@@ -72,6 +72,10 @@ interface DraftBundle {
   sconto_bundle_pct: number;
   attivo: boolean;
   tipo_lavoro: BundleTipoLavoro | null;
+  // FV (solo vertical fotovoltaico): taglia kit + prezzo offerta fisso
+  fv_kwp: number | null;
+  fv_accumulo_kwh: number | null;
+  prezzo_offerta: number | null;
   voci: DraftVoce[];
 }
 
@@ -88,6 +92,9 @@ function emptyDraft(): DraftBundle {
     sconto_bundle_pct: 0,
     attivo: true,
     tipo_lavoro: null,
+    fv_kwp: null,
+    fv_accumulo_kwh: null,
+    prezzo_offerta: null,
     voci: [],
   };
 }
@@ -104,6 +111,9 @@ function bundleToDraft(b: Bundle): DraftBundle {
     sconto_bundle_pct: Number(b.sconto_bundle_pct ?? 0),
     attivo: b.attivo,
     tipo_lavoro: b.tipo_lavoro,
+    fv_kwp: b.fv_kwp != null ? Number(b.fv_kwp) : null,
+    fv_accumulo_kwh: b.fv_accumulo_kwh != null ? Number(b.fv_accumulo_kwh) : null,
+    prezzo_offerta: b.prezzo_offerta != null ? Number(b.prezzo_offerta) : null,
     voci: (b.voci ?? [])
       .slice()
       .sort((a, z) => a.sort_order - z.sort_order)
@@ -292,16 +302,20 @@ export default function SettingsBundle() {
     }));
   };
 
+  const isFvVertical = vertical === "fotovoltaico";
   const canSave = useMemo(() => {
     if (!draft.nome.trim()) return false;
-    if (draft.voci.length === 0) return false;
+    if (draft.voci.length === 0) {
+      // Kit FV: può bastare la taglia (kWp) + prezzo offerta, voci opzionali.
+      return isFvVertical && draft.fv_kwp != null && draft.prezzo_offerta != null;
+    }
     return draft.voci.every((v) => {
       if (v.type === "family") return !!v.family_id;
       if (v.type === "product") return !!v.prodotto_id;
       if (v.type === "tariff") return !!v.tariffa_id;
       return false;
     });
-  }, [draft]);
+  }, [draft, isFvVertical]);
 
   const handleSave = async () => {
     try {
@@ -324,6 +338,9 @@ export default function SettingsBundle() {
         attivo: draft.attivo,
         vertical,
         tipo_lavoro: draft.tipo_lavoro,
+        fv_kwp: isFvVertical ? draft.fv_kwp : null,
+        fv_accumulo_kwh: isFvVertical ? draft.fv_accumulo_kwh : null,
+        prezzo_offerta: isFvVertical ? draft.prezzo_offerta : null,
         voci,
       });
       toast.success(draft.id ? "Bundle aggiornato" : "Bundle creato");
@@ -624,6 +641,51 @@ export default function SettingsBundle() {
                 />
               </div>
             </div>
+
+            {/* Kit FV: taglia + prezzo offerta (usati dal wizard Fotovoltaico) */}
+            {isFvVertical && (
+              <div className="border-t pt-4">
+                <h3 className="font-semibold mb-1">☀ Kit Fotovoltaico</h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Taglia e prezzo d'offerta del kit: il wizard FV (Fase 5) li usa quando scegli questo kit. Le voci sotto sono opzionali (servono per magazzino/marginalità).
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label>Potenza (kWp)</Label>
+                    <Input
+                      type="number" min={0} step={0.1} inputMode="decimal"
+                      value={draft.fv_kwp ?? ""}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, fv_kwp: e.target.value === "" ? null : Number(e.target.value) }))
+                      }
+                      placeholder="es. 6"
+                    />
+                  </div>
+                  <div>
+                    <Label>Accumulo (kWh)</Label>
+                    <Input
+                      type="number" min={0} step={0.1} inputMode="decimal"
+                      value={draft.fv_accumulo_kwh ?? ""}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, fv_accumulo_kwh: e.target.value === "" ? null : Number(e.target.value) }))
+                      }
+                      placeholder="0 = senza accumulo"
+                    />
+                  </div>
+                  <div>
+                    <Label>Prezzo offerta (€)</Label>
+                    <Input
+                      type="number" min={0} step={1} inputMode="decimal"
+                      value={draft.prezzo_offerta ?? ""}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, prezzo_offerta: e.target.value === "" ? null : Number(e.target.value) }))
+                      }
+                      placeholder="chiavi in mano"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Voci */}
             <div className="border-t pt-4">
