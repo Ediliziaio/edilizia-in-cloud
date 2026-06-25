@@ -1444,9 +1444,11 @@ export default function FotovoltaicoWizard() {
         current={step}
         completed={completedSteps}
         onSelect={(n) => {
-          // Fix #15 Sprint 3: feedback su click tab futuro non raggiungibile
+          // Tornare INDIETRO è sempre consentito (n <= step): una fase già vista
+          // si può sempre rivedere/correggere. In avanti solo verso fasi completate
+          // o la fase immediatamente successiva (validazione su "Avanti" invariata).
           const isClickable =
-            completedSteps.has(n) || n === step || n === step + 1;
+            n <= step || completedSteps.has(n) || n === step + 1;
           if (!isClickable) {
             toast.info(
               `Completa la fase ${step} prima di passare alla fase ${n}.`,
