@@ -12,9 +12,53 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye, BarChart3 } from "lucide-react";
+import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye, BarChart3, Download, Cloud, FileCode } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import BillingReports from "./BillingReports";
+
+/**
+ * Stato "effettivo" per il badge: una fattura non pagata/annullata con scadenza
+ * passata viene mostrata come Scaduta — coerente coi KPI e con la UX di Fatture
+ * in Cloud — anche se il gestionale d'origine la riporta ancora come "Emessa".
+ */
+function effectiveStatus(inv: { status: string; due_date?: string | null; paid_amount?: number | null; total?: number | null }): string {
+  if (["paid", "cancelled", "draft"].includes(inv.status)) return inv.status;
+  const residuo = Number(inv.total ?? 0) - Number(inv.paid_amount ?? 0);
+  if (inv.due_date && new Date(inv.due_date) < new Date() && residuo > 0.005) return "overdue";
+  return inv.status;
+}
+
+/** Iniziali del cliente per l'avatar (max 2 lettere). */
+function clienteInitials(name?: string | null): string {
+  return (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
+}
+
+/**
+ * Importo + chiarezza incasso (UX Fatture in Cloud): mostra il totale e una
+ * riga di stato pagamento — "Saldata" (verde), "Residuo €X" (ambra, acconto
+ * parziale) — o "Nota di credito" (storno, in rosso col segno meno).
+ */
+function ImportoInfo({ inv }: { inv: { total?: number | null; paid_amount?: number | null; status: string; document_type?: string | null } }) {
+  const total = Number(inv.total || 0);
+  const paid = Number(inv.paid_amount || 0);
+  const isCredit = inv.document_type === "credit_note";
+  const fullyPaid = !isCredit && (inv.status === "paid" || (paid > 0 && total - paid <= 0.005));
+  const partial = !isCredit && !fullyPaid && paid > 0.005;
+  return (
+    <>
+      <div className={`font-medium ${isCredit ? "text-rose-600" : ""}`}>
+        {isCredit ? "−" : ""}{formatCurrency(total)}
+      </div>
+      {isCredit ? (
+        <div className="text-[10px] text-muted-foreground">Nota di credito</div>
+      ) : fullyPaid ? (
+        <div className="text-[10px] font-medium text-green-600">Saldata</div>
+      ) : partial ? (
+        <div className="text-[10px] font-medium text-amber-600">Residuo {formatCurrency(total - paid)}</div>
+      ) : null}
+    </>
+  );
+}
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: string }> = {
   draft:     { label: "Bozza",       color: "bg-muted text-muted-foreground",       emoji: "📝" },
@@ -344,13 +388,18 @@ export default function InvoicesList() {
                   </div>
                   <div className="divide-y">
                     {g.rows.map((inv) => {
-                      const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.draft;
+                      const cfg = STATUS_CONFIG[effectiveStatus(inv)] || STATUS_CONFIG.draft;
                       return (
                         <div key={inv.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-mono text-xs">{inv.invoice_number || "—"}</span>
                               <Badge variant="secondary" className={`text-xs ${cfg.color}`}>{cfg.label}</Badge>
+                              {inv.external_provider && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                                  <Cloud className="h-2.5 w-2.5" />{PROVIDER_LABELS[inv.external_provider] || inv.external_provider}
+                                </span>
+                              )}
                             </div>
                             <p className="font-medium text-sm mt-0.5 truncate">{inv.client_company_name}</p>
                             <p className="text-xs text-muted-foreground">
@@ -358,8 +407,8 @@ export default function InvoicesList() {
                               {inv.due_date ? ` · scad. ${format(new Date(inv.due_date), "dd/MM/yy", { locale: it })}` : ""}
                             </p>
                           </div>
-                          <div className="text-right shrink-0">
-                            <span className="font-semibold text-sm">{formatCurrency(Number(inv.total))}</span>
+                          <div className="text-right shrink-0 text-sm">
+                            <ImportoInfo inv={inv} />
                           </div>
                         </div>
                       );
@@ -392,20 +441,28 @@ export default function InvoicesList() {
                         <td colSpan={3} className="px-3 py-2 text-xs text-muted-foreground">{g.rows.length} fatture</td>
                       </tr>
                       {g.rows.map((inv) => {
-                        const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.draft;
+                        const cfg = STATUS_CONFIG[effectiveStatus(inv)] || STATUS_CONFIG.draft;
                         return (
                           <tr key={inv.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
                             <td className="p-3 font-mono text-xs">{inv.invoice_number || "—"}</td>
-                            <td className="p-3 font-medium">{inv.client_company_name}</td>
+                            <td className="p-3">
+                              <div className="flex items-center gap-2">
+                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
+                                  {clienteInitials(inv.client_company_name)}
+                                </span>
+                                <span className="font-medium">{inv.client_company_name || "—"}</span>
+                              </div>
+                            </td>
                             <td className="p-3 text-muted-foreground">{inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}</td>
                             <td className="p-3 text-muted-foreground">{inv.due_date ? format(new Date(inv.due_date), "dd/MM/yy", { locale: it }) : "—"}</td>
-                            <td className="p-3 text-right font-medium">{fmtEur(Number(inv.total))}</td>
+                            <td className="p-3 text-right"><ImportoInfo inv={inv} /></td>
                             <td className="p-3">
                               <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
                             </td>
                             <td className="p-3">
                               {inv.external_provider ? (
-                                <Badge variant="outline" className="text-xs">
+                                <Badge variant="outline" className="text-xs gap-1 font-normal">
+                                  <Cloud className="h-3 w-3 text-muted-foreground" />
                                   {PROVIDER_LABELS[inv.external_provider] || inv.external_provider}
                                 </Badge>
                               ) : (
@@ -421,6 +478,16 @@ export default function InvoicesList() {
                                   <DropdownMenuItem onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
                                     <Eye className="h-4 w-4 mr-2" /> Visualizza
                                   </DropdownMenuItem>
+                                  {inv.pdf_url && (
+                                    <DropdownMenuItem onClick={() => window.open(inv.pdf_url!, "_blank", "noopener")}>
+                                      <Download className="h-4 w-4 mr-2" /> Scarica PDF
+                                    </DropdownMenuItem>
+                                  )}
+                                  {inv.external_xml_url && (
+                                    <DropdownMenuItem onClick={() => window.open(inv.external_xml_url!, "_blank", "noopener")}>
+                                      <FileCode className="h-4 w-4 mr-2" /> XML (SDI)
+                                    </DropdownMenuItem>
+                                  )}
                                   {!["paid", "cancelled"].includes(inv.status) && (
                                     <DropdownMenuItem onClick={() => markPaidMutation.mutate({ id: inv.id, total: Number(inv.total) })}>
                                       <CreditCard className="h-4 w-4 mr-2" /> Segna come pagata
