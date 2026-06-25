@@ -18,6 +18,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { renderSystemEmail } from "../_shared/email-templates/renderSystemEmail.ts";
+import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -209,7 +210,20 @@ Deno.serve(async (req) => {
   }
 
   // 6. Invio email via Resend API — copy dal registro "codice-otp-login-2fa-9"
-  const otpEmail = renderSystemEmail("codice-otp-login-2fa-9", { codice_otp: code });
+  // Builder-driven: override DB (otp_login) → SYSTEM_EMAIL_CONTENT → layout.
+  // Fallback al registro full-HTML per non bloccare MAI il login se qualcosa fallisce.
+  let otpEmail: { subject: string; html: string; text: string };
+  try {
+    const r = await renderEmailTemplate({
+      templateName: "otp_login",
+      companyId: null,
+      props: { code },
+      adminClient: supa,
+    });
+    otpEmail = { subject: r.subject, html: r.html, text: r.text };
+  } catch (_e) {
+    otpEmail = renderSystemEmail("codice-otp-login-2fa-9", { codice_otp: code });
+  }
   if (provider === "resend") {
     try {
       const res = await fetch("https://api.resend.com/emails", {

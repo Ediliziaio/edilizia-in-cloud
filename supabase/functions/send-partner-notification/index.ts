@@ -1,15 +1,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
-import { renderSystemEmail } from "../_shared/email-templates/renderSystemEmail.ts";
+import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
 
 const PARTNER_BASE = "https://app.ediliziaincloud.com/partner";
+// type evento → template_key del builder (platform_email_templates / SYSTEM_EMAIL_CONTENT)
 const PARTNER_KEY_BY_TYPE: Record<string, string> = {
-  welcome: "partner-benvenuto-36",
-  conversion: "partner-nuova-conversione-37",
-  commission_calculated: "partner-commissioni-pronte-38",
-  payout_approved: "partner-payout-approvato-39",
-  tier_upgrade: "partner-upgrade-tier-40",
+  welcome: "partner_welcome",
+  conversion: "partner_conversion",
+  commission_calculated: "partner_commission",
+  payout_approved: "partner_payout",
+  tier_upgrade: "partner_tier",
 };
 
 const getErrorMessage = (err: unknown) => err instanceof Error ? err.message : String(err);
@@ -63,38 +64,46 @@ Deno.serve(async (req) => {
       ? `${referrer.commission_value}% del piano mensile`
       : `€${referrer.commission_value} fissi al mese`;
 
-    const partnerVarsByType: Record<string, Record<string, string | number | null | undefined>> = {
+    // Props camelCase: gli alias di applyPlaceholders li mappano sui {{var}} del builder.
+    const partnerVarsByType: Record<string, Record<string, unknown>> = {
       welcome: {
-        nome_completo: referrer.name,
-        tier_partner: referrer.referral_tiers?.name ?? "Bronze",
-        codice_referral: referrer.referral_code,
-        percentuale_commissione: commissioneLabel,
-        url1: PARTNER_BASE,
+        fullName: referrer.name,
+        tier: referrer.referral_tiers?.name ?? "Bronze",
+        referralCode: referrer.referral_code,
+        commissionLabel,
+        ctaUrl: PARTNER_BASE,
       },
       conversion: {
-        nome_completo: referrer.name,
-        nome_azienda: data?.company_name,
-        url1: PARTNER_BASE,
+        fullName: referrer.name,
+        companyName: data?.company_name,
+        ctaUrl: PARTNER_BASE,
       },
       commission_calculated: {
-        nome_completo: referrer.name,
-        mese: data?.month_name,
-        importo_commissioni: `€${data?.total_amount}`,
-        numero_aziende_attive: data?.company_count,
-        url1: `${PARTNER_BASE}/commissions`,
+        fullName: referrer.name,
+        month: data?.month_name,
+        totalAmount: `€${data?.total_amount}`,
+        companyCount: data?.company_count,
+        ctaUrl: `${PARTNER_BASE}/commissions`,
       },
       payout_approved: {
-        nome_completo: referrer.name,
-        importo_payout: `€${data?.amount}`,
-        riferimento_pagamento: data?.reference ?? "In elaborazione",
+        fullName: referrer.name,
+        amount: `€${data?.amount}`,
+        reference: data?.reference ?? "In elaborazione",
       },
       tier_upgrade: {
-        nome_completo: referrer.name,
-        nuovo_tier: data?.new_tier,
+        fullName: referrer.name,
+        newTier: data?.new_tier,
+        multiplier: data?.multiplier,
+        ctaUrl: PARTNER_BASE,
       },
     };
 
-    const rendered = renderSystemEmail(tplKey, partnerVarsByType[type as string] ?? {});
+    const rendered = await renderEmailTemplate({
+      templateName: tplKey,
+      companyId: null,
+      props: partnerVarsByType[type as string] ?? {},
+      adminClient: supabase,
+    });
     const subject = rendered.subject;
     const htmlBody = rendered.html;
 

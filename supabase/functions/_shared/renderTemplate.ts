@@ -171,10 +171,12 @@ export async function loadBranding(
  * });
  * // out.subject, out.html, out.text
  */
-export async function renderEmailTemplate<K extends TemplateName>(params: {
-  templateName: K;
+export async function renderEmailTemplate(params: {
+  // string (non più solo TemplateName) perché ora rende anche le 58 chiavi di
+  // SYSTEM_EMAIL_CONTENT (lifecycle, partner, otp_login, ...) oltre ai renderer code.
+  templateName: string;
   companyId: string | null;
-  props: Parameters<typeof TEMPLATE_REGISTRY[K]>[0];
+  props: Record<string, unknown>;
   adminClient?: SupabaseClient;
   brandingOverride?: Partial<Branding>;
   unsubscribeUrl?: string | null;
