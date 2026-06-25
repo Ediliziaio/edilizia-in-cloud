@@ -113,7 +113,7 @@ import {
 //   → ./FotovoltaicoWizard/helpers.ts
 import type { WizardData } from "./FotovoltaicoWizard/types";
 import {
-  isCoordinataItalia, validaIseeReddito, calcolaCapienzaWarning,
+  isCoordinataItalia,
   loadPersistedDraft, savePersistedDraft, clearPersistedDraft,
 } from "./FotovoltaicoWizard/helpers";
 
@@ -461,8 +461,6 @@ export default function FotovoltaicoWizard() {
       case 3: {
         if (data.consumo_annuo_kwh == null || data.consumo_annuo_kwh < 500)
           return { valido: false, motivo: "Consumo annuo minimo 500 kWh" };
-        const isee_err = validaIseeReddito(data.isee, data.reddito_annuo_dichiarato);
-        if (isee_err) return { valido: false, motivo: isee_err };
         return { valido: true };
       }
       case 4: {
@@ -601,7 +599,13 @@ export default function FotovoltaicoWizard() {
 
   // ─── Step 3 → salva consumi ──────────────────────────────────────────────
   const handleSalvaStep3 = async () => {
-    if (!progettoId) return;
+    if (!progettoId) {
+      // Nessun progetto creato (es. Fase 1 non salvata correttamente): niente
+      // return silenzioso — "Avanti" sembrava non funzionare. Dai feedback + recupera.
+      toast.error("Completa la Fase 1 (Cliente) e premi Avanti per creare il progetto, poi prosegui.");
+      goTo(1);
+      return;
+    }
     setSalvando(true);
     setAutoSaveState("saving");
     try {
@@ -2064,7 +2068,7 @@ function Step3Consumi({
         />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-4">
+      <div className="grid gap-4">
         <FvCard title="Dati consumo">
           <div className="grid sm:grid-cols-2 gap-3 mb-3">
             <div>
@@ -2136,67 +2140,6 @@ function Step3Consumi({
           </div>
         </FvCard>
 
-        {(data.archetipo === "privato_prima" ||
-          data.archetipo === "privato_seconda" ||
-          data.archetipo === "privato_isee") && (
-          <FvCard title="Dati fiscali (per incentivi)">
-            <div className="grid sm:grid-cols-3 gap-3">
-              <div>
-                <Label>ISEE €</Label>
-                <Input
-                  type="number"
-                  value={data.isee ?? ""}
-                  onChange={(e) =>
-                    update("isee", e.target.value ? Number(e.target.value) : null)
-                  }
-                  placeholder="solo Reddito Energetico"
-                  aria-invalid={
-                    !!validaIseeReddito(data.isee, data.reddito_annuo_dichiarato)
-                  }
-                />
-              </div>
-              <div>
-                <Label>N° figli</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={data.numero_figli}
-                  onChange={(e) => update("numero_figli", Number(e.target.value))}
-                />
-              </div>
-              <div>
-                <Label>Reddito annuo lordo €</Label>
-                <Input
-                  type="number"
-                  value={data.reddito_annuo_dichiarato ?? ""}
-                  onChange={(e) =>
-                    update(
-                      "reddito_annuo_dichiarato",
-                      e.target.value ? Number(e.target.value) : null,
-                    )
-                  }
-                  placeholder="check capienza IRPEF"
-                />
-              </div>
-            </div>
-            {/* Validation warning live (B6) */}
-            {validaIseeReddito(data.isee, data.reddito_annuo_dichiarato) && (
-              <FvCallout variant="warn" title="Dati incoerenti">
-                {validaIseeReddito(data.isee, data.reddito_annuo_dichiarato)}
-              </FvCallout>
-            )}
-            {/* Capienza fiscale insufficiente (B6/GAP10) */}
-            {calcolaCapienzaWarning(data.archetipo, data.reddito_annuo_dichiarato) && (
-              <FvCallout variant="warn" title="Capienza IRPEF insufficiente">
-                {calcolaCapienzaWarning(data.archetipo, data.reddito_annuo_dichiarato)}
-              </FvCallout>
-            )}
-            <FvCallout variant="info">
-              ISEE ≤ 15.000 € sblocca il bando Reddito Energetico (contributo a fondo perduto).
-              Reddito serve per stimare la capienza fiscale per la detrazione 50%.
-            </FvCallout>
-          </FvCard>
-        )}
       </div>
     </>
   );
