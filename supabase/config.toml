@@ -370,6 +370,12 @@ verify_jwt = false
 [functions.billing-import]
 verify_jwt = false
 
+# Write-back pagamento → gestionale (FIC): l'utente segna pagata in app, la fn
+# registra il pagamento su FIC. Auth interna via getUser (Bearer JWT utente) +
+# canAccessCompany → verify_jwt=false (il gateway rifiuta i token ES256 prima del handler).
+[functions.billing-payment-push]
+verify_jwt = false
+
 [functions.verify-custom-domain]
 verify_jwt = false
 

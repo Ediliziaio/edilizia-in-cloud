@@ -158,14 +158,14 @@ export default function InvoicesList() {
   });
 
   const markPaidMutation = useMutation({
-    mutationFn: async (inv: { id: string; total: number }) => {
+    mutationFn: async (inv: { id: string; total: number; externalProvider?: string | null }) => {
       // Salda il RESIDUO (totale − già incassato): evita di sovra-pagare il
       // ledger se esistono acconti. paid_amount e status='paid' sono ricalcolati
       // dai trigger su invoice_payments → NON aggiornarli a mano (doppia scrittura).
       const { data: cur } = await supabase
         .from("invoices").select("paid_amount").eq("id", inv.id).maybeSingle();
       const residuo = Math.round((inv.total - Number(cur?.paid_amount ?? 0)) * 100) / 100;
-      if (residuo <= 0) return; // già saldata
+      if (residuo <= 0) return { writeback: "skipped" as const }; // già saldata
       const { error } = await supabase.from("invoice_payments").insert({
         invoice_id: inv.id,
         company_id: companyId!,
@@ -174,9 +174,34 @@ export default function InvoicesList() {
         payment_method: "bank_transfer",
       });
       if (error) throw error;
+
+      // Write-back: se la fattura arriva da un gestionale, registra il pagamento
+      // anche lì (best-effort: l'incasso in app resta salvato comunque).
+      let writeback: "ok" | "scope" | "error" | "skipped" = "skipped";
+      if (inv.externalProvider === "fattureincloud") {
+        try {
+          const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", {
+            body: { invoice_id: inv.id },
+          });
+          writeback = pErr ? "error" : pr?.error === "scope" ? "scope" : pr?.ok ? "ok" : "skipped";
+        } catch { writeback = "error"; }
+      }
+      return { writeback };
     },
-    onSuccess: () => {
-      toast.success("Fattura segnata come pagata");
+    onSuccess: (res) => {
+      if (res?.writeback === "ok") {
+        toast.success("Pagata — sincronizzata su Fatture in Cloud");
+      } else if (res?.writeback === "scope") {
+        toast.warning("Pagata in EdiliziaInCloud", {
+          description: "Non aggiornata su Fatture in Cloud: manca il permesso di scrittura. Riconnetti FIC autorizzando la scrittura.",
+        });
+      } else if (res?.writeback === "error") {
+        toast.warning("Pagata in app", {
+          description: "Aggiornamento su Fatture in Cloud non riuscito, riprova più tardi.",
+        });
+      } else {
+        toast.success("Fattura segnata come pagata");
+      }
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
@@ -642,7 +667,7 @@ export default function InvoicesList() {
                                     </DropdownMenuItem>
                                   )}
                                   {!["paid", "cancelled"].includes(inv.status) && (
-                                    <DropdownMenuItem onClick={() => markPaidMutation.mutate({ id: inv.id, total: Number(inv.total) })}>
+                                    <DropdownMenuItem onClick={() => markPaidMutation.mutate({ id: inv.id, total: Number(inv.total), externalProvider: inv.external_provider })}>
                                       <CreditCard className="h-4 w-4 mr-2" /> Segna come pagata
                                     </DropdownMenuItem>
                                   )}
