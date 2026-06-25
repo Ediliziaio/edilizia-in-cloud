@@ -150,6 +150,7 @@ const SettingsFinanziamentiCalcolatore = lazy(() => import("@/pages/azienda/sett
 // Modulo Fotovoltaico (gated da feature flag modulo_fotovoltaico_attivo)
 const FotovoltaicoIndex = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoIndex"));
 const FotovoltaicoWizard = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoWizard"));
+const ComponentiFv = lazy(() => import("@/pages/azienda/fotovoltaico/ComponentiFv"));
 const FotovoltaicoDettaglio = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoDettaglio"));
 // Modulo Preventivatore Serramenti
 const SerramentiIndex = lazy(() => import("@/pages/azienda/serramenti/SerramentiIndex"));
@@ -815,6 +816,12 @@ export default function CompanyRoutesContainer() {
         <Route path="marketing/fotovoltaico/nuovo" element={
           <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
             <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
+          </FeatureRoute>
+        } />
+        {/* /componenti PRIMA di /:id per non essere catturata dal match dinamico */}
+        <Route path="marketing/fotovoltaico/componenti" element={
+          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
+            <ErrorBoundary title="Errore Componenti FV"><ComponentiFv /></ErrorBoundary>
           </FeatureRoute>
         } />
         <Route path="marketing/fotovoltaico/:id" element={

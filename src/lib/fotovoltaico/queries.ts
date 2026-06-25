@@ -330,6 +330,170 @@ export function useArticoliFv(categoria?: string) {
   });
 }
 
+// ─── Catalogo Componenti FV (articoli_native con categoria_fv) ────────────────
+// Sorgente della Fase 5 del wizard. Gestito dalla pagina "Componenti FV", che
+// permette di crearli anche partendo dai prodotti del listino (article_families).
+export interface ArticoloFv {
+  id: string;
+  codice: string | null;
+  descrizione: string;
+  categoria_fv: string | null;
+  prezzo_vendita: number | null;
+  prezzo_acquisto: number | null;
+  potenza_w: number | null;
+  potenza_kw: number | null;
+  capacita_kwh: number | null;
+  garanzia_anni: number | null;
+  efficienza_pct: number | null;
+  marca_fv: string | null;
+  modello_fv: string | null;
+  unita_misura: string | null;
+  attivo: boolean;
+}
+
+const FV_CAT_COLS =
+  "id, codice, descrizione, categoria_fv, prezzo_vendita, prezzo_acquisto, potenza_w, potenza_kw, capacita_kwh, garanzia_anni, efficienza_pct, marca_fv, modello_fv, unita_misura, attivo";
+
+// Lista COMPLETA dei componenti FV (inclusi i disattivati) per la gestione.
+export function useArticoliFvCatalogo() {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["fv", "articoli-fv-catalogo", companyId ?? "no-company"] as const,
+    enabled: Boolean(companyId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("articoli_native" as never)
+        .select(FV_CAT_COLS)
+        .eq("company_id", companyId as string)
+        .not("categoria_fv", "is", null)
+        .order("categoria_fv")
+        .order("descrizione");
+      if (error) throw error;
+      return (data as unknown as ArticoloFv[]) ?? [];
+    },
+  });
+}
+
+// Prodotti del listino (article_families) per il "precompila dal listino".
+export interface ListinoOpzioneFv {
+  id: string;
+  nome: string | null;
+  descrizione: string | null;
+  prezzo: number | null;
+}
+export function useListinoPerFv(search?: string) {
+  const companyId = useEffectiveCompanyId();
+  return useQuery({
+    queryKey: ["fv", "listino-per-fv", companyId ?? "no-company", search ?? ""] as const,
+    enabled: Boolean(companyId),
+    queryFn: async () => {
+      let q = supabase
+        .from("article_families" as never)
+        .select("id, nome, descrizione, prezzo_base_vendita")
+        .eq("company_id", companyId as string)
+        .eq("attivo", true)
+        .order("nome")
+        .limit(40);
+      const term = search?.trim();
+      if (term) q = q.or(`nome.ilike.%${term}%,descrizione.ilike.%${term}%`);
+      const { data, error } = await q;
+      if (error) throw error;
+      return ((data as unknown as Array<{
+        id: string;
+        nome: string | null;
+        descrizione: string | null;
+        prezzo_base_vendita: number | null;
+      }>) ?? []).map((r) => ({
+        id: r.id,
+        nome: r.nome,
+        descrizione: r.descrizione,
+        prezzo: r.prezzo_base_vendita,
+      })) as ListinoOpzioneFv[];
+    },
+  });
+}
+
+export interface ArticoloFvInput {
+  id?: string;
+  codice?: string | null;
+  descrizione: string;
+  categoria_fv: string;
+  prezzo_vendita?: number | null;
+  prezzo_acquisto?: number | null;
+  potenza_w?: number | null;
+  potenza_kw?: number | null;
+  capacita_kwh?: number | null;
+  garanzia_anni?: number | null;
+  efficienza_pct?: number | null;
+  marca_fv?: string | null;
+  modello_fv?: string | null;
+  unita_misura?: string | null;
+}
+
+// Crea o aggiorna un componente FV. NB: prezzo_vendita è NOT NULL → mai null (0 di default).
+export function useUpsertArticoloFv() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ArticoloFvInput) => {
+      if (!companyId) throw new Error("Azienda non identificata");
+      const payload = {
+        company_id: companyId,
+        codice: input.codice ?? null,
+        descrizione: input.descrizione,
+        categoria_fv: input.categoria_fv,
+        prezzo_vendita: input.prezzo_vendita ?? 0,
+        prezzo_acquisto: input.prezzo_acquisto ?? null,
+        potenza_w: input.potenza_w ?? null,
+        potenza_kw: input.potenza_kw ?? null,
+        capacita_kwh: input.capacita_kwh ?? null,
+        garanzia_anni: input.garanzia_anni ?? null,
+        efficienza_pct: input.efficienza_pct ?? null,
+        marca_fv: input.marca_fv ?? null,
+        modello_fv: input.modello_fv ?? null,
+        unita_misura: input.unita_misura ?? "pz",
+        attivo: true,
+      };
+      if (input.id) {
+        const { error } = await supabase
+          .from("articoli_native" as never)
+          .update(payload)
+          .eq("id", input.id)
+          .eq("company_id", companyId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("articoli_native" as never).insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      // prefix-match: invalida catalogo + tutti i picker Fase 5 (per categoria)
+      qc.invalidateQueries({ queryKey: ["fv", "articoli-fv-catalogo"] });
+      qc.invalidateQueries({ queryKey: ["fv", "articoli"] });
+    },
+  });
+}
+
+export function useToggleArticoloFv() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, attivo }: { id: string; attivo: boolean }) => {
+      if (!companyId) throw new Error("Azienda non identificata");
+      const { error } = await supabase
+        .from("articoli_native" as never)
+        .update({ attivo })
+        .eq("id", id)
+        .eq("company_id", companyId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fv", "articoli-fv-catalogo"] });
+      qc.invalidateQueries({ queryKey: ["fv", "articoli"] });
+    },
+  });
+}
+
 // ─── Finanziarie + tabelle finanziamento + lookup rata ────────────────────
 // Tabelle del modulo Finanziamenti EiC (eic_finanziarie + eic_tabelle_*)
 // integrate nel wizard FV step 6 per offrire rata REALE invece di estimate.
