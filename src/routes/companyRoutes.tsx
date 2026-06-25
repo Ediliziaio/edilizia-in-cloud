@@ -412,6 +412,7 @@ const ArchivioSostitutivo = lazy(() => import("@/pages/azienda/ArchivioSostituti
 import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
 import { Routes } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePermissions } from "@/hooks/usePermissions";
 
 /**
  * Index /azienda: su MOBILE atterra su Attività (richiesta utente 2026-06:
@@ -421,8 +422,16 @@ import { useIsMobile } from "@/hooks/use-mobile";
  */
 function AziendaIndex() {
   const isMobile = useIsMobile();
+  const permissions = usePermissions();
   if (isMobile) return <Navigate to="/azienda/attivita" replace />;
-  return <>{withCompanyPermission("canViewDashboard", <CompanyDashboard />)}</>;
+  // Desktop: aspetta i permessi, poi mostra il Cruscotto solo a chi può vederlo.
+  // I ruoli ristretti (es. operativo senza dashboard) atterrano su Attività —
+  // pagina senza permission gate — invece di vedere "Accesso negato" al login.
+  if (permissions.isLoading) {
+    return <>{withCompanyPermission("canViewDashboard", <CompanyDashboard />)}</>;
+  }
+  if (!permissions.canViewDashboard) return <Navigate to="/azienda/attivita" replace />;
+  return <CompanyDashboard />;
 }
 
 /**
