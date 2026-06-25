@@ -15,22 +15,21 @@ export default function PricingSection() {
         {/* Label */}
         <div className={`transition-all duration-700 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
           <span className="inline-block mb-5 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest text-[#F97415] bg-[#F97415]/10 border border-[#F97415]/20">
-            Quanto costa?
+            Pronto a partire?
           </span>
         </div>
 
-        {/* Big price */}
+        {/* Hero claim — niente prezzo, focus su prova + consulenza */}
         <div className={`transition-all duration-700 delay-100 ${isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
-          <p className="text-white/50 text-lg mb-2">A partire da</p>
-          <div className="flex items-end justify-center gap-2 mb-2">
-            <span className="text-7xl md:text-8xl font-extrabold text-white leading-none">€0</span>
-            <span className="text-white/40 text-xl mb-3">/mese</span>
-          </div>
-          <p className="text-white/40 text-base mb-2">
-            Piano Scopri gratuito per sempre · nessuna carta richiesta
+          <h2 className="text-4xl md:text-6xl font-extrabold text-white leading-tight mb-4">
+            Provalo <span className="text-[#F97415]">gratis</span>.<br className="hidden sm:block" /> Il piano lo costruiamo su di te.
+          </h2>
+          <p className="text-white/50 text-base md:text-lg max-w-2xl mx-auto mb-2">
+            Inizia senza carta con il piano Scopri. Quando vuoi crescere, definiamo insieme il piano giusto
+            in una <span className="text-white/80 font-semibold">consulenza gratuita</span> — paghi solo per ciò che ti serve davvero.
           </p>
           <p className="text-white/30 text-sm mb-8">
-            Per lavorare senza limiti: <span className="text-white/60">Gestionale da €99/mese</span> con fatturazione annuale · Professionista da €197/mese · Impresa AI da €437/mese
+            Gestionale · Professionista · Impresa AI — su misura per la tua impresa
           </p>
         </div>
 
