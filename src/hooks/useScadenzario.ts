@@ -49,6 +49,11 @@ export interface ScadenzarioSummary {
   questo_mese_amount: number;
   entrate_previste: number;
   uscite_previste: number;
+  // Conteggi per-tab (year-scoped). Opzionali: la RPC li ha aggiunti in un secondo momento.
+  tutte_count?: number;
+  da_incassare_count?: number;
+  da_pagare_count?: number;
+  pagate_count?: number;
 }
 
 export interface ScadenzarioFilters {

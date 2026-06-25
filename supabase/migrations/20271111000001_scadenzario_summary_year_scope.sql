@@ -29,7 +29,12 @@ BEGIN
     'questo_mese_count', COALESCE(SUM(CASE WHEN status IN ('da_pagare','parziale') AND date_trunc('month', due_date) = date_trunc('month', CURRENT_DATE) THEN 1 ELSE 0 END), 0),
     'questo_mese_amount', COALESCE(SUM(CASE WHEN status IN ('da_pagare','parziale') AND date_trunc('month', due_date) = date_trunc('month', CURRENT_DATE) THEN amount - paid_amount ELSE 0 END), 0),
     'entrate_previste', COALESCE(SUM(CASE WHEN direction = 'entrata' AND status IN ('da_pagare','parziale') THEN amount - paid_amount ELSE 0 END), 0),
-    'uscite_previste', COALESCE(SUM(CASE WHEN direction = 'uscita' AND status IN ('da_pagare','parziale') THEN amount - paid_amount ELSE 0 END), 0)
+    'uscite_previste', COALESCE(SUM(CASE WHEN direction = 'uscita' AND status IN ('da_pagare','parziale') THEN amount - paid_amount ELSE 0 END), 0),
+    -- Conteggi per i tab della UI (rispettano lo stesso scope anno).
+    'tutte_count', COALESCE(SUM(1), 0),
+    'da_incassare_count', COALESCE(SUM(CASE WHEN direction = 'entrata' AND status IN ('da_pagare','parziale') THEN 1 ELSE 0 END), 0),
+    'da_pagare_count', COALESCE(SUM(CASE WHEN direction = 'uscita' AND status IN ('da_pagare','parziale') THEN 1 ELSE 0 END), 0),
+    'pagate_count', COALESCE(SUM(CASE WHEN status = 'pagata' THEN 1 ELSE 0 END), 0)
   ) INTO v_result
   FROM scadenze
   WHERE company_id = p_company_id

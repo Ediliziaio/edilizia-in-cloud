@@ -3,7 +3,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarClock, Plus, Loader2, Search, Filter, X } from "lucide-react";
+import { CalendarClock, Plus, Loader2, Search, Filter, X, Download } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { exportToCSV } from "@/lib/csvExport";
 import { useScadenzario, type ScadenzarioFilters } from "@/hooks/useScadenzario";
 import ScadenzarioKPIs from "@/components/scadenzario/ScadenzarioKPIs";
 import ScadenzarioTable from "@/components/scadenzario/ScadenzarioTable";
@@ -107,6 +111,56 @@ export default function Scadenzario() {
   const { scadenze, isLoading, totalCount, totalPages, summary, isSummaryLoading, markPaid, create, cancel } = useScadenzario(page, pageSize, serverFilters);
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const navigate = useNavigate();
+  const [exporting, setExporting] = useState(false);
+
+  // Export CSV di TUTTE le scadenze che rispettano i filtri correnti (anno/tab/ricerca),
+  // non solo la pagina visibile. Anti formula-injection via exportToCSV.
+  const handleExport = async () => {
+    if (!companyId) return;
+    setExporting(true);
+    try {
+      let q = supabase
+        .from("scadenze")
+        .select("due_date, direction, description, amount, paid_amount, status, invoices(invoice_number), orders(order_code)")
+        .eq("company_id", companyId)
+        .neq("status", "annullata")
+        .order("due_date", { ascending: true })
+        .limit(5000);
+      if (serverFilters.dateFrom) q = q.gte("due_date", serverFilters.dateFrom);
+      if (serverFilters.dateTo) q = q.lte("due_date", serverFilters.dateTo);
+      if (serverFilters.direction) q = q.eq("direction", serverFilters.direction);
+      if (serverFilters.status) q = q.eq("status", serverFilters.status);
+      const { data, error } = await q;
+      if (error) throw error;
+      const s = (search || "").toLowerCase();
+      const rows = (data || [])
+        .filter((r: any) => !s || (r.description || "").toLowerCase().includes(s) || (r.invoices?.invoice_number || "").toLowerCase().includes(s))
+        .map((r: any) => ({
+          scadenza: r.due_date || "",
+          tipo: r.direction === "entrata" ? "Incasso" : "Pagamento",
+          descrizione: r.description || "",
+          riferimento: r.invoices?.invoice_number ? `Fatt. ${r.invoices.invoice_number}` : r.orders?.order_code ? `Ord. ${r.orders.order_code}` : "",
+          importo: String(r.amount ?? 0).replace(".", ","),
+          residuo: String(Math.round((Number(r.amount || 0) - Number(r.paid_amount || 0)) * 100) / 100).replace(".", ","),
+          stato: r.status || "",
+        }));
+      if (rows.length === 0) { toast.info("Nessuna scadenza da esportare"); return; }
+      exportToCSV(rows, [
+        { key: "scadenza", label: "Scadenza" },
+        { key: "tipo", label: "Tipo" },
+        { key: "descrizione", label: "Descrizione" },
+        { key: "riferimento", label: "Riferimento" },
+        { key: "importo", label: "Importo" },
+        { key: "residuo", label: "Residuo" },
+        { key: "stato", label: "Stato" },
+      ], `scadenzario_${yearFilter}.csv`);
+    } catch {
+      toast.error("Errore durante l'export");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Client-side search filter (text search remains client-side)
   const filtered = useMemo(() => {
@@ -122,13 +176,15 @@ export default function Scadenzario() {
   }, [scadenze, search]);
 
   // Counts for tabs — use totalCount from server for the active tab; use summary for overdue badge
+  // Conteggi per tutti i tab dalla summary (year-scoped, server-side). Fallback al
+  // totalCount del tab attivo se la summary non è ancora arrivata.
   const counts = useMemo(() => {
     return {
-      tutte: tab === "tutte" ? totalCount : 0,
-      da_incassare: tab === "da_incassare" ? totalCount : 0,
-      da_pagare: tab === "da_pagare" ? totalCount : 0,
+      tutte: summary?.tutte_count ?? (tab === "tutte" ? totalCount : 0),
+      da_incassare: summary?.da_incassare_count ?? (tab === "da_incassare" ? totalCount : 0),
+      da_pagare: summary?.da_pagare_count ?? (tab === "da_pagare" ? totalCount : 0),
       scadute: summary?.scadute_count ?? (tab === "scadute" ? totalCount : 0),
-      pagate: tab === "pagate" ? totalCount : 0,
+      pagate: summary?.pagate_count ?? (tab === "pagate" ? totalCount : 0),
     };
   }, [tab, totalCount, summary]);
 
@@ -167,15 +223,14 @@ export default function Scadenzario() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(1); }} className="flex-1">
             <TabsList className="flex flex-wrap h-auto gap-1 p-1 w-full justify-start">
-              {/* Conteggio solo sul tab attivo: per gli inattivi non è noto (paginato server-side)
-                  e mostrare "(0)" faceva credere che non ci fosse nulla da incassare/pagare */}
-              <TabsTrigger value="tutte">Tutte{tab === "tutte" ? ` (${counts.tutte})` : ""}</TabsTrigger>
-              <TabsTrigger value="da_incassare">Da Incassare{tab === "da_incassare" ? ` (${counts.da_incassare})` : ""}</TabsTrigger>
-              <TabsTrigger value="da_pagare">Da Pagare{tab === "da_pagare" ? ` (${counts.da_pagare})` : ""}</TabsTrigger>
+              {/* Conteggi su tutti i tab (year-scoped, dalla summary server-side). */}
+              <TabsTrigger value="tutte">Tutte ({counts.tutte})</TabsTrigger>
+              <TabsTrigger value="da_incassare">Da Incassare ({counts.da_incassare})</TabsTrigger>
+              <TabsTrigger value="da_pagare">Da Pagare ({counts.da_pagare})</TabsTrigger>
               <TabsTrigger value="scadute">
                 Scadute {counts.scadute > 0 && <span className="ml-1 text-destructive font-bold">({counts.scadute})</span>}
               </TabsTrigger>
-              <TabsTrigger value="pagate">Pagate</TabsTrigger>
+              <TabsTrigger value="pagate">Pagate ({counts.pagate})</TabsTrigger>
               <TabsTrigger value="adempimenti">Adempimenti Fiscali</TabsTrigger>
             </TabsList>
           </Tabs>
@@ -199,6 +254,9 @@ export default function Scadenzario() {
               {hasActiveFilters && (
                 <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-primary border-2 border-background" />
               )}
+            </Button>
+            <Button variant="outline" size="icon" onClick={handleExport} disabled={exporting} title="Esporta CSV" aria-label="Esporta CSV">
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             </Button>
           </div>
         </div>
@@ -292,6 +350,7 @@ export default function Scadenzario() {
               onMarkPaid={(s) => setPayDialog(s)}
               onCancel={(id) => cancel.mutate(id)}
               onAdd={() => setNewOpen(true)}
+              onRowClick={(s) => { if (s.invoice_id) navigate(`/azienda/fatturazione/${s.invoice_id}`); }}
             />
             <TablePagination
               currentPage={page}
