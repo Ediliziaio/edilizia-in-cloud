@@ -14,11 +14,13 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, Settings2, Info, Package } from "lucide-react";
+import { Loader2, CheckCircle2, Settings2, Info, Package, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
 import { useSaveComputo, useEffectiveCompanyId } from "@/hooks/useBagniProgetto";
 import { useListinoVociSearch } from "@/hooks/useBagniListino";
-import type { BgnComputoVoce } from "@/types/bagni";
+import type { BgnComputoVoce, BgnUnitaMisura } from "@/types/bagni";
+import type { ComputoVoceLocal } from "@/types/computo";
 import ComputoEditor from "@/components/bagni/ComputoEditor/ComputoEditor";
 import { PACCHETTI_BAGNO, buildPacchettoRows, type Pacchetto } from "@/lib/bagni/pacchetti";
 
@@ -40,6 +42,7 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
   const [computo, setComputo] = useState<BgnComputoVoce[]>(() => initialComputo);
   const [dirty, setDirty] = useState(false);
   const [savedOnce, setSavedOnce] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Hint listino vuoto: una ricerca "" restituisce fino a 40 voci → se 0, vuoto.
   const listino = useListinoVociSearch("");
@@ -57,6 +60,38 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
     handleChange([...computo, ...rows]);
     toast.success(`Pacchetto "${p.label}" aggiunto`, {
       description: `${rows.length} voci aggiunte al computo. Personalizza prezzi e quantità.`,
+    });
+  };
+
+  // Import AI: le voci estratte (già riviste nel modale) → BgnComputoVoce, accodate.
+  const handleImportVoci = (estratte: ComputoVoceLocal[]) => {
+    if (estratte.length === 0) return;
+    const base = computo.length;
+    const nuove: BgnComputoVoce[] = estratte.map((v, i) => ({
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `import-${base + i}-${v.id}`,
+      progetto_id: progettoId,
+      company_id: companyId ?? "",
+      capitolo_nome: v.capitolo_nome?.trim() || "Generale",
+      descrizione: (v.descrizione_breve || v.descrizione_estesa || "").trim(),
+      unita_misura: coerceUnita(v.unita_misura),
+      quantita: Number(v.quantita) || 0,
+      prezzo_unitario: Number(v.prezzo_unitario_computo) || 0,
+      costo_materiali: 0,
+      costo_manodopera: 0,
+      sconto_pct: 0,
+      importo: 0,
+      margine_eur: 0,
+      margine_pct: 0,
+      listino_voce_id: null,
+      fonte: v.codice_prezzario?.trim() || null,
+      ordine: base + i,
+    }));
+    handleChange([...computo, ...nuove]);
+    toast.success(`${nuove.length} voci importate nel computo`, {
+      description: "Verifica quantità e prezzi prima di salvare.",
     });
   };
 
@@ -207,6 +242,23 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
         </div>
       </div>
 
+      {/* Import computo da PDF con AI */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 text-xs"
+          disabled={!companyId}
+          onClick={() => setImportOpen(true)}
+        >
+          <Sparkles className="h-3.5 w-3.5 text-orange-500" /> Importa computo da PDF (AI)
+        </Button>
+        <span className="text-[11px] text-muted-foreground">
+          Carica un computo esistente: l'AI estrae le voci, le rivedi e le aggiungi.
+        </span>
+      </div>
+
       {/* Editor */}
       {companyId ? (
         <ComputoEditor
@@ -222,6 +274,25 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
           <Loader2 className="h-4 w-4 animate-spin" /> Caricamento azienda…
         </div>
       )}
+
+      <ComputoUploadModal
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        intent="computo"
+        onConfirmVoci={handleImportVoci}
+        confirmLabel="Aggiungi al computo"
+      />
     </div>
   );
+}
+
+// Coercizione dell'unità di misura estratta dall'AI (testo libero) → enum BgnUnitaMisura.
+function coerceUnita(u: string | null | undefined): BgnUnitaMisura {
+  const s = (u ?? "").trim().toLowerCase();
+  if (["mq", "m2", "m²", "m^2", "metri quadri", "metri quadrati"].includes(s)) return "mq";
+  if (["ml", "m", "mt", "m.l.", "metri", "metro", "metri lineari"].includes(s)) return "ml";
+  if (["kg", "kg.", "chilo", "chili", "chilogrammi"].includes(s)) return "kg";
+  if (["h", "ora", "ore", "h.", "ora/uomo"].includes(s)) return "h";
+  if (["corpo", "a corpo", "acorpo", "a-corpo"].includes(s)) return "a corpo";
+  return "cad";
 }
