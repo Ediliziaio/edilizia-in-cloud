@@ -105,7 +105,8 @@ export default function InvoicesList() {
   const companyId = effectiveCompany?.id;
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [yearFilter, setYearFilter] = useState("all");
+  const currentYear = String(new Date().getFullYear());
+  const [yearFilter, setYearFilter] = useState(currentYear);
   // Striscia mesi stile Fatture in Cloud: "01".."12" | "prec" | "succ" | null (tutto l'anno).
   const [monthFilter, setMonthFilter] = useState<string | null>(null);
   // Tab tipo documento stile Fatture in Cloud.
@@ -241,14 +242,15 @@ export default function InvoicesList() {
   // Conteggi per i tab tipo-documento (sempre sull'intero set, indipendenti dai filtri).
   const docCounts = useMemo(() => {
     const c = { fatture: 0, note_credito: 0, proforma: 0, cestino: 0 };
-    for (const i of invoices) {
+    const base = yearFilter === "all" ? invoices : invoices.filter((i) => i.issue_date?.startsWith(yearFilter));
+    for (const i of base) {
       if (i.status === "cancelled") c.cestino++;
       else if (i.document_type === "credit_note") c.note_credito++;
       else if (i.document_type === "proforma") c.proforma++;
       else c.fatture++;
     }
     return c;
-  }, [invoices]);
+  }, [invoices, yearFilter]);
 
   const filtered = useMemo(() => {
     let list = invoices.filter((i) => matchDocTab(i, docTab));
@@ -297,7 +299,9 @@ export default function InvoicesList() {
     const now = new Date();
     const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     // Le note di credito sono storni, NON crediti da incassare: escluse dai KPI €.
-    const billable = invoices.filter((i) => i.document_type !== "credit_note");
+    // KPI riferiti all'ANNO selezionato (non al cumulato di tutti gli anni / "Preced.").
+    const base = yearFilter === "all" ? invoices : invoices.filter((i) => i.issue_date?.startsWith(yearFilter));
+    const billable = base.filter((i) => i.document_type !== "credit_note");
     const receivable = billable
       .filter((i) => ["issued", "sent", "delivered", "overdue"].includes(i.status))
       .reduce((s, i) => s + Number(i.total) - Number(i.paid_amount), 0);
@@ -306,11 +310,11 @@ export default function InvoicesList() {
       return i.due_date && new Date(i.due_date) < now;
     });
     const overdueAmount = overdue.reduce((s, i) => s + Number(i.total) - Number(i.paid_amount), 0);
-    const issuedThisMonth = invoices.filter(
+    const issuedThisMonth = base.filter(
       (i) => i.issue_date?.startsWith(thisMonth) && i.document_type === "invoice" && i.status !== "cancelled"
     ).length;
-    return { receivable, overdueCount: overdue.length, overdueAmount, issuedThisMonth };
-  }, [invoices]);
+    return { receivable, overdueCount: overdue.length, overdueAmount, issuedThisMonth, total: base.length };
+  }, [invoices, yearFilter]);
 
   const fmtEur = (n: number) => formatCurrency(n);
 
@@ -346,8 +350,19 @@ export default function InvoicesList() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <select
+            value={yearFilter}
+            onChange={(e) => { setYearFilter(e.target.value); setMonthFilter(null); }}
+            aria-label="Anno"
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm font-semibold shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="all">Tutti gli anni</option>
+            {Array.from(new Set([currentYear, ...years])).map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
           {integration?.last_sync_at && (
-            <span className="text-xs text-muted-foreground">
+            <span className="hidden sm:inline text-xs text-muted-foreground">
               Ultimo sync: {format(new Date(integration.last_sync_at), "dd/MM HH:mm", { locale: it })}
             </span>
           )}
@@ -392,8 +407,8 @@ export default function InvoicesList() {
             </Card>
             <Card>
               <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground">Totale fatture</p>
-                <p className="text-xl font-bold">{invoices.length}</p>
+                <p className="text-xs text-muted-foreground">Totale fatture {yearFilter !== "all" ? yearFilter : ""}</p>
+                <p className="text-xl font-bold">{kpis.total}</p>
               </CardContent>
             </Card>
           </div>
@@ -486,19 +501,6 @@ export default function InvoicesList() {
                 <TabsTrigger value="overdue">Scadute</TabsTrigger>
               </TabsList>
             </Tabs>
-            {years.length > 0 && (
-              <select
-                value={yearFilter}
-                onChange={(e) => setYearFilter(e.target.value)}
-                aria-label="Filtra per anno"
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="all">Tutti gli anni</option>
-                {years.map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            )}
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Cerca cliente o numero..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
