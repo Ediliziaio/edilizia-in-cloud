@@ -429,3 +429,5 @@ Deno.serve(async (req) => {
     headers: { ...CORS, "Content-Type": "application/json" },
   });
 });
+
+// redeploy 2026-06-25: propaga _shared email/branding (.it→.com + builder 58 email) — trigger CI HEAD~1 diff

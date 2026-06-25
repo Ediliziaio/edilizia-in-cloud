@@ -307,3 +307,5 @@ Deno.serve(async (req) => {
     return json({ error: msg }, 500, cors);
   }
 });
+
+// redeploy 2026-06-25: propaga _shared email/branding (.it→.com + builder 58 email) — trigger CI HEAD~1 diff
