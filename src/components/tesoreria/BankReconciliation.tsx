@@ -343,6 +343,20 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
     return list;
   }, [invoices, searchInv, activeInsight]);
 
+  // #2 — miglior candidato per ogni transazione, per il suggerimento inline 1-click.
+  const bestMatchByTx = useMemo(() => {
+    const map = new Map<string, MatchSuggestion>();
+    for (const tx of filteredTx) {
+      let best: MatchSuggestion | null = null;
+      for (const inv of invoices) {
+        const m = computeMatchScore(tx, inv);
+        if (m && (!best || m.score > best.score)) best = m;
+      }
+      if (best) map.set(tx.id, best);
+    }
+    return map;
+  }, [filteredTx, invoices]);
+
   // Export reconciliations
   async function exportReconciliations(fmt: "csv" | "xlsx") {
     setExporting(true);
@@ -600,6 +614,31 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                       +{fmtEur(Math.abs(tx.amount))}
                     </p>
                   </div>
+                  {(() => {
+                    const best = bestMatchByTx.get(tx.id);
+                    if (!best || best.score < 60) return null;
+                    const inv = best.invoice;
+                    const label = inv.invoice_number ? `Fatt. ${inv.invoice_number}` : (inv.client_company_name || "fattura");
+                    return (
+                      <div
+                        className="mt-2 flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 px-2 py-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span className="text-xs text-muted-foreground truncate">
+                          → <span className="font-medium text-foreground">{label}</span> · {best.score}%
+                          <span className="hidden sm:inline"> · {best.reasons[0]}</span>
+                        </span>
+                        <Button
+                          size="sm"
+                          className="h-6 text-xs px-2 shrink-0"
+                          disabled={matching}
+                          onClick={(e) => { e.stopPropagation(); confirmMatch(tx, inv, "manual"); }}
+                        >
+                          Collega
+                        </Button>
+                      </div>
+                    );
+                  })()}
                 </div>
               ))
             )}
