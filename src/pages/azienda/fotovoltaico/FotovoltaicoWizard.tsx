@@ -1788,8 +1788,8 @@ function Step2Immobile({
         title="Immobile"
         subtitle={
           <>
-            Indirizzo dove sarà installato l'impianto e geolocalizzazione (necessaria per Solar API/PVGIS).
-            Usa <strong>"Trova coordinate"</strong> per ricavarle dall'indirizzo.
+            Indirizzo dove sarà installato l'impianto. Scegli un <strong>suggerimento</strong> mentre digiti
+            e comune, provincia, CAP e coordinate (per Solar API/PVGIS) si compilano da soli.
           </>
         }
       />
@@ -1830,15 +1830,6 @@ function Step2Immobile({
               Scegli un suggerimento: comune, provincia, CAP e coordinate si compilano da soli.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => cercaCoordinate()}
-            disabled={geoLoading}
-            className="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-60"
-          >
-            {geoLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span aria-hidden>📍</span>}
-            {geoLoading ? "Ricerca coordinate…" : "Trova coordinate dall'indirizzo"}
-          </button>
           <div className="grid sm:grid-cols-3 gap-3 mb-3">
             <div>
               <Label>Comune</Label>
