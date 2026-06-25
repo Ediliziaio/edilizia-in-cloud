@@ -39,6 +39,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useVertical } from "@/hooks/useVertical";
 import { useFamilies } from "@/hooks/useFamilies";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import {
   useBundlesList,
   useUpsertBundle,
@@ -139,6 +140,9 @@ function bundleToDraft(b: Bundle): DraftBundle {
 export default function SettingsBundle() {
   const companyId = useEffectiveCompanyId();
   const { vertical } = useVertical();
+  // Mostra i campi "Kit FV" se l'azienda ha il vertical fotovoltaico OPPURE il modulo
+  // FV attivo (aziende "generico" multi-business possono comunque vendere kit FV).
+  const { isEnabled: fvModuloAttivo } = useFeatureAccess("modulo_fotovoltaico_attivo");
   const { families } = useFamilies();
 
   const { bundles, isLoading, refetch } = useBundlesList();
@@ -302,7 +306,7 @@ export default function SettingsBundle() {
     }));
   };
 
-  const isFvVertical = vertical === "fotovoltaico";
+  const isFvVertical = vertical === "fotovoltaico" || fvModuloAttivo;
   const canSave = useMemo(() => {
     if (!draft.nome.trim()) return false;
     if (draft.voci.length === 0) {

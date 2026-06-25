@@ -259,8 +259,9 @@ export default function FotovoltaicoWizard() {
   const { data: inverter = [] } = useArticoliFv("inverter");
   const { data: accumuli = [] } = useArticoliFv("accumulo");
   const { data: tariffeFv = [] } = useTariffeFv();
-  // Kit/offerte FV dal listino (bundle vertical='fotovoltaico'): selezionabili in Fase 5.
-  const { bundles: kitFvBundles } = useBundlesList({ vertical: "fotovoltaico" });
+  // Kit/offerte FV: i bundle con fv_kwp valorizzato (indipendente dal vertical
+  // dell'azienda, che può essere "generico" pur avendo il modulo FV). Filtro in Step5.
+  const { bundles: kitFvBundles } = useBundlesList();
   const { data: fvTemplate } = useTemplatePdf();
   const { data: serviziCatalogo = [] } = useServiziCatalogo();
   const { data: progettoEsistente } = useProgetto(progettoId ?? undefined);
