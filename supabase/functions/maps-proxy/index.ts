@@ -51,6 +51,61 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── STATICMAP (immagine satellitare del tetto per il wizard FV) ──
+    // Ritorna un data URL base64 (la chiave resta server-side). Prova Google
+    // Static Maps (satellite) poi HERE Map Image; se nessuna chiave/API risponde
+    // torna { error: "static_map_unavailable" } e il frontend degrada con grazia.
+    if (action === "staticmap") {
+      const lat = Number(body.lat);
+      const lng = Number(body.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return new Response(JSON.stringify({ error: "lat/lng required" }), {
+          status: 400,
+          headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+      const zoom = Math.min(Math.max(Number(body.zoom) || 20, 1), 21);
+      const w = Math.min(Number(body.w) || 700, 1280);
+      const h = Math.min(Number(body.h) || 420, 1280);
+
+      const toDataUrl = async (url: string): Promise<string | null> => {
+        try {
+          const res = await fetch(url);
+          const ct = res.headers.get("content-type") || "";
+          if (!res.ok || !ct.startsWith("image/")) return null;
+          const bytes = new Uint8Array(await res.arrayBuffer());
+          let bin = "";
+          const CH = 0x8000;
+          for (let i = 0; i < bytes.length; i += CH) {
+            bin += String.fromCharCode(...bytes.subarray(i, i + CH));
+          }
+          return `data:${ct};base64,${btoa(bin)}`;
+        } catch {
+          return null;
+        }
+      };
+
+      let dataUrl: string | null = null;
+      let provider: string | null = null;
+      if (GOOGLE_MAPS_API_KEY) {
+        dataUrl = await toDataUrl(
+          `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${w}x${h}&scale=2&maptype=satellite&key=${GOOGLE_MAPS_API_KEY}`,
+        );
+        if (dataUrl) provider = "google";
+      }
+      if (!dataUrl && HERE_API_KEY) {
+        dataUrl = await toDataUrl(
+          `https://image.maps.hereapi.com/mia/v3/base/mc/center:${lat},${lng};zoom=${Math.min(zoom, 20)}/${w}x${h}/png?style=satellite.day&apiKey=${HERE_API_KEY}`,
+        );
+        if (dataUrl) provider = "here";
+      }
+
+      return new Response(
+        JSON.stringify(dataUrl ? { dataUrl, provider } : { error: "static_map_unavailable" }),
+        { status: 200, headers: { ...getCorsHeaders(req), "Content-Type": "application/json" } },
+      );
+    }
+
     // ── AUTOCOMPLETE ──
     if (action === "autocomplete") {
       const query = body.query as string;
