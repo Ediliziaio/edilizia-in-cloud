@@ -370,6 +370,29 @@ const cantiereOf = (p: ClmProgetto) =>
 
 const dateStr = () => new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+// ─── Placeholder dinamici nei testi cover (eyebrow/hero/sottotitolo) ──────────
+// Espande i token {variabile} inseriti dall'editor (PlaceholderChips) con i dati
+// del progetto. Token sconosciuti restano testuali (es. "{foo}" → "{foo}") per
+// debug visibility. Porting di renderSubheroTemplate da SerramentoPDF, adattato
+// ai campi di ClmProgetto. Senza questa funzione i chip uscirebbero LETTERALI
+// nel PDF (anteprima editor ≠ PDF).
+function renderCoverTemplate(template: string, p: ClmProgetto): string {
+  const nomeCompleto = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ").trim();
+  const replacements: Record<string, string> = {
+    cliente_nome: p.cliente_nome ?? "",
+    cliente_cognome: p.cliente_cognome ?? "",
+    cliente_nome_completo: nomeCompleto || "cliente",
+    cantiere_citta: p.cantiere_citta ?? "—",
+    cantiere_provincia: p.cantiere_provincia ?? "",
+    tipo_intervento: p.tipo_intervento ?? "intervento",
+    anno: String(new Date().getFullYear()),
+  };
+  return template.replace(/\{([a-z_]+)\}/gi, (full, key) => {
+    const k = String(key).toLowerCase();
+    return replacements[k] !== undefined ? replacements[k] : full;
+  });
+}
+
 // ─── Footer (legale Domus Group) ─────────────────────────────────────────────
 // Anagrafica: preferisce i dati del template (builder) e ripiega su `company.*`.
 // Toggle: `showVersion` gating la riga "Preventivo … · pagina" e `showLegal` la
@@ -659,9 +682,11 @@ export function ClimatizzazionePDF(props: ClmPdfEnriched) {
   const cs = (k: string): string | null => (typeof tc[k] === "string" && (tc[k] as string).trim() ? (tc[k] as string) : null);
   const cn = (k: string): number | null => (typeof tc[k] === "number" ? (tc[k] as number) : null);
 
-  const coverTitle = (cs("pdf_cover_hero") ?? t.cover_title ?? "").trim() || "Preventivo di climatizzazione";
-  const coverSubtitle = (cs("pdf_cover_subhero") ?? t.cover_subtitle ?? "").trim() || "La tua casa, clima perfetto chiavi in mano";
-  const coverEyebrow = (cs("pdf_cover_eyebrow") ?? "").trim() || "LA TUA PROPOSTA PERSONALIZZATA";
+  // I testi cover possono contenere placeholder {cliente_nome} ecc. (PlaceholderChips
+  // nell'editor): li risolviamo con i dati del progetto via renderCoverTemplate.
+  const coverTitle = renderCoverTemplate((cs("pdf_cover_hero") ?? t.cover_title ?? "").trim(), p) || "Preventivo di climatizzazione";
+  const coverSubtitle = renderCoverTemplate((cs("pdf_cover_subhero") ?? t.cover_subtitle ?? "").trim(), p) || "La tua casa, clima perfetto chiavi in mano";
+  const coverEyebrow = renderCoverTemplate((cs("pdf_cover_eyebrow") ?? "").trim(), p) || "LA TUA PROPOSTA PERSONALIZZATA";
   // Immagine sfondo: pdf_cover_image_url → cover_image_url legacy → inline.
   const coverImageUrl = cs("pdf_cover_image_url") ?? t.cover_image_url ?? null;
   const coverBgColor = normalizeHexColor(tc.pdf_cover_bg_color, C.coverBg);

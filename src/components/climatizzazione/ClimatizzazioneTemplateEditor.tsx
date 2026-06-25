@@ -62,6 +62,7 @@ import type {
   ClmProgetto, ClmComputoVoce,
 } from "@/types/climatizzazione";
 import { COVER_PRESETS, detectActiveCoverPreset } from "@/components/climatizzazione/coverPresets";
+import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from "@/components/climatizzazione/coverStockImages";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -76,6 +77,56 @@ const PALETTE_PRESETS: Array<{ nome: string; color_primary: string; color_second
   { nome: "Bordeaux caldo",    color_primary: "#7F1D1D", color_secondary: "#B45309", color_accent: "#15803D", color_text: "#1C1917" },
   { nome: "Indaco moderno",    color_primary: "#3730A3", color_secondary: "#EC4899", color_accent: "#10B981", color_text: "#1E1B4B" },
 ];
+
+// Placeholder dinamici inseribili nei testi cover (eyebrow/hero/sottotitolo).
+// Risolti a runtime dal renderer PDF (ClimatizzazionePDF · renderCoverTemplate)
+// con i dati del progetto. I nomi combaciano con le chiavi del replacement map.
+const CLM_PLACEHOLDERS = [
+  "cliente_nome", "cliente_cognome", "cliente_nome_completo",
+  "cantiere_citta", "cantiere_provincia", "tipo_intervento", "anno",
+] as const;
+
+/** Chip cliccabili che inseriscono un campo personalizzato nel testo collegato.
+ *  Con `targetRef` inserisce al cursore; senza, appende in coda. Riutilizzabile
+ *  su qualsiasi Textarea/Input dell'editor. */
+function PlaceholderChips({
+  value, onChange, targetRef, label = "Inserisci campo personalizzato (cliccabile):",
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  targetRef?: { current: HTMLTextAreaElement | HTMLInputElement | null };
+  label?: string;
+}) {
+  const insert = (name: string) => {
+    const token = `{${name}}`;
+    const el = targetRef?.current;
+    const v = value ?? "";
+    if (!el || el.selectionStart == null) { onChange(v + token); return; }
+    const start = el.selectionStart ?? v.length;
+    const end = el.selectionEnd ?? v.length;
+    onChange(v.slice(0, start) + token + v.slice(end));
+    requestAnimationFrame(() => {
+      try { el.focus(); const pos = start + token.length; el.setSelectionRange(pos, pos); } catch { /* input non selezionabile */ }
+    });
+  };
+  return (
+    <div className="mt-1.5">
+      <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1">
+        {CLM_PLACEHOLDERS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => insert(n)}
+            className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:border-orange-300 text-slate-600 hover:text-orange-700 transition-colors"
+          >
+            {`{${n}}`}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // Campi cover "parity" con Serramenti (pdf_cover_*). NON sono ancora sul tipo
 // ClmTemplatePdf (generato altrove) né su normalizeTemplate: vengono letti dal
@@ -286,6 +337,16 @@ export function ClimatizzazioneTemplateEditor({ embedded = false }: Props) {
   const activeCoverPresetId = useMemo(
     () => (form ? detectActiveCoverPreset(form) : null),
     [form],
+  );
+
+  // ─── Stock images dialog (galleria Unsplash free) ─────────────────────────
+  const [stockDialogOpen, setStockDialogOpen] = useState(false);
+  const [stockCategory, setStockCategory] = useState<CoverStockImage["categoria"] | "all">("all");
+  const stockFiltered = useMemo(
+    () => (stockCategory === "all"
+      ? COVER_STOCK_IMAGES
+      : COVER_STOCK_IMAGES.filter((img) => img.categoria === stockCategory)),
+    [stockCategory],
   );
 
   const handleSave = async () => {
@@ -744,6 +805,7 @@ export function ClimatizzazioneTemplateEditor({ embedded = false }: Props) {
                     onChange={(e) => set("cover_title", e.target.value)}
                     placeholder="Preventivo di climatizzazione"
                   />
+                  <PlaceholderChips value={form.cover_title ?? ""} onChange={(v) => set("cover_title", v)} />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Sottotitolo</Label>
@@ -752,6 +814,7 @@ export function ClimatizzazioneTemplateEditor({ embedded = false }: Props) {
                     onChange={(e) => set("cover_subtitle", e.target.value)}
                     placeholder="La tua casa, clima perfetto chiavi in mano"
                   />
+                  <PlaceholderChips value={form.cover_subtitle ?? ""} onChange={(v) => set("cover_subtitle", v)} />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label className="text-xs">Occhiello (eyebrow)</Label>
@@ -760,6 +823,7 @@ export function ClimatizzazioneTemplateEditor({ embedded = false }: Props) {
                     onChange={(e) => set("pdf_cover_eyebrow", e.target.value || null)}
                     placeholder="★ La tua proposta personalizzata"
                   />
+                  <PlaceholderChips value={form.pdf_cover_eyebrow ?? ""} onChange={(v) => set("pdf_cover_eyebrow", v || null)} />
                 </div>
               </div>
 
@@ -1032,18 +1096,40 @@ export function ClimatizzazioneTemplateEditor({ embedded = false }: Props) {
 
                 {/* CONTROLLI */}
                 <div className="col-span-12 md:col-span-7 space-y-3">
-                  {/* Immagine sfondo cover */}
-                  <ImageUploadField
-                    label="Immagine di sfondo cover (opzionale)"
-                    hint="Carica una foto residenziale/render. I preset 'foto' ne suggeriscono una."
-                    value={form.pdf_cover_image_url}
-                    companyId={companyId}
-                    onChange={(url) => {
-                      set("pdf_cover_image_url", url);
-                      set("cover_image_url", url); // mantieni in sync il campo legacy
-                    }}
-                    aspect="aspect-[16/9]"
-                  />
+                  {/* Immagine sfondo cover (upload + galleria stock) */}
+                  <div>
+                    <ImageUploadField
+                      label="Immagine di sfondo cover (opzionale)"
+                      hint="Carica una foto (PNG/JPG max 8 MB) o scegli dalla galleria stock."
+                      value={form.pdf_cover_image_url}
+                      companyId={companyId}
+                      onChange={(url) => {
+                        set("pdf_cover_image_url", url);
+                        set("cover_image_url", url); // mantieni in sync il campo legacy
+                      }}
+                      aspect="aspect-[16/9]"
+                    />
+                    <div className="flex gap-2 flex-wrap mt-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setStockDialogOpen(true)}
+                        className="h-8 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
+                      >
+                        📷 Galleria stock
+                      </Button>
+                      {form.pdf_cover_image_url && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => { set("pdf_cover_image_url", null); set("cover_image_url", null); }}
+                          className="h-8 text-xs text-rose-600"
+                        >
+                          Rimuovi immagine
+                        </Button>
+                      )}
+                    </div>
+                  </div>
 
                   {/* Overlay opacity + stile (solo con immagine) */}
                   {form.pdf_cover_image_url && (
@@ -1543,6 +1629,76 @@ export function ClimatizzazioneTemplateEditor({ embedded = false }: Props) {
         companyId={companyId}
         onOpenInTab={() => void handlePreview()}
       />
+
+      {/* ── Dialog: galleria immagini stock (Unsplash free) per la cover ── */}
+      <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="p-4 pb-3 border-b">
+            <DialogTitle className="text-base">📷 Galleria immagini stock</DialogTitle>
+            <DialogDescription className="text-xs">
+              Click su un&apos;immagine per usarla come sfondo cover. Tutte le immagini sono
+              libere da licenza (Unsplash) — uso commerciale incluso.
+            </DialogDescription>
+            <div className="flex flex-wrap gap-1 pt-2">
+              {COVER_STOCK_CATEGORIE.map((cat) => {
+                const isActive = stockCategory === cat.value;
+                return (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => setStockCategory(cat.value)}
+                    className={cn(
+                      "text-[11px] px-2 py-1 rounded-md border transition-all gap-1 inline-flex items-center",
+                      isActive ? "bg-orange-500 text-white border-orange-500 font-semibold" : "bg-white border-slate-200 hover:border-orange-300 text-slate-700",
+                    )}
+                  >
+                    <span>{cat.emoji}</span>
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {stockFiltered.map((img) => {
+                const isActive = form?.pdf_cover_image_url === img.url;
+                return (
+                  <button
+                    key={img.id}
+                    type="button"
+                    onClick={() => {
+                      set("pdf_cover_image_url", img.url);
+                      set("cover_image_url", img.url); // mantieni in sync il campo legacy
+                      setStockDialogOpen(false);
+                    }}
+                    className={cn(
+                      "group relative aspect-[4/3] rounded-lg overflow-hidden border-2 transition-all focus:outline-none focus:ring-2 focus:ring-orange-400",
+                      isActive ? "border-orange-500 shadow-md ring-2 ring-orange-300" : "border-slate-200 hover:border-orange-300 hover:shadow-sm",
+                    )}
+                    title={img.label}
+                  >
+                    <img src={img.thumb} alt={img.label} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                      <span className="text-[10px] font-semibold text-white">{img.label}</span>
+                    </div>
+                    {isActive && (
+                      <div className="absolute top-1.5 right-1.5 bg-orange-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {stockFiltered.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-8">Nessuna immagine in questa categoria.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Dialog: genera testi con AI ──────────────────────────────── */}
       <Dialog open={aiOpen} onOpenChange={(o) => !aiLoading && setAiOpen(o)}>

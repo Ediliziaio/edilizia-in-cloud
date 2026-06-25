@@ -367,6 +367,34 @@ const cantiereOf = (p: PisProgetto) =>
 
 const dateStr = () => new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+// ─── Placeholder cover ({campo}) → valori del progetto ───────────────────────
+// I campi testo della copertina (titolo/sottotitolo) supportano token {campo}
+// inseribili dall'editor tramite i PlaceholderChips. Sostituiti qui così
+// l'anteprima editor e il PDF coincidono. Token sconosciuti o vuoti vengono
+// rimossi (no "{...}" letterale nel PDF). Lista allineata a PIS_PLACEHOLDERS.
+function resolveCoverPlaceholders(text: string, p: PisProgetto): string {
+  if (!text || text.indexOf("{") === -1) return text;
+  const nome = (p.cliente_nome ?? "").trim();
+  const cognome = (p.cliente_cognome ?? "").trim();
+  const map: Record<string, string> = {
+    cliente_nome: nome,
+    cliente_cognome: cognome,
+    cliente_nome_completo: [nome, cognome].filter(Boolean).join(" "),
+    cantiere_citta: (p.cantiere_citta ?? "").trim(),
+    cantiere_provincia: (p.cantiere_provincia ?? "").trim(),
+    tipo_intervento: (p.tipo_intervento ?? "").trim(),
+    tipo_piscina: (p.tipo_piscina ?? "").trim(),
+    anno: String(new Date().getFullYear()),
+  };
+  return text
+    .replace(/\{(\w+)\}/g, (whole, key: string) =>
+      Object.prototype.hasOwnProperty.call(map, key) ? map[key] : whole,
+    )
+    // Ripulisce doppi spazi lasciati da token risolti a stringa vuota.
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
 // ─── Footer (legale Domus Group) ─────────────────────────────────────────────
 // Anagrafica: preferisce i dati del template (builder) e ripiega su `company.*`.
 // Toggle: `showVersion` gating la riga "Preventivo … · pagina" e `showLegal` la
@@ -650,8 +678,9 @@ export function PiscinePDF(props: PisPdfEnriched) {
   const logoUrl = t.logo_url ?? company?.logo_url ?? null;
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
-  const coverTitle = (t.cover_title ?? "").trim() || "Preventivo di piscine";
-  const coverSubtitle = (t.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano";
+  // Risolve i placeholder {campo} sui testi cover prima del fallback statico.
+  const coverTitle = resolveCoverPlaceholders((t.cover_title ?? "").trim(), p) || "Preventivo di piscine";
+  const coverSubtitle = resolveCoverPlaceholders((t.cover_subtitle ?? "").trim(), p) || "La tua casa, rinnovata chiavi in mano";
   // Controlli copertina (builder): colore testo, posizione logo, opacità velo.
   const coverTextColor = (t.cover_text_color ?? "").trim() || "#FFFFFF";
   const coverLogoPosition = t.cover_logo_position ?? "top_left";

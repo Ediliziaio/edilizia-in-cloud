@@ -62,12 +62,14 @@ import type {
 } from "@/types/ristrutturazione";
 import {
   COVER_PRESETS as RST_COVER_PRESETS,
-  COVER_STOCK_IMAGES,
-  COVER_STOCK_CATEGORIE,
   detectActiveCoverPreset,
   type CoverPresetPatch,
   type RstCoverPatch,
 } from "@/components/ristrutturazione/coverPresets";
+import {
+  COVER_STOCK_IMAGES,
+  COVER_STOCK_CATEGORIE,
+} from "@/components/ristrutturazione/coverStockImages";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -86,6 +88,56 @@ const PALETTE_PRESETS: Array<{ nome: string; color_primary: string; color_second
 // Gli "stili copertina" 1-click sono ora i COVER_PRESETS importati da
 // `coverPresets.ts` (8 preset layout completi su pdf_cover_*), applicati via
 // applyCoverPreset(). Vedi sezione "Copertina" nell'editor.
+
+// Campi {placeholder} inseribili nei testi della copertina (eyebrow/titolo/
+// sottotitolo). Parità con bagni/serramenti: nomi allineati ai campi del
+// progetto ristrutturazione. Al click vengono APPESI come token letterale
+// `{nome}` nel campo collegato (sostituzione lato preventivo, non qui).
+const RST_PLACEHOLDERS = [
+  "cliente_nome", "cliente_cognome", "cliente_nome_completo",
+  "cantiere_citta", "cantiere_provincia", "tipo_intervento", "anno",
+] as const;
+
+/** Chip cliccabili che inseriscono un campo personalizzato nel testo collegato.
+ *  Con `targetRef` inserisce al cursore; senza, appende in coda. */
+function PlaceholderChips({
+  value, onChange, targetRef, label = "Inserisci campo personalizzato (cliccabile):",
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  targetRef?: { current: HTMLTextAreaElement | HTMLInputElement | null };
+  label?: string;
+}) {
+  const insert = (name: string) => {
+    const token = `{${name}}`;
+    const el = targetRef?.current;
+    const v = value ?? "";
+    if (!el || el.selectionStart == null) { onChange(v + token); return; }
+    const start = el.selectionStart ?? v.length;
+    const end = el.selectionEnd ?? v.length;
+    onChange(v.slice(0, start) + token + v.slice(end));
+    requestAnimationFrame(() => {
+      try { el.focus(); const pos = start + token.length; el.setSelectionRange(pos, pos); } catch { /* input non selezionabile */ }
+    });
+  };
+  return (
+    <div className="mt-1.5">
+      <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1">
+        {RST_PLACEHOLDERS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => insert(n)}
+            className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:border-orange-300 text-slate-600 hover:text-orange-700 transition-colors"
+          >
+            {`{${n}}`}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // Forma del form locale: stesso shape del patch persistito + la slice cover
 // "preset-driven" (pdf_cover_*). Questi ultimi NON sono sul tipo RstTemplatePdf
@@ -822,6 +874,10 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                       onChange={(e) => set("pdf_cover_eyebrow", e.target.value)}
                       placeholder="LA TUA PROPOSTA PERSONALIZZATA"
                     />
+                    <PlaceholderChips
+                      value={form.pdf_cover_eyebrow ?? ""}
+                      onChange={(v) => set("pdf_cover_eyebrow", v || null)}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Titolo</Label>
@@ -830,6 +886,10 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                       onChange={(e) => set("cover_title", e.target.value)}
                       placeholder="Preventivo di ristrutturazione"
                     />
+                    <PlaceholderChips
+                      value={form.cover_title ?? ""}
+                      onChange={(v) => set("cover_title", v)}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Sottotitolo</Label>
@@ -837,6 +897,10 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                       value={form.cover_subtitle ?? ""}
                       onChange={(e) => set("cover_subtitle", e.target.value)}
                       placeholder="La tua casa, rinnovata chiavi in mano"
+                    />
+                    <PlaceholderChips
+                      value={form.cover_subtitle ?? ""}
+                      onChange={(v) => set("cover_subtitle", v)}
                     />
                   </div>
                 </div>
@@ -1593,14 +1657,14 @@ function CoverPreviewA4({ form, logoUrl, companyName }: {
           textAlign: align,
         }}
       >
-        {(form.pdf_cover_eyebrow ?? "").trim() && (
-          <span
-            className="font-bold uppercase tracking-wider"
-            style={{ color: textColor, fontSize: Math.max(6, (form.pdf_cover_eyebrow_size ?? 10) * k), opacity: 0.9 }}
-          >
-            {form.pdf_cover_eyebrow}
-          </span>
-        )}
+        {/* L'eyebrow nel PDF mostra sempre un default se vuoto (parità bagni):
+            l'anteprima rispecchia lo stesso comportamento per coerenza. */}
+        <span
+          className="font-bold uppercase tracking-wider"
+          style={{ color: textColor, fontSize: Math.max(6, (form.pdf_cover_eyebrow_size ?? 10) * k), opacity: 0.9 }}
+        >
+          {(form.pdf_cover_eyebrow ?? "").trim() || "LA TUA PROPOSTA PERSONALIZZATA"}
+        </span>
         <span
           className="font-extrabold leading-tight"
           style={{ color: textColor, fontSize: Math.max(11, (form.pdf_cover_title_size ?? 40) * k) }}

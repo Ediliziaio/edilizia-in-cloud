@@ -90,6 +90,56 @@ const COVER_PRESETS: Array<{ nome: string; cover_text_color: string; cover_overl
   { nome: "Senza velo",      cover_text_color: "#0F172A", cover_overlay_opacity: 0.00, cover_logo_position: "top_right" },
 ];
 
+// Campi personalizzati inseribili nei testi cover (eyebrow/hero/sottotitolo).
+// Token testuali `{nome}` derivati dalla shape `EleProgetto` (cliente/cantiere/
+// immobile/intervento). Parità con SR_PLACEHOLDERS/BGN_PLACEHOLDERS dei moduli
+// già completi; tema impianto elettrico per superficie/anno immobile.
+const ELE_PLACEHOLDERS = [
+  "cliente_nome", "cliente_cognome", "cliente_nome_completo",
+  "cantiere_citta", "cantiere_provincia", "tipo_intervento", "superficie_mq", "anno",
+] as const;
+
+/** Chip cliccabili che inseriscono un campo personalizzato nel testo collegato.
+ *  Con `targetRef` inserisce al cursore; senza, appende in coda (append-mode). */
+function PlaceholderChips({
+  value, onChange, targetRef, label = "Inserisci campo personalizzato (cliccabile):",
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  targetRef?: { current: HTMLTextAreaElement | HTMLInputElement | null };
+  label?: string;
+}) {
+  const insert = (name: string) => {
+    const token = `{${name}}`;
+    const el = targetRef?.current;
+    const v = value ?? "";
+    if (!el || el.selectionStart == null) { onChange(v + token); return; }
+    const start = el.selectionStart ?? v.length;
+    const end = el.selectionEnd ?? v.length;
+    onChange(v.slice(0, start) + token + v.slice(end));
+    requestAnimationFrame(() => {
+      try { el.focus(); const pos = start + token.length; el.setSelectionRange(pos, pos); } catch { /* input non selezionabile */ }
+    });
+  };
+  return (
+    <div className="mt-1.5">
+      <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1">
+        {ELE_PLACEHOLDERS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => insert(n)}
+            className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:border-orange-300 text-slate-600 hover:text-orange-700 transition-colors"
+          >
+            {`{${n}}`}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Forma del form locale: stesso shape del patch persistito + i campi cover
 // `pdf_cover_*` (parità con Serramenti via migration `ele_template_pdf`). I
 // campi pdf_cover_* NON sono in `EleTemplatePdf`/tipi generati: li tipizziamo
@@ -1168,6 +1218,7 @@ export function ElettricoTemplateEditor({ embedded = false }: Props) {
                       placeholder="★ La tua proposta personalizzata"
                       className="h-8 text-xs"
                     />
+                    <PlaceholderChips value={form.pdf_cover_eyebrow ?? ""} onChange={(v) => set("pdf_cover_eyebrow", v || null)} />
                   </div>
 
                   {/* Titolo hero — scrive anche il campo legacy cover_title */}
@@ -1184,6 +1235,14 @@ export function ElettricoTemplateEditor({ embedded = false }: Props) {
                       rows={2}
                       className="text-sm"
                     />
+                    <PlaceholderChips
+                      value={form.pdf_cover_hero ?? ""}
+                      onChange={(v) => {
+                        const val = v || null;
+                        setForm((prev) => (prev ? { ...prev, pdf_cover_hero: val, cover_title: val } : prev));
+                        setDirty(true);
+                      }}
+                    />
                   </div>
 
                   {/* Sottotitolo — scrive anche il campo legacy cover_subtitle */}
@@ -1199,6 +1258,14 @@ export function ElettricoTemplateEditor({ embedded = false }: Props) {
                       placeholder="Lascia vuoto per usare la sintesi auto-generata del preventivo"
                       rows={2}
                       className="text-sm"
+                    />
+                    <PlaceholderChips
+                      value={form.pdf_cover_subhero ?? ""}
+                      onChange={(v) => {
+                        const val = v || null;
+                        setForm((prev) => (prev ? { ...prev, pdf_cover_subhero: val, cover_subtitle: val } : prev));
+                        setDirty(true);
+                      }}
                     />
                   </div>
                 </div>
