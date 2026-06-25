@@ -23,7 +23,7 @@ import { requireAuth, requireRole } from "../_shared/auth.ts";
 
 const DENORM_TABLES = new Set(["referrers", "companies", "accountant_firms"]);
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
-const DEFAULT_SITE_URL = "https://app.ediliziaincloud.it";
+const DEFAULT_SITE_URL = "https://app.ediliziaincloud.com";
 
 interface Denorm { table: string; id: string }
 

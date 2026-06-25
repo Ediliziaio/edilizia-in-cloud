@@ -222,7 +222,7 @@ async function callOpenRouterImage(
 
   const appName = Deno.env.get("OPENROUTER_APP_NAME") ?? "EdiliziaInCloud";
   const siteUrl = Deno.env.get("OPENROUTER_SITE_URL") ??
-    "https://ediliziaincloud.it";
+    "https://www.ediliziaincloud.com";
   const timeoutMs = args.params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   // Converti sourceImageBlob → data URL se necessario

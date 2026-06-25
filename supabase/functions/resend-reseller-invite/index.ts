@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const email = (prof?.email as string | undefined) ?? (reseller.email as string | undefined) ?? "";
     if (!email) return errorResponse("Email dell'admin del rivenditore non trovata", 404, corsH);
 
-    const origin = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.it";
+    const origin = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
     // L'admin del rivenditore esiste già (creato alla creazione del rivenditore):
     // un link di recovery gli permette di (ri)impostare la password ed entrare.
     const { data: link, error } = await admin.auth.admin.generateLink({

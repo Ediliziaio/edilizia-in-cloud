@@ -246,7 +246,7 @@ describe("integrazione applyPlaceholders + TEMPLATE_META", () => {
     const html = `<h1>Benvenuto {{recipientName}} in {{companyName}}</h1><a href="{{loginUrl}}">Accedi</a>`;
     const out = applyPlaceholders(html, meta.mockProps, true);
     expect(out).toContain("Benvenuto Marco in Rossi Costruzioni SRL");
-    expect(out).toContain(`href="https://app.ediliziaincloud.it/login"`);
+    expect(out).toContain(`href="https://app.ediliziaincloud.com/login"`);
     expect(out).not.toContain("{{");
   });
 

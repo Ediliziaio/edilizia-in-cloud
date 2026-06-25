@@ -49,7 +49,7 @@ export async function callOpenRouter(
 
   const appName = Deno.env.get("OPENROUTER_APP_NAME") ?? "EdiliziaInCloud";
   const siteUrl =
-    Deno.env.get("OPENROUTER_SITE_URL") ?? "https://ediliziaincloud.it";
+    Deno.env.get("OPENROUTER_SITE_URL") ?? "https://www.ediliziaincloud.com";
 
   const backoff = [500, 2000];
   let lastError: AIProviderError | null = null;

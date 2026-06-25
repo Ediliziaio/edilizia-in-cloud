@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     }
 
     // Generate a password recovery link using the Supabase admin API
-    const siteUrl = redirect_to || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.it";
+    const siteUrl = redirect_to || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
       email,

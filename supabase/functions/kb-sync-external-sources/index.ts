@@ -180,7 +180,7 @@ async function syncOne(
     // 1. Fetch
     const res = await fetchWithRetryAndTimeout(src.url, {
       method: "GET",
-      headers: { "User-Agent": "EdiliziaInCloud-KbSync/1.0 (+https://ediliziaincloud.it)" },
+      headers: { "User-Agent": "EdiliziaInCloud-KbSync/1.0 (+https://www.ediliziaincloud.com)" },
       timeoutMs: 30_000,
     }, 2);
     if (!res.ok) {

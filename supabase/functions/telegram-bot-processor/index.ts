@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
       botConfig.bot_token,
       message.chat.id,
       "Ciao! 👋 Per usare questo bot devi prima collegare il tuo account.\n\n" +
-        "Vai su https://app.ediliziaincloud.it/impostazioni/telegram e copia il codice di verifica.\n" +
+        "Vai su https://app.ediliziaincloud.com/impostazioni/telegram e copia il codice di verifica.\n" +
         "Poi torna qui e invia: `/verify <codice>`",
     );
     return new Response("OK", { status: 200 });

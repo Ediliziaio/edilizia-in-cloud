@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
       signal: controller.signal,
       headers: {
         // Mostriamo un User-Agent identificabile per debugging lato OpenRouter
-        "User-Agent": "EdiliziaInCloud/1.0 (+https://ediliziaincloud.it)",
+        "User-Agent": "EdiliziaInCloud/1.0 (+https://www.ediliziaincloud.com)",
         Accept: "application/json",
       },
     });
