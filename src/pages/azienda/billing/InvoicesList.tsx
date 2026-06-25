@@ -248,21 +248,25 @@ export default function InvoicesList() {
   // Anno di riferimento per la striscia mesi: l'anno selezionato, o il più recente con dati.
   const stripYear = yearFilter !== "all" ? yearFilter : (years[0] ?? String(new Date().getFullYear()));
 
-  // Striscia mesi stile Fatture in Cloud: per ogni mese dell'anno (+ Preced./Success.)
-  // n° documenti e totale €. Le note di credito restano incluse nel conteggio doc.
+  // Striscia mesi stile Fatture in Cloud: per ogni mese dell'ANNO selezionato n° documenti
+  // e totale €. Niente "Preced./Success." (si naviga gli anni col selettore in alto).
   const monthStrip = useMemo(() => {
-    const cells: Record<string, { count: number; total: number }> = {
-      prec: { count: 0, total: 0 }, succ: { count: 0, total: 0 },
-    };
+    const cells: Record<string, { count: number; total: number }> = {};
     for (let m = 1; m <= 12; m++) cells[String(m).padStart(2, "0")] = { count: 0, total: 0 };
     for (const i of invoices) {
       if (!i.issue_date || !matchDocTab(i, docTab)) continue;
-      const y = i.issue_date.slice(0, 4);
-      const cell = y < stripYear ? cells.prec : y > stripYear ? cells.succ : cells[i.issue_date.slice(5, 7)];
+      if (i.issue_date.slice(0, 4) !== stripYear) continue; // solo l'anno selezionato
+      const cell = cells[i.issue_date.slice(5, 7)];
       if (cell) { cell.count++; cell.total += Number(i.total || 0); }
     }
     return cells;
   }, [invoices, stripYear, docTab]);
+
+  // Totale dell'anno per l'intestazione della panoramica.
+  const stripTotal = useMemo(
+    () => Object.values(monthStrip).reduce((a, c) => ({ count: a.count + c.count, total: a.total + c.total }), { count: 0, total: 0 }),
+    [monthStrip]
+  );
 
   // Conteggi per i tab tipo-documento (sempre sull'intero set, indipendenti dai filtri).
   const docCounts = useMemo(() => {
@@ -279,15 +283,9 @@ export default function InvoicesList() {
 
   const filtered = useMemo(() => {
     let list = invoices.filter((i) => matchDocTab(i, docTab));
-    // Filtro striscia mesi: prec/succ prevalgono sull'anno; il mese numerico filtra dentro stripYear.
-    if (monthFilter === "prec") {
-      list = list.filter((i) => i.issue_date && i.issue_date.slice(0, 4) < stripYear);
-    } else if (monthFilter === "succ") {
-      list = list.filter((i) => i.issue_date && i.issue_date.slice(0, 4) > stripYear);
-    } else {
-      if (yearFilter !== "all") list = list.filter((i) => i.issue_date?.startsWith(yearFilter));
-      if (monthFilter) list = list.filter((i) => i.issue_date?.startsWith(`${stripYear}-${monthFilter}`));
-    }
+    // Filtro per anno (selettore in alto) + eventuale mese cliccato nella panoramica.
+    if (yearFilter !== "all") list = list.filter((i) => i.issue_date?.startsWith(yearFilter));
+    if (monthFilter) list = list.filter((i) => i.issue_date?.startsWith(`${stripYear}-${monthFilter}`));
     if (statusFilter !== "all") list = list.filter((i) => i.status === statusFilter);
     if (search) {
       const s = search.toLowerCase();
@@ -467,7 +465,9 @@ export default function InvoicesList() {
           {/* Striscia mesi (stile Fatture in Cloud): n° doc + € per mese dell'anno, cliccabile per filtrare */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between px-0.5">
-              <span className="text-xs font-medium text-muted-foreground">Panoramica {stripYear}</span>
+              <span className="text-xs font-medium text-muted-foreground">
+                Panoramica {stripYear} · <span className="text-foreground font-semibold">{stripTotal.count}</span> doc · <span className="text-foreground font-semibold tabular-nums">{formatCurrency(stripTotal.total)}</span>
+              </span>
               {monthFilter && (
                 <button type="button" onClick={() => setMonthFilter(null)} className="text-xs text-primary hover:underline">
                   Mostra tutto l'anno
@@ -476,11 +476,7 @@ export default function InvoicesList() {
             </div>
             <div className="rounded-lg border bg-card overflow-x-auto">
               <div className="flex min-w-max divide-x">
-                {([
-                  { key: "prec", label: "Preced." },
-                  ...MONTH_ABBR.map((m, idx) => ({ key: String(idx + 1).padStart(2, "0"), label: m })),
-                  { key: "succ", label: "Success." },
-                ] as { key: string; label: string }[]).map(({ key, label }) => {
+                {(MONTH_ABBR.map((m, idx) => ({ key: String(idx + 1).padStart(2, "0"), label: m }))).map(({ key, label }) => {
                   const cell = monthStrip[key] || { count: 0, total: 0 };
                   const active = monthFilter === key;
                   const empty = cell.count === 0;
@@ -490,7 +486,7 @@ export default function InvoicesList() {
                       type="button"
                       disabled={empty}
                       onClick={() => {
-                        if (key !== "prec" && key !== "succ") setYearFilter(stripYear);
+                        setYearFilter(stripYear);
                         setMonthFilter((prev) => (prev === key ? null : key));
                       }}
                       className={
