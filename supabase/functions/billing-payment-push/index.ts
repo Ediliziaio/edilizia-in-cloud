@@ -48,25 +48,39 @@ Deno.serve(async (req) => {
     new Response(JSON.stringify(data), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
   try {
+    // Auth: utente (Bearer JWT → canAccessCompany) OPPURE chiamata interna server-side
+    // (service-role key o x-internal-secret) per la riconciliazione automatica, che non
+    // ha un utente. In modalità interna saltiamo il check d'accesso (chiamante fidato).
     const token = req.headers.get("Authorization")?.replace("Bearer ", "") || "";
-    if (!token) return json({ error: "Unauthorized" }, 401);
-    const { data: { user } } = await supabase.auth.getUser(token);
-    if (!user) return json({ error: "Unauthorized" }, 401);
+    const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const internalSecret = req.headers.get("x-internal-secret") || "";
+    const isInternal =
+      (!!token && token === SERVICE_ROLE) ||
+      (!!internalSecret && (internalSecret === Deno.env.get("INTERNAL_CRON_SECRET") || internalSecret === Deno.env.get("PROACTIVE_CRON_SECRET")));
+
+    let userId: string | null = null;
+    if (!isInternal) {
+      if (!token) return json({ error: "Unauthorized" }, 401);
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (!user) return json({ error: "Unauthorized" }, 401);
+      userId = user.id;
+    }
 
     const body = await req.json().catch(() => ({}));
     const invoiceId: string | null = (typeof body.invoice_id === "string" && body.invoice_id) ? body.invoice_id : null;
     if (!invoiceId) return json({ error: "invoice_id richiesto" }, 400);
     const paidDate: string = (typeof body.paid_date === "string" && body.paid_date) ? body.paid_date : new Date().toISOString().slice(0, 10);
 
-    // Carica la fattura e verifica l'accesso dell'utente all'azienda.
     const { data: inv } = await supabase
       .from("invoices")
       .select("id, company_id, external_id, external_provider, total, due_date, status")
       .eq("id", invoiceId).maybeSingle();
     if (!inv) return json({ error: "Fattura non trovata" }, 404);
 
-    const ok = await canAccessCompany(supabase, user.id, inv.company_id);
-    if (!ok) return json({ error: "Accesso negato a questa azienda" }, 403);
+    if (!isInternal) {
+      const ok = await canAccessCompany(supabase, userId!, inv.company_id);
+      if (!ok) return json({ error: "Accesso negato a questa azienda" }, 403);
+    }
 
     // Solo fatture esterne con provider gestito. Per ora: Fatture in Cloud.
     if (inv.external_provider !== "fattureincloud" || !inv.external_id) {

@@ -172,7 +172,7 @@ Deno.serve(async (req) => {
         // Fatture non pagate
         const { data: unpaidInvoices } = await supabase
           .from("invoices")
-          .select("id, total, paid_amount, client_company_name, bank_iban")
+          .select("id, total, paid_amount, client_company_name, bank_iban, external_provider, external_id")
           .eq("company_id", cId)
           .not("status", "in", '("paid","cancelled","draft")');
 
@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
               (bestMatch.invoice.total || 0) - (bestMatch.invoice.paid_amount || 0)
             );
 
-            await supabase.from("bank_reconciliations").insert({
+            const { data: recRow } = await supabase.from("bank_reconciliations").insert({
               company_id: cId,
               transaction_id: tx.id,
               invoice_id: bestMatch.invoice.id,
@@ -222,15 +222,16 @@ Deno.serve(async (req) => {
               match_type: "auto",
               match_score: bestMatch.score,
               matched_at: new Date().toISOString(),
-            });
+            }).select("id").single();
 
-            // Registra pagamento sulla fattura
+            // Registra il pagamento nel ledger (il trigger ricalcola paid_amount + status).
+            // reference="recon:<id>" → alla rimozione del match lo storno è preciso.
             await supabase.from("invoice_payments").insert({
               invoice_id: bestMatch.invoice.id,
               amount: matchedAmount,
               payment_date: new Date().toISOString().split("T")[0],
               payment_method: "bonifico",
-              reference: tx.external_transaction_id,
+              reference: recRow?.id ? `recon:${recRow.id}` : tx.external_transaction_id,
               notes: `Auto-riconciliato (score: ${bestMatch.score}/100)`,
             });
 
@@ -238,10 +239,24 @@ Deno.serve(async (req) => {
             // sovrascriverlo a mano (doppia scrittura = importi incoerenti).
             // Impostiamo solo status/paid_at quando la fattura risulta saldata.
             const newPaidAmount = (bestMatch.invoice.paid_amount || 0) + matchedAmount;
-            if (newPaidAmount >= (bestMatch.invoice.total || 0)) {
+            const fullyPaid = newPaidAmount >= (bestMatch.invoice.total || 0);
+            if (fullyPaid) {
               await supabase.from("invoices")
                 .update({ status: "paid", paid_at: new Date().toISOString() })
                 .eq("id", bestMatch.invoice.id);
+            }
+
+            // Write-back verso il gestionale esterno (best-effort): se la fattura è di
+            // Fatture in Cloud ed è ora saldata, propaga il pagamento a FIC. Chiamata
+            // interna server-side (service-role) → billing-payment-push (path interno).
+            if (fullyPaid && bestMatch.invoice.external_provider === "fattureincloud") {
+              try {
+                await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/billing-payment-push`, {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({ invoice_id: bestMatch.invoice.id }),
+                });
+              } catch (_) { /* best-effort: non blocca la riconciliazione */ }
             }
 
             // Aggiorna il paid_amount locale per non matchare la stessa fattura due volte

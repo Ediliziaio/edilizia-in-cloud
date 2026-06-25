@@ -24,7 +24,6 @@ import { toast } from "sonner";
 import {
   fmtEur,
   computeMatchScore,
-  computePaymentApplication,
   computePaymentReversal,
   detectReconAnomalies,
 } from "@/lib/finance/reconciliationAnalysis";
@@ -88,7 +87,7 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
           .limit(200),
         supabase
           .from("invoices")
-          .select("id, invoice_number, client_company_name, total, paid_amount, status, due_date, bank_iban, issue_date")
+          .select("id, invoice_number, client_company_name, total, paid_amount, status, due_date, bank_iban, issue_date, external_provider, external_id")
           .eq("company_id", companyId)
           .in("status", ["issued", "sent", "delivered", "overdue"])
           .order("due_date", { ascending: true })
@@ -163,13 +162,13 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
     setMatching(true);
     try {
       const matchedAmount = Math.abs(tx.amount);
-      const { newPaidAmount, newStatus } = computePaymentApplication(inv, matchedAmount);
+      const fullyPaid = (Number(inv.paid_amount || 0) + matchedAmount) >= Number(inv.total || 0);
 
       // Step 1: link transaction
       const linkRes = await supabase.from("bank_transactions").update({ linked_invoice_id: inv.id }).eq("id", tx.id).eq("company_id", companyId);
       if (linkRes.error) throw linkRes.error;
 
-      // Step 2: create reconciliation record
+      // Step 2: create reconciliation record (recupera l'id per legare il pagamento)
       const recRes = await supabase.from("bank_reconciliations").insert({
         company_id: companyId,
         transaction_id: tx.id,
@@ -178,23 +177,44 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         match_type: matchType,
         matched_by: user?.id,
         notes: matchNote || null,
+      } as any).select("id").single();
+      if (recRes.error || !recRes.data) {
+        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id).eq("company_id", companyId);
+        throw recRes.error || new Error("reconciliation insert nullo");
+      }
+      const recId = recRes.data.id;
+
+      // Step 3: registra il pagamento nel LEDGER (come l'auto-match) → il trigger
+      // ricalcola paid_amount e status. Niente più scrittura diretta di paid_amount
+      // (che bypassava lo storico e poteva essere sovrascritta dal trigger).
+      const payRes = await supabase.from("invoice_payments").insert({
+        invoice_id: inv.id,
+        company_id: companyId,
+        amount: matchedAmount,
+        payment_date: new Date().toLocaleDateString("en-CA"),
+        payment_method: "bonifico",
+        reference: `recon:${recId}`,
+        notes: `Riconciliazione bancaria (${matchType})`,
       } as any);
-      if (recRes.error) {
-        // Rollback step 1
+      if (payRes.error) {
+        await supabase.from("bank_reconciliations").delete().eq("id", recId);
         await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id).eq("company_id", companyId);
-        throw recRes.error;
+        throw payRes.error;
       }
 
-      // Step 3: update invoice
-      const invRes = await supabase.from("invoices").update({ paid_amount: newPaidAmount, status: newStatus }).eq("id", inv.id).eq("company_id", companyId);
-      if (invRes.error) {
-        // Rollback steps 1 & 2
-        await supabase.from("bank_transactions").update({ linked_invoice_id: null }).eq("id", tx.id).eq("company_id", companyId);
-        await supabase.from("bank_reconciliations").delete().eq("transaction_id", tx.id).eq("invoice_id", inv.id).eq("company_id", companyId).is("unmatched_at", null);
-        throw invRes.error;
+      // Step 4: write-back verso il gestionale esterno (best-effort) se saldata.
+      let wb: "ok" | "scope" | "error" | null = null;
+      if (inv.external_provider === "fattureincloud" && fullyPaid) {
+        try {
+          const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", { body: { invoice_id: inv.id } });
+          wb = pErr ? "error" : pr?.error === "scope" ? "scope" : pr?.ok ? "ok" : "error";
+        } catch { wb = "error"; }
       }
 
-      toast.success(`Riconciliata transazione con fattura ${inv.invoice_number}`);
+      toast.success(
+        `Riconciliata con fattura ${inv.invoice_number}` +
+        (wb === "ok" ? " · aggiornata su Fatture in Cloud" : wb === "scope" ? " · FIC: manca il permesso di scrittura" : "")
+      );
       setSelectedTx(null);
       await loadData();
     } catch (e: any) {
@@ -259,15 +279,24 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
         throw recRes.error;
       }
 
-      // Step 3: update invoice
-      const invRes = await supabase.from("invoices").update({
-        paid_amount: newPaid,
-        status: reversedStatus,
-      }).eq("id", invId);
-      if (invRes.error) {
+      // Step 3: storna il pagamento dal LEDGER → il trigger ricalcola paid_amount + status.
+      const delRes = await supabase
+        .from("invoice_payments").delete()
+        .eq("invoice_id", invId).eq("reference", `recon:${rec.id}`).select("id");
+      if (delRes.error) {
         await supabase.from("bank_transactions").update({ linked_invoice_id: invId }).eq("id", txId);
         await supabase.from("bank_reconciliations").update({ unmatched_at: null }).eq("id", rec.id);
-        throw invRes.error;
+        throw delRes.error;
+      }
+      // Legacy: riconciliazioni create prima del ledger (scrittura diretta di paid_amount)
+      // → nessuna riga ledger da stornare, applico lo storno diretto come prima.
+      if (!delRes.data || delRes.data.length === 0) {
+        const invRes = await supabase.from("invoices").update({ paid_amount: newPaid, status: reversedStatus }).eq("id", invId);
+        if (invRes.error) {
+          await supabase.from("bank_transactions").update({ linked_invoice_id: invId }).eq("id", txId);
+          await supabase.from("bank_reconciliations").update({ unmatched_at: null }).eq("id", rec.id);
+          throw invRes.error;
+        }
       }
 
       toast.success("Riconciliazione rimossa");
@@ -605,7 +634,12 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                   <div key={inv.id} className="border rounded-lg p-3">
                     <div className="flex justify-between items-start">
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">{inv.invoice_number || "—"}</p>
+                        <div className="text-sm font-medium flex items-center gap-1.5">
+                          {inv.invoice_number || "—"}
+                          <Badge variant="outline" className="text-[9px] shrink-0 font-normal text-muted-foreground" title={inv.external_provider ? "Importata da gestionale esterno" : "Fattura nativa SDI"}>
+                            {inv.external_provider ? "FIC" : "SDI"}
+                          </Badge>
+                        </div>
                         <p className="text-xs text-muted-foreground truncate">{inv.client_company_name || "—"}</p>
                         <p className="text-xs text-muted-foreground">
                           Scad. {formatDateIt(inv.due_date)}
@@ -711,7 +745,12 @@ export default function BankReconciliation({ companyId, refreshKey = 0 }: Props)
                     >
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="text-sm font-medium">{s.invoice.invoice_number} — {s.invoice.client_company_name}</p>
+                          <div className="text-sm font-medium flex items-center gap-1.5">
+                            {s.invoice.invoice_number} — {s.invoice.client_company_name}
+                            <Badge variant="outline" className="text-[9px] shrink-0 font-normal text-muted-foreground">
+                              {s.invoice.external_provider ? "FIC" : "SDI"}
+                            </Badge>
+                          </div>
                           <div className="flex gap-1 mt-1 flex-wrap">
                             {s.reasons.map((r, i) => (
                               <Badge key={i} variant="outline" className="text-[10px]">{r}</Badge>
