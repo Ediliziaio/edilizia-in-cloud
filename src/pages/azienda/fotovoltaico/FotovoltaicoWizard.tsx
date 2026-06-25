@@ -29,6 +29,7 @@ import {
   Sun,
   Sparkles,
   Loader2,
+  Compass,
   AlertTriangle,
   TrendingUp,
   TrendingDown,
@@ -2163,10 +2164,18 @@ function RoofSatelliteView({
   lat,
   lng,
   numeroPannelli,
+  kwp,
+  azimut,
+  tilt,
+  fonte,
 }: {
   lat: number;
   lng: number;
   numeroPannelli?: number | null;
+  kwp?: number | null;
+  azimut?: string | null;
+  tilt?: number | null;
+  fonte?: string | null;
 }) {
   const [img, setImg] = useState<string | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
@@ -2200,13 +2209,15 @@ function RoofSatelliteView({
   if (state === "error") return null; // niente immagine → nessuna card (graceful)
 
   const nReali = Math.max(numeroPannelli ?? 0, 0);
-  const nShow = Math.min(nReali, 24); // cap visivo per leggibilità
+  const nShow = Math.min(nReali, 30); // cap visivo per leggibilità
   const cols = Math.min(nShow, 6) || 1;
+  const fonteLabel =
+    fonte === "solar_api" ? "Google Solar API" : fonte === "pvgis" ? "PVGIS" : "Satellite";
 
   return (
     <FvCard title="Vista satellitare del tetto" className="mt-4">
       <div
-        className="relative w-full overflow-hidden rounded-xl bg-slate-200"
+        className="relative w-full overflow-hidden rounded-xl bg-slate-900/5 ring-1 ring-slate-200"
         style={{ aspectRatio: "700 / 430" }}
       >
         {state === "loading" && (
@@ -2221,32 +2232,63 @@ function RoofSatelliteView({
             className="absolute inset-0 w-full h-full object-cover"
           />
         )}
-        {/* Layout indicativo dei moduli (griglia centrata) */}
+        {/* Velo gradiente in basso per leggibilità del titolo */}
+        {img && (
+          <div
+            className="absolute inset-x-0 bottom-0 h-2/5 pointer-events-none"
+            style={{ background: "linear-gradient(to top, rgba(2,6,23,0.55), transparent)" }}
+          />
+        )}
+        {/* Array pannelli indicativo (righe ordinate, moduli landscape) */}
         {img && nShow > 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div
-              className="grid gap-[3px] p-2 rounded-lg"
+              className="grid gap-1 p-2.5 rounded-lg"
               style={{
                 gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))`,
-                background: "rgba(0,0,0,0.10)",
+                background: "rgba(15,23,42,0.16)",
               }}
             >
               {Array.from({ length: nShow }).map((_, i) => (
                 <div
                   key={i}
-                  className="w-5 h-7 rounded-[2px] border border-sky-200/70"
-                  style={{ background: "rgba(37,99,235,0.55)" }}
+                  className="w-7 h-4 rounded-[2px] border border-sky-200/70 shadow-sm"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, rgba(37,99,235,0.72), rgba(30,58,138,0.78))",
+                  }}
                 />
               ))}
             </div>
           </div>
         )}
+        {/* Badge sorgente (alto sx) */}
         {img && (
           <div
-            className="absolute top-2 left-2 px-2 py-1 rounded-md text-[11px] font-medium text-white"
-            style={{ background: "rgba(0,0,0,0.45)" }}
+            className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-md text-[11px] font-semibold text-white inline-flex items-center gap-1"
+            style={{ background: "rgba(2,6,23,0.55)" }}
           >
-            {nReali > 0 ? `Disposizione indicativa · fino a ${nReali} moduli` : "Vista tetto"}
+            <Sparkles className="h-3 w-3 text-amber-300" /> {fonteLabel}
+          </div>
+        )}
+        {/* Orientamento + inclinazione (alto dx) */}
+        {img && (azimut || tilt != null) && (
+          <div
+            className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-white inline-flex items-center gap-1"
+            style={{ background: "rgba(2,6,23,0.55)" }}
+          >
+            <Compass className="h-3 w-3" /> {azimut ?? "—"}
+            {tilt != null ? ` · ${tilt}°` : ""}
+          </div>
+        )}
+        {/* Titolo (basso sx) */}
+        {img && (
+          <div className="absolute bottom-2.5 left-3 text-white">
+            <div className="text-sm font-bold leading-tight">
+              {nReali > 0 ? `Fino a ${nReali} moduli` : "Tetto analizzato"}
+              {kwp != null ? ` · ${kwp.toFixed(1)} kWp` : ""}
+            </div>
+            <div className="text-[10px] text-white/80">disposizione indicativa</div>
           </div>
         )}
       </div>
@@ -2340,6 +2382,10 @@ function Step4Tetto({
           lat={data.latitudine}
           lng={data.longitudine}
           numeroPannelli={data.numero_pannelli_max}
+          kwp={data.potenza_max_kwp}
+          azimut={data.azimut_tetto}
+          tilt={data.inclinazione_tetto}
+          fonte={data.fonte_dati_tetto}
         />
       )}
 
