@@ -44,6 +44,10 @@ export default function Scadenzario() {
   const [search, setSearch] = useState("");
   const [payDialog, setPayDialog] = useState<Scadenza | null>(null);
   const [newOpen, setNewOpen] = useState(false);
+  // Anno selezionato (default anno corrente): scopa KPI + lista a quell'anno invece
+  // di mostrare il cumulato di tutti gli anni. "all" = tutti gli anni.
+  const currentYear = new Date().getFullYear();
+  const [yearFilter, setYearFilter] = useState(String(currentYear));
 
   // Advanced filters
   const [showFilters, setShowFilters] = useState(false);
@@ -86,8 +90,12 @@ export default function Scadenzario() {
       const range = getDateRange(datePreset);
       return range ? { from: range.from, to: range.to } : null;
     }
+    // Nessun preset attivo: scopa all'anno selezionato (default anno corrente).
+    if (yearFilter !== "all") {
+      return { from: `${yearFilter}-01-01`, to: `${yearFilter}-12-31` };
+    }
     return null;
-  }, [datePreset, customFrom, customTo]);
+  }, [datePreset, customFrom, customTo, yearFilter]);
 
   const serverFilters: ScadenzarioFilters = useMemo(() => ({
     direction: tabDirection,
@@ -132,9 +140,20 @@ export default function Scadenzario() {
           <CalendarClock className="h-7 w-7 text-primary" />
           <h1 className="text-2xl font-bold">Scadenzario</h1>
         </div>
-        <Button onClick={() => setNewOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" /> Nuova Scadenza
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={yearFilter} onValueChange={(v) => { setYearFilter(v); setPage(1); }}>
+            <SelectTrigger className="h-9 w-[140px] font-semibold" aria-label="Anno"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tutti gli anni</SelectItem>
+              {Array.from({ length: 6 }, (_, i) => String(currentYear - i)).map((y) => (
+                <SelectItem key={y} value={y}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => setNewOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Nuova Scadenza
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}

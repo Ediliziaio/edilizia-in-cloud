@@ -97,10 +97,12 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
   });
 
   const summaryQuery = useQuery({
-    queryKey: queryKeys.scadenzario.summary(companyId),
+    queryKey: [...queryKeys.scadenzario.summary(companyId), dateFrom, dateTo],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_scadenzario_summary", {
         p_company_id: companyId!,
+        p_date_from: dateFrom ?? null,
+        p_date_to: dateTo ?? null,
       });
       if (error) throw error;
       return data as unknown as ScadenzarioSummary;
