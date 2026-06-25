@@ -14,6 +14,7 @@
 
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth } from "../_shared/auth.ts";
+import { resolveEffectiveCompanyId } from "../_shared/effectiveCompany.ts";
 
 interface FvSolarLeadInput {
   cliente_id?: string | null;
@@ -126,13 +127,10 @@ Deno.serve(async (req: Request) => {
       return errorResponse(errore, 400, corsHeaders);
     }
 
-    // Recupera company_id
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("company_id")
-      .eq("id", userId)
-      .maybeSingle();
-    const company_id = profile?.company_id;
+    // Company effettiva: gestisce "Visualizza come" / impersonation super-admin
+    // (active_impersonations) con fallback a profiles.company_id. Prima si leggeva
+    // direttamente profiles.company_id → sotto impersonation tornava "no company_id".
+    const company_id = await resolveEffectiveCompanyId(supabaseAdmin, userId);
     if (!company_id) {
       await logFunction(supabaseAdmin, "fv-onboarding-cliente", null, userId, null, payload, 403, "no company_id", Date.now() - startTime);
       return errorResponse("Company non identificata", 403, corsHeaders);
