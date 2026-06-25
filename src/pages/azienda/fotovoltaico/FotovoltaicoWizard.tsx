@@ -2156,6 +2156,107 @@ function Step3Consumi({
 // ============================================================================
 // STEP 4 — TETTO
 // ============================================================================
+// Vista satellitare del tetto (Reonic-like): immagine reale via maps-proxy
+// (Google Static Maps → fallback HERE) + layout indicativo dei moduli. Degrada
+// con grazia: se nessuna chiave/API risponde, la card non viene mostrata.
+function RoofSatelliteView({
+  lat,
+  lng,
+  numeroPannelli,
+}: {
+  lat: number;
+  lng: number;
+  numeroPannelli?: number | null;
+}) {
+  const [img, setImg] = useState<string | null>(null);
+  const [state, setState] = useState<"loading" | "ok" | "error">("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+    setState("loading");
+    setImg(null);
+    (async () => {
+      try {
+        const { data: r, error } = await supabase.functions.invoke("maps-proxy", {
+          body: { action: "staticmap", lat, lng, zoom: 20, w: 700, h: 430 },
+        });
+        if (cancelled) return;
+        const url = (r as { dataUrl?: string } | null)?.dataUrl;
+        if (error || !url) {
+          setState("error");
+          return;
+        }
+        setImg(url);
+        setState("ok");
+      } catch {
+        if (!cancelled) setState("error");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lat, lng]);
+
+  if (state === "error") return null; // niente immagine → nessuna card (graceful)
+
+  const nReali = Math.max(numeroPannelli ?? 0, 0);
+  const nShow = Math.min(nReali, 24); // cap visivo per leggibilità
+  const cols = Math.min(nShow, 6) || 1;
+
+  return (
+    <FvCard title="Vista satellitare del tetto" className="mt-4">
+      <div
+        className="relative w-full overflow-hidden rounded-xl bg-slate-200"
+        style={{ aspectRatio: "700 / 430" }}
+      >
+        {state === "loading" && (
+          <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Carico l'immagine del tetto…
+          </div>
+        )}
+        {img && (
+          <img
+            src={img}
+            alt="Vista satellitare del tetto"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
+        {/* Layout indicativo dei moduli (griglia centrata) */}
+        {img && nShow > 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div
+              className="grid gap-[3px] p-2 rounded-lg"
+              style={{
+                gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))`,
+                background: "rgba(0,0,0,0.10)",
+              }}
+            >
+              {Array.from({ length: nShow }).map((_, i) => (
+                <div
+                  key={i}
+                  className="w-5 h-7 rounded-[2px] border border-sky-200/70"
+                  style={{ background: "rgba(37,99,235,0.55)" }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+        {img && (
+          <div
+            className="absolute top-2 left-2 px-2 py-1 rounded-md text-[11px] font-medium text-white"
+            style={{ background: "rgba(0,0,0,0.45)" }}
+          >
+            {nReali > 0 ? `Disposizione indicativa · fino a ${nReali} moduli` : "Vista tetto"}
+          </div>
+        )}
+      </div>
+      <p className="text-xs text-slate-400 mt-1.5">
+        Immagine satellitare a scopo illustrativo; la disposizione reale dei moduli si definisce in sopralluogo.
+      </p>
+    </FvCard>
+  );
+}
+
 function Step4Tetto({
   data,
   update,
@@ -2233,6 +2334,14 @@ function Step4Tetto({
           </button>
         )}
       </FvCard>
+
+      {data.latitudine != null && data.longitudine != null && (
+        <RoofSatelliteView
+          lat={data.latitudine}
+          lng={data.longitudine}
+          numeroPannelli={data.numero_pannelli_max}
+        />
+      )}
 
       {data.fonte_dati_tetto === "manuale" && (
         <FvCard title="Parametri manuali" className="mt-4">
