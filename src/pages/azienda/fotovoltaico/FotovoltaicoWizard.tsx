@@ -190,6 +190,7 @@ export default function FotovoltaicoWizard() {
             window.location.reload();
           },
         },
+        closeButton: true, // X per chiudere il toast senza ricominciare
         duration: 8000,
       });
     }
@@ -440,9 +441,10 @@ export default function FotovoltaicoWizard() {
       }
       case 2: {
         if (!data.indirizzo.trim()) return { valido: false, motivo: "Indirizzo obbligatorio" };
-        if (data.latitudine == null || data.longitudine == null)
-          return { valido: false, motivo: "Inserisci latitudine e longitudine" };
-        if (!isCoordinataItalia(data.latitudine, data.longitudine))
+        // Coordinate: consigliate per la stima solare (Solar API/PVGIS) ma NON bloccano
+        // l'avanzamento — con l'autocomplete si compilano da sole; se il geocoding non le
+        // trova l'utente può proseguire e rifinirle dopo. Se PRESENTI, devono essere in Italia.
+        if (data.latitudine != null && data.longitudine != null && !isCoordinataItalia(data.latitudine, data.longitudine))
           return {
             valido: false,
             motivo: `Coordinate fuori Italia (range valido: lat ${ITALIA_LAT_MIN}-${ITALIA_LAT_MAX}, lng ${ITALIA_LNG_MIN}-${ITALIA_LNG_MAX})`,
@@ -1660,6 +1662,63 @@ function Step2Immobile({
   // quando il blur scatta senza che l'utente abbia cambiato il testo.
   const lastGeocodedRef = useRef<string>("");
 
+  // ── Autocomplete indirizzo (Google Places via maps-proxy), come il campo "Luogo"
+  //    altrove: suggerimenti mentre digiti; alla selezione comune/prov/CAP/coordinate
+  //    si compilano da soli (niente click su "Trova coordinate").
+  const [acPredictions, setAcPredictions] = useState<{ place_id: string; description: string }[]>([]);
+  const [acOpen, setAcOpen] = useState(false);
+  const [acLoading, setAcLoading] = useState(false);
+  const acDebounce = useRef<ReturnType<typeof setTimeout>>();
+  const acWrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (acWrapRef.current && !acWrapRef.current.contains(e.target as Node)) setAcOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const fetchAcPredictions = async (q: string) => {
+    if (q.trim().length < 3) { setAcPredictions([]); setAcOpen(false); return; }
+    setAcLoading(true);
+    try {
+      const { data: r, error } = await supabase.functions.invoke("maps-proxy", {
+        body: { action: "autocomplete", query: q, country: "it" },
+      });
+      if (!error && (r as { predictions?: { place_id: string; description: string }[] })?.predictions) {
+        setAcPredictions((r as { predictions: { place_id: string; description: string }[] }).predictions);
+        setAcOpen(true);
+      }
+    } catch { /* fallback: inserimento manuale */ } finally { setAcLoading(false); }
+  };
+
+  const handleIndirizzoChange = (val: string) => {
+    update("indirizzo", val);
+    if (acDebounce.current) clearTimeout(acDebounce.current);
+    acDebounce.current = setTimeout(() => void fetchAcPredictions(val), 300);
+  };
+
+  const selectAcPrediction = async (p: { place_id: string; description: string }) => {
+    setAcOpen(false);
+    setAcLoading(true);
+    try {
+      const { data: d, error } = await supabase.functions.invoke("maps-proxy", {
+        body: { action: "place-details", place_id: p.place_id },
+      });
+      const det = d as { formatted_address?: string; city?: string; province?: string; postal_code?: string; lat?: number; lng?: number } | null;
+      if (!error && det) {
+        update("indirizzo", det.formatted_address || p.description);
+        if (det.city) update("comune", det.city);
+        if (det.province) update("provincia", det.province);
+        if (det.postal_code) update("cap", det.postal_code);
+        if (det.lat != null) update("latitudine", Math.round(det.lat * 1e6) / 1e6);
+        if (det.lng != null) update("longitudine", Math.round(det.lng * 1e6) / 1e6);
+        lastGeocodedRef.current = det.formatted_address || p.description;
+      }
+    } catch { /* fallback */ } finally { setAcLoading(false); }
+  };
+
   // Geocoding indirizzo→coordinate (edge fv-geocode). Se non configurato,
   // l'utente resta sull'inserimento manuale (fallback graceful).
   // silent=true: invocato in automatico al blur del campo indirizzo —
@@ -1737,17 +1796,38 @@ function Step2Immobile({
 
       <div className="grid lg:grid-cols-2 gap-4">
         <FvCard title="Indirizzo impianto">
-          <div className="mb-3">
+          <div className="mb-3" ref={acWrapRef}>
             <Label>Indirizzo completo *</Label>
-            <Input
-              placeholder="Via Roma 12, 20100 Milano (MI)"
-              value={data.indirizzo}
-              onChange={(e) => update("indirizzo", e.target.value)}
-              onBlur={handleIndirizzoBlur}
-              autoComplete="street-address"
-            />
+            <div className="relative">
+              <Input
+                placeholder="Inizia a digitare: Via Roma 12, Milano…"
+                value={data.indirizzo}
+                onChange={(e) => handleIndirizzoChange(e.target.value)}
+                onFocus={() => acPredictions.length > 0 && setAcOpen(true)}
+                onBlur={handleIndirizzoBlur}
+                autoComplete="off"
+              />
+              {acLoading && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+              {acOpen && acPredictions.length > 0 && (
+                <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-56 overflow-auto">
+                  {acPredictions.map((p) => (
+                    <button
+                      key={p.place_id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => void selectAcPrediction(p)}
+                    >
+                      {p.description}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Comune, provincia, CAP e coordinate si compilano da soli appena esci dal campo.
+              Scegli un suggerimento: comune, provincia, CAP e coordinate si compilano da soli.
             </p>
           </div>
           <button
@@ -1788,7 +1868,7 @@ function Step2Immobile({
           </div>
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <Label>Latitudine *</Label>
+              <Label>Latitudine <span className="font-normal text-muted-foreground">(consigliata)</span></Label>
               <Input
                 type="number"
                 step="0.000001"
@@ -1804,7 +1884,7 @@ function Step2Immobile({
               />
             </div>
             <div>
-              <Label>Longitudine *</Label>
+              <Label>Longitudine <span className="font-normal text-muted-foreground">(consigliata)</span></Label>
               <Input
                 type="number"
                 step="0.000001"
