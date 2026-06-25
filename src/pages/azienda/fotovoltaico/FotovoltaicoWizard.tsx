@@ -1499,7 +1499,15 @@ export default function FotovoltaicoWizard() {
             );
             return;
           }
-          goTo(n);
+          // Avanti di una fase via stepper → passa da goNext (valida + SALVA + crea
+          // il progetto), come il bottone "Avanti". Senza, saltando avanti con lo
+          // stepper il progetto non veniva creato (progettoId null → "Avanti" delle
+          // fasi successive falliva). Indietro / fasi già completate → goTo libero.
+          if (n === step + 1 && !completedSteps.has(n)) {
+            void goNext();
+          } else {
+            goTo(n);
+          }
         }}
       />
 
