@@ -111,8 +111,8 @@ const faqItems = [
     a: "Ti avvisiamo in anticipo — nessun blocco improvviso. Il nostro team ti contatterà per aiutarti a valutare l'upgrade al piano Professionista o Impresa AI nel momento giusto per la tua crescita.",
   },
   {
-    q: "Il prezzo include IVA?",
-    a: "No, i prezzi indicati sono IVA esclusa. L'IVA verrà applicata in fattura secondo la normativa vigente (22% per soggetti IVA italiani).",
+    q: "I prezzi includono IVA?",
+    a: "I prezzi sono sempre IVA esclusa. L'IVA viene applicata in fattura secondo la normativa vigente (22% per soggetti IVA italiani) ed è interamente deducibile come spesa aziendale.",
   },
   {
     q: "Come funziona la garanzia soddisfatti o rimborsati?",
@@ -1076,7 +1076,7 @@ export default function Prezzi() {
             "name": "I prezzi includono l'IVA?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Tutti i prezzi indicati sono IVA esclusa (22%). Le fatture vengono emesse da Domus Group S.r.l. con regolare partita IVA italiana. Per le aziende con partita IVA il costo è interamente deducibile come spesa aziendale."
+              "text": "I prezzi sono sempre IVA esclusa (22%). Le fatture vengono emesse da Domus Group S.r.l. con regolare partita IVA italiana. Per le aziende con partita IVA il costo è interamente deducibile come spesa aziendale."
             }
           },
           {

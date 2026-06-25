@@ -416,7 +416,7 @@ export default function LandingNavbar() {
 
             {/* PREZZI (single link) */}
             <Link to="/prezzi/" className={linkClass(location.pathname === "/prezzi")}>
-              Prezzi
+              Piani
             </Link>
           </div>
 
@@ -932,7 +932,7 @@ export default function LandingNavbar() {
               onClick={() => setMobileOpen(false)}
               className="block py-3 font-semibold border-b border-gray-100 text-[#111111]"
             >
-              Prezzi
+              Piani
             </Link>
 
             <div className="pt-4 space-y-2">

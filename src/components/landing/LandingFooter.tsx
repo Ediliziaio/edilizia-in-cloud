@@ -108,7 +108,7 @@ export default function LandingFooter() {
             <h4 className="text-[#111111] font-semibold mb-4 text-sm uppercase tracking-wider">Azienda</h4>
             <ul className="space-y-2 text-sm text-[#111111]/60">
               <li><Link to="/chi-siamo/" className="hover:text-[#F97415] transition-colors">Chi siamo</Link></li>
-              <li><Link to="/prezzi/" className="hover:text-[#F97415] transition-colors">Prezzi</Link></li>
+              <li><Link to="/prezzi/" className="hover:text-[#F97415] transition-colors">Piani</Link></li>
               <li><Link to="/demo/" className="hover:text-[#F97415] transition-colors">Richiedi demo</Link></li>
               <li><Link to="/diventa-partner/" className="hover:text-[#F97415] transition-colors">Diventa partner</Link></li>
               <li><a href="/sitemap.xml" className="hover:text-[#F97415] transition-colors">Sitemap</a></li>
