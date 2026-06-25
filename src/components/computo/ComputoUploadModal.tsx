@@ -385,12 +385,19 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
           </DialogTitle>
           {/* Fix 6: Indicatore step */}
           <div className="flex items-center gap-1 pt-1">
-            {[
-              { n: 1, label: "File" },
-              { n: 2, label: "Config" },
-              { n: 3, label: "AI" },
-              { n: 4, label: "Revisione" },
-            ].map(({ n, label }, idx, arr) => (
+            {(onConfirmVoci
+              ? [
+                  { n: 1, label: "File" },
+                  { n: 3, label: "AI" },
+                  { n: 4, label: "Revisione" },
+                ]
+              : [
+                  { n: 1, label: "File" },
+                  { n: 2, label: "Config" },
+                  { n: 3, label: "AI" },
+                  { n: 4, label: "Revisione" },
+                ]
+            ).map(({ n, label }, idx, arr) => (
               <div key={n} className="flex items-center gap-1">
                 <div
                   className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
@@ -468,8 +475,15 @@ export function ComputoUploadModal({ open, onOpenChange, onComplete, initialComp
             </div>
 
             <div className="flex justify-end">
-              <Button onClick={() => setStep(2)} disabled={!file}>
-                Avanti <ArrowRight className="h-4 w-4 ml-1" />
+              <Button
+                onClick={() => { if (onConfirmVoci) handleStartProcessing(); else setStep(2); }}
+                disabled={!file}
+              >
+                {onConfirmVoci ? (
+                  <><Sparkles className="h-4 w-4 mr-1" /> Avvia estrazione AI</>
+                ) : (
+                  <>Avanti <ArrowRight className="h-4 w-4 ml-1" /></>
+                )}
               </Button>
             </div>
           </div>
