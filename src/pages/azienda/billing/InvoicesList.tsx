@@ -28,6 +28,15 @@ function effectiveStatus(inv: { status: string; due_date?: string | null; paid_a
   return inv.status;
 }
 
+/** Giorni di ritardo rispetto alla scadenza (positivo = scaduta), o null se non scaduta. */
+function giorniScaduta(due?: string | null): number | null {
+  if (!due) return null;
+  const days = Math.floor((Date.now() - new Date(due).getTime()) / 86_400_000);
+  return days > 0 ? days : null;
+}
+
+const MONTH_ABBR = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
+
 /** Iniziali del cliente per l'avatar (max 2 lettere). */
 function clienteInitials(name?: string | null): string {
   return (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
@@ -85,6 +94,8 @@ export default function InvoicesList() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
+  // Striscia mesi stile Fatture in Cloud: "01".."12" | "prec" | "succ" | null (tutto l'anno).
+  const [monthFilter, setMonthFilter] = useState<string | null>(null);
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ["invoices", companyId],
@@ -194,9 +205,36 @@ export default function InvoicesList() {
     return Array.from(set).sort((a, b) => b.localeCompare(a));
   }, [invoices]);
 
+  // Anno di riferimento per la striscia mesi: l'anno selezionato, o il più recente con dati.
+  const stripYear = yearFilter !== "all" ? yearFilter : (years[0] ?? String(new Date().getFullYear()));
+
+  // Striscia mesi stile Fatture in Cloud: per ogni mese dell'anno (+ Preced./Success.)
+  // n° documenti e totale €. Le note di credito restano incluse nel conteggio doc.
+  const monthStrip = useMemo(() => {
+    const cells: Record<string, { count: number; total: number }> = {
+      prec: { count: 0, total: 0 }, succ: { count: 0, total: 0 },
+    };
+    for (let m = 1; m <= 12; m++) cells[String(m).padStart(2, "0")] = { count: 0, total: 0 };
+    for (const i of invoices) {
+      if (!i.issue_date) continue;
+      const y = i.issue_date.slice(0, 4);
+      const cell = y < stripYear ? cells.prec : y > stripYear ? cells.succ : cells[i.issue_date.slice(5, 7)];
+      if (cell) { cell.count++; cell.total += Number(i.total || 0); }
+    }
+    return cells;
+  }, [invoices, stripYear]);
+
   const filtered = useMemo(() => {
     let list = invoices;
-    if (yearFilter !== "all") list = list.filter((i) => i.issue_date?.startsWith(yearFilter));
+    // Filtro striscia mesi: prec/succ prevalgono sull'anno; il mese numerico filtra dentro stripYear.
+    if (monthFilter === "prec") {
+      list = list.filter((i) => i.issue_date && i.issue_date.slice(0, 4) < stripYear);
+    } else if (monthFilter === "succ") {
+      list = list.filter((i) => i.issue_date && i.issue_date.slice(0, 4) > stripYear);
+    } else {
+      if (yearFilter !== "all") list = list.filter((i) => i.issue_date?.startsWith(yearFilter));
+      if (monthFilter) list = list.filter((i) => i.issue_date?.startsWith(`${stripYear}-${monthFilter}`));
+    }
     if (statusFilter !== "all") list = list.filter((i) => i.status === statusFilter);
     if (search) {
       const s = search.toLowerCase();
@@ -206,7 +244,7 @@ export default function InvoicesList() {
       );
     }
     return list;
-  }, [invoices, yearFilter, statusFilter, search]);
+  }, [invoices, yearFilter, monthFilter, stripYear, statusFilter, search]);
 
   // Raggruppamento per MESE (decrescente), con totale e conteggio per mese.
   // Le fatture sono già ordinate per data desc dalla query.
@@ -334,6 +372,56 @@ export default function InvoicesList() {
             </Card>
           </div>
 
+          {/* Striscia mesi (stile Fatture in Cloud): n° doc + € per mese dell'anno, cliccabile per filtrare */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between px-0.5">
+              <span className="text-xs font-medium text-muted-foreground">Panoramica {stripYear}</span>
+              {monthFilter && (
+                <button type="button" onClick={() => setMonthFilter(null)} className="text-xs text-primary hover:underline">
+                  Mostra tutto l'anno
+                </button>
+              )}
+            </div>
+            <div className="rounded-lg border bg-card overflow-x-auto">
+              <div className="flex min-w-max divide-x">
+                {([
+                  { key: "prec", label: "Preced." },
+                  ...MONTH_ABBR.map((m, idx) => ({ key: String(idx + 1).padStart(2, "0"), label: m })),
+                  { key: "succ", label: "Success." },
+                ] as { key: string; label: string }[]).map(({ key, label }) => {
+                  const cell = monthStrip[key] || { count: 0, total: 0 };
+                  const active = monthFilter === key;
+                  const empty = cell.count === 0;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      disabled={empty}
+                      onClick={() => {
+                        if (key !== "prec" && key !== "succ") setYearFilter(stripYear);
+                        setMonthFilter((prev) => (prev === key ? null : key));
+                      }}
+                      className={
+                        "flex-1 min-w-[62px] px-2 py-2 text-center transition-colors border-b-2 " +
+                        (active
+                          ? "bg-primary/5 border-b-primary"
+                          : empty
+                            ? "border-b-transparent cursor-default"
+                            : "border-b-transparent hover:bg-muted/50")
+                      }
+                    >
+                      <div className={"text-[11px] font-medium " + (active ? "text-primary" : empty ? "text-muted-foreground/40" : "")}>{label}</div>
+                      <div className={"text-[10px] " + (empty ? "text-muted-foreground/30" : "text-muted-foreground")}>{cell.count} doc</div>
+                      <div className={"text-[11px] font-semibold tabular-nums " + (empty ? "text-muted-foreground/30" : active ? "text-primary" : "")}>
+                        {cell.total ? formatCurrency(cell.total) : "0 €"}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-3">
             <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full sm:w-auto">
@@ -404,7 +492,11 @@ export default function InvoicesList() {
                             <p className="font-medium text-sm mt-0.5 truncate">{inv.client_company_name}</p>
                             <p className="text-xs text-muted-foreground">
                               {inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}
-                              {inv.due_date ? ` · scad. ${format(new Date(inv.due_date), "dd/MM/yy", { locale: it })}` : ""}
+                              {(() => {
+                                const gg = !["paid", "cancelled"].includes(inv.status) ? giorniScaduta(inv.due_date) : null;
+                                if (gg) return <span className="font-medium text-rose-600"> · scaduta da {gg} gg</span>;
+                                return inv.due_date ? ` · scad. ${format(new Date(inv.due_date), "dd/MM/yy", { locale: it })}` : "";
+                              })()}
                             </p>
                           </div>
                           <div className="text-right shrink-0 text-sm">
@@ -454,7 +546,14 @@ export default function InvoicesList() {
                               </div>
                             </td>
                             <td className="p-3 text-muted-foreground">{inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}</td>
-                            <td className="p-3 text-muted-foreground">{inv.due_date ? format(new Date(inv.due_date), "dd/MM/yy", { locale: it }) : "—"}</td>
+                            <td className="p-3">
+                              {(() => {
+                                const gg = !["paid", "cancelled"].includes(inv.status) ? giorniScaduta(inv.due_date) : null;
+                                return gg
+                                  ? <span className="text-xs font-medium text-rose-600">Scaduta da {gg} {gg === 1 ? "giorno" : "giorni"}</span>
+                                  : <span className="text-muted-foreground">{inv.due_date ? format(new Date(inv.due_date), "dd/MM/yy", { locale: it }) : "—"}</span>;
+                              })()}
+                            </td>
                             <td className="p-3 text-right"><ImportoInfo inv={inv} /></td>
                             <td className="p-3">
                               <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
