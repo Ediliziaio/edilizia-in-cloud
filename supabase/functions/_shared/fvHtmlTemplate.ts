@@ -85,6 +85,13 @@ export interface FvPdfTemplateData {
       segment_index?: number;
     }> | null;
   };
+  /** Immagini satellitari reali come data:image/png;base64 — opzionale.
+   *  Se presenti sostituiscono gli SVG mock nella pagina "Anteprima impianto". */
+  map_images?: {
+    close?: string;   // zoom 20 — vista zenitale
+    medium?: string;  // zoom 18 — vista fronte
+    wide?: string;    // zoom 16 — panoramica quartiere
+  } | null;
   costi: {
     prezzo_vendita_iva_inclusa: number;
     iva_perc: number;
@@ -961,10 +968,17 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
       <h1 class="page-title">La tua casa,<br/>con i pannelli.</h1>
       <p class="page-subtitle">Vista dall'alto del tuo tetto in ${escHtml(d.cliente.indirizzo)}. Ecco esattamente come saranno disposti i ${np} pannelli.</p>
       <div class="sat-grid">
-        <div class="sat-view">${svgVistaSatellitareMock("nord", np)}<div class="sat-label">📍 Vista nord</div><div class="sat-zoom">zoom 19</div></div>
-        <div class="sat-view">${d.progetto.layout_pannelli && d.progetto.layout_pannelli.length ? svgVistaLayoutReale(d.progetto.layout_pannelli) : svgVistaSatellitareMock("zenitale", np)}<div class="sat-label">📍 Vista zenitale tetto</div><div class="sat-zoom">zoom 21</div></div>
-        <div class="sat-view">${svgVistaSatellitareMock("3d", np)}<div class="sat-label">📍 Vista 3D sud-ovest</div><div class="sat-zoom">3D · 60°</div></div>
-        <div class="sat-view">${svgVistaSatellitareMock("panoramica", np)}<div class="sat-label">📍 Panoramica quartiere</div><div class="sat-zoom">zoom 18</div></div>
+        ${(() => {
+          const mi = d.map_images;
+          const s = 'style="width:100%;height:100%;object-fit:cover;display:block;"';
+          const lp = d.progetto.layout_pannelli;
+          return `
+        <div class="sat-view">${mi?.medium ? `<img src="${mi.medium}" ${s} alt="Vista nord">` : svgVistaSatellitareMock("nord", np)}<div class="sat-label">📍 Vista nord</div><div class="sat-zoom">zoom 19</div></div>
+        <div class="sat-view">${mi?.close ? `<img src="${mi.close}" ${s} alt="Vista zenitale">` : (lp && lp.length ? svgVistaLayoutReale(lp) : svgVistaSatellitareMock("zenitale", np))}<div class="sat-label">📍 Vista zenitale tetto</div><div class="sat-zoom">zoom 20</div></div>
+        <div class="sat-view">${mi?.medium ? `<img src="${mi.medium}" ${s} alt="Vista fronte">` : svgVistaSatellitareMock("3d", np)}<div class="sat-label">📍 Vista fronte sud</div><div class="sat-zoom">zoom 19</div></div>
+        <div class="sat-view">${mi?.wide ? `<img src="${mi.wide}" ${s} alt="Panoramica quartiere">` : svgVistaSatellitareMock("panoramica", np)}<div class="sat-label">📍 Panoramica quartiere</div><div class="sat-zoom">zoom 17</div></div>
+          `;
+        })()}
       </div>
       <div class="callout callout-tip">
         <span class="callout-icon">★</span>

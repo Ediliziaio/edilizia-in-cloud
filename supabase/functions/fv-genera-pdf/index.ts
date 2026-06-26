@@ -207,6 +207,32 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // ── Immagini satellitari (Google Static Maps) per pagina anteprima ──────
+    let mapImages: { close?: string; medium?: string; wide?: string } | null = null;
+    const satLat = Number(prog.latitudine), satLng = Number(prog.longitudine);
+    const googleMapsKey = Deno.env.get("GOOGLE_MAPS_API_KEY") ?? "";
+    if (satLat && satLng && googleMapsKey) {
+      const fetchSatImg = async (zoom: number): Promise<string | undefined> => {
+        try {
+          const url =
+            `https://maps.googleapis.com/maps/api/staticmap?center=${satLat},${satLng}&zoom=${zoom}&size=640x480&scale=2&maptype=satellite&key=${googleMapsKey}`;
+          const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+          if (!r.ok) return undefined;
+          const buf = new Uint8Array(await r.arrayBuffer());
+          // Deno: btoa via TextDecoder non funziona per binario — usiamo loop
+          let b64 = "";
+          for (let i = 0; i < buf.length; i++) b64 += String.fromCharCode(buf[i]);
+          return `data:image/png;base64,${btoa(b64)}`;
+        } catch { return undefined; }
+      };
+      const [close, medium, wide] = await Promise.all([
+        fetchSatImg(20),
+        fetchSatImg(18),
+        fetchSatImg(16),
+      ]);
+      if (close || medium || wide) mapImages = { close, medium, wide };
+    }
+
     // ── Calcoli aggregati ──────────────────────────────────────────────────
     const flows = calcolaEnergyFlows({
       potenza_kwp: Number(prog.potenza_kwp) || 0,
@@ -368,6 +394,7 @@ Deno.serve(async (req: Request) => {
         azimut: p.azimut ?? null,
         inclinazione_tetto: p.inclinazione_tetto ?? null,
       },
+      map_images: mapImages,
       costi: {
         prezzo_vendita_iva_inclusa: Number(prog.prezzo_vendita_iva_inclusa) || 0,
         iva_perc: 10,
