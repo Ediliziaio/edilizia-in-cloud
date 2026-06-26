@@ -78,25 +78,45 @@ export function svgProducibilitaMensile(values: number[]): string {
 
 // ─── 2. SANKEY "DOVE VA L'ENERGIA CHE PRODUCI" ─────────────────────────────
 
+// Defs condivise per i Sankey: lucentezza "tubo" (overlay verticale) + ombra box.
+// `ns` namespacizza gli id così i due diagrammi sulla stessa pagina non collidono.
+function sankeyDefs(ns: string): string {
+  return `<linearGradient id="${ns}Gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.34"/>
+      <stop offset="42%" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="58%" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.18"/>
+    </linearGradient>
+    <filter id="${ns}Shadow" x="-12%" y="-12%" width="124%" height="135%">
+      <feDropShadow dx="0" dy="2.5" stdDeviation="3.5" flood-color="#1E3A5F" flood-opacity="0.20"/>
+    </filter>
+    <filter id="${ns}PillShadow" x="-20%" y="-40%" width="140%" height="180%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#1E3A5F" flood-opacity="0.16"/>
+    </filter>`;
+}
+
 // Helper: ribbon Sankey fluido tra due segmenti verticali (sorgente → destinazione).
 // I bordi top/bottom sono curve bezier parallele → nastro morbido. Le estremità
 // vengono "infilate" SOTTO i box (overlap `ov`): i box opachi disegnati dopo
 // coprono l'innesto → il nastro sembra nascere dal bordo del box, senza fessure.
+// Sopra al colore pieno si sovrappone una lucentezza verticale (`${ns}Gloss`)
+// che dà al nastro l'aspetto di un tubo cilindrico solido, non di una sagoma piatta.
 function sankeyRibbon(
   xL: number, ytL: number, ybL: number,
   xR: number, ytR: number, ybR: number,
-  fill: string, ov = 16,
+  fill: string, ns: string, ov = 16,
 ): string {
   const cx = (xL + xR) / 2;
   const f = (n: number) => n.toFixed(1);
   const xL2 = xL - ov, xR2 = xR + ov;
-  return `<path d="M ${f(xL2)},${f(ytL)} C ${f(cx)},${f(ytL)} ${f(cx)},${f(ytR)} ${f(xR2)},${f(ytR)} L ${f(xR2)},${f(ybR)} C ${f(cx)},${f(ybR)} ${f(cx)},${f(ybL)} ${f(xL2)},${f(ybL)} Z" fill="${fill}"/>`;
+  const d = `M ${f(xL2)},${f(ytL)} C ${f(cx)},${f(ytL)} ${f(cx)},${f(ytR)} ${f(xR2)},${f(ytR)} L ${f(xR2)},${f(ybR)} C ${f(cx)},${f(ybR)} ${f(cx)},${f(ybL)} ${f(xL2)},${f(ybL)} Z`;
+  return `<path d="${d}" fill="${fill}"/><path d="${d}" fill="url(#${ns}Gloss)"/>`;
 }
 
-// Helper: pill etichetta % centrata sul nastro (pastiglia bianca per leggibilità).
-function sankeyPill(x: number, y: number, text: string, color: string, w = 118): string {
-  return `<g>
-    <rect x="${(x - w / 2).toFixed(1)}" y="${(y - 11).toFixed(1)}" width="${w}" height="21" rx="10.5" fill="white" stroke="${C.border}" stroke-width="1"/>
+// Helper: pill etichetta % centrata sul nastro (pastiglia bianca con ombra morbida).
+function sankeyPill(x: number, y: number, text: string, color: string, ns: string, w = 120): string {
+  return `<g filter="url(#${ns}PillShadow)">
+    <rect x="${(x - w / 2).toFixed(1)}" y="${(y - 11).toFixed(1)}" width="${w}" height="22" rx="11" fill="white"/>
     <text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="${color}" font-family="'Outfit',sans-serif">${text}</text>
   </g>`;
 }
@@ -105,16 +125,17 @@ const clampN = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, 
 
 // Box Sankey con testo top-anchored: regge anche le altezze minime senza
 // sovrapposizioni (header in alto, numero, sottotitolo a offset fissi dal top).
+// Ombra morbida (`${ns}Shadow`) per staccare il box dai nastri e dare profondità.
 function sankeyBox(
   x: number, y: number, w: number, h: number,
   grad: string, header: string, value: string, sub: string,
-  color: string, hero = false,
+  color: string, ns: string, hero = false,
 ): string {
   const numSize = hero ? 26 : 19;
   const numY = hero ? y + 66 : y + 50;
   const subY = hero ? y + 86 : y + 66;
   const f = (n: number) => n.toFixed(1);
-  return `<rect x="${x}" y="${f(y)}" width="${w}" height="${f(h)}" rx="12" fill="url(#${grad})"/>
+  return `<rect x="${x}" y="${f(y)}" width="${w}" height="${f(h)}" rx="12" fill="url(#${grad})" filter="url(#${ns}Shadow)"/>
     <text x="${x + 16}" y="${f(y + 25)}" font-size="10.5" font-weight="800" fill="${color}" letter-spacing="0.5">${header}</text>
     <text x="${x + 16}" y="${f(numY)}" font-size="${numSize}" font-weight="800" fill="${color}" font-family="'Outfit',sans-serif">${value}</text>
     <text x="${x + 16}" y="${f(subY)}" font-size="9.5" font-weight="600" fill="${color}" opacity="0.92">${sub}</text>`;
@@ -172,19 +193,20 @@ export function svgSankeyDoveVa(flows: FvFlows): string {
       <linearGradient id="dvGrid" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="${C.navyLight}"/><stop offset="100%" stop-color="${C.navy}"/>
       </linearGradient>
+      ${sankeyDefs("dv")}
     </defs>
 
     <!-- Nastri (disegnati sotto i box) -->
-    ${sankeyRibbon(SX, srcY, aEdgeBot, dX, casaY, casaY + hCasa, "url(#dvAuto)")}
-    ${sankeyRibbon(SX, aEdgeBot, srcY + srcH, dX, reteY, reteY + hRete, "url(#dvRete)")}
+    ${sankeyRibbon(SX, srcY, aEdgeBot, dX, casaY, casaY + hCasa, "url(#dvAuto)", "dv")}
+    ${sankeyRibbon(SX, aEdgeBot, srcY + srcH, dX, reteY, reteY + hRete, "url(#dvRete)", "dv")}
 
     <!-- Etichette % centrate sui nastri -->
-    ${sankeyPill((SX + dX) / 2, autoLabelY, `${autoPct}% in casa`, C.greenDark)}
-    ${sankeyPill((SX + dX) / 2, reteLabelY, `${retePct}% in rete`, C.navy)}
+    ${sankeyPill((SX + dX) / 2, autoLabelY, `${autoPct}% in casa`, C.greenDark, "dv")}
+    ${sankeyPill((SX + dX) / 2, reteLabelY, `${retePct}% in rete`, C.navy, "dv")}
 
-    ${sankeyBox(srcX, srcY, srcW, srcH, "dvPv", "★ FOTOVOLTAICO", `${flows.produzione_kwh.toLocaleString("it-IT")}`, "kWh prodotti / anno", C.orangeDark, true)}
-    ${sankeyBox(dX, casaY, dW, hCasa, "dvCasa", "⌂ CASA &amp; BATTERIA", `${auto.toLocaleString("it-IT")} kWh`, "autoconsumo diretto", "white")}
-    ${sankeyBox(dX, reteY, dW, hRete, "dvGrid", "⚡ RETE PUBBLICA", `${rete.toLocaleString("it-IT")} kWh`, "energia immessa", "white")}
+    ${sankeyBox(srcX, srcY, srcW, srcH, "dvPv", "★ FOTOVOLTAICO", `${flows.produzione_kwh.toLocaleString("it-IT")}`, "kWh prodotti / anno", C.orangeDark, "dv", true)}
+    ${sankeyBox(dX, casaY, dW, hCasa, "dvCasa", "⌂ CASA &amp; BATTERIA", `${auto.toLocaleString("it-IT")} kWh`, "autoconsumo diretto", "white", "dv")}
+    ${sankeyBox(dX, reteY, dW, hRete, "dvGrid", "⚡ RETE PUBBLICA", `${rete.toLocaleString("it-IT")} kWh`, "energia immessa", "white", "dv")}
   </svg>`;
 }
 
@@ -237,19 +259,20 @@ export function svgSankeyDaDoveViene(flows: FvFlows, consumo_annuo_kwh: number):
       <linearGradient id="ddGrid" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="${C.navyLight}"/><stop offset="100%" stop-color="${C.navy}"/>
       </linearGradient>
+      ${sankeyDefs("dd")}
     </defs>
 
     <!-- Nastri -->
-    ${sankeyRibbon(SX, fvY, fvY + hFv, DX, casaY, fvEntryBot, "url(#ddFv)")}
-    ${sankeyRibbon(SX, reteY, reteY + hRete, DX, fvEntryBot, casaY + casaH, "url(#ddRete)")}
+    ${sankeyRibbon(SX, fvY, fvY + hFv, DX, casaY, fvEntryBot, "url(#ddFv)", "dd")}
+    ${sankeyRibbon(SX, reteY, reteY + hRete, DX, fvEntryBot, casaY + casaH, "url(#ddRete)", "dd")}
 
     <!-- Etichette % -->
-    ${sankeyPill((SX + DX) / 2, fvLabelY, `${fvPct}% dal sole`, C.greenDark)}
-    ${sankeyPill((SX + DX) / 2, reteLabelY, `${retePct}% dalla rete`, C.navy)}
+    ${sankeyPill((SX + DX) / 2, fvLabelY, `${fvPct}% dal sole`, C.greenDark, "dd")}
+    ${sankeyPill((SX + DX) / 2, reteLabelY, `${retePct}% dalla rete`, C.navy, "dd")}
 
-    ${sankeyBox(srcX, fvY, srcW, hFv, "ddPv", "★ FOTOVOLTAICO", `${dalSole.toLocaleString("it-IT")} kWh`, "il tuo · gratis", C.orangeDark)}
-    ${sankeyBox(srcX, reteY, srcW, hRete, "ddGrid", "⚡ RETE PUBBLICA", `${dallaRete.toLocaleString("it-IT")} kWh`, "prelievo residuo", "white")}
-    ${sankeyBox(casaX, casaY, casaW, casaH, "ddCasa", "⌂ CASA", `${consumo_annuo_kwh.toLocaleString("it-IT")}`, "kWh consumati / anno", "white", true)}
+    ${sankeyBox(srcX, fvY, srcW, hFv, "ddPv", "★ FOTOVOLTAICO", `${dalSole.toLocaleString("it-IT")} kWh`, "il tuo · gratis", C.orangeDark, "dd")}
+    ${sankeyBox(srcX, reteY, srcW, hRete, "ddGrid", "⚡ RETE PUBBLICA", `${dallaRete.toLocaleString("it-IT")} kWh`, "prelievo residuo", "white", "dd")}
+    ${sankeyBox(casaX, casaY, casaW, casaH, "ddCasa", "⌂ CASA", `${consumo_annuo_kwh.toLocaleString("it-IT")}`, "kWh consumati / anno", "white", "dd", true)}
   </svg>`;
 }
 
