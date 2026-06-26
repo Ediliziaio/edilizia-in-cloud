@@ -2809,7 +2809,12 @@ function Step5Configurazione({
                     update("kit_bundle_id", k.id);
                     update("kit_nome", k.nome);
                     update("kit_prezzo", k.prezzo_offerta ?? null);
-                    if (k.fv_kwp != null) update("potenza_kwp", Number(k.fv_kwp));
+                    if (k.fv_kwp != null) {
+                      update("potenza_kwp", Number(k.fv_kwp));
+                      // Deriva il n° moduli dal kWp del kit (pannello rif. 540 W) così
+                      // l'array/layout e i KPI sono coerenti con il kit scelto.
+                      update("numero_pannelli_scelti", Math.max(1, Math.round((Number(k.fv_kwp) * 1000) / 540)));
+                    }
                     const acc = Number(k.fv_accumulo_kwh ?? 0);
                     update("con_accumulo", acc > 0);
                     update("capacita_accumulo_kwh", acc);
@@ -2915,7 +2920,14 @@ function Step5Configurazione({
       <div className="grid lg:grid-cols-2 gap-4">
         <FvCard title="Dimensionamento">
           <div className="space-y-4">
-            <div>
+            {data.kit_bundle_id && (
+              <FvCallout variant="info" title="Definito dal kit">
+                Potenza, accumulo e numero moduli arrivano dal kit{" "}
+                <strong>{data.kit_nome}</strong>. Rimuovi il kit (riquadro in alto) per
+                configurare manualmente.
+              </FvCallout>
+            )}
+            <div className={data.kit_bundle_id ? "opacity-60 pointer-events-none" : ""}>
               <div className="flex items-center justify-between mb-2">
                 <Label>Numero pannelli</Label>
                 <span className="text-orange-600 font-bold text-lg tabular-nums">
@@ -2928,6 +2940,7 @@ function Step5Configurazione({
                 max={data.numero_pannelli_max ?? 60}
                 value={data.numero_pannelli_scelti}
                 onChange={(e) => update("numero_pannelli_scelti", Number(e.target.value))}
+                disabled={!!data.kit_bundle_id || readOnlyMode}
                 className="w-full accent-orange-500"
               />
               <p className="text-[11px] text-slate-500 mt-1">
@@ -2962,6 +2975,7 @@ function Step5Configurazione({
                     update("capacita_accumulo_kwh", v);
                   }
                 }}
+                disabled={!!data.kit_bundle_id || readOnlyMode}
                 className="w-full accent-orange-500"
               />
             </div>
@@ -2983,6 +2997,7 @@ function Step5Configurazione({
               <Select
                 value={data.pannello_id ?? ""}
                 onValueChange={(v) => update("pannello_id", v || null)}
+                disabled={!!data.kit_bundle_id || readOnlyMode}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleziona pannello…" />
@@ -3010,6 +3025,7 @@ function Step5Configurazione({
               <Select
                 value={data.inverter_id ?? ""}
                 onValueChange={(v) => update("inverter_id", v || null)}
+                disabled={!!data.kit_bundle_id || readOnlyMode}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleziona inverter…" />
