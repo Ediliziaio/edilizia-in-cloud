@@ -134,30 +134,34 @@ export default function FotovoltaicoDettaglio() {
         .from("fv-progetti")
         .createSignedUrl(path, 300);
       if (error) throw error;
-      // Fix #2: usa URL API per costruire query string in modo safe
-      // (gestisce automaticamente fragment #, query esistenti, encoding)
       const isHtml = path.toLowerCase().endsWith(".html");
-      let finalUrl = data.signedUrl;
-      if (isHtml && options?.autoPrint) {
-        try {
-          const u = new URL(data.signedUrl);
-          u.searchParams.set("print", "1");
-          finalUrl = u.toString();
-        } catch {
-          // Fallback se URL non parsabile (improbabile)
-          finalUrl = `${data.signedUrl}${data.signedUrl.includes("?") ? "&" : "?"}print=1`;
+      if (isHtml) {
+        // Supabase Storage serve .html con Content-Type: text/plain → raw source nel browser.
+        // Fix: scarica il contenuto, crea un Blob con type text/html e apri via objectURL.
+        const res = await fetch(data.signedUrl);
+        if (!res.ok) throw new Error("Errore download preventivo");
+        let htmlContent = await res.text();
+        if (options?.autoPrint) {
+          htmlContent = htmlContent.replace("</body>", "<script>window.onload=function(){window.print()}<\/script></body>");
         }
-      }
-      const a = document.createElement("a");
-      a.href = finalUrl;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.click();
-      if (isHtml && !options?.autoPrint) {
-        toast.success(
-          "Preventivo aperto in nuova scheda. Usa Ctrl+P (Cmd+P su Mac) → 'Salva come PDF'.",
-          { duration: 6000 },
-        );
+        const blob = new Blob([htmlContent], { type: "text/html" });
+        const blobUrl = URL.createObjectURL(blob);
+        const win = window.open(blobUrl, "_blank", "noopener,noreferrer");
+        // Revoca il blob URL dopo l'apertura (il browser ha già caricato il contenuto)
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        if (!win) toast.error("Popup bloccato — abilita i popup per questo sito.");
+        else if (!options?.autoPrint) {
+          toast.success(
+            "Preventivo aperto in nuova scheda. Usa Ctrl+P (Cmd+P su Mac) → 'Salva come PDF'.",
+            { duration: 6000 },
+          );
+        }
+      } else {
+        const a = document.createElement("a");
+        a.href = data.signedUrl;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.click();
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
