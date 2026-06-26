@@ -38,6 +38,8 @@ import {
   RefreshCw,
   X,
   Copy,
+  Home,
+  Building2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { FvContactPicker } from "@/components/fotovoltaico/FvContactPicker";
@@ -2002,19 +2004,56 @@ function Step2Immobile({
               placeholder="es. 1.350.000 per Milano"
             />
           </div>
-          <label className="flex items-center gap-2 mt-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={data.prima_casa}
-              onChange={(e) => update("prima_casa", e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
-            />
-            <span>Prima casa (abitazione principale)</span>
-          </label>
-          <FvCallout variant="tip" title="Aliquota IVA 10% applicata">
-            Per immobili residenziali (anche seconda casa) si applica l'IVA al 10%. Per attività
-            commerciali/industriali → IVA 22%.
-          </FvCallout>
+          {data.tipologia_immobile === "residenziale" ? (
+            <>
+              <div className="mt-3">
+                <Label className="mb-2 block font-medium">Tipo di abitazione</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => update("prima_casa", true)}
+                    className={`flex flex-col items-center gap-1.5 rounded-xl border-2 p-3 text-sm transition-colors ${
+                      data.prima_casa
+                        ? "border-orange-500 bg-orange-50"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <Home className={`h-5 w-5 ${data.prima_casa ? "text-orange-500" : "text-slate-400"}`} />
+                    <span className={`font-semibold ${data.prima_casa ? "text-orange-700" : "text-slate-600"}`}>
+                      Prima casa
+                    </span>
+                    <span className="text-xs font-bold text-emerald-600">Detrazione 50%</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => update("prima_casa", false)}
+                    className={`flex flex-col items-center gap-1.5 rounded-xl border-2 p-3 text-sm transition-colors ${
+                      !data.prima_casa
+                        ? "border-orange-500 bg-orange-50"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <Building2 className={`h-5 w-5 ${!data.prima_casa ? "text-orange-500" : "text-slate-400"}`} />
+                    <span className={`font-semibold ${!data.prima_casa ? "text-orange-700" : "text-slate-600"}`}>
+                      Seconda casa
+                    </span>
+                    <span className="text-xs font-bold text-amber-600">Detrazione 36%</span>
+                  </button>
+                </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Detrazione IRPEF spalmata in 10 anni · plafond €96.000 · prima casa max €48.000 recuperati · seconda casa max €34.560
+                </p>
+              </div>
+              <FvCallout variant="tip" title="Aliquota IVA 10% applicata">
+                Per immobili residenziali si applica l'IVA al 10%.
+              </FvCallout>
+            </>
+          ) : (
+            <FvCallout variant="tip" title="IVA 22% — detrazione abitativa non applicabile">
+              Per capannoni, uffici e immobili non residenziali si applica l'IVA al 22%. La
+              detrazione IRPEF 50%/36% è riservata agli immobili residenziali.
+            </FvCallout>
+          )}
         </FvCard>
       </div>
     </>
