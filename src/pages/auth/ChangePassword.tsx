@@ -89,11 +89,18 @@ export default function ChangePassword() {
         return;
       }
 
-      // Update must_change_password flag
-      await supabase
-        .from("staff_permissions")
-        .update({ must_change_password: false })
-        .eq("user_id", user.id);
+      // Clear must_change_password via SECURITY DEFINER RPC (bypasses RLS edge cases)
+      const { error: flagError } = await supabase.rpc(
+        "staff_update_own_password_flag",
+        { _must_change: false }
+      );
+
+      if (flagError) {
+        logger.error("Error clearing must_change_password flag:", flagError);
+        toast.error("Errore durante il salvataggio. Riprova.");
+        setIsLoading(false);
+        return;
+      }
 
       toast.success("Password cambiata con successo!");
       navigate("/azienda");
