@@ -2168,6 +2168,7 @@ function RoofSatelliteView({
   azimut,
   tilt,
   fonte,
+  title,
 }: {
   lat: number;
   lng: number;
@@ -2176,6 +2177,7 @@ function RoofSatelliteView({
   azimut?: string | null;
   tilt?: number | null;
   fonte?: string | null;
+  title?: string;
 }) {
   const [img, setImg] = useState<string | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
@@ -2215,7 +2217,7 @@ function RoofSatelliteView({
     fonte === "solar_api" ? "Google Solar API" : fonte === "pvgis" ? "PVGIS" : "Satellite";
 
   return (
-    <FvCard title="Vista satellitare del tetto" className="mt-4">
+    <FvCard title={title ?? "Vista satellitare del tetto"} className="mt-4">
       <div
         className="relative w-full overflow-hidden rounded-xl bg-slate-900/5 ring-1 ring-slate-200"
         style={{ aspectRatio: "700 / 430" }}
@@ -2765,6 +2767,23 @@ function Step5Configurazione({
           variant="green"
         />
       </div>
+
+      {/* Vista satellitare con layout LIVE: trascinando lo slider "Numero pannelli"
+          l'overlay dei moduli e i kWp si aggiornano in tempo reale (stile Reonic). */}
+      {data.latitudine != null && data.longitudine != null && (
+        <div className="mb-4">
+          <RoofSatelliteView
+            lat={data.latitudine}
+            lng={data.longitudine}
+            numeroPannelli={data.numero_pannelli_scelti}
+            kwp={data.potenza_kwp}
+            azimut={data.azimut_tetto}
+            tilt={data.inclinazione_tetto}
+            fonte={data.fonte_dati_tetto}
+            title="Layout impianto sul tetto"
+          />
+        </div>
+      )}
 
       {/* Progettazione elettrica: dimensionamento stringhe/MPPT (gap vs Reonic/Autarc) */}
       <FvDimensionamentoStringhe
