@@ -94,8 +94,12 @@ Deno.serve(async (req) => {
         if (dataUrl) provider = "google";
       }
       if (!dataUrl && HERE_API_KEY) {
+        // Request 2× pixel dimensions so the browser can downscale to display size,
+        // compensating for HERE's lower tile resolution vs Google in rural areas.
+        // Cap at 1280px to stay within HERE's max allowed dimension.
+        const hw = Math.min(w * 2, 1280), hh = Math.min(h * 2, 1280);
         dataUrl = await toDataUrl(
-          `https://image.maps.hereapi.com/mia/v3/base/mc/center:${lat},${lng};zoom=${Math.min(zoom, 20)}/${w}x${h}/png?style=satellite.day&apiKey=${HERE_API_KEY}`,
+          `https://image.maps.hereapi.com/mia/v3/base/mc/center:${lat},${lng};zoom=${Math.min(zoom, 20)}/${hw}x${hh}/png?style=satellite.day&apiKey=${HERE_API_KEY}`,
         );
         if (dataUrl) provider = "here";
       }
