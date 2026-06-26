@@ -466,7 +466,7 @@ Deno.serve(async (req: Request) => {
     const path = `${prog.company_id}/${prog.id}/${Date.now()}-${filename}`;
     const { error: errUp } = await supabaseAdmin.storage
       .from("fv-progetti")
-      .upload(path, htmlBytes, { contentType: "text/html; charset=utf-8", upsert: false });
+      .upload(path, htmlBytes, { contentType: "text/html", upsert: true });
     if (errUp) throw new Error(`Upload HTML fallito: ${errUp.message}`);
 
     // ── Aggiorna progetto + log ────────────────────────────────────────────
