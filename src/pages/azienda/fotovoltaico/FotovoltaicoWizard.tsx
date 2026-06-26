@@ -13,7 +13,7 @@
  * Step 8 — Generazione PDF + emissione
  */
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useBundlesList, type Bundle } from "@/hooks/useBundles";
 import { Input } from "@/components/ui/input";
@@ -369,6 +369,9 @@ export default function FotovoltaicoWizard() {
       kit_bundle_id: (progettoEsistente as { kit_bundle_id?: string | null }).kit_bundle_id ?? null,
       kit_nome: (progettoEsistente as { kit_nome?: string | null }).kit_nome ?? null,
       kit_prezzo: (progettoEsistente as { kit_prezzo?: number | null }).kit_prezzo ?? null,
+      layout_overlay:
+        (progettoEsistente as { layout_overlay?: { x: number; y: number; rot: number; cols: number } | null })
+          .layout_overlay ?? null,
     }));
     // Marca tutti gli step "passati" del progetto come completati.
     // Un progetto già emesso ha tutti gli 8 step completati.
@@ -818,6 +821,7 @@ export default function FotovoltaicoWizard() {
           kit_bundle_id: data.kit_bundle_id,
           kit_nome: data.kit_nome,
           kit_prezzo: data.kit_prezzo,
+          layout_overlay: data.layout_overlay,
         } as never,
       });
 
@@ -2169,6 +2173,9 @@ function RoofSatelliteView({
   tilt,
   fonte,
   title,
+  layout,
+  onLayoutChange,
+  editable,
 }: {
   lat: number;
   lng: number;
@@ -2178,6 +2185,9 @@ function RoofSatelliteView({
   tilt?: number | null;
   fonte?: string | null;
   title?: string;
+  layout?: { x: number; y: number; rot: number; cols: number } | null;
+  onLayoutChange?: (l: { x: number; y: number; rot: number; cols: number }) => void;
+  editable?: boolean;
 }) {
   const [img, setImg] = useState<string | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
@@ -2211,14 +2221,61 @@ function RoofSatelliteView({
   if (state === "error") return null; // niente immagine → nessuna card (graceful)
 
   const nReali = Math.max(numeroPannelli ?? 0, 0);
-  const nShow = Math.min(nReali, 30); // cap visivo per leggibilità
-  const cols = Math.min(nShow, 6) || 1;
   const fonteLabel =
     fonte === "solar_api" ? "Google Solar API" : fonte === "pvgis" ? "PVGIS" : "Satellite";
+  const isEdit = !!(editable && onLayoutChange);
+  const L = layout ?? { x: 0, y: 0, rot: 0, cols: 6 };
+  const cols = Math.min(Math.max(L.cols || 6, 2), 12);
+  const nShow = Math.min(nReali, isEdit ? 80 : 30); // editor: conteggio reale
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!isEdit) return;
+    e.preventDefault();
+    const c = containerRef.current;
+    if (!c) return;
+    const rect = c.getBoundingClientRect();
+    const start = { sx: e.clientX, sy: e.clientY, ox: L.x, oy: L.y };
+    const clamp = (v: number) => Math.min(Math.max(v, -45), 45);
+    const move = (ev: globalThis.PointerEvent) => {
+      const dx = ((ev.clientX - start.sx) / rect.width) * 100;
+      const dy = ((ev.clientY - start.sy) / rect.height) * 100;
+      onLayoutChange!({ ...L, x: clamp(start.ox + dx), y: clamp(start.oy + dy) });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  const panelGrid =
+    nShow > 0 ? (
+      <div
+        className="grid gap-1 p-2 rounded-lg"
+        style={{
+          gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))`,
+          background: "rgba(15,23,42,0.16)",
+        }}
+      >
+        {Array.from({ length: nShow }).map((_, i) => (
+          <div
+            key={i}
+            className="w-6 h-4 rounded-[2px] border border-sky-200/70 shadow-sm"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(37,99,235,0.72), rgba(30,58,138,0.78))",
+            }}
+          />
+        ))}
+      </div>
+    ) : null;
 
   return (
     <FvCard title={title ?? "Vista satellitare del tetto"} className="mt-4">
       <div
+        ref={containerRef}
         className="relative w-full overflow-hidden rounded-xl bg-slate-900/5 ring-1 ring-slate-200"
         style={{ aspectRatio: "700 / 430" }}
       >
@@ -2232,36 +2289,34 @@ function RoofSatelliteView({
             src={img}
             alt="Vista satellitare del tetto"
             className="absolute inset-0 w-full h-full object-cover"
+            draggable={false}
           />
         )}
-        {/* Velo gradiente in basso per leggibilità del titolo */}
         {img && (
           <div
             className="absolute inset-x-0 bottom-0 h-2/5 pointer-events-none"
             style={{ background: "linear-gradient(to top, rgba(2,6,23,0.55), transparent)" }}
           />
         )}
-        {/* Array pannelli indicativo (righe ordinate, moduli landscape) */}
-        {img && nShow > 0 && (
+        {/* Array pannelli: in editor posizionabile/ruotabile, altrimenti centrato indicativo */}
+        {img && panelGrid && isEdit && (
+          <div
+            className="absolute select-none"
+            style={{
+              left: `${50 + L.x}%`,
+              top: `${50 + L.y}%`,
+              transform: `translate(-50%, -50%) rotate(${L.rot}deg)`,
+              cursor: "move",
+              touchAction: "none",
+            }}
+            onPointerDown={onPointerDown}
+          >
+            {panelGrid}
+          </div>
+        )}
+        {img && panelGrid && !isEdit && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div
-              className="grid gap-1 p-2.5 rounded-lg"
-              style={{
-                gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))`,
-                background: "rgba(15,23,42,0.16)",
-              }}
-            >
-              {Array.from({ length: nShow }).map((_, i) => (
-                <div
-                  key={i}
-                  className="w-7 h-4 rounded-[2px] border border-sky-200/70 shadow-sm"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgba(37,99,235,0.72), rgba(30,58,138,0.78))",
-                  }}
-                />
-              ))}
-            </div>
+            {panelGrid}
           </div>
         )}
         {/* Badge sorgente (alto sx) */}
@@ -2287,15 +2342,54 @@ function RoofSatelliteView({
         {img && (
           <div className="absolute bottom-2.5 left-3 text-white">
             <div className="text-sm font-bold leading-tight">
-              {nReali > 0 ? `Fino a ${nReali} moduli` : "Tetto analizzato"}
+              {nReali > 0 ? `${nReali} moduli` : "Tetto analizzato"}
               {kwp != null ? ` · ${kwp.toFixed(1)} kWp` : ""}
             </div>
-            <div className="text-[10px] text-white/80">disposizione indicativa</div>
+            <div className="text-[10px] text-white/80">
+              {isEdit ? "trascina per posizionare" : "disposizione indicativa"}
+            </div>
           </div>
         )}
       </div>
+
+      {/* Controlli editor (solo Fase 5 editabile) */}
+      {isEdit && img && (
+        <div className="mt-3 grid sm:grid-cols-2 gap-3">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <Label className="text-xs">Rotazione array</Label>
+              <span className="text-xs font-medium text-slate-600 tabular-nums">{L.rot}°</span>
+            </div>
+            <input
+              type="range"
+              min={-90}
+              max={90}
+              value={L.rot}
+              onChange={(e) => onLayoutChange!({ ...L, rot: Number(e.target.value) })}
+              className="w-full accent-orange-500"
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <Label className="text-xs">Colonne</Label>
+              <span className="text-xs font-medium text-slate-600 tabular-nums">{cols}</span>
+            </div>
+            <input
+              type="range"
+              min={2}
+              max={12}
+              value={cols}
+              onChange={(e) => onLayoutChange!({ ...L, cols: Number(e.target.value) })}
+              className="w-full accent-orange-500"
+            />
+          </div>
+        </div>
+      )}
+
       <p className="text-xs text-slate-400 mt-1.5">
-        Immagine satellitare a scopo illustrativo; la disposizione reale dei moduli si definisce in sopralluogo.
+        {isEdit
+          ? "Trascina l'array sul tetto e ruotalo per allinearlo alla falda. Il numero di moduli si regola dallo slider “Numero pannelli”."
+          : "Immagine satellitare a scopo illustrativo; la disposizione reale dei moduli si definisce in sopralluogo."}
       </p>
     </FvCard>
   );
@@ -2781,6 +2875,9 @@ function Step5Configurazione({
             tilt={data.inclinazione_tetto}
             fonte={data.fonte_dati_tetto}
             title="Layout impianto sul tetto"
+            layout={data.layout_overlay}
+            onLayoutChange={(l) => update("layout_overlay", l)}
+            editable={!readOnlyMode}
           />
         </div>
       )}

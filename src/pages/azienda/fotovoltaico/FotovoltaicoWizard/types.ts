@@ -81,6 +81,9 @@ export interface WizardData {
   kit_bundle_id: string | null;
   kit_nome: string | null;
   kit_prezzo: number | null;
+  /** Editor layout manuale dei moduli sulla foto satellitare (stile Reonic):
+   *  offset x/y in %, rotazione in gradi, numero colonne. null = overlay centrato. */
+  layout_overlay: { x: number; y: number; rot: number; cols: number } | null;
   /** Tariffa di manodopera scelta (FK a tariffe_aziendali). Se null usa default 30/40. */
   tariffa_installazione_id: string | null;
   // Step 6: Finanziamento
