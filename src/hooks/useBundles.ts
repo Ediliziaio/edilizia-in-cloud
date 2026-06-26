@@ -61,6 +61,7 @@ export interface Bundle {
   fv_kwp: number | null;
   fv_accumulo_kwh: number | null;
   prezzo_offerta: number | null;
+  cover_image_url: string | null;
   created_at: string;
   voci?: BundleVoce[];
 }
@@ -81,6 +82,7 @@ export interface BundleUpsertInput {
   fv_kwp?: number | null;
   fv_accumulo_kwh?: number | null;
   prezzo_offerta?: number | null;
+  cover_image_url?: string | null;
   voci: BundleVoceInput[];
 }
 
@@ -178,6 +180,7 @@ export function useUpsertBundle() {
         fv_kwp: input.fv_kwp ?? null,
         fv_accumulo_kwh: input.fv_accumulo_kwh ?? null,
         prezzo_offerta: input.prezzo_offerta ?? null,
+        cover_image_url: input.cover_image_url ?? null,
       };
 
       let bundleId = input.id;

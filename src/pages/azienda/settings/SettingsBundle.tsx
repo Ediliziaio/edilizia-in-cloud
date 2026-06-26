@@ -6,7 +6,7 @@
  * Per famiglie si può preimpostare vano_label, misure default (L×H), selezioni assi.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -73,10 +73,11 @@ interface DraftBundle {
   sconto_bundle_pct: number;
   attivo: boolean;
   tipo_lavoro: BundleTipoLavoro | null;
-  // FV (solo vertical fotovoltaico): taglia kit + prezzo offerta fisso
+  // FV (solo vertical fotovoltaico): taglia kit + prezzo offerta fisso + copertina PDF
   fv_kwp: number | null;
   fv_accumulo_kwh: number | null;
   prezzo_offerta: number | null;
+  cover_image_url: string | null;
   voci: DraftVoce[];
 }
 
@@ -96,6 +97,7 @@ function emptyDraft(): DraftBundle {
     fv_kwp: null,
     fv_accumulo_kwh: null,
     prezzo_offerta: null,
+    cover_image_url: null,
     voci: [],
   };
 }
@@ -115,6 +117,7 @@ function bundleToDraft(b: Bundle): DraftBundle {
     fv_kwp: b.fv_kwp != null ? Number(b.fv_kwp) : null,
     fv_accumulo_kwh: b.fv_accumulo_kwh != null ? Number(b.fv_accumulo_kwh) : null,
     prezzo_offerta: b.prezzo_offerta != null ? Number(b.prezzo_offerta) : null,
+    cover_image_url: b.cover_image_url ?? null,
     voci: (b.voci ?? [])
       .slice()
       .sort((a, z) => a.sort_order - z.sort_order)
@@ -221,6 +224,8 @@ export default function SettingsBundle() {
   const [deleteTarget, setDeleteTarget] = useState<Bundle | null>(null);
   const [search, setSearch] = useState("");
   const [filterAttivi, setFilterAttivi] = useState<"all" | "active" | "inactive">("all");
+  const [coverUploading, setCoverUploading] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   // ── Filtered list
   const filteredBundles = useMemo(() => {
@@ -321,6 +326,29 @@ export default function SettingsBundle() {
     });
   }, [draft, isFvVertical]);
 
+  const handleCoverUpload = async (file: File) => {
+    if (!companyId) return;
+    setCoverUploading(true);
+    try {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `bundle-covers/${companyId}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("fv-progetti")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: signedData, error: signErr } = await supabase.storage
+        .from("fv-progetti")
+        .createSignedUrl(path, 60 * 60 * 24 * 365);
+      if (signErr) throw signErr;
+      setDraft((d) => ({ ...d, cover_image_url: signedData.signedUrl }));
+      toast.success("Immagine caricata");
+    } catch (e) {
+      toast.error("Upload fallito: " + (e instanceof Error ? e.message : "errore"));
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
   const handleSave = async () => {
     try {
       const voci: BundleVoceInput[] = draft.voci.map((v, idx) => ({
@@ -345,6 +373,7 @@ export default function SettingsBundle() {
         fv_kwp: isFvVertical ? draft.fv_kwp : null,
         fv_accumulo_kwh: isFvVertical ? draft.fv_accumulo_kwh : null,
         prezzo_offerta: isFvVertical ? draft.prezzo_offerta : null,
+        cover_image_url: isFvVertical ? draft.cover_image_url : null,
         voci,
       });
       toast.success(draft.id ? "Bundle aggiornato" : "Bundle creato");
@@ -687,6 +716,64 @@ export default function SettingsBundle() {
                       placeholder="chiavi in mano"
                     />
                   </div>
+                </div>
+
+                {/* Immagine copertina kit (usata nel PDF preventivo FV) */}
+                <div className="mt-3">
+                  <Label>Immagine copertina kit (PDF)</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Verrà mostrata nel preventivo PDF nella pagina dedicata al kit scelto.
+                  </p>
+                  <input
+                    ref={coverInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleCoverUpload(f);
+                      e.target.value = "";
+                    }}
+                  />
+                  {draft.cover_image_url ? (
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={draft.cover_image_url}
+                        alt="Copertina kit"
+                        className="h-20 w-32 object-cover rounded border"
+                      />
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => coverInputRef.current?.click()}
+                          disabled={coverUploading}
+                        >
+                          {coverUploading ? "Caricamento…" : "Sostituisci"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive"
+                          onClick={() => setDraft((d) => ({ ...d, cover_image_url: null }))}
+                        >
+                          Rimuovi
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => coverInputRef.current?.click()}
+                      disabled={coverUploading}
+                    >
+                      {coverUploading ? "Caricamento…" : "Carica immagine"}
+                    </Button>
+                  )}
                 </div>
               </div>
             )}

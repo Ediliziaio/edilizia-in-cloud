@@ -93,6 +93,17 @@ export interface FvPdfTemplateData {
     overview?: string; // zoom 17 — via/strada
     wide?: string;     // zoom 15 — panoramica zona
   } | null;
+  /** Foto cantieri installati (da cantieri_galleria del template) come data:image/...;base64 */
+  cantieri_foto?: string[];
+  /** Bundle/kit scelto — popolato quando kit_bundle_id è impostato sul progetto */
+  bundle?: {
+    nome: string;
+    descrizione?: string | null;
+    fv_kwp?: number | null;
+    fv_accumulo_kwh?: number | null;
+    cover_b64?: string | null;
+    voci?: Array<{ descrizione: string; quantita: number }>;
+  } | null;
   costi: {
     prezzo_vendita_iva_inclusa: number;
     iva_perc: number;
@@ -993,6 +1004,35 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
   </div>`;
 }
 
+function pageBundleKit(d: FvPdfTemplateData, pageN: number, total: number): string {
+  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const b = d.bundle!;
+  const kwp = b.fv_kwp ? `${fmtNum(b.fv_kwp, 1)} kWp` : null;
+  const kwh = b.fv_accumulo_kwh ? `${fmtNum(b.fv_accumulo_kwh, 1)} kWh` : null;
+  const chips = [kwp, kwh].filter(Boolean).map((v) => `<span class="spec-chip">${escHtml(v!)}</span>`).join("");
+  const voceRows = (b.voci ?? [])
+    .slice(0, 8)
+    .map((v) => `<div style="display:flex;justify-content:space-between;padding:1.5mm 0;border-bottom:1px solid #F1F5F9;font-size:8.5pt;">
+      <span>${escHtml(v.descrizione)}</span>
+      <span style="color:#64748B;margin-left:4mm;">× ${v.quantita}</span>
+    </div>`)
+    .join("");
+  return `<div class="page">
+    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    <div class="content">
+      <div class="eyebrow">Pagina ${pageN} · Il tuo kit</div>
+      <h1 class="page-title">${escHtml(b.nome)}</h1>
+      ${b.descrizione ? `<p class="page-subtitle">${escHtml(b.descrizione)}</p>` : ""}
+      ${b.cover_b64 ? `<div style="width:100%;height:72mm;border-radius:10px;overflow:hidden;margin:4mm 0;">
+        <img src="${escHtml(b.cover_b64)}" alt="Kit ${escHtml(b.nome)}" style="width:100%;height:100%;object-fit:cover;"/>
+      </div>` : ""}
+      ${chips ? `<div class="product-specs" style="margin:3mm 0;">${chips}</div>` : ""}
+      ${voceRows ? `<div style="margin-top:3mm;">${voceRows}</div>` : ""}
+    </div>
+    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+  </div>`;
+}
+
 function pageComponenti(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const cards = d.componenti
@@ -1406,6 +1446,10 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
         <div class="kpi-row cols-2">
           ${recensioni.map((rec) => `<div class="kpi-block"><div class="kpi-label">${escHtml([plainText(rec.citta), plainText(rec.intervento)].filter(Boolean).join(" · ") || "Recensione")}</div><div class="kpi-sub" style="font-size:8pt;color:#475569;">"${escHtml(plainText(rec.quote))}"</div><div class="kpi-value" style="font-size:11pt;margin-top:2mm;">${escHtml(plainText(rec.autore))}</div></div>`).join("")}
         </div>` : ""}
+      ${(d.cantieri_foto ?? []).length > 0 ? `<h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 2mm;">I nostri cantieri</h3>
+        <div style="display:grid;grid-template-columns:repeat(${Math.min((d.cantieri_foto ?? []).length, 3)},1fr);gap:2mm;">
+          ${(d.cantieri_foto ?? []).slice(0, 3).map((src) => `<div style="height:28mm;border-radius:6px;overflow:hidden;border:1px solid #E2E8F0;"><img src="${escHtml(src)}" alt="Cantiere installato" style="width:100%;height:100%;object-fit:cover;"/></div>`).join("")}
+        </div>` : ""}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1556,7 +1600,8 @@ export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
     if (page.id === "anteprima" && !hasRealMapImages(d)) return false;
     return true;
   });
-  return 1 + orderedPages.reduce((count, page) => (
+  const hasBundleKit = !!(d.bundle?.cover_b64);
+  return 1 + (hasBundleKit ? 1 : 0) + orderedPages.reduce((count, page) => (
     count + (page.id === "macro_categorie" ? macroPages.length : 1)
   ), 0);
 }
@@ -1572,6 +1617,10 @@ export function renderFvPdfHtml(d: FvPdfTemplateData): string {
   const TOTAL = getFvPdfRenderedPagesCount(d);
   let pageN = 1;
   const pages = [pageCover(d)];
+  // Bundle kit page: inserita subito dopo la cover quando il bundle ha una copertina
+  if (d.bundle?.cover_b64) {
+    pages.push(pageBundleKit(d, ++pageN, TOTAL));
+  }
   for (const page of orderedPages) {
     switch (page.id) {
       case "investimento":
