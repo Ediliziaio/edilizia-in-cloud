@@ -79,16 +79,18 @@ export function svgProducibilitaMensile(values: number[]): string {
 // ─── 2. SANKEY "DOVE VA L'ENERGIA CHE PRODUCI" ─────────────────────────────
 
 // Helper: ribbon Sankey fluido tra due segmenti verticali (sorgente → destinazione).
-// I bordi top/bottom sono curve bezier parallele → nastro morbido che "si innesta"
-// nei box. Larghezza variabile → proporzione visibile a colpo d'occhio.
+// I bordi top/bottom sono curve bezier parallele → nastro morbido. Le estremità
+// vengono "infilate" SOTTO i box (overlap `ov`): i box opachi disegnati dopo
+// coprono l'innesto → il nastro sembra nascere dal bordo del box, senza fessure.
 function sankeyRibbon(
   xL: number, ytL: number, ybL: number,
   xR: number, ytR: number, ybR: number,
-  fill: string,
+  fill: string, ov = 16,
 ): string {
   const cx = (xL + xR) / 2;
   const f = (n: number) => n.toFixed(1);
-  return `<path d="M ${f(xL)},${f(ytL)} C ${f(cx)},${f(ytL)} ${f(cx)},${f(ytR)} ${f(xR)},${f(ytR)} L ${f(xR)},${f(ybR)} C ${f(cx)},${f(ybR)} ${f(cx)},${f(ybL)} ${f(xL)},${f(ybL)} Z" fill="${fill}"/>`;
+  const xL2 = xL - ov, xR2 = xR + ov;
+  return `<path d="M ${f(xL2)},${f(ytL)} C ${f(cx)},${f(ytL)} ${f(cx)},${f(ytR)} ${f(xR2)},${f(ytR)} L ${f(xR2)},${f(ybR)} C ${f(cx)},${f(ybR)} ${f(cx)},${f(ybL)} ${f(xL2)},${f(ybL)} Z" fill="${fill}"/>`;
 }
 
 // Helper: pill etichetta % centrata sul nastro (pastiglia bianca per leggibilità).
@@ -152,12 +154,14 @@ export function svgSankeyDoveVa(flows: FvFlows): string {
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="chart-svg">
     <defs>
       <linearGradient id="dvAuto" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="${C.amber}" stop-opacity="0.85"/>
-        <stop offset="100%" stop-color="${C.greenLight}" stop-opacity="0.85"/>
+        <stop offset="0%" stop-color="${C.amber}"/>
+        <stop offset="55%" stop-color="${C.greenLight}"/>
+        <stop offset="100%" stop-color="${C.green}"/>
       </linearGradient>
       <linearGradient id="dvRete" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="${C.amber}" stop-opacity="0.7"/>
-        <stop offset="100%" stop-color="${C.navyLight}" stop-opacity="0.78"/>
+        <stop offset="0%" stop-color="${C.amber}"/>
+        <stop offset="60%" stop-color="${C.navyLight}"/>
+        <stop offset="100%" stop-color="${C.navy}"/>
       </linearGradient>
       <linearGradient id="dvPv" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="#FCD34D"/><stop offset="100%" stop-color="${C.amber}"/>
@@ -215,12 +219,14 @@ export function svgSankeyDaDoveViene(flows: FvFlows, consumo_annuo_kwh: number):
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="chart-svg">
     <defs>
       <linearGradient id="ddFv" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="${C.amber}" stop-opacity="0.85"/>
-        <stop offset="100%" stop-color="${C.greenLight}" stop-opacity="0.85"/>
+        <stop offset="0%" stop-color="${C.amber}"/>
+        <stop offset="55%" stop-color="${C.greenLight}"/>
+        <stop offset="100%" stop-color="${C.green}"/>
       </linearGradient>
       <linearGradient id="ddRete" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="${C.navyLight}" stop-opacity="0.78"/>
-        <stop offset="100%" stop-color="${C.greenLight}" stop-opacity="0.7"/>
+        <stop offset="0%" stop-color="${C.navy}"/>
+        <stop offset="45%" stop-color="${C.navyLight}"/>
+        <stop offset="100%" stop-color="${C.green}"/>
       </linearGradient>
       <linearGradient id="ddPv" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="#FCD34D"/><stop offset="100%" stop-color="${C.amber}"/>
