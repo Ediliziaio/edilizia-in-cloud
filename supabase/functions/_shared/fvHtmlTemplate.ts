@@ -1543,9 +1543,19 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
 
 // ─── ENTRY POINT ───────────────────────────────────────────────────────────
 
+function hasRealMapImages(d: FvPdfTemplateData): boolean {
+  const mi = d.map_images;
+  return !!(mi && (mi.close || mi.medium || mi.overview || mi.wide));
+}
+
 export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
   const macroPages = dedicatedMacroPages(d);
-  const orderedPages = normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => page.visible);
+  const orderedPages = normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => {
+    if (!page.visible) return false;
+    // Salta la pagina anteprima se non ci sono immagini satellite reali
+    if (page.id === "anteprima" && !hasRealMapImages(d)) return false;
+    return true;
+  });
   return 1 + orderedPages.reduce((count, page) => (
     count + (page.id === "macro_categorie" ? macroPages.length : 1)
   ), 0);
@@ -1553,7 +1563,12 @@ export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
 
 export function renderFvPdfHtml(d: FvPdfTemplateData): string {
   const macroPages = dedicatedMacroPages(d);
-  const orderedPages = normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => page.visible);
+  const hasMap = hasRealMapImages(d);
+  const orderedPages = normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => {
+    if (!page.visible) return false;
+    if (page.id === "anteprima" && !hasMap) return false;
+    return true;
+  });
   const TOTAL = getFvPdfRenderedPagesCount(d);
   let pageN = 1;
   const pages = [pageCover(d)];
