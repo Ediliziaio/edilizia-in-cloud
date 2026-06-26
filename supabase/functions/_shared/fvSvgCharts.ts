@@ -78,103 +78,172 @@ export function svgProducibilitaMensile(values: number[]): string {
 
 // ─── 2. SANKEY "DOVE VA L'ENERGIA CHE PRODUCI" ─────────────────────────────
 
+// Helper: ribbon Sankey fluido tra due segmenti verticali (sorgente → destinazione).
+// I bordi top/bottom sono curve bezier parallele → nastro morbido che "si innesta"
+// nei box. Larghezza variabile → proporzione visibile a colpo d'occhio.
+function sankeyRibbon(
+  xL: number, ytL: number, ybL: number,
+  xR: number, ytR: number, ybR: number,
+  fill: string,
+): string {
+  const cx = (xL + xR) / 2;
+  const f = (n: number) => n.toFixed(1);
+  return `<path d="M ${f(xL)},${f(ytL)} C ${f(cx)},${f(ytL)} ${f(cx)},${f(ytR)} ${f(xR)},${f(ytR)} L ${f(xR)},${f(ybR)} C ${f(cx)},${f(ybR)} ${f(cx)},${f(ybL)} ${f(xL)},${f(ybL)} Z" fill="${fill}"/>`;
+}
+
+// Helper: pill etichetta % centrata sul nastro (pastiglia bianca per leggibilità).
+function sankeyPill(x: number, y: number, text: string, color: string, w = 118): string {
+  return `<g>
+    <rect x="${(x - w / 2).toFixed(1)}" y="${(y - 11).toFixed(1)}" width="${w}" height="21" rx="10.5" fill="white" stroke="${C.border}" stroke-width="1"/>
+    <text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="800" fill="${color}" font-family="'Outfit',sans-serif">${text}</text>
+  </g>`;
+}
+
+const clampN = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+// Box Sankey con testo top-anchored: regge anche le altezze minime senza
+// sovrapposizioni (header in alto, numero, sottotitolo a offset fissi dal top).
+function sankeyBox(
+  x: number, y: number, w: number, h: number,
+  grad: string, header: string, value: string, sub: string,
+  color: string, hero = false,
+): string {
+  const numSize = hero ? 26 : 19;
+  const numY = hero ? y + 66 : y + 50;
+  const subY = hero ? y + 86 : y + 66;
+  const f = (n: number) => n.toFixed(1);
+  return `<rect x="${x}" y="${f(y)}" width="${w}" height="${f(h)}" rx="12" fill="url(#${grad})"/>
+    <text x="${x + 16}" y="${f(y + 25)}" font-size="10.5" font-weight="800" fill="${color}" letter-spacing="0.5">${header}</text>
+    <text x="${x + 16}" y="${f(numY)}" font-size="${numSize}" font-weight="800" fill="${color}" font-family="'Outfit',sans-serif">${value}</text>
+    <text x="${x + 16}" y="${f(subY)}" font-size="9.5" font-weight="600" fill="${color}" opacity="0.92">${sub}</text>`;
+}
+
+// Altezze: box "hero" fisso, box laterali proporzionali (min leggibile / max).
+const SANKEY_HERO_H = 108;
+const SANKEY_MIN_H = 76;
+const SANKEY_MAX_H = 108;
+
 export function svgSankeyDoveVa(flows: FvFlows): string {
-  const W = 700, H = 200;
-  const autoPct = Math.round(flows.autoconsumo_pct * 100);
+  const W = 700, H = 216, midY = H / 2;
+  // Percentuali derivate dai kWh REALI mostrati nei box (sempre coerenti col disegno).
+  const auto = Math.max(0, flows.autoconsumo_kwh);
+  const rete = Math.max(0, flows.ceduto_rete_kwh);
+  const tot = Math.max(1, auto + rete);
+  const autoFrac = auto / tot, reteFrac = rete / tot;
+  const autoPct = Math.round(autoFrac * 100);
   const retePct = 100 - autoPct;
 
-  // Box sorgente
-  const srcX = 50, srcY = 70, srcW = 140, srcH = 80;
-  // Box destinazioni
-  const dst1X = 510, dst1Y = 30, dstW = 140, dstH = 70;
-  const dst2X = 510, dst2Y = 130, dst2H = 60;
+  // Sorgente (hero): bordo destro diviso in proporzione (i nastri riempiono il bordo).
+  const srcX = 52, srcW = 168, srcY = midY - SANKEY_HERO_H / 2, srcH = SANKEY_HERO_H;
+  const SX = srcX + srcW;
+  const aEdgeBot = srcY + srcH * autoFrac;
+
+  // Destinazioni: altezza proporzionale (con minimo leggibile), gruppo centrato.
+  const dX = 480, dW = 168;
+  const hCasa = clampN(srcH * autoFrac, SANKEY_MIN_H, SANKEY_MAX_H);
+  const hRete = clampN(srcH * reteFrac, SANKEY_MIN_H, SANKEY_MAX_H);
+  const gap = 14;
+  const casaY = midY - (hCasa + hRete + gap) / 2;
+  const reteY = casaY + hCasa + gap;
+
+  const autoLabelY = ((srcY + aEdgeBot) / 2 + (casaY + hCasa / 2)) / 2;
+  const reteLabelY = ((aEdgeBot + srcY + srcH) / 2 + (reteY + hRete / 2)) / 2;
 
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="chart-svg">
     <defs>
-      <linearGradient id="sankeyAuto" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="${C.amber}" stop-opacity="0.6"/>
-        <stop offset="100%" stop-color="${C.green}" stop-opacity="0.5"/>
+      <linearGradient id="dvAuto" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="${C.amber}" stop-opacity="0.85"/>
+        <stop offset="100%" stop-color="${C.greenLight}" stop-opacity="0.85"/>
       </linearGradient>
-      <linearGradient id="sankeyRete" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="${C.amber}" stop-opacity="0.6"/>
-        <stop offset="100%" stop-color="${C.gray}" stop-opacity="0.5"/>
+      <linearGradient id="dvRete" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="${C.amber}" stop-opacity="0.7"/>
+        <stop offset="100%" stop-color="${C.navyLight}" stop-opacity="0.78"/>
+      </linearGradient>
+      <linearGradient id="dvPv" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#FCD34D"/><stop offset="100%" stop-color="${C.amber}"/>
+      </linearGradient>
+      <linearGradient id="dvCasa" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${C.greenLight}"/><stop offset="100%" stop-color="${C.green}"/>
+      </linearGradient>
+      <linearGradient id="dvGrid" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${C.navyLight}"/><stop offset="100%" stop-color="${C.navy}"/>
       </linearGradient>
     </defs>
-    <!-- flusso auto (path curva) -->
-    <path d="M ${srcX + srcW},${srcY + 5} C ${(srcX + srcW + dst1X) / 2},${srcY + 5} ${(srcX + srcW + dst1X) / 2},${dst1Y + 10} ${dst1X},${dst1Y + 10} L ${dst1X},${dst1Y + 10 + Math.max(15, autoPct * 0.5)} C ${(srcX + srcW + dst1X) / 2},${dst1Y + 10 + Math.max(15, autoPct * 0.5)} ${(srcX + srcW + dst1X) / 2},${srcY + 5 + Math.max(15, autoPct * 0.5)} ${srcX + srcW},${srcY + 5 + Math.max(15, autoPct * 0.5)} Z" fill="url(#sankeyAuto)"/>
-    <!-- flusso rete -->
-    <path d="M ${srcX + srcW},${srcY + srcH - 30} C ${(srcX + srcW + dst2X) / 2},${srcY + srcH - 30} ${(srcX + srcW + dst2X) / 2},${dst2Y + 5} ${dst2X},${dst2Y + 5} L ${dst2X},${dst2Y + 5 + Math.max(12, retePct * 0.4)} C ${(srcX + srcW + dst2X) / 2},${dst2Y + 5 + Math.max(12, retePct * 0.4)} ${(srcX + srcW + dst2X) / 2},${srcY + srcH - 30 + Math.max(12, retePct * 0.4)} ${srcX + srcW},${srcY + srcH - 30 + Math.max(12, retePct * 0.4)} Z" fill="url(#sankeyRete)"/>
 
-    <!-- label percentuali -->
-    <text x="${(srcX + srcW + dst1X) / 2}" y="${(srcY + dst1Y) / 2 + 8}" text-anchor="middle" font-size="11" font-weight="700" fill="${C.orangeDark}">${autoPct}% autoconsumo</text>
-    <text x="${(srcX + srcW + dst2X) / 2}" y="${(srcY + srcH + dst2Y) / 2 + 5}" text-anchor="middle" font-size="11" font-weight="700" fill="${C.grayDark}">${retePct}% in rete</text>
+    <!-- Nastri (disegnati sotto i box) -->
+    ${sankeyRibbon(SX, srcY, aEdgeBot, dX, casaY, casaY + hCasa, "url(#dvAuto)")}
+    ${sankeyRibbon(SX, aEdgeBot, srcY + srcH, dX, reteY, reteY + hRete, "url(#dvRete)")}
 
-    <!-- Box sorgente -->
-    <rect x="${srcX}" y="${srcY}" width="${srcW}" height="${srcH}" rx="10" fill="${C.amber}"/>
-    <text x="${srcX + 14}" y="${srcY + 25}" font-size="10" font-weight="700" fill="${C.orangeDark}">★ Fotovoltaico</text>
-    <text x="${srcX + 14}" y="${srcY + 50}" font-size="20" font-weight="800" fill="${C.orangeDark}" font-family="'Outfit',sans-serif">${flows.produzione_kwh.toLocaleString("it-IT")} kWh</text>
-    <text x="${srcX + 14}" y="${srcY + 67}" font-size="9" fill="${C.orangeDark}">prodotti/anno</text>
+    <!-- Etichette % centrate sui nastri -->
+    ${sankeyPill((SX + dX) / 2, autoLabelY, `${autoPct}% in casa`, C.greenDark)}
+    ${sankeyPill((SX + dX) / 2, reteLabelY, `${retePct}% in rete`, C.navy)}
 
-    <!-- Box destinazione 1: Casa -->
-    <rect x="${dst1X}" y="${dst1Y}" width="${dstW}" height="${dstH}" rx="10" fill="${C.green}"/>
-    <text x="${dst1X + 14}" y="${dst1Y + 22}" font-size="10" font-weight="700" fill="white">⌂ Casa</text>
-    <text x="${dst1X + 14}" y="${dst1Y + 45}" font-size="18" font-weight="800" fill="white" font-family="'Outfit',sans-serif">${flows.autoconsumo_kwh.toLocaleString("it-IT")} kWh</text>
-    <text x="${dst1X + 14}" y="${dst1Y + 60}" font-size="8" fill="white" opacity="0.9">subito + da batteria</text>
-
-    <!-- Box destinazione 2: Rete -->
-    <rect x="${dst2X}" y="${dst2Y}" width="${dstW}" height="${dst2H}" rx="10" fill="${C.grayDark}"/>
-    <text x="${dst2X + 14}" y="${dst2Y + 20}" font-size="10" font-weight="700" fill="white">⚡ Rete pubblica</text>
-    <text x="${dst2X + 14}" y="${dst2Y + 42}" font-size="16" font-weight="800" fill="white" font-family="'Outfit',sans-serif">${flows.ceduto_rete_kwh.toLocaleString("it-IT")} kWh</text>
+    ${sankeyBox(srcX, srcY, srcW, srcH, "dvPv", "★ FOTOVOLTAICO", `${flows.produzione_kwh.toLocaleString("it-IT")}`, "kWh prodotti / anno", C.orangeDark, true)}
+    ${sankeyBox(dX, casaY, dW, hCasa, "dvCasa", "⌂ CASA &amp; BATTERIA", `${auto.toLocaleString("it-IT")} kWh`, "autoconsumo diretto", "white")}
+    ${sankeyBox(dX, reteY, dW, hRete, "dvGrid", "⚡ RETE PUBBLICA", `${rete.toLocaleString("it-IT")} kWh`, "energia immessa", "white")}
   </svg>`;
 }
 
 // ─── 3. SANKEY "DA DOVE VIENE L'ENERGIA CHE CONSUMI" ───────────────────────
 
 export function svgSankeyDaDoveViene(flows: FvFlows, consumo_annuo_kwh: number): string {
-  const W = 700, H = 200;
-  const fvPct = Math.round(flows.consumo_da_fv_pct * 100);
+  const W = 700, H = 216, midY = H / 2;
+  // Percentuali derivate dai kWh REALI dei box (FV = autoconsumo, Rete = prelievo).
+  const dalSole = Math.max(0, flows.autoconsumo_kwh);
+  const dallaRete = Math.max(0, flows.prelievo_rete_kwh);
+  const tot = Math.max(1, dalSole + dallaRete);
+  const fvFrac = dalSole / tot, reteFrac = dallaRete / tot;
+  const fvPct = Math.round(fvFrac * 100);
   const retePct = 100 - fvPct;
 
-  const fvX = 50, fvY = 30, fvW = 140, fvH = 70;
-  const reteX = 50, reteY = 130, reteH = 60;
-  const casaX = 510, casaY = 70, casaW = 140, casaH = 80;
+  // Destinazione (Casa, hero) a destra: bordo sinistro diviso in proporzione FV/Rete.
+  const casaX = 480, casaW = 168, casaY = midY - SANKEY_HERO_H / 2, casaH = SANKEY_HERO_H;
+  const DX = casaX;
+  const fvEntryBot = casaY + casaH * fvFrac;
+
+  // Sorgenti a sinistra: altezza proporzionale, gruppo centrato.
+  const srcX = 52, srcW = 168, SX = srcX + srcW;
+  const hFv = clampN(casaH * fvFrac, SANKEY_MIN_H, SANKEY_MAX_H);
+  const hRete = clampN(casaH * reteFrac, SANKEY_MIN_H, SANKEY_MAX_H);
+  const gap = 14;
+  const fvY = midY - (hFv + hRete + gap) / 2;
+  const reteY = fvY + hFv + gap;
+
+  const fvLabelY = ((fvY + hFv / 2) + (casaY + fvEntryBot) / 2) / 2;
+  const reteLabelY = ((reteY + hRete / 2) + (fvEntryBot + casaY + casaH) / 2) / 2;
 
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" class="chart-svg">
     <defs>
-      <linearGradient id="sankeyFv" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="${C.amber}" stop-opacity="0.6"/>
-        <stop offset="100%" stop-color="${C.green}" stop-opacity="0.5"/>
+      <linearGradient id="ddFv" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="${C.amber}" stop-opacity="0.85"/>
+        <stop offset="100%" stop-color="${C.greenLight}" stop-opacity="0.85"/>
       </linearGradient>
-      <linearGradient id="sankeyReteIn" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="${C.gray}" stop-opacity="0.5"/>
-        <stop offset="100%" stop-color="${C.green}" stop-opacity="0.4"/>
+      <linearGradient id="ddRete" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="${C.navyLight}" stop-opacity="0.78"/>
+        <stop offset="100%" stop-color="${C.greenLight}" stop-opacity="0.7"/>
+      </linearGradient>
+      <linearGradient id="ddPv" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#FCD34D"/><stop offset="100%" stop-color="${C.amber}"/>
+      </linearGradient>
+      <linearGradient id="ddCasa" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${C.greenLight}"/><stop offset="100%" stop-color="${C.green}"/>
+      </linearGradient>
+      <linearGradient id="ddGrid" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${C.navyLight}"/><stop offset="100%" stop-color="${C.navy}"/>
       </linearGradient>
     </defs>
-    <!-- flusso FV -->
-    <path d="M ${fvX + fvW},${fvY + 10} C ${(fvX + fvW + casaX) / 2},${fvY + 10} ${(fvX + fvW + casaX) / 2},${casaY + 5} ${casaX},${casaY + 5} L ${casaX},${casaY + 5 + Math.max(15, fvPct * 0.5)} C ${(fvX + fvW + casaX) / 2},${casaY + 5 + Math.max(15, fvPct * 0.5)} ${(fvX + fvW + casaX) / 2},${fvY + 10 + Math.max(15, fvPct * 0.5)} ${fvX + fvW},${fvY + 10 + Math.max(15, fvPct * 0.5)} Z" fill="url(#sankeyFv)"/>
-    <!-- flusso Rete -->
-    <path d="M ${reteX + fvW},${reteY + 5} C ${(reteX + fvW + casaX) / 2},${reteY + 5} ${(reteX + fvW + casaX) / 2},${casaY + casaH - 25} ${casaX},${casaY + casaH - 25} L ${casaX},${casaY + casaH - 25 + Math.max(12, retePct * 0.4)} C ${(reteX + fvW + casaX) / 2},${casaY + casaH - 25 + Math.max(12, retePct * 0.4)} ${(reteX + fvW + casaX) / 2},${reteY + 5 + Math.max(12, retePct * 0.4)} ${reteX + fvW},${reteY + 5 + Math.max(12, retePct * 0.4)} Z" fill="url(#sankeyReteIn)"/>
 
-    <!-- label -->
-    <text x="${(fvX + fvW + casaX) / 2}" y="${(fvY + casaY) / 2 + 8}" text-anchor="middle" font-size="11" font-weight="700" fill="${C.greenDark}">${fvPct}% dal sole</text>
-    <text x="${(reteX + fvW + casaX) / 2}" y="${(reteY + casaY + casaH) / 2}" text-anchor="middle" font-size="11" font-weight="700" fill="${C.grayDark}">${retePct}% dalla rete</text>
+    <!-- Nastri -->
+    ${sankeyRibbon(SX, fvY, fvY + hFv, DX, casaY, fvEntryBot, "url(#ddFv)")}
+    ${sankeyRibbon(SX, reteY, reteY + hRete, DX, fvEntryBot, casaY + casaH, "url(#ddRete)")}
 
-    <!-- Box FV -->
-    <rect x="${fvX}" y="${fvY}" width="${fvW}" height="${fvH}" rx="10" fill="${C.amber}"/>
-    <text x="${fvX + 14}" y="${fvY + 22}" font-size="10" font-weight="700" fill="${C.orangeDark}">★ Fotovoltaico</text>
-    <text x="${fvX + 14}" y="${fvY + 45}" font-size="18" font-weight="800" fill="${C.orangeDark}" font-family="'Outfit',sans-serif">${flows.autoconsumo_kwh.toLocaleString("it-IT")} kWh</text>
-    <text x="${fvX + 14}" y="${fvY + 60}" font-size="8" fill="${C.orangeDark}">tuo · ${fvPct}%</text>
+    <!-- Etichette % -->
+    ${sankeyPill((SX + DX) / 2, fvLabelY, `${fvPct}% dal sole`, C.greenDark)}
+    ${sankeyPill((SX + DX) / 2, reteLabelY, `${retePct}% dalla rete`, C.navy)}
 
-    <!-- Box Rete -->
-    <rect x="${reteX}" y="${reteY}" width="${fvW}" height="${reteH}" rx="10" fill="${C.grayDark}"/>
-    <text x="${reteX + 14}" y="${reteY + 20}" font-size="10" font-weight="700" fill="white">⚡ Rete pubblica</text>
-    <text x="${reteX + 14}" y="${reteY + 42}" font-size="16" font-weight="800" fill="white" font-family="'Outfit',sans-serif">${flows.prelievo_rete_kwh.toLocaleString("it-IT")} kWh</text>
-
-    <!-- Box Casa -->
-    <rect x="${casaX}" y="${casaY}" width="${casaW}" height="${casaH}" rx="10" fill="${C.green}"/>
-    <text x="${casaX + 14}" y="${casaY + 25}" font-size="10" font-weight="700" fill="white">⌂ Casa</text>
-    <text x="${casaX + 14}" y="${casaY + 50}" font-size="20" font-weight="800" fill="white" font-family="'Outfit',sans-serif">${consumo_annuo_kwh.toLocaleString("it-IT")} kWh</text>
-    <text x="${casaX + 14}" y="${casaY + 67}" font-size="9" fill="white" opacity="0.9">consumo annuo</text>
+    ${sankeyBox(srcX, fvY, srcW, hFv, "ddPv", "★ FOTOVOLTAICO", `${dalSole.toLocaleString("it-IT")} kWh`, "il tuo · gratis", C.orangeDark)}
+    ${sankeyBox(srcX, reteY, srcW, hRete, "ddGrid", "⚡ RETE PUBBLICA", `${dallaRete.toLocaleString("it-IT")} kWh`, "prelievo residuo", "white")}
+    ${sankeyBox(casaX, casaY, casaW, casaH, "ddCasa", "⌂ CASA", `${consumo_annuo_kwh.toLocaleString("it-IT")}`, "kWh consumati / anno", "white", true)}
   </svg>`;
 }
 
