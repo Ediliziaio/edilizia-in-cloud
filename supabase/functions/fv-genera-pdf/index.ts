@@ -218,8 +218,8 @@ Deno.serve(async (req: Request) => {
       perdita_ombreggiamento_pct: Number(prog.perdita_ombreggiamento_pct) || 0,
     });
 
-    // Detrazione: 50% se prima_casa, 36% altrimenti, plafond 96.000€
-    const detrazionePerc = prog.prima_casa ? 50 : 36;
+    // Detrazione: 50% se prima_casa===true, 36% altrimenti/null, plafond 96.000€
+    const detrazionePerc = prog.prima_casa === true ? 50 : 36;
     const baseDetrazione = Math.min(96000, Number(prog.prezzo_vendita_iva_inclusa) || 0);
     const detrazioneTotale = (baseDetrazione * detrazionePerc) / 100;
     const costoNetto = (Number(prog.prezzo_vendita_iva_inclusa) || 0) - detrazioneTotale;

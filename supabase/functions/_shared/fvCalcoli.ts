@@ -79,8 +79,10 @@ export function calcolaEnergyFlows(input: FvFlowsInput): FvFlows {
   }
 
   const autoconsumo_pct = Math.min(0.92, baseAuto + bonusAccumulo);
+  // autoconsumo_pct = frazione della PRODUZIONE consumata in loco.
+  // Min con consumo_annuo: non si può auto-consumare più di quanto si consuma.
   const autoconsumo_kwh = Math.round(
-    Math.min(produzione_kwh, input.consumo_annuo_kwh) * autoconsumo_pct,
+    Math.min(produzione_kwh * autoconsumo_pct, input.consumo_annuo_kwh),
   );
   const ceduto_rete_kwh = Math.max(0, produzione_kwh - autoconsumo_kwh);
   const prelievo_rete_kwh = Math.max(0, input.consumo_annuo_kwh - autoconsumo_kwh);

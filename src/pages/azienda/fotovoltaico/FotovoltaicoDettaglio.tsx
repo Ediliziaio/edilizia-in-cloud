@@ -504,17 +504,17 @@ export default function FotovoltaicoDettaglio() {
                         <TableCell className="text-xs text-slate-500">
                           {c.marca ?? ""} {c.modello ?? ""}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{c.quantita}</TableCell>
+                        <TableCell className="text-right tabular-nums">{c.quantita ?? 1}</TableCell>
                         {isAdmin && (
                           <TableCell className="text-right tabular-nums text-slate-600">
-                            € {(c.quantita * c.prezzo_unitario_netto).toFixed(2)}
+                            € {((Number(c.quantita) || 1) * (Number(c.prezzo_unitario_netto) || 0)).toFixed(2)}
                           </TableCell>
                         )}
                         <TableCell className="text-right tabular-nums">
-                          € {c.prezzo_unitario_vendita.toFixed(2)}
+                          € {(Number(c.prezzo_unitario_vendita) || 0).toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-semibold">
-                          € {(c.quantita * c.prezzo_unitario_vendita).toFixed(2)}
+                          € {((Number(c.quantita) || 1) * (Number(c.prezzo_unitario_vendita) || 0)).toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -537,7 +537,7 @@ export default function FotovoltaicoDettaglio() {
                           <span className="text-slate-400 text-xs">({m.ore} h)</span>
                         </span>
                         <span className="tabular-nums font-semibold">
-                          € {(m.ore * m.tariffa_oraria_vendita).toFixed(2)}
+                          € {((Number(m.ore) || 0) * (Number(m.tariffa_oraria_vendita) || 0)).toFixed(2)}
                         </span>
                       </div>
                     ))}
