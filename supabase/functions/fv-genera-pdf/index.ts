@@ -208,7 +208,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Immagini satellitari (Google Static Maps) per pagina anteprima ──────
-    let mapImages: { close?: string; medium?: string; wide?: string } | null = null;
+    let mapImages: { close?: string; medium?: string; overview?: string; wide?: string } | null = null;
     const satLat = Number(prog.latitudine), satLng = Number(prog.longitudine);
     const googleMapsKey = Deno.env.get("GOOGLE_MAPS_API_KEY") ?? "";
     if (satLat && satLng && googleMapsKey) {
@@ -219,18 +219,19 @@ Deno.serve(async (req: Request) => {
           const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
           if (!r.ok) return undefined;
           const buf = new Uint8Array(await r.arrayBuffer());
-          // Deno: btoa via TextDecoder non funziona per binario — usiamo loop
           let b64 = "";
           for (let i = 0; i < buf.length; i++) b64 += String.fromCharCode(buf[i]);
           return `data:image/png;base64,${btoa(b64)}`;
         } catch { return undefined; }
       };
-      const [close, medium, wide] = await Promise.all([
-        fetchSatImg(20),
-        fetchSatImg(18),
-        fetchSatImg(16),
+      // 4 zoom distinti → 4 viste sempre diverse nel PDF
+      const [close, medium, overview, wide] = await Promise.all([
+        fetchSatImg(20), // zenitale ravvicinata
+        fetchSatImg(18), // aerea
+        fetchSatImg(17), // via/strada
+        fetchSatImg(15), // panoramica zona
       ]);
-      if (close || medium || wide) mapImages = { close, medium, wide };
+      if (close || medium || overview || wide) mapImages = { close, medium, overview, wide };
     }
 
     // ── Calcoli aggregati ──────────────────────────────────────────────────

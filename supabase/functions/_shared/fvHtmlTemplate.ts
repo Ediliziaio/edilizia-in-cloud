@@ -88,9 +88,10 @@ export interface FvPdfTemplateData {
   /** Immagini satellitari reali come data:image/png;base64 — opzionale.
    *  Se presenti sostituiscono gli SVG mock nella pagina "Anteprima impianto". */
   map_images?: {
-    close?: string;   // zoom 20 — vista zenitale
-    medium?: string;  // zoom 18 — vista fronte
-    wide?: string;    // zoom 16 — panoramica quartiere
+    close?: string;    // zoom 20 — zenitale ravvicinata
+    medium?: string;   // zoom 18 — vista aerea
+    overview?: string; // zoom 17 — via/strada
+    wide?: string;     // zoom 15 — panoramica zona
   } | null;
   costi: {
     prezzo_vendita_iva_inclusa: number;
@@ -425,8 +426,7 @@ table .saving-zero { color: #64748B; }
 .sat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5mm; margin: 2.5mm 0; }
 .sat-view { position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 4/3; border: 1px solid #E2E8F0; }
 .sat-view svg { width: 100%; height: 100%; display: block; }
-.sat-view .sat-label { position: absolute; bottom: 2mm; left: 2mm; background: rgba(255,255,255,0.92); padding: 1mm 2.5mm; border-radius: 4px; font-size: 7.5pt; font-weight: 600; color: #1E3A5F; }
-.sat-view .sat-zoom { position: absolute; top: 2mm; right: 2mm; background: rgba(30,58,95,0.92); color: white; padding: 1mm 2mm; border-radius: 4px; font-size: 7pt; font-weight: 600; }
+.sat-view .sat-label { position: absolute; bottom: 2mm; left: 2mm; background: rgba(15,23,42,0.72); backdrop-filter: blur(2px); padding: 0.8mm 2.2mm; border-radius: 4px; font-size: 7pt; font-weight: 600; color: white; letter-spacing: 0.02em; }
 
 .product-card { display: grid; grid-template-columns: 42mm 1fr; gap: 4mm; background: white; border: 1px solid #E2E8F0; border-radius: 8px; padding: 3mm; margin-bottom: 2.5mm; }
 .product-img { background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%); border-radius: 6px; aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
@@ -959,7 +959,6 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
 function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const np = d.progetto.numero_pannelli;
-  const source = roofSourceLabel(d.progetto.fonte_dati_tetto);
   const renderDisclaimer = plainText(d.template?.render_disclaimer);
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
@@ -973,17 +972,17 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
           const s = 'style="width:100%;height:100%;object-fit:cover;display:block;"';
           const lp = d.progetto.layout_pannelli;
           return `
-        <div class="sat-view">${mi?.medium ? `<img src="${mi.medium}" ${s} alt="Vista nord">` : svgVistaSatellitareMock("nord", np)}<div class="sat-label">📍 Vista nord</div><div class="sat-zoom">zoom 19</div></div>
-        <div class="sat-view">${mi?.close ? `<img src="${mi.close}" ${s} alt="Vista zenitale">` : (lp && lp.length ? svgVistaLayoutReale(lp) : svgVistaSatellitareMock("zenitale", np))}<div class="sat-label">📍 Vista zenitale tetto</div><div class="sat-zoom">zoom 20</div></div>
-        <div class="sat-view">${mi?.medium ? `<img src="${mi.medium}" ${s} alt="Vista fronte">` : svgVistaSatellitareMock("3d", np)}<div class="sat-label">📍 Vista fronte sud</div><div class="sat-zoom">zoom 19</div></div>
-        <div class="sat-view">${mi?.wide ? `<img src="${mi.wide}" ${s} alt="Panoramica quartiere">` : svgVistaSatellitareMock("panoramica", np)}<div class="sat-label">📍 Panoramica quartiere</div><div class="sat-zoom">zoom 17</div></div>
+        <div class="sat-view">${mi?.close ? `<img src="${mi.close}" ${s} alt="Vista zenitale ravvicinata">` : (lp && lp.length ? svgVistaLayoutReale(lp) : svgVistaSatellitareMock("zenitale", np))}<div class="sat-label">Vista zenitale</div></div>
+        <div class="sat-view">${mi?.medium ? `<img src="${mi.medium}" ${s} alt="Vista aerea">` : svgVistaSatellitareMock("nord", np)}<div class="sat-label">Vista aerea</div></div>
+        <div class="sat-view">${mi?.overview ? `<img src="${mi.overview}" ${s} alt="Vista via">` : svgVistaSatellitareMock("3d", np)}<div class="sat-label">Vista via</div></div>
+        <div class="sat-view">${mi?.wide ? `<img src="${mi.wide}" ${s} alt="Panoramica zona">` : svgVistaSatellitareMock("panoramica", np)}<div class="sat-label">Panoramica zona</div></div>
           `;
         })()}
       </div>
       <div class="callout callout-tip">
         <span class="callout-icon">★</span>
         <div><strong>Layout ottimizzato per la tua casa specifica.</strong>
-        Ogni pannello è posizionato considerando l'esposizione${d.progetto.azimut ? ` ${escHtml(d.progetto.azimut)}` : ""}, l'ombreggiamento dei vicini e la struttura del tetto. Dati tecnici e produzione basati su ${escHtml(source)}.</div>
+        Ogni pannello è posizionato considerando l'esposizione${d.progetto.azimut ? ` ${escHtml(d.progetto.azimut)}` : ""}, l'ombreggiamento dei vicini e la struttura del tetto. Il numero, la posizione e l'inclinazione dei moduli sono calcolati per massimizzare la produzione annuale nel tuo specifico sito.</div>
       </div>
       ${renderDisclaimer ? `<div class="callout callout-info">
         <span class="callout-icon">i</span>
