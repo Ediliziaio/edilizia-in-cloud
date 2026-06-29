@@ -48,6 +48,9 @@ import { cn } from "@/lib/utils";
 import { RichTextEditorSafe } from "@/components/ui/rich-text-editor-safe";
 import { useTermoidraulicoPDF } from "@/hooks/useTermoidraulicoPDF";
 import { TermoidraulicoTemplatePreviewDialog } from "@/components/termoidraulico/TermoidraulicoTemplatePreviewDialog";
+import { AiTemplateReviewDialog } from "@/components/preventivi/AiTemplateReviewDialog";
+import { AiSalesProfileForm } from "@/components/preventivi/AiSalesProfileForm";
+import { useCompanySalesProfile, EMPTY_SALES_PROFILE, type CompanySalesProfile } from "@/hooks/useCompanySalesProfile";
 import {
   useIdrTemplatePdf,
   useUpsertIdrTemplatePdf,
@@ -408,7 +411,11 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
   // ─── AI: genera la bozza dei testi del template in un click ────────────────
   const [aiOpen, setAiOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiDesc, setAiDesc] = useState("");
+  const { profile: salesProfile, save: saveSalesProfile } = useCompanySalesProfile();
+  const [intake, setIntake] = useState<CompanySalesProfile>(EMPTY_SALES_PROFILE);
+  useEffect(() => { setIntake(salesProfile); }, [salesProfile]);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [aiDraft, setAiDraft] = useState<GeneratedTemplateTexts | null>(null);
 
   /** Riversa i testi generati nel form (solo i campi valorizzati: non-distruttivo). */
   const applyGenerated = (g: GeneratedTemplateTexts) => {
@@ -434,20 +441,35 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
     }
     setAiLoading(true);
     try {
+      const descrizione = [
+        intake.attivita.trim() && `Cosa fa / da quanto / zona: ${intake.attivita.trim()}`,
+        intake.problema.trim() && `Problema tipico del cliente: ${intake.problema.trim()}`,
+        intake.usp.trim() && `Cosa lo differenzia (USP): ${intake.usp.trim()}`,
+        intake.prove.trim() && `Fatti veri (numeri, garanzie, certificazioni): ${intake.prove.trim()}`,
+        intake.offerta.trim() && `Incluso e condizioni: ${intake.offerta.trim()}`,
+        intake.obiezioni.trim() && `Domande frequenti del cliente: ${intake.obiezioni.trim()}`,
+        intake.vietati.trim() && `Da NON dire mai: ${intake.vietati.trim()}`,
+      ].filter(Boolean).join("\n");
+      void saveSalesProfile(intake).catch(() => undefined);
       const { data, error } = await supabase.functions.invoke(
         "ai-genera-template-termoidraulico",
-        { body: { company_id: companyId, descrizione: aiDesc.trim() || undefined } },
+        {
+          body: {
+            company_id: companyId,
+            descrizione: descrizione || undefined,
+            cliente_tipo: intake.cliente_tipo,
+            tono: intake.voce.trim() || undefined,
+          },
+        },
       );
       if (error) throw error;
       const payload = data as { success?: boolean; error?: string; generated?: GeneratedTemplateTexts };
       if (!payload?.success || !payload.generated) {
         throw new Error(payload?.error ?? "Generazione non riuscita");
       }
-      applyGenerated(payload.generated);
+      setAiDraft(payload.generated);
       setAiOpen(false);
-      toast.success("Bozza generata con l'AI", {
-        description: "Controlla i testi nelle sezioni e salva il template.",
-      });
+      setReviewOpen(true);
     } catch (e) {
       toast.error("Generazione non riuscita", {
         description: e instanceof Error ? e.message : "Riprova tra poco.",
@@ -1720,29 +1742,31 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
       />
 
       {/* ── Dialog: genera testi con AI ──────────────────────────────── */}
+      <AiTemplateReviewDialog
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        draft={aiDraft}
+        onApply={(d) => {
+          applyGenerated(d);
+          setReviewOpen(false);
+          toast.success("Testi applicati al template", { description: "Rivedi le singole sezioni e salva." });
+        }}
+      />
+
       <Dialog open={aiOpen} onOpenChange={(o) => !aiLoading && setAiOpen(o)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-orange-500" />
               Genera testi con AI
             </DialogTitle>
             <DialogDescription>
-              Descrivi in una riga la tua impresa: l&apos;AI scrive la bozza dei testi del template.
-              Potrai modificarli prima di salvare.
+              Rispondi a poche domande sulla tua impresa: l&apos;AI scrive la bozza dei testi.
+              Le risposte si salvano nel profilo vendita e si riusano in ogni modulo.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label className="text-xs">La tua impresa (opzionale)</Label>
-            <Textarea
-              value={aiDesc}
-              onChange={(e) => setAiDesc(e.target.value)}
-              rows={3}
-              placeholder="Es. Termoidraulico chiavi in mano, 20 anni di esperienza, squadra interna, impianti idraulici ed elettrici certificati."
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Più sei specifico, più i testi saranno calzanti. Puoi anche lasciare vuoto.
-            </p>
+          <div className="max-h-[60vh] overflow-y-auto pr-1">
+            <AiSalesProfileForm value={intake} onChange={setIntake} />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setAiOpen(false)} disabled={aiLoading}>

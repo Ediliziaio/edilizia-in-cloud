@@ -67,6 +67,12 @@ export const SETTORI: Record<string, SettoreCfg> = {
     default: "Impresa specializzata in impianti elettrici: rifacimento, messa a norma e certificazione, quadri, domotica.",
     specifiche: "Problemi tipici: impianto non a norma, salvavita che scatta, pochi punti luce e prese, niente certificazione. Lavori: rifacimento impianto, quadro elettrico, messa a norma e certificazione, domotica, punti luce. Temi FAQ: conformita'/certificazione, durata, lavori per fasi, sicurezza.",
   },
+  ristrutturazione: {
+    label: "ristrutturazione completa di interni",
+    lavoro: "la ristrutturazione",
+    default: "Impresa di ristrutturazioni complete: opere edili, impianti e finiture.",
+    specifiche: "Problemi tipici: casa datata, spazi mal distribuiti, impianti vecchi, gestire piu' lavori insieme. Lavori: demolizioni, opere edili, impianti idraulico ed elettrico, finiture, serramenti. Temi FAQ: durata e fasi, abitabilita' durante i lavori, gestione bonus, coordinamento delle lavorazioni.",
+  },
 };
 
 function buildSystemPrompt(s: SettoreCfg): string {
