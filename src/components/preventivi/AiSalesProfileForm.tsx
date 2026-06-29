@@ -21,6 +21,9 @@ const CLIENTI: { key: string; label: string }[] = [
   { key: "privato", label: "Privato" },
   { key: "condominio", label: "Condominio" },
   { key: "azienda", label: "Azienda" },
+  { key: "studio tecnico", label: "Studio tecnico" },
+  { key: "ente pubblico", label: "Ente pubblico" },
+  { key: "agricolo/industriale", label: "Agricolo/industriale" },
 ];
 
 function Field({
@@ -40,6 +43,13 @@ function Field({
 
 export function AiSalesProfileForm({ value, onChange }: Props) {
   const set = (k: keyof CompanySalesProfile, v: string) => onChange({ ...value, [k]: v });
+  const clientiSelezionati = value.cliente_tipo.split(",").map((s) => s.trim()).filter(Boolean);
+  const toggleCliente = (key: string) => {
+    const next = new Set(clientiSelezionati);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    set("cliente_tipo", Array.from(next).join(", "));
+  };
 
   return (
     <div className="space-y-4">
@@ -52,20 +62,23 @@ export function AiSalesProfileForm({ value, onChange }: Props) {
         />
       </Field>
 
-      <Field label="2. Chi è il tuo cliente tipo?">
-        <div className="flex gap-2">
-          {CLIENTI.map((c) => (
-            <Button
-              key={c.key}
-              type="button"
-              size="sm"
-              variant={value.cliente_tipo === c.key ? "default" : "outline"}
-              className={cn("flex-1", value.cliente_tipo === c.key && "bg-orange-500 hover:bg-orange-600")}
-              onClick={() => set("cliente_tipo", c.key)}
-            >
-              {c.label}
-            </Button>
-          ))}
+      <Field label="2. Chi è il tuo cliente tipo?" hint="Puoi sceglierne più di uno.">
+        <div className="flex flex-wrap gap-2">
+          {CLIENTI.map((c) => {
+            const active = clientiSelezionati.includes(c.key);
+            return (
+              <Button
+                key={c.key}
+                type="button"
+                size="sm"
+                variant={active ? "default" : "outline"}
+                className={cn(active && "bg-orange-500 hover:bg-orange-600")}
+                onClick={() => toggleCliente(c.key)}
+              >
+                {c.label}
+              </Button>
+            );
+          })}
         </div>
       </Field>
 

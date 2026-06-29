@@ -68,6 +68,10 @@ Usa le leve di Cialdini quando i fatti lo permettono: riprova sociale, autorita'
 - privato -> emozione: casa, famiglia, tranquillita', "fatto bene una volta". Obiezioni da disinnescare: prezzo, fiducia, disagio dei lavori, durata, pulizia del cantiere. Tono "tu", caldo.
 - condominio -> decisione collettiva + amministratore. Leve: trasparenza, durata garantita, gestione pratiche, niente sorprese in assemblea. Tono "voi", istituzionale ma chiaro.
 - azienda -> ROI, continuita' operativa, tempi certi, fattura e detrazioni, zero fermo attivita'. Tono asciutto, numeri.
+- studio tecnico / progettista -> interlocutore competente: dettaglio tecnico, rispetto del capitolato, affidabilita' sui tempi, collaborazione.
+- ente pubblico -> trasparenza, conformita' normativa, documentazione, rispetto delle procedure.
+- agricolo/industriale -> grandi superfici, continuita' operativa, rapidita', costo al mq.
+Se sono indicati PIU' tipi insieme: scrivi testi equilibrati che funzionano per tutti, e nelle FAQ copri le obiezioni dei diversi tipi.
 
 # COME COMPILARE OGNI CAMPO (il framework qui sopra, mappato sui campi di output)
 - cover_title: l'headline. Max 12 parole, il valore principale del lavoro per QUESTO cliente_tipo.
@@ -137,9 +141,8 @@ Deno.serve(async (req: Request) => {
     const paymentBlock = await gateAiPayment(supabaseAdmin, company_id, cors);
     if (paymentBlock) return paymentBlock;
 
-    const clienteTipo = ["privato", "condominio", "azienda"].includes((cliente_tipo ?? "").toLowerCase())
-      ? (cliente_tipo as string).toLowerCase()
-      : "privato";
+    // Puo' essere uno o piu' tipi separati da virgola (es. "privato, condominio").
+    const clienteTipo = (cliente_tipo ?? "").trim() || "privato";
 
     // Profilo azienda per radicare i testi (nome -> "chi siamo" coerente).
     const { data: company } = await supabaseAdmin
