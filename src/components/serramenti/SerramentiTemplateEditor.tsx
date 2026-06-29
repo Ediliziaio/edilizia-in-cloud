@@ -47,6 +47,8 @@ const SerramentiConversionEditor = lazy(() =>
 );
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { AiTemplateGenerator } from "@/components/preventivi/AiTemplateGenerator";
+import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
 import { useCompanyAnagraficaForTemplate, inheritedPlaceholder } from "@/hooks/useCompanyAnagraficaForTemplate";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
@@ -493,6 +495,18 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     setForm((prev) => ({ ...prev, [key]: value }));
     setDirty(true);
   }, []);
+
+  // Mappa il draft AI (13 campi generici) sui campi del template Serramenti.
+  const applyGeneratedSr = useCallback((d: AiTemplateDraft) => {
+    const toText = (h?: string | null) => (h ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (d.cover_title) update("pdf_cover_hero", d.cover_title);
+    if (d.chi_siamo) update("chi_siamo_testo", toText(d.chi_siamo));
+    if (d.esigenze?.length) update("esigenze_default", d.esigenze.map((i) => ({ titolo: i.titolo, descrizione: i.descrizione ?? "" })));
+    if (d.soluzione?.length) update("soluzione_default", d.soluzione.map((i) => ({ titolo: i.titolo, descrizione: i.descrizione ?? "" })));
+    if (d.usp?.length) update("perche_noi_default", d.usp.map((i) => (i.descrizione ? `${i.titolo}: ${i.descrizione}` : i.titolo)));
+    if (d.garanzie?.length) update("garanzie", d.garanzie.map((g) => ({ icona: "shield" as const, titolo: g.titolo, descrizione: g.descrizione ?? "" })));
+    if (d.faq?.length) update("faq_items", d.faq.map((f) => ({ domanda: f.domanda, risposta: f.risposta })));
+  }, [update]);
 
   const applySharedLegalTemplate = useCallback((templateId: string, mode: "replace" | "append") => {
     const templateToApply = sharedLegalTemplates.find((templateOption) => templateOption.id === templateId);
@@ -1090,6 +1104,11 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <AiTemplateGenerator
+            settoreFn="ai-genera-template-serramenti"
+            onApply={applyGeneratedSr}
+            className="gap-1.5 h-9 px-3 text-sm bg-orange-500 hover:bg-orange-600"
+          />
           <Button
             onClick={() => setPreviewOpen(true)}
             variant="outline"

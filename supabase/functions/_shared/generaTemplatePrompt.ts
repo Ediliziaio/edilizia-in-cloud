@@ -73,6 +73,18 @@ export const SETTORI: Record<string, SettoreCfg> = {
     default: "Impresa di ristrutturazioni complete: opere edili, impianti e finiture.",
     specifiche: "Problemi tipici: casa datata, spazi mal distribuiti, impianti vecchi, gestire piu' lavori insieme. Lavori: demolizioni, opere edili, impianti idraulico ed elettrico, finiture, serramenti. Temi FAQ: durata e fasi, abitabilita' durante i lavori, gestione bonus, coordinamento delle lavorazioni.",
   },
+  fotovoltaico: {
+    label: "impianti fotovoltaici e accumulo",
+    lavoro: "l'impianto fotovoltaico",
+    default: "Impresa specializzata in impianti fotovoltaici residenziali con accumulo: progettazione, installazione, allaccio e pratiche.",
+    specifiche: "Problemi tipici: bollette elettriche alte, dipendenza dalla rete, voglia di indipendenza energetica. Lavori: progettazione, pannelli, inverter, batteria di accumulo, allaccio e pratiche GSE/Enel. Temi FAQ: risparmio reale in bolletta, tempi di rientro, durata e garanzia pannelli, manutenzione, incentivi/detrazioni.",
+  },
+  serramenti: {
+    label: "serramenti e infissi (finestre, porte, persiane)",
+    lavoro: "i nuovi serramenti",
+    default: "Impresa specializzata in fornitura e posa di serramenti e infissi (finestre, porte-finestre, persiane), con rilievo e posa in opera.",
+    specifiche: "Problemi tipici: spifferi e freddo, infissi vecchi, dispersione termica e bollette, rumore dall'esterno. Lavori: rilievo, fornitura infissi (PVC/alluminio/legno), smontaggio dei vecchi, posa in opera certificata, zanzariere e persiane. Temi FAQ: risparmio energetico, posa e tempi, detrazioni/bonus, manutenzione, isolamento acustico.",
+  },
 };
 
 function buildSystemPrompt(s: SettoreCfg): string {

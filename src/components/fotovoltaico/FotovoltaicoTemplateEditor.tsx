@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { AiTemplateGenerator } from "@/components/preventivi/AiTemplateGenerator";
+import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
 import { FvPagesOrderEditor } from "@/components/fotovoltaico/FvPagesOrderEditor";
 import { MacroPagineDedicateManager } from "@/components/listino/MacroPagineDedicateManager";
 import type { FvPdfPageOrderItem } from "@/lib/fotovoltaico/pdfPages";
@@ -766,6 +768,17 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
     setDirty(true);
   };
 
+  // Mappa il draft AI (13 campi generici) sui campi del template Fotovoltaico.
+  const applyGeneratedFv = (d: AiTemplateDraft) => {
+    if (d.cover_title) update("pdf_cover_hero", d.cover_title);
+    if (d.chi_siamo) update("presentazione_impresa_html", d.chi_siamo);
+    if (d.soluzione?.length)
+      update("valore_proposta_html", d.soluzione.map((i) => `<p><strong>${i.titolo}</strong>${i.descrizione ? " — " + i.descrizione : ""}</p>`).join(""));
+    if (d.garanzie?.length)
+      update("garanzie_conversione", d.garanzie.map((g) => ({ icona: "shield" as const, titolo: g.titolo, descrizione: g.descrizione ?? "" })));
+    if (d.faq?.length) update("faq_items", d.faq.map((f) => ({ domanda: f.domanda, risposta: f.risposta })));
+  };
+
   // ─── Cover presets 1-click (parità Serramenti) ───────────────────────────
   // Applica in batch tutti i campi pdf_cover_* del preset selezionato.
   const applyCoverPreset = useCallback((presetId: string) => {
@@ -1132,6 +1145,11 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <AiTemplateGenerator
+            settoreFn="ai-genera-template-fotovoltaico"
+            onApply={applyGeneratedFv}
+            className="gap-1.5 h-9 px-3 text-sm bg-orange-500 hover:bg-orange-600"
+          />
           <Button
             type="button"
             variant="outline"
