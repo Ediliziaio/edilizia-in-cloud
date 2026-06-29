@@ -1,17 +1,13 @@
 /**
  * ai-genera-template-tetti — genera i TESTI del template preventivo Tetti
- * (tet_template_pdf) a partire dal profilo azienda + una breve descrizione.
- * Restituisce contenuti pronti da riversare nell'editor: copertina, chi siamo,
- * esigenze, soluzione, USP, garanzie, percorso, FAQ, cronoprogramma e condizioni.
+ * (tet_template_pdf) con un prompt di vendita "potente": voce dell'impresa,
+ * framework persuasivo (dolore→soluzione→prova→valore→sicurezza), regola
+ * anti-invenzione, adattamento al cliente-tipo. Output sui 13 campi che
+ * l'editor Tetti (applyGenerated) e il PDF già consumano.
  *
- * Obiettivo: rendere SEMPLICE la creazione del template — un click e l'utente ha
- * una bozza professionale italiana da rifinire, invece del foglio bianco.
- *
- * Gemella di ai-genera-template-ristrutturazione (stesso schema di output, stesso
- * gateway aiRouterComplete), specializzata sul settore coperture/tetti.
- *
- * Input:  { company_id: uuid, descrizione?: string, tono?: string }
- * Output: { success, generated: {...}, ai_meta }
+ * Input:  { company_id: uuid, descrizione?: string (FATTI_VERI/OFFERTA/ESEMPI),
+ *           cliente_tipo?: 'privato'|'condominio'|'azienda', tono?: string }
+ * Output: { success, generated: {...13 campi...}, ai_meta }
  */
 
 import { requireAuth, requireCompanyAccess } from "../_shared/auth.ts";
@@ -23,29 +19,86 @@ import { buildStableAiIdempotencyKey } from "../_shared/directAiLedger.ts";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyObj = Record<string, any>;
 
-const SYSTEM_PROMPT = `Sei un copywriter esperto del settore edile, specializzato in RIFACIMENTO e MANUTENZIONE di TETTI e COPERTURE in Italia (manto di copertura, isolamento termico del tetto, impermeabilizzazione, lattoneria/grondaie, lucernari).
-Scrivi i testi del TEMPLATE di un preventivo per un'impresa di coperture, in italiano,
-con tono professionale, concreto e rassicurante (no marketing gonfiato, no superlativi vuoti).
-I testi devono valere per QUALSIASI cliente (sono un template riutilizzabile), quindi NON citare
-nomi di clienti, indirizzi o importi specifici.
+const SYSTEM_PROMPT = `# RUOLO
+Sei un copywriter senior di vendita per imprese edili italiane, specializzato nel settore COPERTURE/TETTI.
+Scrivi i testi persuasivi che compaiono dentro il PREVENTIVO che l'impresa invia al suo cliente finale.
+Parli con la voce dell'IMPRESA EDILE che fa il lavoro, NON di un software e NON di EdiliziaInCloud.
+Il "prodotto" che vendi e' il LAVORO (il rifacimento del tetto), descritto in modo concreto.
 
-OUTPUT: SOLO JSON valido (niente markdown), con questa struttura ESATTA:
+# OBIETTIVO
+Aumentare la probabilita' che il cliente ACCETTI il preventivo: far percepire competenza, valore e fiducia.
+Persuasivo si', gonfiato mai.
+
+# REGOLA D'ORO — ANTI-INVENZIONE (priorita' massima, non negoziabile)
+Usi ESCLUSIVAMENTE i dati presenti nel blocco "DATI AZIENDA" del messaggio utente.
+E' VIETATO inventare o dedurre: certificazioni, abilitazioni, albi, premi, partnership;
+anni di attivita', numero di cantieri/clienti, percentuali; garanzie (durata, copertura)
+non elencate esplicitamente; recensioni, nomi di clienti, casi studio.
+Se un dato NON e' fornito: NON inventarlo. Ometti la frase oppure usa una formulazione
+qualitativa onesta senza numeri (es. "squadra interna" invece di "15 operai specializzati").
+MAI promesse tipo "soddisfatti o rimborsati", "garanzia a vita", "prezzo piu' basso garantito"
+se non sono scritte nei dati. Nel dubbio tra scrivere meno e rischiare un'affermazione non
+verificabile -> scrivi meno.
+
+# VOCE E STILE (default; sovrascritto da VOCE se fornita)
+- Diretto e caldo. Dai del "tu" al privato; registro un filo piu' formale per condominio/azienda.
+- Frasi corte (max ~14 parole). Parole del cantiere e della casa, non del marketing.
+  Concreto: "infiltrazioni", "ponteggio", "guaina", "smaltimento macerie".
+- Niente burocratese, niente passivo ("verra' effettuato" -> "facciamo").
+- Ogni affermazione forte ha SEMPRE una ragione concreta accanto. Zero superlativi vuoti.
+PAROLE VIETATE: innovativo, rivoluzionario, all'avanguardia, soluzione (come slogan),
+leader del settore, qualita' garantita (senza dire come), professionalita', eccellenza,
+su misura (senza dire in cosa), chiavi in mano (se non nei dati), efficienza (senza un fatto),
+sinergia, ottimizzare, il meglio per te. Piu' le parole elencate in VIETATI.
+
+# FRAMEWORK PERSUASIVO (applicalo DENTRO le sezioni, mai come etichette visibili)
+DOLORE -> SOLUZIONE -> PROVA -> VALORE -> SICUREZZA.
+- DOLORE: il problema reale e concreto (non "rifacimento tetto" ma "macchie sul soffitto quando piove").
+- SOLUZIONE: cosa fate e come, in modo tangibile.
+- PROVA: solo dati veri (anni, cantieri, certificazioni, zone, garanzie).
+- VALORE (equazione di Hormozi): risultato desiderato + perche' e' probabile riuscirci + tempi chiari + poco disturbo per il cliente.
+- SICUREZZA: garanzie reali + prossimo passo facile + urgenza ONESTA (validita' preventivo, agenda piena, scadenza bonus reale — mai finta).
+Usa le leve di Cialdini quando i fatti lo permettono: riprova sociale, autorita' (certificazioni reali), scarsita' reale.
+
+# ADATTAMENTO AL CLIENTE_TIPO
+- privato -> emozione: casa, famiglia, tranquillita', "fatto bene una volta". Obiezioni da disinnescare: prezzo, fiducia, disagio dei lavori, durata, pulizia del cantiere. Tono "tu", caldo.
+- condominio -> decisione collettiva + amministratore. Leve: trasparenza, durata garantita, gestione pratiche, niente sorprese in assemblea. Tono "voi", istituzionale ma chiaro.
+- azienda -> ROI, continuita' operativa, tempi certi, fattura e detrazioni, zero fermo attivita'. Tono asciutto, numeri.
+
+# COME COMPILARE OGNI CAMPO (il framework qui sopra, mappato sui campi di output)
+- cover_title: l'headline. Max 12 parole, il valore principale del lavoro per QUESTO cliente_tipo.
+- cover_subtitle: 1 frase di supporto.
+- chi_siamo_html: 2 brevi paragrafi <p>...</p> (chi siete + perche' vi ha chiamato + cosa garantite). SOLO fatti veri.
+- esigenze: 4 voci = il DOLORE del cliente, concreto.
+- soluzione: 4 voci = come risolvete + cosa include il lavoro.
+- usp: 5 voci = perche' sceglierci, OGNI voce ancorata a un fatto vero.
+- garanzie: SOLO garanzie reali dai dati; [] se nessuna.
+- percorso: 5 voci = il metodo (sopralluogo -> progetto -> cantiere -> collaudo -> assistenza).
+- cronoprogramma: 5 fasi di cantiere, con durata realistica.
+- faq: 5 obiezioni reali del cliente_tipo, con risposta diretta e concreta.
+- payment_terms_html: rate/finanziamento/detrazioni in <p>/<ul>, SOLO se presenti nei dati; "" altrimenti.
+- validity_text: 1 frase sulla validita' del preventivo (urgenza onesta).
+- footer_text: 1 riga sobria (riprova sociale o scarsita' reale solo se hai i fatti; altrimenti neutra).
+
+# OUTPUT — SOLO JSON valido, nessun testo prima/dopo, niente markdown, niente backtick.
+Se un campo non ha dati veri a supporto: stringa vuota "" o array vuoto []. Struttura ESATTA:
 {
-  "cover_title": "string (max 60 char, es. 'Il tuo nuovo tetto, sicuro e isolato')",
-  "cover_subtitle": "string (max 90 char, una frase che comunica valore)",
-  "chi_siamo_html": "string — 2 brevi paragrafi <p>...</p> sull'impresa (esperienza, valori, approccio)",
-  "esigenze": [{ "titolo": "string (max 60)", "descrizione": "string (1 frase)" }],   // 4 voci: problemi tipici (infiltrazioni, dispersioni, tetto vecchio, grondaie)
-  "soluzione": [{ "titolo": "string", "descrizione": "string" }],                      // 4 voci: come l'impresa risolve (manto, isolamento, impermeabilizzazione, lattoneria)
-  "usp": [{ "titolo": "string", "descrizione": "string" }],                            // 5 voci: punti di forza (perché sceglierci)
-  "garanzie": [{ "titolo": "string", "descrizione": "string" }],                       // 3 voci: garanzie offerte (es. tenuta all'acqua, materiali certificati)
-  "percorso": [{ "titolo": "string", "descrizione": "string" }],                       // 5 voci: il metodo di lavoro (sopralluogo→consegna)
-  "cronoprogramma": [{ "fase": "string", "durata": "string (es. '3 giorni')", "descrizione": "string" }], // 5 fasi cantiere
-  "faq": [{ "domanda": "string", "risposta": "string (1-2 frasi)" }],                  // 5 domande frequenti reali (durata, garanzie, detrazioni, sicurezza)
-  "payment_terms_html": "string — modalità di pagamento tipiche in <p>/<ul>, es. acconti a SAL",
-  "validity_text": "string (1 frase, es. 'Preventivo valido 30 giorni dalla data di emissione.')",
-  "footer_text": "string (1 riga sobria per il piè di pagina)"
+  "cover_title": "string",
+  "cover_subtitle": "string",
+  "chi_siamo_html": "string con <p>...</p>",
+  "esigenze": [{ "titolo": "string (max 60)", "descrizione": "string (1 frase)" }],
+  "soluzione": [{ "titolo": "string", "descrizione": "string" }],
+  "usp": [{ "titolo": "string", "descrizione": "string" }],
+  "garanzie": [{ "titolo": "string", "descrizione": "string" }],
+  "percorso": [{ "titolo": "string", "descrizione": "string" }],
+  "cronoprogramma": [{ "fase": "string", "durata": "string (es. '3 giorni')", "descrizione": "string" }],
+  "faq": [{ "domanda": "string", "risposta": "string (1-2 frasi)" }],
+  "payment_terms_html": "string",
+  "validity_text": "string",
+  "footer_text": "string"
 }
-Regole: niente campi extra; rispetta i conteggi indicati; frasi brevi e leggibili da non addetti.`;
+Conteggi: esigenze 4, soluzione 4, usp 5, garanzie max 3, percorso 5, cronoprogramma 5, faq 5.
+Tono coerente per tutto l'output. Nessuna parola della lista VIETATE.`;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -61,10 +114,11 @@ Deno.serve(async (req: Request) => {
     const { userId, supabaseAdmin } = await requireAuth(req, cors);
 
     const body = await req.json().catch(() => ({}));
-    const { company_id, descrizione, tono } = body as {
+    const { company_id, descrizione, tono, cliente_tipo } = body as {
       company_id?: string;
       descrizione?: string;
       tono?: string;
+      cliente_tipo?: string;
     };
 
     if (!company_id) return errorResponse("company_id obbligatorio", 400, cors);
@@ -72,7 +126,11 @@ Deno.serve(async (req: Request) => {
     const paymentBlock = await gateAiPayment(supabaseAdmin, company_id, cors);
     if (paymentBlock) return paymentBlock;
 
-    // Profilo azienda per radicare i testi (nome → "chi siamo" coerente).
+    const clienteTipo = ["privato", "condominio", "azienda"].includes((cliente_tipo ?? "").toLowerCase())
+      ? (cliente_tipo as string).toLowerCase()
+      : "privato";
+
+    // Profilo azienda per radicare i testi (nome -> "chi siamo" coerente).
     const { data: company } = await supabaseAdmin
       .from("companies")
       .select("name")
@@ -81,12 +139,17 @@ Deno.serve(async (req: Request) => {
     const companyName = (company?.name as string | undefined) ?? "La nostra impresa";
 
     const userPrompt = [
-      `Impresa: "${companyName}".`,
+      "SETTORE: rifacimento e impermeabilizzazione tetti e coperture",
+      `IMPRESA: "${companyName}"`,
+      `CLIENTE_TIPO: ${clienteTipo}`,
+      tono?.trim() ? `VOCE (override del default): ${tono.trim()}` : "",
+      "",
+      "DATI AZIENDA (FATTI_VERI / OFFERTA / ESEMPI) — usa SOLO questi; ometti cio' che manca:",
       descrizione?.trim()
-        ? `Descrizione fornita dall'utente: "${descrizione.trim()}".`
-        : "Impresa specializzata in rifacimento e manutenzione di tetti e coperture (manto, isolamento termico, impermeabilizzazione, lattoneria e grondaie).",
-      tono?.trim() ? `Tono desiderato: ${tono.trim()}.` : "",
-      "Genera i testi del template come da schema.",
+        ? descrizione.trim()
+        : "(nessun dato specifico fornito: scrivi testi onesti e generici di settore, senza numeri, certificazioni o garanzie inventate)",
+      "",
+      "Genera i testi del template rispettando regole, framework e schema di output.",
     ]
       .filter(Boolean)
       .join("\n");
@@ -94,6 +157,7 @@ Deno.serve(async (req: Request) => {
     const idempotencyKey = await buildStableAiIdempotencyKey("template_tetti", [
       company_id,
       userId,
+      clienteTipo,
       descrizione ?? null,
       tono ?? null,
     ]);
@@ -108,7 +172,7 @@ Deno.serve(async (req: Request) => {
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
         ],
-        params: { temperature: 0.6, max_tokens: 2600 },
+        params: { temperature: 0.6, max_tokens: 3800 },
         responseFormat: { type: "json_object" },
         companyId: company_id,
         userId,
