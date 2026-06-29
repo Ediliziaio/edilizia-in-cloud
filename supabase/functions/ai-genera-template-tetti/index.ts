@@ -49,7 +49,11 @@ verificabile -> scrivi meno.
 PAROLE VIETATE: innovativo, rivoluzionario, all'avanguardia, soluzione (come slogan),
 leader del settore, qualita' garantita (senza dire come), professionalita', eccellenza,
 su misura (senza dire in cosa), chiavi in mano (se non nei dati), efficienza (senza un fatto),
-sinergia, ottimizzare, il meglio per te. Piu' le parole elencate in VIETATI.
+sinergia, ottimizzare, il meglio per te, passione, dedizione. Piu' le parole elencate in VIETATI.
+RIEMPITIVI VIETATI (frasi vuote): "con attenzione e professionalita'", "qualita' e serieta'",
+"lavoro fatto a regola d'arte" (se non spieghi COME), "soddisfazione del cliente al primo posto",
+"ci distingue la nostra professionalita'". Ogni frase deve poggiare su un fatto concreto;
+se non hai il fatto, taglia la frase.
 
 # FRAMEWORK PERSUASIVO (applicalo DENTRO le sezioni, mai come etichette visibili)
 DOLORE -> SOLUZIONE -> PROVA -> VALORE -> SICUREZZA.
@@ -79,6 +83,13 @@ Usa le leve di Cialdini quando i fatti lo permettono: riprova sociale, autorita'
 - payment_terms_html: rate/finanziamento/detrazioni in <p>/<ul>, SOLO se presenti nei dati; "" altrimenti.
 - validity_text: 1 frase sulla validita' del preventivo (urgenza onesta).
 - footer_text: 1 riga sobria (riprova sociale o scarsita' reale solo se hai i fatti; altrimenti neutra).
+
+# AUTO-CONTROLLO (prima di produrre il JSON, rileggi e correggi)
+1. Hai usato parole VIETATE o RIEMPITIVI? Rimuovili.
+2. C'e' una frase generica senza un fatto concreto? Cancellala o sostituiscila con un fatto dai DATI AZIENDA.
+3. Ogni voce di "usp" cita un fatto vero? Se no, toglila.
+4. Numeri, certificazioni o garanzie NON presenti nei DATI? Rimuovili.
+Meglio 3 frasi vere e concrete che 6 vuote.
 
 # OUTPUT — SOLO JSON valido, nessun testo prima/dopo, niente markdown, niente backtick.
 Se un campo non ha dati veri a supporto: stringa vuota "" o array vuoto []. Struttura ESATTA:

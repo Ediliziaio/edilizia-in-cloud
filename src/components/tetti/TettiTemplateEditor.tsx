@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils";
 import { RichTextEditorSafe } from "@/components/ui/rich-text-editor-safe";
 import { useTettiPDF } from "@/hooks/useTettiPDF";
 import { TettiTemplatePreviewDialog } from "@/components/tetti/TettiTemplatePreviewDialog";
+import { AiTemplateReviewDialog } from "@/components/preventivi/AiTemplateReviewDialog";
 import {
   useTetTemplatePdf,
   useUpsertTetTemplatePdf,
@@ -330,6 +331,8 @@ export function TettiTemplateEditor({ embedded = false }: Props) {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiDesc, setAiDesc] = useState("");
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [aiDraft, setAiDraft] = useState<GeneratedTemplateTexts | null>(null);
 
   /** Riversa i testi generati nel form (solo i campi valorizzati: non-distruttivo). */
   const applyGenerated = (g: GeneratedTemplateTexts) => {
@@ -364,11 +367,9 @@ export function TettiTemplateEditor({ embedded = false }: Props) {
       if (!payload?.success || !payload.generated) {
         throw new Error(payload?.error ?? "Generazione non riuscita");
       }
-      applyGenerated(payload.generated);
+      setAiDraft(payload.generated);
       setAiOpen(false);
-      toast.success("Bozza generata con l'AI", {
-        description: "Controlla i testi nelle sezioni e salva il template.",
-      });
+      setReviewOpen(true);
     } catch (e) {
       toast.error("Generazione non riuscita", {
         description: e instanceof Error ? e.message : "Riprova tra poco.",
@@ -1595,6 +1596,20 @@ export function TettiTemplateEditor({ embedded = false }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Dialog: anteprima testi AI (rivedi/copia prima di applicare) ── */}
+      <AiTemplateReviewDialog
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        draft={aiDraft}
+        onApply={(d) => {
+          applyGenerated(d);
+          setReviewOpen(false);
+          toast.success("Testi applicati al template", {
+            description: "Rivedi le singole sezioni e salva.",
+          });
+        }}
+      />
 
       {/* ── Dialog: galleria immagini stock (Unsplash free) per la cover ── */}
       <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
