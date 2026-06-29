@@ -82,8 +82,10 @@ export function OperationalKpiCard({
         }
       }}
       className={cn(
-        "relative overflow-hidden border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md",
-        onClick && "cursor-pointer",
+        "relative overflow-hidden border-slate-200/80 bg-gradient-to-br from-white to-slate-50/80 shadow-sm transition-all",
+        // Lift hover SOLO se cliccabile — su card read-only non ha senso
+        // suggerire interattività che non c'è (causava aspettative sbagliate).
+        onClick && "cursor-pointer hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md",
         active && "border-orange-200 ring-2 ring-orange-200/80",
         className,
       )}
