@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowUp,
   Calendar,
+  ChevronDown,
   Download,
   BarChart3,
   CheckCircle2,
@@ -153,7 +154,7 @@ export function CrmSalesReportPanel({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-slate-400" />
           <Select value={String(daysBack)} onValueChange={(v) => setDaysBack(Number(v))}>
@@ -293,8 +294,7 @@ export function CrmSalesReportPanel({
         </div>
       </section>
 
-      <section className="space-y-4">
-        <SectionHeader icon={BarChart3} title="Dettaglio operativo" description="Qui scendi sui numeri quando una priorità richiede analisi." />
+      <CollapsibleSection icon={BarChart3} title="Dettaglio operativo" description="Apri per i numeri di dettaglio: preventivi, forecast, qualità lead, perdite, fonti." defaultOpen={false}>
         <div className="grid gap-4 xl:grid-cols-2">
           <DetailPanel title="Preventivi e tempi" icon={FileSignature}>
             <div className="grid gap-3 sm:grid-cols-3">
@@ -349,7 +349,7 @@ export function CrmSalesReportPanel({
             <SourceBreakdownTable rows={sourceRows} loading={commercial.isLoading} />
           </DetailPanel>
         </div>
-      </section>
+      </CollapsibleSection>
 
       <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -408,10 +408,9 @@ export function CrmSalesReportPanel({
         </div>
       </section>
 
-      <section className="space-y-3">
-        <SectionHeader icon={Trophy} title="Canali paid che generano vendite" description="Meta e Google restano separati: lead, appuntamenti, vendite e fatturato non vengono mischiati." />
+      <CollapsibleSection icon={Trophy} title="Canali paid che generano vendite" description="Meta e Google: lead, appuntamenti, vendite e fatturato (tenuti separati)." defaultOpen={false}>
         <AdsSalesReportPanel provider="all" daysBack={daysBack} compact className="border-slate-200 bg-white shadow-sm" />
-      </section>
+      </CollapsibleSection>
     </div>
   );
 }
@@ -591,6 +590,42 @@ function TableBar({ value, max, tone = "orange" }: { value: number; max: number;
     <div className={cn("mt-1 h-1 w-full overflow-hidden rounded-full", track)}>
       <div className={cn("h-full rounded-full", fill)} style={{ width: `${pct}%` }} />
     </div>
+  );
+}
+
+function CollapsibleSection({
+  icon: Icon,
+  title,
+  description,
+  defaultOpen = true,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="space-y-4">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 text-left"
+      >
+        <div>
+          <div className="flex items-center gap-2">
+            <Icon className="h-4 w-4 text-orange-600" />
+            <h3 className="text-base font-semibold text-slate-950">{title}</h3>
+          </div>
+          <p className="mt-1 text-sm text-slate-600">{description}</p>
+        </div>
+        <ChevronDown className={cn("h-5 w-5 shrink-0 text-slate-400 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && children}
+    </section>
   );
 }
 
