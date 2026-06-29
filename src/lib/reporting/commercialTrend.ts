@@ -1,16 +1,18 @@
 // ============================================================================
-// commercialTrend — serie temporale per la reportistica CRM-vendite.
-// Bucketizza le righe GIÀ scaricate (nessuna query nuova): settimanale fino a
-// 120 giorni, mensile oltre. Stesse unità della lib report (importi in euro
-// → cents con ×100). Date in locale (no toISOString, vedi bug UTC del progetto).
+// commercialTrend — serie temporale + confronto periodi per la reportistica
+// CRM-vendite. Lavora su un RANGE esplicito {from, to} + granularità (giorno/
+// settimana/mese). Le righe arrivano già filtrate alla finestra dal hook.
+// Stesse unità della lib report (importi euro → cents ×100). Date in locale.
 // ============================================================================
 import {
+  differenceInCalendarDays,
+  eachDayOfInterval,
   eachMonthOfInterval,
   eachWeekOfInterval,
   format,
+  startOfDay,
   startOfMonth,
   startOfWeek,
-  subDays,
 } from "date-fns";
 import { it } from "date-fns/locale";
 
@@ -26,9 +28,11 @@ export interface CommercialTrendRows {
   orders: CommercialOrderRow[];
 }
 
+export type TimeGranularity = "day" | "week" | "month";
+
 export interface CommercialTrendPoint {
   key: string; // ISO della data di inizio bucket (stabile per chart key)
-  label: string; // etichetta leggibile (es. "12 mag" o "mag 26")
+  label: string;
   lead: number;
   preventivi: number;
   vinte: number;
@@ -47,31 +51,44 @@ function toCents(value: number | string | null | undefined): number {
   const n = typeof value === "number" ? value : Number(value);
   return Number.isFinite(n) ? Math.round(n * 100) : 0;
 }
-
 function parseDate(value: string | null | undefined): Date | null {
   if (!value) return null;
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
 }
+function roundOne(n: number): number {
+  return Math.round(n * 10) / 10;
+}
 
-/** Conta/somma le righe in ciascun bucket temporale del periodo. */
+/** Granularità sensata di default in base alla durata del range. */
+export function autoGranularity(from: Date, to: Date): TimeGranularity {
+  const days = Math.max(1, differenceInCalendarDays(to, from));
+  if (days <= 31) return "day";
+  if (days <= 180) return "week";
+  return "month";
+}
+
+/** Conta/somma le righe (già filtrate al range) in ciascun bucket temporale. */
 export function buildCommercialTrend(
   rows: CommercialTrendRows,
-  daysBack: number,
-  now: Date = new Date(),
+  range: { from: Date; to: Date; granularity?: TimeGranularity },
 ): CommercialTrendPoint[] {
-  const monthly = daysBack > 120;
-  const start = subDays(now, daysBack);
+  const { from, to } = range;
+  const granularity = range.granularity ?? autoGranularity(from, to);
 
-  const bucketStarts = monthly
-    ? eachMonthOfInterval({ start: startOfMonth(start), end: now })
-    : eachWeekOfInterval({ start: startOfWeek(start, { weekStartsOn: 1 }), end: now }, { weekStartsOn: 1 });
+  const bucketStarts =
+    granularity === "month"
+      ? eachMonthOfInterval({ start: startOfMonth(from), end: to })
+      : granularity === "week"
+        ? eachWeekOfInterval({ start: startOfWeek(from, { weekStartsOn: 1 }), end: to }, { weekStartsOn: 1 })
+        : eachDayOfInterval({ start: startOfDay(from), end: to });
 
   if (bucketStarts.length === 0) return [];
 
+  const labelFmt = granularity === "month" ? "MMM yy" : "d MMM";
   const points: CommercialTrendPoint[] = bucketStarts.map((bucketStart) => ({
     key: bucketStart.toISOString(),
-    label: monthly ? format(bucketStart, "MMM yy", { locale: it }) : format(bucketStart, "d MMM", { locale: it }),
+    label: format(bucketStart, labelFmt, { locale: it }),
     lead: 0,
     preventivi: 0,
     vinte: 0,
@@ -81,13 +98,11 @@ export function buildCommercialTrend(
   const marginSum = bucketStarts.map(() => 0);
   const marginCount = bucketStarts.map(() => 0);
 
-  // edge di fine di ciascun bucket (lo start del successivo, o now+1ms per l'ultimo)
   const edges = bucketStarts.map((d) => d.getTime());
   const findBucket = (date: Date | null): number => {
     if (!date) return -1;
     const t = date.getTime();
     if (t < edges[0]) return -1;
-    // ultimo bucket il cui start <= t
     let idx = -1;
     for (let i = 0; i < edges.length; i++) {
       if (edges[i] <= t) idx = i;
@@ -132,47 +147,30 @@ export interface PeriodComparisonMetric {
   money?: boolean;
   current: number;
   previous: number;
-  deltaPct: number | null; // null se il periodo precedente è a zero (nessun confronto sensato)
+  deltaPct: number | null; // null se il periodo di confronto è a zero
 }
 
-function roundOne(n: number): number {
-  return Math.round(n * 10) / 10;
+/** Aggrega le righe di un periodo (già filtrate alla finestra dal hook). */
+function aggregatePeriod(rows: CommercialTrendRows) {
+  return {
+    lead: rows.contacts.length,
+    preventivi: rows.quotes.length,
+    vinte: rows.orders.length,
+    fatturatoCents: rows.orders.reduce((s, o) => s + toCents(o.total_amount), 0),
+  };
 }
 
 /**
- * Confronto periodo corrente vs precedente, di pari durata.
- * Richiede righe che coprano 2×daysBack (la finestra doppia): le divide a metà.
+ * Confronto del periodo corrente vs un periodo di base (precedente o anno scorso).
+ * Ogni set di righe è già filtrato alla sua finestra dal hook → qui si aggrega e basta.
  */
 export function buildPeriodComparison(
-  rows: CommercialTrendRows,
-  daysBack: number,
-  now: Date = new Date(),
+  current: CommercialTrendRows,
+  baseline: CommercialTrendRows,
 ): PeriodComparisonMetric[] {
-  const mid = subDays(now, daysBack);
-  const start = subDays(now, daysBack * 2);
-  const inRange = (d: Date | null, from: Date, to: Date) =>
-    !!d && d.getTime() >= from.getTime() && d.getTime() < to.getTime();
-
-  const agg = (from: Date, to: Date) => {
-    let lead = 0;
-    let preventivi = 0;
-    let vinte = 0;
-    let fatturatoCents = 0;
-    for (const c of rows.contacts) if (inRange(parseDate(c.created_at), from, to)) lead += 1;
-    for (const q of rows.quotes) if (inRange(parseDate(q.created_at), from, to)) preventivi += 1;
-    for (const o of rows.orders) {
-      if (inRange(parseDate(o.created_at), from, to)) {
-        vinte += 1;
-        fatturatoCents += toCents(o.total_amount);
-      }
-    }
-    return { lead, preventivi, vinte, fatturatoCents };
-  };
-
-  const cur = agg(mid, now);
-  const prev = agg(start, mid);
+  const cur = aggregatePeriod(current);
+  const prev = aggregatePeriod(baseline);
   const delta = (c: number, p: number) => (p === 0 ? null : roundOne(((c - p) / p) * 100));
-
   return [
     { key: "fatturatoCents", label: "Fatturato", money: true, current: cur.fatturatoCents, previous: prev.fatturatoCents, deltaPct: delta(cur.fatturatoCents, prev.fatturatoCents) },
     { key: "preventivi", label: "Preventivi", current: cur.preventivi, previous: prev.preventivi, deltaPct: delta(cur.preventivi, prev.preventivi) },

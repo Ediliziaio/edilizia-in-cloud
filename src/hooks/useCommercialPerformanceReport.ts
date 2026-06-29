@@ -18,30 +18,37 @@ export function useCommercialPerformanceReport({
   companyId,
   daysBack = 180,
   monthlyTargetCents,
+  fromDate: fromDateProp,
+  toDate: toDateProp,
 }: {
   companyId?: string;
   daysBack?: number;
   monthlyTargetCents?: number;
+  fromDate?: string;
+  toDate?: string;
 }) {
-  const fromDate = useMemo(() => {
+  const { fromIso, toIso } = useMemo(() => {
+    if (fromDateProp) {
+      return { fromIso: fromDateProp, toIso: toDateProp ?? null };
+    }
     const date = new Date();
     date.setUTCDate(date.getUTCDate() - daysBack);
-    return date.toISOString();
-  }, [daysBack]);
+    return { fromIso: date.toISOString(), toIso: null as string | null };
+  }, [fromDateProp, toDateProp, daysBack]);
 
   const query = useQuery({
-    queryKey: ["commercial-performance-report", companyId, daysBack, monthlyTargetCents],
+    queryKey: ["commercial-performance-report", companyId, fromIso, toIso, monthlyTargetCents],
     queryFn: async () => {
       if (!companyId) {
         return emptyData();
       }
 
       const [contacts, appointments, quotes, opportunities, orders] = await Promise.all([
-        fetchContacts(companyId, fromDate),
-        fetchAppointments(companyId, fromDate),
-        fetchQuotes(companyId, fromDate),
+        fetchContacts(companyId, fromIso, toIso),
+        fetchAppointments(companyId, fromIso, toIso),
+        fetchQuotes(companyId, fromIso, toIso),
         fetchOpportunities(companyId),
-        fetchOrders(companyId, fromDate),
+        fetchOrders(companyId, fromIso, toIso),
       ]);
 
       return { contacts, appointments, quotes, opportunities, orders };
@@ -82,15 +89,15 @@ function emptyData() {
   };
 }
 
-async function fetchContacts(companyId: string, fromDate: string): Promise<CommercialContactRow[]> {
+async function fetchContacts(companyId: string, fromDate: string, toDate: string | null): Promise<CommercialContactRow[]> {
   try {
-    const { data, error } = await table("marketing_contacts")
+    let q = table("marketing_contacts")
       .select("id, created_at, source, source_campaign_id, attr_source, attr_campaign, city, province, assigned_to, call_center_id, stato, tags, icp_score, lead_score, ai_score")
       .eq("company_id", companyId)
       .gte("created_at", fromDate)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(5000);
+      .is("deleted_at", null);
+    if (toDate) q = q.lte("created_at", toDate);
+    const { data, error } = await q.order("created_at", { ascending: false }).limit(5000);
     if (error) throw error;
     return (data ?? []) as CommercialContactRow[];
   } catch {
@@ -98,14 +105,14 @@ async function fetchContacts(companyId: string, fromDate: string): Promise<Comme
   }
 }
 
-async function fetchAppointments(companyId: string, fromDate: string): Promise<CommercialAppointmentRow[]> {
+async function fetchAppointments(companyId: string, fromDate: string, toDate: string | null): Promise<CommercialAppointmentRow[]> {
   try {
-    const { data, error } = await table("appointments")
+    let q = table("appointments")
       .select("id, contact_id, assigned_to, appointment_date, appointment_type, order_id, status, is_completed, is_blocked_slot, calendar_id")
       .eq("company_id", companyId)
-      .gte("appointment_date", fromDate.slice(0, 10))
-      .order("appointment_date", { ascending: false })
-      .limit(5000);
+      .gte("appointment_date", fromDate.slice(0, 10));
+    if (toDate) q = q.lte("appointment_date", toDate.slice(0, 10));
+    const { data, error } = await q.order("appointment_date", { ascending: false }).limit(5000);
     if (error) throw error;
     return (data ?? []) as CommercialAppointmentRow[];
   } catch {
@@ -113,15 +120,15 @@ async function fetchAppointments(companyId: string, fromDate: string): Promise<C
   }
 }
 
-async function fetchQuotes(companyId: string, fromDate: string): Promise<CommercialQuoteRow[]> {
+async function fetchQuotes(companyId: string, fromDate: string, toDate: string | null): Promise<CommercialQuoteRow[]> {
   try {
-    const { data, error } = await table("quotes")
+    let q = table("quotes")
       .select("id, contact_id, opportunity_id, quote_number, title, status, total, subtotal, created_at, sent_at, signed_at, refused_at, refused_reason, salesperson_id, assigned_to, source, margine_totale_percentuale, margine_pct_snapshot, totale_costo_interno, totale_overhead")
       .eq("company_id", companyId)
       .gte("created_at", fromDate)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(5000);
+      .is("deleted_at", null);
+    if (toDate) q = q.lte("created_at", toDate);
+    const { data, error } = await q.order("created_at", { ascending: false }).limit(5000);
     if (error) throw error;
     return (data ?? []) as CommercialQuoteRow[];
   } catch {
@@ -144,16 +151,16 @@ async function fetchOpportunities(companyId: string): Promise<CommercialOpportun
   }
 }
 
-async function fetchOrders(companyId: string, fromDate: string): Promise<CommercialOrderRow[]> {
+async function fetchOrders(companyId: string, fromDate: string, toDate: string | null): Promise<CommercialOrderRow[]> {
   try {
-    const { data, error } = await table("orders")
+    let q = table("orders")
       .select("id, quote_id, quote_number, order_type, total_amount, created_at, status, fulfillment_status")
       .eq("company_id", companyId)
       .gte("created_at", fromDate)
       .is("deleted_at", null)
-      .not("quote_id", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(5000);
+      .not("quote_id", "is", null);
+    if (toDate) q = q.lte("created_at", toDate);
+    const { data, error } = await q.order("created_at", { ascending: false }).limit(5000);
     if (error) throw error;
     return (data ?? []) as CommercialOrderRow[];
   } catch {

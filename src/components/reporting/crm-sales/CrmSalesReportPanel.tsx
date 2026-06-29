@@ -32,12 +32,14 @@ import { useCommercialPerformanceReport } from "@/hooks/useCommercialPerformance
 import { isOpenOpportunity, type CommercialPerformanceReport } from "@/lib/reporting/commercialPerformanceReport";
 import { AdsSalesReportPanel } from "@/components/reporting/ads-sales/AdsSalesReportPanel";
 import {
+  autoGranularity,
   buildCommercialTrend,
   buildPeriodComparison,
   TREND_METRICS,
   type CommercialTrendMetric,
   type CommercialTrendPoint,
   type PeriodComparisonMetric,
+  type TimeGranularity,
 } from "@/lib/reporting/commercialTrend";
 import {
   buildFunnelConversion,
@@ -69,11 +71,26 @@ export function CrmSalesReportPanel({
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
-  const [daysBack, setDaysBack] = useState(initialDaysBack);
+  const initialPeriodKey = [30, 90, 180].includes(initialDaysBack) ? `${initialDaysBack}g` : "90g";
+  const [periodKey, setPeriodKey] = useState(initialPeriodKey);
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [granularity, setGranularity] = useState<TimeGranularity | "auto">("auto");
+  const [compareMode, setCompareMode] = useState<"prev" | "yoy">("prev");
+  const [trendMetric, setTrendMetric] = useState<CommercialTrendMetric>("fatturatoCents");
 
-  const commercial = useCommercialPerformanceReport({ companyId, daysBack });
-  const comparison = useCommercialPerformanceReport({ companyId, daysBack: daysBack * 2 });
-  const ads = useAdsSalesReport({ companyId, daysBack, provider: "all" });
+  const { from, to } = useMemo(() => resolvePeriod(periodKey, customFrom, customTo), [periodKey, customFrom, customTo]);
+  const baseline = useMemo(() => resolveBaseline(from, to, compareMode), [from, to, compareMode]);
+  const periodLabel =
+    periodKey === "custom"
+      ? `${from.toLocaleDateString("it-IT")} – ${to.toLocaleDateString("it-IT")}`
+      : PERIOD_OPTIONS.find((o) => o.key === periodKey)?.label ?? "Periodo";
+  const adsDaysBack = Math.max(1, differenceInCalendarDays(to, from));
+  const effectiveGranularity = granularity === "auto" ? autoGranularity(from, to) : granularity;
+
+  const commercial = useCommercialPerformanceReport({ companyId, fromDate: from.toISOString(), toDate: to.toISOString() });
+  const comparison = useCommercialPerformanceReport({ companyId, fromDate: baseline.from.toISOString(), toDate: baseline.to.toISOString() });
+  const ads = useAdsSalesReport({ companyId, daysBack: adsDaysBack, provider: "all" });
   const report = commercial.report;
   const loading = commercial.isLoading || ads.isLoading;
   const priorities = buildPriorityActions(report, ads.totals);
@@ -83,18 +100,17 @@ export function CrmSalesReportPanel({
     () =>
       buildCommercialTrend(
         { contacts: commercial.rows.contacts, quotes: commercial.rows.quotes, orders: commercial.rows.orders },
-        daysBack,
+        { from, to, granularity: effectiveGranularity },
       ),
-    [commercial.rows, daysBack],
+    [commercial.rows, from, to, effectiveGranularity],
   );
-  const [trendMetric, setTrendMetric] = useState<CommercialTrendMetric>("fatturatoCents");
   const periodCompare = useMemo(
     () =>
       buildPeriodComparison(
+        { contacts: commercial.rows.contacts, quotes: commercial.rows.quotes, orders: commercial.rows.orders },
         { contacts: comparison.rows.contacts, quotes: comparison.rows.quotes, orders: comparison.rows.orders },
-        daysBack,
       ),
-    [comparison.rows, daysBack],
+    [commercial.rows, comparison.rows],
   );
   const funnelConv = useMemo(
     () =>
@@ -129,7 +145,7 @@ export function CrmSalesReportPanel({
   const handleExport = () => {
     const rowsCsv: Array<[string, string, string]> = [
       ["Sezione", "Metrica", "Valore"],
-      ["Periodo", "Giorni analizzati", String(daysBack)],
+      ["Periodo", "Intervallo", periodLabel],
       ["KPI", "Fatturato attribuito (Ads)", formatMoney(ads.totals.revenueCents)],
       ["KPI", "Pipeline aperta", formatMoney(report.forecast.openValueCents)],
       ["KPI", "Preventivi emessi", String(report.quotes.issued)],
@@ -149,23 +165,43 @@ export function CrmSalesReportPanel({
       ]);
     }
     const csv = rowsCsv.map((row) => row.map((cell) => escapeCsvCell(cell, ";")).join(";")).join("\r\n");
-    downloadFile(`﻿${csv}`, `report-crm-vendite-${daysBack}gg.csv`, "text/csv;charset=utf-8;");
+    downloadFile(`﻿${csv}`, `report-crm-vendite.csv`, "text/csv;charset=utf-8;");
   };
 
   return (
     <div className="space-y-5">
       <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Calendar className="h-4 w-4 text-slate-400" />
-          <Select value={String(daysBack)} onValueChange={(v) => setDaysBack(Number(v))}>
-            <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
+          <Select value={periodKey} onValueChange={setPeriodKey}>
+            <SelectTrigger className="h-9 w-[200px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="30">Ultimi 30 giorni</SelectItem>
-              <SelectItem value="90">Ultimi 90 giorni</SelectItem>
-              <SelectItem value="180">Ultimi 180 giorni</SelectItem>
-              <SelectItem value="365">Ultimo anno</SelectItem>
+              {PERIOD_OPTIONS.map((o) => (
+                <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
+          {periodKey === "custom" && (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                value={customFrom}
+                max={customTo || undefined}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                aria-label="Data inizio"
+                className="h-9 rounded-md border border-slate-200 px-2 text-sm text-slate-700"
+              />
+              <span className="text-slate-400">→</span>
+              <input
+                type="date"
+                value={customTo}
+                min={customFrom || undefined}
+                onChange={(e) => setCustomTo(e.target.value)}
+                aria-label="Data fine"
+                className="h-9 rounded-md border border-slate-200 px-2 text-sm text-slate-700"
+              />
+            </div>
+          )}
         </div>
         <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={handleExport} disabled={loading}>
           <Download className="h-4 w-4" />
@@ -177,7 +213,7 @@ export function CrmSalesReportPanel({
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-2xl">
             <Badge variant="outline" className="mb-3 border-orange-200 bg-orange-50 text-orange-700">
-              Ultimi {daysBack} giorni
+              {periodLabel}
             </Badge>
             <h2 className="text-2xl font-semibold tracking-tight text-slate-950">CRM e vendite</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -228,11 +264,20 @@ export function CrmSalesReportPanel({
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <SectionHeader
-          icon={TrendingUp}
-          title="Rispetto al periodo precedente"
-          description={`Confronto con i ${daysBack} giorni precedenti, a parità di durata.`}
-        />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <SectionHeader
+            icon={TrendingUp}
+            title="Confronto periodo"
+            description={compareMode === "yoy" ? "Vs stesso periodo dell'anno scorso." : "Vs periodo precedente di pari durata."}
+          />
+          <Select value={compareMode} onValueChange={(v) => setCompareMode(v as "prev" | "yoy")}>
+            <SelectTrigger className="h-9 w-[200px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="prev">Vs periodo precedente</SelectItem>
+              <SelectItem value="yoy">Vs anno scorso</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {periodCompare.map((m) => (
             <ComparisonCard key={m.key} metric={m} loading={comparison.isLoading} />
@@ -264,23 +309,34 @@ export function CrmSalesReportPanel({
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <SectionHeader icon={TrendingUp} title="Andamento nel tempo" description={daysBack > 120 ? "Aggregato per mese." : "Aggregato per settimana."} />
-          <div className="flex flex-wrap gap-1.5">
-            {TREND_METRICS.map((m) => (
-              <button
-                key={m.key}
-                type="button"
-                onClick={() => setTrendMetric(m.key)}
-                className={cn(
-                  "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
-                  trendMetric === m.key
-                    ? "border-orange-300 bg-orange-50 text-orange-700"
-                    : "border-slate-200 text-slate-600 hover:bg-slate-50",
-                )}
-              >
-                {m.label}
-              </button>
-            ))}
+          <SectionHeader icon={TrendingUp} title="Andamento nel tempo" description={`Aggregato per ${effectiveGranularity === "month" ? "mese" : effectiveGranularity === "week" ? "settimana" : "giorno"}.`} />
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={granularity} onValueChange={(v) => setGranularity(v as TimeGranularity | "auto")}>
+              <SelectTrigger className="h-8 w-[120px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Auto</SelectItem>
+                <SelectItem value="day">Giorno</SelectItem>
+                <SelectItem value="week">Settimana</SelectItem>
+                <SelectItem value="month">Mese</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex flex-wrap gap-1.5">
+              {TREND_METRICS.map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => setTrendMetric(m.key)}
+                  className={cn(
+                    "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+                    trendMetric === m.key
+                      ? "border-orange-300 bg-orange-50 text-orange-700"
+                      : "border-slate-200 text-slate-600 hover:bg-slate-50",
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         <div className="mt-4 h-64 w-full">
@@ -409,7 +465,7 @@ export function CrmSalesReportPanel({
       </section>
 
       <CollapsibleSection icon={Trophy} title="Canali paid che generano vendite" description="Meta e Google: lead, appuntamenti, vendite e fatturato (tenuti separati)." defaultOpen={false}>
-        <AdsSalesReportPanel provider="all" daysBack={daysBack} compact className="border-slate-200 bg-white shadow-sm" />
+        <AdsSalesReportPanel provider="all" daysBack={adsDaysBack} compact className="border-slate-200 bg-white shadow-sm" />
       </CollapsibleSection>
     </div>
   );
@@ -883,6 +939,45 @@ function TrendChart({ data, metric }: { data: CommercialTrendPoint[]; metric: Co
       </RLineChart>
     </ResponsiveContainer>
   );
+}
+
+const PERIOD_OPTIONS: Array<{ key: string; label: string }> = [
+  { key: "30g", label: "Ultimi 30 giorni" },
+  { key: "90g", label: "Ultimi 90 giorni" },
+  { key: "180g", label: "Ultimi 180 giorni" },
+  { key: "mese-corrente", label: "Questo mese" },
+  { key: "mese-scorso", label: "Mese scorso" },
+  { key: "trimestre", label: "Questo trimestre" },
+  { key: "anno", label: "Quest'anno (YTD)" },
+  { key: "custom", label: "Personalizzato…" },
+];
+
+function resolvePeriod(key: string, customFrom: string, customTo: string): { from: Date; to: Date } {
+  const now = new Date();
+  switch (key) {
+    case "30g": return { from: startOfDay(subDays(now, 30)), to: now };
+    case "90g": return { from: startOfDay(subDays(now, 90)), to: now };
+    case "180g": return { from: startOfDay(subDays(now, 180)), to: now };
+    case "mese-corrente": return { from: startOfMonth(now), to: now };
+    case "mese-scorso": {
+      const m = subMonths(now, 1);
+      return { from: startOfMonth(m), to: endOfMonth(m) };
+    }
+    case "trimestre": return { from: startOfQuarter(now), to: now };
+    case "anno": return { from: startOfYear(now), to: now };
+    case "custom": {
+      const f = customFrom ? startOfDay(new Date(customFrom)) : startOfDay(subDays(now, 30));
+      const t = customTo ? endOfDay(new Date(customTo)) : now;
+      return f.getTime() <= t.getTime() ? { from: f, to: t } : { from: t, to: f };
+    }
+    default: return { from: startOfDay(subDays(now, 90)), to: now };
+  }
+}
+
+function resolveBaseline(from: Date, to: Date, mode: "prev" | "yoy"): { from: Date; to: Date } {
+  if (mode === "yoy") return { from: subYears(from, 1), to: subYears(to, 1) };
+  const span = to.getTime() - from.getTime();
+  return { from: new Date(from.getTime() - span), to: from };
 }
 
 function formatMoneyShort(cents: number) {
