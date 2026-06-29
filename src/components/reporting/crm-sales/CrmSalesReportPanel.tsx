@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowDown,
-  ArrowRight,
   ArrowUp,
   Calendar,
   Download,
@@ -45,6 +44,7 @@ import {
   buildPipelineAging,
   buildSalesEfficiency,
   buildSourceBreakdown,
+  type FunnelConversion,
   type SourceBreakdownRow,
 } from "@/lib/reporting/commercialAnalytics";
 import { downloadFile, escapeCsvCell } from "@/lib/csvExport";
@@ -145,6 +145,7 @@ export function CrmSalesReportPanel({
       }),
     [commercial.rows, funnelConv, report],
   );
+  const fatturatoCommCents = useMemo(() => sourceRows.reduce((s, r) => s + r.fatturatoCents, 0), [sourceRows]);
 
   const handleExport = () => {
     const rowsCsv: Array<[string, string, string]> = [
@@ -205,6 +206,8 @@ export function CrmSalesReportPanel({
           </Button>
         </div>
       </div>
+
+      <VerdictBanner report={report} coverageRatio={salesEff.coverageRatio} loading={loading} />
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -273,84 +276,25 @@ export function CrmSalesReportPanel({
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <SectionHeader icon={Target} title="Cosa guardare prima" description="Tre letture rapide prima di aprire i dettagli." />
-          <div className="mt-4 grid gap-3">
-            <FocusCard
-              label="1"
-              title="Il dato è affidabile?"
-              value={report.sync.healthLabel}
-              detail={`${report.sync.quotesWithoutOpportunity} preventivi senza opportunità · ${report.sync.appointmentsWithoutContact} appuntamenti senza contatto`}
-              loading={commercial.isLoading}
-              tone={report.sync.healthScore >= 90 ? "green" : report.sync.healthScore >= 70 ? "amber" : "red"}
-            />
-            <FocusCard
-              label="2"
-              title="La pipeline ha prossime azioni?"
-              value={`${report.forecast.openWithoutNextStep} senza prossimo step`}
-              detail={`${formatMoney(report.forecast.weighted30Cents)} forecast 30g · rischio ${targetRiskLabel(report.forecast.monthlyTargetRisk)}`}
-              loading={commercial.isLoading}
-              tone={report.forecast.openWithoutNextStep ? "amber" : "green"}
-            />
-            <FocusCard
-              label="3"
-              title="Il marketing produce vendite?"
-              value={formatMoney(ads.totals.revenueCents)}
-              detail={`${ads.totals.leads} lead paid · ${ads.totals.appointments} appuntamenti · ROAS ${formatRoas(ads.totals)}`}
-              loading={ads.isLoading}
-              tone={ads.totals.revenueCents > 0 ? "green" : "amber"}
-            />
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <SectionHeader icon={ListIcon} title="Da fare adesso" description="Priorità ordinate per impatto commerciale." />
-          <div className="mt-4 space-y-3">
-            {loading ? (
-              <>
-                <Skeleton className="h-20 w-full rounded-lg" />
-                <Skeleton className="h-20 w-full rounded-lg" />
-                <Skeleton className="h-20 w-full rounded-lg" />
-              </>
-            ) : (
-              priorities.map((action) => (
-                <div key={action.title} className={cn("rounded-lg border p-3", priorityClassName(action.tone))}>
-                  <div className="flex items-start gap-3">
-                    {action.tone === "good" ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
-                    <div>
-                      <p className="text-sm font-semibold">{action.title}</p>
-                      <p className="mt-1 text-sm leading-5 opacity-85">{action.detail}</p>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </section>
-
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <SectionHeader icon={TrendingUp} title="Funnel commerciale" description="Dal lead pagato al fatturato, in una sola riga." />
-        <div className="mt-4 grid gap-3 md:grid-cols-5">
-          <FunnelStep label="Lead paid" value={String(ads.totals.leads)} detail="Meta + Google" loading={ads.isLoading} />
-          <FunnelStep label="Appuntamenti" value={String(ads.totals.appointments)} detail={`CPA ${formatCostMetric(ads.totals.costPerAppointmentCents, ads.totals.spendCents, ads.totals.appointments)}`} loading={ads.isLoading} />
-          <FunnelStep label="Preventivi" value={String(report.quotes.issued)} detail={`${report.quotes.acceptanceRate}% accettazione`} loading={commercial.isLoading} />
-          <FunnelStep label="Vendite" value={String(ads.totals.won)} detail={`Costo ${formatCostMetric(ads.totals.costPerSaleCents, ads.totals.spendCents, ads.totals.won)}`} loading={ads.isLoading} />
-          <FunnelStep label="Fatturato" value={formatMoney(ads.totals.revenueCents)} detail={`ROAS ${formatRoas(ads.totals)}`} loading={ads.isLoading} highlight />
-        </div>
-        <p className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Conversioni ed efficienza</p>
-        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <MiniMetric label="Lead → 1° appunt." value={pctLabel(funnelConv.convLeadAppt)} loading={commercial.isLoading} />
-          <MiniMetric label="1° appunt. → Prev." value={pctLabel(funnelConv.convApptQuote)} loading={commercial.isLoading} />
-          <MiniMetric label="Prev. → Vendita" value={pctLabel(funnelConv.convQuoteWon)} loading={commercial.isLoading} tone="green" />
-          <MiniMetric label="Sales velocity" value={`${formatMoney(salesEff.velocityCentsPerDay)}/g`} loading={commercial.isLoading} />
-          <MiniMetric
-            label="Copertura pipeline"
-            value={salesEff.coverageRatio == null ? "N/D" : `${salesEff.coverageRatio}x`}
-            loading={commercial.isLoading}
-            tone={salesEff.coverageRatio != null && salesEff.coverageRatio >= 3 ? "green" : "amber"}
-          />
+        <SectionHeader icon={TrendingUp} title="Funnel commerciale" description="Dal lead alla vendita: barre proporzionali e % di conversione tra gli stadi (sui primi appuntamenti)." />
+        <div className="mt-4 grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+          {commercial.isLoading ? (
+            <Skeleton className="h-40 w-full rounded-lg" />
+          ) : (
+            <CommercialFunnel conv={funnelConv} />
+          )}
+          <div className="grid grid-cols-2 gap-3 self-start">
+            <MiniMetric label="Fatturato comm." value={formatMoney(fatturatoCommCents)} loading={commercial.isLoading} tone="green" />
+            <MiniMetric label="Ticket medio" value={formatMoney(report.quotes.averageValueCents)} loading={commercial.isLoading} />
+            <MiniMetric label="Sales velocity" value={`${formatMoney(salesEff.velocityCentsPerDay)}/g`} loading={commercial.isLoading} />
+            <MiniMetric
+              label="Copertura pipeline"
+              value={salesEff.coverageRatio == null ? "N/D" : `${salesEff.coverageRatio}x`}
+              loading={commercial.isLoading}
+              tone={salesEff.coverageRatio != null && salesEff.coverageRatio >= 3 ? "green" : "amber"}
+            />
+          </div>
         </div>
         {!commercial.isLoading && (
           <p className="mt-2 text-[11px] leading-snug text-slate-500">
@@ -447,6 +391,63 @@ export function CrmSalesReportPanel({
           <DetailPanel title="Fatturato e margine per fonte" icon={Megaphone}>
             <SourceBreakdownTable rows={sourceRows} loading={commercial.isLoading} />
           </DetailPanel>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <SectionHeader icon={Target} title="Cosa guardare" description="Le tre letture chiave di salute commerciale." />
+          <div className="mt-4 grid gap-3">
+            <FocusCard
+              label="1"
+              title="Il dato è affidabile?"
+              value={report.sync.healthLabel}
+              detail={`${report.sync.quotesWithoutOpportunity} preventivi senza opportunità · ${report.sync.appointmentsWithoutContact} appuntamenti senza contatto`}
+              loading={commercial.isLoading}
+              tone={report.sync.healthScore >= 90 ? "green" : report.sync.healthScore >= 70 ? "amber" : "red"}
+            />
+            <FocusCard
+              label="2"
+              title="La pipeline ha prossime azioni?"
+              value={`${report.forecast.openWithoutNextStep} senza prossimo step`}
+              detail={`${formatMoney(report.forecast.weighted30Cents)} forecast 30g · rischio ${targetRiskLabel(report.forecast.monthlyTargetRisk)}`}
+              loading={commercial.isLoading}
+              tone={report.forecast.openWithoutNextStep ? "amber" : "green"}
+            />
+            <FocusCard
+              label="3"
+              title="Il marketing produce vendite?"
+              value={formatMoney(ads.totals.revenueCents)}
+              detail={`${ads.totals.leads} lead paid · ${ads.totals.appointments} appuntamenti · ROAS ${formatRoas(ads.totals)}`}
+              loading={ads.isLoading}
+              tone={ads.totals.revenueCents > 0 ? "green" : "amber"}
+            />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <SectionHeader icon={ListIcon} title="Da fare adesso" description="Priorità ordinate per impatto commerciale." />
+          <div className="mt-4 space-y-3">
+            {loading ? (
+              <>
+                <Skeleton className="h-20 w-full rounded-lg" />
+                <Skeleton className="h-20 w-full rounded-lg" />
+                <Skeleton className="h-20 w-full rounded-lg" />
+              </>
+            ) : (
+              priorities.map((action) => (
+                <div key={action.title} className={cn("rounded-lg border p-3", priorityClassName(action.tone))}>
+                  <div className="flex items-start gap-3">
+                    {action.tone === "good" ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
+                    <div>
+                      <p className="text-sm font-semibold">{action.title}</p>
+                      <p className="mt-1 text-sm leading-5 opacity-85">{action.detail}</p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </section>
 
@@ -594,36 +595,98 @@ function FocusCard({
   );
 }
 
-function FunnelStep({
-  label,
-  value,
-  detail,
+function VerdictBanner({
+  report,
+  coverageRatio,
   loading,
-  highlight = false,
 }: {
-  label: string;
-  value: string;
-  detail: string;
+  report: CommercialPerformanceReport;
+  coverageRatio: number | null;
   loading: boolean;
-  highlight?: boolean;
 }) {
+  if (loading) return <Skeleton className="h-[88px] w-full rounded-xl" />;
+  const f = report.forecast;
+  const hasTarget = f.monthlyTargetCents != null && f.monthlyTargetCents > 0;
+  const risk = f.monthlyTargetRisk;
+  const tone: PriorityTone = !hasTarget ? "info" : risk === "ok" ? "good" : risk === "attenzione" ? "warning" : "critical";
+  const target = f.monthlyTargetCents ?? 0;
+  const pct = hasTarget ? Math.min(100, Math.round((f.wonThisMonthCents / target) * 100)) : 0;
+  const Icon = tone === "good" ? CheckCircle2 : tone === "info" ? Target : AlertTriangle;
+  const title = !hasTarget
+    ? "Imposta un obiettivo mensile per leggere proiezione e rischio"
+    : risk === "ok"
+      ? "In linea con l'obiettivo del mese"
+      : risk === "attenzione"
+        ? "Obiettivo del mese a rischio"
+        : "Obiettivo del mese a forte rischio";
+  const detail = !hasTarget
+    ? 'Usa il campo "Obiettivo mensile" qui sopra: sblocchi proiezione, copertura pipeline e rischio.'
+    : `Chiuso ${formatMoney(f.wonThisMonthCents)} di ${formatMoney(target)} (${pct}%)` +
+      (f.monthlyTargetGapCents && f.monthlyTargetGapCents > 0 ? ` · mancano ${formatMoney(f.monthlyTargetGapCents)}` : "") +
+      ` · ${formatMoney(f.weighted30Cents)} attesi a 30 giorni`;
   return (
-    <div className={cn("relative rounded-lg border bg-slate-50 p-3", highlight && "border-emerald-200 bg-emerald-50")}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
-        <ArrowRight className="hidden h-4 w-4 text-slate-300 md:block" />
+    <div className={cn("rounded-xl border p-4 shadow-sm", priorityClassName(tone))}>
+      <div className="flex items-center gap-4">
+        <Icon className="h-6 w-6 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-semibold leading-tight">{title}</p>
+          <p className="mt-1 text-sm leading-snug opacity-90">{detail}</p>
+          {hasTarget && (
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/60">
+              <div className="h-full rounded-full bg-current opacity-70" style={{ width: `${pct}%` }} />
+            </div>
+          )}
+        </div>
+        {hasTarget && coverageRatio != null && (
+          <div className="hidden shrink-0 text-right sm:block">
+            <p className="text-[10px] font-semibold uppercase opacity-70">Copertura pipeline</p>
+            <p className="text-2xl font-bold leading-none">{coverageRatio}x</p>
+            <p className="text-[10px] opacity-70">serve ≥3x</p>
+          </div>
+        )}
       </div>
-      {loading ? (
-        <>
-          <Skeleton className="h-8 w-24" />
-          <Skeleton className="mt-2 h-4 w-24" />
-        </>
-      ) : (
-        <>
-          <p className="text-xl font-semibold text-slate-950">{value}</p>
-          <p className="mt-1 text-xs text-slate-500">{detail}</p>
-        </>
-      )}
+    </div>
+  );
+}
+
+function CommercialFunnel({ conv }: { conv: FunnelConversion }) {
+  const max = Math.max(conv.lead, 1);
+  const stages: Array<{ label: string; value: number; conv: number | null }> = [
+    { label: "Lead", value: conv.lead, conv: null },
+    { label: "1° appuntamento", value: conv.appuntamenti, conv: conv.convLeadAppt },
+    { label: "Preventivi", value: conv.preventivi, conv: conv.convApptQuote },
+    { label: "Vendite", value: conv.vinti, conv: conv.convQuoteWon },
+  ];
+  return (
+    <div className="space-y-3">
+      {stages.map((s) => {
+        const width = s.value > 0 ? Math.max((s.value / max) * 100, 5) : 0;
+        return (
+          <div key={s.label}>
+            <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
+              <span className="font-medium text-slate-700">{s.label}</span>
+              <span className="tabular-nums text-slate-500">
+                <span className="font-semibold text-slate-900">{s.value}</span>
+                {s.conv != null && <span className="ml-2 text-slate-400">{s.conv}% dal precedente</span>}
+              </span>
+            </div>
+            <div className="h-7 w-full overflow-hidden rounded-md bg-slate-100">
+              <div className="h-full rounded-md bg-gradient-to-r from-orange-400 to-orange-500 transition-all" style={{ width: `${width}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TableBar({ value, max, tone = "orange" }: { value: number; max: number; tone?: "orange" | "rose" }) {
+  const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+  const track = tone === "rose" ? "bg-rose-100" : "bg-orange-100";
+  const fill = tone === "rose" ? "bg-rose-400" : "bg-orange-400";
+  return (
+    <div className={cn("mt-1 h-1 w-full overflow-hidden rounded-full", track)}>
+      <div className={cn("h-full rounded-full", fill)} style={{ width: `${pct}%` }} />
     </div>
   );
 }
@@ -744,7 +807,10 @@ function LeadSegmentTable({
         <TableBody>
           {rows.slice(0, 5).map((row) => (
             <TableRow key={row.label}>
-              <TableCell className="font-medium">{row.label}</TableCell>
+              <TableCell className="font-medium">
+                {row.label}
+                <TableBar value={row.leads} max={Math.max(...rows.map((r) => r.leads), 1)} />
+              </TableCell>
               <TableCell className="text-right tabular-nums">{row.leads}</TableCell>
               <TableCell className="text-right tabular-nums text-emerald-700">{row.good}</TableCell>
               <TableCell className="text-right tabular-nums text-rose-700">{row.poor}</TableCell>
@@ -771,12 +837,15 @@ function LossReasonsList({
   return (
     <div className="space-y-2">
       {rows.slice(0, 5).map((row) => (
-        <div key={row.reason} className="flex items-center justify-between gap-3 rounded-lg border bg-slate-50 px-3 py-2 text-sm">
-          <div>
-            <p className="font-medium capitalize text-slate-900">{row.reason}</p>
-            <p className="text-xs text-slate-500">{row.count} casi</p>
+        <div key={row.reason} className="rounded-lg border bg-slate-50 px-3 py-2 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-medium capitalize text-slate-900">{row.reason}</p>
+              <p className="text-xs text-slate-500">{row.count} casi</p>
+            </div>
+            <p className="font-semibold tabular-nums text-slate-950">{formatMoney(row.valueCents)}</p>
           </div>
-          <p className="font-semibold tabular-nums text-slate-950">{formatMoney(row.valueCents)}</p>
+          <TableBar value={row.valueCents} max={Math.max(...rows.map((r) => r.valueCents), 1)} tone="rose" />
         </div>
       ))}
     </div>
@@ -803,7 +872,10 @@ function SourceBreakdownTable({ rows, loading }: { rows: SourceBreakdownRow[]; l
         <TableBody>
           {rows.slice(0, 6).map((row) => (
             <TableRow key={row.source}>
-              <TableCell className="font-medium capitalize">{row.source}</TableCell>
+              <TableCell className="font-medium capitalize">
+                {row.source}
+                <TableBar value={row.fatturatoCents} max={Math.max(...rows.map((r) => r.fatturatoCents), 1)} />
+              </TableCell>
               <TableCell className="text-right tabular-nums">{row.lead}</TableCell>
               <TableCell className="text-right tabular-nums text-emerald-700">{row.vinti}</TableCell>
               <TableCell className="text-right tabular-nums">{formatMoney(row.fatturatoCents)}</TableCell>
@@ -814,10 +886,6 @@ function SourceBreakdownTable({ rows, loading }: { rows: SourceBreakdownRow[]; l
       </Table>
     </div>
   );
-}
-
-function pctLabel(value: number | null) {
-  return value == null ? "N/D" : `${value}%`;
 }
 
 function ListIcon({ className }: { className?: string }) {
@@ -847,11 +915,6 @@ function targetRiskLabel(value: "ok" | "attenzione" | "rischio" | "target_non_co
 
 function formatDays(value: number | null) {
   return value === null ? "N/D" : `${value} giorni`;
-}
-
-function formatCostMetric(cents: number, spendCents: number, denominator: number) {
-  if (denominator > 0 && spendCents === 0) return "N/D";
-  return formatMoney(cents);
 }
 
 function formatRoas(metrics: Pick<AdsSalesTotals, "revenueCents" | "spendCents" | "roas">) {
