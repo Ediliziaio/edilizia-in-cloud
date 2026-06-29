@@ -1,12 +1,18 @@
 import type { ComponentType, ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  ArrowDown,
   ArrowRight,
+  ArrowUp,
+  Calendar,
+  Download,
   BarChart3,
   CheckCircle2,
   CircleDollarSign,
   FileSignature,
   LineChart,
+  Megaphone,
   ShieldAlert,
   Target,
   TrendingUp,
@@ -16,13 +22,33 @@ import {
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdsSalesReport } from "@/hooks/useAdsSalesReport";
 import { useCommercialPerformanceReport } from "@/hooks/useCommercialPerformanceReport";
-import type { CommercialPerformanceReport } from "@/lib/reporting/commercialPerformanceReport";
+import { isOpenOpportunity, type CommercialPerformanceReport } from "@/lib/reporting/commercialPerformanceReport";
 import { AdsSalesReportPanel } from "@/components/reporting/ads-sales/AdsSalesReportPanel";
+import {
+  buildCommercialTrend,
+  buildPeriodComparison,
+  TREND_METRICS,
+  type CommercialTrendMetric,
+  type CommercialTrendPoint,
+  type PeriodComparisonMetric,
+} from "@/lib/reporting/commercialTrend";
+import {
+  buildFunnelConversion,
+  buildPipelineAging,
+  buildSalesEfficiency,
+  buildSourceBreakdown,
+  type SourceBreakdownRow,
+} from "@/lib/reporting/commercialAnalytics";
+import { downloadFile, escapeCsvCell } from "@/lib/csvExport";
+import { CartesianGrid, Line, LineChart as RLineChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 
 type PriorityTone = "critical" | "warning" | "good" | "info";
@@ -36,33 +62,159 @@ type PriorityAction = {
 type AdsSalesTotals = ReturnType<typeof useAdsSalesReport>["totals"];
 
 export function CrmSalesReportPanel({
-  daysBack = 180,
-  monthlyTargetCents,
+  daysBack: initialDaysBack = 180,
+  monthlyTargetCents: initialMonthlyTargetCents,
 }: {
   daysBack?: number;
   monthlyTargetCents?: number;
 }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+
+  const [daysBack, setDaysBack] = useState(initialDaysBack);
+  const [monthlyTargetCents, setMonthlyTargetCents] = useState<number | undefined>(initialMonthlyTargetCents);
+  const [targetEuro, setTargetEuro] = useState("");
+
+  // Obiettivo mensile: persistito per azienda in localStorage (niente migration DB).
+  const targetKey = companyId ? `crm-report-target-${companyId}` : null;
+  useEffect(() => {
+    if (!targetKey) return;
+    const saved = localStorage.getItem(targetKey);
+    setMonthlyTargetCents(saved && saved !== "" ? Number(saved) || undefined : undefined);
+  }, [targetKey]);
+  useEffect(() => {
+    setTargetEuro(monthlyTargetCents != null ? String(Math.round(monthlyTargetCents / 100)) : "");
+  }, [monthlyTargetCents]);
+  const commitTarget = (raw: string) => {
+    const parsed = raw.trim() === "" ? undefined : Math.round(parseFloat(raw.replace(",", ".")) * 100);
+    const next = Number.isFinite(parsed as number) && (parsed as number) > 0 ? parsed : undefined;
+    setMonthlyTargetCents(next);
+    if (targetKey) localStorage.setItem(targetKey, next == null ? "" : String(next));
+  };
+
   const commercial = useCommercialPerformanceReport({ companyId, daysBack, monthlyTargetCents });
+  const comparison = useCommercialPerformanceReport({ companyId, daysBack: daysBack * 2 });
   const ads = useAdsSalesReport({ companyId, daysBack, provider: "all" });
   const report = commercial.report;
   const loading = commercial.isLoading || ads.isLoading;
   const priorities = buildPriorityActions(report, ads.totals);
   const errors = [commercial.error, ads.error].filter(Boolean);
 
+  const trend = useMemo(
+    () =>
+      buildCommercialTrend(
+        { contacts: commercial.rows.contacts, quotes: commercial.rows.quotes, orders: commercial.rows.orders },
+        daysBack,
+      ),
+    [commercial.rows, daysBack],
+  );
+  const [trendMetric, setTrendMetric] = useState<CommercialTrendMetric>("fatturatoCents");
+  const periodCompare = useMemo(
+    () =>
+      buildPeriodComparison(
+        { contacts: comparison.rows.contacts, quotes: comparison.rows.quotes, orders: comparison.rows.orders },
+        daysBack,
+      ),
+    [comparison.rows, daysBack],
+  );
+  const funnelConv = useMemo(
+    () =>
+      buildFunnelConversion({
+        contacts: commercial.rows.contacts,
+        appointments: commercial.rows.appointments,
+        quotes: commercial.rows.quotes,
+        orders: commercial.rows.orders,
+      }),
+    [commercial.rows],
+  );
+  const sourceRows = useMemo(
+    () => buildSourceBreakdown(commercial.rows.contacts, commercial.rows.quotes, commercial.rows.orders),
+    [commercial.rows],
+  );
+  const aging = useMemo(() => buildPipelineAging(commercial.rows.opportunities), [commercial.rows]);
+  const salesEff = useMemo(
+    () =>
+      buildSalesEfficiency({
+        openOppCount: commercial.rows.opportunities.filter((o) => isOpenOpportunity(o.status)).length,
+        winRatePct: funnelConv.convQuoteWon ?? 0,
+        avgDealCents: report.quotes.averageValueCents,
+        cycleDays: report.quotes.avgQuoteToSaleDays,
+        openValueCents: report.forecast.openValueCents,
+        monthlyTargetCents: report.forecast.monthlyTargetCents,
+        wonThisMonthCents: report.forecast.wonThisMonthCents,
+      }),
+    [commercial.rows, funnelConv, report],
+  );
+
+  const handleExport = () => {
+    const rowsCsv: Array<[string, string, string]> = [
+      ["Sezione", "Metrica", "Valore"],
+      ["Periodo", "Giorni analizzati", String(daysBack)],
+      ["KPI", "Fatturato attribuito (Ads)", formatMoney(ads.totals.revenueCents)],
+      ["KPI", "Pipeline aperta", formatMoney(report.forecast.openValueCents)],
+      ["KPI", "Preventivi emessi", String(report.quotes.issued)],
+      ["KPI", "Tasso accettazione %", String(report.quotes.acceptanceRate)],
+      ["KPI", "Salute CRM /100", String(report.sync.healthScore)],
+      ["Funnel", "Lead paid", String(ads.totals.leads)],
+      ["Funnel", "Appuntamenti", String(ads.totals.appointments)],
+      ["Funnel", "Vendite vinte", String(ads.totals.won)],
+      ["Forecast", "Atteso 30 giorni", formatMoney(report.forecast.weighted30Cents)],
+      ["Forecast", "Margine stimato", formatMoney(report.margin.estimatedMarginCents)],
+    ];
+    for (const point of trend) {
+      rowsCsv.push([
+        "Andamento",
+        point.label,
+        `${formatMoney(point.fatturatoCents)} · ${point.preventivi} prev · ${point.lead} lead · ${point.vinte} vend`,
+      ]);
+    }
+    const csv = rowsCsv.map((row) => row.map((cell) => escapeCsvCell(cell, ";")).join(";")).join("\r\n");
+    downloadFile(`﻿${csv}`, `report-crm-vendite-${daysBack}gg.csv`, "text/csv;charset=utf-8;");
+  };
+
   return (
     <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-slate-400" />
+          <Select value={String(daysBack)} onValueChange={(v) => setDaysBack(Number(v))}>
+            <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="30">Ultimi 30 giorni</SelectItem>
+              <SelectItem value="90">Ultimi 90 giorni</SelectItem>
+              <SelectItem value="180">Ultimi 180 giorni</SelectItem>
+              <SelectItem value="365">Ultimo anno</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Target className="h-4 w-4 text-slate-400" />
+          <Input
+            type="number"
+            inputMode="decimal"
+            placeholder="Obiettivo mensile €"
+            aria-label="Obiettivo di fatturato mensile in euro"
+            value={targetEuro}
+            onChange={(e) => setTargetEuro(e.target.value)}
+            onBlur={(e) => commitTarget(e.target.value)}
+            className="h-9 w-[180px]"
+          />
+          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={handleExport} disabled={loading}>
+            <Download className="h-4 w-4" />
+            Esporta CSV
+          </Button>
+        </div>
+      </div>
+
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-2xl">
             <Badge variant="outline" className="mb-3 border-orange-200 bg-orange-50 text-orange-700">
               Ultimi {daysBack} giorni
             </Badge>
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">CRM e vendite, senza rumore</h2>
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-950">CRM e vendite</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Prima capisci se il CRM è misurabile, poi guardi pipeline, preventivi e campagne che generano vendite.
-              I dettagli restano sotto, ma la decisione è leggibile subito.
+              Pipeline, preventivi, margini e campagne che generano vendite — con le azioni da fare per prime.
             </p>
           </div>
 
@@ -106,6 +258,19 @@ export function CrmSalesReportPanel({
             <span>Dati parziali: {errors.join(" · ")}</span>
           </div>
         )}
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <SectionHeader
+          icon={TrendingUp}
+          title="Rispetto al periodo precedente"
+          description={`Confronto con i ${daysBack} giorni precedenti, a parità di durata.`}
+        />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {periodCompare.map((m) => (
+            <ComparisonCard key={m.key} metric={m} loading={comparison.isLoading} />
+          ))}
+        </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
@@ -174,6 +339,57 @@ export function CrmSalesReportPanel({
           <FunnelStep label="Vendite" value={String(ads.totals.won)} detail={`Costo ${formatCostMetric(ads.totals.costPerSaleCents, ads.totals.spendCents, ads.totals.won)}`} loading={ads.isLoading} />
           <FunnelStep label="Fatturato" value={formatMoney(ads.totals.revenueCents)} detail={`ROAS ${formatRoas(ads.totals)}`} loading={ads.isLoading} highlight />
         </div>
+        <p className="mt-5 mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Conversioni ed efficienza</p>
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <MiniMetric label="Lead → 1° appunt." value={pctLabel(funnelConv.convLeadAppt)} loading={commercial.isLoading} />
+          <MiniMetric label="1° appunt. → Prev." value={pctLabel(funnelConv.convApptQuote)} loading={commercial.isLoading} />
+          <MiniMetric label="Prev. → Vendita" value={pctLabel(funnelConv.convQuoteWon)} loading={commercial.isLoading} tone="green" />
+          <MiniMetric label="Sales velocity" value={`${formatMoney(salesEff.velocityCentsPerDay)}/g`} loading={commercial.isLoading} />
+          <MiniMetric
+            label="Copertura pipeline"
+            value={salesEff.coverageRatio == null ? "N/D" : `${salesEff.coverageRatio}x`}
+            loading={commercial.isLoading}
+            tone={salesEff.coverageRatio != null && salesEff.coverageRatio >= 3 ? "green" : "amber"}
+          />
+        </div>
+        {!commercial.isLoading && (
+          <p className="mt-2 text-[11px] leading-snug text-slate-500">
+            Conversioni sui <strong>primi appuntamenti</strong> del calendario marketing: {funnelConv.appuntamenti} primi su{" "}
+            {funnelConv.appuntamentiTotali} totali ({Math.max(funnelConv.appuntamentiTotali - funnelConv.appuntamenti, 0)} follow-up).
+          </p>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <SectionHeader icon={TrendingUp} title="Andamento nel tempo" description={daysBack > 120 ? "Aggregato per mese." : "Aggregato per settimana."} />
+          <div className="flex flex-wrap gap-1.5">
+            {TREND_METRICS.map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => setTrendMetric(m.key)}
+                className={cn(
+                  "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+                  trendMetric === m.key
+                    ? "border-orange-300 bg-orange-50 text-orange-700"
+                    : "border-slate-200 text-slate-600 hover:bg-slate-50",
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-4 h-64 w-full">
+          {commercial.isLoading ? (
+            <Skeleton className="h-full w-full rounded-lg" />
+          ) : trend.length === 0 ? (
+            <p className="flex h-full items-center justify-center text-sm text-slate-500">Nessun dato nel periodo selezionato.</p>
+          ) : (
+            <TrendChart data={trend} metric={trendMetric} />
+          )}
+        </div>
       </section>
 
       <section className="space-y-4">
@@ -202,6 +418,11 @@ export function CrmSalesReportPanel({
               <MiniMetric label="Margine medio" value={report.margin.averageMarginPct === null ? "N/D" : `${report.margin.averageMarginPct}%`} loading={commercial.isLoading} />
               <MiniMetric label="Copertura" value={`${report.margin.coveragePct}%`} loading={commercial.isLoading} tone={report.margin.coveragePct >= 80 ? "green" : "amber"} />
             </div>
+            {aging.stale90 > 0 && !commercial.isLoading && (
+              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                Pipeline ferma: {aging.stale90} opportunità aperte da oltre 90 giorni ({formatMoney(aging.staleValueCents)}) — da chiudere o archiviare.
+              </p>
+            )}
             {report.margin.dataQualityWarning && !commercial.isLoading && (
               <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 {report.margin.dataQualityWarning}
@@ -221,6 +442,10 @@ export function CrmSalesReportPanel({
 
           <DetailPanel title="Motivi di perdita" icon={Trophy}>
             <LossReasonsList rows={report.lossReasons} loading={commercial.isLoading} />
+          </DetailPanel>
+
+          <DetailPanel title="Fatturato e margine per fonte" icon={Megaphone}>
+            <SourceBreakdownTable rows={sourceRows} loading={commercial.isLoading} />
           </DetailPanel>
         </div>
       </section>
@@ -443,6 +668,37 @@ function SectionHeader({
   );
 }
 
+function ComparisonCard({ metric, loading }: { metric: PeriodComparisonMetric; loading: boolean }) {
+  const value = metric.money ? formatMoney(metric.current) : String(metric.current);
+  const delta = metric.deltaPct;
+  const up = delta != null && delta >= 0;
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <p className="text-xs font-medium uppercase text-slate-500">{metric.label}</p>
+      {loading ? (
+        <Skeleton className="mt-2 h-6 w-24" />
+      ) : (
+        <>
+          <p className="mt-1 text-lg font-semibold text-slate-950">{value}</p>
+          {delta === null ? (
+            <p className="mt-1 text-xs text-slate-400">nessun confronto</p>
+          ) : (
+            <p
+              className={cn(
+                "mt-1 inline-flex items-center gap-1 text-xs font-medium",
+                up ? "text-emerald-700" : "text-rose-700",
+              )}
+            >
+              {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+              {Math.abs(delta)}% vs precedente
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function MiniMetric({
   label,
   value,
@@ -527,6 +783,43 @@ function LossReasonsList({
   );
 }
 
+function SourceBreakdownTable({ rows, loading }: { rows: SourceBreakdownRow[]; loading: boolean }) {
+  if (loading) return <Skeleton className="h-32 w-full rounded-lg" />;
+  if (!rows.length) {
+    return <p className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-600">Nessuna fonte con dati nel periodo.</p>;
+  }
+  return (
+    <div className="overflow-x-auto rounded-lg border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Fonte</TableHead>
+            <TableHead className="text-right">Lead</TableHead>
+            <TableHead className="text-right">Vinti</TableHead>
+            <TableHead className="text-right">Fatturato</TableHead>
+            <TableHead className="text-right">Margine</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.slice(0, 6).map((row) => (
+            <TableRow key={row.source}>
+              <TableCell className="font-medium capitalize">{row.source}</TableCell>
+              <TableCell className="text-right tabular-nums">{row.lead}</TableCell>
+              <TableCell className="text-right tabular-nums text-emerald-700">{row.vinti}</TableCell>
+              <TableCell className="text-right tabular-nums">{formatMoney(row.fatturatoCents)}</TableCell>
+              <TableCell className="text-right tabular-nums">{row.marginePct == null ? "—" : `${row.marginePct}%`}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function pctLabel(value: number | null) {
+  return value == null ? "N/D" : `${value}%`;
+}
+
 function ListIcon({ className }: { className?: string }) {
   return <Target className={className} />;
 }
@@ -564,6 +857,44 @@ function formatCostMetric(cents: number, spendCents: number, denominator: number
 function formatRoas(metrics: Pick<AdsSalesTotals, "revenueCents" | "spendCents" | "roas">) {
   if (metrics.spendCents === 0) return "N/D";
   return `${metrics.roas.toFixed(2)}x`;
+}
+
+function TrendChart({ data, metric }: { data: CommercialTrendPoint[]; metric: CommercialTrendMetric }) {
+  const meta = TREND_METRICS.find((m) => m.key === metric);
+  const isMoney = !!meta?.money;
+  const isPercent = !!meta?.percent;
+  const labelForMetric = meta?.label ?? "";
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <RLineChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+        <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} tickMargin={8} />
+        <YAxis
+          tick={{ fontSize: 11, fill: "#64748b" }}
+          tickLine={false}
+          axisLine={false}
+          width={isMoney ? 64 : 40}
+          allowDecimals={false}
+          tickFormatter={(value) => (isMoney ? formatMoneyShort(Number(value)) : isPercent ? `${value}%` : String(value))}
+        />
+        <RechartsTooltip
+          formatter={(value: number | string) => [
+            isMoney ? formatMoney(Number(value)) : isPercent ? `${value}%` : String(value),
+            labelForMetric,
+          ]}
+          labelStyle={{ color: "#0f172a", fontWeight: 600 }}
+          contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }}
+        />
+        <Line type="monotone" dataKey={metric} stroke="#f97316" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 5 }} connectNulls />
+      </RLineChart>
+    </ResponsiveContainer>
+  );
+}
+
+function formatMoneyShort(cents: number) {
+  const eur = cents / 100;
+  if (Math.abs(eur) >= 1000) return `${(eur / 1000).toFixed(eur % 1000 === 0 ? 0 : 1)}k €`;
+  return `${Math.round(eur)} €`;
 }
 
 function formatMoney(cents: number) {

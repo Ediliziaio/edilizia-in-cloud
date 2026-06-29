@@ -65,6 +65,7 @@ export function useCommercialPerformanceReport({
 
   return {
     report,
+    rows: query.data ?? emptyData(),
     isLoading: query.isLoading,
     error: query.error instanceof Error ? query.error.message : null,
     refetch: query.refetch,
@@ -100,7 +101,7 @@ async function fetchContacts(companyId: string, fromDate: string): Promise<Comme
 async function fetchAppointments(companyId: string, fromDate: string): Promise<CommercialAppointmentRow[]> {
   try {
     const { data, error } = await table("appointments")
-      .select("id, contact_id, assigned_to, appointment_date, appointment_type, order_id, status, is_completed, is_blocked_slot")
+      .select("id, contact_id, assigned_to, appointment_date, appointment_type, order_id, status, is_completed, is_blocked_slot, calendar_id")
       .eq("company_id", companyId)
       .gte("appointment_date", fromDate.slice(0, 10))
       .order("appointment_date", { ascending: false })
