@@ -378,7 +378,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
   const [aiLoading, setAiLoading] = useState(false);
   const { profile: salesProfile, save: saveSalesProfile } = useCompanySalesProfile();
   const [intake, setIntake] = useState<CompanySalesProfile>(EMPTY_SALES_PROFILE);
-  useEffect(() => { setIntake(salesProfile); }, [salesProfile]);
+  useEffect(() => { if (!aiOpen) setIntake(salesProfile); }, [salesProfile, aiOpen]);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [aiDraft, setAiDraft] = useState<GeneratedTemplateTexts | null>(null);
 
@@ -400,6 +400,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
   };
 
   const handleGenerateAi = async () => {
+    if (aiLoading) return;
     if (!companyId) {
       toast.error("Azienda non disponibile");
       return;

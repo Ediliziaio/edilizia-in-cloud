@@ -40,7 +40,7 @@ function stripHtml(s?: string | null): string {
   return (s ?? "")
     .replace(/<\/(p|li|ul|ol|div|h[1-6])>/gi, "\n")
     .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
+    .replace(/<[a-z/!?][^>]*>/gi, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

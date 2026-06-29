@@ -44,11 +44,11 @@ function Field({
 export function AiSalesProfileForm({ value, onChange }: Props) {
   const set = (k: keyof CompanySalesProfile, v: string) => onChange({ ...value, [k]: v });
   const clientiSelezionati = value.cliente_tipo.split(",").map((s) => s.trim()).filter(Boolean);
+  const hasCliente = (key: string) => clientiSelezionati.some((s) => s.toLowerCase() === key.toLowerCase());
   const toggleCliente = (key: string) => {
-    const next = new Set(clientiSelezionati);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    set("cliente_tipo", Array.from(next).join(", "));
+    const next = clientiSelezionati.filter((s) => s.toLowerCase() !== key.toLowerCase());
+    if (next.length === clientiSelezionati.length) next.push(key); // non presente → aggiungi
+    set("cliente_tipo", next.join(", "));
   };
 
   return (
@@ -74,7 +74,7 @@ export function AiSalesProfileForm({ value, onChange }: Props) {
         />
         <div className="flex flex-wrap gap-1.5 pt-1.5">
           {CLIENTI.map((c) => {
-            const active = clientiSelezionati.includes(c.key);
+            const active = hasCliente(c.key);
             return (
               <Button
                 key={c.key}
