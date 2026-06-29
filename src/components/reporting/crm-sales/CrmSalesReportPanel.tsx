@@ -52,6 +52,18 @@ import {
   type SourceBreakdownRow,
 } from "@/lib/reporting/commercialAnalytics";
 import { downloadFile, escapeCsvCell } from "@/lib/csvExport";
+import {
+  differenceInCalendarDays,
+  endOfDay,
+  endOfMonth,
+  startOfDay,
+  startOfMonth,
+  startOfQuarter,
+  startOfYear,
+  subDays,
+  subMonths,
+  subYears,
+} from "date-fns";
 import { CartesianGrid, Line, LineChart as RLineChart, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
 import { cn } from "@/lib/utils";
 
