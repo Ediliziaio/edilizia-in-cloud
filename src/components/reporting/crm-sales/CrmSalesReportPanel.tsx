@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowDown,
@@ -22,7 +22,6 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -63,36 +62,15 @@ type AdsSalesTotals = ReturnType<typeof useAdsSalesReport>["totals"];
 
 export function CrmSalesReportPanel({
   daysBack: initialDaysBack = 180,
-  monthlyTargetCents: initialMonthlyTargetCents,
 }: {
   daysBack?: number;
-  monthlyTargetCents?: number;
 }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
 
   const [daysBack, setDaysBack] = useState(initialDaysBack);
-  const [monthlyTargetCents, setMonthlyTargetCents] = useState<number | undefined>(initialMonthlyTargetCents);
-  const [targetEuro, setTargetEuro] = useState("");
 
-  // Obiettivo mensile: persistito per azienda in localStorage (niente migration DB).
-  const targetKey = companyId ? `crm-report-target-${companyId}` : null;
-  useEffect(() => {
-    if (!targetKey) return;
-    const saved = localStorage.getItem(targetKey);
-    setMonthlyTargetCents(saved && saved !== "" ? Number(saved) || undefined : undefined);
-  }, [targetKey]);
-  useEffect(() => {
-    setTargetEuro(monthlyTargetCents != null ? String(Math.round(monthlyTargetCents / 100)) : "");
-  }, [monthlyTargetCents]);
-  const commitTarget = (raw: string) => {
-    const parsed = raw.trim() === "" ? undefined : Math.round(parseFloat(raw.replace(",", ".")) * 100);
-    const next = Number.isFinite(parsed as number) && (parsed as number) > 0 ? parsed : undefined;
-    setMonthlyTargetCents(next);
-    if (targetKey) localStorage.setItem(targetKey, next == null ? "" : String(next));
-  };
-
-  const commercial = useCommercialPerformanceReport({ companyId, daysBack, monthlyTargetCents });
+  const commercial = useCommercialPerformanceReport({ companyId, daysBack });
   const comparison = useCommercialPerformanceReport({ companyId, daysBack: daysBack * 2 });
   const ads = useAdsSalesReport({ companyId, daysBack, provider: "all" });
   const report = commercial.report;
@@ -188,26 +166,11 @@ export function CrmSalesReportPanel({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center gap-2">
-          <Target className="h-4 w-4 text-slate-400" />
-          <Input
-            type="number"
-            inputMode="decimal"
-            placeholder="Obiettivo mensile €"
-            aria-label="Obiettivo di fatturato mensile in euro"
-            value={targetEuro}
-            onChange={(e) => setTargetEuro(e.target.value)}
-            onBlur={(e) => commitTarget(e.target.value)}
-            className="h-9 w-[180px]"
-          />
-          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={handleExport} disabled={loading}>
-            <Download className="h-4 w-4" />
-            Esporta CSV
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={handleExport} disabled={loading}>
+          <Download className="h-4 w-4" />
+          Esporta CSV
+        </Button>
       </div>
-
-      <VerdictBanner report={report} coverageRatio={salesEff.coverageRatio} loading={loading} />
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -288,12 +251,6 @@ export function CrmSalesReportPanel({
             <MiniMetric label="Fatturato comm." value={formatMoney(fatturatoCommCents)} loading={commercial.isLoading} tone="green" />
             <MiniMetric label="Ticket medio" value={formatMoney(report.quotes.averageValueCents)} loading={commercial.isLoading} />
             <MiniMetric label="Sales velocity" value={`${formatMoney(salesEff.velocityCentsPerDay)}/g`} loading={commercial.isLoading} />
-            <MiniMetric
-              label="Copertura pipeline"
-              value={salesEff.coverageRatio == null ? "N/D" : `${salesEff.coverageRatio}x`}
-              loading={commercial.isLoading}
-              tone={salesEff.coverageRatio != null && salesEff.coverageRatio >= 3 ? "green" : "amber"}
-            />
           </div>
         </div>
         {!commercial.isLoading && (
@@ -410,7 +367,7 @@ export function CrmSalesReportPanel({
               label="2"
               title="La pipeline ha prossime azioni?"
               value={`${report.forecast.openWithoutNextStep} senza prossimo step`}
-              detail={`${formatMoney(report.forecast.weighted30Cents)} forecast 30g · rischio ${targetRiskLabel(report.forecast.monthlyTargetRisk)}`}
+              detail={`${formatMoney(report.forecast.weighted30Cents)} attesi a 30 giorni`}
               loading={commercial.isLoading}
               tone={report.forecast.openWithoutNextStep ? "amber" : "green"}
             />
@@ -589,60 +546,6 @@ function FocusCard({
             <p className="mt-1 text-lg font-semibold text-slate-950">{value}</p>
             <p className="mt-1 text-xs leading-5 text-slate-600">{detail}</p>
           </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function VerdictBanner({
-  report,
-  coverageRatio,
-  loading,
-}: {
-  report: CommercialPerformanceReport;
-  coverageRatio: number | null;
-  loading: boolean;
-}) {
-  if (loading) return <Skeleton className="h-[88px] w-full rounded-xl" />;
-  const f = report.forecast;
-  const hasTarget = f.monthlyTargetCents != null && f.monthlyTargetCents > 0;
-  const risk = f.monthlyTargetRisk;
-  const tone: PriorityTone = !hasTarget ? "info" : risk === "ok" ? "good" : risk === "attenzione" ? "warning" : "critical";
-  const target = f.monthlyTargetCents ?? 0;
-  const pct = hasTarget ? Math.min(100, Math.round((f.wonThisMonthCents / target) * 100)) : 0;
-  const Icon = tone === "good" ? CheckCircle2 : tone === "info" ? Target : AlertTriangle;
-  const title = !hasTarget
-    ? "Imposta un obiettivo mensile per leggere proiezione e rischio"
-    : risk === "ok"
-      ? "In linea con l'obiettivo del mese"
-      : risk === "attenzione"
-        ? "Obiettivo del mese a rischio"
-        : "Obiettivo del mese a forte rischio";
-  const detail = !hasTarget
-    ? 'Usa il campo "Obiettivo mensile" qui sopra: sblocchi proiezione, copertura pipeline e rischio.'
-    : `Chiuso ${formatMoney(f.wonThisMonthCents)} di ${formatMoney(target)} (${pct}%)` +
-      (f.monthlyTargetGapCents && f.monthlyTargetGapCents > 0 ? ` · mancano ${formatMoney(f.monthlyTargetGapCents)}` : "") +
-      ` · ${formatMoney(f.weighted30Cents)} attesi a 30 giorni`;
-  return (
-    <div className={cn("rounded-xl border p-4 shadow-sm", priorityClassName(tone))}>
-      <div className="flex items-center gap-4">
-        <Icon className="h-6 w-6 shrink-0" />
-        <div className="min-w-0 flex-1">
-          <p className="text-base font-semibold leading-tight">{title}</p>
-          <p className="mt-1 text-sm leading-snug opacity-90">{detail}</p>
-          {hasTarget && (
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/60">
-              <div className="h-full rounded-full bg-current opacity-70" style={{ width: `${pct}%` }} />
-            </div>
-          )}
-        </div>
-        {hasTarget && coverageRatio != null && (
-          <div className="hidden shrink-0 text-right sm:block">
-            <p className="text-[10px] font-semibold uppercase opacity-70">Copertura pipeline</p>
-            <p className="text-2xl font-bold leading-none">{coverageRatio}x</p>
-            <p className="text-[10px] opacity-70">serve ≥3x</p>
-          </div>
         )}
       </div>
     </div>
@@ -904,13 +807,6 @@ function toneClassName(tone: "default" | "green" | "amber" | "red") {
   if (tone === "amber") return "border-amber-200 bg-amber-50/50";
   if (tone === "red") return "border-rose-200 bg-rose-50/50";
   return "border-slate-200";
-}
-
-function targetRiskLabel(value: "ok" | "attenzione" | "rischio" | "target_non_configurato") {
-  if (value === "ok") return "OK";
-  if (value === "attenzione") return "attenzione";
-  if (value === "rischio") return "rischio";
-  return "target mancante";
 }
 
 function formatDays(value: number | null) {
