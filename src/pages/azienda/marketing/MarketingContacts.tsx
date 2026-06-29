@@ -481,6 +481,8 @@ export default function MarketingContacts() {
     quality: { key: "qualita", defaultValue: "all" },
     // Drill-down dai grafici trend marketing (formato YYYY-MM)
     meseFilter: { key: "mese", defaultValue: "" },
+    // Drill-down dalla reportistica CRM-vendite: ?source=<fonte>
+    source: { key: "source", defaultValue: "" },
   });
 
   const normalizedUrl = useMemo(
@@ -553,6 +555,10 @@ export default function MarketingContacts() {
     };
   }, [meseFilter]);
   const clearMeseFilter = useCallback(() => setURLParam("meseFilter", ""), [setURLParam]);
+
+  // Drill-down per fonte (dalla reportistica CRM-vendite): ?source=<fonte>
+  const sourceFilter = (urlFilters.source || "").trim();
+  const clearSourceFilter = useCallback(() => setURLParam("source", ""), [setURLParam]);
 
   useEffect(() => {
     setSearchInput(urlFilters.searchInput);
@@ -640,6 +646,8 @@ export default function MarketingContacts() {
           const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
           query = query.or(`last_activity_at.is.null,last_activity_at.lte.${fortyEightHoursAgo}`);
         }
+
+        if (sourceFilter) query = query.eq("source", sourceFilter);
 
         if (stalePresetActive) {
           const now = Date.now();
@@ -744,7 +752,7 @@ export default function MarketingContacts() {
     } finally {
       setExporting(false);
     }
-  }, [companyId, exporting, selectedIds, contactCustomFields, filters, search, permissions.onlyAssigned, user?.id, activeTab, qualityFilter, stalePreset, stalePresetActive]);
+  }, [companyId, exporting, selectedIds, contactCustomFields, filters, search, permissions.onlyAssigned, user?.id, activeTab, qualityFilter, stalePreset, stalePresetActive, sourceFilter]);
 
   // Consolidated filter data query (pipelines, tags, list count)
   const { data: filterData } = useQuery({
@@ -883,7 +891,7 @@ export default function MarketingContacts() {
 
   // Fetch contacts with grouped filter rules
   const { data, isLoading } = useQuery({
-    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters, activeTab, stalePreset, qualityFilter, meseFilter],
+    queryKey: ["marketing-contacts", companyId, search, page, pageSize, sortField, sortDirection, filters, activeTab, stalePreset, qualityFilter, meseFilter, sourceFilter],
     queryFn: async () => {
       if (!companyId) return { contacts: [] as MarketingContact[], count: 0 };
 
@@ -945,6 +953,9 @@ export default function MarketingContacts() {
 
       // Drill-down per mese (dai grafici trend)
       if (meseRange) query = query.gte("created_at", meseRange.start).lt("created_at", meseRange.end);
+
+      // Drill-down per fonte (dalla reportistica CRM-vendite)
+      if (sourceFilter) query = query.eq("source", sourceFilter);
 
       if (qualityFilter === "issues") {
         query = query.or("email.is.null,email.eq.,phone.is.null,phone.eq.,source.is.null,source.eq.,unsubscribed.eq.true,optout_email.eq.true,opt_out.eq.true,last_activity_at.is.null");
@@ -1519,6 +1530,20 @@ export default function MarketingContacts() {
             size="sm"
             className="h-7 self-start border-blue-300 bg-white text-blue-900 hover:bg-blue-100 sm:self-auto"
             onClick={clearMeseFilter}
+          >
+            Mostra tutti i contatti
+          </Button>
+        </div>
+      )}
+
+      {sourceFilter && (
+        <div className="flex flex-col gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900 sm:flex-row sm:items-center sm:justify-between">
+          <span><strong>Filtro fonte attivo:</strong> {sourceFilter}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 self-start border-indigo-300 bg-white text-indigo-900 hover:bg-indigo-100 sm:self-auto"
+            onClick={clearSourceFilter}
           >
             Mostra tutti i contatti
           </Button>

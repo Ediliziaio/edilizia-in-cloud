@@ -1,11 +1,13 @@
 import type { ComponentType, ReactNode } from "react";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
   Calendar,
   ChevronDown,
+  ChevronRight,
   Download,
   BarChart3,
   CheckCircle2,
@@ -70,6 +72,7 @@ export function CrmSalesReportPanel({
 }) {
   const { effectiveCompany } = useAuth();
   const companyId = effectiveCompany?.id;
+  const navigate = useNavigate();
 
   const initialPeriodKey = [30, 90, 180].includes(initialDaysBack) ? `${initialDaysBack}g` : "90g";
   const [periodKey, setPeriodKey] = useState(initialPeriodKey);
@@ -141,6 +144,15 @@ export function CrmSalesReportPanel({
     [commercial.rows, funnelConv, report],
   );
   const fatturatoCommCents = useMemo(() => sourceRows.reduce((s, r) => s + r.fatturatoCents, 0), [sourceRows]);
+
+  const handleSourceDrill = (source: string) => {
+    const base = "/azienda/marketing/contatti";
+    // "Diretto / Altro" è l'etichetta sintetica dei lead senza fonte → usa il
+    // filtro qualità "no_source" già supportato dalla pagina Contatti.
+    navigate(
+      source === "Diretto / Altro" ? `${base}?qualita=no_source` : `${base}?source=${encodeURIComponent(source)}`,
+    );
+  };
 
   const handleExport = () => {
     const rowsCsv: Array<[string, string, string]> = [
@@ -280,7 +292,12 @@ export function CrmSalesReportPanel({
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {periodCompare.map((m) => (
-            <ComparisonCard key={m.key} metric={m} loading={comparison.isLoading} />
+            <ComparisonCard
+              key={m.key}
+              metric={m}
+              loading={comparison.isLoading}
+              spark={trend.map((t) => Number(t[m.key] ?? 0))}
+            />
           ))}
         </div>
       </section>
@@ -402,7 +419,7 @@ export function CrmSalesReportPanel({
           </DetailPanel>
 
           <DetailPanel title="Fatturato e margine per fonte" icon={Megaphone}>
-            <SourceBreakdownTable rows={sourceRows} loading={commercial.isLoading} />
+            <SourceBreakdownTable rows={sourceRows} loading={commercial.isLoading} onDrill={handleSourceDrill} />
           </DetailPanel>
         </div>
       </CollapsibleSection>
@@ -725,13 +742,37 @@ function SectionHeader({
   );
 }
 
-function ComparisonCard({ metric, loading }: { metric: PeriodComparisonMetric; loading: boolean }) {
+function Sparkline({ values, className }: { values: number[]; className?: string }) {
+  const pts = values.filter((v) => Number.isFinite(v));
+  if (pts.length < 2) return null;
+  const max = Math.max(...pts);
+  const min = Math.min(...pts);
+  const range = max - min || 1;
+  const w = 72;
+  const h = 20;
+  const step = w / (pts.length - 1);
+  const d = pts
+    .map((v, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${(h - ((v - min) / range) * h).toFixed(1)}`)
+    .join(" ");
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className={className} preserveAspectRatio="none" aria-hidden="true">
+      <path d={d} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ComparisonCard({ metric, loading, spark }: { metric: PeriodComparisonMetric; loading: boolean; spark?: number[] }) {
   const value = metric.money ? formatMoney(metric.current) : String(metric.current);
   const delta = metric.deltaPct;
   const up = delta != null && delta >= 0;
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <p className="text-xs font-medium uppercase text-slate-500">{metric.label}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-medium uppercase text-slate-500">{metric.label}</p>
+        {!loading && spark && spark.length >= 2 && (
+          <Sparkline values={spark} className={cn("mt-0.5 shrink-0", up ? "text-emerald-500/70" : "text-rose-500/70")} />
+        )}
+      </div>
       {loading ? (
         <Skeleton className="mt-2 h-6 w-24" />
       ) : (
@@ -747,7 +788,7 @@ function ComparisonCard({ metric, loading }: { metric: PeriodComparisonMetric; l
               )}
             >
               {up ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-              {Math.abs(delta)}% vs precedente
+              {Math.abs(delta)}%
             </p>
           )}
         </>
@@ -846,7 +887,15 @@ function LossReasonsList({
   );
 }
 
-function SourceBreakdownTable({ rows, loading }: { rows: SourceBreakdownRow[]; loading: boolean }) {
+function SourceBreakdownTable({
+  rows,
+  loading,
+  onDrill,
+}: {
+  rows: SourceBreakdownRow[];
+  loading: boolean;
+  onDrill?: (source: string) => void;
+}) {
   if (loading) return <Skeleton className="h-32 w-full rounded-lg" />;
   if (!rows.length) {
     return <p className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-600">Nessuna fonte con dati nel periodo.</p>;
@@ -865,9 +914,17 @@ function SourceBreakdownTable({ rows, loading }: { rows: SourceBreakdownRow[]; l
         </TableHeader>
         <TableBody>
           {rows.slice(0, 6).map((row) => (
-            <TableRow key={row.source}>
+            <TableRow
+              key={row.source}
+              className={onDrill ? "cursor-pointer hover:bg-slate-50" : undefined}
+              onClick={onDrill ? () => onDrill(row.source) : undefined}
+              title={onDrill ? `Apri i contatti con fonte "${row.source}"` : undefined}
+            >
               <TableCell className="font-medium capitalize">
-                {row.source}
+                <span className="inline-flex items-center gap-1">
+                  {row.source}
+                  {onDrill && <ChevronRight className="h-3 w-3 text-slate-400" />}
+                </span>
                 <TableBar value={row.fatturatoCents} max={Math.max(...rows.map((r) => r.fatturatoCents), 1)} />
               </TableCell>
               <TableCell className="text-right tabular-nums">{row.lead}</TableCell>
