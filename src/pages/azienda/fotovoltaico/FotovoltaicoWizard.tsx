@@ -40,6 +40,8 @@ import {
   Copy,
   Home,
   Building2,
+  Plus,
+  Wallet,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { FvContactPicker } from "@/components/fotovoltaico/FvContactPicker";
@@ -121,7 +123,7 @@ import {
 } from "./FotovoltaicoWizard/helpers";
 
 // MP-MKT-001: INITIAL estratto in ./FotovoltaicoWizard/constants.ts
-import { INITIAL } from "./FotovoltaicoWizard/constants";
+import { INITIAL, PAGAMENTO_PRESETS } from "./FotovoltaicoWizard/constants";
 
 const formatEur = (n: number) =>
   `€ ${n.toLocaleString("it-IT", { maximumFractionDigits: 0 })}`;
@@ -374,6 +376,9 @@ export default function FotovoltaicoWizard() {
       layout_overlay:
         (progettoEsistente as { layout_overlay?: { x: number; y: number; rot: number; cols: number } | null })
           .layout_overlay ?? null,
+      modalita_pagamento:
+        (progettoEsistente as { modalita_pagamento?: WizardData["modalita_pagamento"] })
+          .modalita_pagamento ?? INITIAL.modalita_pagamento,
     }));
     // Marca tutti gli step "passati" del progetto come completati.
     // Un progetto già emesso ha tutti gli 8 step completati.
@@ -1152,6 +1157,7 @@ export default function FotovoltaicoWizard() {
           finanziamento_taeg: taegPct,
           finanziamento_tan: tanPct,
           finanziamento_totale_dovuto_eur: totaleDovuto,
+          modalita_pagamento: data.modalita_pagamento,
         } as never,
       });
       if (!mountedRef.current) return;
@@ -3297,6 +3303,321 @@ function FvPaymentToggle({
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ModalitaPagamentoCard — schema di pagamento diretto (acconto / SAL / saldo),
+// come negli altri preventivi. Le % delle tranche sommano a 100; gli importi €
+// si ricalcolano sul prezzo di vendita IVA inclusa (l'ultima tranche assorbe
+// l'arrotondamento per far quadrare il totale). Si affianca al finanziamento.
+// ─────────────────────────────────────────────────────────────────────────────
+function ModalitaPagamentoCard({
+  data,
+  update,
+  investimento,
+  modalita,
+  rataPrestito,
+  durataMesi,
+}: {
+  data: WizardData;
+  update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
+  investimento: number;
+  modalita: WizardData["finanziamento_modalita"];
+  rataPrestito: number;
+  durataMesi: number;
+}) {
+  const mp =
+    data.modalita_pagamento ??
+    INITIAL.modalita_pagamento ?? { tranche: [], note: null, anticipo_pct: 0 };
+
+  const cardTitle = (
+    <span className="inline-flex items-center gap-2">
+      <Wallet className="h-4 w-4 text-orange-500" />
+      Modalità di pagamento
+    </span>
+  );
+
+  // Campo note condiviso da tutte le modalità.
+  const noteField = (
+    <div className="mt-4">
+      <Label className="text-xs text-slate-600">
+        Note / condizioni di pagamento (facoltative)
+      </Label>
+      <textarea
+        value={mp.note ?? ""}
+        onChange={(e) =>
+          update("modalita_pagamento", { ...mp, note: e.target.value || null })
+        }
+        rows={2}
+        placeholder="Es. Acconto tramite bonifico bancario. Saldo a collaudo e allaccio. IVA agevolata 10%."
+        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400 resize-y"
+      />
+    </div>
+  );
+
+  // ═══ NOLEGGIO operativo: zero anticipo, canone mensile ═══════════════════
+  if (modalita === "noleggio") {
+    return (
+      <FvCard title={cardTitle} action={<FvChip variant="navy">Noleggio operativo</FvChip>} className="mt-4">
+        <p className="text-xs text-slate-500 mb-3">
+          Nel noleggio operativo il cliente <strong>non versa un anticipo</strong>:
+          paga un canone mensile tutto incluso. Comparirà nel preventivo PDF.
+        </p>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-wrap items-center gap-x-10 gap-y-2">
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Anticipo</div>
+            <div className="text-lg font-bold text-slate-900 tabular-nums">€ 0</div>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Canone mensile</div>
+            <div className="text-lg font-bold text-orange-600 tabular-nums">
+              {formatEur(rataPrestito)}<span className="text-sm font-medium text-slate-500">/mese</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Durata</div>
+            <div className="text-lg font-bold text-slate-900 tabular-nums">{durataMesi} mesi</div>
+          </div>
+        </div>
+        {noteField}
+      </FvCard>
+    );
+  }
+
+  // ═══ FINANZIATO (rate / tasso zero): anticipo in contanti + resto a rate ══
+  if (modalita === "rate" || modalita === "zero") {
+    const anticipoPct = Math.max(0, Math.min(100, Number(mp.anticipo_pct) || 0));
+    const anticipoEur = Math.round((investimento * anticipoPct) / 100);
+    const finanziatoEur = Math.max(0, investimento - anticipoEur);
+    // Rata sul capitale residuo: lineare nel capitale (esatto per ammortamento
+    // alla francese a parità di TAN/durata e per il tasso zero).
+    const rataScalata =
+      investimento > 0 ? Math.round(rataPrestito * (finanziatoEur / investimento)) : 0;
+    const setAnticipo = (v: number) =>
+      update("modalita_pagamento", {
+        ...mp,
+        anticipo_pct: Math.max(0, Math.min(100, Math.round(v))),
+      });
+    return (
+      <FvCard
+        title={cardTitle}
+        action={
+          <FvChip variant={modalita === "zero" ? "purple" : "green"}>
+            {modalita === "zero" ? "Tasso zero" : "Finanziato a rate"}
+          </FvChip>
+        }
+        className="mt-4"
+      >
+        <p className="text-xs text-slate-500 mb-3">
+          Con il finanziamento il cliente versa un <strong>anticipo in contanti</strong>{" "}
+          alla firma e rateizza il resto. Imposta l'anticipo: la rata si ricalcola
+          sul capitale residuo. Comparirà nel preventivo PDF.
+        </p>
+
+        {/* Anticipo: preset rapidi + input % */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <span className="text-xs font-medium text-slate-600 mr-1">Anticipo alla firma:</span>
+          {[0, 10, 20, 30].map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setAnticipo(p)}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors ${
+                anticipoPct === p
+                  ? "border-orange-500 bg-orange-50 text-orange-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              }`}
+            >
+              {p}%
+            </button>
+          ))}
+          <div className="relative w-20">
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={anticipoPct}
+              onChange={(e) => setAnticipo(Number(e.target.value) || 0)}
+              className="h-8 text-sm pr-6 text-right tabular-nums"
+            />
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+          </div>
+        </div>
+
+        {/* Riepilogo: anticipo + finanziato + rata */}
+        <div className="grid sm:grid-cols-3 gap-2">
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Anticipo alla firma</div>
+            <div className="text-lg font-bold text-slate-900 tabular-nums">{formatEur(anticipoEur)}</div>
+            <div className="text-[11px] text-slate-400">{anticipoPct}% del totale</div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Importo finanziato</div>
+            <div className="text-lg font-bold text-slate-900 tabular-nums">{formatEur(finanziatoEur)}</div>
+            <div className="text-[11px] text-slate-400">resto rateizzato</div>
+          </div>
+          <div className="rounded-xl border-2 border-orange-200 bg-orange-50 p-3">
+            <div className="text-[11px] uppercase tracking-wide text-orange-600">Rata mensile</div>
+            <div className="text-lg font-bold text-orange-700 tabular-nums">
+              {formatEur(rataScalata)}<span className="text-xs font-medium">/mese</span>
+            </div>
+            <div className="text-[11px] text-orange-600/80">
+              {durataMesi} rate{anticipoPct > 0 ? ` · senza anticipo ${formatEur(rataPrestito)}` : ""}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-2 text-right text-sm font-bold text-slate-700 tabular-nums">
+          Totale chiavi in mano · {formatEur(investimento)}
+        </div>
+
+        {noteField}
+      </FvCard>
+    );
+  }
+
+  // ═══ CASH (pagamento immediato): acconto / SAL / saldo ════════════════════
+  const tranche = mp.tranche;
+  const sommaPct = tranche.reduce((s, t) => s + (Number(t.pct) || 0), 0);
+  const sumOk = Math.abs(sommaPct - 100) < 0.01;
+
+  // Importi € per tranche: arrotonda al singolo €; se le % quadrano, l'ultima
+  // tranche assorbe la differenza così la somma è esattamente l'investimento.
+  const importi: number[] = (() => {
+    if (investimento <= 0) return tranche.map(() => 0);
+    const arr = tranche.map((t) =>
+      Math.round((investimento * (Number(t.pct) || 0)) / 100),
+    );
+    if (sumOk && arr.length > 0) {
+      arr[arr.length - 1] += investimento - arr.reduce((s, v) => s + v, 0);
+    }
+    return arr;
+  })();
+
+  const setTranche = (next: Array<{ label: string; pct: number }>) =>
+    update("modalita_pagamento", { ...mp, tranche: next });
+  const updateRow = (i: number, patch: Partial<{ label: string; pct: number }>) =>
+    setTranche(tranche.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
+  const removeRow = (i: number) =>
+    setTranche(tranche.filter((_, idx) => idx !== i));
+  const addRow = () =>
+    setTranche([...tranche, { label: "Nuova tranche", pct: 0 }]);
+
+  const activePreset = PAGAMENTO_PRESETS.find(
+    (p) => JSON.stringify(p.tranche) === JSON.stringify(tranche),
+  )?.id;
+
+  return (
+    <FvCard
+      title={
+        <span className="inline-flex items-center gap-2">
+          <Wallet className="h-4 w-4 text-orange-500" />
+          Modalità di pagamento
+        </span>
+      }
+      action={
+        <FvChip variant={sumOk ? "green" : "yellow"}>
+          {sumOk ? "✓ Totale 100%" : `⚠ Totale ${sommaPct.toFixed(0)}%`}
+        </FvChip>
+      }
+      className="mt-4"
+    >
+      <p className="text-xs text-slate-500 mb-3">
+        Pagamento immediato: come il cliente salda l'importo in contanti
+        (acconto, stati di avanzamento, saldo). Comparirà nel preventivo PDF.
+        Per rateizzare scegli "Rateale finanziato" qui sopra.
+      </p>
+
+      {/* Preset rapidi */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {PAGAMENTO_PRESETS.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => setTranche(p.tranche.map((t) => ({ ...t })))}
+            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors ${
+              activePreset === p.id
+                ? "border-orange-500 bg-orange-50 text-orange-700"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Righe tranche */}
+      <div className="space-y-2">
+        {tranche.map((t, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <Input
+              value={t.label}
+              onChange={(e) => updateRow(i, { label: e.target.value })}
+              placeholder="Es. Acconto alla firma"
+              className="flex-1 h-9 text-sm"
+            />
+            <div className="relative w-20 shrink-0">
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={Number.isFinite(t.pct) ? t.pct : 0}
+                onChange={(e) =>
+                  updateRow(i, {
+                    pct: Math.max(0, Math.min(100, Number(e.target.value) || 0)),
+                  })
+                }
+                className="h-9 text-sm pr-6 text-right tabular-nums"
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                %
+              </span>
+            </div>
+            <div className="w-28 shrink-0 text-right text-sm font-semibold text-slate-800 tabular-nums">
+              {formatEur(importi[i] ?? 0)}
+            </div>
+            <button
+              type="button"
+              onClick={() => removeRow(i)}
+              disabled={tranche.length <= 1}
+              aria-label="Rimuovi tranche"
+              className="shrink-0 p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Aggiungi + totale */}
+      <div className="flex items-center justify-between mt-3">
+        <button
+          type="button"
+          onClick={addRow}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-dashed border-slate-300 text-slate-600 hover:border-orange-400 hover:text-orange-600"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Aggiungi tranche
+        </button>
+        <div
+          className={`text-sm font-bold tabular-nums ${
+            sumOk ? "text-emerald-600" : "text-amber-600"
+          }`}
+        >
+          Totale {sommaPct.toFixed(0)}% · {formatEur(investimento)}
+        </div>
+      </div>
+
+      {!sumOk && (
+        <p className="text-[11px] text-amber-600 mt-1.5">
+          La somma delle percentuali deve essere 100% perché gli importi
+          quadrino col totale.
+        </p>
+      )}
+
+      {noteField}
+    </FvCard>
+  );
+}
+
 function Step6Finanziario({
   data,
   update,
@@ -3541,6 +3862,16 @@ function Step6Finanziario({
         topConsigliata={topAuto}
         noleggioEnabled={fvTemplate?.noleggio_operativo_attivo !== false}
         onChange={(modalita) => update("finanziamento_modalita", modalita)}
+      />
+
+      {/* MP: schema di pagamento diretto (acconto / SAL / saldo) — come gli altri preventivi */}
+      <ModalitaPagamentoCard
+        data={data}
+        update={update}
+        investimento={investimento}
+        modalita={data.finanziamento_modalita}
+        rataPrestito={rataMensilePrestito}
+        durataMesi={durataInfoMesi || (data.durata_mesi_scelta ?? 84)}
       />
 
       <div className="mb-4">

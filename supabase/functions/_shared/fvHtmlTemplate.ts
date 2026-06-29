@@ -102,7 +102,7 @@ export interface FvPdfTemplateData {
     fv_kwp?: number | null;
     fv_accumulo_kwh?: number | null;
     cover_b64?: string | null;
-    voci?: Array<{ descrizione: string; quantita: number }>;
+    voci?: Array<{ descrizione: string; quantita: number; foto?: string | null }>;
   } | null;
   costi: {
     prezzo_vendita_iva_inclusa: number;
@@ -119,6 +119,12 @@ export interface FvPdfTemplateData {
     taeg_perc: number;
     importo_finanziato: number;
   } | null;
+  /** Schema di pagamento — adattivo alla modalità. Importi già calcolati. */
+  modalita_pagamento?:
+    | { tipo: "diretto"; tranche: Array<{ label: string; pct: number; importo_eur: number }>; note: string | null }
+    | { tipo: "finanziato"; anticipo_pct: number; anticipo_eur: number; finanziato_eur: number; rata_mensile: number; durata_mesi: number; tasso_zero: boolean; note: string | null }
+    | { tipo: "noleggio"; canone_mensile: number; durata_mesi: number; note: string | null }
+    | null;
   scenario: {
     risparmio_mensile_eur: number;
     risparmio_anno1_eur: number;
@@ -177,6 +183,7 @@ export interface FvPdfTemplateData {
       autore?: string | null;
       citta?: string | null;
       intervento?: string | null;
+      foto_url?: string | null;
     }> | null;
     certificazioni?: Array<{
       nome?: string | null;
@@ -750,20 +757,30 @@ export interface FvPdfPageMeta {
 }
 
 export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
-  { id: "investimento", label: "Investimento", descrizione: "Prezzo, proposta di valore, inclusi e detrazione.", obbligatoria: true },
+  // Ordine di default in stile vendita (la "linea retta" di Belfort): prima la
+  // FIDUCIA (chi siamo + garanzie) e il percorso, poi il DESIDERIO (prodotto e
+  // prova), poi il VALORE (risparmio, cassa 25 anni), e SOLO dopo il PREZZO
+  // (investimento + rata) e l'URGENZA. Il prezzo non si mostra mai prima del
+  // valore. Questo e' lo standard; l'utente puo' sempre ri-trascinare.
+  // — Atto 1: Fiducia —
+  { id: "garanzie", label: "Chi siamo e garanzie", descrizione: "Azienda, prova sociale, certificazioni e garanzie.", obbligatoria: false },
+  { id: "iter", label: "Percorso cliente", descrizione: "Iter pratiche, installazione, allaccio e servizi inclusi.", obbligatoria: false },
+  // — Atto 2: Desiderio (prodotto e prova) —
   { id: "anteprima", label: "Anteprima impianto", descrizione: "Vista tetto, layout pannelli e fonte dati.", obbligatoria: false },
   { id: "componenti", label: "Componenti scelti", descrizione: "Prodotti reali scelti nel preventivo e arricchiti dal listino.", obbligatoria: true },
   { id: "macro_categorie", label: "Pagine linee prodotto", descrizione: "Pagine dedicate lette dalle macro-categorie del listino.", obbligatoria: false },
   { id: "produzione", label: "Produzione", descrizione: "Producibilita mensile, fonte dati e qualita tetto.", obbligatoria: false },
   { id: "flussi", label: "Flussi energia", descrizione: "Autoconsumo, autosufficienza e energia ceduta.", obbligatoria: false },
+  // — Atto 3: Valore (quanto guadagna, prima del costo) —
   { id: "risparmio", label: "Risparmio", descrizione: "Bolletta prima/dopo e risparmio mensile.", obbligatoria: false },
   { id: "costi_futuri", label: "Costi futuri", descrizione: "Scenario costo energia nei prossimi anni.", obbligatoria: false },
-  { id: "piano_pagamento", label: "Piano economico", descrizione: "Rata, risparmio e costo netto mensile.", obbligatoria: false },
-  { id: "bollette_240", label: "Perche farlo ora", descrizione: "Narrativa su aumento bollette e urgenza.", obbligatoria: false },
   { id: "cassa_25", label: "Cassa 25 anni", descrizione: "Cashflow, breakeven e valore cumulato.", obbligatoria: false },
   { id: "co2", label: "Impatto CO2", descrizione: "Beneficio ambientale in equivalenze semplici.", obbligatoria: false },
-  { id: "garanzie", label: "Chi siamo e garanzie", descrizione: "Azienda, prova sociale, certificazioni e garanzie.", obbligatoria: false },
-  { id: "iter", label: "Percorso cliente", descrizione: "Iter pratiche, installazione, allaccio e servizi inclusi.", obbligatoria: false },
+  // — Atto 4: Offerta (ora il prezzo, e sembra piccolo) —
+  { id: "investimento", label: "Investimento", descrizione: "Prezzo, proposta di valore, inclusi e detrazione.", obbligatoria: true },
+  { id: "piano_pagamento", label: "Piano economico", descrizione: "Rata, risparmio e costo netto mensile.", obbligatoria: false },
+  { id: "bollette_240", label: "Perche farlo ora", descrizione: "Narrativa su aumento bollette e urgenza.", obbligatoria: false },
+  // — Atto 5: Chiusura —
   { id: "faq", label: "FAQ", descrizione: "Domande e obiezioni frequenti.", obbligatoria: false },
   { id: "decisione", label: "CTA e firma", descrizione: "Riepilogo offerta, contatti, firma e condizioni.", obbligatoria: true },
 ];
@@ -962,6 +979,72 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
         <div><strong>Detrazione fiscale ${d.costi.detrazione_perc}% — recuperi ${fmtEur(d.costi.detrazione_eur)} in 10 anni.</strong>
         Costo netto effettivo: <strong>${fmtEur(d.costi.costo_netto_dopo_detrazione)}</strong>. Dettagli a pagina 11.</div>
       </div>
+      ${(() => {
+        const mp = d.modalita_pagamento;
+        if (!mp) return "";
+        const tot = d.costi.prezzo_vendita_iva_inclusa;
+        const h3 = `<h3 style="font-size:12pt;color:#1E3A5F;margin:4mm 0 2mm;">Modalità di pagamento</h3>`;
+        const noteP = mp.note ? `<p style="font-size:8.5pt;color:#64748B;margin-top:2mm;">${escHtml(mp.note)}</p>` : "";
+
+        // ── Finanziato: anticipo + resto a rate ──
+        if (mp.tipo === "finanziato") {
+          const r2 = (l: string, v: string, hl = false) => `<tr style="border-bottom:1px solid #F1F5F9;">
+            <td style="padding:1.8mm 0;color:${hl ? "#C2410C" : "#1E293B"};font-weight:${hl ? 700 : 400};">${l}</td>
+            <td style="padding:1.8mm 0;text-align:right;font-weight:${hl ? 700 : 600};color:${hl ? "#C2410C" : "#1E3A5F"};">${v}</td></tr>`;
+          return `${h3}
+          <table style="width:100%;border-collapse:collapse;font-size:10pt;">
+            <tbody>
+              ${mp.anticipo_eur > 0 ? r2(`Anticipo alla firma (${fmtNum(mp.anticipo_pct, 0)}%)`, fmtEur(mp.anticipo_eur)) : r2("Anticipo alla firma", "Nessun anticipo")}
+              ${r2(`Importo finanziato${mp.tasso_zero ? " · tasso zero" : ""}`, fmtEur(mp.finanziato_eur))}
+              ${r2(`Rata mensile · ${mp.durata_mesi} rate`, `${fmtEur(mp.rata_mensile)}/mese`, true)}
+            </tbody>
+            <tfoot><tr style="border-top:2px solid #1E3A5F;font-weight:700;">
+              <td style="padding:1.8mm 0;color:#1E3A5F;">Totale chiavi in mano</td>
+              <td style="padding:1.8mm 0;text-align:right;color:#1E3A5F;">${fmtEur(tot)}</td>
+            </tr></tfoot>
+          </table>${noteP}`;
+        }
+
+        // ── Noleggio: zero anticipo, canone mensile ──
+        if (mp.tipo === "noleggio") {
+          const r2 = (l: string, v: string, hl = false) => `<tr style="border-bottom:1px solid #F1F5F9;">
+            <td style="padding:1.8mm 0;color:${hl ? "#C2410C" : "#1E293B"};font-weight:${hl ? 700 : 400};">${l}</td>
+            <td style="padding:1.8mm 0;text-align:right;font-weight:${hl ? 700 : 600};color:${hl ? "#C2410C" : "#1E3A5F"};">${v}</td></tr>`;
+          return `${h3}
+          <table style="width:100%;border-collapse:collapse;font-size:10pt;">
+            <tbody>
+              ${r2("Anticipo iniziale", "€ 0 · zero anticipo")}
+              ${r2(`Canone mensile · ${mp.durata_mesi} mesi`, `${fmtEur(mp.canone_mensile)}/mese`, true)}
+            </tbody>
+          </table>${noteP}`;
+        }
+
+        // ── Diretto (cash): tranche acconto/SAL/saldo ──
+        if (!mp.tranche.length) return "";
+        const sumPct = mp.tranche.reduce((s, t) => s + (Number(t.pct) || 0), 0);
+        const sumImp = mp.tranche.reduce((s, t) => s + (Number(t.importo_eur) || 0), 0);
+        const th = "padding:1.5mm 0;color:#94A3B8;font-weight:600;font-size:8pt;text-transform:uppercase;letter-spacing:.04em;";
+        const rows = mp.tranche.map((t) => `
+          <tr style="border-bottom:1px solid #F1F5F9;">
+            <td style="padding:1.8mm 0;color:#1E293B;">${escHtml(t.label)}</td>
+            <td style="padding:1.8mm 0;text-align:center;color:#64748B;">${fmtNum(t.pct, 0)}%</td>
+            <td style="padding:1.8mm 0;text-align:right;font-weight:600;color:#1E3A5F;">${fmtEur(t.importo_eur)}</td>
+          </tr>`).join("");
+        return `${h3}
+        <table style="width:100%;border-collapse:collapse;font-size:10pt;">
+          <thead><tr style="border-bottom:1.5px solid #E2E8F0;text-align:left;">
+            <th style="${th}text-align:left;">Fase</th>
+            <th style="${th}text-align:center;">Quota</th>
+            <th style="${th}text-align:right;">Importo</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr style="border-top:2px solid #1E3A5F;font-weight:700;">
+            <td style="padding:1.8mm 0;color:#1E3A5F;">Totale chiavi in mano</td>
+            <td style="padding:1.8mm 0;text-align:center;color:#1E3A5F;">${fmtNum(sumPct, 0)}%</td>
+            <td style="padding:1.8mm 0;text-align:right;color:#1E3A5F;">${fmtEur(sumImp)}</td>
+          </tr></tfoot>
+        </table>${noteP}`;
+      })()}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1012,9 +1095,10 @@ function pageBundleKit(d: FvPdfTemplateData, pageN: number, total: number): stri
   const chips = [kwp, kwh].filter(Boolean).map((v) => `<span class="spec-chip">${escHtml(v!)}</span>`).join("");
   const voceRows = (b.voci ?? [])
     .slice(0, 8)
-    .map((v) => `<div style="display:flex;justify-content:space-between;padding:1.5mm 0;border-bottom:1px solid #F1F5F9;font-size:8.5pt;">
-      <span>${escHtml(v.descrizione)}</span>
-      <span style="color:#64748B;margin-left:4mm;">× ${v.quantita}</span>
+    .map((v) => `<div style="display:flex;align-items:center;gap:3mm;padding:1.5mm 0;border-bottom:1px solid #F1F5F9;font-size:8.5pt;">
+      ${v.foto ? `<img src="${escHtml(v.foto)}" alt="" style="width:12mm;height:12mm;border-radius:4px;object-fit:cover;border:1px solid #E2E8F0;flex-shrink:0;"/>` : ""}
+      <span style="flex:1;">${escHtml(v.descrizione)}</span>
+      <span style="color:#64748B;">× ${v.quantita}</span>
     </div>`)
     .join("");
   return `<div class="page">
@@ -1444,7 +1528,10 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
       </ul>
       ${recensioni.length > 0 ? `<h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 2mm;">Cosa dicono i clienti</h3>
         <div class="kpi-row cols-2">
-          ${recensioni.map((rec) => `<div class="kpi-block"><div class="kpi-label">${escHtml([plainText(rec.citta), plainText(rec.intervento)].filter(Boolean).join(" · ") || "Recensione")}</div><div class="kpi-sub" style="font-size:8pt;color:#475569;">"${escHtml(plainText(rec.quote))}"</div><div class="kpi-value" style="font-size:11pt;margin-top:2mm;">${escHtml(plainText(rec.autore))}</div></div>`).join("")}
+          ${recensioni.map((rec) => {
+            const fotoRec = imageHref(rec.foto_url);
+            return `<div class="kpi-block">${fotoRec ? `<div style="height:26mm;border-radius:6px;overflow:hidden;border:1px solid #E2E8F0;margin-bottom:2mm;"><img src="${escHtml(fotoRec)}" alt="Impianto installato" style="width:100%;height:100%;object-fit:cover;"/></div>` : ""}<div class="kpi-label">${escHtml([plainText(rec.citta), plainText(rec.intervento)].filter(Boolean).join(" · ") || "Recensione")}</div><div class="kpi-sub" style="font-size:8pt;color:#475569;">"${escHtml(plainText(rec.quote))}"</div><div class="kpi-value" style="font-size:11pt;margin-top:2mm;">${escHtml(plainText(rec.autore))}</div></div>`;
+          }).join("")}
         </div>` : ""}
       ${(d.cantieri_foto ?? []).length > 0 ? `<h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 2mm;">I nostri cantieri</h3>
         <div style="display:grid;grid-template-columns:repeat(${Math.min((d.cantieri_foto ?? []).length, 3)},1fr);gap:2mm;">

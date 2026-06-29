@@ -102,7 +102,7 @@ Deno.serve(async (req: Request) => {
     const { data: prog, error: progErr } = await supabaseAdmin
       .from("fv_progetti")
       .select(
-        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id",
+        "id, company_id, numero, titolo, archetipo, indirizzo, comune, provincia, cap, latitudine, longitudine, tipologia_immobile, prima_casa, consumo_annuo_kwh, costo_kwh_attuale, profilo_consumo, fonte_dati_tetto, qualita_dati_tetto, imagery_date, ore_sole_annue, superficie_tetto_disponibile_mq, perdita_ombreggiamento_pct, numero_pannelli_scelti, potenza_kwp, con_accumulo, capacita_accumulo_kwh, prezzo_vendita_iva_inclusa, payback_anni, npv_25_anni, risparmio_anno1, created_at, created_by, scenario_finanziamento, finanziamento_tabella_id, finanziamento_durata_mesi, finanziamento_rata_eur, finanziamento_taeg, finanziamento_tan, finanziamento_totale_dovuto_eur, kit_bundle_id, modalita_pagamento",
       )
       .eq("id", p.progetto_id)
       .maybeSingle();
@@ -250,7 +250,7 @@ Deno.serve(async (req: Request) => {
       .slice(0, 3);
 
     type BundleRow = { nome: string; descrizione: string | null; fv_kwp: number | null; fv_accumulo_kwh: number | null; cover_image_url: string | null };
-    type BundleVoceRow = { bundle_id: string; prodotto_id: string | null; quantita: number; article_templates?: { name?: string } | null; tariffe_aziendali?: { nome?: string } | null };
+    type BundleVoceRow = { bundle_id: string; prodotto_id: string | null; quantita: number; immagine_url?: string | null; article_templates?: { name?: string } | null; tariffe_aziendali?: { nome?: string } | null };
 
     let bundleData: BundleRow | null = null;
     let bundleVoci: BundleVoceRow[] = [];
@@ -263,7 +263,7 @@ Deno.serve(async (req: Request) => {
           .maybeSingle(),
         supabaseAdmin
           .from("bundle_voci")
-          .select("bundle_id, prodotto_id, quantita, article_templates(name), tariffe_aziendali(nome)")
+          .select("bundle_id, prodotto_id, quantita, immagine_url, article_templates(name), tariffe_aziendali(nome)")
           .eq("bundle_id", prog.kit_bundle_id)
           .order("sort_order"),
       ]);
@@ -276,6 +276,51 @@ Deno.serve(async (req: Request) => {
       Promise.all(cantieriFotoUrls.map((u) => urlToB64(u))),
       bundleData?.cover_image_url ? urlToB64(bundleData.cover_image_url) : Promise.resolve(undefined),
     ]);
+
+    // Foto azienda + foto impianti delle recensioni → base64 (così compaiono nel
+    // PDF anche nel download lato browser, senza dipendere da URL esterni/CORS).
+    const fotoTeamB64 = template.foto_team_url
+      ? await urlToB64(template.foto_team_url as string)
+      : undefined;
+    const recensioniRaw = Array.isArray(template.recensioni)
+      ? (template.recensioni as Array<Record<string, unknown>>)
+      : [];
+    const recensioniB64 = await Promise.all(
+      recensioniRaw.map(async (rec) => {
+        const fotoUrl = typeof rec?.foto_url === "string" ? rec.foto_url : "";
+        const fotoB64 = fotoUrl ? await urlToB64(fotoUrl) : undefined;
+        return { ...rec, foto_url: fotoB64 ?? null };
+      }),
+    );
+
+    // Base64 delle foto componenti FV (articoli_native.immagine_url) → compaiono
+    // nel PDF anche nel download lato browser.
+    const componentImgB64 = new Map<string, string>();
+    await Promise.all(
+      Array.from(articoliById.values()).map(async (art) => {
+        const u = firstString(
+          (art as Record<string, unknown>).immagine_url,
+          (art as Record<string, unknown>).image_url,
+          (art as Record<string, unknown>).foto_url,
+        );
+        if (u) {
+          const b64 = await urlToB64(u);
+          if (b64) componentImgB64.set(u, b64);
+        }
+      }),
+    );
+
+    // Base64 delle foto delle voci bundle/kit.
+    const bundleVociImgB64 = new Map<string, string>();
+    await Promise.all(
+      bundleVoci.map(async (v) => {
+        const u = typeof v.immagine_url === "string" ? v.immagine_url : "";
+        if (u) {
+          const b64 = await urlToB64(u);
+          if (b64) bundleVociImgB64.set(u, b64);
+        }
+      }),
+    );
 
     // ── Calcoli aggregati ──────────────────────────────────────────────────
     const flows = calcolaEnergyFlows({
@@ -389,6 +434,75 @@ Deno.serve(async (req: Request) => {
     }
     // Se cash o niente dati, finanziamento resta null (template gestisce)
 
+    // ── Modalità di pagamento — ADATTIVA alla modalità scelta ─────────────
+    //   diretto (cash): tranche acconto/SAL/saldo (% → € sul totale)
+    //   finanziato (rate/zero): anticipo in contanti + resto a rate
+    //   noleggio: canone mensile, zero anticipo
+    // Gli importi € si ricalcolano sul prezzo IVA inclusa; la rata si scala
+    // linearmente sul capitale residuo.
+    let modalitaPagamento:
+      | { tipo: "diretto"; tranche: Array<{ label: string; pct: number; importo_eur: number }>; note: string | null }
+      | { tipo: "finanziato"; anticipo_pct: number; anticipo_eur: number; finanziato_eur: number; rata_mensile: number; durata_mesi: number; tasso_zero: boolean; note: string | null }
+      | { tipo: "noleggio"; canone_mensile: number; durata_mesi: number; note: string | null }
+      | null = null;
+    {
+      const mpRaw = prog.modalita_pagamento as
+        | { tranche?: Array<{ label?: string; pct?: number }>; note?: string | null; anticipo_pct?: number }
+        | null;
+      const noteMp = mpRaw?.note ?? null;
+      const totalePag = Number(prog.prezzo_vendita_iva_inclusa) || 0;
+
+      if (scenarioFinMode === "noleggio" && finanziamento) {
+        modalitaPagamento = {
+          tipo: "noleggio",
+          canone_mensile: finanziamento.rata_mensile,
+          durata_mesi: finanziamento.durata_mesi,
+          note: noteMp,
+        };
+      } else if (
+        (scenarioFinMode === "rate" || scenarioFinMode === "zero") &&
+        finanziamento &&
+        totalePag > 0
+      ) {
+        const anticipoPct = Math.max(0, Math.min(100, Number(mpRaw?.anticipo_pct) || 0));
+        const anticipoEur = Math.round((totalePag * anticipoPct) / 100);
+        const finanziatoEur = Math.max(0, totalePag - anticipoEur);
+        const rataScalata = Math.round(
+          finanziamento.rata_mensile * (finanziatoEur / totalePag),
+        );
+        modalitaPagamento = {
+          tipo: "finanziato",
+          anticipo_pct: anticipoPct,
+          anticipo_eur: anticipoEur,
+          finanziato_eur: finanziatoEur,
+          rata_mensile: rataScalata,
+          durata_mesi: finanziamento.durata_mesi,
+          tasso_zero: scenarioFinMode === "zero",
+          note: noteMp,
+        };
+      } else {
+        // Pagamento diretto (cash) o fallback senza dati finanziamento.
+        const tr = Array.isArray(mpRaw?.tranche) ? mpRaw!.tranche! : [];
+        if (tr.length > 0 && totalePag > 0) {
+          const somma = tr.reduce((s, t) => s + (Number(t?.pct) || 0), 0);
+          const sumOk = Math.abs(somma - 100) < 0.01;
+          const importi = tr.map((t) => Math.round((totalePag * (Number(t?.pct) || 0)) / 100));
+          if (sumOk && importi.length > 0) {
+            importi[importi.length - 1] += totalePag - importi.reduce((s, v) => s + v, 0);
+          }
+          modalitaPagamento = {
+            tipo: "diretto",
+            tranche: tr.map((t, i) => ({
+              label: String(t?.label ?? `Rata ${i + 1}`),
+              pct: Number(t?.pct) || 0,
+              importo_eur: importi[i] ?? 0,
+            })),
+            note: noteMp,
+          };
+        }
+      }
+    }
+
     // ── Estrazione cliente da titolo (in W1 cliente_id non sempre popolato) ─
     const titoloParts = (prog.titolo ?? "").trim().split(/\s+/);
     const clienteNome = titoloParts[0] ?? "";
@@ -446,12 +560,16 @@ Deno.serve(async (req: Request) => {
         fv_kwp: bundleData.fv_kwp,
         fv_accumulo_kwh: bundleData.fv_accumulo_kwh,
         cover_b64: bundleCoverB64 ?? null,
-        voci: bundleVoci.map((v) => ({
-          descrizione: (v.article_templates as Record<string,string> | null)?.name
-            ?? (v.tariffe_aziendali as Record<string,string> | null)?.nome
-            ?? "Componente",
-          quantita: Number(v.quantita) || 1,
-        })),
+        voci: bundleVoci.map((v) => {
+          const u = typeof v.immagine_url === "string" ? v.immagine_url : "";
+          return {
+            descrizione: (v.article_templates as Record<string,string> | null)?.name
+              ?? (v.tariffe_aziendali as Record<string,string> | null)?.nome
+              ?? "Componente",
+            quantita: Number(v.quantita) || 1,
+            foto: u ? (bundleVociImgB64.get(u) ?? u) : null,
+          };
+        }),
       } : null,
       costi: {
         prezzo_vendita_iva_inclusa: Number(prog.prezzo_vendita_iva_inclusa) || 0,
@@ -461,6 +579,7 @@ Deno.serve(async (req: Request) => {
         costo_netto_dopo_detrazione: Math.round(costoNetto),
       },
       finanziamento,
+      modalita_pagamento: modalitaPagamento,
       scenario: {
         risparmio_mensile_eur: risparmioMensile,
         risparmio_anno1_eur: Math.round(risparmioAnno1),
@@ -483,7 +602,10 @@ Deno.serve(async (req: Request) => {
           potenza_w: c.potenza_unitaria_w ? Number(c.potenza_unitaria_w) : null,
           capacita_kwh: c.capacita_kwh ? Number(c.capacita_kwh) : null,
           garanzia_anni: c.garanzia_anni ? Number(c.garanzia_anni) : null,
-          image_url: firstString(articolo?.immagine_url, articolo?.image_url, articolo?.foto_url),
+          image_url: (() => {
+            const u = firstString(articolo?.immagine_url, articolo?.image_url, articolo?.foto_url);
+            return u ? (componentImgB64.get(u) ?? u) : undefined;
+          })(),
           articolo_descrizione_estesa: firstString(
             articolo?.descrizione_estesa,
             articolo?.descrizione_lunga,
@@ -516,9 +638,9 @@ Deno.serve(async (req: Request) => {
         pdf_cover_logo_position: template.pdf_cover_logo_position ?? null,
         pdf_cover_show_client_card: template.pdf_cover_show_client_card ?? null,
         presentazione_impresa_html: template.presentazione_impresa_html ?? null,
-        foto_team_url: template.foto_team_url ?? null,
+        foto_team_url: fotoTeamB64 ?? template.foto_team_url ?? null,
         chi_siamo_titolo: template.chi_siamo_titolo ?? null,
-        recensioni: Array.isArray(template.recensioni) ? template.recensioni : [],
+        recensioni: recensioniB64,
         certificazioni: Array.isArray(template.certificazioni) ? template.certificazioni : [],
         render_disclaimer: template.render_disclaimer ?? null,
         percorso_cliente_intro: template.percorso_cliente_intro ?? null,

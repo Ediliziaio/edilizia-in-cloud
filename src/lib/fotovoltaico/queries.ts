@@ -348,11 +348,12 @@ export interface ArticoloFv {
   marca_fv: string | null;
   modello_fv: string | null;
   unita_misura: string | null;
+  immagine_url: string | null;
   attivo: boolean;
 }
 
 const FV_CAT_COLS =
-  "id, codice, descrizione, categoria_fv, prezzo_vendita, prezzo_acquisto, potenza_w, potenza_kw, capacita_kwh, garanzia_anni, efficienza_pct, marca_fv, modello_fv, unita_misura, attivo";
+  "id, codice, descrizione, categoria_fv, prezzo_vendita, prezzo_acquisto, potenza_w, potenza_kw, capacita_kwh, garanzia_anni, efficienza_pct, marca_fv, modello_fv, unita_misura, immagine_url, attivo";
 
 // Lista COMPLETA dei componenti FV (inclusi i disattivati) per la gestione.
 export function useArticoliFvCatalogo() {
@@ -428,6 +429,7 @@ export interface ArticoloFvInput {
   marca_fv?: string | null;
   modello_fv?: string | null;
   unita_misura?: string | null;
+  immagine_url?: string | null;
 }
 
 // Crea o aggiorna un componente FV. NB: prezzo_vendita è NOT NULL → mai null (0 di default).
@@ -452,6 +454,7 @@ export function useUpsertArticoloFv() {
         marca_fv: input.marca_fv ?? null,
         modello_fv: input.modello_fv ?? null,
         unita_misura: input.unita_misura ?? "pz",
+        immagine_url: input.immagine_url ?? null,
         attivo: true,
       };
       if (input.id) {

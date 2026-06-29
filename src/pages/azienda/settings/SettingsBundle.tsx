@@ -64,6 +64,7 @@ interface DraftVoce {
   altezza_mm: number | null;
   axis_selections: AxisSelection;
   quantita: number;
+  immagine_url: string | null;
 }
 
 interface DraftBundle {
@@ -136,6 +137,7 @@ function bundleToDraft(b: Bundle): DraftBundle {
         altezza_mm: v.altezza_mm_default,
         axis_selections: (v.axis_selections ?? {}) as AxisSelection,
         quantita: Number(v.quantita ?? 1),
+        immagine_url: v.immagine_url ?? null,
       })),
   };
 }
@@ -225,6 +227,7 @@ export default function SettingsBundle() {
   const [search, setSearch] = useState("");
   const [filterAttivi, setFilterAttivi] = useState<"all" | "active" | "inactive">("all");
   const [coverUploading, setCoverUploading] = useState(false);
+  const [uploadingVoceKey, setUploadingVoceKey] = useState<string | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   // ── Filtered list
@@ -292,6 +295,7 @@ export default function SettingsBundle() {
           altezza_mm: null,
           axis_selections: {},
           quantita: 1,
+          immagine_url: null,
         },
       ],
     }));
@@ -349,6 +353,31 @@ export default function SettingsBundle() {
     }
   };
 
+  // Upload foto del singolo prodotto/voce del bundle (compare nel PDF kit).
+  const handleVoceImageUpload = async (key: string, file: File) => {
+    if (!companyId) return;
+    if (!file.type.startsWith("image/")) return toast.error("Carica un file immagine");
+    setUploadingVoceKey(key);
+    try {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `bundle-voci/${companyId}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("fv-progetti")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: signedData, error: signErr } = await supabase.storage
+        .from("fv-progetti")
+        .createSignedUrl(path, 60 * 60 * 24 * 365);
+      if (signErr) throw signErr;
+      updateVoce(key, { immagine_url: signedData.signedUrl });
+      toast.success("Foto prodotto caricata");
+    } catch (e) {
+      toast.error("Upload fallito: " + (e instanceof Error ? e.message : "errore"));
+    } finally {
+      setUploadingVoceKey(null);
+    }
+  };
+
   const handleSave = async () => {
     try {
       const voci: BundleVoceInput[] = draft.voci.map((v, idx) => ({
@@ -361,6 +390,7 @@ export default function SettingsBundle() {
         vano_label: v.vano_label.trim() || null,
         quantita: v.quantita,
         sort_order: idx,
+        immagine_url: v.immagine_url ?? null,
       }));
       await upsertMut.mutateAsync({
         id: draft.id,
@@ -811,6 +841,8 @@ export default function SettingsBundle() {
                       tariffe={tariffe}
                       onUpdate={(patch) => updateVoce(v._key, patch)}
                       onRemove={() => removeVoce(v._key)}
+                      uploadingImage={uploadingVoceKey === v._key}
+                      onUploadImage={(f) => handleVoceImageUpload(v._key, f)}
                     />
                   ))}
                 </div>
@@ -869,10 +901,13 @@ interface VoceRowProps {
   tariffe: Array<{ id: string; nome: string; unita: string | null }>;
   onUpdate: (patch: Partial<DraftVoce>) => void;
   onRemove: () => void;
+  uploadingImage: boolean;
+  onUploadImage: (file: File) => void;
 }
 
-function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove }: VoceRowProps) {
+function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove, uploadingImage, onUploadImage }: VoceRowProps) {
   const selectedFamily = families.find((f) => f.id === voce.family_id) ?? null;
+  const imgInputRef = useRef<HTMLInputElement | null>(null);
 
   return (
     <div className="border rounded-md p-3 bg-muted/30 space-y-3">
@@ -1022,6 +1057,51 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove 
             ))}
           </div>
         )}
+
+        {/* Foto prodotto della voce (mostrata nella pagina kit del preventivo) */}
+        <div className="col-span-12 flex items-center gap-3 border-t pt-3">
+          {voce.immagine_url ? (
+            <img
+              src={voce.immagine_url}
+              alt="Foto prodotto"
+              className="h-12 w-16 rounded object-cover border border-slate-200"
+            />
+          ) : (
+            <div className="h-12 w-16 rounded border border-dashed border-slate-300 bg-muted" />
+          )}
+          <input
+            ref={imgInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onUploadImage(f);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={uploadingImage}
+            onClick={() => imgInputRef.current?.click()}
+          >
+            {uploadingImage ? "Caricamento…" : voce.immagine_url ? "Cambia foto" : "Carica foto prodotto"}
+          </Button>
+          {voce.immagine_url && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-destructive"
+              onClick={() => onUpdate({ immagine_url: null })}
+            >
+              Rimuovi
+            </Button>
+          )}
+          <span className="ml-auto text-[11px] text-muted-foreground">Compare nel preventivo kit</span>
+        </div>
       </div>
     </div>
   );

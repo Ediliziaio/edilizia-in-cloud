@@ -784,12 +784,9 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     descrizione: "Una pagina per ogni gruppo serramento con foto sopralluogo o render AI.",
     obbligatoria: false,
   },
-  {
-    id: "investimento",
-    label: "Proposta economica",
-    descrizione: "Totale preventivo, modalità pagamento, finanziamento, risparmio + cashflow, incluso.",
-    obbligatoria: true,
-  },
+  // Standard vendita: percorso, garanzie e confronto numerico (processo + prova +
+  // risparmio) vengono PRIMA della proposta economica. Il cliente vede il valore
+  // — come lavoriamo, cosa garantiamo, quanto risparmia — e solo DOPO il prezzo.
   {
     id: "percorso",
     label: "Il tuo percorso",
@@ -807,6 +804,12 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     label: "Confronto Prima & Dopo numerico",
     descrizione: "Tabella tecnica indicativa o configurata: serramento attuale vs nuovo.",
     obbligatoria: false,
+  },
+  {
+    id: "investimento",
+    label: "Proposta economica",
+    descrizione: "Totale preventivo, modalità pagamento, finanziamento, risparmio + cashflow, incluso.",
+    obbligatoria: true,
   },
   {
     id: "faq",

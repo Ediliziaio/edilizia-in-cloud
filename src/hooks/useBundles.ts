@@ -28,6 +28,7 @@ export interface BundleVoce {
   vano_label: string | null;
   quantita: number;
   sort_order: number;
+  immagine_url: string | null;
   // Joined
   article_templates?: {
     name: string;
@@ -216,6 +217,7 @@ export function useUpsertBundle() {
           vano_label: v.vano_label ?? null,
           quantita: v.quantita,
           sort_order: v.sort_order ?? idx,
+          immagine_url: v.immagine_url ?? null,
         }));
         const { error: insErr } = await supabase.from("bundle_voci" as never)
           .insert(voceRows);

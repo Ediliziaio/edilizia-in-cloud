@@ -6,10 +6,10 @@
  *   1. Cover — hero brandizzato (immagine + overlay), logo, titolo/sottotitolo,
  *              card cliente/cantiere, totale in evidenza.
  *   2. Presentazione impresa — "Chi siamo", esigenze, soluzione, USP, testimonianze.
- *   3+. Computo per capitoli — tabella (descrizione, UdM, qty, prezzo, importo) con
+ *   3. Foto e render — griglia con didascalie (prova visiva, PRIMA del prezzo).
+ *   4+. Computo per capitoli — tabella (descrizione, UdM, qty, prezzo, importo) con
  *              subtotale per capitolo; margini per voce/capitolo SOLO se show_margine.
  *   N. Riepilogo economico — imponibile, sconto, IVA, totale, detrazione, margine.
- *   N. Foto e render — griglia con didascalie.
  *   N. Cronoprogramma — fasi con durata (se show_cronoprogramma).
  *   N. Condizioni e contatti — pagamenti, validità, recapiti azienda.
  *
@@ -21,6 +21,7 @@
  * EdiliziaInCloud / nome azienda. NESSUN claim su server UE/Italia/Europa.
  */
 import * as React from "react";
+import { ChiusuraVendita } from "@/components/preventivi/ChiusuraVenditaPdf";
 import {
   Document, Page, Text, View, StyleSheet, Image, Svg, Rect, Defs,
   LinearGradient, RadialGradient, Stop, Path, Circle, G, Font,
@@ -922,10 +923,6 @@ export function ElettricoPDF(props: ElePdfEnriched) {
               </View>
             </View>
           )}
-          <View style={styles.coverTotalBox}>
-            <Text style={styles.coverTotalLabel}>Investimento totale (IVA inclusa)</Text>
-            <Text style={styles.coverTotalValue}>{formatCurrency(totali.totale)}</Text>
-          </View>
         </View>
       </Page>
 
@@ -996,7 +993,25 @@ export function ElettricoPDF(props: ElePdfEnriched) {
         </Page>
       )}
 
-      {/* ─── COMPUTO PER CAPITOLI + RIEPILOGO ─────────────────────────────── */}
+      {/* ─── FOTO E RENDER (prima del prezzo: la prova visiva precede il costo) ─ */}
+      {media.length > 0 && (
+        <Page size="A4" style={styles.page}>
+          {header}
+          <Text style={styles.sectionTitle}>Foto e render del progetto</Text>
+          <Text style={styles.sectionSub}>Stato attuale, lavori simili e rendering dell'intervento.</Text>
+          <View style={styles.photoGrid}>
+            {media.map((m) => (
+              <View key={m.id} style={styles.photoItem} wrap={false}>
+                <Image src={m.url} style={styles.photoImg} />
+                {m.caption ? <Text style={styles.photoCaption}>{m.caption}</Text> : null}
+              </View>
+            ))}
+          </View>
+          {footer}
+        </Page>
+      )}
+
+      {/* ─── COMPUTO PER CAPITOLI + RIEPILOGO (dopo la prova visiva) ───── */}
       <Page size="A4" style={styles.page}>
         {header}
         <Text style={styles.sectionTitle}>Computo metrico estimativo</Text>
@@ -1043,24 +1058,6 @@ export function ElettricoPDF(props: ElePdfEnriched) {
         </View>
         {footer}
       </Page>
-
-      {/* ─── FOTO E RENDER ────────────────────────────────────────────────── */}
-      {media.length > 0 && (
-        <Page size="A4" style={styles.page}>
-          {header}
-          <Text style={styles.sectionTitle}>Foto e render del progetto</Text>
-          <Text style={styles.sectionSub}>Stato attuale, lavori simili e rendering dell'intervento.</Text>
-          <View style={styles.photoGrid}>
-            {media.map((m) => (
-              <View key={m.id} style={styles.photoItem} wrap={false}>
-                <Image src={m.url} style={styles.photoImg} />
-                {m.caption ? <Text style={styles.photoCaption}>{m.caption}</Text> : null}
-              </View>
-            ))}
-          </View>
-          {footer}
-        </Page>
-      )}
 
       {/* ─── CRONOPROGRAMMA + CONDIZIONI + CONTATTI ───────────────────────── */}
       <Page size="A4" style={styles.page}>
@@ -1150,6 +1147,7 @@ export function ElettricoPDF(props: ElePdfEnriched) {
             </View>
           ) : null}
         </View>
+        <ChiusuraVendita c={C} companyName={companyName} validityText={t.validity_text} />
         {footer}
       </Page>
     </Document>

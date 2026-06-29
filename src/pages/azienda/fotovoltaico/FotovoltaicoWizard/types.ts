@@ -90,6 +90,17 @@ export interface WizardData {
   finanziamento_modalita: "cash" | "rate" | "zero" | "noleggio";
   tabella_finanziamento_id: string | null;
   durata_mesi_scelta: number | null;
+  /** Step 6: Modalità di pagamento diretto (acconto / SAL / saldo) — come negli
+   *  altri preventivi. Le % delle tranche sommano a 100; gli importi € si
+   *  calcolano sul prezzo di vendita IVA inclusa al momento del render/PDF.
+   *  null = usa lo schema di default (30/40/30). */
+  modalita_pagamento: {
+    tranche: Array<{ label: string; pct: number }>;
+    note: string | null;
+    /** Modalità finanziata (rate/zero): % di anticipo in contanti alla firma;
+     *  il resto è il capitale finanziato. Ignorato in modalità cash/noleggio. */
+    anticipo_pct?: number;
+  } | null;
 }
 
 export interface PersistedDraft {

@@ -37,6 +37,7 @@ import {
   useEliminaProgetto,
 } from "@/lib/fotovoltaico/queries";
 import { FvCard, FvKpi, FvChip, FvCallout } from "@/lib/fotovoltaico/wizardUI";
+import { scaricaPreventivoComePdf } from "@/lib/fotovoltaico/htmlToPdf";
 import {
   SendSignatureDialog,
   type SendSignatureResult,
@@ -170,6 +171,35 @@ export default function FotovoltaicoDettaglio() {
     }
   };
 
+  // Download diretto del file .pdf (no finestra di stampa): recupera l'HTML del
+  // preventivo e lo converte in PDF lato browser (html2canvas + jsPDF).
+  const handleScaricaPdf = async (path: string | null, tipo: string) => {
+    if (!path) {
+      toast.error("Anteprima non ancora generata. Completa il wizard fino allo Step 8.");
+      return;
+    }
+    setScaricando(tipo);
+    const tid = toast.loading("Generazione PDF in corso… (qualche secondo)");
+    try {
+      const { data, error } = await supabase.storage
+        .from("fv-progetti")
+        .createSignedUrl(path, 300);
+      if (error) throw error;
+      const res = await fetch(data.signedUrl);
+      if (!res.ok) throw new Error("Recupero preventivo fallito.");
+      const html = await res.text();
+      await scaricaPreventivoComePdf(html, `Preventivo-${progetto?.numero ?? "FV"}`);
+      toast.success("PDF scaricato.", { id: tid });
+    } catch (e) {
+      toast.error(
+        `Download PDF fallito: ${e instanceof Error ? e.message : String(e)}`,
+        { id: tid },
+      );
+    } finally {
+      setScaricando(null);
+    }
+  };
+
   const handleElimina = async () => {
     if (!confirm("Annullare questo progetto?")) return;
     try {
@@ -223,6 +253,20 @@ export default function FotovoltaicoDettaglio() {
               </p>
             </div>
             <div className="flex gap-2">
+              {progetto.pdf_vendita_url && (
+                <Button
+                  onClick={() => handleScaricaPdf(progetto.pdf_vendita_url, "header-pdf")}
+                  disabled={scaricando === "header-pdf"}
+                  className="bg-white text-blue-900 hover:bg-blue-50 shadow border-0"
+                >
+                  {scaricando === "header-pdf" ? (
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-1.5" />
+                  )}
+                  Scarica PDF
+                </Button>
+              )}
               {progetto.stato !== "firmato" && progetto.stato !== "annullato" && (
                 <Button
                   asChild
@@ -610,9 +654,9 @@ export default function FotovoltaicoDettaglio() {
               {progetto.pdf_vendita_url && (
                 <>
                   <FvCallout variant="success" title="Preventivo pronto">
-                    Apri l'anteprima nel browser, poi <strong>Ctrl+P</strong> (Cmd+P su Mac) →
-                    "Salva come PDF" per ottenere il file da inviare al cliente. Il design è
-                    print-ready A4 con tutti i grafici inline.
+                    <strong>Scarica PDF</strong> per ottenere subito il file da inviare al
+                    cliente (download diretto). Oppure <strong>Apri preventivo</strong> per
+                    vederlo nel browser. Design print-ready A4 con tutti i grafici inline.
                   </FvCallout>
                   <div className="grid sm:grid-cols-2 gap-3 mt-4">
                     <Button
@@ -629,9 +673,7 @@ export default function FotovoltaicoDettaglio() {
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() =>
-                        handleScarica(progetto.pdf_vendita_url, "vendita-print", { autoPrint: true })
-                      }
+                      onClick={() => handleScaricaPdf(progetto.pdf_vendita_url, "vendita-print")}
                       disabled={scaricando === "vendita-print"}
                     >
                       {scaricando === "vendita-print" ? (
@@ -639,7 +681,7 @@ export default function FotovoltaicoDettaglio() {
                       ) : (
                         <Download className="h-4 w-4 mr-2" />
                       )}
-                      Apri e stampa subito (PDF)
+                      Scarica PDF
                     </Button>
                   </div>
                 </>
