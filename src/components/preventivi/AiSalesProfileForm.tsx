@@ -53,6 +53,9 @@ export function AiSalesProfileForm({ value, onChange }: Props) {
 
   return (
     <div className="space-y-4">
+      <p className="text-[11px] text-muted-foreground">
+        Sono tutte opzionali: rispondi a quelle che vuoi. Più dettagli dai, più i testi saranno precisi.
+      </p>
       <Field label="1. Cosa fai, da quanto e in che zona?">
         <Textarea
           rows={2}
@@ -62,8 +65,14 @@ export function AiSalesProfileForm({ value, onChange }: Props) {
         />
       </Field>
 
-      <Field label="2. Chi è il tuo cliente tipo?" hint="Puoi sceglierne più di uno.">
-        <div className="flex flex-wrap gap-2">
+      <Field label="2. Chi è il tuo cliente tipo?" hint="Scrivi liberamente (es. 'privati con villette singole, qualche condominio'). I bottoni sotto sono solo scorciatoie.">
+        <Textarea
+          rows={2}
+          value={value.cliente_tipo}
+          onChange={(e) => set("cliente_tipo", e.target.value)}
+          placeholder="Es. privati con villette singole; ogni tanto piccoli condomini"
+        />
+        <div className="flex flex-wrap gap-1.5 pt-1.5">
           {CLIENTI.map((c) => {
             const active = clientiSelezionati.includes(c.key);
             return (
@@ -71,11 +80,11 @@ export function AiSalesProfileForm({ value, onChange }: Props) {
                 key={c.key}
                 type="button"
                 size="sm"
-                variant={active ? "default" : "outline"}
-                className={cn(active && "bg-orange-500 hover:bg-orange-600")}
+                variant="outline"
+                className={cn("h-7 text-xs", active && "border-orange-400 bg-orange-50 text-orange-700")}
                 onClick={() => toggleCliente(c.key)}
               >
-                {c.label}
+                {active ? "✓ " : "+ "}{c.label}
               </Button>
             );
           })}
