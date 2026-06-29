@@ -51,10 +51,14 @@ export function isUrgentPaymentRequest(testo: string): boolean {
 /** Link il cui testo mostra un dominio diverso dall'href reale (phishing). */
 export function hasLinkMismatch(links: Array<{ text?: string; href?: string }>): boolean {
   const domOf = (s?: string) => (s || "").toLowerCase().match(/https?:\/\/([^/\s"']+)/)?.[1]?.replace(/^www\./, "") ?? null;
+  // Etichetta di brand (secondo livello): "ediliziaincloud.it" e "ediliziaincloud.com"
+  // sono lo STESSO brand → coerente, NON è phishing (evita il falso positivo .it↔.com).
+  // Flagga solo quando il brand differisce davvero (es. "intesasanpaolo" vs "evil-phish").
+  const sld = (d: string) => { const p = d.split("."); return p.length >= 2 ? p[p.length - 2] : d; };
   for (const l of links || []) {
     const textDom = (l.text || "").toLowerCase().match(/([a-z0-9-]+\.[a-z]{2,})(?:[/\s]|$)/)?.[1] ?? null;
     const hrefDom = domOf(l.href);
-    if (textDom && hrefDom && !hrefDom.endsWith(textDom) && !textDom.endsWith(hrefDom)) return true;
+    if (textDom && hrefDom && sld(textDom) !== sld(hrefDom)) return true;
   }
   return false;
 }

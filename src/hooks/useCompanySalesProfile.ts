@@ -11,7 +11,7 @@ import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 export interface CompanySalesProfile {
   attivita: string;
-  cliente_tipo: string; // 'privato' | 'condominio' | 'azienda'
+  cliente_tipo: string; // testo libero (es. "privati, qualche condominio"); i chip sono scorciatoie
   problema: string;
   usp: string;
   prove: string;
@@ -23,7 +23,7 @@ export interface CompanySalesProfile {
 
 export const EMPTY_SALES_PROFILE: CompanySalesProfile = {
   attivita: "",
-  cliente_tipo: "privato",
+  cliente_tipo: "",
   problema: "",
   usp: "",
   prove: "",
@@ -32,11 +32,6 @@ export const EMPTY_SALES_PROFILE: CompanySalesProfile = {
   voce: "",
   vietati: "",
 };
-
-/** True se il profilo ha almeno un campo significativo compilato. */
-export function isSalesProfileFilled(p: CompanySalesProfile): boolean {
-  return [p.attivita, p.usp, p.prove, p.offerta, p.problema, p.obiezioni].some((v) => (v ?? "").trim().length > 0);
-}
 
 export function useCompanySalesProfile() {
   const companyId = useEffectiveCompanyId();
@@ -57,7 +52,7 @@ export function useCompanySalesProfile() {
       if (!row) return { ...EMPTY_SALES_PROFILE };
       return {
         attivita: row.attivita ?? "",
-        cliente_tipo: row.cliente_tipo ?? "privato",
+        cliente_tipo: row.cliente_tipo ?? "",
         problema: row.problema ?? "",
         usp: row.usp ?? "",
         prove: row.prove ?? "",

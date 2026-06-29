@@ -404,7 +404,7 @@ export function PiscineTemplateEditor({ embedded = false }: Props) {
         intake.obiezioni.trim() && `Domande frequenti del cliente: ${intake.obiezioni.trim()}`,
         intake.vietati.trim() && `Da NON dire mai: ${intake.vietati.trim()}`,
       ].filter(Boolean).join("\n");
-      void saveSalesProfile(intake).catch(() => undefined);
+      void saveSalesProfile(intake).catch((e) => console.warn("[AI template] profilo vendita non salvato:", e));
       const { data, error } = await supabase.functions.invoke(
         "ai-genera-template-piscine",
         {

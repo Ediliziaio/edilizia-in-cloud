@@ -43,7 +43,7 @@ function Field({
 
 export function AiSalesProfileForm({ value, onChange }: Props) {
   const set = (k: keyof CompanySalesProfile, v: string) => onChange({ ...value, [k]: v });
-  const clientiSelezionati = value.cliente_tipo.split(",").map((s) => s.trim()).filter(Boolean);
+  const clientiSelezionati = value.cliente_tipo.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
   const hasCliente = (key: string) => clientiSelezionati.some((s) => s.toLowerCase() === key.toLowerCase());
   const toggleCliente = (key: string) => {
     const next = clientiSelezionati.filter((s) => s.toLowerCase() !== key.toLowerCase());
@@ -70,7 +70,7 @@ export function AiSalesProfileForm({ value, onChange }: Props) {
           rows={2}
           value={value.cliente_tipo}
           onChange={(e) => set("cliente_tipo", e.target.value)}
-          placeholder="Es. privati con villette singole; ogni tanto piccoli condomini"
+          placeholder="Es. privati con villette singole, ogni tanto piccoli condomini"
         />
         <div className="flex flex-wrap gap-1.5 pt-1.5">
           {CLIENTI.map((c) => {

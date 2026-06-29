@@ -9,9 +9,11 @@ describe("Company integrations hub scope", () => {
   );
 
   it("does not expose platform billing providers to company users", () => {
+    // Guard sul BILLING di piattaforma (la config Stripe del SaaS stesso). NON vieta
+    // StripePaymentsCard = Stripe Connect per gli INCASSI dell'azienda (feature legittima,
+    // aggiunta dopo: "incassi con markup"). Quindi niente più ban assoluto su "Stripe".
     expect(integrationsPage).not.toContain("stripe-config-status");
     expect(integrationsPage).not.toContain('key: "stripe"');
-    expect(integrationsPage).not.toContain("Stripe");
   });
 
   // SUPERSEDED dal redesign "stile GHL" (commit c823ab174): la griglia unificata ha rimosso
