@@ -115,6 +115,8 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'contatto.phone', label: 'Telefono', type: 'string' },
       { id: 'contatto.source', label: 'Fonte acquisizione', type: 'string', example: 'Facebook' },
       { id: 'contatto.city', label: 'Città', type: 'string' },
+      { id: 'contatto.province', label: 'Provincia', type: 'string', example: 'MI' },
+      { id: 'contatto.region', label: 'Regione', type: 'string', example: 'Lombardia' },
       { id: 'contatto.company_name', label: 'Azienda', type: 'string' },
       { id: 'contatto.created_at', label: 'Data creazione', type: 'date' },
     ],

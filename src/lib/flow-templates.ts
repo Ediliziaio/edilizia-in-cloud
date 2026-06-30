@@ -1034,7 +1034,25 @@ const T45: FlowTemplate = {
   ],
 };
 
+const T46: FlowTemplate = {
+  id: 't46-assegna-venditore-zona',
+  nome: 'Assegna venditore per zona',
+  categoria: 'crm',
+  descrizione: 'Quando arriva un nuovo contatto di una determinata zona (regione, provincia o città), assegnalo in automatico al venditore di quella zona. Personalizza il filtro nel trigger (es. Regione = Lombardia) e scegli il venditore nell\'azione; duplica il flusso per ogni zona/venditore.',
+  icona: '📍',
+  difficolta: 'base',
+  triggerTipo: 'contatto_creato',
+  nodes: [
+    { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50, configJson: { trigger_type: 'contatto_creato', trigger_filters: { logic: 'AND', conditions: [{ id: 'cond-zona', field: 'region', operator: 'equals', value: 'Lombardia' }] } }, label: 'Nuovo contatto (zona)' },
+    { id: 'action-1', nodeType: 'action', posX: 250, posY: 200, configJson: { action_type: 'assegna_agente', entity_type: 'contacts', entity_id: '{{contatto.id}}', strategia: 'specifico', agente_id: '' }, label: 'Assegna al venditore di zona' },
+  ],
+  connections: [
+    { fromId: 'trigger-1', toId: 'action-1' },
+  ],
+};
+
 export const FLOW_TEMPLATES: FlowTemplate[] = [
+  T46,
   T01, T02, T03, T04, T05, T06, T07,
   T08, T09, T10,
   T11, T12, T13,
