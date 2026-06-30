@@ -127,6 +127,20 @@ async function handleCheckoutCompleted(
         console.error("Failed to read setup_intent:", e);
       }
     }
+    // Fallback: se il setup_intent non ha restituito la payment method, prendi
+    // l'ultima carta salvata sul customer (così non restiamo senza default).
+    if (!pmId && session.customer) {
+      try {
+        const pmRes = await fetch(
+          `https://api.stripe.com/v1/payment_methods?customer=${session.customer}&type=card&limit=1`,
+          { headers: { Authorization: `Bearer ${stripeSecretKey}` } }
+        );
+        const pmList = await pmRes.json();
+        pmId = pmList?.data?.[0]?.id ?? null;
+      } catch (e) {
+        console.error("Failed to list payment methods:", e);
+      }
+    }
     // Imposta la carta come metodo di pagamento di default del customer (addebiti futuri).
     if (pmId && session.customer) {
       try {
@@ -142,8 +156,13 @@ async function handleCheckoutCompleted(
         console.error("Failed to set default payment method:", e);
       }
     }
-    // Sblocca gli strumenti a costo: payment_method = "stripe" sull'azienda.
-    await supabase.from("companies").update({ payment_method: "stripe" }).eq("id", companyId);
+    // Segna payment_method='stripe' SOLO se c'è davvero una carta di default,
+    // altrimenti il flag resterebbe disallineato dalla realtà Stripe e il
+    // rinnovo fallirebbe pur mostrando "carta a posto".
+    await supabase
+      .from("companies")
+      .update({ payment_method: pmId ? "stripe" : "none" })
+      .eq("id", companyId);
     return;
   }
 

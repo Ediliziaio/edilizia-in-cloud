@@ -706,6 +706,10 @@ Deno.serve(async (req) => {
       "payment_method_types[1]": "sepa_debit",
       "line_items[0][price]": stripePriceId,
       "line_items[0][quantity]": "1",
+      // Forza la raccolta della carta anche quando l'importo è €0 (piano demo):
+      // così il cliente lascia comunque la carta e il futuro upgrade a pagamento
+      // parte in automatico senza doverla richiedere di nuovo.
+      payment_method_collection: "always",
       success_url: `${appUrl}/admin/aziende/${company_id}?payment=success`,
       cancel_url: `${appUrl}/admin/aziende/${company_id}?payment=cancelled`,
       "metadata[company_id]": company_id,

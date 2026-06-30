@@ -794,8 +794,8 @@ export function useCompanyDetail(id: string | undefined) {
     },
   });
 
-  const handleCreateCheckout = () => {
-    createCheckoutMutation.mutate({});
+  const handleCreateCheckout = (billingPeriod?: string) => {
+    createCheckoutMutation.mutate({ billingPeriod });
   };
 
   const handleDeleteCompany = async () => {

@@ -24,7 +24,7 @@ interface PaymentMethodCardProps {
     payment_notes: string | null;
   }) => Promise<void>;
   isSaving: boolean;
-  onGenerateCheckout?: () => void;
+  onGenerateCheckout?: (billingPeriod?: string) => void;
   isGeneratingCheckout?: boolean;
   checkoutUrl?: string | null;
 }
@@ -98,6 +98,7 @@ export function PaymentMethodCard({
   const [bic, setBic] = useState("");
   const [copied, setCopied] = useState(false);
   const [copiedIban, setCopiedIban] = useState(false);
+  const [checkoutPeriod, setCheckoutPeriod] = useState<"monthly" | "yearly">("monthly");
 
   useEffect(() => {
     setMethod((company.payment_method as PaymentMethodType) || "none");
@@ -238,10 +239,21 @@ export function PaymentMethodCard({
               </div>
             )}
             {onGenerateCheckout && (
-              <Button variant="outline" size="sm" onClick={onGenerateCheckout} disabled={isGeneratingCheckout}>
-                {isGeneratingCheckout ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <LinkIcon className="h-3 w-3 mr-1" />}
-                Genera Link Pagamento
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={checkoutPeriod} onValueChange={(v) => setCheckoutPeriod(v as "monthly" | "yearly")}>
+                  <SelectTrigger className="h-8 w-28 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Mensile</SelectItem>
+                    <SelectItem value="yearly">Annuale</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm" onClick={() => onGenerateCheckout(checkoutPeriod)} disabled={isGeneratingCheckout}>
+                  {isGeneratingCheckout ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <LinkIcon className="h-3 w-3 mr-1" />}
+                  Genera Link Pagamento
+                </Button>
+              </div>
             )}
             {checkoutUrl && (
               <div className="p-3 bg-muted rounded-lg space-y-2">
