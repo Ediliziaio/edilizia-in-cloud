@@ -237,6 +237,34 @@ export function ContactActivityRegister({
           });
         });
       }
+      if (contactId) {
+        // Chiamate registrate manualmente (LogCallButton) o dal softphone → call_logs.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: manual } = await (supabase as any).from("call_logs")
+          .select("id, outcome, notes, duration_sec, started_at, user_id")
+          .eq("company_id", companyId).eq("contact_id", contactId)
+          .order("started_at", { ascending: false }).limit(30);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (manual ?? []).forEach((r: any) => {
+          out.push({
+            id: `cl_${r.id}`,
+            kind: "call_human",
+            direction: "outbound",
+            title: `Chiamata ${
+              r.outcome === "answered" ? "risposta"
+                : r.outcome === "no_answer" ? "senza risposta"
+                  : r.outcome === "busy" ? "occupato"
+                    : r.outcome === "wrong_number" ? "numero errato"
+                      : r.outcome === "callback" ? "da richiamare"
+                        : (r.outcome || "registrata")
+            }`,
+            text: r.notes,
+            agentId: r.user_id,
+            meta: r.duration_sec ? `durata ${fmtDur(r.duration_sec)}` : null,
+            at: r.started_at,
+          });
+        });
+      }
       return out.filter((c) => c.at);
     },
   });
