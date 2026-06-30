@@ -395,7 +395,14 @@ export function UnifiedContactTimeline({
         category: "call",
         icon: <Phone className="h-3 w-3" />,
         color: "bg-sky-100 text-sky-600",
-        title: `Chiamata ${call.outcome === "answered" ? "risposta" : call.outcome === "no_answer" ? "senza risposta" : call.outcome}`,
+        title: `Chiamata ${
+          call.outcome === "answered" ? "risposta"
+            : call.outcome === "no_answer" ? "senza risposta"
+            : call.outcome === "busy" ? "occupato"
+            : call.outcome === "wrong_number" ? "numero errato"
+            : call.outcome === "callback" ? "da richiamare"
+            : call.outcome
+        }`,
         description: call.notes || undefined,
         timestamp: call.started_at,
       });
