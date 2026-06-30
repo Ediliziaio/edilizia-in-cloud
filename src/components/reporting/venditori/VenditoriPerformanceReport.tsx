@@ -11,6 +11,8 @@ import {
   type PeriodoVendor,
   type VendorKPI,
 } from "@/hooks/useVendorReport";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useCompanyStaffUsers } from "@/hooks/useCompanyStaffUsers";
 import { KPISection } from "./KPISection";
 import { AppuntamentiScorecard } from "./AppuntamentiScorecard";
 import { TempisticheScorecard } from "./TempisticheScorecard";
@@ -95,7 +97,30 @@ const VenditoriPerformanceReport = () => {
   const [activeTab, setActiveTab] = useState("overview");
 
   const effectiveAgentId = agentId === "tutti" ? undefined : agentId;
-  const { data: kpiList = [], isLoading } = useVendorKPI(periodo, effectiveAgentId);
+  const { data: rawKpiList = [], isLoading } = useVendorKPI(periodo, effectiveAgentId);
+
+  // Il report Venditori deve mostrare i VENDITORI: escludi chi è SOLO call center
+  // (gestisce appuntamenti ma non è il venditore che chiude). Stessa definizione
+  // del campo "Venditore" delle opportunità. La RPC get_vendor_kpi_per_agent
+  // raggruppa per assigned_to SENZA filtrare i ruoli → filtriamo qui.
+  // Fallback sicuro: se i ruoli non sono ancora disponibili, NON filtriamo
+  // (meglio mostrare tutto che una lista vuota).
+  const companyId = useEffectiveCompanyId();
+  const { data: allStaff = [] } = useCompanyStaffUsers(companyId, "all");
+  const kpiList = useMemo(() => {
+    const pureCallCenter = new Set(
+      allStaff
+        .filter((s) => {
+          const roles = s.roles ?? [];
+          return (
+            roles.includes("call_center") &&
+            !roles.some((r) => r === "super_admin" || r === "company_admin" || r === "salesperson")
+          );
+        })
+        .map((s) => s.id),
+    );
+    return pureCallCenter.size ? rawKpiList.filter((k) => !pureCallCenter.has(k.agent_id)) : rawKpiList;
+  }, [rawKpiList, allStaff]);
 
   // Lazy load trend — only when overview or trend tab is active
   const needsTrend = activeTab === "overview" || activeTab === "trend";
