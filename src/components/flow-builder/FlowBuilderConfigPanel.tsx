@@ -491,7 +491,9 @@ function ConfigField({
 
   const showAutoContact = isAutoFillField && triggerProvidesContact && !overrideAutoFill && value === AUTO_CONTACT_VAR;
 
-  const { data: companyUsers = [] } = useCompanyStaffUsers(field.type === "user_select" ? companyId : undefined);
+  const { data: companyUsers = [] } = useCompanyStaffUsers(
+    field.type === "user_select" || field.type === "user_multi_select" ? companyId : undefined,
+  );
 
   // Helper: insert variable into text/textarea
   const insertVariable = (variable: string) => {
@@ -638,6 +640,38 @@ function ConfigField({
             value={value ?? ""}
             onChange={(e) => onChange(e.target.value)}
             placeholder={field.placeholder ?? "ID utente o {{variabile}}"}
+            className="h-9 text-sm"
+          />
+        )
+      )}
+
+      {field.type === "user_multi_select" && (
+        companyUsers.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {companyUsers.map((u: any) => {
+              const ids: string[] = Array.isArray(value) ? value : [];
+              const checked = ids.includes(u.id);
+              const name = [u.first_name, u.last_name].filter(Boolean).join(" ") || u.id;
+              return (
+                <Button
+                  key={u.id}
+                  type="button"
+                  variant={checked ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => onChange(checked ? ids.filter((x) => x !== u.id) : [...ids, u.id])}
+                >
+                  {checked && <CheckCircle className="mr-1 h-3 w-3" />}
+                  {name}
+                </Button>
+              );
+            })}
+          </div>
+        ) : (
+          <Input
+            value={Array.isArray(value) ? value.join(",") : (value ?? "")}
+            onChange={(e) => onChange(e.target.value.split(",").map((s) => s.trim()).filter(Boolean))}
+            placeholder="ID utenti separati da virgola"
             className="h-9 text-sm"
           />
         )
