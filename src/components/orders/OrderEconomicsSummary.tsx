@@ -35,7 +35,13 @@ interface OrderEconomicsSummaryProps {
   totalAmount: number;
   vatRate: number;
   items: EconItem[];
-  collectedAmount: number; // NET già incassato (calcolato da OrderDetail)
+  collectedAmount: number; // NET già incassato (usato per margini/provvigioni)
+  /** Cassa LORDA (IVA inclusa) = stesso numero del piano rate. Se presenti, la barra
+   *  "Incassato / Da incassare" li usa al posto del netto, così non c'è un incassato
+   *  diverso da quello mostrato in "€ Riepilogo" e "Avanzamento incassi". I margini
+   *  sopra restano netti (non vengono toccati). */
+  cashCollected?: number;
+  cashTotal?: number;
   /** true mentre la query order_items del genitore è in corso: evita di mostrare
    *  un "Margine 100% / Costi 0" fuorviante prima che i costi articoli arrivino. */
   itemsLoading?: boolean;
@@ -55,6 +61,8 @@ export function OrderEconomicsSummary({
   vatRate,
   items,
   collectedAmount,
+  cashCollected,
+  cashTotal,
   itemsLoading = false,
 }: OrderEconomicsSummaryProps) {
   void vatRate; // tenuto per parità d'interfaccia col conto economico esistente
@@ -259,8 +267,12 @@ export function OrderEconomicsSummary({
         ? "bg-amber-100 text-amber-700 border-amber-300"
         : "bg-red-100 text-red-700 border-red-300";
 
-  const dueAmount = Math.max(0, totalAmount - collectedAmount);
-  const collectedPct = totalAmount > 0 ? Math.min(100, (collectedAmount / totalAmount) * 100) : 0;
+  // Cassa: usa il LORDO (IVA inclusa) quando fornito → stesso incassato del piano rate
+  // ("€ Riepilogo" / "Avanzamento incassi"). Fallback al netto per retro-compatibilità.
+  const cashColl = cashCollected ?? collectedAmount;
+  const cashTot = cashTotal ?? totalAmount;
+  const dueAmount = Math.max(0, cashTot - cashColl);
+  const collectedPct = cashTot > 0 ? Math.min(100, (cashColl / cashTot) * 100) : 0;
 
   // Finché una qualsiasi fonte di costo è in caricamento (articoli dal genitore,
   // o dipendenti/squadre/provvigioni/errori), i costi sarebbero parziali → il
@@ -409,7 +421,7 @@ export function OrderEconomicsSummary({
             <div>
               <div className="mb-1 flex items-center justify-between text-xs">
                 <span className="text-emerald-600 dark:text-emerald-400">
-                  Incassato {formatCurrency(collectedAmount)}
+                  Incassato {formatCurrency(cashColl)}
                 </span>
                 <span className="text-muted-foreground">
                   Da incassare {formatCurrency(dueAmount)}

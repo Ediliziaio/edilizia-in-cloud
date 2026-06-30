@@ -72,7 +72,7 @@ import { OrderCommunicationsCard } from "@/components/orders/OrderCommunications
 import { CreaProformaDialog } from "@/components/orders/CreaProformaDialog";
 import { CreaNotaCreditoDialog } from "@/components/orders/CreaNotaCreditoDialog";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
-import { calculateCollectedNetFromInstallments } from "@/lib/commissions";
+import { calculateCollectedNetFromInstallments, calculateCollectedGrossFromInstallments } from "@/lib/commissions";
 
 // ── Giornale Tab Content ─────────────────────────────────────────
 
@@ -955,6 +955,21 @@ function OrderDetailInner() {
     vatRate: order.vat_rate || 22,
     financingCost: order.financing_cost ?? 0,
   });
+  // Incassato LORDO (IVA inclusa) = stesso numero del piano rate ("€ Riepilogo" e
+  // "Avanzamento incassi"). La cassa del Conto economico lo usa per non mostrare un
+  // incassato diverso (netto) da quello del piano rate. I margini restano netti.
+  const collectedGross = calculateCollectedGrossFromInstallments({
+    installments: displayInstallments,
+    totalAmount: order.total_amount,
+    vatRate: order.vat_rate || 22,
+    financingCost: order.financing_cost ?? 0,
+  });
+  // Target incassi LORDO = totale ivato al netto del costo finanziaria (= "su 27.280"
+  // del piano rate), così la barra cassa combacia con l'Avanzamento incassi.
+  const cashTotalGross = Math.max(
+    0,
+    (order.total_amount || 0) * (1 + (order.vat_rate || 22) / 100) - (order.financing_cost ?? 0),
+  );
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -1086,6 +1101,8 @@ function OrderDetailInner() {
             vatRate={order.vat_rate || 22}
             items={economicsItems}
             collectedAmount={collectedAmount}
+            cashCollected={collectedGross}
+            cashTotal={cashTotalGross}
             itemsLoading={orderItemsPending}
           />
         </ErrorBoundary>
@@ -1541,34 +1558,9 @@ function OrderDetailInner() {
               defaultAddress={order.work_address || order.customer?.address}
             />
 
-            {/* Storico stati */}
-            <QuoteCard title="Storico Stati">
-              {statusHistory.length === 0 ? (
-                <p className="text-sm text-slate-500">
-                  Nessuno storico disponibile
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {statusHistory.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0 last:pb-0"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: entry.status.color }}
-                        />
-                        <span className="text-sm font-medium text-slate-900">{entry.status.name}</span>
-                      </div>
-                      <span className="text-xs text-slate-500">
-                        {formatDateTime(entry.changed_at)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </QuoteCard>
+            {/* NB: "Storico Stati" rimosso da qui — è già incluso nella
+                Timeline Cantiere a tutta larghezza sotto (stati + lavori + SAL
+                + varianti), evitando il doppione. */}
 
             {/* Fatturazione e documenti */}
             <QuoteCard
@@ -1633,27 +1625,9 @@ function OrderDetailInner() {
                     Nessun documento fiscale collegato
                   </p>
                 )}
-                {documentiCommessa.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Allegati commessa
-                    </div>
-                    {documentiCommessa.map((documento) => (
-                      <button
-                        key={documento.id}
-                        type="button"
-                        onClick={() => handleOpenOrderDocument(documento)}
-                        className="flex w-full items-center justify-between gap-2 rounded-md border p-2 text-left text-sm transition-colors hover:bg-accent"
-                      >
-                        <div className="min-w-0">
-                          <div className="font-medium truncate">{documento.file_name}</div>
-                          <div className="text-xs text-muted-foreground">{formatAttachmentType(documento)}</div>
-                        </div>
-                        <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {/* NB: "Allegati commessa" rimosso da qui — i file della commessa
+                    sono già in "Documenti Commessa" sotto gli Articoli e nel pulsante
+                    "Documenti" (hub). Qui restano solo i documenti fiscali. */}
                 <div className="grid grid-cols-4 gap-2">
                   <Button
                     variant="outline"
@@ -1727,25 +1701,6 @@ function OrderDetailInner() {
               onNotesChange={setEditedNotes}
             />
 
-            {/* Manodopera */}
-            <OrderLaborCosts orderId={id!} editable={true} />
-
-            {/* Errori */}
-            <OrderErrors orderId={id!} />
-
-            {/* Ordini di acquisto */}
-            <LinkedPurchaseOrdersCard
-              orderId={id!}
-              orderCode={order.order_code}
-              items={displayItems.map((i) => ({
-                name: i.name,
-                quantity: i.quantity,
-                purchase_price: i.purchase_price,
-                supplier_id: i.supplier_id,
-                vat_rate: i.vat_rate,
-              }))}
-            />
-
             {/* Firma */}
             <OrdineFirma
               orderId={id!}
@@ -1757,24 +1712,34 @@ function OrderDetailInner() {
               }
             />
 
-            {/* Task e appuntamenti */}
-            <LinkedTasks orderId={id} category="ordini" />
-            <LinkedAppointments orderId={id!} />
-            <OrderUsciteCard orderId={id!} />
-            <OrderCommunicationsCard
-              customerId={order.customer_id}
-              customerEmail={order.customer?.email}
-              customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
-            />
-
-            {/* Ritenute di Garanzia */}
-            <RitenuteTab orderId={id!} />
           </div>
         </div>
 
         {/* ── Sezioni secondarie a tutta larghezza (solo desktop), sotto la griglia:
             riempiono la larghezza → niente spazio vuoto a lato della sidebar. ── */}
         <div className="hidden sm:block space-y-6">
+          {/* Operatività commessa: card spostate qui dalla sidebar in una griglia
+              a 2 colonne a tutta larghezza → niente più vuoto a sinistra accanto
+              alla sidebar, e le card a vuoto pesano meno. */}
+          <div className="grid gap-6 lg:grid-cols-2 items-start">
+            <OrderLaborCosts orderId={id!} editable={true} />
+            <OrderErrors orderId={id!} />
+            <LinkedPurchaseOrdersCard
+              orderId={id!}
+              orderCode={order.order_code}
+              items={displayItems.map((i) => ({
+                name: i.name,
+                quantity: i.quantity,
+                purchase_price: i.purchase_price,
+                supplier_id: i.supplier_id,
+                vat_rate: i.vat_rate,
+              }))}
+            />
+            <LinkedTasks orderId={id} category="ordini" />
+            <LinkedAppointments orderId={id!} />
+            <OrderUsciteCard orderId={id!} />
+            <RitenuteTab orderId={id!} />
+          </div>
           <div id="section-sal">
             {companyId && (
               <OrdineSAL
@@ -1801,12 +1766,27 @@ function OrderDetailInner() {
               <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
             </div>
           )}
-          {effectiveCompany?.id && (
-            <>
-              <OrdineRapportiniCampo orderId={id!} />
-              <WhatsAppActivityFeed cantiereId={id!} />
-            </>
-          )}
+          {effectiveCompany?.id && <OrdineRapportiniCampo orderId={id!} />}
+
+          {/* Comunicazioni: messaggi col cliente (email/SMS/WhatsApp collegati alla
+              scheda) + feed WhatsApp del cantiere, uniti in un unico blocco invece
+              di due card sparse. */}
+          <div className="space-y-2">
+            <div>
+              <h2 className="text-base font-semibold">Comunicazioni</h2>
+              <p className="text-sm text-muted-foreground">
+                Messaggi col cliente e attività WhatsApp del cantiere.
+              </p>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-2 items-start">
+              <OrderCommunicationsCard
+                customerId={order.customer_id}
+                customerEmail={order.customer?.email}
+                customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
+              />
+              {effectiveCompany?.id && <WhatsAppActivityFeed cantiereId={id!} />}
+            </div>
+          </div>
         </div>
         </>
         )}
