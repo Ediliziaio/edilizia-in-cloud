@@ -88,6 +88,9 @@ export function UnifiedAutoTopupCard({ onRecharge }: Props) {
   const save = useMutation({
     mutationFn: async () => {
       if (!companyId) throw new Error("Azienda non disponibile");
+      if (enabled && !hasCard) {
+        throw new Error("Aggiungi prima una carta (con una ricarica o l'abbonamento): senza carta l'auto-ricarica non può partire.");
+      }
       const base = {
         company_id: companyId,
         enabled,

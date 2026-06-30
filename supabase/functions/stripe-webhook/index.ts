@@ -103,6 +103,54 @@ async function handleInvoiceCreated(
 
 // ─── Event Handlers ────────────────────────────────────────
 
+// Salva la carta del customer su company_auto_topup per TUTTI i wallet a consumo
+// (email/ai/whatsapp): così l'auto-ricarica usa la stessa carta dell'abbonamento
+// o dell'aggiunta-carta, senza pretendere una ricarica manuale separata. Aggiorna
+// solo lo stripe_payment_method_id (non tocca soglia/importo/enabled del cliente).
+async function saveCardForAutoTopup(
+  supabase: ReturnType<typeof createClient>,
+  stripeSecretKey: string,
+  companyId: string,
+  customerId: string | null,
+  pmIdHint: string | null,
+) {
+  if (!companyId) return;
+  let pmId = pmIdHint;
+  if (!pmId && customerId) {
+    try {
+      const cRes = await fetch(`https://api.stripe.com/v1/customers/${customerId}`, {
+        headers: { Authorization: `Bearer ${stripeSecretKey}` },
+      });
+      const cust = await cRes.json();
+      const dpm = cust?.invoice_settings?.default_payment_method;
+      pmId = typeof dpm === "string" ? dpm : (dpm?.id ?? null);
+      if (!pmId) {
+        const pmRes = await fetch(
+          `https://api.stripe.com/v1/payment_methods?customer=${customerId}&type=card&limit=1`,
+          { headers: { Authorization: `Bearer ${stripeSecretKey}` } },
+        );
+        const pmList = await pmRes.json();
+        pmId = pmList?.data?.[0]?.id ?? null;
+      }
+    } catch (e) {
+      console.error("saveCardForAutoTopup: PM resolution failed:", e);
+    }
+  }
+  if (!pmId) return;
+  for (const wallet of ["email", "ai", "whatsapp"]) {
+    try {
+      // tabella non tipizzata nel client → cast (come il resto del codebase)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from("company_auto_topup") as any).upsert(
+        { company_id: companyId, wallet_type: wallet, stripe_payment_method_id: pmId, payment_method: "stripe" },
+        { onConflict: "company_id,wallet_type" },
+      );
+    } catch (e) {
+      console.error(`saveCardForAutoTopup: upsert ${wallet} failed:`, e);
+    }
+  }
+}
+
 async function handleCheckoutCompleted(
   supabase: ReturnType<typeof createClient>,
   session: any,
@@ -163,6 +211,8 @@ async function handleCheckoutCompleted(
       .from("companies")
       .update({ payment_method: pmId ? "stripe" : "none" })
       .eq("id", companyId);
+    // Unifica la carta anche per l'auto-ricarica crediti (tutti i wallet).
+    await saveCardForAutoTopup(supabase, stripeSecretKey, companyId, (session.customer as string | null) ?? null, pmId);
     return;
   }
 
@@ -441,6 +491,9 @@ async function handleCheckoutCompleted(
       .update({ subscription_plan_id: planId })
       .eq("id", companyId);
   }
+
+  // Unifica la carta: la stessa carta dell'abbonamento serve all'auto-ricarica crediti.
+  await saveCardForAutoTopup(supabase, stripeSecretKey, companyId, (stripeCustomerId as string | null) ?? null, null);
 
   await supabase.from("subscription_logs").insert({
     company_id: companyId,
