@@ -8,8 +8,10 @@ import {
   useSpeedToLeadDistribuzione,
   useTrendGiornaliero,
   useFonteLeadPerformance,
+  useCallCenterLeadHandling,
   type CallCenterKPI,
 } from "@/hooks/useCallCenterReport";
+import { LavorazioneLeadPanel } from "./LavorazioneLeadPanel";
 import { CallCenterKPISection } from "./CallCenterKPISection";
 import { CallCenterInsights } from "./CallCenterInsights";
 import { OperatoriConfronto } from "./OperatoriConfronto";
@@ -70,6 +72,7 @@ export default function CallCenterReport() {
   const { data: speedData, isLoading: speedLoading } = useSpeedToLeadDistribuzione(periodo, effectiveOpId, subTab === "speed");
   const { data: trendData, isLoading: trendLoading } = useTrendGiornaliero(periodo, effectiveOpId, subTab === "trend");
   const { data: fonteData, isLoading: fonteLoading } = useFonteLeadPerformance(periodo, subTab === "fonti");
+  const { data: leadHandling, isLoading: lhLoading } = useCallCenterLeadHandling(periodo, effectiveOpId, subTab === "panoramica");
 
   // Aggregate team or find individual — all client-side from kpiList
   const currentKpi = useMemo(() => {
@@ -189,6 +192,7 @@ export default function CallCenterReport() {
         <TabsContent value="panoramica" className="mt-4 space-y-6">
           <CallCenterKPISection kpi={currentKpi} isLoading={kpiLoading} />
           <CallCenterOperationalDiagnosis kpi={currentKpi} isLoading={kpiLoading} />
+          <LavorazioneLeadPanel data={leadHandling} isLoading={lhLoading} />
           <section aria-label="Lead ads e chiamate">
             <AdsCallCenterReportPanel provider="all" daysBack={daysBack} />
           </section>
