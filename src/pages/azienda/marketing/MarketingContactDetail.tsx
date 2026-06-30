@@ -959,16 +959,19 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                       onSelectComune={(c) => {
                         updateField.mutate({ field: "city", value: c.comune });
                         updateField.mutate({ field: "province", value: c.provinciaSigla });
+                        updateField.mutate({ field: "region", value: c.regione });
                         if (!contact.postal_code) updateField.mutate({ field: "postal_code", value: c.cap });
                       }}
                     />
                     <InlineField label="Provincia" value={contact.province || ""} onSave={(v) => updateField.mutate({ field: "province", value: v })} disabled={!canEditContacts} />
+                    <InlineField label="Regione" value={(contact as any).region || ""} onSave={(v) => updateField.mutate({ field: "region", value: v })} disabled={!canEditContacts} />
                     <InlineField label="CAP" value={contact.postal_code || ""} onSave={(v) => updateField.mutate({ field: "postal_code", value: v })} disabled={!canEditContacts}
                       comuneMode="cap"
                       onSelectComune={(c) => {
                         updateField.mutate({ field: "postal_code", value: c.cap });
                         updateField.mutate({ field: "city", value: c.comune });
                         updateField.mutate({ field: "province", value: c.provinciaSigla });
+                        updateField.mutate({ field: "region", value: c.regione });
                       }}
                     />
                     <InlineField label="Paese" value={contact.country || ""} onSave={(v) => updateField.mutate({ field: "country", value: v })} disabled={!canEditContacts} />
