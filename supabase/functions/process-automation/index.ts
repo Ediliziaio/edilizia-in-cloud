@@ -250,10 +250,14 @@ async function handleTrigger(supabase: any, body: any) {
     // Use in-memory lookup instead of per-flow query
     const nodes = nodesByFlow.get(flow.id) ?? [];
     const matchingTrigger = nodes.find((n: AutomationNode) => {
+      // Risolve l'evento del nodo da: trigger_event (canonico), oppure item_id
+      // (builder), oppure trigger_type (template) — mappati all'evento canonico.
       const nodeEvent =
         n.config_json?.trigger_event ??
         TRIGGER_EVENT_MAP[n.config_json?.item_id as string] ??
-        n.config_json?.item_id;
+        TRIGGER_EVENT_MAP[n.config_json?.trigger_type as string] ??
+        n.config_json?.item_id ??
+        n.config_json?.trigger_type;
       if (!nodeEvent) return false;
       if (nodeEvent === trigger_event) return true;
       return legacyEvents.includes(nodeEvent);
@@ -261,8 +265,9 @@ async function handleTrigger(supabase: any, body: any) {
 
     if (!matchingTrigger) continue;
 
-    // Check if trigger filters match (basic evaluation)
-    const filters = matchingTrigger.config_json?.filters;
+    // Check if trigger filters match (basic evaluation).
+    // Il flow-builder salva i filtri in `trigger_filters`; supportiamo anche `filters`.
+    const filters = matchingTrigger.config_json?.filters ?? matchingTrigger.config_json?.trigger_filters;
     if (filters && filters.conditions?.length > 0) {
       if (!evaluateFilters(filters, enrichedPayload)) continue;
     }
@@ -806,14 +811,60 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "assign_user": {
-      const userId = ncfg.assign_to_user_id || ncfg.agente_id;
+      const strategia = ncfg.strategia || "specifico";
+      let userId: string | null = null;
+
+      if (strategia === "round_robin" || strategia === "meno_carico") {
+        let candidates: string[] = Array.isArray(ncfg.agenti_ids)
+          ? ncfg.agenti_ids.filter((x: any) => typeof x === "string" && x)
+          : [];
+        // retro-compat: se non è stata configurata la lista, usa l'agente singolo
+        if (candidates.length === 0 && (ncfg.agente_id || ncfg.assign_to_user_id)) {
+          candidates = [ncfg.agente_id || ncfg.assign_to_user_id];
+        }
+        if (candidates.length === 0) {
+          return { success: false, error: "Nessun agente candidato per l'assegnazione (configura gli agenti tra cui distribuire)" };
+        }
+        if (candidates.length === 1) {
+          userId = candidates[0];
+        } else if (strategia === "round_robin") {
+          // rotazione atomica per (flow_id, node_id)
+          let idx = 0;
+          const flowId = queueItem?.flow_id;
+          const nodeId = queueItem?.current_node_id;
+          if (flowId && nodeId) {
+            const { data: rr } = await supabase.rpc("automation_assign_next", {
+              p_flow_id: flowId, p_node_id: nodeId, p_n: candidates.length,
+            });
+            if (typeof rr === "number") idx = ((rr % candidates.length) + candidates.length) % candidates.length;
+          }
+          userId = candidates[idx];
+        } else {
+          // meno_carico: agente con meno opportunità aperte
+          const { data: opps } = await supabase
+            .from("marketing_opportunities")
+            .select("assigned_to")
+            .eq("company_id", companyId)
+            .eq("status", "open")
+            .in("assigned_to", candidates);
+          const counts: Record<string, number> = {};
+          for (const c of candidates) counts[c] = 0;
+          for (const o of (opps ?? [])) {
+            if (o.assigned_to && counts[o.assigned_to] != null) counts[o.assigned_to]++;
+          }
+          userId = candidates.reduce((best, c) => (counts[c] < counts[best] ? c : best), candidates[0]);
+        }
+      } else {
+        userId = ncfg.assign_to_user_id || ncfg.agente_id || null;
+      }
+
       if (!userId) return { success: false, error: "No assign_to_user_id configured" };
       await supabase
         .from("marketing_contacts")
         .update({ assigned_to: userId })
         .eq("id", entityId)
         .eq("company_id", companyId);
-      return { success: true, output: { action: "assign_user", userId } };
+      return { success: true, output: { action: "assign_user", userId, strategia } };
     }
 
     case "create_opportunity": {

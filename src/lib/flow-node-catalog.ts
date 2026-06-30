@@ -21,6 +21,7 @@ export type ConfigFieldType =
   | 'date'
   | 'time'
   | 'user_select'
+  | 'user_multi_select'
   | 'entity_select'
   | 'tag_input'
   | 'json_editor'
@@ -115,6 +116,8 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
       { id: 'contatto.phone', label: 'Telefono', type: 'string' },
       { id: 'contatto.source', label: 'Fonte acquisizione', type: 'string', example: 'Facebook' },
       { id: 'contatto.city', label: 'Città', type: 'string' },
+      { id: 'contatto.province', label: 'Provincia', type: 'string', example: 'MI' },
+      { id: 'contatto.region', label: 'Regione', type: 'string', example: 'Lombardia' },
       { id: 'contatto.company_name', label: 'Azienda', type: 'string' },
       { id: 'contatto.created_at', label: 'Data creazione', type: 'date' },
     ],
@@ -1367,7 +1370,8 @@ export const ACTION_CATALOG: ActionDefinition[] = [
         { value: 'specifico', label: 'Agente specifico' }, { value: 'round_robin', label: 'Round-robin (rotazione)' },
         { value: 'meno_carico', label: 'Meno carico di lavoro' },
       ]},
-      { id: 'agente_id', label: 'Agente (solo se strategia = specifico)', type: 'user_select', required: false },
+      { id: 'agente_id', label: 'Agente (se strategia = specifico)', type: 'user_select', required: false },
+      { id: 'agenti_ids', label: 'Agenti tra cui distribuire (round-robin / meno carico)', type: 'user_multi_select', required: false, helpText: 'Seleziona 2+ venditori: i nuovi lead verranno distribuiti tra loro a rotazione (round-robin) o assegnati a chi ha meno opportunità aperte (meno carico).' },
     ],
   },
   {

@@ -81,7 +81,7 @@ describe("reportistica marketing contract", () => {
   it("keeps construction-site reporting out of the marketing reporting page", () => {
     expect(reportisticaPage).not.toContain("CantiereDashboard");
     expect(reportisticaPage).not.toMatch(/cantier/i);
-    expect(reportisticaPage).toContain('searchParams.get("tab") || "facebook-ads"');
+    expect(reportisticaPage).toContain('searchParams.get("tab") || DEFAULT_TAB');
     expect(reportisticaPage).toContain("Meta Business Manager");
     expect(reportisticaPage).toContain("CRM e vendite");
   });

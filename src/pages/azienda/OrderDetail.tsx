@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles } from "lucide-react";
+import { AlertTriangle, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
@@ -62,6 +62,10 @@ import { useOrdinePDF, type OrdinePDFProps } from "@/hooks/useOrdinePDF";
 import { OrderQuickActions } from "@/components/orders/OrderQuickActions";
 import { OrderOperationalPanel } from "@/components/orders/OrderOperationalPanel";
 import { OrderFilesDialog } from "@/components/orders/OrderFilesDialog";
+import { TaskDialog } from "@/components/tasks/TaskDialog";
+import { useVertical } from "@/hooks/useVertical";
+import { getOrderPlaybook, PLAYBOOK_LABELS, applyPlaybookToOrder } from "@/lib/orderPlaybook";
+import { PlaybookEditorDialog } from "@/components/orders/PlaybookEditorDialog";
 
 import { OrdineRapportiniCampo } from "@/components/orders/OrdineRapportiniCampo";
 import { WhatsAppActivityFeed } from "@/components/whatsapp/WhatsAppActivityFeed";
@@ -72,7 +76,7 @@ import { OrderCommunicationsCard } from "@/components/orders/OrderCommunications
 import { CreaProformaDialog } from "@/components/orders/CreaProformaDialog";
 import { CreaNotaCreditoDialog } from "@/components/orders/CreaNotaCreditoDialog";
 import { downloadNativePDF } from "@/lib/fatturazione/generatePDF";
-import { calculateCollectedNetFromInstallments } from "@/lib/commissions";
+import { calculateCollectedNetFromInstallments, calculateCollectedGrossFromInstallments } from "@/lib/commissions";
 
 // ── Giornale Tab Content ─────────────────────────────────────────
 
@@ -281,6 +285,10 @@ function OrderDetailInner() {
   const [pdfPreparing, setPdfPreparing] = useState(false);
   const [opsOpen, setOpsOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [applyingPlaybook, setApplyingPlaybook] = useState(false);
+  const [playbookEditorOpen, setPlaybookEditorOpen] = useState(false);
+  const { vertical } = useVertical();
 
   // Monta UN SOLO layout (mobile O desktop): prima erano entrambi nel tree
   // nascosti via CSS → ogni card della pagina renderizzava due volte.
@@ -444,6 +452,32 @@ function OrderDetailInner() {
     enabled: !!id && !!user,
     staleTime: 120_000,
     gcTime: 10 * 60 * 1000,
+  });
+
+  // Prossima mossa = prossima task APERTA della commessa. La fonte è il sistema
+  // task reale (card "Attività"): così assegnare = creare l'attività della persona.
+  // Qui la mostriamo in cima per decisione rapida, senza duplicare il sistema.
+  const { data: prossimaTask } = useQuery<{
+    id: string; title: string; due_date: string | null; assigned_to: string | null;
+    assigned?: { first_name?: string | null; last_name?: string | null } | null;
+  } | null>({
+    queryKey: ["order-next-task", id],
+    enabled: !!id && !!companyId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("id, title, due_date, status, assigned_to, assigned:profiles!tasks_assigned_to_fkey(first_name, last_name)")
+        .eq("company_id", companyId!)
+        .eq("order_id", id!)
+        .neq("status", "completata")
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      // deno-lint-ignore no-explicit-any
+      return (data ?? null) as any;
+    },
   });
 
   // NB: i dati "ricchi" del PDF (giornale lavori, diario, varianti, ODA,
@@ -754,6 +788,33 @@ function OrderDetailInner() {
   const handleEditNotes = () => { setEditedNotes(order?.internal_notes || ""); setIsEditingNotes(true); };
   const handleSaveNotes = () => { updateNotesMutation.mutate(editedNotes); };
 
+  // Applica playbook commessa: crea in blocco le attività standard del mestiere
+  // (task reali, scadenze relative alla data commessa). Idempotente: salta i
+  // titoli già presenti. Le task compaiono nella card "Attività" e si assegnano.
+  const handleApplyPlaybook = async () => {
+    if (!order || !companyId) return;
+    setApplyingPlaybook(true);
+    try {
+      const { created, playbookKey } = await applyPlaybookToOrder({
+        companyId,
+        orderId: id!,
+        vertical,
+        baseDate: order.created_at ? new Date(order.created_at) : new Date(),
+      });
+      if (created === 0) {
+        toast.info("Le attività del processo standard sono già presenti su questa commessa.");
+        return;
+      }
+      toast.success(`${created} attività create dal processo standard "${PLAYBOOK_LABELS[playbookKey]}". Assegnale dalla card Attività.`);
+      queryClient.invalidateQueries({ queryKey: ["order-next-task", id] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+    } catch (e) {
+      toast.error("Errore nell'applicare il processo standard: " + (e instanceof Error ? e.message : "riprova"));
+    } finally {
+      setApplyingPlaybook(false);
+    }
+  };
+
   const progressHistory: StatusHistoryItem[] = statusHistory.map((h) => ({ status_id: h.status_id, changed_at: h.changed_at }));
 
   const displayItems: OrderItem[] = orderItems.map(item => ({
@@ -955,6 +1016,43 @@ function OrderDetailInner() {
     vatRate: order.vat_rate || 22,
     financingCost: order.financing_cost ?? 0,
   });
+  // Incassato LORDO (IVA inclusa) = stesso numero del piano rate ("€ Riepilogo" e
+  // "Avanzamento incassi"). La cassa del Conto economico lo usa per non mostrare un
+  // incassato diverso (netto) da quello del piano rate. I margini restano netti.
+  const collectedGross = calculateCollectedGrossFromInstallments({
+    installments: displayInstallments,
+    totalAmount: order.total_amount,
+    vatRate: order.vat_rate || 22,
+    financingCost: order.financing_cost ?? 0,
+  });
+  // Target incassi LORDO = totale ivato al netto del costo finanziaria (= "su 27.280"
+  // del piano rate), così la barra cassa combacia con l'Avanzamento incassi.
+  const cashTotalGross = Math.max(
+    0,
+    (order.total_amount || 0) * (1 + (order.vat_rate || 22) / 100) - (order.financing_cost ?? 0),
+  );
+
+  // ── Cassa della commessa ───────────────────────────────────────────────────
+  // Timeline acconto → materiali → saldo. Evidenzia il fabbisogno di anticipo
+  // quando l'acconto incassato non copre il costo dei fornitori (capitale
+  // circolante immobilizzato fino al saldo di fine lavori).
+  const costoMaterialiGross = displayItems.reduce(
+    (s, i) => s + (Number(i.purchase_price) || 0) * (Number(i.quantity) || 0),
+    0,
+  );
+  const saldoResiduoGross = Math.max(0, cashTotalGross - collectedGross);
+  const cassaDopoMateriali = collectedGross - costoMaterialiGross; // < 0 ⇒ anticipo
+  const accontoCopreMateriali = costoMaterialiGross <= 0 || collectedGross >= costoMaterialiGross;
+  const saldoDate =
+    displayInstallments
+      .filter((i) => !i.is_paid && i.expected_date)
+      .map((i) => i.expected_date as string)
+      .sort()
+      .pop() ?? order.work_end_date ?? null;
+
+  // Prossima mossa: la task aperta è scaduta?
+  const prossimaTaskOverdue =
+    !!prossimaTask?.due_date && new Date(prossimaTask.due_date) < new Date(new Date().toDateString());
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -1032,6 +1130,59 @@ function OrderDetailInner() {
         />
       )}
 
+      {/* ── Prossima mossa: la prossima task APERTA della commessa. Fonte = sistema
+          task reale (card "Attività" più sotto), quindi assegnare crea l'attività
+          della persona. Strip sottile per decisione rapida, coerente con quella di
+          Silvio. ── */}
+      {permissions.canViewOrders && (
+        <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-2">
+          <div className="flex items-center gap-2 flex-wrap text-sm">
+            <ListChecks className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground shrink-0">Prossima mossa</span>
+            {prossimaTask ? (
+              <>
+                <span className="font-medium text-slate-900 truncate">{prossimaTask.title}</span>
+                {prossimaTask.due_date && (
+                  <span className={`text-xs flex items-center gap-1 shrink-0 ${prossimaTaskOverdue ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
+                    {prossimaTaskOverdue && <AlertTriangle className="h-3 w-3" />}
+                    entro {format(new Date(prossimaTask.due_date), "dd/MM")}
+                  </span>
+                )}
+                {prossimaTask.assigned?.first_name && (
+                  <span className="text-xs text-muted-foreground shrink-0">· {prossimaTask.assigned.first_name} {prossimaTask.assigned.last_name?.[0] ?? ""}.</span>
+                )}
+                <Button variant="ghost" size="sm" className="ml-auto h-7 text-xs shrink-0" onClick={() => setTaskDialogOpen(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Aggiungi
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="text-muted-foreground">Nessuna attività pianificata.</span>
+                <div className="ml-auto flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={handleApplyPlaybook}
+                    disabled={applyingPlaybook}
+                    title={`Crea le attività standard del processo ${PLAYBOOK_LABELS[getOrderPlaybook(vertical).key]}`}
+                  >
+                    <Sparkles className="h-3.5 w-3.5 mr-1" />
+                    {applyingPlaybook ? "Applico…" : "Applica processo"}
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setTaskDialogOpen(true)}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Singola
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setPlaybookEditorOpen(true)}>
+                    Gestisci
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Chiedi a Silvio (contestuale alla commessa) ───────── */}
       <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-2 flex justify-end">
         <ChiediASilvio
@@ -1086,6 +1237,8 @@ function OrderDetailInner() {
             vatRate={order.vat_rate || 22}
             items={economicsItems}
             collectedAmount={collectedAmount}
+            cashCollected={collectedGross}
+            cashTotal={cashTotalGross}
             itemsLoading={orderItemsPending}
           />
         </ErrorBoundary>
@@ -1509,6 +1662,62 @@ function OrderDetailInner() {
               )}
             </div>
 
+            {/* Cassa della commessa — timeline acconto → materiali → saldo.
+                Mostra l'eventuale anticipo da sostenere (capitale circolante)
+                quando l'acconto non copre i fornitori. Additiva, non tocca il
+                Conto economico. */}
+            {permissions.canViewOrderAmounts && (collectedGross > 0 || costoMaterialiGross > 0) && (
+              <QuoteCard
+                title={
+                  <span className="flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full ${accontoCopreMateriali ? "bg-emerald-500" : "bg-red-500"}`} />
+                    Cassa della commessa
+                  </span>
+                }
+                icon={<Wallet className="h-4 w-4" />}
+              >
+                <div className="space-y-3">
+                  <p className={`text-[13px] leading-snug ${accontoCopreMateriali ? "text-emerald-700" : "text-red-600"}`}>
+                    {accontoCopreMateriali ? (
+                      <>L'acconto incassato copre il costo dei materiali: nessun anticipo richiesto.</>
+                    ) : (
+                      <>
+                        L'acconto incassato (<strong>{formatCurrency(collectedGross)}</strong>) non copre i materiali
+                        (<strong>{formatCurrency(costoMaterialiGross)}</strong>): anticipi circa{" "}
+                        <strong>{formatCurrency(Math.abs(cassaDopoMateriali))}</strong>
+                        {saldoDate ? <> fino al saldo del <strong>{format(new Date(saldoDate), "dd/MM/yyyy")}</strong></> : null}.
+                      </>
+                    )}
+                  </p>
+                  <div className="rounded-lg border bg-muted/20 text-[13px]">
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
+                      <span className="text-muted-foreground">Acconto incassato</span>
+                      <span className="font-medium text-emerald-600">+ {formatCurrency(collectedGross)}</span>
+                    </div>
+                    {costoMaterialiGross > 0 && (
+                      <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
+                        <span className="text-muted-foreground">Costo materiali (fornitori)</span>
+                        <span className="font-medium text-slate-700">− {formatCurrency(costoMaterialiGross)}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100">
+                      <span className="font-medium text-foreground">Punto minimo di cassa</span>
+                      <span className={`font-semibold ${cassaDopoMateriali < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                        {formatCurrency(cassaDopoMateriali)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <span className="text-muted-foreground">
+                        Saldo a fine lavori{saldoDate ? ` · ${format(new Date(saldoDate), "dd/MM/yyyy")}` : ""}
+                      </span>
+                      <span className="font-medium text-emerald-600">+ {formatCurrency(saldoResiduoGross)}</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Stima sui materiali · manodopera e altre spese escluse.</p>
+                </div>
+              </QuoteCard>
+            )}
+
             {/* Articoli */}
             <OrdineArticoli
               orderId={id!}
@@ -1541,34 +1750,9 @@ function OrderDetailInner() {
               defaultAddress={order.work_address || order.customer?.address}
             />
 
-            {/* Storico stati */}
-            <QuoteCard title="Storico Stati">
-              {statusHistory.length === 0 ? (
-                <p className="text-sm text-slate-500">
-                  Nessuno storico disponibile
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {statusHistory.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0 last:pb-0"
-                    >
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: entry.status.color }}
-                        />
-                        <span className="text-sm font-medium text-slate-900">{entry.status.name}</span>
-                      </div>
-                      <span className="text-xs text-slate-500">
-                        {formatDateTime(entry.changed_at)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </QuoteCard>
+            {/* NB: "Storico Stati" rimosso da qui — è già incluso nella
+                Timeline Cantiere a tutta larghezza sotto (stati + lavori + SAL
+                + varianti), evitando il doppione. */}
 
             {/* Fatturazione e documenti */}
             <QuoteCard
@@ -1633,27 +1817,9 @@ function OrderDetailInner() {
                     Nessun documento fiscale collegato
                   </p>
                 )}
-                {documentiCommessa.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Allegati commessa
-                    </div>
-                    {documentiCommessa.map((documento) => (
-                      <button
-                        key={documento.id}
-                        type="button"
-                        onClick={() => handleOpenOrderDocument(documento)}
-                        className="flex w-full items-center justify-between gap-2 rounded-md border p-2 text-left text-sm transition-colors hover:bg-accent"
-                      >
-                        <div className="min-w-0">
-                          <div className="font-medium truncate">{documento.file_name}</div>
-                          <div className="text-xs text-muted-foreground">{formatAttachmentType(documento)}</div>
-                        </div>
-                        <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {/* NB: "Allegati commessa" rimosso da qui — i file della commessa
+                    sono già in "Documenti Commessa" sotto gli Articoli e nel pulsante
+                    "Documenti" (hub). Qui restano solo i documenti fiscali. */}
                 <div className="grid grid-cols-4 gap-2">
                   <Button
                     variant="outline"
@@ -1727,25 +1893,6 @@ function OrderDetailInner() {
               onNotesChange={setEditedNotes}
             />
 
-            {/* Manodopera */}
-            <OrderLaborCosts orderId={id!} editable={true} />
-
-            {/* Errori */}
-            <OrderErrors orderId={id!} />
-
-            {/* Ordini di acquisto */}
-            <LinkedPurchaseOrdersCard
-              orderId={id!}
-              orderCode={order.order_code}
-              items={displayItems.map((i) => ({
-                name: i.name,
-                quantity: i.quantity,
-                purchase_price: i.purchase_price,
-                supplier_id: i.supplier_id,
-                vat_rate: i.vat_rate,
-              }))}
-            />
-
             {/* Firma */}
             <OrdineFirma
               orderId={id!}
@@ -1757,24 +1904,34 @@ function OrderDetailInner() {
               }
             />
 
-            {/* Task e appuntamenti */}
-            <LinkedTasks orderId={id} category="ordini" />
-            <LinkedAppointments orderId={id!} />
-            <OrderUsciteCard orderId={id!} />
-            <OrderCommunicationsCard
-              customerId={order.customer_id}
-              customerEmail={order.customer?.email}
-              customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
-            />
-
-            {/* Ritenute di Garanzia */}
-            <RitenuteTab orderId={id!} />
           </div>
         </div>
 
         {/* ── Sezioni secondarie a tutta larghezza (solo desktop), sotto la griglia:
             riempiono la larghezza → niente spazio vuoto a lato della sidebar. ── */}
         <div className="hidden sm:block space-y-6">
+          {/* Operatività commessa: card spostate qui dalla sidebar in una griglia
+              a 2 colonne a tutta larghezza → niente più vuoto a sinistra accanto
+              alla sidebar, e le card a vuoto pesano meno. */}
+          <div className="grid gap-6 lg:grid-cols-2 items-start">
+            <OrderLaborCosts orderId={id!} editable={true} />
+            <OrderErrors orderId={id!} />
+            <LinkedPurchaseOrdersCard
+              orderId={id!}
+              orderCode={order.order_code}
+              items={displayItems.map((i) => ({
+                name: i.name,
+                quantity: i.quantity,
+                purchase_price: i.purchase_price,
+                supplier_id: i.supplier_id,
+                vat_rate: i.vat_rate,
+              }))}
+            />
+            <LinkedTasks orderId={id} category="ordini" />
+            <LinkedAppointments orderId={id!} />
+            <OrderUsciteCard orderId={id!} />
+            <RitenuteTab orderId={id!} />
+          </div>
           <div id="section-sal">
             {companyId && (
               <OrdineSAL
@@ -1801,12 +1958,27 @@ function OrderDetailInner() {
               <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
             </div>
           )}
-          {effectiveCompany?.id && (
-            <>
-              <OrdineRapportiniCampo orderId={id!} />
-              <WhatsAppActivityFeed cantiereId={id!} />
-            </>
-          )}
+          {effectiveCompany?.id && <OrdineRapportiniCampo orderId={id!} />}
+
+          {/* Comunicazioni: messaggi col cliente (email/SMS/WhatsApp collegati alla
+              scheda) + feed WhatsApp del cantiere, uniti in un unico blocco invece
+              di due card sparse. */}
+          <div className="space-y-2">
+            <div>
+              <h2 className="text-base font-semibold">Comunicazioni</h2>
+              <p className="text-sm text-muted-foreground">
+                Messaggi col cliente e attività WhatsApp del cantiere.
+              </p>
+            </div>
+            <div className="grid gap-6 lg:grid-cols-2 items-start">
+              <OrderCommunicationsCard
+                customerId={order.customer_id}
+                customerEmail={order.customer?.email}
+                customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
+              />
+              {effectiveCompany?.id && <WhatsAppActivityFeed cantiereId={id!} />}
+            </div>
+          </div>
         </div>
         </>
         )}
@@ -1852,6 +2024,40 @@ function OrderDetailInner() {
         onDownloadOrderPdf={handleDownloadPDF}
         pdfBusy={pdfPreparing || isGeneratingPDF}
       />
+
+      {/* Crea/assegna task (dalla strip "Prossima mossa") → task reale: l'attività
+          compare nella lista del responsabile. Riusa il dialog standard. */}
+      <TaskDialog
+        open={taskDialogOpen}
+        onOpenChange={setTaskDialogOpen}
+        task={
+          taskDialogOpen
+            ? {
+                title: "", notes: "", status: "da_fare", priority: "normale",
+                due_date: null, assigned_to: null,
+                order_id: id ?? null, stock_item_id: null, cost_id: null,
+                contact_id: null, opportunity_id: null, ticket_id: null,
+                category: "ordini",
+              }
+            : null
+        }
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: ["order-next-task", id] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+        }}
+        defaultCategory="ordini"
+        defaultOrderId={id}
+      />
+
+      {/* Editor del playbook commessa (per-azienda, per mestiere) */}
+      {companyId && (
+        <PlaybookEditorDialog
+          open={playbookEditorOpen}
+          onOpenChange={setPlaybookEditorOpen}
+          companyId={companyId}
+          vertical={vertical}
+        />
+      )}
 
       {/* Delete confirm (triggered by OrdineDetailHeader) */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>

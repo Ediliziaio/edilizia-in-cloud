@@ -16,6 +16,8 @@ import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useVertical } from "@/hooks/useVertical";
+import { applyPlaybookToOrder } from "@/lib/orderPlaybook";
 import { useCompanyCustomers } from "@/hooks/useCompanyCustomers";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -66,6 +68,7 @@ import { SedeSelect } from "@/components/sedi/SedeSelect";
 function CreateOrderInner() {
   const navigate = useNavigate();
   const { user, effectiveCompany } = useAuth();
+  const { vertical } = useVertical();
   const queryClient = useQueryClient();
   const { onlyAssigned } = usePermissions();
   const { canCreateOrder, isScopriPlan, currentPlan, remainingOrders } = useSubscriptionLimits();
@@ -477,6 +480,19 @@ function CreateOrderInner() {
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["cashflow"] });
       setCreatedOrderId(order.id);
+
+      // Playbook automatico: se l'azienda ha attivato l'interruttore, crea le
+      // attività standard della commessa. Wrap in try/catch: non deve MAI
+      // rompere la creazione (idempotente lato helper).
+      try {
+        if (effectiveCompany?.id) {
+          const { data: comp } = await supabase
+            .from("companies").select("playbook_auto_apply").eq("id", effectiveCompany.id).maybeSingle();
+          if ((comp as { playbook_auto_apply?: boolean } | null)?.playbook_auto_apply) {
+            await applyPlaybookToOrder({ companyId: effectiveCompany.id, orderId: order.id, vertical, baseDate: new Date() });
+          }
+        }
+      } catch { /* non bloccare la creazione della commessa */ }
 
       // v8.6.89 — analytics
       // 2026-05-26 (audit fix P0): `values` non è in scope qui (era una const

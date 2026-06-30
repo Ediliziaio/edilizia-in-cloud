@@ -73,11 +73,10 @@ function fmtDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-export function useVendorKPI(periodo: PeriodoVendor, agentId?: string) {
+export function useVendorKPI(inizio: Date, fine: Date, agentId?: string) {
   const companyId = useEffectiveCompanyId();
-  const { inizio, fine } = usePeriodoDate(periodo);
   return useQuery({
-    queryKey: ["vendor-kpi", companyId, periodo, agentId],
+    queryKey: ["vendor-kpi", companyId, fmtDate(inizio), fmtDate(fine), agentId],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_vendor_kpi_per_agent" as any, {
         p_company_id: companyId,
@@ -111,11 +110,10 @@ export function useVendorTrend(anno?: number, agentId?: string, enabled = true) 
   });
 }
 
-export function useVendorFunnel(periodo: PeriodoVendor, agentId?: string) {
+export function useVendorFunnel(inizio: Date, fine: Date, agentId?: string) {
   const companyId = useEffectiveCompanyId();
-  const { inizio, fine } = usePeriodoDate(periodo);
   return useQuery({
-    queryKey: ["vendor-funnel", companyId, periodo, agentId],
+    queryKey: ["vendor-funnel", companyId, fmtDate(inizio), fmtDate(fine), agentId],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_vendor_funnel_stages" as any, {
         p_company_id: companyId,
@@ -131,12 +129,11 @@ export function useVendorFunnel(periodo: PeriodoVendor, agentId?: string) {
   });
 }
 
-export function useVendorIntegrationHealth(periodo: PeriodoVendor, agentId?: string) {
+export function useVendorIntegrationHealth(inizio: Date, fine: Date, agentId?: string) {
   const companyId = useEffectiveCompanyId();
-  const { inizio, fine } = usePeriodoDate(periodo);
 
   return useQuery({
-    queryKey: ["vendor-integration-health", companyId, periodo, agentId],
+    queryKey: ["vendor-integration-health", companyId, fmtDate(inizio), fmtDate(fine), agentId],
     queryFn: async (): Promise<VendorIntegrationHealth> => {
       if (!companyId) return emptyVendorIntegrationHealth();
 

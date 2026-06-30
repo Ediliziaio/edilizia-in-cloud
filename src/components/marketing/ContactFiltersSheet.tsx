@@ -41,6 +41,7 @@ export interface PipelineWithStages {
 }
 
 import type { CustomFieldDef } from "@/lib/contactUtils";
+import { REGION_OPTIONS } from "@/lib/italianRegions";
 export type { CustomFieldDef };
 
 interface FieldDef {
@@ -59,6 +60,7 @@ const STANDARD_FIELDS: FieldDef[] = [
   { key: "source", label: "Fonte", group: "Contatto", type: "text" },
   { key: "city", label: "Città", group: "Contatto", type: "text" },
   { key: "province", label: "Provincia", group: "Contatto", type: "text" },
+  { key: "region", label: "Regione", group: "Contatto", type: "select", options: REGION_OPTIONS },
   { key: "created_at", label: "Data creazione", group: "Date", type: "date" },
   { key: "last_activity_at", label: "Ultima attività", group: "Date", type: "date" },
   { key: "tags", label: "Tag", group: "Tag", type: "tags" },

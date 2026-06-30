@@ -140,3 +140,42 @@ export function useFonteLeadPerformance(periodo: PeriodoVendor, enabled = true) 
     staleTime: 5 * 60_000,
   });
 }
+
+export interface LeadHandling {
+  chiamate_totali: number;
+  chiamate_nuovi: number;
+  chiamate_vecchi: number;
+  risposte_totali: number;
+  tasso_risposta_totale: number | null;
+  tasso_risposta_nuovi: number | null;
+  tasso_risposta_vecchi: number | null;
+  lead_nuovi_chiamati: number;
+  lead_vecchi_chiamati: number;
+  tempo_medio_primo_contatto_ore: number | null;
+  chiamate_eta_0_7: number;
+  chiamate_eta_8_30: number;
+  chiamate_eta_31_60: number;
+  chiamate_eta_oltre_60: number;
+}
+
+/** "Lavorazione lead": chiamate del periodo divise per età del lead (nuovi vs
+ *  riattivazione), tassi di risposta, tempo al 1° contatto sui lead nuovi, aging. */
+export function useCallCenterLeadHandling(periodo: PeriodoVendor, operatoreId?: string, enabled = true) {
+  const companyId = useEffectiveCompanyId();
+  const { inizio, fine } = usePeriodoDate(periodo);
+  return useQuery({
+    queryKey: ["callcenter-lead-handling", companyId, periodo, operatoreId],
+    queryFn: async (): Promise<LeadHandling | null> => {
+      const { data, error } = await supabase.rpc("get_callcenter_lead_handling" as any, {
+        p_company_id: companyId,
+        p_data_inizio: fmtDate(inizio),
+        p_data_fine: fmtDate(fine),
+        p_operatore_id: operatoreId ?? null,
+      });
+      if (error) throw error;
+      return (((data ?? []) as LeadHandling[])[0]) ?? null;
+    },
+    enabled: !!companyId && enabled,
+    staleTime: 3 * 60_000,
+  });
+}

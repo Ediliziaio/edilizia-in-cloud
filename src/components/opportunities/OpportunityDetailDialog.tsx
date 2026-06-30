@@ -46,6 +46,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { cleanPhone } from "@/lib/contactUtils";
 import { QuickContactSendDialog, type QuickSendChannel } from "@/components/contacts/QuickContactSendDialog";
 import { ContactActivityRegister } from "@/components/contacts/ContactActivityRegister";
+import { LogCallButton } from "@/components/marketing/LogCallButton";
 import { getAddedTags, getRemovedTags, normalizeTagList } from "@/lib/marketingTags";
 import { useSoftphoneOptional } from "@/components/telephony/SoftphoneProvider";
 
@@ -75,7 +76,7 @@ const SELECT_TRIGGER_CLS =
 
 export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stages, initialTab, canEdit = true }: Props) {
   const navigate = useNavigate();
-  const { effectiveCompany } = useAuth();
+  const { effectiveCompany, user } = useAuth();
   const companyId = effectiveCompany?.id;
   const permissions = usePermissions();
   const canEditOpportunity = canEdit && (permissions.canEditMarketingOpportunities || permissions.canEditMarketing);
@@ -519,6 +520,13 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
                     <MessageCircle className="h-4 w-4" />
                   </button>
                 )}
+                <LogCallButton
+                  companyId={companyId}
+                  contactId={opportunity.contact_id}
+                  userId={user?.id}
+                  opportunityId={opportunity.id}
+                  className="h-9 sm:h-8"
+                />
                 <span className="mx-0.5 hidden sm:block h-5 w-px bg-border" aria-hidden />
                 {/* Crea preventivo direttamente dal deal — link contatto/opportunità preservato */}
                 <NewPreventivoMenu

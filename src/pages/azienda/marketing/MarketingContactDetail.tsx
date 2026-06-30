@@ -57,6 +57,7 @@ import { ContactSmsLog } from "@/components/marketing/ContactSmsLog";
 import { ContactAttributionTab } from "@/components/contacts/ContactAttributionTab";
 import { ContactInvoicesPanel } from "@/components/marketing/ContactInvoicesPanel";
 import { UnifiedContactTimeline } from "@/components/marketing/UnifiedContactTimeline";
+import { LogCallButton } from "@/components/marketing/LogCallButton";
 import { normalizeTagList, normalizeTagName } from "@/lib/marketingTags";
 import { RefreshCw, CalendarDays, Sparkles } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
@@ -958,16 +959,19 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
                       onSelectComune={(c) => {
                         updateField.mutate({ field: "city", value: c.comune });
                         updateField.mutate({ field: "province", value: c.provinciaSigla });
+                        updateField.mutate({ field: "region", value: c.regione });
                         if (!contact.postal_code) updateField.mutate({ field: "postal_code", value: c.cap });
                       }}
                     />
                     <InlineField label="Provincia" value={contact.province || ""} onSave={(v) => updateField.mutate({ field: "province", value: v })} disabled={!canEditContacts} />
+                    <InlineField label="Regione" value={(contact as any).region || ""} onSave={(v) => updateField.mutate({ field: "region", value: v })} disabled={!canEditContacts} />
                     <InlineField label="CAP" value={contact.postal_code || ""} onSave={(v) => updateField.mutate({ field: "postal_code", value: v })} disabled={!canEditContacts}
                       comuneMode="cap"
                       onSelectComune={(c) => {
                         updateField.mutate({ field: "postal_code", value: c.cap });
                         updateField.mutate({ field: "city", value: c.comune });
                         updateField.mutate({ field: "province", value: c.provinciaSigla });
+                        updateField.mutate({ field: "region", value: c.regione });
                       }}
                     />
                     <InlineField label="Paese" value={contact.country || ""} onSave={(v) => updateField.mutate({ field: "country", value: v })} disabled={!canEditContacts} />
@@ -1166,6 +1170,10 @@ const MarketingContactDetail = forwardRef<HTMLDivElement>(function MarketingCont
           Mobile: altezza limitata 60vh per non spingere troppo in basso l'anagrafica.
           Desktop: prende tutto lo spazio rimanente. */}
       <div className="flex-1 flex flex-col min-w-0 h-[60vh] lg:h-auto">
+        {/* Azioni rapide sul contatto (registra chiamata manuale, senza centralino) */}
+        <div className="shrink-0 flex items-center justify-end gap-2 border-b bg-white px-3 py-1.5">
+          <LogCallButton companyId={companyId} contactId={id} userId={user?.id} />
+        </div>
         {/* Unified Timeline */}
         <div className="flex-1 overflow-hidden">
           <UnifiedContactTimeline contactId={id!} companyId={companyId!} contactPhone={contact.phone} contactEmail={contact.email} />

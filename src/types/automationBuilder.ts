@@ -1,3 +1,5 @@
+import { REGION_OPTIONS } from "@/lib/italianRegions";
+
 export interface AutomationFlow {
   id: string;
   company_id: string;
@@ -159,6 +161,9 @@ export const CONTACT_TRIGGER_FIELDS: TriggerFieldDef[] = [
   { key: "contact_type", label: "Tipo contatto", type: "select", group: "Campi standard", options: [{ value: "lead", label: "Lead" }, { value: "cliente", label: "Cliente" }, { value: "prospect", label: "Prospect" }] },
   { key: "tags", label: "Tag", type: "tags", group: "Campi standard" },
   { key: "source", label: "Fonte Lead", type: "text", group: "Campi standard" },
+  { key: "city", label: "Città", type: "text", group: "Località" },
+  { key: "province", label: "Provincia (sigla)", type: "text", group: "Località" },
+  { key: "region", label: "Regione", type: "select", group: "Località", options: REGION_OPTIONS },
   { key: "dnd_status", label: "Stato DND", type: "boolean", group: "Campi standard" },
   { key: "assigned_to", label: "Utente assegnato", type: "user", group: "Campi standard" },
   { key: "created_at", label: "Data creazione", type: "date", group: "Campi standard" },
