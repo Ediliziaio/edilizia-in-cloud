@@ -639,7 +639,7 @@ Deno.serve(async (req) => {
     const priceField = billing_period === "yearly" ? "stripe_price_yearly_id" : "stripe_price_monthly_id";
     const { data: plan, error: planError } = await supabaseAdmin
       .from("subscription_plans")
-      .select(`id, name, ${priceField}`)
+      .select(`id, name, trial_days, ${priceField}`)
       .eq("id", plan_id)
       .single();
 
@@ -715,6 +715,13 @@ Deno.serve(async (req) => {
       "metadata[company_id]": company_id,
       "metadata[plan_id]": plan_id,
     };
+    // Periodo di prova gratuito (preso dal piano): il cliente non paga per N
+    // giorni, ma la carta è già raccolta (payment_method_collection:always) e
+    // Stripe addebita automaticamente alla fine del trial.
+    const trialDays = Number((plan as Record<string, unknown>).trial_days ?? 0);
+    if (trialDays > 0) {
+      checkoutParams["subscription_data[trial_period_days]"] = String(trialDays);
+    }
     if (stripeCouponId) {
       checkoutParams["discounts[0][coupon]"] = stripeCouponId;
     } else {
