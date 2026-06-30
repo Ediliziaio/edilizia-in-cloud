@@ -148,8 +148,8 @@ export function OpportunityFiltersSheet({ open, onOpenChange, filters, onApply, 
             </div>
           </FilterSection>
 
-          {/* Titolare */}
-          <FilterSection title="Titolare">
+          {/* Venditore */}
+          <FilterSection title="Venditore">
             <Select value={local.assignedTo || "all"} onValueChange={(v) => setLocal((p) => ({ ...p, assignedTo: v === "all" ? "" : v }))}>
               <SelectTrigger className="h-10 sm:h-8 text-sm"><SelectValue placeholder="Tutti" /></SelectTrigger>
               <SelectContent>

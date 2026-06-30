@@ -399,7 +399,7 @@ function MarketingOpportunitiesContent() {
         { key: "weighted_value", label: "Valore ponderato" },
         { key: "status", label: "Stato" },
         { key: "stage", label: "Fase" },
-        { key: "assigned_to", label: "Titolare" },
+        { key: "assigned_to", label: "Venditore" },
         { key: "source", label: "Fonte" },
         { key: "tags", label: "Tag" },
         { key: "expected_close_date", label: "Chiusura prevista" },
