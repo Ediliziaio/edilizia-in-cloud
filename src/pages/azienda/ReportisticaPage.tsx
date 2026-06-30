@@ -11,23 +11,26 @@ import { useSubscriptionLimits } from "@/hooks/useSubscriptionLimits";
 import { UpgradeScopriWall } from "@/components/subscription/UpgradeScopriBanner";
 
 const TABS = [
-  { key: "facebook-ads", label: "Meta Business Manager" },
-  { key: "google-ads", label: "Google Ads" },
   { key: "crm-vendite", label: "CRM e vendite" },
   { key: "calls", label: "Call center" },
   { key: "venditori", label: "Venditori" },
+  { key: "facebook-ads", label: "Meta Business Manager" },
+  { key: "google-ads", label: "Google Ads" },
 ];
+
+// Il tab di default è SEMPRE il primo dell'elenco sopra (oggi: CRM e vendite).
+const DEFAULT_TAB = TABS[0].key;
 
 const ReportisticaPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const requestedTab = searchParams.get("tab") || "facebook-ads";
+  const requestedTab = searchParams.get("tab") || DEFAULT_TAB;
   const isValidRequestedTab = TABS.some((tab) => tab.key === requestedTab);
-  const activeTab = isValidRequestedTab ? requestedTab : "facebook-ads";
+  const activeTab = isValidRequestedTab ? requestedTab : DEFAULT_TAB;
   const { isScopriPlan } = useSubscriptionLimits();
 
   useEffect(() => {
     if (!isValidRequestedTab) {
-      setSearchParams({ tab: "facebook-ads" }, { replace: true });
+      setSearchParams({ tab: DEFAULT_TAB }, { replace: true });
     }
   }, [isValidRequestedTab, setSearchParams]);
 
