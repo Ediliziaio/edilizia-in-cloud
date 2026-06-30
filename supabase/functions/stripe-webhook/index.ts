@@ -220,13 +220,16 @@ async function handleCheckoutCompleted(
   if (metadataType === "email_credits") {
     const amountEur = parseFloat(session.metadata?.amount_eur || "0");
     if (amountEur > 0) {
-      await supabase.rpc("add_email_credits_with_log", {
+      const { error: addEmailErr } = await supabase.rpc("add_email_credits_with_log", {
         p_company_id: companyId,
         p_amount: amountEur,
         p_type: "topup",
         p_description: `Acquisto Stripe - €${amountEur}`,
         p_metadata: { stripe_session_id: session.id, payment_intent: session.payment_intent },
       });
+      // Soldi già incassati: se l'accredito fallisce NON ingoiare l'errore → l'handler
+      // torna 500 e Stripe riconsegna l'evento (idempotente) finché va a buon fine.
+      if (addEmailErr) throw new Error(`add_email_credits_with_log failed: ${addEmailErr.message}`);
 
       if (session.payment_intent) {
         try {
@@ -255,13 +258,14 @@ async function handleCheckoutCompleted(
   if (metadataType === "whatsapp_credits") {
     const amountEur = parseFloat(session.metadata?.amount_eur || "0");
     if (amountEur > 0) {
-      await supabase.rpc("add_whatsapp_credits_with_log", {
+      const { error: addWaErr } = await supabase.rpc("add_whatsapp_credits_with_log", {
         p_company_id: companyId,
         p_amount: amountEur,
         p_type: "topup",
         p_description: `Acquisto Stripe - €${amountEur}`,
         p_metadata: { stripe_session_id: session.id, payment_intent: session.payment_intent },
       });
+      if (addWaErr) throw new Error(`add_whatsapp_credits_with_log failed: ${addWaErr.message}`);
 
       // Salva payment method per auto top-up futuri
       if (session.payment_intent) {
@@ -293,26 +297,14 @@ async function handleCheckoutCompleted(
   if (metadataType === "ai_credits") {
     const amountEur = parseFloat(session.metadata?.amount_eur || "0");
     if (amountEur > 0) {
-      // Update saldo (insert se prima volta)
-      const { data: existing } = await supabase
-        .from("ai_credits")
-        .select("balance_eur, total_recharged_eur")
-        .eq("company_id", companyId)
-        .maybeSingle();
-      const newBalance = Number(((existing?.balance_eur ?? 0) + amountEur).toFixed(4));
-      const newRecharged = Number(((existing?.total_recharged_eur ?? 0) + amountEur).toFixed(4));
-      if (existing) {
-        await supabase
-          .from("ai_credits")
-          .update({ balance_eur: newBalance, total_recharged_eur: newRecharged, calls_blocked: false })
-          .eq("company_id", companyId);
-      } else {
-        await supabase.from("ai_credits").insert({
-          company_id: companyId,
-          balance_eur: amountEur,
-          total_recharged_eur: amountEur,
-        });
-      }
+      // Accredito ATOMICO via RPC (UPDATE in-place con lock): elimina la race
+      // read-modify-write su acquisti/retry concorrenti. 'ai_agents' → ai_credits.
+      const { error: aiTopupErr } = await supabase.rpc("topup_service_credits", {
+        p_service: "ai_agents",
+        p_company_id: companyId,
+        p_amount: amountEur,
+      });
+      if (aiTopupErr) throw new Error(`topup_service_credits(ai_agents) failed: ${aiTopupErr.message}`);
 
       // Log topup
       await supabase.from("ai_credit_topups").insert({
@@ -356,27 +348,15 @@ async function handleCheckoutCompleted(
   if (metadataType === "render_credits") {
     const qty = parseInt(session.metadata?.qty || "0");
     if (qty > 0) {
-      const { data: existing } = await supabase
-        .from("render_credits")
-        .select("balance, total_purchased")
-        .eq("company_id", companyId)
-        .maybeSingle();
-      if (existing) {
-        await supabase
-          .from("render_credits")
-          .update({
-            balance: (existing.balance ?? 0) + qty,
-            total_purchased: (existing.total_purchased ?? 0) + qty,
-          })
-          .eq("company_id", companyId);
-      } else {
-        await supabase.from("render_credits").insert({
-          company_id: companyId,
-          balance: qty,
-          total_purchased: qty,
-          total_used: 0,
-        });
-      }
+      // Accredito ATOMICO render (lock FOR UPDATE + upsert + ledger): elimina la
+      // race read-modify-write su retry concorrenti. p_delta = render acquistati.
+      const { error: rndErr } = await supabase.rpc("adjust_render_credits_atomic", {
+        p_company_id: companyId,
+        p_delta: qty,
+        p_reason: `Acquisto render via Stripe (${session.id})`,
+        p_adjusted_by: null,
+      });
+      if (rndErr) throw new Error(`adjust_render_credits_atomic failed: ${rndErr.message}`);
     }
     return;
   }

@@ -672,6 +672,7 @@ Deno.serve(async (req) => {
 
     // Validate promo code if provided
     let stripeCouponId: string | null = null;
+    let promoToConsume: { id: unknown; used: number } | null = null;
     if (promo_code) {
       const { data: promoRow } = await supabaseAdmin
         .from("promo_codes" as never)
@@ -686,12 +687,10 @@ Deno.serve(async (req) => {
         const exhausted = promoRow.max_uses != null && (promoRow.used_count as number) >= (promoRow.max_uses as number);
         if (!expired && !exhausted) {
           stripeCouponId = (promoRow.stripe_coupon_id as string | null) ?? null;
-          // Mark usage
-          await supabaseAdmin
-            .from("promo_codes" as never)
-            .update({ used_count: (promoRow.used_count as number) + 1 } as never)
-            .eq("id", promoRow.id);
-          console.log(`[checkout] Promo code ${promo_code} applied (coupon: ${stripeCouponId})`);
+          // Consuma l'uso SOLO dopo che la sessione Stripe è creata (sotto): così
+          // un errore di creazione sessione non "brucia" il codice senza sconto.
+          promoToConsume = { id: promoRow.id, used: promoRow.used_count as number };
+          console.log(`[checkout] Promo code ${promo_code} valid (coupon: ${stripeCouponId})`);
         } else {
           console.warn(`[checkout] Promo code ${promo_code} invalid: expired=${expired} exhausted=${exhausted}`);
         }
@@ -748,6 +747,14 @@ Deno.serve(async (req) => {
         status: 400,
         headers: { ...getCorsHeaders(req), "Content-Type": "application/json" },
       });
+    }
+
+    // Sessione creata con successo: ora è sicuro consumare l'uso del codice promo.
+    if (promoToConsume) {
+      await supabaseAdmin
+        .from("promo_codes" as never)
+        .update({ used_count: promoToConsume.used + 1 } as never)
+        .eq("id", promoToConsume.id);
     }
 
     return new Response(
