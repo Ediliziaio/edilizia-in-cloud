@@ -13,8 +13,9 @@
  * Step 8 — Generazione PDF + emissione
  */
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useBundlesList, type Bundle } from "@/hooks/useBundles";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -28,6 +29,7 @@ import {
   Sun,
   Sparkles,
   Loader2,
+  Compass,
   AlertTriangle,
   TrendingUp,
   TrendingDown,
@@ -36,6 +38,10 @@ import {
   RefreshCw,
   X,
   Copy,
+  Home,
+  Building2,
+  Plus,
+  Wallet,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { FvContactPicker } from "@/components/fotovoltaico/FvContactPicker";
@@ -112,12 +118,12 @@ import {
 //   → ./FotovoltaicoWizard/helpers.ts
 import type { WizardData } from "./FotovoltaicoWizard/types";
 import {
-  isCoordinataItalia, validaIseeReddito, calcolaCapienzaWarning,
+  isCoordinataItalia,
   loadPersistedDraft, savePersistedDraft, clearPersistedDraft,
 } from "./FotovoltaicoWizard/helpers";
 
 // MP-MKT-001: INITIAL estratto in ./FotovoltaicoWizard/constants.ts
-import { INITIAL } from "./FotovoltaicoWizard/constants";
+import { INITIAL, PAGAMENTO_PRESETS } from "./FotovoltaicoWizard/constants";
 
 const formatEur = (n: number) =>
   `€ ${n.toLocaleString("it-IT", { maximumFractionDigits: 0 })}`;
@@ -190,6 +196,7 @@ export default function FotovoltaicoWizard() {
             window.location.reload();
           },
         },
+        closeButton: true, // X per chiudere il toast senza ricominciare
         duration: 8000,
       });
     }
@@ -257,6 +264,9 @@ export default function FotovoltaicoWizard() {
   const { data: inverter = [] } = useArticoliFv("inverter");
   const { data: accumuli = [] } = useArticoliFv("accumulo");
   const { data: tariffeFv = [] } = useTariffeFv();
+  // Kit/offerte FV: i bundle con fv_kwp valorizzato (indipendente dal vertical
+  // dell'azienda, che può essere "generico" pur avendo il modulo FV). Filtro in Step5.
+  const { bundles: kitFvBundles } = useBundlesList();
   const { data: fvTemplate } = useTemplatePdf();
   const { data: serviziCatalogo = [] } = useServiziCatalogo();
   const { data: progettoEsistente } = useProgetto(progettoId ?? undefined);
@@ -360,6 +370,15 @@ export default function FotovoltaicoWizard() {
       capacita_accumulo_kwh: progettoEsistente.capacita_accumulo_kwh ?? 0,
       con_wallbox: progettoEsistente.con_wallbox ?? false,
       con_ottimizzatori: progettoEsistente.con_ottimizzatori ?? false,
+      kit_bundle_id: (progettoEsistente as { kit_bundle_id?: string | null }).kit_bundle_id ?? null,
+      kit_nome: (progettoEsistente as { kit_nome?: string | null }).kit_nome ?? null,
+      kit_prezzo: (progettoEsistente as { kit_prezzo?: number | null }).kit_prezzo ?? null,
+      layout_overlay:
+        (progettoEsistente as { layout_overlay?: { x: number; y: number; rot: number; cols: number } | null })
+          .layout_overlay ?? null,
+      modalita_pagamento:
+        (progettoEsistente as { modalita_pagamento?: WizardData["modalita_pagamento"] })
+          .modalita_pagamento ?? INITIAL.modalita_pagamento,
     }));
     // Marca tutti gli step "passati" del progetto come completati.
     // Un progetto già emesso ha tutti gli 8 step completati.
@@ -440,9 +459,10 @@ export default function FotovoltaicoWizard() {
       }
       case 2: {
         if (!data.indirizzo.trim()) return { valido: false, motivo: "Indirizzo obbligatorio" };
-        if (data.latitudine == null || data.longitudine == null)
-          return { valido: false, motivo: "Inserisci latitudine e longitudine" };
-        if (!isCoordinataItalia(data.latitudine, data.longitudine))
+        // Coordinate: consigliate per la stima solare (Solar API/PVGIS) ma NON bloccano
+        // l'avanzamento — con l'autocomplete si compilano da sole; se il geocoding non le
+        // trova l'utente può proseguire e rifinirle dopo. Se PRESENTI, devono essere in Italia.
+        if (data.latitudine != null && data.longitudine != null && !isCoordinataItalia(data.latitudine, data.longitudine))
           return {
             valido: false,
             motivo: `Coordinate fuori Italia (range valido: lat ${ITALIA_LAT_MIN}-${ITALIA_LAT_MAX}, lng ${ITALIA_LNG_MIN}-${ITALIA_LNG_MAX})`,
@@ -452,8 +472,6 @@ export default function FotovoltaicoWizard() {
       case 3: {
         if (data.consumo_annuo_kwh == null || data.consumo_annuo_kwh < 500)
           return { valido: false, motivo: "Consumo annuo minimo 500 kWh" };
-        const isee_err = validaIseeReddito(data.isee, data.reddito_annuo_dichiarato);
-        if (isee_err) return { valido: false, motivo: isee_err };
         return { valido: true };
       }
       case 4: {
@@ -464,6 +482,12 @@ export default function FotovoltaicoWizard() {
         return { valido: true };
       }
       case 5: {
+        // Kit FV: se hai scelto un kit dal listino basta quello (porta kWp + prezzo).
+        if (data.kit_bundle_id) {
+          return data.potenza_kwp > 0
+            ? { valido: true }
+            : { valido: false, motivo: "Il kit selezionato non ha una potenza (kWp) valida" };
+        }
         if (data.potenza_kwp <= 0 || data.numero_pannelli_scelti <= 0)
           return { valido: false, motivo: "Configura almeno un pannello" };
         // Fix #17 Sprint 3: pannello e inverter sono obbligatori per il calcolo
@@ -586,7 +610,13 @@ export default function FotovoltaicoWizard() {
 
   // ─── Step 3 → salva consumi ──────────────────────────────────────────────
   const handleSalvaStep3 = async () => {
-    if (!progettoId) return;
+    if (!progettoId) {
+      // Nessun progetto creato (es. Fase 1 non salvata correttamente): niente
+      // return silenzioso — "Avanti" sembrava non funzionare. Dai feedback + recupera.
+      toast.error("Completa la Fase 1 (Cliente) e premi Avanti per creare il progetto, poi prosegui.");
+      goTo(1);
+      return;
+    }
     setSalvando(true);
     setAutoSaveState("saving");
     try {
@@ -795,6 +825,10 @@ export default function FotovoltaicoWizard() {
           capacita_accumulo_kwh: data.capacita_accumulo_kwh,
           con_wallbox: data.con_wallbox,
           con_ottimizzatori: data.con_ottimizzatori,
+          kit_bundle_id: data.kit_bundle_id,
+          kit_nome: data.kit_nome,
+          kit_prezzo: data.kit_prezzo,
+          layout_overlay: data.layout_overlay,
         } as never,
       });
 
@@ -816,6 +850,28 @@ export default function FotovoltaicoWizard() {
         ordinamento: number;
       }> = [];
 
+      if (data.kit_bundle_id && data.kit_prezzo != null) {
+        // Kit FV: un'unica voce col prezzo d'offerta del kit (chiavi in mano).
+        // Costo stimato al 75% del prezzo (margine ~25%) in assenza del dettaglio voci.
+        const venditaKit = data.kit_prezzo;
+        const nettoKit = Math.round(venditaKit * 0.75);
+        comp.push({
+          progetto_id: progettoId,
+          articolo_id: null,
+          categoria: "altro",
+          descrizione: data.kit_nome ?? `Kit FV ${data.potenza_kwp} kWp`,
+          quantita: 1,
+          unita_misura: "kit",
+          prezzo_unitario_netto: nettoKit,
+          prezzo_unitario_vendita: venditaKit,
+          margine_pct: venditaKit > 0 ? (venditaKit - nettoKit) / venditaKit : null,
+          potenza_unitaria_w: null,
+          potenza_unitaria_kw: data.potenza_kwp,
+          capacita_kwh: data.con_accumulo ? data.capacita_accumulo_kwh : null,
+          garanzia_anni: 25,
+          ordinamento: 1,
+        });
+      } else {
       const pannello = pannelli.find((p) => (p as { id: string }).id === data.pannello_id);
       if (pannello) {
         const p = pannello as Record<string, unknown>;
@@ -901,6 +957,7 @@ export default function FotovoltaicoWizard() {
           });
         }
       }
+      } // chiude il ramo "configurazione manuale" (vs kit)
 
       await upsertComponenti.mutateAsync({
         progetto_id: progettoId,
@@ -1100,6 +1157,7 @@ export default function FotovoltaicoWizard() {
           finanziamento_taeg: taegPct,
           finanziamento_tan: tanPct,
           finanziamento_totale_dovuto_eur: totaleDovuto,
+          modalita_pagamento: data.modalita_pagamento,
         } as never,
       });
       if (!mountedRef.current) return;
@@ -1442,9 +1500,11 @@ export default function FotovoltaicoWizard() {
         current={step}
         completed={completedSteps}
         onSelect={(n) => {
-          // Fix #15 Sprint 3: feedback su click tab futuro non raggiungibile
+          // Tornare INDIETRO è sempre consentito (n <= step): una fase già vista
+          // si può sempre rivedere/correggere. In avanti solo verso fasi completate
+          // o la fase immediatamente successiva (validazione su "Avanti" invariata).
           const isClickable =
-            completedSteps.has(n) || n === step || n === step + 1;
+            n <= step || completedSteps.has(n) || n === step + 1;
           if (!isClickable) {
             toast.info(
               `Completa la fase ${step} prima di passare alla fase ${n}.`,
@@ -1452,7 +1512,15 @@ export default function FotovoltaicoWizard() {
             );
             return;
           }
-          goTo(n);
+          // Avanti di una fase via stepper → passa da goNext (valida + SALVA + crea
+          // il progetto), come il bottone "Avanti". Senza, saltando avanti con lo
+          // stepper il progetto non veniva creato (progettoId null → "Avanti" delle
+          // fasi successive falliva). Indietro / fasi già completate → goTo libero.
+          if (n === step + 1 && !completedSteps.has(n)) {
+            void goNext();
+          } else {
+            goTo(n);
+          }
         }}
       />
 
@@ -1481,6 +1549,7 @@ export default function FotovoltaicoWizard() {
               inverter={inverter as never}
               accumuli={accumuli as never}
               tariffeFv={tariffeFv}
+              kitFv={kitFvBundles}
               serviziCatalogoCount={serviziCatalogo.length}
             />
           )}
@@ -1660,6 +1729,63 @@ function Step2Immobile({
   // quando il blur scatta senza che l'utente abbia cambiato il testo.
   const lastGeocodedRef = useRef<string>("");
 
+  // ── Autocomplete indirizzo (Google Places via maps-proxy), come il campo "Luogo"
+  //    altrove: suggerimenti mentre digiti; alla selezione comune/prov/CAP/coordinate
+  //    si compilano da soli (niente click su "Trova coordinate").
+  const [acPredictions, setAcPredictions] = useState<{ place_id: string; description: string }[]>([]);
+  const [acOpen, setAcOpen] = useState(false);
+  const [acLoading, setAcLoading] = useState(false);
+  const acDebounce = useRef<ReturnType<typeof setTimeout>>();
+  const acWrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (acWrapRef.current && !acWrapRef.current.contains(e.target as Node)) setAcOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const fetchAcPredictions = async (q: string) => {
+    if (q.trim().length < 3) { setAcPredictions([]); setAcOpen(false); return; }
+    setAcLoading(true);
+    try {
+      const { data: r, error } = await supabase.functions.invoke("maps-proxy", {
+        body: { action: "autocomplete", query: q, country: "it" },
+      });
+      if (!error && (r as { predictions?: { place_id: string; description: string }[] })?.predictions) {
+        setAcPredictions((r as { predictions: { place_id: string; description: string }[] }).predictions);
+        setAcOpen(true);
+      }
+    } catch { /* fallback: inserimento manuale */ } finally { setAcLoading(false); }
+  };
+
+  const handleIndirizzoChange = (val: string) => {
+    update("indirizzo", val);
+    if (acDebounce.current) clearTimeout(acDebounce.current);
+    acDebounce.current = setTimeout(() => void fetchAcPredictions(val), 300);
+  };
+
+  const selectAcPrediction = async (p: { place_id: string; description: string }) => {
+    setAcOpen(false);
+    setAcLoading(true);
+    try {
+      const { data: d, error } = await supabase.functions.invoke("maps-proxy", {
+        body: { action: "place-details", place_id: p.place_id },
+      });
+      const det = d as { formatted_address?: string; city?: string; province?: string; postal_code?: string; lat?: number; lng?: number } | null;
+      if (!error && det) {
+        update("indirizzo", det.formatted_address || p.description);
+        if (det.city) update("comune", det.city);
+        if (det.province) update("provincia", det.province);
+        if (det.postal_code) update("cap", det.postal_code);
+        if (det.lat != null) update("latitudine", Math.round(det.lat * 1e6) / 1e6);
+        if (det.lng != null) update("longitudine", Math.round(det.lng * 1e6) / 1e6);
+        lastGeocodedRef.current = det.formatted_address || p.description;
+      }
+    } catch { /* fallback */ } finally { setAcLoading(false); }
+  };
+
   // Geocoding indirizzo→coordinate (edge fv-geocode). Se non configurato,
   // l'utente resta sull'inserimento manuale (fallback graceful).
   // silent=true: invocato in automatico al blur del campo indirizzo —
@@ -1729,36 +1855,48 @@ function Step2Immobile({
         title="Immobile"
         subtitle={
           <>
-            Indirizzo dove sarà installato l'impianto e geolocalizzazione (necessaria per Solar API/PVGIS).
-            Usa <strong>"Trova coordinate"</strong> per ricavarle dall'indirizzo.
+            Indirizzo dove sarà installato l'impianto. Scegli un <strong>suggerimento</strong> mentre digiti
+            e comune, provincia, CAP e coordinate (per Solar API/PVGIS) si compilano da soli.
           </>
         }
       />
 
       <div className="grid lg:grid-cols-2 gap-4">
         <FvCard title="Indirizzo impianto">
-          <div className="mb-3">
+          <div className="mb-3" ref={acWrapRef}>
             <Label>Indirizzo completo *</Label>
-            <Input
-              placeholder="Via Roma 12, 20100 Milano (MI)"
-              value={data.indirizzo}
-              onChange={(e) => update("indirizzo", e.target.value)}
-              onBlur={handleIndirizzoBlur}
-              autoComplete="street-address"
-            />
+            <div className="relative">
+              <Input
+                placeholder="Inizia a digitare: Via Roma 12, Milano…"
+                value={data.indirizzo}
+                onChange={(e) => handleIndirizzoChange(e.target.value)}
+                onFocus={() => acPredictions.length > 0 && setAcOpen(true)}
+                onBlur={handleIndirizzoBlur}
+                autoComplete="off"
+              />
+              {acLoading && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+              {acOpen && acPredictions.length > 0 && (
+                <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-56 overflow-auto">
+                  {acPredictions.map((p) => (
+                    <button
+                      key={p.place_id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => void selectAcPrediction(p)}
+                    >
+                      {p.description}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Comune, provincia, CAP e coordinate si compilano da soli appena esci dal campo.
+              Scegli un suggerimento: comune, provincia, CAP e coordinate si compilano da soli.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => cercaCoordinate()}
-            disabled={geoLoading}
-            className="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-100 disabled:opacity-60"
-          >
-            {geoLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span aria-hidden>📍</span>}
-            {geoLoading ? "Ricerca coordinate…" : "Trova coordinate dall'indirizzo"}
-          </button>
           <div className="grid sm:grid-cols-3 gap-3 mb-3">
             <div>
               <Label>Comune</Label>
@@ -1788,7 +1926,7 @@ function Step2Immobile({
           </div>
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <Label>Latitudine *</Label>
+              <Label>Latitudine <span className="font-normal text-muted-foreground">(consigliata)</span></Label>
               <Input
                 type="number"
                 step="0.000001"
@@ -1804,7 +1942,7 @@ function Step2Immobile({
               />
             </div>
             <div>
-              <Label>Longitudine *</Label>
+              <Label>Longitudine <span className="font-normal text-muted-foreground">(consigliata)</span></Label>
               <Input
                 type="number"
                 step="0.000001"
@@ -1872,19 +2010,56 @@ function Step2Immobile({
               placeholder="es. 1.350.000 per Milano"
             />
           </div>
-          <label className="flex items-center gap-2 mt-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={data.prima_casa}
-              onChange={(e) => update("prima_casa", e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
-            />
-            <span>Prima casa (abitazione principale)</span>
-          </label>
-          <FvCallout variant="tip" title="Aliquota IVA 10% applicata">
-            Per immobili residenziali (anche seconda casa) si applica l'IVA al 10%. Per attività
-            commerciali/industriali → IVA 22%.
-          </FvCallout>
+          {data.tipologia_immobile === "residenziale" ? (
+            <>
+              <div className="mt-3">
+                <Label className="mb-2 block font-medium">Tipo di abitazione</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => update("prima_casa", true)}
+                    className={`flex flex-col items-center gap-1.5 rounded-xl border-2 p-3 text-sm transition-colors ${
+                      data.prima_casa
+                        ? "border-orange-500 bg-orange-50"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <Home className={`h-5 w-5 ${data.prima_casa ? "text-orange-500" : "text-slate-400"}`} />
+                    <span className={`font-semibold ${data.prima_casa ? "text-orange-700" : "text-slate-600"}`}>
+                      Prima casa
+                    </span>
+                    <span className="text-xs font-bold text-emerald-600">Detrazione 50%</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => update("prima_casa", false)}
+                    className={`flex flex-col items-center gap-1.5 rounded-xl border-2 p-3 text-sm transition-colors ${
+                      !data.prima_casa
+                        ? "border-orange-500 bg-orange-50"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <Building2 className={`h-5 w-5 ${!data.prima_casa ? "text-orange-500" : "text-slate-400"}`} />
+                    <span className={`font-semibold ${!data.prima_casa ? "text-orange-700" : "text-slate-600"}`}>
+                      Seconda casa
+                    </span>
+                    <span className="text-xs font-bold text-amber-600">Detrazione 36%</span>
+                  </button>
+                </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Detrazione IRPEF spalmata in 10 anni · plafond €96.000 · prima casa max €48.000 recuperati · seconda casa max €34.560
+                </p>
+              </div>
+              <FvCallout variant="tip" title="Aliquota IVA 10% applicata">
+                Per immobili residenziali si applica l'IVA al 10%.
+              </FvCallout>
+            </>
+          ) : (
+            <FvCallout variant="tip" title="IVA 22% — detrazione abitativa non applicabile">
+              Per capannoni, uffici e immobili non residenziali si applica l'IVA al 22%. La
+              detrazione IRPEF 50%/36% è riservata agli immobili residenziali.
+            </FvCallout>
+          )}
         </FvCard>
       </div>
     </>
@@ -1951,7 +2126,7 @@ function Step3Consumi({
         />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-4">
+      <div className="grid gap-4">
         <FvCard title="Dati consumo">
           <div className="grid sm:grid-cols-2 gap-3 mb-3">
             <div>
@@ -2023,67 +2198,6 @@ function Step3Consumi({
           </div>
         </FvCard>
 
-        {(data.archetipo === "privato_prima" ||
-          data.archetipo === "privato_seconda" ||
-          data.archetipo === "privato_isee") && (
-          <FvCard title="Dati fiscali (per incentivi)">
-            <div className="grid sm:grid-cols-3 gap-3">
-              <div>
-                <Label>ISEE €</Label>
-                <Input
-                  type="number"
-                  value={data.isee ?? ""}
-                  onChange={(e) =>
-                    update("isee", e.target.value ? Number(e.target.value) : null)
-                  }
-                  placeholder="solo Reddito Energetico"
-                  aria-invalid={
-                    !!validaIseeReddito(data.isee, data.reddito_annuo_dichiarato)
-                  }
-                />
-              </div>
-              <div>
-                <Label>N° figli</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={data.numero_figli}
-                  onChange={(e) => update("numero_figli", Number(e.target.value))}
-                />
-              </div>
-              <div>
-                <Label>Reddito annuo lordo €</Label>
-                <Input
-                  type="number"
-                  value={data.reddito_annuo_dichiarato ?? ""}
-                  onChange={(e) =>
-                    update(
-                      "reddito_annuo_dichiarato",
-                      e.target.value ? Number(e.target.value) : null,
-                    )
-                  }
-                  placeholder="check capienza IRPEF"
-                />
-              </div>
-            </div>
-            {/* Validation warning live (B6) */}
-            {validaIseeReddito(data.isee, data.reddito_annuo_dichiarato) && (
-              <FvCallout variant="warn" title="Dati incoerenti">
-                {validaIseeReddito(data.isee, data.reddito_annuo_dichiarato)}
-              </FvCallout>
-            )}
-            {/* Capienza fiscale insufficiente (B6/GAP10) */}
-            {calcolaCapienzaWarning(data.archetipo, data.reddito_annuo_dichiarato) && (
-              <FvCallout variant="warn" title="Capienza IRPEF insufficiente">
-                {calcolaCapienzaWarning(data.archetipo, data.reddito_annuo_dichiarato)}
-              </FvCallout>
-            )}
-            <FvCallout variant="info">
-              ISEE ≤ 15.000 € sblocca il bando Reddito Energetico (contributo a fondo perduto).
-              Reddito serve per stimare la capienza fiscale per la detrazione 50%.
-            </FvCallout>
-          </FvCard>
-        )}
       </div>
     </>
   );
@@ -2092,6 +2206,240 @@ function Step3Consumi({
 // ============================================================================
 // STEP 4 — TETTO
 // ============================================================================
+// Vista satellitare del tetto (Reonic-like): immagine reale via maps-proxy
+// (Google Static Maps → fallback HERE) + layout indicativo dei moduli. Degrada
+// con grazia: se nessuna chiave/API risponde, la card non viene mostrata.
+function RoofSatelliteView({
+  lat,
+  lng,
+  numeroPannelli,
+  kwp,
+  azimut,
+  tilt,
+  fonte,
+  title,
+  layout,
+  onLayoutChange,
+  editable,
+}: {
+  lat: number;
+  lng: number;
+  numeroPannelli?: number | null;
+  kwp?: number | null;
+  azimut?: string | null;
+  tilt?: number | null;
+  fonte?: string | null;
+  title?: string;
+  layout?: { x: number; y: number; rot: number; cols: number } | null;
+  onLayoutChange?: (l: { x: number; y: number; rot: number; cols: number }) => void;
+  editable?: boolean;
+}) {
+  const [img, setImg] = useState<string | null>(null);
+  const [state, setState] = useState<"loading" | "ok" | "error">("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+    setState("loading");
+    setImg(null);
+    (async () => {
+      try {
+        const { data: r, error } = await supabase.functions.invoke("maps-proxy", {
+          body: { action: "staticmap", lat, lng, zoom: 20, w: 700, h: 430 },
+        });
+        if (cancelled) return;
+        const url = (r as { dataUrl?: string } | null)?.dataUrl;
+        if (error || !url) {
+          setState("error");
+          return;
+        }
+        setImg(url);
+        setState("ok");
+      } catch {
+        if (!cancelled) setState("error");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lat, lng]);
+
+  if (state === "error") return null; // niente immagine → nessuna card (graceful)
+
+  const nReali = Math.max(numeroPannelli ?? 0, 0);
+  const fonteLabel =
+    fonte === "solar_api" ? "Google Solar API" : fonte === "pvgis" ? "PVGIS" : "Satellite";
+  const isEdit = !!(editable && onLayoutChange);
+  const L = layout ?? { x: 0, y: 0, rot: 0, cols: 6 };
+  const cols = Math.min(Math.max(L.cols || 6, 2), 12);
+  const nShow = Math.min(nReali, isEdit ? 80 : 30); // editor: conteggio reale
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!isEdit) return;
+    e.preventDefault();
+    const c = containerRef.current;
+    if (!c) return;
+    const rect = c.getBoundingClientRect();
+    const start = { sx: e.clientX, sy: e.clientY, ox: L.x, oy: L.y };
+    const clamp = (v: number) => Math.min(Math.max(v, -45), 45);
+    const move = (ev: globalThis.PointerEvent) => {
+      const dx = ((ev.clientX - start.sx) / rect.width) * 100;
+      const dy = ((ev.clientY - start.sy) / rect.height) * 100;
+      onLayoutChange!({ ...L, x: clamp(start.ox + dx), y: clamp(start.oy + dy) });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  const panelGrid =
+    nShow > 0 ? (
+      <div
+        className="grid gap-1 p-2 rounded-lg"
+        style={{
+          gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))`,
+          background: "rgba(15,23,42,0.16)",
+        }}
+      >
+        {Array.from({ length: nShow }).map((_, i) => (
+          <div
+            key={i}
+            className="w-6 h-4 rounded-[2px] border border-sky-200/70 shadow-sm"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(37,99,235,0.72), rgba(30,58,138,0.78))",
+            }}
+          />
+        ))}
+      </div>
+    ) : null;
+
+  return (
+    <FvCard title={title ?? "Vista satellitare del tetto"} className="mt-4">
+      <div
+        ref={containerRef}
+        className="relative w-full overflow-hidden rounded-xl bg-slate-900/5 ring-1 ring-slate-200"
+        style={{ aspectRatio: "700 / 430" }}
+      >
+        {state === "loading" && (
+          <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Carico l'immagine del tetto…
+          </div>
+        )}
+        {img && (
+          <img
+            src={img}
+            alt="Vista satellitare del tetto"
+            className="absolute inset-0 w-full h-full object-cover"
+            draggable={false}
+          />
+        )}
+        {img && (
+          <div
+            className="absolute inset-x-0 bottom-0 h-2/5 pointer-events-none"
+            style={{ background: "linear-gradient(to top, rgba(2,6,23,0.55), transparent)" }}
+          />
+        )}
+        {/* Array pannelli: in editor posizionabile/ruotabile, altrimenti centrato indicativo */}
+        {img && panelGrid && isEdit && (
+          <div
+            className="absolute select-none"
+            style={{
+              left: `${50 + L.x}%`,
+              top: `${50 + L.y}%`,
+              transform: `translate(-50%, -50%) rotate(${L.rot}deg)`,
+              cursor: "move",
+              touchAction: "none",
+            }}
+            onPointerDown={onPointerDown}
+          >
+            {panelGrid}
+          </div>
+        )}
+        {img && panelGrid && !isEdit && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            {panelGrid}
+          </div>
+        )}
+        {/* Badge sorgente (alto sx) */}
+        {img && (
+          <div
+            className="absolute top-2.5 left-2.5 px-2.5 py-1 rounded-md text-[11px] font-semibold text-white inline-flex items-center gap-1"
+            style={{ background: "rgba(2,6,23,0.55)" }}
+          >
+            <Sparkles className="h-3 w-3 text-amber-300" /> {fonteLabel}
+          </div>
+        )}
+        {/* Orientamento + inclinazione (alto dx) */}
+        {img && (azimut || tilt != null) && (
+          <div
+            className="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-md text-[11px] font-medium text-white inline-flex items-center gap-1"
+            style={{ background: "rgba(2,6,23,0.55)" }}
+          >
+            <Compass className="h-3 w-3" /> {azimut ?? "—"}
+            {tilt != null ? ` · ${tilt}°` : ""}
+          </div>
+        )}
+        {/* Titolo (basso sx) */}
+        {img && (
+          <div className="absolute bottom-2.5 left-3 text-white">
+            <div className="text-sm font-bold leading-tight">
+              {nReali > 0 ? `${nReali} moduli` : "Tetto analizzato"}
+              {kwp != null ? ` · ${kwp.toFixed(1)} kWp` : ""}
+            </div>
+            <div className="text-[10px] text-white/80">
+              {isEdit ? "trascina per posizionare" : "disposizione indicativa"}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Controlli editor (solo Fase 5 editabile) */}
+      {isEdit && img && (
+        <div className="mt-3 grid sm:grid-cols-2 gap-3">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <Label className="text-xs">Rotazione array</Label>
+              <span className="text-xs font-medium text-slate-600 tabular-nums">{L.rot}°</span>
+            </div>
+            <input
+              type="range"
+              min={-90}
+              max={90}
+              value={L.rot}
+              onChange={(e) => onLayoutChange!({ ...L, rot: Number(e.target.value) })}
+              className="w-full accent-orange-500"
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <Label className="text-xs">Colonne</Label>
+              <span className="text-xs font-medium text-slate-600 tabular-nums">{cols}</span>
+            </div>
+            <input
+              type="range"
+              min={2}
+              max={12}
+              value={cols}
+              onChange={(e) => onLayoutChange!({ ...L, cols: Number(e.target.value) })}
+              className="w-full accent-orange-500"
+            />
+          </div>
+        </div>
+      )}
+
+      <p className="text-xs text-slate-400 mt-1.5">
+        {isEdit
+          ? "Trascina l'array sul tetto e ruotalo per allinearlo alla falda. Il numero di moduli si regola dallo slider “Numero pannelli”."
+          : "Immagine satellitare a scopo illustrativo; la disposizione reale dei moduli si definisce in sopralluogo."}
+      </p>
+    </FvCard>
+  );
+}
+
 function Step4Tetto({
   data,
   update,
@@ -2169,6 +2517,18 @@ function Step4Tetto({
           </button>
         )}
       </FvCard>
+
+      {data.latitudine != null && data.longitudine != null && (
+        <RoofSatelliteView
+          lat={data.latitudine}
+          lng={data.longitudine}
+          numeroPannelli={data.numero_pannelli_max}
+          kwp={data.potenza_max_kwp}
+          azimut={data.azimut_tetto}
+          tilt={data.inclinazione_tetto}
+          fonte={data.fonte_dati_tetto}
+        />
+      )}
 
       {data.fonte_dati_tetto === "manuale" && (
         <FvCard title="Parametri manuali" className="mt-4">
@@ -2361,6 +2721,7 @@ function Step5Configurazione({
   inverter,
   accumuli,
   tariffeFv,
+  kitFv,
   serviziCatalogoCount,
 }: {
   data: WizardData;
@@ -2370,6 +2731,7 @@ function Step5Configurazione({
   inverter: Array<Record<string, unknown>>;
   accumuli: Array<Record<string, unknown>>;
   tariffeFv: FvTariffaAziendale[];
+  kitFv: Bundle[];
   serviziCatalogoCount: number;
 }) {
   // Auto-calcolo potenza_kwp da numero pannelli. In sola lettura NON scrive:
@@ -2377,6 +2739,7 @@ function Step5Configurazione({
   // partirebbe spurio al mount dello step.
   useEffect(() => {
     if (readOnlyMode) return;
+    if (data.kit_bundle_id) return; // kit: la potenza arriva dal kit, niente auto-calcolo
     if (data.pannello_id) {
       const p = pannelli.find((x) => (x as { id: string }).id === data.pannello_id);
       const w = (p?.potenza_w as number) ?? 540;
@@ -2385,7 +2748,7 @@ function Step5Configurazione({
       update("potenza_kwp", Math.round((data.numero_pannelli_scelti * 540) / 10) / 100);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.numero_pannelli_scelti, data.pannello_id]);
+  }, [data.numero_pannelli_scelti, data.pannello_id, data.kit_bundle_id]);
 
   // Auto-suggerimento accumulo (5 kWh per profili serali/misti).
   const suggerisciAccumulo = shouldSuggestFvAccumulo(data.profilo_consumo);
@@ -2445,6 +2808,86 @@ function Step5Configurazione({
         }
       />
 
+      {/* Kit/offerta dal listino (Bundle FV): prefill potenza + accumulo + prezzo */}
+      {kitFv.some((k) => k.attivo && k.fv_kwp != null) && (
+        <div className="mb-4">
+          <FvCard title="Parti da un kit / offerta del listino">
+            {data.kit_bundle_id ? (
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="text-sm">
+                  <span className="font-semibold text-emerald-700">{data.kit_nome}</span>
+                  <span className="text-slate-600">
+                    {" "}· {data.potenza_kwp} kWp
+                    {data.con_accumulo && data.capacita_accumulo_kwh > 0
+                      ? ` · ${data.capacita_accumulo_kwh} kWh`
+                      : ""}
+                    {data.kit_prezzo != null
+                      ? ` · ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(data.kit_prezzo)}`
+                      : ""}
+                  </span>
+                </div>
+                {!readOnlyMode && (
+                  <button
+                    type="button"
+                    className="text-xs text-slate-500 underline hover:text-slate-700"
+                    onClick={() => {
+                      update("kit_bundle_id", null);
+                      update("kit_nome", null);
+                      update("kit_prezzo", null);
+                    }}
+                  >
+                    Rimuovi kit / configura manualmente
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 flex-wrap">
+                <p className="text-sm text-slate-600 flex-1 min-w-[200px]">
+                  Scegli un kit pronto: imposta automaticamente potenza, accumulo e prezzo. Le fasi successive usano il prezzo del kit.
+                </p>
+                <Select
+                  value=""
+                  disabled={readOnlyMode}
+                  onValueChange={(id) => {
+                    const k = kitFv.find((b) => b.id === id);
+                    if (!k) return;
+                    update("kit_bundle_id", k.id);
+                    update("kit_nome", k.nome);
+                    update("kit_prezzo", k.prezzo_offerta ?? null);
+                    if (k.fv_kwp != null) {
+                      update("potenza_kwp", Number(k.fv_kwp));
+                      // Deriva il n° moduli dal kWp del kit (pannello rif. 540 W) così
+                      // l'array/layout e i KPI sono coerenti con il kit scelto.
+                      update("numero_pannelli_scelti", Math.max(1, Math.round((Number(k.fv_kwp) * 1000) / 540)));
+                    }
+                    const acc = Number(k.fv_accumulo_kwh ?? 0);
+                    update("con_accumulo", acc > 0);
+                    update("capacita_accumulo_kwh", acc);
+                  }}
+                >
+                  <SelectTrigger className="w-[280px]">
+                    <SelectValue placeholder="Scegli un kit…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {kitFv
+                      .filter((k) => k.attivo && k.fv_kwp != null)
+                      .map((k) => (
+                        <SelectItem key={k.id} value={k.id}>
+                          {k.nome} — {k.fv_kwp} kWp
+                          {k.fv_accumulo_kwh ? ` + ${k.fv_accumulo_kwh} kWh` : ""}
+                          {k.prezzo_offerta != null
+                            ? ` · ${new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Number(k.prezzo_offerta))}`
+                            : ""}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </FvCard>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <FvKpi label="Potenza" value={data.potenza_kwp.toFixed(2)} unit="kWp" variant="orange" />
         <FvKpi
@@ -2468,6 +2911,26 @@ function Step5Configurazione({
           variant="green"
         />
       </div>
+
+      {/* Vista satellitare con layout LIVE: trascinando lo slider "Numero pannelli"
+          l'overlay dei moduli e i kWp si aggiornano in tempo reale (stile Reonic). */}
+      {data.latitudine != null && data.longitudine != null && (
+        <div className="mb-4">
+          <RoofSatelliteView
+            lat={data.latitudine}
+            lng={data.longitudine}
+            numeroPannelli={data.numero_pannelli_scelti}
+            kwp={data.potenza_kwp}
+            azimut={data.azimut_tetto}
+            tilt={data.inclinazione_tetto}
+            fonte={data.fonte_dati_tetto}
+            title="Layout impianto sul tetto"
+            layout={data.layout_overlay}
+            onLayoutChange={(l) => update("layout_overlay", l)}
+            editable={!readOnlyMode}
+          />
+        </div>
+      )}
 
       {/* Progettazione elettrica: dimensionamento stringhe/MPPT (gap vs Reonic/Autarc) */}
       <FvDimensionamentoStringhe
@@ -2502,7 +2965,14 @@ function Step5Configurazione({
       <div className="grid lg:grid-cols-2 gap-4">
         <FvCard title="Dimensionamento">
           <div className="space-y-4">
-            <div>
+            {data.kit_bundle_id && (
+              <FvCallout variant="info" title="Definito dal kit">
+                Potenza, accumulo e numero moduli arrivano dal kit{" "}
+                <strong>{data.kit_nome}</strong>. Rimuovi il kit (riquadro in alto) per
+                configurare manualmente.
+              </FvCallout>
+            )}
+            <div className={data.kit_bundle_id ? "opacity-60 pointer-events-none" : ""}>
               <div className="flex items-center justify-between mb-2">
                 <Label>Numero pannelli</Label>
                 <span className="text-orange-600 font-bold text-lg tabular-nums">
@@ -2515,6 +2985,7 @@ function Step5Configurazione({
                 max={data.numero_pannelli_max ?? 60}
                 value={data.numero_pannelli_scelti}
                 onChange={(e) => update("numero_pannelli_scelti", Number(e.target.value))}
+                disabled={!!data.kit_bundle_id || readOnlyMode}
                 className="w-full accent-orange-500"
               />
               <p className="text-[11px] text-slate-500 mt-1">
@@ -2549,6 +3020,7 @@ function Step5Configurazione({
                     update("capacita_accumulo_kwh", v);
                   }
                 }}
+                disabled={!!data.kit_bundle_id || readOnlyMode}
                 className="w-full accent-orange-500"
               />
             </div>
@@ -2570,6 +3042,7 @@ function Step5Configurazione({
               <Select
                 value={data.pannello_id ?? ""}
                 onValueChange={(v) => update("pannello_id", v || null)}
+                disabled={!!data.kit_bundle_id || readOnlyMode}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleziona pannello…" />
@@ -2597,6 +3070,7 @@ function Step5Configurazione({
               <Select
                 value={data.inverter_id ?? ""}
                 onValueChange={(v) => update("inverter_id", v || null)}
+                disabled={!!data.kit_bundle_id || readOnlyMode}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleziona inverter…" />
@@ -2826,6 +3300,321 @@ function FvPaymentToggle({
         );
       })}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ModalitaPagamentoCard — schema di pagamento diretto (acconto / SAL / saldo),
+// come negli altri preventivi. Le % delle tranche sommano a 100; gli importi €
+// si ricalcolano sul prezzo di vendita IVA inclusa (l'ultima tranche assorbe
+// l'arrotondamento per far quadrare il totale). Si affianca al finanziamento.
+// ─────────────────────────────────────────────────────────────────────────────
+function ModalitaPagamentoCard({
+  data,
+  update,
+  investimento,
+  modalita,
+  rataPrestito,
+  durataMesi,
+}: {
+  data: WizardData;
+  update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
+  investimento: number;
+  modalita: WizardData["finanziamento_modalita"];
+  rataPrestito: number;
+  durataMesi: number;
+}) {
+  const mp =
+    data.modalita_pagamento ??
+    INITIAL.modalita_pagamento ?? { tranche: [], note: null, anticipo_pct: 0 };
+
+  const cardTitle = (
+    <span className="inline-flex items-center gap-2">
+      <Wallet className="h-4 w-4 text-orange-500" />
+      Modalità di pagamento
+    </span>
+  );
+
+  // Campo note condiviso da tutte le modalità.
+  const noteField = (
+    <div className="mt-4">
+      <Label className="text-xs text-slate-600">
+        Note / condizioni di pagamento (facoltative)
+      </Label>
+      <textarea
+        value={mp.note ?? ""}
+        onChange={(e) =>
+          update("modalita_pagamento", { ...mp, note: e.target.value || null })
+        }
+        rows={2}
+        placeholder="Es. Acconto tramite bonifico bancario. Saldo a collaudo e allaccio. IVA agevolata 10%."
+        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-400 resize-y"
+      />
+    </div>
+  );
+
+  // ═══ NOLEGGIO operativo: zero anticipo, canone mensile ═══════════════════
+  if (modalita === "noleggio") {
+    return (
+      <FvCard title={cardTitle} action={<FvChip variant="navy">Noleggio operativo</FvChip>} className="mt-4">
+        <p className="text-xs text-slate-500 mb-3">
+          Nel noleggio operativo il cliente <strong>non versa un anticipo</strong>:
+          paga un canone mensile tutto incluso. Comparirà nel preventivo PDF.
+        </p>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-wrap items-center gap-x-10 gap-y-2">
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Anticipo</div>
+            <div className="text-lg font-bold text-slate-900 tabular-nums">€ 0</div>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Canone mensile</div>
+            <div className="text-lg font-bold text-orange-600 tabular-nums">
+              {formatEur(rataPrestito)}<span className="text-sm font-medium text-slate-500">/mese</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Durata</div>
+            <div className="text-lg font-bold text-slate-900 tabular-nums">{durataMesi} mesi</div>
+          </div>
+        </div>
+        {noteField}
+      </FvCard>
+    );
+  }
+
+  // ═══ FINANZIATO (rate / tasso zero): anticipo in contanti + resto a rate ══
+  if (modalita === "rate" || modalita === "zero") {
+    const anticipoPct = Math.max(0, Math.min(100, Number(mp.anticipo_pct) || 0));
+    const anticipoEur = Math.round((investimento * anticipoPct) / 100);
+    const finanziatoEur = Math.max(0, investimento - anticipoEur);
+    // Rata sul capitale residuo: lineare nel capitale (esatto per ammortamento
+    // alla francese a parità di TAN/durata e per il tasso zero).
+    const rataScalata =
+      investimento > 0 ? Math.round(rataPrestito * (finanziatoEur / investimento)) : 0;
+    const setAnticipo = (v: number) =>
+      update("modalita_pagamento", {
+        ...mp,
+        anticipo_pct: Math.max(0, Math.min(100, Math.round(v))),
+      });
+    return (
+      <FvCard
+        title={cardTitle}
+        action={
+          <FvChip variant={modalita === "zero" ? "purple" : "green"}>
+            {modalita === "zero" ? "Tasso zero" : "Finanziato a rate"}
+          </FvChip>
+        }
+        className="mt-4"
+      >
+        <p className="text-xs text-slate-500 mb-3">
+          Con il finanziamento il cliente versa un <strong>anticipo in contanti</strong>{" "}
+          alla firma e rateizza il resto. Imposta l'anticipo: la rata si ricalcola
+          sul capitale residuo. Comparirà nel preventivo PDF.
+        </p>
+
+        {/* Anticipo: preset rapidi + input % */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <span className="text-xs font-medium text-slate-600 mr-1">Anticipo alla firma:</span>
+          {[0, 10, 20, 30].map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setAnticipo(p)}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors ${
+                anticipoPct === p
+                  ? "border-orange-500 bg-orange-50 text-orange-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              }`}
+            >
+              {p}%
+            </button>
+          ))}
+          <div className="relative w-20">
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={anticipoPct}
+              onChange={(e) => setAnticipo(Number(e.target.value) || 0)}
+              className="h-8 text-sm pr-6 text-right tabular-nums"
+            />
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+          </div>
+        </div>
+
+        {/* Riepilogo: anticipo + finanziato + rata */}
+        <div className="grid sm:grid-cols-3 gap-2">
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Anticipo alla firma</div>
+            <div className="text-lg font-bold text-slate-900 tabular-nums">{formatEur(anticipoEur)}</div>
+            <div className="text-[11px] text-slate-400">{anticipoPct}% del totale</div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Importo finanziato</div>
+            <div className="text-lg font-bold text-slate-900 tabular-nums">{formatEur(finanziatoEur)}</div>
+            <div className="text-[11px] text-slate-400">resto rateizzato</div>
+          </div>
+          <div className="rounded-xl border-2 border-orange-200 bg-orange-50 p-3">
+            <div className="text-[11px] uppercase tracking-wide text-orange-600">Rata mensile</div>
+            <div className="text-lg font-bold text-orange-700 tabular-nums">
+              {formatEur(rataScalata)}<span className="text-xs font-medium">/mese</span>
+            </div>
+            <div className="text-[11px] text-orange-600/80">
+              {durataMesi} rate{anticipoPct > 0 ? ` · senza anticipo ${formatEur(rataPrestito)}` : ""}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-2 text-right text-sm font-bold text-slate-700 tabular-nums">
+          Totale chiavi in mano · {formatEur(investimento)}
+        </div>
+
+        {noteField}
+      </FvCard>
+    );
+  }
+
+  // ═══ CASH (pagamento immediato): acconto / SAL / saldo ════════════════════
+  const tranche = mp.tranche;
+  const sommaPct = tranche.reduce((s, t) => s + (Number(t.pct) || 0), 0);
+  const sumOk = Math.abs(sommaPct - 100) < 0.01;
+
+  // Importi € per tranche: arrotonda al singolo €; se le % quadrano, l'ultima
+  // tranche assorbe la differenza così la somma è esattamente l'investimento.
+  const importi: number[] = (() => {
+    if (investimento <= 0) return tranche.map(() => 0);
+    const arr = tranche.map((t) =>
+      Math.round((investimento * (Number(t.pct) || 0)) / 100),
+    );
+    if (sumOk && arr.length > 0) {
+      arr[arr.length - 1] += investimento - arr.reduce((s, v) => s + v, 0);
+    }
+    return arr;
+  })();
+
+  const setTranche = (next: Array<{ label: string; pct: number }>) =>
+    update("modalita_pagamento", { ...mp, tranche: next });
+  const updateRow = (i: number, patch: Partial<{ label: string; pct: number }>) =>
+    setTranche(tranche.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
+  const removeRow = (i: number) =>
+    setTranche(tranche.filter((_, idx) => idx !== i));
+  const addRow = () =>
+    setTranche([...tranche, { label: "Nuova tranche", pct: 0 }]);
+
+  const activePreset = PAGAMENTO_PRESETS.find(
+    (p) => JSON.stringify(p.tranche) === JSON.stringify(tranche),
+  )?.id;
+
+  return (
+    <FvCard
+      title={
+        <span className="inline-flex items-center gap-2">
+          <Wallet className="h-4 w-4 text-orange-500" />
+          Modalità di pagamento
+        </span>
+      }
+      action={
+        <FvChip variant={sumOk ? "green" : "yellow"}>
+          {sumOk ? "✓ Totale 100%" : `⚠ Totale ${sommaPct.toFixed(0)}%`}
+        </FvChip>
+      }
+      className="mt-4"
+    >
+      <p className="text-xs text-slate-500 mb-3">
+        Pagamento immediato: come il cliente salda l'importo in contanti
+        (acconto, stati di avanzamento, saldo). Comparirà nel preventivo PDF.
+        Per rateizzare scegli "Rateale finanziato" qui sopra.
+      </p>
+
+      {/* Preset rapidi */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {PAGAMENTO_PRESETS.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => setTranche(p.tranche.map((t) => ({ ...t })))}
+            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors ${
+              activePreset === p.id
+                ? "border-orange-500 bg-orange-50 text-orange-700"
+                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Righe tranche */}
+      <div className="space-y-2">
+        {tranche.map((t, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <Input
+              value={t.label}
+              onChange={(e) => updateRow(i, { label: e.target.value })}
+              placeholder="Es. Acconto alla firma"
+              className="flex-1 h-9 text-sm"
+            />
+            <div className="relative w-20 shrink-0">
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={Number.isFinite(t.pct) ? t.pct : 0}
+                onChange={(e) =>
+                  updateRow(i, {
+                    pct: Math.max(0, Math.min(100, Number(e.target.value) || 0)),
+                  })
+                }
+                className="h-9 text-sm pr-6 text-right tabular-nums"
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                %
+              </span>
+            </div>
+            <div className="w-28 shrink-0 text-right text-sm font-semibold text-slate-800 tabular-nums">
+              {formatEur(importi[i] ?? 0)}
+            </div>
+            <button
+              type="button"
+              onClick={() => removeRow(i)}
+              disabled={tranche.length <= 1}
+              aria-label="Rimuovi tranche"
+              className="shrink-0 p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Aggiungi + totale */}
+      <div className="flex items-center justify-between mt-3">
+        <button
+          type="button"
+          onClick={addRow}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-dashed border-slate-300 text-slate-600 hover:border-orange-400 hover:text-orange-600"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Aggiungi tranche
+        </button>
+        <div
+          className={`text-sm font-bold tabular-nums ${
+            sumOk ? "text-emerald-600" : "text-amber-600"
+          }`}
+        >
+          Totale {sommaPct.toFixed(0)}% · {formatEur(investimento)}
+        </div>
+      </div>
+
+      {!sumOk && (
+        <p className="text-[11px] text-amber-600 mt-1.5">
+          La somma delle percentuali deve essere 100% perché gli importi
+          quadrino col totale.
+        </p>
+      )}
+
+      {noteField}
+    </FvCard>
   );
 }
 
@@ -3073,6 +3862,16 @@ function Step6Finanziario({
         topConsigliata={topAuto}
         noleggioEnabled={fvTemplate?.noleggio_operativo_attivo !== false}
         onChange={(modalita) => update("finanziamento_modalita", modalita)}
+      />
+
+      {/* MP: schema di pagamento diretto (acconto / SAL / saldo) — come gli altri preventivi */}
+      <ModalitaPagamentoCard
+        data={data}
+        update={update}
+        investimento={investimento}
+        modalita={data.finanziamento_modalita}
+        rataPrestito={rataMensilePrestito}
+        durataMesi={durataInfoMesi || (data.durata_mesi_scelta ?? 84)}
       />
 
       <div className="mb-4">

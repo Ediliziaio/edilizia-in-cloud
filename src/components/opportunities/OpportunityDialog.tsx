@@ -550,7 +550,7 @@ export function OpportunityDialog({ open, onOpenChange, pipelineId, pipelineName
                 {/* Owner + Follower + Call Center */}
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium">💼 Titolare</Label>
+                    <Label className="text-xs font-medium">💼 Venditore</Label>
                     <Select value={assignedTo || "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>
                       <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                       <SelectContent>

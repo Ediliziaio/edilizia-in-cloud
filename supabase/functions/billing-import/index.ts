@@ -75,23 +75,87 @@ Deno.serve(async (req) => {
     let failed = 0;
     const importErrors: string[] = [];
 
+    // Anagrafica: aggancia (o crea) il contatto cliente → invoices.client_id (FK marketing_contacts).
+    // Cache per-run su P.IVA/CF: più fatture dello stesso cliente puntano allo stesso contatto
+    // e non lo si ricrea. Best-effort: se fallisce, la fattura resta senza link (non blocca il sync).
+    const contactCache = new Map<string, string>();
+    const resolveClientId = async (x: any): Promise<string | null> => {
+      const vat = (x.clientVat || "").trim();
+      const cf = (x.clientFiscalCode || "").trim();
+      if (!vat && !cf) return null;
+      const key = (vat || cf).toUpperCase();
+      if (contactCache.has(key)) return contactCache.get(key)!;
+      try {
+        let q = supabase.from("marketing_contacts").select("id")
+          .eq("company_id", companyId).is("deleted_at", null).limit(1);
+        q = vat ? q.eq("vat_number", vat) : q.eq("fiscal_code", cf);
+        const { data: found } = await q.maybeSingle();
+        if (found?.id) { contactCache.set(key, found.id); return found.id; }
+        const { data: created } = await supabase.from("marketing_contacts").insert({
+          company_id: companyId,
+          first_name: (x.clientName || "").trim() || "Cliente",
+          company_name: x.clientName || null,
+          vat_number: vat || null,
+          fiscal_code: cf || null,
+          email: x.clientEmail || null,
+          address: x.clientAddress || null,
+          city: x.clientCity || null,
+          postal_code: x.clientZip || null,
+          country: x.clientCountry || "IT",
+          contact_type: "company",
+          source: "fatturazione",
+          tags: ["fatturazione"],
+          unsubscribed: false,
+          score: 0,
+        }).select("id").single();
+        if (created?.id) { contactCache.set(key, created.id); return created.id; }
+      } catch { /* best-effort */ }
+      return null;
+    };
+
+    // Commessa per "convenzione codice": se il codice commessa (order_code) compare
+    // nell'oggetto / note / numero della fattura esterna, la colleghiamo. Cache dei codici
+    // dell'azienda caricata una volta sola. Best-effort.
+    let orderCodes: { id: string; code: string }[] | null = null;
+    const resolveOrderId = async (x: any): Promise<string | null> => {
+      const hay = `${x.number || ""} ${x.ficObject || ""} ${x.notes || ""}`.toUpperCase();
+      if (!hay.trim()) return null;
+      if (orderCodes === null) {
+        const { data } = await supabase.from("orders")
+          .select("id, order_code").eq("company_id", companyId)
+          .not("order_code", "is", null).is("deleted_at", null);
+        orderCodes = (data || [])
+          .filter((o: any) => o.order_code && String(o.order_code).trim().length >= 4)
+          .map((o: any) => ({ id: o.id as string, code: String(o.order_code).trim().toUpperCase() }));
+      }
+      // match del codice più lungo presente nel testo (evita falsi positivi su codici corti)
+      const hit = orderCodes
+        .filter((o) => hay.includes(o.code))
+        .sort((a, b) => b.code.length - a.code.length)[0];
+      return hit ? hit.id : null;
+    };
+
     for (const inv of invoices) {
       const externalId = inv.externalId;
       
       // Check if already exists
       const { data: existing } = await supabase
         .from("invoices")
-        .select("id, external_id")
+        .select("id, external_id, order_id")
         .eq("company_id", companyId)
         .eq("external_id", externalId)
         .eq("external_provider", provider!)
         .maybeSingle();
+
+      const clientId = await resolveClientId(inv);
+      const convOrderId = await resolveOrderId(inv);
 
       const invoiceData = {
         company_id: companyId,
         document_type: inv.documentType || "invoice",
         status: inv.status || "issued",
         invoice_number: inv.number,
+        client_id: clientId,
         client_company_name: inv.clientName,
         client_vat_number: inv.clientVat || null,
         client_fiscal_code: inv.clientFiscalCode || null,
@@ -119,7 +183,9 @@ Deno.serve(async (req) => {
       if (existing) {
         // NB: controllare SEMPRE l'errore — prima veniva ingoiato e il conteggio
         // mentiva ("100 importate" con 0 righe scritte se un trigger falliva).
-        const { error: updErr } = await supabase.from("invoices").update(invoiceData).eq("id", existing.id);
+        const { error: updErr } = await supabase.from("invoices")
+          .update(convOrderId && !existing.order_id ? { ...invoiceData, order_id: convOrderId } : invoiceData)
+          .eq("id", existing.id);
         if (updErr) { failed++; if (importErrors.length < 5) importErrors.push(`#${inv.number}: ${updErr.message}`); continue; }
 
         // Aggiorna le righe in modo atomico. Avvolto in try/catch PER FATTURA: un errore
@@ -138,6 +204,7 @@ Deno.serve(async (req) => {
         const { data: newInv, error: insErr } = await supabase.from("invoices").insert({
           ...invoiceData,
           created_by: createdBy,
+          order_id: convOrderId,
         }).select("id").single();
 
         if (insErr || !newInv) {
@@ -158,9 +225,20 @@ Deno.serve(async (req) => {
       }
     }
 
+    // FATTURE PASSIVE: solo FIC, in tabella dedicata fatture_ricevute. Non blocca
+    // l'import delle emesse se fallisce (best-effort, scope opzionale).
+    let received = { imported: 0, updated: 0, failed: 0 };
+    if (provider === "fattureincloud") {
+      try {
+        received = await importFICReceived(integ, companyId!);
+      } catch (e) {
+        if (importErrors.length < 5) importErrors.push(`passive: ${String(e)}`);
+      }
+    }
+
     // Update last sync — lo stato riflette le fallite: "partial" se qualcosa è andato
     // storto, così l'header non mostra "success" mascherando import incompleti.
-    const syncStatus = failed > 0 ? "partial" : "success";
+    const syncStatus = (failed > 0 || received.failed > 0) ? "partial" : "success";
     await supabase.from("billing_integrations").update({
       last_sync_at: new Date().toISOString(),
       last_sync_status: syncStatus,
@@ -174,10 +252,10 @@ Deno.serve(async (req) => {
       direction: "pull",
       action: "import",
       status: syncStatus,
-      response_payload: { imported, updated, failed, total: invoices.length, errors: importErrors },
+      response_payload: { imported, updated, failed, total: invoices.length, received, errors: importErrors },
     });
 
-    return json({ success: true, imported, updated, failed, total: invoices.length, errors: importErrors });
+    return json({ success: true, imported, updated, failed, total: invoices.length, received, errors: importErrors });
   } catch (e) {
     console.error("billing-import error:", e);
 
@@ -306,7 +384,10 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
     const collected: any[] = [];
     let currentPage = 1;
     while (true) {
-      const r = await fetch(`${base}/issued_documents?type=${docType}&per_page=100&page=${currentPage}&sort=-date`, { headers: h });
+      // fieldset=detailed: l'endpoint LIST di default restituisce un RIASSUNTO senza
+      // items_list → le righe fattura risultavano vuote nel dettaglio. "detailed" include
+      // items_list/payments_list/dati cliente completi.
+      const r = await fetch(`${base}/issued_documents?type=${docType}&fieldset=detailed&per_page=100&page=${currentPage}&sort=-date`, { headers: h });
       if (r.status === 401) throw new Error("Token FattureInCloud scaduto. Vai in Impostazioni → Integrazioni e riconnetti l'account.");
       if (!r.ok) throw new Error(`FIC API error: ${r.status}`);
       const d = await r.json();
@@ -333,16 +414,29 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
   return allDocs.map((doc: any) => {
     const isCreditNote = doc.type === "credit_note";
     // Una nota di credito è uno storno, non un incasso: non applichiamo la logica "pagata".
-    const isPaid = !isCreditNote && (doc.is_marked === true || (doc.payments_sum != null && doc.payments_sum >= (doc.amount_gross || 0) && doc.amount_gross > 0));
+    // Pagato: FIC tiene le rate in payments_list[] ({amount, due_date, paid_date, status}).
+    // `payments_sum` NON è un campo del fieldset list → il vecchio check era sempre falso
+    // (0/193 incassate). Sommiamo le rate effettivamente saldate (paid_date o status 'paid').
+    const _payList: any[] = Array.isArray(doc.payments_list) ? doc.payments_list : [];
+    const _paidFromList = _payList
+      .filter((p: any) => p && (p.paid_date || p.status === "paid"))
+      .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+    const _gross = Number(doc.amount_gross || 0);
+    const _paidAmt = isCreditNote ? 0
+      : (doc.is_marked === true && _paidFromList === 0 ? _gross : Math.round(_paidFromList * 100) / 100);
+    const isPaid = !isCreditNote && _gross > 0 && _paidAmt >= _gross - 0.01;
     const resolvedStatus = isPaid ? "paid" : (statusMap[doc.status] || "issued");
 
     return {
       externalId: doc.id?.toString(),
       documentType: isCreditNote ? "credit_note" : "invoice",
       number: doc.number?.value || doc.number,
+      notes: doc.notes || null,
+      ficObject: doc.subject || doc.visible_subject || null,
       status: resolvedStatus,
-      paidAmount: isCreditNote ? 0 : (isPaid ? doc.amount_gross : (doc.payments_sum || 0)),
+      paidAmount: _paidAmt,
       clientName: doc.entity?.name || "",
+      clientEmail: doc.entity?.email || null,
       clientVat: doc.entity?.vat_number,
       clientFiscalCode: doc.entity?.tax_code,
       clientAddress: doc.entity?.address_street,
@@ -352,11 +446,14 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
       clientSdi: doc.entity?.ei_code,
       clientPec: doc.entity?.certified_email,
       issueDate: doc.date,
-      dueDate: doc.due_date,
+      // FIC tiene la scadenza in payments_list (per rata), non sempre in due_date.
+      // Recuperiamo la prima scadenza così la fattura genera la riga nello scadenzario.
+      dueDate: doc.due_date || doc.payments_list?.[0]?.due_date || null,
       subtotal: doc.amount_net,
       taxAmount: doc.amount_vat,
       total: doc.amount_gross,
       paymentMethod: doc.payment_method?.name,
+      iban: doc.payment_account?.iban || null,
       lines: (doc.items_list || []).map((item: any) => {
         const taxRate = item.vat?.value || 22;
         const lineNet = Math.round(item.net_price * item.qty * (1 - (item.discount || 0) / 100) * 100) / 100;
@@ -376,6 +473,91 @@ async function fetchFICInvoices(integ: any): Promise<any[]> {
       }),
     };
   });
+}
+
+// ── FATTURE PASSIVE (ricevute dai fornitori) da Fatture in Cloud ──────────────
+// Endpoint gemello /received_documents (stesso host/paginazione/fieldset di issued,
+// MA niente filtro ?type — il tipo è nel campo doc.type). Le passive vanno nella
+// tabella DEDICATA `fatture_ricevute` (colonne cedente_*), non in `invoices`.
+// doc.entity qui è il FORNITORE (cedente). Dedup su (company_id, cedente_piva,
+// numero_fattura, data_fattura) come l'unique naturale della tabella.
+async function importFICReceived(integ: any, companyId: string): Promise<{ imported: number; updated: number; failed: number }> {
+  await ensureFreshFicToken(integ);
+  const base = `https://api-v2.fattureincloud.it/c/${integ.company_external_id}`;
+  const h = { Authorization: `Bearer ${integ.access_token}`, "Content-Type": "application/json" };
+
+  const all: any[] = [];
+  let page = 1;
+  while (true) {
+    const r = await fetch(`${base}/received_documents?fieldset=detailed&per_page=100&page=${page}&sort=-date`, { headers: h });
+    if (r.status === 401) throw new Error("Token FattureInCloud scaduto. Riconnetti l'account.");
+    // 403 = scope received_documents non concesso (account collegato prima dell'update):
+    // non è un errore bloccante, semplicemente non importiamo le passive.
+    if (r.status === 403) return { imported: 0, updated: 0, failed: 0 };
+    if (!r.ok) throw new Error(`FIC received API error: ${r.status}`);
+    const d = await r.json();
+    const docs = d.data || [];
+    all.push(...docs);
+    if (docs.length < 100) break;
+    if (d.last_page && page >= d.last_page) break;
+    page++;
+    if (page > 20) break;
+  }
+
+  let imported = 0, updated = 0, failed = 0;
+  for (const doc of all) {
+    const e = doc.entity || {};
+    const cedentePiva = e.vat_number || null;
+    const numero = (doc.number?.value || doc.number || "")?.toString();
+    const dataFattura = doc.date || null;
+    if (!numero || !dataFattura) { failed++; continue; }
+
+    const righe = (doc.items_list || []).map((item: any) => {
+      const taxRate = item.vat?.value ?? 22;
+      const qty = Number(item.qty ?? 1);
+      const net = Math.round(Number(item.net_price ?? 0) * qty * (1 - (Number(item.discount ?? 0)) / 100) * 100) / 100;
+      const tax = Math.round(net * (taxRate / 100) * 100) / 100;
+      return {
+        descrizione: item.name, quantita: qty, prezzo_unitario: Number(item.net_price ?? 0),
+        aliquota_iva: taxRate, imponibile: net, imposta: tax, totale: Math.round((net + tax) * 100) / 100,
+      };
+    });
+
+    const row = {
+      company_id: companyId,
+      cedente_ragione_sociale: e.name || "Fornitore",
+      cedente_piva: cedentePiva,
+      cedente_cf: e.tax_code || null,
+      cedente_paese: e.country_iso || e.address_country || "IT",
+      cedente_indirizzo: e.address_street || null,
+      cedente_cap: e.address_postal_code || null,
+      cedente_comune: e.address_city || null,
+      cedente_provincia: e.address_province || null,
+      tipo_documento: doc.type || "TD01",
+      numero_fattura: numero,
+      data_fattura: dataFattura,
+      imponibile_totale: Number(doc.amount_net ?? 0),
+      iva_totale: Number(doc.amount_vat ?? 0),
+      totale_documento: Number(doc.amount_gross ?? 0),
+      righe,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Dedup su chiave naturale (cedente_piva può essere null → confronto difensivo).
+    let q = supabase.from("fatture_ricevute").select("id")
+      .eq("company_id", companyId).eq("numero_fattura", numero).eq("data_fattura", dataFattura);
+    q = cedentePiva ? q.eq("cedente_piva", cedentePiva) : q.is("cedente_piva", null);
+    const { data: existing } = await q.maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase.from("fatture_ricevute").update(row).eq("id", existing.id);
+      if (error) failed++; else updated++;
+    } else {
+      const { error } = await supabase.from("fatture_ricevute").insert(row);
+      if (error) failed++; else imported++;
+    }
+  }
+  return { imported, updated, failed };
 }
 
 async function fetchFattura24Invoices(integ: any): Promise<any[]> {

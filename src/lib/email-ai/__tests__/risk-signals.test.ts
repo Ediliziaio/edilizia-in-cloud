@@ -25,7 +25,7 @@ describe("hasLinkMismatch", () => {
   it("testo banca, href altro dominio → true", () =>
     expect(hasLinkMismatch([{ text: "vai su intesasanpaolo.it", href: "http://evil-phish.ru/login" }])).toBe(true));
   it("coerente → false", () =>
-    expect(hasLinkMismatch([{ text: "ediliziaincloud.it", href: "https://ediliziaincloud.it/area" }])).toBe(false));
+    expect(hasLinkMismatch([{ text: "ediliziaincloud.it", href: "https://www.ediliziaincloud.com/area" }])).toBe(false));
 });
 
 describe("hasSuspiciousAttachment", () => {

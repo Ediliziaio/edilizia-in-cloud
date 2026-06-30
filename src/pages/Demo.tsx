@@ -312,7 +312,7 @@ export default function Demo() {
           <div className="mt-8 sm:mt-10 flex flex-col md:flex-row items-start sm:items-center md:items-center justify-center gap-4 sm:gap-6 md:gap-10 max-w-md sm:max-w-none mx-auto text-left">
             {[
               { icon: "M", text: "Demo personalizzata sulla tua impresa" },
-              { icon: "S", text: "Setup completo incluso nel prezzo" },
+              { icon: "S", text: "Setup e migrazione dati inclusi" },
               { icon: "R", text: "Risposta entro 24 ore lavorative" },
             ].map((b, i) => (
               <div key={i} className="flex items-center gap-3">

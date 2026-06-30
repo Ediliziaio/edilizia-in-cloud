@@ -49,6 +49,11 @@ export interface ScadenzarioSummary {
   questo_mese_amount: number;
   entrate_previste: number;
   uscite_previste: number;
+  // Conteggi per-tab (year-scoped). Opzionali: la RPC li ha aggiunti in un secondo momento.
+  tutte_count?: number;
+  da_incassare_count?: number;
+  da_pagare_count?: number;
+  pagate_count?: number;
 }
 
 export interface ScadenzarioFilters {
@@ -97,10 +102,12 @@ export function useScadenzario(page: number = 1, pageSize: number = 50, filters:
   });
 
   const summaryQuery = useQuery({
-    queryKey: queryKeys.scadenzario.summary(companyId),
+    queryKey: [...queryKeys.scadenzario.summary(companyId), dateFrom, dateTo],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_scadenzario_summary", {
         p_company_id: companyId!,
+        p_date_from: dateFrom ?? null,
+        p_date_to: dateTo ?? null,
       });
       if (error) throw error;
       return data as unknown as ScadenzarioSummary;

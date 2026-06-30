@@ -4,10 +4,10 @@
  * per ottenere il branding personalizzato della company.
  */
 
-const DEFAULT_LOGO_URL = "https://app.ediliziaincloud.it/edilizia-in-cloud-logo.webp";
+const DEFAULT_LOGO_URL = "https://app.ediliziaincloud.com/edilizia-in-cloud-logo.webp";
 const DEFAULT_PLATFORM_NAME = "Edilizia in Cloud";
 const DEFAULT_PRIMARY_COLOR = "#F97415";
-const DEFAULT_SITE_URL = "https://app.ediliziaincloud.it";
+const DEFAULT_SITE_URL = "https://app.ediliziaincloud.com";
 
 export interface BrandingConfig {
   platformName: string;

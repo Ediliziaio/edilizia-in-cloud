@@ -48,7 +48,7 @@ export function renderLayout(params: {
     ? `
       <tr>
         <td style="padding:8px 24px 20px 24px;text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#999999;">
-          Inviato con <a href="https://ediliziaincloud.it" style="color:#999999;text-decoration:underline;">EdiliziaInCloud</a>
+          Inviato con <a href="https://www.ediliziaincloud.com" style="color:#999999;text-decoration:underline;">EdiliziaInCloud</a>
         </td>
       </tr>
     `
@@ -164,7 +164,7 @@ export function plainTextFooter(branding: Branding): string {
     lines.push(`Annulla l'iscrizione: ${branding.unsubscribeUrl}`);
   }
   if (branding.showPoweredBy) {
-    lines.push("Inviato con EdiliziaInCloud — https://ediliziaincloud.it");
+    lines.push("Inviato con EdiliziaInCloud — https://www.ediliziaincloud.com");
   }
   return lines.join("\n");
 }

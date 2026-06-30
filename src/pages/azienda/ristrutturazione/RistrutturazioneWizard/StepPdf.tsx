@@ -116,6 +116,10 @@ export default function StepPdf({ progetto, computo, media }: Props) {
 
   const numCapitoli = totali.perCapitolo.length;
   const computoVuoto = computo.length === 0;
+  const logoUrl = company?.logo_url ?? template?.logo_url ?? null;
+  const clienteLabel =
+    [progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente da definire";
+  const ivaPct = Number(progetto.iva_pct ?? 22);
 
   // ─── Checklist (non bloccante, eccetto computo vuoto) ──────────────────────
   const checks: ChecklistItem[] = [
@@ -166,25 +170,81 @@ export default function StepPdf({ progetto, computo, media }: Props) {
 
   return (
     <div className="space-y-3">
-      {/* Anteprima dati */}
+      {/* Anteprima del preventivo — mini-documento brandizzato */}
       <Card>
         <CardContent className="space-y-3 p-4">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-orange-600" />
             <h2 className="text-sm font-semibold text-slate-900">Anteprima del preventivo</h2>
           </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            <Kpi label="Codice" value={progetto.code ?? "—"} />
-            <Kpi label="Capitoli" value={String(numCapitoli)} />
-            <Kpi label="Voci" value={String(computo.length)} />
-            <Kpi label="Totale IVA inclusa" value={formatCurrency(totali.totale)} highlight />
-          </div>
-          <div className="rounded-lg border-l-4 border-orange-200 bg-orange-50/40 px-3 py-2">
-            <p className="text-sm">
-              {[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente da definire"}
-              {progetto.cantiere_citta && ` · ${progetto.cantiere_citta}`}
-              {numCapitoli > 0 && ` · ${numCapitoli} capitoli di lavorazioni`}
-            </p>
+
+          <div className="overflow-hidden rounded-xl border bg-white">
+            {/* Intestazione brandizzata: logo + azienda · totale */}
+            <div className="flex items-center justify-between gap-3 border-b bg-slate-50/70 px-4 py-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="" className="h-9 w-9 shrink-0 rounded-md object-contain" />
+                ) : (
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-orange-100 text-orange-700">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold text-slate-900">
+                    {company?.ragione_sociale ?? "La tua azienda"}
+                  </p>
+                  <p className="truncate text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {progetto.code ?? "Preventivo"}
+                  </p>
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Totale IVA inclusa</p>
+                <p className="text-base font-bold text-orange-700">{formatCurrency(totali.totale)}</p>
+              </div>
+            </div>
+
+            {/* Titolo cover + destinatario */}
+            <div className="px-4 py-3">
+              <p className="text-sm font-semibold text-slate-900">
+                {template?.cover_title?.trim() || "Preventivo di ristrutturazione"}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Preparato per <span className="font-medium text-slate-700">{clienteLabel}</span>
+                {progetto.cantiere_citta && ` · ${progetto.cantiere_citta}`}
+              </p>
+
+              {/* Breakdown capitoli + totali */}
+              {!computoVuoto ? (
+                <div className="mt-3">
+                  <div className="space-y-1.5">
+                    {totali.perCapitolo.map((c, i) => (
+                      <div key={i} className="flex items-center justify-between gap-3 text-xs">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-orange-400" />
+                          <span className="truncate text-slate-700">{c.nome}</span>
+                          <span className="shrink-0 text-[10px] text-muted-foreground">
+                            · {c.voci} {c.voci === 1 ? "voce" : "voci"}
+                          </span>
+                        </span>
+                        <span className="shrink-0 font-medium tabular-nums text-slate-900">
+                          {formatCurrency(c.imponibile)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-2.5 space-y-1 border-t pt-2.5">
+                    <RigaTot label="Imponibile" value={formatCurrency(totali.imponibile)} />
+                    <RigaTot label={`IVA ${ivaPct}%`} value={formatCurrency(totali.iva)} />
+                    <RigaTot label="Totale" value={formatCurrency(totali.totale)} strong />
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+                  Nessuna voce nel computo: il preventivo è ancora vuoto. Aggiungi le lavorazioni nello step Computo.
+                </p>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -342,12 +402,14 @@ export default function StepPdf({ progetto, computo, media }: Props) {
   );
 }
 
-// ─── KPI box ──────────────────────────────────────────────────────────────────
-function Kpi({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+// ─── Riga totale (imponibile / IVA / totale) ────────────────────────────────────
+function RigaTot({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className={cn("rounded-lg border px-3 py-2", highlight ? "border-orange-200 bg-orange-50" : "bg-muted/30")}>
-      <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={cn("mt-0.5 text-sm font-bold", highlight ? "text-orange-700" : "text-slate-900")}>{value}</p>
+    <div className="flex items-center justify-between gap-3">
+      <span className={cn("text-xs", strong ? "font-semibold text-slate-900" : "text-muted-foreground")}>{label}</span>
+      <span className={cn("tabular-nums", strong ? "text-sm font-bold text-orange-700" : "text-xs font-medium text-slate-900")}>
+        {value}
+      </span>
     </div>
   );
 }

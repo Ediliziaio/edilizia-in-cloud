@@ -47,6 +47,8 @@ const SerramentiConversionEditor = lazy(() =>
 );
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { AiTemplateGenerator } from "@/components/preventivi/AiTemplateGenerator";
+import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
 import { useCompanyAnagraficaForTemplate, inheritedPlaceholder } from "@/hooks/useCompanyAnagraficaForTemplate";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
@@ -83,6 +85,77 @@ import { generateBrandPalette, CURATED_PALETTES } from "@/lib/utils/colorPalette
 
 const DEFAULT_RENDER_DISCLAIMER =
   "Il render AI è una simulazione indicativa pensata per aiutare il cliente a immaginare il risultato estetico. Non sostituisce rilievo tecnico, schede prodotto e verifica di fattibilità: misure, materiali, colori e finiture definitive vengono confermati prima dell'ordine.";
+
+// Campi personalizzati {placeholder} sostituiti nel PDF (vedi renderSubheroTemplate
+// in SerramentoPDF.tsx). Devono restare allineati a quella mappa.
+const SR_PLACEHOLDERS = [
+  "cliente_nome", "cliente_cognome", "cliente_nome_completo",
+  "cantiere_citta", "cantiere_provincia", "num_serramenti",
+  "data_consegna_stimata", "tipo_intervento", "anno",
+] as const;
+
+/** Chip cliccabili che inseriscono un campo personalizzato nel campo collegato.
+ *  Con `targetRef` inserisce al cursore; senza, appende in coda. Riutilizzabile
+ *  su qualsiasi Textarea/Input dell'editor. */
+function PlaceholderChips({
+  value, onChange, targetRef, label = "Inserisci campo personalizzato (cliccabile):",
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  targetRef?: { current: HTMLTextAreaElement | HTMLInputElement | null };
+  label?: string;
+}) {
+  const insert = (name: string) => {
+    const token = `{${name}}`;
+    const el = targetRef?.current;
+    const v = value ?? "";
+    if (!el || el.selectionStart == null) { onChange(v + token); return; }
+    const start = el.selectionStart ?? v.length;
+    const end = el.selectionEnd ?? v.length;
+    onChange(v.slice(0, start) + token + v.slice(end));
+    requestAnimationFrame(() => {
+      try { el.focus(); const pos = start + token.length; el.setSelectionRange(pos, pos); } catch { /* input non selezionabile */ }
+    });
+  };
+  return (
+    <div className="mt-1.5">
+      <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1">
+        {SR_PLACEHOLDERS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => insert(n)}
+            className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:border-orange-300 text-slate-600 hover:text-orange-700 transition-colors"
+          >
+            {`{${n}}`}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Modello standard di condizioni contrattuali per serramentista (base editabile).
+const CONDIZIONI_STANDARD_SERRAMENTI = [
+  "1. OGGETTO — Il presente preventivo ha per oggetto la fornitura e posa in opera dei serramenti e accessori indicati, secondo quantità, materiali e finiture descritti nelle pagine precedenti.",
+  "",
+  "2. VALIDITÀ — L'offerta è valida per il periodo indicato in copertina. Trascorso tale termine, prezzi e disponibilità potranno essere riconfermati.",
+  "",
+  "3. PAGAMENTO — 30% di acconto alla firma del contratto, 60% all'avviso di merce pronta / inizio posa, saldo 10% alla consegna e collaudo. Modalità: bonifico bancario.",
+  "",
+  "4. TEMPI DI CONSEGNA — I tempi indicati sono stimati e decorrono dalla firma del contratto e dal versamento dell'acconto. Eventuali ritardi dei fornitori non imputabili all'azienda saranno comunicati tempestivamente.",
+  "",
+  "5. POSA IN OPERA — La posa è eseguita a regola d'arte secondo la norma UNI 11673. Salvo diversa indicazione sono escluse opere murarie, elettriche, da imbianchino e lo smaltimento di serramenti preesistenti oltre il primo.",
+  "",
+  "6. GARANZIA — 10 anni sul prodotto e 10 anni sulla posa. La garanzia non copre danni da uso improprio, mancata manutenzione o interventi di terzi.",
+  "",
+  "7. RECESSO — Ai sensi degli artt. 52 e segg. del D.Lgs. 206/2005 il cliente consumatore può recedere entro 14 giorni dalla conclusione del contratto, salvo le esclusioni previste per beni realizzati su misura.",
+  "",
+  "8. RESPONSABILITÀ — Misure e quote definitive sono confermate in fase di rilievo tecnico prima dell'ordine. L'azienda non risponde di difformità derivanti da misure fornite dal cliente.",
+  "",
+  "9. FORO COMPETENTE — Per ogni controversia è competente il Foro della sede legale dell'azienda, fatte salve le competenze inderogabili a tutela del consumatore.",
+].join("\n");
 
 function decodeHtmlEntities(value: string): string {
   return value
@@ -423,6 +496,18 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     setDirty(true);
   }, []);
 
+  // Mappa il draft AI (13 campi generici) sui campi del template Serramenti.
+  const applyGeneratedSr = useCallback((d: AiTemplateDraft) => {
+    const toText = (h?: string | null) => (h ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (d.cover_title) update("pdf_cover_hero", d.cover_title);
+    if (d.chi_siamo) update("chi_siamo_testo", toText(d.chi_siamo));
+    if (d.esigenze?.length) update("esigenze_default", d.esigenze.map((i) => ({ titolo: i.titolo, descrizione: i.descrizione ?? "" })));
+    if (d.soluzione?.length) update("soluzione_default", d.soluzione.map((i) => ({ titolo: i.titolo, descrizione: i.descrizione ?? "" })));
+    if (d.usp?.length) update("perche_noi_default", d.usp.map((i) => (i.descrizione ? `${i.titolo}: ${i.descrizione}` : i.titolo)));
+    if (d.garanzie?.length) update("garanzie", d.garanzie.map((g) => ({ icona: "shield" as const, titolo: g.titolo, descrizione: g.descrizione ?? "" })));
+    if (d.faq?.length) update("faq_items", d.faq.map((f) => ({ domanda: f.domanda, risposta: f.risposta })));
+  }, [update]);
+
   const applySharedLegalTemplate = useCallback((templateId: string, mode: "replace" | "append") => {
     const templateToApply = sharedLegalTemplates.find((templateOption) => templateOption.id === templateId);
     if (!templateToApply) {
@@ -544,7 +629,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     | "page_cta"
     | "page_conversione"
     | "page_ordine"
-    | "contenuti" | "macro" | "garanzie" | "default";
+    | "contenuti" | "macro" | "garanzie" | "default" | "condizioni";
 
   // Sezioni raggruppate per UX: la sidebar mostra 3 gruppi con header,
   // le voci della famiglia "Pagine PDF" sono ora top-level (no più tab interne).
@@ -575,9 +660,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     {
       label: "Dati & contenuti",
       items: [
-        { id: "contenuti", label: "Contenuti commerciali", emoji: "📝", descr: "Esigenze, USP, incluso, recensioni" },
+        { id: "contenuti", label: "Contenuti commerciali", emoji: "📝", descr: "Esigenze, USP, incluso" },
         { id: "macro",     label: "Linee prodotto",        emoji: "📦", descr: "Pagine dedicate macrocategoria" },
         { id: "garanzie",  label: "Garanzie & metriche",   emoji: "🛡️", descr: "Garanzie e perché noi" },
+        { id: "condizioni", label: "Condizioni contrattuali", emoji: "📜", descr: "Termini di vendita nel PDF" },
         { id: "default",   label: "Default tecnici",       emoji: "⚙️", descr: "IVA, anticipo, validità" },
       ],
     },
@@ -601,10 +687,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       next.set("section", id);
       return next;
     }, { replace: true });
-    // Scroll top al cambio sezione per una transizione "pulita"
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    // NB: nessuno scroll-to-top al cambio sezione — si resta nella posizione di
+    // scroll corrente (richiesta utente: "torno in alto non va bene").
   };
   // Mobile sidebar drawer open state
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -721,6 +805,38 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     } finally {
       setUploadingChiSiamo(false);
       if (chiSiamoInputRef.current) chiSiamoInputRef.current.value = "";
+    }
+  };
+
+  /** Upload foto opzionale di una recensione. Stesso pattern (bucket sr-progetti +
+   *  signed URL 1 anno). Salva in testimonianze_default[idx].foto_url. */
+  const [uploadingTestFoto, setUploadingTestFoto] = useState<number | null>(null);
+  const handleTestimonianzaFotoUpload = async (idx: number, file: File) => {
+    if (!file.type.startsWith("image/")) { toast.error("Carica un file immagine (PNG, JPG, WebP)"); return; }
+    if (file.size > 8 * 1024 * 1024) { toast.error("File troppo grande (max 8 MB)"); return; }
+    setUploadingTestFoto(idx);
+    try {
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) throw new Error("Non autenticato");
+      const { data: profile } = await supabase
+        .from("profiles" as never).select("company_id").eq("id", userId).maybeSingle();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const companyId = (profile as any)?.company_id;
+      if (!companyId) throw new Error("Profilo senza azienda");
+      const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";
+      const storagePath = `${companyId}/template-recensioni/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("sr-progetti").upload(storagePath, file, { contentType: file.type, upsert: false });
+      if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
+      const { data: signed } = await supabase.storage
+        .from("sr-progetti").createSignedUrl(storagePath, 60 * 60 * 24 * 365);
+      updateTestimonianza(idx, "foto_url", signed?.signedUrl ?? "");
+      toast.success("Foto recensione caricata. Salva per applicare.");
+    } catch (e) {
+      console.error("[serramenti-template-editor] testimonianza foto upload", e);
+      toast.error("Errore upload foto", { description: String(e) });
+    } finally {
+      setUploadingTestFoto(null);
     }
   };
 
@@ -988,6 +1104,11 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <AiTemplateGenerator
+            settoreFn="ai-genera-template-serramenti"
+            onApply={applyGeneratedSr}
+            className="gap-1.5 h-9 px-3 text-sm bg-orange-500 hover:bg-orange-600"
+          />
           <Button
             onClick={() => setPreviewOpen(true)}
             variant="outline"
@@ -1363,7 +1484,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       {activeSection === "contenuti" && (<>
       <SectionHeader
         title="📝 Contenuti commerciali"
-        description="Le librerie da cui pesca il consulente: esigenze, soluzioni, USP, incluso, recensioni, prossimi passi."
+        description="Le librerie da cui pesca il consulente: esigenze, soluzioni, USP, incluso, prossimi passi."
         number={2}
       />
 
@@ -1447,83 +1568,6 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           />
         </div>
         {renderListEditor("voce", "incluso_default", "Es. Rilievo dimensionale a casa tua senza costi aggiuntivi")}
-      </SrCard>
-
-      {/* Testimonianze */}
-      <SrCard
-        title="Recensioni e testimonianze"
-        description="Pagina 2 del PDF — sezione 'Cosa dicono i nostri clienti'."
-        icon={<Quote className="h-4 w-4" />}
-        variant="highlight"
-      >
-        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Usa questa pagina solo con testimonianze reali. Se non hai recensioni verificabili,
-          lasciala vuota o nascondila: è più professionale di una recensione generica.
-        </div>
-        <div className="space-y-3">
-          {testimonianze.length === 0 && (
-            <SrCallout variant="info">
-              Nessuna recensione caricata. Va bene lasciare la pagina vuota finché non hai testimonianze reali: meglio nessuna recensione che una recensione inventata.
-            </SrCallout>
-          )}
-          {testimonianze.map((t, idx) => (
-            <Card key={idx} className="bg-orange-50/30 border-orange-200">
-              <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-xs uppercase tracking-wide text-orange-600">
-                  Recensione {idx + 1}
-                </CardTitle>
-                <Button size="sm" variant="ghost" onClick={() => setDelTestIdx(idx)} className="h-7 px-2 text-xs text-rose-600">
-                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
-                </Button>
-              </CardHeader>
-              <CardContent className="p-3 pt-0 grid grid-cols-12 gap-2">
-                <div className="col-span-12">
-                  <Label className="text-xs">Citazione</Label>
-                  <Textarea
-                    value={t.quote ?? ""}
-                    onChange={(e) => updateTestimonianza(idx, "quote", e.target.value)}
-                    placeholder={'"Ci hanno spiegato bene materiali, tempi e posa prima della firma..."'}
-                    rows={3}
-                  />
-                </div>
-                <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Autore</Label>
-                  <Input
-                    value={t.autore ?? ""}
-                    onChange={(e) => updateTestimonianza(idx, "autore", e.target.value)}
-                    placeholder="Nome cliente o iniziali reali"
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="col-span-6 md:col-span-3">
-                  <Label className="text-xs">Città</Label>
-                  <Input
-                    value={t.citta ?? ""}
-                    onChange={(e) => updateTestimonianza(idx, "citta", e.target.value)}
-                    placeholder="Città"
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="col-span-6 md:col-span-5">
-                  <Label className="text-xs">Tipo intervento</Label>
-                  <Input
-                    value={t.intervento ?? ""}
-                    onChange={(e) => updateTestimonianza(idx, "intervento", e.target.value)}
-                    placeholder="Tipo intervento"
-                    className="h-9 text-xs"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          <Button
-            onClick={addTestimonianza}
-            variant="outline"
-            className="w-full border-dashed border-2 border-orange-300 hover:bg-orange-50 gap-1"
-          >
-            <Plus className="h-4 w-4" /> Aggiungi recensione
-          </Button>
-        </div>
       </SrCard>
 
       {/* Prossimi passi */}
@@ -1710,13 +1754,6 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                               >
                                 {p.category === "solid" ? "● colore" : "📷 foto"}
                               </div>
-                              {/* Decoration top-right (se preset la mostra) */}
-                              {p.patch.pdf_cover_show_decoration !== false && (
-                                <div
-                                  className="absolute top-1.5 right-1.5 w-3 h-3 rounded-sm opacity-80"
-                                  style={{ backgroundColor: p.swatchAccent }}
-                                />
-                              )}
 
                               {/* Contenitore del blocco testo con justify-content
                                   dinamico per simulare top/center/bottom. */}
@@ -1845,15 +1882,54 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       />
                     );
                   })()}
-                  {/* Decoro accent in alto a destra (toggle) */}
-                  {form.pdf_cover_show_decoration !== false && (
-                    <div
-                      className="absolute top-3 right-3 w-12 h-12 rounded-md opacity-70"
-                      style={{
-                        backgroundColor: form.colore_primario || "#2D7D5C",
-                      }}
-                    />
-                  )}
+                  {/* Decoro in alto a destra — FEDELE al PDF (CoverDecorationSvg):
+                      rispetta pdf_cover_decoration_style (finestra/anelli/linea/
+                      pattern) e usa il colore del TESTO cover, che armonizza
+                      sempre col fondo. Prima era un blocco piatto in colore brand
+                      (ignorava lo stile e stonava). */}
+                  {form.pdf_cover_show_decoration !== false && (() => {
+                    const v = form.pdf_cover_decoration_style ?? "square";
+                    if (v === "none") return null;
+                    const c = form.pdf_cover_text_color || "#FFFFFF";
+                    return (
+                      <svg viewBox="0 0 180 180" aria-hidden className="absolute top-3 right-3 w-11 h-11 pointer-events-none">
+                        {v === "circle" ? (
+                          <>
+                            <circle cx={90} cy={90} r={80} stroke={c} strokeWidth={3} fill="none" opacity={0.7} />
+                            <circle cx={90} cy={90} r={56} stroke={c} strokeWidth={1.5} fill="none" opacity={0.4} />
+                            <circle cx={90} cy={90} r={32} stroke={c} strokeWidth={1} fill="none" opacity={0.25} />
+                          </>
+                        ) : v === "line" ? (
+                          <>
+                            <path d="M 90 10 L 90 170" stroke={c} strokeWidth={2.5} opacity={0.7} />
+                            <path d="M 70 40 L 110 40" stroke={c} strokeWidth={1.5} opacity={0.5} />
+                            <path d="M 70 140 L 110 140" stroke={c} strokeWidth={1.5} opacity={0.5} />
+                          </>
+                        ) : v === "pattern" ? (
+                          <g opacity={0.45} fill={c}>
+                            {Array.from({ length: 25 }).map((_, i) => (
+                              <circle key={i} cx={30 + (i % 5) * 30} cy={30 + Math.floor(i / 5) * 30} r={3} />
+                            ))}
+                          </g>
+                        ) : (
+                          <>
+                            <g opacity={0.7} stroke={c} fill="none">
+                              <rect x={20} y={20} width={140} height={140} rx={6} strokeWidth={3} />
+                              <path d="M 90 25 L 90 155" strokeWidth={2} />
+                              <path d="M 25 90 L 155 90" strokeWidth={2} />
+                            </g>
+                            <circle cx={84} cy={90} r={3} fill={c} opacity={0.7} />
+                            <g opacity={0.3} stroke={c}>
+                              <path d="M 0 90 L 18 90" strokeWidth={1.5} />
+                              <path d="M 162 90 L 180 90" strokeWidth={1.5} />
+                              <path d="M 90 0 L 90 18" strokeWidth={1.5} />
+                              <path d="M 90 162 L 90 180" strokeWidth={1.5} />
+                            </g>
+                          </>
+                        )}
+                      </svg>
+                    );
+                  })()}
                   {/* Contenuto testuale */}
                   <div
                     className="absolute inset-0 p-4 flex flex-col"
@@ -2182,6 +2258,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     placeholder="★ La tua proposta personalizzata"
                     className="h-8 text-xs"
                   />
+                  <PlaceholderChips
+                    value={form.pdf_cover_eyebrow ?? ""}
+                    onChange={(v) => update("pdf_cover_eyebrow", v || null)}
+                  />
                 </div>
 
                 {/* Titolo */}
@@ -2197,6 +2277,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     placeholder="La tua casa, finalmente al caldo."
                     rows={2}
                     className="text-sm"
+                  />
+                  <PlaceholderChips
+                    value={form.pdf_cover_hero ?? ""}
+                    onChange={(v) => update("pdf_cover_hero", v || null)}
                   />
                 </div>
 
@@ -2231,26 +2315,15 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     rows={2}
                     className="text-sm font-mono"
                   />
-                  <details className="mt-1.5">
-                    <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground select-none">
-                      Placeholder disponibili ({9} variabili)
-                    </summary>
-                    <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground font-mono pl-3">
-                      <div>{"{cliente_nome}"}</div>
-                      <div>{"{cliente_cognome}"}</div>
-                      <div>{"{cliente_nome_completo}"}</div>
-                      <div>{"{cantiere_citta}"}</div>
-                      <div>{"{cantiere_provincia}"}</div>
-                      <div>{"{num_serramenti}"}</div>
-                      <div>{"{data_consegna_stimata}"}</div>
-                      <div>{"{tipo_intervento}"}</div>
-                      <div>{"{anno}"}</div>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-1 italic">
-                      Esempio: il template di esempio nel placeholder genera<br/>
-                      <span className="text-foreground not-italic">"Per la casa di Mario Rossi a Bolzano · 8 serramenti · Consegna entro 30 marzo"</span>
-                    </p>
-                  </details>
+                  <PlaceholderChips
+                    value={form.pdf_cover_subhero_template ?? ""}
+                    onChange={(v) => update("pdf_cover_subhero_template", v || null)}
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1.5 italic">
+                    Clicca un campo per aggiungerlo. Questi campi funzionano anche negli altri
+                    testi e titoli del template (cover, Chi siamo, CTA): scrivi es. {"{cliente_nome}"} e
+                    verrà sostituito nel PDF.
+                  </p>
                 </div>
               </div>
             </div>
@@ -2315,6 +2388,26 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     className="w-full accent-orange-500"
                   />
                 </div>
+                {/* Dimensione logo cover (scala %) — disabilitata se logo nascosto */}
+                {(form.pdf_cover_logo_position ?? "top_left") !== "hidden" && (
+                  <div className="col-span-12 md:col-span-4">
+                    <Label className="text-[11px] flex items-center justify-between mb-1">
+                      <span>Dimensione logo</span>
+                      <span className="font-mono text-muted-foreground">
+                        {form.pdf_cover_logo_size ?? 100}%
+                      </span>
+                    </Label>
+                    <input
+                      type="range"
+                      min={60}
+                      max={160}
+                      step={5}
+                      value={form.pdf_cover_logo_size ?? 100}
+                      onChange={(e) => update("pdf_cover_logo_size", Number(e.target.value))}
+                      className="w-full accent-orange-500"
+                    />
+                  </div>
+                )}
 
                 {/* Allineamento testo */}
                 <div className="col-span-12 md:col-span-4">
@@ -2639,6 +2732,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       placeholder="Es. Serramenti su misura, posati con metodo"
                       className="h-9 text-xs"
                     />
+                    <PlaceholderChips
+                      value={form.chi_siamo_titolo ?? ""}
+                      onChange={(v) => update("chi_siamo_titolo", v || null)}
+                    />
                   </div>
                   <div>
                     <Label className="text-xs">Testo descrizione azienda</Label>
@@ -2693,9 +2790,112 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               </label>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              Le testimonianze definite sopra ("Recensioni clienti") vengono incluse
-              nella pagina finale del PDF solo se questa opzione è attiva.
+              Le recensioni qui sotto vengono incluse nella pagina finale del PDF solo se
+              "Mostra recensioni" è attivo.
             </p>
+
+            {/* Testimonianze */}
+            <SrCard
+              title="Recensioni e testimonianze"
+              description="Pagina 2 del PDF — sezione 'Cosa dicono i nostri clienti'."
+              icon={<Quote className="h-4 w-4" />}
+              variant="highlight"
+            >
+              <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Usa questa pagina solo con testimonianze reali. Se non hai recensioni verificabili,
+                lasciala vuota o nascondila: è più professionale di una recensione generica.
+              </div>
+              <div className="space-y-3">
+                {testimonianze.length === 0 && (
+                  <SrCallout variant="info">
+                    Nessuna recensione caricata. Va bene lasciare la pagina vuota finché non hai testimonianze reali: meglio nessuna recensione che una recensione inventata.
+                  </SrCallout>
+                )}
+                {testimonianze.map((t, idx) => (
+                  <Card key={idx} className="bg-orange-50/30 border-orange-200">
+                    <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between">
+                      <CardTitle className="text-xs uppercase tracking-wide text-orange-600">
+                        Recensione {idx + 1}
+                      </CardTitle>
+                      <Button size="sm" variant="ghost" onClick={() => setDelTestIdx(idx)} className="h-7 px-2 text-xs text-rose-600">
+                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Rimuovi
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0 grid grid-cols-12 gap-2">
+                      <div className="col-span-12">
+                        <Label className="text-xs">Citazione</Label>
+                        <Textarea
+                          value={t.quote ?? ""}
+                          onChange={(e) => updateTestimonianza(idx, "quote", e.target.value)}
+                          placeholder={'"Ci hanno spiegato bene materiali, tempi e posa prima della firma..."'}
+                          rows={3}
+                        />
+                      </div>
+                      <div className="col-span-12 md:col-span-4">
+                        <Label className="text-xs">Autore</Label>
+                        <Input
+                          value={t.autore ?? ""}
+                          onChange={(e) => updateTestimonianza(idx, "autore", e.target.value)}
+                          placeholder="Nome cliente o iniziali reali"
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                      <div className="col-span-6 md:col-span-3">
+                        <Label className="text-xs">Città</Label>
+                        <Input
+                          value={t.citta ?? ""}
+                          onChange={(e) => updateTestimonianza(idx, "citta", e.target.value)}
+                          placeholder="Città"
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                      <div className="col-span-6 md:col-span-5">
+                        <Label className="text-xs">Tipo intervento</Label>
+                        <Input
+                          value={t.intervento ?? ""}
+                          onChange={(e) => updateTestimonianza(idx, "intervento", e.target.value)}
+                          placeholder="Tipo intervento"
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                      <div className="col-span-12 flex items-center gap-2">
+                        {t.foto_url ? (
+                          <img src={t.foto_url} alt="" className="h-10 w-10 rounded-full object-cover border" />
+                        ) : (
+                          <span className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                            <ImageIcon className="h-4 w-4" />
+                          </span>
+                        )}
+                        <label className="text-xs">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded border cursor-pointer hover:bg-muted">
+                            {uploadingTestFoto === idx ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                            {t.foto_url ? "Cambia foto" : "Foto cliente (opzionale)"}
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleTestimonianzaFotoUpload(idx, f); e.target.value = ""; }}
+                          />
+                        </label>
+                        {t.foto_url && (
+                          <button type="button" onClick={() => updateTestimonianza(idx, "foto_url", "")} className="text-xs text-rose-600 hover:underline">
+                            Rimuovi
+                          </button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                <Button
+                  onClick={addTestimonianza}
+                  variant="outline"
+                  className="w-full border-dashed border-2 border-orange-300 hover:bg-orange-50 gap-1"
+                >
+                  <Plus className="h-4 w-4" /> Aggiungi recensione
+                </Button>
+              </div>
+            </SrCard>
           </TabsContent>
 
           {/* ═══ RENDER AI ═══════════════════════════════════════════════════ */}
@@ -2725,6 +2925,10 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   onChange={(e) => update("pdf_cta_finale_titolo", e.target.value || null)}
                   placeholder="Cosa fare adesso (default)"
                   className="h-9 text-xs"
+                />
+                <PlaceholderChips
+                  value={form.pdf_cta_finale_titolo ?? ""}
+                  onChange={(v) => update("pdf_cta_finale_titolo", v || null)}
                 />
               </div>
               <div className="col-span-12">
@@ -3177,6 +3381,64 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
         </div>
       </SrCard>
       </>)}{/* === END SEZIONE GARANZIE & METRICHE === */}
+
+      {/* === SEZIONE: CONDIZIONI CONTRATTUALI === */}
+      {activeSection === "condizioni" && (<>
+      <SectionHeader
+        title="📜 Condizioni contrattuali"
+        description="I termini di vendita stampati come pagina dedicata in fondo al preventivo PDF. Modificabili e riusabili su tutti i template."
+      />
+      <SrCard>
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <Switch
+              checked={form.condizioni_legali_attivo !== false}
+              onCheckedChange={(checked) => update("condizioni_legali_attivo", checked)}
+            />
+            <span className="text-sm font-medium">Mostra la pagina &ldquo;Condizioni&rdquo; nel PDF</span>
+          </label>
+          {form.condizioni_legali_attivo !== false && (
+            <>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const cur = String(form.condizioni_legali_testo ?? "").trim();
+                    if (cur && !window.confirm("Sovrascrivere il testo attuale con il modello standard serramentista?")) return;
+                    update("condizioni_legali_testo", CONDIZIONI_STANDARD_SERRAMENTI);
+                  }}
+                >
+                  <Sparkles className="h-3.5 w-3.5 mr-1" /> Inserisci modello standard serramentista
+                </Button>
+              </div>
+              <Textarea
+                value={form.condizioni_legali_testo ?? ""}
+                onChange={(e) => update("condizioni_legali_testo", e.target.value || null)}
+                placeholder={
+                  "Es.\n1. PAGAMENTO — 30% acconto alla firma, saldo alla consegna.\n" +
+                  "2. TEMPI — Consegna stimata in X giorni lavorativi.\n" +
+                  "3. GARANZIA — 10 anni prodotto, 10 anni posa (UNI 11673).\n" +
+                  "4. RECESSO — entro 14 giorni (D.Lgs. 206/2005), salvo beni su misura.\n" +
+                  "5. FORO COMPETENTE — Foro della sede legale."
+                }
+                rows={16}
+                className="text-xs font-mono"
+              />
+              <PlaceholderChips
+                value={form.condizioni_legali_testo ?? ""}
+                onChange={(v) => update("condizioni_legali_testo", v || null)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Puoi inserire i campi personalizzati (es. {"{cliente_nome_completo}"}) anche qui.
+                Per riusare queste condizioni su tutti i template, salvale nella tua libreria dalla tab
+                ⚡ Conversione → &ldquo;8. Condizioni e disclaimer&rdquo; → &ldquo;Salva nei Template offerte&rdquo;.
+              </p>
+            </>
+          )}
+        </div>
+      </SrCard>
+      </>)}{/* === END SEZIONE CONDIZIONI CONTRATTUALI === */}
 
       {/* === SEZIONE: DEFAULT TECNICI === */}
       {activeSection === "default" && (<>

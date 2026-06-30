@@ -85,6 +85,25 @@ export interface FvPdfTemplateData {
       segment_index?: number;
     }> | null;
   };
+  /** Immagini satellitari reali come data:image/png;base64 — opzionale.
+   *  Se presenti sostituiscono gli SVG mock nella pagina "Anteprima impianto". */
+  map_images?: {
+    close?: string;    // zoom 20 — zenitale ravvicinata
+    medium?: string;   // zoom 18 — vista aerea
+    overview?: string; // zoom 17 — via/strada
+    wide?: string;     // zoom 15 — panoramica zona
+  } | null;
+  /** Foto cantieri installati (da cantieri_galleria del template) come data:image/...;base64 */
+  cantieri_foto?: string[];
+  /** Bundle/kit scelto — popolato quando kit_bundle_id è impostato sul progetto */
+  bundle?: {
+    nome: string;
+    descrizione?: string | null;
+    fv_kwp?: number | null;
+    fv_accumulo_kwh?: number | null;
+    cover_b64?: string | null;
+    voci?: Array<{ descrizione: string; quantita: number; foto?: string | null }>;
+  } | null;
   costi: {
     prezzo_vendita_iva_inclusa: number;
     iva_perc: number;
@@ -100,6 +119,12 @@ export interface FvPdfTemplateData {
     taeg_perc: number;
     importo_finanziato: number;
   } | null;
+  /** Schema di pagamento — adattivo alla modalità. Importi già calcolati. */
+  modalita_pagamento?:
+    | { tipo: "diretto"; tranche: Array<{ label: string; pct: number; importo_eur: number }>; note: string | null }
+    | { tipo: "finanziato"; anticipo_pct: number; anticipo_eur: number; finanziato_eur: number; rata_mensile: number; durata_mesi: number; tasso_zero: boolean; note: string | null }
+    | { tipo: "noleggio"; canone_mensile: number; durata_mesi: number; note: string | null }
+    | null;
   scenario: {
     risparmio_mensile_eur: number;
     risparmio_anno1_eur: number;
@@ -143,6 +168,13 @@ export interface FvPdfTemplateData {
     pdf_cover_text_align?: string | null;
     pdf_cover_logo_position?: string | null;
     pdf_cover_show_client_card?: boolean | null;
+    // Parità layout cover con l'editor (migration 20271109000000_fv_cover_parity).
+    pdf_cover_show_decoration?: boolean | null;
+    pdf_cover_text_vertical?: string | null;
+    pdf_cover_overlay_style?: string | null;
+    pdf_cover_title_size?: number | null;
+    pdf_cover_subtitle_size?: number | null;
+    pdf_cover_eyebrow_size?: number | null;
     presentazione_impresa_html?: string | null;
     foto_team_url?: string | null;
     chi_siamo_titolo?: string | null;
@@ -151,6 +183,7 @@ export interface FvPdfTemplateData {
       autore?: string | null;
       citta?: string | null;
       intervento?: string | null;
+      foto_url?: string | null;
     }> | null;
     certificazioni?: Array<{
       nome?: string | null;
@@ -279,6 +312,7 @@ p { margin-bottom: 2mm; }
 .cover { background: linear-gradient(135deg, #0F2542 0%, #1E3A5F 60%, #2C5184 100%); color: white; height: 100%; position: relative; overflow: hidden; }
 .cover::before { content: ""; position: absolute; top: -20%; right: -20%; width: 80%; height: 80%; background: radial-gradient(circle, rgba(249,115,22,0.4) 0%, transparent 60%); }
 .cover::after { content: "☀"; position: absolute; top: 25mm; right: 25mm; font-size: 100pt; opacity: 0.15; color: #FBBF24; }
+.cover--flat::after { content: none; }
 .cover-bg-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .cover-overlay { position: absolute; inset: 0; }
 .cover-content { position: relative; padding: 24mm 22mm; height: 100%; display: flex; flex-direction: column; }
@@ -410,8 +444,7 @@ table .saving-zero { color: #64748B; }
 .sat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5mm; margin: 2.5mm 0; }
 .sat-view { position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 4/3; border: 1px solid #E2E8F0; }
 .sat-view svg { width: 100%; height: 100%; display: block; }
-.sat-view .sat-label { position: absolute; bottom: 2mm; left: 2mm; background: rgba(255,255,255,0.92); padding: 1mm 2.5mm; border-radius: 4px; font-size: 7.5pt; font-weight: 600; color: #1E3A5F; }
-.sat-view .sat-zoom { position: absolute; top: 2mm; right: 2mm; background: rgba(30,58,95,0.92); color: white; padding: 1mm 2mm; border-radius: 4px; font-size: 7pt; font-weight: 600; }
+.sat-view .sat-label { position: absolute; bottom: 2mm; left: 2mm; background: rgba(15,23,42,0.72); backdrop-filter: blur(2px); padding: 0.8mm 2.2mm; border-radius: 4px; font-size: 7pt; font-weight: 600; color: white; letter-spacing: 0.02em; }
 
 .product-card { display: grid; grid-template-columns: 42mm 1fr; gap: 4mm; background: white; border: 1px solid #E2E8F0; border-radius: 8px; padding: 3mm; margin-bottom: 2.5mm; }
 .product-img { background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%); border-radius: 6px; aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
@@ -724,20 +757,30 @@ export interface FvPdfPageMeta {
 }
 
 export const FV_PDF_PAGES_META: FvPdfPageMeta[] = [
-  { id: "investimento", label: "Investimento", descrizione: "Prezzo, proposta di valore, inclusi e detrazione.", obbligatoria: true },
+  // Ordine di default in stile vendita (la "linea retta" di Belfort): prima la
+  // FIDUCIA (chi siamo + garanzie) e il percorso, poi il DESIDERIO (prodotto e
+  // prova), poi il VALORE (risparmio, cassa 25 anni), e SOLO dopo il PREZZO
+  // (investimento + rata) e l'URGENZA. Il prezzo non si mostra mai prima del
+  // valore. Questo e' lo standard; l'utente puo' sempre ri-trascinare.
+  // — Atto 1: Fiducia —
+  { id: "garanzie", label: "Chi siamo e garanzie", descrizione: "Azienda, prova sociale, certificazioni e garanzie.", obbligatoria: false },
+  { id: "iter", label: "Percorso cliente", descrizione: "Iter pratiche, installazione, allaccio e servizi inclusi.", obbligatoria: false },
+  // — Atto 2: Desiderio (prodotto e prova) —
   { id: "anteprima", label: "Anteprima impianto", descrizione: "Vista tetto, layout pannelli e fonte dati.", obbligatoria: false },
   { id: "componenti", label: "Componenti scelti", descrizione: "Prodotti reali scelti nel preventivo e arricchiti dal listino.", obbligatoria: true },
   { id: "macro_categorie", label: "Pagine linee prodotto", descrizione: "Pagine dedicate lette dalle macro-categorie del listino.", obbligatoria: false },
   { id: "produzione", label: "Produzione", descrizione: "Producibilita mensile, fonte dati e qualita tetto.", obbligatoria: false },
   { id: "flussi", label: "Flussi energia", descrizione: "Autoconsumo, autosufficienza e energia ceduta.", obbligatoria: false },
+  // — Atto 3: Valore (quanto guadagna, prima del costo) —
   { id: "risparmio", label: "Risparmio", descrizione: "Bolletta prima/dopo e risparmio mensile.", obbligatoria: false },
   { id: "costi_futuri", label: "Costi futuri", descrizione: "Scenario costo energia nei prossimi anni.", obbligatoria: false },
-  { id: "piano_pagamento", label: "Piano economico", descrizione: "Rata, risparmio e costo netto mensile.", obbligatoria: false },
-  { id: "bollette_240", label: "Perche farlo ora", descrizione: "Narrativa su aumento bollette e urgenza.", obbligatoria: false },
   { id: "cassa_25", label: "Cassa 25 anni", descrizione: "Cashflow, breakeven e valore cumulato.", obbligatoria: false },
   { id: "co2", label: "Impatto CO2", descrizione: "Beneficio ambientale in equivalenze semplici.", obbligatoria: false },
-  { id: "garanzie", label: "Chi siamo e garanzie", descrizione: "Azienda, prova sociale, certificazioni e garanzie.", obbligatoria: false },
-  { id: "iter", label: "Percorso cliente", descrizione: "Iter pratiche, installazione, allaccio e servizi inclusi.", obbligatoria: false },
+  // — Atto 4: Offerta (ora il prezzo, e sembra piccolo) —
+  { id: "investimento", label: "Investimento", descrizione: "Prezzo, proposta di valore, inclusi e detrazione.", obbligatoria: true },
+  { id: "piano_pagamento", label: "Piano economico", descrizione: "Rata, risparmio e costo netto mensile.", obbligatoria: false },
+  { id: "bollette_240", label: "Perche farlo ora", descrizione: "Narrativa su aumento bollette e urgenza.", obbligatoria: false },
+  // — Atto 5: Chiusura —
   { id: "faq", label: "FAQ", descrizione: "Domande e obiezioni frequenti.", obbligatoria: false },
   { id: "decisione", label: "CTA e firma", descrizione: "Riepilogo offerta, contatti, firma e condizioni.", obbligatoria: true },
 ];
@@ -839,22 +882,50 @@ function pageCover(d: FvPdfTemplateData): string {
   const brandJustify = logoPosition === "top_right" ? "flex-end" : logoPosition === "top_center" ? "center" : "flex-start";
   const showBrand = logoPosition !== "hidden";
   const showClientCard = d.template?.pdf_cover_show_client_card !== false;
+  // ─── Parità layout cover con l'editor: posizione verticale, overlay style,
+  // dimensioni font. La DECORAZIONE resta il ☀ ambientale FV (CSS .cover::after);
+  // il toggle "Mostra" la accende/spegne (classe .cover--flat). Lo stile decoro
+  // (anelli/linea…) NON si applica al PDF FV per scelta — vedi memoria
+  // project_cover_template_system.
+  const showDecoration = d.template?.pdf_cover_show_decoration !== false;
+  const overlayStyle = plainText(d.template?.pdf_cover_overlay_style) || "flat";
+  const textVertical = plainText(d.template?.pdf_cover_text_vertical) || "bottom";
+  const clampSize = (v: unknown, lo: number, hi: number, def: number) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : def;
+  };
+  const titleSize = clampSize(d.template?.pdf_cover_title_size, 28, 64, 46);
+  const subtitleSize = clampSize(d.template?.pdf_cover_subtitle_size, 10, 18, 16);
+  const eyebrowSize = clampSize(d.template?.pdf_cover_eyebrow_size, 8, 14, 10);
+  const overlayBg = overlayStyle === "gradient"
+    ? `linear-gradient(to bottom, rgba(15,37,66,${(overlayOpacity * 0.15).toFixed(2)}) 0%, rgba(15,37,66,${(overlayOpacity * 0.55).toFixed(2)}) 55%, rgba(15,37,66,${overlayOpacity.toFixed(2)}) 100%)`
+    : overlayStyle === "gradient_diag"
+      ? `linear-gradient(135deg, rgba(15,37,66,${(overlayOpacity * 0.2).toFixed(2)}) 0%, rgba(15,37,66,${overlayOpacity.toFixed(2)}) 100%)`
+      : overlayStyle === "vignette"
+        ? `radial-gradient(ellipse at center, rgba(15,37,66,${(overlayOpacity * 0.1).toFixed(2)}) 0%, rgba(15,37,66,${(overlayOpacity * 0.5).toFixed(2)}) 70%, rgba(15,37,66,${(overlayOpacity * 0.95).toFixed(2)}) 100%)`
+        : `rgba(15,37,66,${overlayOpacity.toFixed(2)})`;
+  const mainMargin = textVertical === "top"
+    ? "margin-top:0;margin-bottom:auto;"
+    : textVertical === "center"
+      ? "margin-top:auto;margin-bottom:auto;"
+      : "margin-top:auto;margin-bottom:0;";
+  const brandMb = textVertical === "bottom" ? "auto" : "0";
 
-  return `<div class="page"><div class="cover" style="background:${escHtml(bgColor)};color:${escHtml(textColor)};">
+  return `<div class="page"><div class="cover${showDecoration ? "" : " cover--flat"}" style="background:${escHtml(bgColor)};color:${escHtml(textColor)};">
     ${imageUrl ? `<img class="cover-bg-img" src="${escHtml(imageUrl)}" alt="Copertina fotovoltaico"/>` : ""}
-    ${imageUrl ? `<div class="cover-overlay" style="background:rgba(15,37,66,${overlayOpacity.toFixed(2)});"></div>` : ""}
+    ${imageUrl ? `<div class="cover-overlay" style="background:${overlayBg};"></div>` : ""}
     <div class="cover-content" style="color:${escHtml(textColor)};text-align:${align};align-items:${align === "center" ? "center" : "stretch"};">
-    ${showBrand ? `<div class="cover-brand" style="justify-content:${brandJustify};width:100%;">
+    ${showBrand ? `<div class="cover-brand" style="justify-content:${brandJustify};width:100%;margin-bottom:${brandMb};">
       ${logoUrl ? `<img class="logo-img" src="${escHtml(logoUrl)}" alt="${escHtml(d.azienda.name)}"/>` : `<div class="icon">☀</div>`}
       <div>
         <div class="name">${escHtml(d.azienda.name)}</div>
         ${d.azienda.tagline ? `<div class="tagline">${escHtml(d.azienda.tagline)}</div>` : ""}
       </div>
-    </div>` : `<div style="margin-bottom:auto;"></div>`}
-    <div class="cover-main" style="max-width:${align === "center" ? "150mm" : "165mm"};">
-      <div class="cover-eyebrow">${escHtml(eyebrow)}</div>
-      <h1 style="color:${escHtml(textColor)};">${renderCoverLines(hero)}</h1>
-      <div class="subtitle" style="max-width:${align === "center" ? "100%" : "75%"};">${renderCoverLines(subtitle)}</div>
+    </div>` : `<div style="margin-bottom:${brandMb};"></div>`}
+    <div class="cover-main" style="max-width:${align === "center" ? "150mm" : "165mm"};${mainMargin}">
+      <div class="cover-eyebrow" style="font-size:${eyebrowSize}pt;">${escHtml(eyebrow)}</div>
+      <h1 style="color:${escHtml(textColor)};font-size:${titleSize}pt;">${renderCoverLines(hero)}</h1>
+      <div class="subtitle" style="max-width:${align === "center" ? "100%" : "75%"};font-size:${subtitleSize}pt;">${renderCoverLines(subtitle)}</div>
     </div>
     ${showClientCard ? `<div class="cover-client">
       <div class="client-label">Preparato per</div>
@@ -908,6 +979,72 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
         <div><strong>Detrazione fiscale ${d.costi.detrazione_perc}% — recuperi ${fmtEur(d.costi.detrazione_eur)} in 10 anni.</strong>
         Costo netto effettivo: <strong>${fmtEur(d.costi.costo_netto_dopo_detrazione)}</strong>. Dettagli a pagina 11.</div>
       </div>
+      ${(() => {
+        const mp = d.modalita_pagamento;
+        if (!mp) return "";
+        const tot = d.costi.prezzo_vendita_iva_inclusa;
+        const h3 = `<h3 style="font-size:12pt;color:#1E3A5F;margin:4mm 0 2mm;">Modalità di pagamento</h3>`;
+        const noteP = mp.note ? `<p style="font-size:8.5pt;color:#64748B;margin-top:2mm;">${escHtml(mp.note)}</p>` : "";
+
+        // ── Finanziato: anticipo + resto a rate ──
+        if (mp.tipo === "finanziato") {
+          const r2 = (l: string, v: string, hl = false) => `<tr style="border-bottom:1px solid #F1F5F9;">
+            <td style="padding:1.8mm 0;color:${hl ? "#C2410C" : "#1E293B"};font-weight:${hl ? 700 : 400};">${l}</td>
+            <td style="padding:1.8mm 0;text-align:right;font-weight:${hl ? 700 : 600};color:${hl ? "#C2410C" : "#1E3A5F"};">${v}</td></tr>`;
+          return `${h3}
+          <table style="width:100%;border-collapse:collapse;font-size:10pt;">
+            <tbody>
+              ${mp.anticipo_eur > 0 ? r2(`Anticipo alla firma (${fmtNum(mp.anticipo_pct, 0)}%)`, fmtEur(mp.anticipo_eur)) : r2("Anticipo alla firma", "Nessun anticipo")}
+              ${r2(`Importo finanziato${mp.tasso_zero ? " · tasso zero" : ""}`, fmtEur(mp.finanziato_eur))}
+              ${r2(`Rata mensile · ${mp.durata_mesi} rate`, `${fmtEur(mp.rata_mensile)}/mese`, true)}
+            </tbody>
+            <tfoot><tr style="border-top:2px solid #1E3A5F;font-weight:700;">
+              <td style="padding:1.8mm 0;color:#1E3A5F;">Totale chiavi in mano</td>
+              <td style="padding:1.8mm 0;text-align:right;color:#1E3A5F;">${fmtEur(tot)}</td>
+            </tr></tfoot>
+          </table>${noteP}`;
+        }
+
+        // ── Noleggio: zero anticipo, canone mensile ──
+        if (mp.tipo === "noleggio") {
+          const r2 = (l: string, v: string, hl = false) => `<tr style="border-bottom:1px solid #F1F5F9;">
+            <td style="padding:1.8mm 0;color:${hl ? "#C2410C" : "#1E293B"};font-weight:${hl ? 700 : 400};">${l}</td>
+            <td style="padding:1.8mm 0;text-align:right;font-weight:${hl ? 700 : 600};color:${hl ? "#C2410C" : "#1E3A5F"};">${v}</td></tr>`;
+          return `${h3}
+          <table style="width:100%;border-collapse:collapse;font-size:10pt;">
+            <tbody>
+              ${r2("Anticipo iniziale", "€ 0 · zero anticipo")}
+              ${r2(`Canone mensile · ${mp.durata_mesi} mesi`, `${fmtEur(mp.canone_mensile)}/mese`, true)}
+            </tbody>
+          </table>${noteP}`;
+        }
+
+        // ── Diretto (cash): tranche acconto/SAL/saldo ──
+        if (!mp.tranche.length) return "";
+        const sumPct = mp.tranche.reduce((s, t) => s + (Number(t.pct) || 0), 0);
+        const sumImp = mp.tranche.reduce((s, t) => s + (Number(t.importo_eur) || 0), 0);
+        const th = "padding:1.5mm 0;color:#94A3B8;font-weight:600;font-size:8pt;text-transform:uppercase;letter-spacing:.04em;";
+        const rows = mp.tranche.map((t) => `
+          <tr style="border-bottom:1px solid #F1F5F9;">
+            <td style="padding:1.8mm 0;color:#1E293B;">${escHtml(t.label)}</td>
+            <td style="padding:1.8mm 0;text-align:center;color:#64748B;">${fmtNum(t.pct, 0)}%</td>
+            <td style="padding:1.8mm 0;text-align:right;font-weight:600;color:#1E3A5F;">${fmtEur(t.importo_eur)}</td>
+          </tr>`).join("");
+        return `${h3}
+        <table style="width:100%;border-collapse:collapse;font-size:10pt;">
+          <thead><tr style="border-bottom:1.5px solid #E2E8F0;text-align:left;">
+            <th style="${th}text-align:left;">Fase</th>
+            <th style="${th}text-align:center;">Quota</th>
+            <th style="${th}text-align:right;">Importo</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr style="border-top:2px solid #1E3A5F;font-weight:700;">
+            <td style="padding:1.8mm 0;color:#1E3A5F;">Totale chiavi in mano</td>
+            <td style="padding:1.8mm 0;text-align:center;color:#1E3A5F;">${fmtNum(sumPct, 0)}%</td>
+            <td style="padding:1.8mm 0;text-align:right;color:#1E3A5F;">${fmtEur(sumImp)}</td>
+          </tr></tfoot>
+        </table>${noteP}`;
+      })()}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -916,7 +1053,6 @@ function pageInvestimento(d: FvPdfTemplateData, pageN: number, total: number): s
 function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): string {
   const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
   const np = d.progetto.numero_pannelli;
-  const source = roofSourceLabel(d.progetto.fonte_dati_tetto);
   const renderDisclaimer = plainText(d.template?.render_disclaimer);
   return `<div class="page">
     ${header(d.progetto.numero, cliente, d.azienda.name)}
@@ -925,20 +1061,57 @@ function pageAnteprima(d: FvPdfTemplateData, pageN: number, total: number): stri
       <h1 class="page-title">La tua casa,<br/>con i pannelli.</h1>
       <p class="page-subtitle">Vista dall'alto del tuo tetto in ${escHtml(d.cliente.indirizzo)}. Ecco esattamente come saranno disposti i ${np} pannelli.</p>
       <div class="sat-grid">
-        <div class="sat-view">${svgVistaSatellitareMock("nord", np)}<div class="sat-label">📍 Vista nord</div><div class="sat-zoom">zoom 19</div></div>
-        <div class="sat-view">${d.progetto.layout_pannelli && d.progetto.layout_pannelli.length ? svgVistaLayoutReale(d.progetto.layout_pannelli) : svgVistaSatellitareMock("zenitale", np)}<div class="sat-label">📍 Vista zenitale tetto</div><div class="sat-zoom">zoom 21</div></div>
-        <div class="sat-view">${svgVistaSatellitareMock("3d", np)}<div class="sat-label">📍 Vista 3D sud-ovest</div><div class="sat-zoom">3D · 60°</div></div>
-        <div class="sat-view">${svgVistaSatellitareMock("panoramica", np)}<div class="sat-label">📍 Panoramica quartiere</div><div class="sat-zoom">zoom 18</div></div>
+        ${(() => {
+          const mi = d.map_images;
+          const s = 'style="width:100%;height:100%;object-fit:cover;display:block;"';
+          const lp = d.progetto.layout_pannelli;
+          return `
+        <div class="sat-view">${mi?.close ? `<img src="${mi.close}" ${s} alt="Vista zenitale ravvicinata">` : (lp && lp.length ? svgVistaLayoutReale(lp) : svgVistaSatellitareMock("zenitale", np))}<div class="sat-label">Vista zenitale</div></div>
+        <div class="sat-view">${mi?.medium ? `<img src="${mi.medium}" ${s} alt="Vista aerea">` : svgVistaSatellitareMock("nord", np)}<div class="sat-label">Vista aerea</div></div>
+        <div class="sat-view">${mi?.overview ? `<img src="${mi.overview}" ${s} alt="Vista via">` : svgVistaSatellitareMock("3d", np)}<div class="sat-label">Vista via</div></div>
+        <div class="sat-view">${mi?.wide ? `<img src="${mi.wide}" ${s} alt="Panoramica zona">` : svgVistaSatellitareMock("panoramica", np)}<div class="sat-label">Panoramica zona</div></div>
+          `;
+        })()}
       </div>
       <div class="callout callout-tip">
         <span class="callout-icon">★</span>
         <div><strong>Layout ottimizzato per la tua casa specifica.</strong>
-        Ogni pannello è posizionato considerando l'esposizione${d.progetto.azimut ? ` ${escHtml(d.progetto.azimut)}` : ""}, l'ombreggiamento dei vicini e la struttura del tetto. Dati tecnici e produzione basati su ${escHtml(source)}.</div>
+        Ogni pannello è posizionato considerando l'esposizione${d.progetto.azimut ? ` ${escHtml(d.progetto.azimut)}` : ""}, l'ombreggiamento dei vicini e la struttura del tetto. Il numero, la posizione e l'inclinazione dei moduli sono calcolati per massimizzare la produzione annuale nel tuo specifico sito.</div>
       </div>
       ${renderDisclaimer ? `<div class="callout callout-info">
         <span class="callout-icon">i</span>
         <div><strong>Nota anteprima impianto</strong>${escHtml(renderDisclaimer)}</div>
       </div>` : ""}
+    </div>
+    ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
+  </div>`;
+}
+
+function pageBundleKit(d: FvPdfTemplateData, pageN: number, total: number): string {
+  const cliente = `${d.cliente.nome} ${d.cliente.cognome}`.trim();
+  const b = d.bundle!;
+  const kwp = b.fv_kwp ? `${fmtNum(b.fv_kwp, 1)} kWp` : null;
+  const kwh = b.fv_accumulo_kwh ? `${fmtNum(b.fv_accumulo_kwh, 1)} kWh` : null;
+  const chips = [kwp, kwh].filter(Boolean).map((v) => `<span class="spec-chip">${escHtml(v!)}</span>`).join("");
+  const voceRows = (b.voci ?? [])
+    .slice(0, 8)
+    .map((v) => `<div style="display:flex;align-items:center;gap:3mm;padding:1.5mm 0;border-bottom:1px solid #F1F5F9;font-size:8.5pt;">
+      ${v.foto ? `<img src="${escHtml(v.foto)}" alt="" style="width:12mm;height:12mm;border-radius:4px;object-fit:cover;border:1px solid #E2E8F0;flex-shrink:0;"/>` : ""}
+      <span style="flex:1;">${escHtml(v.descrizione)}</span>
+      <span style="color:#64748B;">× ${v.quantita}</span>
+    </div>`)
+    .join("");
+  return `<div class="page">
+    ${header(d.progetto.numero, cliente, d.azienda.name)}
+    <div class="content">
+      <div class="eyebrow">Pagina ${pageN} · Il tuo kit</div>
+      <h1 class="page-title">${escHtml(b.nome)}</h1>
+      ${b.descrizione ? `<p class="page-subtitle">${escHtml(b.descrizione)}</p>` : ""}
+      ${b.cover_b64 ? `<div style="width:100%;height:72mm;border-radius:10px;overflow:hidden;margin:4mm 0;">
+        <img src="${escHtml(b.cover_b64)}" alt="Kit ${escHtml(b.nome)}" style="width:100%;height:100%;object-fit:cover;"/>
+      </div>` : ""}
+      ${chips ? `<div class="product-specs" style="margin:3mm 0;">${chips}</div>` : ""}
+      ${voceRows ? `<div style="margin-top:3mm;">${voceRows}</div>` : ""}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
   </div>`;
@@ -1355,7 +1528,14 @@ function pageGaranzie(d: FvPdfTemplateData, pageN: number, total: number): strin
       </ul>
       ${recensioni.length > 0 ? `<h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 2mm;">Cosa dicono i clienti</h3>
         <div class="kpi-row cols-2">
-          ${recensioni.map((rec) => `<div class="kpi-block"><div class="kpi-label">${escHtml([plainText(rec.citta), plainText(rec.intervento)].filter(Boolean).join(" · ") || "Recensione")}</div><div class="kpi-sub" style="font-size:8pt;color:#475569;">"${escHtml(plainText(rec.quote))}"</div><div class="kpi-value" style="font-size:11pt;margin-top:2mm;">${escHtml(plainText(rec.autore))}</div></div>`).join("")}
+          ${recensioni.map((rec) => {
+            const fotoRec = imageHref(rec.foto_url);
+            return `<div class="kpi-block">${fotoRec ? `<div style="height:26mm;border-radius:6px;overflow:hidden;border:1px solid #E2E8F0;margin-bottom:2mm;"><img src="${escHtml(fotoRec)}" alt="Impianto installato" style="width:100%;height:100%;object-fit:cover;"/></div>` : ""}<div class="kpi-label">${escHtml([plainText(rec.citta), plainText(rec.intervento)].filter(Boolean).join(" · ") || "Recensione")}</div><div class="kpi-sub" style="font-size:8pt;color:#475569;">"${escHtml(plainText(rec.quote))}"</div><div class="kpi-value" style="font-size:11pt;margin-top:2mm;">${escHtml(plainText(rec.autore))}</div></div>`;
+          }).join("")}
+        </div>` : ""}
+      ${(d.cantieri_foto ?? []).length > 0 ? `<h3 style="font-size:11pt;color:#1E3A5F;margin:3mm 0 2mm;">I nostri cantieri</h3>
+        <div style="display:grid;grid-template-columns:repeat(${Math.min((d.cantieri_foto ?? []).length, 3)},1fr);gap:2mm;">
+          ${(d.cantieri_foto ?? []).slice(0, 3).map((src) => `<div style="height:28mm;border-radius:6px;overflow:hidden;border:1px solid #E2E8F0;"><img src="${escHtml(src)}" alt="Cantiere installato" style="width:100%;height:100%;object-fit:cover;"/></div>`).join("")}
         </div>` : ""}
     </div>
     ${footer(d.azienda.name, [d.azienda.website, d.azienda.phone].filter(Boolean).join(" · "), pageN, total)}
@@ -1494,20 +1674,40 @@ function pageDecisione(d: FvPdfTemplateData, pageN: number, total: number): stri
 
 // ─── ENTRY POINT ───────────────────────────────────────────────────────────
 
+function hasRealMapImages(d: FvPdfTemplateData): boolean {
+  const mi = d.map_images;
+  return !!(mi && (mi.close || mi.medium || mi.overview || mi.wide));
+}
+
 export function getFvPdfRenderedPagesCount(d: FvPdfTemplateData): number {
   const macroPages = dedicatedMacroPages(d);
-  const orderedPages = normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => page.visible);
-  return 1 + orderedPages.reduce((count, page) => (
+  const orderedPages = normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => {
+    if (!page.visible) return false;
+    // Salta la pagina anteprima se non ci sono immagini satellite reali
+    if (page.id === "anteprima" && !hasRealMapImages(d)) return false;
+    return true;
+  });
+  const hasBundleKit = !!(d.bundle?.cover_b64);
+  return 1 + (hasBundleKit ? 1 : 0) + orderedPages.reduce((count, page) => (
     count + (page.id === "macro_categorie" ? macroPages.length : 1)
   ), 0);
 }
 
 export function renderFvPdfHtml(d: FvPdfTemplateData): string {
   const macroPages = dedicatedMacroPages(d);
-  const orderedPages = normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => page.visible);
+  const hasMap = hasRealMapImages(d);
+  const orderedPages = normalizeFvPdfPagesOrder(d.template?.pdf_pages_order).filter((page) => {
+    if (!page.visible) return false;
+    if (page.id === "anteprima" && !hasMap) return false;
+    return true;
+  });
   const TOTAL = getFvPdfRenderedPagesCount(d);
   let pageN = 1;
   const pages = [pageCover(d)];
+  // Bundle kit page: inserita subito dopo la cover quando il bundle ha una copertina
+  if (d.bundle?.cover_b64) {
+    pages.push(pageBundleKit(d, ++pageN, TOTAL));
+  }
   for (const page of orderedPages) {
     switch (page.id) {
       case "investimento":

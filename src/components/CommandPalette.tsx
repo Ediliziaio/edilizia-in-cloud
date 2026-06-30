@@ -86,7 +86,6 @@ const SETTINGS_ITEMS: SettingsItem[] = [
   { label: "Campi personalizzati",       path: "/azienda/impostazioni/campi-personalizzati" },
   { label: "Sequenze",                   path: "/azienda/impostazioni/sequenze" },
   { label: "Form & UTM",                 path: "/azienda/impostazioni/form-builder" },
-  { label: "Materiali preventivi",       path: "/azienda/impostazioni/materiali-preventivi" },
   { label: "Template offerte",           path: "/azienda/impostazioni/template-preventivi" },
   { label: "Firma Elettronica",          path: "/azienda/impostazioni/firma-elettronica" },
   { label: "Calendari marketing",        path: "/azienda/impostazioni/calendari" },

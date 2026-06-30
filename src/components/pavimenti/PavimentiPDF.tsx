@@ -6,10 +6,10 @@
  *   1. Cover — hero brandizzato (immagine + overlay), logo, titolo/sottotitolo,
  *              card cliente/cantiere, totale in evidenza.
  *   2. Presentazione impresa — "Chi siamo", esigenze, soluzione, USP, testimonianze.
- *   3+. Computo per capitoli — tabella (descrizione, UdM, qty, prezzo, importo) con
+ *   3. Foto e render — griglia con didascalie (prova visiva, PRIMA del prezzo).
+ *   4+. Computo per capitoli — tabella (descrizione, UdM, qty, prezzo, importo) con
  *              subtotale per capitolo; margini per voce/capitolo SOLO se show_margine.
  *   N. Riepilogo economico — imponibile, sconto, IVA, totale, detrazione, margine.
- *   N. Foto e render — griglia con didascalie.
  *   N. Cronoprogramma — fasi con durata (se show_cronoprogramma).
  *   N. Condizioni e contatti — pagamenti, validità, recapiti azienda.
  *
@@ -21,9 +21,10 @@
  * EdiliziaInCloud / nome azienda. NESSUN claim su server UE/Italia/Europa.
  */
 import * as React from "react";
+import { ChiusuraVendita } from "@/components/preventivi/ChiusuraVenditaPdf";
 import {
   Document, Page, Text, View, StyleSheet, Image, Svg, Rect, Defs,
-  LinearGradient, Stop, Font,
+  LinearGradient, RadialGradient, Stop, Path, Circle, G, Font,
 } from "@react-pdf/renderer";
 import { formatCurrency } from "@/lib/formatters";
 import type { PavPdfEnriched, PavPdfCapitolo, PavPdfTotali } from "@/hooks/usePavimentiPDF";
@@ -92,6 +93,89 @@ function hexToTint(hex: string, alpha: number): string {
   const b = parseInt(c.substring(4, 6), 16);
   const mix = (ch: number) => Math.round(ch + (255 - ch) * alpha);
   return `#${[mix(r), mix(g), mix(b)].map((x) => x.toString(16).padStart(2, "0")).join("")}`;
+}
+
+// Variante che può restituire null (per "usa default": es. bg cover non
+// impostato → si usa C.coverBg). normalizeHexColor() sopra richiede invece
+// sempre un fallback stringa.
+function normalizeHexOrNull(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const raw = value.trim();
+  const m3 = raw.match(/^#?([0-9a-fA-F]{3})$/);
+  if (m3) {
+    const [r, g, b] = m3[1].split("");
+    return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
+  }
+  const m6 = raw.match(/^#?([0-9a-fA-F]{6})$/);
+  if (m6) return `#${m6[1]}`.toUpperCase();
+  return null;
+}
+
+// ─── Decorazione SVG cover (parità Serramenti) ───────────────────────────────
+// Disegno decorativo in alto a destra della cover. Il colore è quello del TESTO
+// cover (non il brand) → si armonizza sempre col fondo e resta coerente con
+// l'anteprima live dell'editor. 4 varianti + "none".
+function CoverDecorationSvg({
+  color,
+  variant = "square",
+}: {
+  color: string;
+  variant?: "square" | "circle" | "line" | "pattern" | "none";
+}) {
+  if (variant === "none") return null;
+
+  const svgProps = { viewBox: "0 0 180 180", style: { width: 180, height: 180 } as never };
+
+  if (variant === "circle") {
+    return (
+      <Svg {...svgProps}>
+        <Circle cx={90} cy={90} r={80} stroke={color} strokeWidth={3} fill="none" opacity={0.7} />
+        <Circle cx={90} cy={90} r={56} stroke={color} strokeWidth={1.5} fill="none" opacity={0.4} />
+        <Circle cx={90} cy={90} r={32} stroke={color} strokeWidth={1} fill="none" opacity={0.25} />
+      </Svg>
+    );
+  }
+
+  if (variant === "line") {
+    return (
+      <Svg {...svgProps}>
+        <Path d="M 90 10 L 90 170" stroke={color} strokeWidth={2.5} opacity={0.7} />
+        <Path d="M 70 40 L 110 40" stroke={color} strokeWidth={1.5} opacity={0.5} />
+        <Path d="M 70 140 L 110 140" stroke={color} strokeWidth={1.5} opacity={0.5} />
+      </Svg>
+    );
+  }
+
+  if (variant === "pattern") {
+    const dots = [];
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        dots.push(
+          <Circle key={`${r}-${c}`} cx={30 + c * 30} cy={30 + r * 30} r={3} fill={color} opacity={0.45} />,
+        );
+      }
+    }
+    return <Svg {...svgProps}><G>{dots}</G></Svg>;
+  }
+
+  // variant === "square" (default — riquadro stilizzato con croce, tono edile)
+  return (
+    <Svg {...svgProps}>
+      <G opacity={0.7}>
+        <Rect x={20} y={20} width={140} height={140} rx={6} stroke={color} strokeWidth={3} fill="none" />
+        <Path d={`M 90 25 L 90 155`} stroke={color} strokeWidth={2} />
+        <Path d={`M 25 90 L 155 90`} stroke={color} strokeWidth={2} />
+        <Path d={`M 35 35 L 55 35 L 35 55 Z`} fill={color} opacity={0.25} />
+        <Path d={`M 95 95 L 115 95 L 95 115 Z`} fill={color} opacity={0.25} />
+      </G>
+      <G opacity={0.3}>
+        <Path d="M 0 90 L 18 90" stroke={color} strokeWidth={1.5} />
+        <Path d="M 162 90 L 180 90" stroke={color} strokeWidth={1.5} />
+        <Path d="M 90 0 L 90 18" stroke={color} strokeWidth={1.5} />
+        <Path d="M 90 162 L 90 180" stroke={color} strokeWidth={1.5} />
+      </G>
+    </Svg>
+  );
 }
 
 function makePalette(t: PavTemplatePdf) {
@@ -198,6 +282,39 @@ function makeStyles(C: Palette) {
     },
     coverCardLabel: { fontSize: 7.5, color: C.gray300, textTransform: "uppercase" as const, letterSpacing: 0.5 },
     coverCardValue: { fontSize: 11, color: C.white, fontWeight: 700, marginTop: 2 },
+    // Cover "parità Serramenti": eyebrow + hero + sottotitolo + card cliente
+    // + decoro SVG. Usati dal nuovo render cover pdf_cover_*.
+    coverEyebrow: {
+      fontSize: 10,
+      color: C.secondary,
+      fontWeight: 700,
+      letterSpacing: 1.6,
+      textTransform: "uppercase" as const,
+      marginBottom: 14,
+    },
+    coverHero: { fontSize: 40, fontWeight: 700, lineHeight: 1.06, marginBottom: 16, letterSpacing: -0.3 },
+    coverSubhero: { fontSize: 13, lineHeight: 1.5, color: hexToTint(C.secondary, 0.2), maxWidth: 380 },
+    coverClientCard: {
+      backgroundColor: "rgba(255,255,255,0.08)",
+      borderRadius: 10,
+      padding: 16,
+      marginTop: 22,
+      borderLeft: `3pt solid ${C.secondary}`,
+    },
+    coverClientLabel: {
+      fontSize: 8, color: C.secondary, fontWeight: 700,
+      letterSpacing: 1, textTransform: "uppercase" as const, marginBottom: 5,
+    },
+    coverClientName: { fontSize: 20, fontWeight: 700, marginBottom: 3 },
+    coverClientAddr: { fontSize: 10, color: C.gray300 },
+    coverDecoSvg: {
+      position: "absolute",
+      top: 48,
+      right: 48,
+      width: 150,
+      height: 150,
+      opacity: 0.85,
+    },
     coverTotalBox: {
       marginTop: 16,
       backgroundColor: C.secondary,
@@ -364,6 +481,27 @@ const cantiereOf = (p: PavProgetto) =>
     .filter(Boolean).join(", ").trim();
 
 const dateStr = () => new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+// Sostituzione campi {placeholder} sui testi cover (eyebrow/hero/subhero).
+// Allinea i chip dell'editor a un output reale nel PDF. No-op sui testi senza
+// placeholder, quindi sicura anche sui default. Token supportati: cliente_nome,
+// cliente_cognome, cliente_nome_completo, cantiere_citta, cantiere_provincia,
+// tipo_intervento, anno.
+function applyCoverPlaceholders(s: string, p: PavProgetto): string {
+  if (!s || !s.includes("{")) return s;
+  const map: Record<string, string> = {
+    cliente_nome: (p.cliente_nome ?? "").trim(),
+    cliente_cognome: (p.cliente_cognome ?? "").trim(),
+    cliente_nome_completo: clienteNomeOf(p),
+    cantiere_citta: (p.cantiere_citta ?? "").trim(),
+    cantiere_provincia: (p.cantiere_provincia ?? "").trim(),
+    tipo_intervento: (p.tipo_intervento ?? "").trim(),
+    anno: String(new Date().getFullYear()),
+  };
+  return s.replace(/\{(\w+)\}/g, (full, key: string) =>
+    Object.prototype.hasOwnProperty.call(map, key) ? map[key] : full,
+  );
+}
 
 // ─── Footer (legale Domus Group) ─────────────────────────────────────────────
 // Anagrafica: preferisce i dati del template (builder) e ripiega su `company.*`.
@@ -580,15 +718,108 @@ export function PavimentiPDF(props: PavPdfEnriched) {
   const logoUrl = t.logo_url ?? company?.logo_url ?? null;
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
-  const coverTitle = (t.cover_title ?? "").trim() || "Preventivo di pavimenti";
-  const coverSubtitle = (t.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano";
-  // Controlli copertina (builder): colore testo, posizione logo, opacità velo.
-  const coverTextColor = (t.cover_text_color ?? "").trim() || "#FFFFFF";
-  const coverLogoPosition = t.cover_logo_position ?? "top_left";
+
+  // ─── Cover "parità Serramenti" — campi pdf_cover_* ─────────────────────────
+  // Le colonne pdf_cover_* sono aggiunte da 20271110050000_pavimenti_cover_parity.sql
+  // ma NON sono nel tipo PavTemplatePdf (né nei types generati): si leggono in modo
+  // difensivo via cast `as any` (stesso pattern di SerramentoPDF). Per ogni campo si
+  // ripiega sui vecchi `cover_*` o sui default, così i template esistenti continuano
+  // a rendere identici a prima finché non si applica un preset.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tpl = (t ?? {}) as any;
+
+  const coverTitle = applyCoverPlaceholders(
+    (tpl.pdf_cover_hero ?? "").trim() || (t.cover_title ?? "").trim() || "Preventivo di pavimenti",
+    p,
+  );
+  const coverSubtitle = applyCoverPlaceholders(
+    (tpl.pdf_cover_subhero_template ?? "").trim() ||
+      (tpl.pdf_cover_subhero ?? "").trim() ||
+      (t.cover_subtitle ?? "").trim() ||
+      "La tua casa, rinnovata chiavi in mano",
+    p,
+  );
+  const coverEyebrow = applyCoverPlaceholders(
+    (tpl.pdf_cover_eyebrow ?? "").trim() || "La tua proposta personalizzata",
+    p,
+  );
+
+  // Colore testo: pdf_cover_text_color → cover_text_color → bianco.
+  const coverTextColor =
+    normalizeHexOrNull(tpl.pdf_cover_text_color) ?? ((t.cover_text_color ?? "").trim() || "#FFFFFF");
+  // bg cover: pdf_cover_bg_color → null (= usa C.coverBg default del template).
+  const coverBgColor = normalizeHexOrNull(tpl.pdf_cover_bg_color);
+  // Immagine: pdf_cover_image_url → cover_image_url (legacy).
+  const coverImageUrl = (tpl.pdf_cover_image_url ?? "").trim() || t.cover_image_url || null;
+
+  // Posizione logo (pdf_cover_logo_position → cover_logo_position → top_left).
+  const coverLogoPosition: "top_left" | "top_right" | "top_center" | "hidden" =
+    (["top_left", "top_right", "top_center", "hidden"] as const).includes(tpl.pdf_cover_logo_position)
+      ? tpl.pdf_cover_logo_position
+      : (t.cover_logo_position ?? "top_left");
   const coverLogoJustify =
     coverLogoPosition === "top_right" ? "flex-end" :
     coverLogoPosition === "top_center" ? "center" : "flex-start";
-  const coverOverlayOpacity = typeof t.cover_overlay_opacity === "number" ? t.cover_overlay_opacity : 0.4;
+
+  // Overlay opacity: pdf_cover_overlay_opacity è 0–100 (intero) → frazione.
+  // Fallback su cover_overlay_opacity (0–1) o 0.4.
+  const coverOverlayOpacity = typeof tpl.pdf_cover_overlay_opacity === "number"
+    ? Math.max(0, Math.min(100, tpl.pdf_cover_overlay_opacity)) / 100
+    : (typeof t.cover_overlay_opacity === "number" ? t.cover_overlay_opacity : 0.4);
+  // Stile overlay (flat | gradient | gradient_diag | vignette).
+  const coverOverlayStyle: "flat" | "gradient" | "gradient_diag" | "vignette" =
+    (["flat", "gradient", "gradient_diag", "vignette"] as const).includes(tpl.pdf_cover_overlay_style)
+      ? tpl.pdf_cover_overlay_style
+      : "flat";
+
+  // Posizione verticale del blocco testo (top | center | bottom).
+  const coverTextVertical: "top" | "center" | "bottom" =
+    (["top", "center", "bottom"] as const).includes(tpl.pdf_cover_text_vertical)
+      ? tpl.pdf_cover_text_vertical
+      : "bottom";
+  // Allineamento orizzontale testo. Pavimenti legacy ammette anche "right":
+  // lo mappiamo a "left" perché il layout cover supporta solo left/center.
+  const coverTextAlign: "left" | "center" =
+    tpl.pdf_cover_text_align === "center" || t.cover_text_align === "center" ? "center" : "left";
+
+  // Decorazione SVG (toggle + variante). Default master-toggle = true.
+  const coverShowDecoration = tpl.pdf_cover_show_decoration !== false;
+  const coverDecorationStyle: "square" | "circle" | "line" | "pattern" | "none" =
+    (["square", "circle", "line", "pattern", "none"] as const).includes(tpl.pdf_cover_decoration_style)
+      ? tpl.pdf_cover_decoration_style
+      : "square";
+  // Card cliente sulla cover (default mostrata).
+  const coverShowClientCard = tpl.pdf_cover_show_client_card !== false;
+
+  // Dimensioni font cover (clamp come Serramenti). Fallback su cover_title_size legacy.
+  const coverTitleSize = typeof tpl.pdf_cover_title_size === "number"
+    ? Math.max(28, Math.min(64, tpl.pdf_cover_title_size))
+    : (typeof t.cover_title_size === "number" ? t.cover_title_size : 40);
+  const coverSubtitleSize = typeof tpl.pdf_cover_subtitle_size === "number"
+    ? Math.max(10, Math.min(18, tpl.pdf_cover_subtitle_size))
+    : 13;
+  const coverEyebrowSize = typeof tpl.pdf_cover_eyebrow_size === "number"
+    ? Math.max(8, Math.min(14, tpl.pdf_cover_eyebrow_size))
+    : 10;
+
+  // Posizione verticale → top assoluto del blocco testo (canvas A4 = 841pt).
+  const coverContentTop = coverTextVertical === "top"
+    ? (coverLogoPosition === "hidden" ? 96 : 150)
+    : coverTextVertical === "center"
+      ? 250
+      : 322;
+  const coverLogoPositionStyle = coverLogoPosition === "top_right"
+    ? { position: "absolute" as const, top: 48, right: 44, left: 44, alignItems: "flex-end" as const }
+    : coverLogoPosition === "top_center"
+      ? { position: "absolute" as const, top: 48, left: 44, right: 44, alignItems: "center" as const }
+      : { position: "absolute" as const, top: 48, left: 44, right: 44, alignItems: coverTextAlign === "center" ? "center" as const : "flex-start" as const };
+  const coverTextBlockStyle = {
+    position: "absolute" as const,
+    top: coverContentTop,
+    left: 44,
+    right: 44,
+    alignItems: coverTextAlign === "center" ? "center" as const : "flex-start" as const,
+  };
 
   const esigenze = t.esigenze ?? [];
   const soluzione = t.soluzione ?? [];
@@ -632,34 +863,74 @@ export function PavimentiPDF(props: PavPdfEnriched) {
       author={companyName}
       subject={`Preventivo pavimenti per ${cliente}`}
     >
-      {/* ─── PAGINA 1 — COVER ─────────────────────────────────────────────── */}
-      <Page size="A4" style={styles.cover}>
-        {t.cover_image_url && (
+      {/* ─── PAGINA 1 — COVER ─────────────────────────────────────────────────
+          Layout "parità Serramenti": canvas A4 fisso (595×841pt) con layer
+          assoluti. Sfondo (colore/immagine) + overlay style-aware + decoro SVG
+          + logo posizionabile + blocco testo (eyebrow/hero/subhero + card
+          cliente) allineato verticalmente, + footer con totale (value-prop
+          Pavimenti). I controlli arrivano da pdf_cover_* (vedi derivazioni). */}
+      <Page
+        size="A4"
+        style={[
+          styles.cover,
+          coverBgColor ? { backgroundColor: coverBgColor } : undefined,
+          { color: coverTextColor },
+        ]}
+      >
+        {/* Immagine di sfondo opzionale (dimensioni in pt esplicite per evitare
+            il bug react-pdf della pagina vuota extra con width/height "100%"). */}
+        {coverImageUrl && (
           <Image
-            src={t.cover_image_url}
-            style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, objectFit: "cover" }}
+            src={coverImageUrl}
+            style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, objectFit: "cover" as const }}
           />
         )}
-        {/* Velo scuro configurabile sull'immagine (builder: cover_overlay_opacity) */}
-        {t.cover_image_url && (
-          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, backgroundColor: "#000", opacity: coverOverlayOpacity }} />
-        )}
-        {/* Overlay scuro per leggibilità (gradiente verticale) */}
-        <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
-          <Svg width={595} height={841} viewBox="0 0 595 841">
-            <Defs>
-              <LinearGradient id="pav-cover-grad" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.55 : 1} />
-                <Stop offset="0.6" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.72 : 1} />
-                <Stop offset="1" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.92 : 1} />
-              </LinearGradient>
-            </Defs>
-            <Rect x={0} y={0} width={595} height={841} fill="url(#pav-cover-grad)" />
-          </Svg>
-        </View>
 
+        {/* Overlay sopra l'immagine (4 stili). Senza immagine non serve: il
+            colore di sfondo della pagina basta. */}
+        {coverImageUrl && coverOverlayStyle === "flat" && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, backgroundColor: "#000000", opacity: coverOverlayOpacity }} />
+        )}
+        {coverImageUrl && coverOverlayStyle !== "flat" && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
+            <Svg width={595} height={841} viewBox="0 0 595 841">
+              <Defs>
+                {coverOverlayStyle === "gradient" && (
+                  <LinearGradient id="pav-cover-overlay" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.15} />
+                    <Stop offset="0.55" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.55} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity} />
+                  </LinearGradient>
+                )}
+                {coverOverlayStyle === "gradient_diag" && (
+                  <LinearGradient id="pav-cover-overlay" x1="0" y1="0" x2="1" y2="1">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.2} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity} />
+                  </LinearGradient>
+                )}
+                {coverOverlayStyle === "vignette" && (
+                  <RadialGradient id="pav-cover-overlay" cx="0.5" cy="0.5" r="0.85" fx="0.5" fy="0.5">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.1} />
+                    <Stop offset="0.7" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.5} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.95} />
+                  </RadialGradient>
+                )}
+              </Defs>
+              <Rect x={0} y={0} width={595} height={841} fill="url(#pav-cover-overlay)" />
+            </Svg>
+          </View>
+        )}
+
+        {/* Decoro SVG in alto a destra (toggle). Colore = TESTO cover. */}
+        {coverShowDecoration && (
+          <View style={styles.coverDecoSvg}>
+            <CoverDecorationSvg color={coverTextColor} variant={coverDecorationStyle} />
+          </View>
+        )}
+
+        {/* Logo posizionabile. */}
         {coverLogoPosition !== "hidden" && (
-          <View style={{ position: "absolute", top: 48, left: 44, right: 44 }}>
+          <View wrap={false} style={coverLogoPositionStyle}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: coverLogoJustify }}>
               {logoUrl ? (
                 <Image src={logoUrl} style={styles.coverLogo} />
@@ -674,32 +945,31 @@ export function PavimentiPDF(props: PavPdfEnriched) {
           </View>
         )}
 
-        <View style={{ position: "absolute", top: 300, left: 44, right: 44 }}>
-          <Text style={[styles.coverTitle, { color: coverTextColor, fontSize: t.cover_title_size ?? 30, textAlign: t.cover_text_align ?? "left" }]}>{coverTitle}</Text>
-          <Text style={[styles.coverSubtitle, { color: coverTextColor, textAlign: t.cover_text_align ?? "left" }]}>{coverSubtitle}</Text>
+        {/* Blocco testo (eyebrow + hero + subhero + card cliente) allineato
+            verticalmente secondo coverTextVertical. */}
+        <View wrap={false} style={coverTextBlockStyle}>
+          <Text style={[styles.coverEyebrow, { fontSize: coverEyebrowSize, color: C.secondary, textAlign: coverTextAlign }]}>
+            {coverEyebrow}
+          </Text>
+          <Text style={[styles.coverHero, { fontSize: coverTitleSize, color: coverTextColor, textAlign: coverTextAlign }]}>
+            {coverTitle}
+          </Text>
+          <Text style={[styles.coverSubhero, { fontSize: coverSubtitleSize, textAlign: coverTextAlign }]}>
+            {coverSubtitle}
+          </Text>
+
+          {coverShowClientCard && (
+            <View style={styles.coverClientCard}>
+              <Text style={styles.coverClientLabel}>Preparato per</Text>
+              <Text style={[styles.coverClientName, { color: coverTextColor }]}>{cliente}</Text>
+              {cantiere ? <Text style={styles.coverClientAddr}>{cantiere}</Text> : null}
+            </View>
+          )}
         </View>
 
+        {/* Footer cover: solo riferimento + data — NESSUN totale (il prezzo non va in cover). */}
         <View style={{ position: "absolute", bottom: 70, left: 44, right: 44 }}>
-          <View style={{ flexDirection: "row", marginHorizontal: -6 }}>
-            <View style={{ flex: 1, paddingHorizontal: 6 }}>
-              <View style={styles.coverCard}>
-                <Text style={styles.coverCardLabel}>Preparato per</Text>
-                <Text style={styles.coverCardValue}>{cliente}</Text>
-                {cantiere ? <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>{cantiere}</Text> : null}
-              </View>
-            </View>
-            <View style={{ flex: 1, paddingHorizontal: 6 }}>
-              <View style={styles.coverCard}>
-                <Text style={styles.coverCardLabel}>Riferimento</Text>
-                <Text style={styles.coverCardValue}>{p.code ?? "—"}</Text>
-                <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>Data: {dateStr()}</Text>
-              </View>
-            </View>
-          </View>
-          <View style={styles.coverTotalBox}>
-            <Text style={styles.coverTotalLabel}>Investimento totale (IVA inclusa)</Text>
-            <Text style={styles.coverTotalValue}>{formatCurrency(totali.totale)}</Text>
-          </View>
+          <Text style={styles.coverTotalLabel}>Rif. {p.code ?? "—"} · {dateStr()}</Text>
         </View>
       </Page>
 
@@ -770,7 +1040,25 @@ export function PavimentiPDF(props: PavPdfEnriched) {
         </Page>
       )}
 
-      {/* ─── COMPUTO PER CAPITOLI + RIEPILOGO ─────────────────────────────── */}
+      {/* ─── FOTO E RENDER (prima del prezzo: la prova visiva precede il costo) ─ */}
+      {media.length > 0 && (
+        <Page size="A4" style={styles.page}>
+          {header}
+          <Text style={styles.sectionTitle}>Foto e render del progetto</Text>
+          <Text style={styles.sectionSub}>Stato attuale, lavori simili e rendering dell'intervento.</Text>
+          <View style={styles.photoGrid}>
+            {media.map((m) => (
+              <View key={m.id} style={styles.photoItem} wrap={false}>
+                <Image src={m.url} style={styles.photoImg} />
+                {m.caption ? <Text style={styles.photoCaption}>{m.caption}</Text> : null}
+              </View>
+            ))}
+          </View>
+          {footer}
+        </Page>
+      )}
+
+      {/* ─── COMPUTO PER CAPITOLI + RIEPILOGO (dopo la prova visiva) ───── */}
       <Page size="A4" style={styles.page}>
         {header}
         <Text style={styles.sectionTitle}>Computo metrico estimativo</Text>
@@ -817,24 +1105,6 @@ export function PavimentiPDF(props: PavPdfEnriched) {
         </View>
         {footer}
       </Page>
-
-      {/* ─── FOTO E RENDER ────────────────────────────────────────────────── */}
-      {media.length > 0 && (
-        <Page size="A4" style={styles.page}>
-          {header}
-          <Text style={styles.sectionTitle}>Foto e render del progetto</Text>
-          <Text style={styles.sectionSub}>Stato attuale, lavori simili e rendering dell'intervento.</Text>
-          <View style={styles.photoGrid}>
-            {media.map((m) => (
-              <View key={m.id} style={styles.photoItem} wrap={false}>
-                <Image src={m.url} style={styles.photoImg} />
-                {m.caption ? <Text style={styles.photoCaption}>{m.caption}</Text> : null}
-              </View>
-            ))}
-          </View>
-          {footer}
-        </Page>
-      )}
 
       {/* ─── CRONOPROGRAMMA + CONDIZIONI + CONTATTI ───────────────────────── */}
       <Page size="A4" style={styles.page}>
@@ -924,6 +1194,7 @@ export function PavimentiPDF(props: PavPdfEnriched) {
             </View>
           ) : null}
         </View>
+        <ChiusuraVendita c={C} companyName={companyName} validityText={t.validity_text} />
         {footer}
       </Page>
     </Document>

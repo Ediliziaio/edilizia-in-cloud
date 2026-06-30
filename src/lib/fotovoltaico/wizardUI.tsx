@@ -48,8 +48,10 @@ export function FvTabBar({ tabs, current, completed, allowJumpForward, onSelect 
         {tabs.map((t) => {
           const isActive = t.num === current;
           const isCompleted = completed.has(t.num);
+          // Indietro SEMPRE consentito (t.num <= current): una fase già vista si può
+          // sempre rivedere/correggere. In avanti solo se completata, la successiva o jump.
           const isClickable =
-            isCompleted || isActive || (allowJumpForward ?? false) || t.num === current + 1;
+            isCompleted || t.num <= current || (allowJumpForward ?? false) || t.num === current + 1;
           return (
             <button
               key={t.num}

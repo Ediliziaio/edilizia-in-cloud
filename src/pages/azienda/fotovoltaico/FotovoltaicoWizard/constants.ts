@@ -79,8 +79,69 @@ export const INITIAL: WizardData = {
   pannello_id: null,
   inverter_id: null,
   accumulo_id: null,
+  kit_bundle_id: null,
+  kit_nome: null,
+  kit_prezzo: null,
+  layout_overlay: null,
   tariffa_installazione_id: null,
   finanziamento_modalita: "rate",
   tabella_finanziamento_id: null,
   durata_mesi_scelta: 84,
+  modalita_pagamento: {
+    tranche: [
+      { label: "Acconto alla firma", pct: 30 },
+      { label: "All'avvio dei lavori", pct: 40 },
+      { label: "Saldo a fine lavori", pct: 30 },
+    ],
+    note: null,
+    anticipo_pct: 0,
+  },
 };
+
+/** Preset rapidi per la modalità di pagamento diretto (Fase 6). */
+export const PAGAMENTO_PRESETS: Array<{
+  id: string;
+  label: string;
+  tranche: Array<{ label: string; pct: number }>;
+}> = [
+  {
+    id: "30-40-30",
+    label: "30 / 40 / 30",
+    tranche: [
+      { label: "Acconto alla firma", pct: 30 },
+      { label: "All'avvio dei lavori", pct: 40 },
+      { label: "Saldo a fine lavori", pct: 30 },
+    ],
+  },
+  {
+    id: "40-60",
+    label: "40 / 60",
+    tranche: [
+      { label: "Acconto alla firma", pct: 40 },
+      { label: "Saldo a fine lavori", pct: 60 },
+    ],
+  },
+  {
+    id: "50-50",
+    label: "50 / 50",
+    tranche: [
+      { label: "Acconto alla firma", pct: 50 },
+      { label: "Saldo a fine lavori", pct: 50 },
+    ],
+  },
+  {
+    id: "30-30-30-10",
+    label: "30 / 30 / 30 / 10",
+    tranche: [
+      { label: "Acconto alla firma", pct: 30 },
+      { label: "Consegna materiali", pct: 30 },
+      { label: "Fine installazione", pct: 30 },
+      { label: "Collaudo / allaccio", pct: 10 },
+    ],
+  },
+  {
+    id: "unica",
+    label: "Unica soluzione",
+    tranche: [{ label: "Pagamento a fine lavori", pct: 100 }],
+  },
+];

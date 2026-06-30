@@ -24,7 +24,7 @@ const FIELDS: { key: Field; label: string }[] = [
   { key: "stage_id", label: "Fase" },
   { key: "status", label: "Stato" },
   { key: "value", label: "Valore" },
-  { key: "assigned_to", label: "Titolare" },
+  { key: "assigned_to", label: "Venditore" },
   { key: "follower_id", label: "Follower" },
   { key: "source", label: "Fonte" },
 ];

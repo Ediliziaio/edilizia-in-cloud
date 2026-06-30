@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,9 +12,74 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye, BarChart3 } from "lucide-react";
+import { Search, MoreVertical, FileText, CreditCard, Loader2, RefreshCw, Link2, Eye, BarChart3, Download, Cloud, FileCode } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import BillingReports from "./BillingReports";
+
+/**
+ * Stato "effettivo" per il badge: una fattura non pagata/annullata con scadenza
+ * passata viene mostrata come Scaduta — coerente coi KPI e con la UX di Fatture
+ * in Cloud — anche se il gestionale d'origine la riporta ancora come "Emessa".
+ */
+function effectiveStatus(inv: { status: string; due_date?: string | null; paid_amount?: number | null; total?: number | null }): string {
+  if (["paid", "cancelled", "draft"].includes(inv.status)) return inv.status;
+  const residuo = Number(inv.total ?? 0) - Number(inv.paid_amount ?? 0);
+  if (inv.due_date && new Date(inv.due_date) < new Date() && residuo > 0.005) return "overdue";
+  return inv.status;
+}
+
+/** Giorni di ritardo rispetto alla scadenza (positivo = scaduta), o null se non scaduta. */
+function giorniScaduta(due?: string | null): number | null {
+  if (!due) return null;
+  const days = Math.floor((Date.now() - new Date(due).getTime()) / 86_400_000);
+  return days > 0 ? days : null;
+}
+
+const MONTH_ABBR = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"];
+
+type DocTab = "fatture" | "note_credito" | "proforma" | "cestino";
+
+/** Filtro per il tab tipo-documento (stile Fatture in Cloud). Le annullate vivono nel Cestino. */
+function matchDocTab(inv: { document_type?: string | null; status: string }, tab: DocTab): boolean {
+  if (tab === "cestino") return inv.status === "cancelled";
+  if (inv.status === "cancelled") return false;
+  if (tab === "note_credito") return inv.document_type === "credit_note";
+  if (tab === "proforma") return inv.document_type === "proforma";
+  // "fatture": fattura/ricevuta (tutto ciò che non è NC/proforma/annullata)
+  return inv.document_type !== "credit_note" && inv.document_type !== "proforma";
+}
+
+/** Iniziali del cliente per l'avatar (max 2 lettere). */
+function clienteInitials(name?: string | null): string {
+  return (name || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
+}
+
+/**
+ * Importo + chiarezza incasso (UX Fatture in Cloud): mostra il totale e una
+ * riga di stato pagamento — "Saldata" (verde), "Residuo €X" (ambra, acconto
+ * parziale) — o "Nota di credito" (storno, in rosso col segno meno).
+ */
+function ImportoInfo({ inv }: { inv: { total?: number | null; paid_amount?: number | null; status: string; document_type?: string | null } }) {
+  const total = Number(inv.total || 0);
+  const paid = Number(inv.paid_amount || 0);
+  const isCredit = inv.document_type === "credit_note";
+  const fullyPaid = !isCredit && (inv.status === "paid" || (paid > 0 && total - paid <= 0.005));
+  const partial = !isCredit && !fullyPaid && paid > 0.005;
+  return (
+    <>
+      <div className={`font-medium ${isCredit ? "text-rose-600" : ""}`}>
+        {isCredit ? "−" : ""}{formatCurrency(total)}
+      </div>
+      {isCredit ? (
+        <div className="text-[10px] text-muted-foreground">Nota di credito</div>
+      ) : fullyPaid ? (
+        <div className="text-[10px] font-medium text-green-600">Saldata</div>
+      ) : partial ? (
+        <div className="text-[10px] font-medium text-amber-600">Residuo {formatCurrency(total - paid)}</div>
+      ) : null}
+    </>
+  );
+}
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; emoji: string }> = {
   draft:     { label: "Bozza",       color: "bg-muted text-muted-foreground",       emoji: "📝" },
@@ -40,6 +105,12 @@ export default function InvoicesList() {
   const companyId = effectiveCompany?.id;
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const currentYear = String(new Date().getFullYear());
+  const [yearFilter, setYearFilter] = useState(currentYear);
+  // Striscia mesi stile Fatture in Cloud: "01".."12" | "prec" | "succ" | null (tutto l'anno).
+  const [monthFilter, setMonthFilter] = useState<string | null>(null);
+  // Tab tipo documento stile Fatture in Cloud.
+  const [docTab, setDocTab] = useState<DocTab>("fatture");
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ["invoices", companyId],
@@ -87,14 +158,14 @@ export default function InvoicesList() {
   });
 
   const markPaidMutation = useMutation({
-    mutationFn: async (inv: { id: string; total: number }) => {
+    mutationFn: async (inv: { id: string; total: number; externalProvider?: string | null }) => {
       // Salda il RESIDUO (totale − già incassato): evita di sovra-pagare il
       // ledger se esistono acconti. paid_amount e status='paid' sono ricalcolati
       // dai trigger su invoice_payments → NON aggiornarli a mano (doppia scrittura).
       const { data: cur } = await supabase
         .from("invoices").select("paid_amount").eq("id", inv.id).maybeSingle();
       const residuo = Math.round((inv.total - Number(cur?.paid_amount ?? 0)) * 100) / 100;
-      if (residuo <= 0) return; // già saldata
+      if (residuo <= 0) return { writeback: "skipped" as const }; // già saldata
       const { error } = await supabase.from("invoice_payments").insert({
         invoice_id: inv.id,
         company_id: companyId!,
@@ -103,9 +174,34 @@ export default function InvoicesList() {
         payment_method: "bank_transfer",
       });
       if (error) throw error;
+
+      // Write-back: se la fattura arriva da un gestionale, registra il pagamento
+      // anche lì (best-effort: l'incasso in app resta salvato comunque).
+      let writeback: "ok" | "scope" | "error" | "skipped" = "skipped";
+      if (inv.externalProvider === "fattureincloud") {
+        try {
+          const { data: pr, error: pErr } = await supabase.functions.invoke("billing-payment-push", {
+            body: { invoice_id: inv.id },
+          });
+          writeback = pErr ? "error" : pr?.error === "scope" ? "scope" : pr?.ok ? "ok" : "skipped";
+        } catch { writeback = "error"; }
+      }
+      return { writeback };
     },
-    onSuccess: () => {
-      toast.success("Fattura segnata come pagata");
+    onSuccess: (res) => {
+      if (res?.writeback === "ok") {
+        toast.success("Pagata — sincronizzata su Fatture in Cloud");
+      } else if (res?.writeback === "scope") {
+        toast.warning("Pagata in EdiliziaInCloud", {
+          description: "Non aggiornata su Fatture in Cloud: manca il permesso di scrittura. Riconnetti FIC autorizzando la scrittura.",
+        });
+      } else if (res?.writeback === "error") {
+        toast.warning("Pagata in app", {
+          description: "Aggiornamento su Fatture in Cloud non riuscito, riprova più tardi.",
+        });
+      } else {
+        toast.success("Fattura segnata come pagata");
+      }
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
     },
     onError: (e) => toast.error("Errore", { description: String(e) }),
@@ -124,8 +220,10 @@ export default function InvoicesList() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      const rec = data?.received;
+      const recTxt = rec && (rec.imported || rec.updated) ? ` · ${(rec.imported || 0) + (rec.updated || 0)} ricevute` : "";
       toast.success("Sincronizzazione completata", {
-        description: `${data?.imported || 0} importate, ${data?.updated || 0} aggiornate${data?.failed ? `, ${data.failed} fallite` : ""}`,
+        description: `${data?.imported || 0} importate, ${data?.updated || 0} aggiornate${data?.failed ? `, ${data.failed} fallite` : ""}${recTxt}`,
       });
       // Aggiorna SIA la lista fatture SIA l'integrazione (ultimo sync). Senza il
       // secondo invalidate l'header restava su un orario di sync vecchio e, con la
@@ -140,8 +238,54 @@ export default function InvoicesList() {
     }
   };
 
+  // Anni disponibili (dalle date fattura) per il filtro, decrescenti.
+  const years = useMemo(() => {
+    const set = new Set<string>();
+    for (const i of invoices) if (i.issue_date) set.add(i.issue_date.slice(0, 4));
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [invoices]);
+
+  // Anno di riferimento per la striscia mesi: l'anno selezionato, o il più recente con dati.
+  const stripYear = yearFilter !== "all" ? yearFilter : (years[0] ?? String(new Date().getFullYear()));
+
+  // Striscia mesi stile Fatture in Cloud: per ogni mese dell'ANNO selezionato n° documenti
+  // e totale €. Niente "Preced./Success." (si naviga gli anni col selettore in alto).
+  const monthStrip = useMemo(() => {
+    const cells: Record<string, { count: number; total: number }> = {};
+    for (let m = 1; m <= 12; m++) cells[String(m).padStart(2, "0")] = { count: 0, total: 0 };
+    for (const i of invoices) {
+      if (!i.issue_date || !matchDocTab(i, docTab)) continue;
+      if (i.issue_date.slice(0, 4) !== stripYear) continue; // solo l'anno selezionato
+      const cell = cells[i.issue_date.slice(5, 7)];
+      if (cell) { cell.count++; cell.total += Number(i.total || 0); }
+    }
+    return cells;
+  }, [invoices, stripYear, docTab]);
+
+  // Totale dell'anno per l'intestazione della panoramica.
+  const stripTotal = useMemo(
+    () => Object.values(monthStrip).reduce((a, c) => ({ count: a.count + c.count, total: a.total + c.total }), { count: 0, total: 0 }),
+    [monthStrip]
+  );
+
+  // Conteggi per i tab tipo-documento (sempre sull'intero set, indipendenti dai filtri).
+  const docCounts = useMemo(() => {
+    const c = { fatture: 0, note_credito: 0, proforma: 0, cestino: 0 };
+    const base = yearFilter === "all" ? invoices : invoices.filter((i) => i.issue_date?.startsWith(yearFilter));
+    for (const i of base) {
+      if (i.status === "cancelled") c.cestino++;
+      else if (i.document_type === "credit_note") c.note_credito++;
+      else if (i.document_type === "proforma") c.proforma++;
+      else c.fatture++;
+    }
+    return c;
+  }, [invoices, yearFilter]);
+
   const filtered = useMemo(() => {
-    let list = invoices;
+    let list = invoices.filter((i) => matchDocTab(i, docTab));
+    // Filtro per anno (selettore in alto) + eventuale mese cliccato nella panoramica.
+    if (yearFilter !== "all") list = list.filter((i) => i.issue_date?.startsWith(yearFilter));
+    if (monthFilter) list = list.filter((i) => i.issue_date?.startsWith(`${stripYear}-${monthFilter}`));
     if (statusFilter !== "all") list = list.filter((i) => i.status === statusFilter);
     if (search) {
       const s = search.toLowerCase();
@@ -151,14 +295,36 @@ export default function InvoicesList() {
       );
     }
     return list;
-  }, [invoices, statusFilter, search]);
+  }, [invoices, docTab, yearFilter, monthFilter, stripYear, statusFilter, search]);
+
+  // Raggruppamento per MESE (decrescente), con totale e conteggio per mese.
+  // Le fatture sono già ordinate per data desc dalla query.
+  const grouped = useMemo(() => {
+    const map = new Map<string, typeof filtered>();
+    for (const inv of filtered) {
+      const key = inv.issue_date ? inv.issue_date.slice(0, 7) : "0000-00"; // YYYY-MM
+      const arr = map.get(key);
+      if (arr) arr.push(inv); else map.set(key, [inv]);
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([key, rows]) => {
+        const label = key === "0000-00"
+          ? "Senza data"
+          : format(new Date(`${key}-01T00:00:00`), "MMMM yyyy", { locale: it });
+        const total = rows.reduce((s, i) => s + Number(i.total || 0), 0);
+        return { key, label: label.charAt(0).toUpperCase() + label.slice(1), rows, total };
+      });
+  }, [filtered]);
 
   // KPIs
   const kpis = useMemo(() => {
     const now = new Date();
     const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     // Le note di credito sono storni, NON crediti da incassare: escluse dai KPI €.
-    const billable = invoices.filter((i) => i.document_type !== "credit_note");
+    // KPI riferiti all'ANNO selezionato (non al cumulato di tutti gli anni / "Preced.").
+    const base = yearFilter === "all" ? invoices : invoices.filter((i) => i.issue_date?.startsWith(yearFilter));
+    const billable = base.filter((i) => i.document_type !== "credit_note");
     const receivable = billable
       .filter((i) => ["issued", "sent", "delivered", "overdue"].includes(i.status))
       .reduce((s, i) => s + Number(i.total) - Number(i.paid_amount), 0);
@@ -167,11 +333,11 @@ export default function InvoicesList() {
       return i.due_date && new Date(i.due_date) < now;
     });
     const overdueAmount = overdue.reduce((s, i) => s + Number(i.total) - Number(i.paid_amount), 0);
-    const issuedThisMonth = invoices.filter(
+    const issuedThisMonth = base.filter(
       (i) => i.issue_date?.startsWith(thisMonth) && i.document_type === "invoice" && i.status !== "cancelled"
     ).length;
-    return { receivable, overdueCount: overdue.length, overdueAmount, issuedThisMonth };
-  }, [invoices]);
+    return { receivable, overdueCount: overdue.length, overdueAmount, issuedThisMonth, total: base.length };
+  }, [invoices, yearFilter]);
 
   const fmtEur = (n: number) => formatCurrency(n);
 
@@ -207,8 +373,19 @@ export default function InvoicesList() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <select
+            value={yearFilter}
+            onChange={(e) => { setYearFilter(e.target.value); setMonthFilter(null); }}
+            aria-label="Anno"
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm font-semibold shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <option value="all">Tutti gli anni</option>
+            {Array.from(new Set([currentYear, ...years])).map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
           {integration?.last_sync_at && (
-            <span className="text-xs text-muted-foreground">
+            <span className="hidden sm:inline text-xs text-muted-foreground">
               Ultimo sync: {format(new Date(integration.last_sync_at), "dd/MM HH:mm", { locale: it })}
             </span>
           )}
@@ -253,10 +430,84 @@ export default function InvoicesList() {
             </Card>
             <Card>
               <CardContent className="pt-4 pb-3">
-                <p className="text-xs text-muted-foreground">Totale fatture</p>
-                <p className="text-xl font-bold">{invoices.length}</p>
+                <p className="text-xs text-muted-foreground">Totale fatture {yearFilter !== "all" ? yearFilter : ""}</p>
+                <p className="text-xl font-bold">{kpis.total}</p>
               </CardContent>
             </Card>
+          </div>
+
+          {/* Tab tipo documento (stile Fatture in Cloud) */}
+          <div className="flex flex-wrap items-center gap-1 border-b">
+            {([
+              { key: "fatture" as DocTab, label: "Fatture", n: docCounts.fatture },
+              { key: "note_credito" as DocTab, label: "Note di Credito", n: docCounts.note_credito },
+              { key: "proforma" as DocTab, label: "Pro forma", n: docCounts.proforma },
+              { key: "cestino" as DocTab, label: "Cestino", n: docCounts.cestino },
+            ]).map(({ key, label, n }) => {
+              const active = docTab === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => { setDocTab(key); setMonthFilter(null); }}
+                  className={
+                    "px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors " +
+                    (active ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")
+                  }
+                >
+                  {label}
+                  <span className={"ml-1.5 text-xs " + (active ? "text-primary" : "text-muted-foreground/70")}>{n}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Striscia mesi (stile Fatture in Cloud): n° doc + € per mese dell'anno, cliccabile per filtrare */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between px-0.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                Panoramica {stripYear} · <span className="text-foreground font-semibold">{stripTotal.count}</span> doc · <span className="text-foreground font-semibold tabular-nums">{formatCurrency(stripTotal.total)}</span>
+              </span>
+              {monthFilter && (
+                <button type="button" onClick={() => setMonthFilter(null)} className="text-xs text-primary hover:underline">
+                  Mostra tutto l'anno
+                </button>
+              )}
+            </div>
+            <div className="rounded-lg border bg-card overflow-x-auto">
+              <div className="flex min-w-max divide-x">
+                {(MONTH_ABBR.map((m, idx) => ({ key: String(idx + 1).padStart(2, "0"), label: m }))).map(({ key, label }) => {
+                  const cell = monthStrip[key] || { count: 0, total: 0 };
+                  const active = monthFilter === key;
+                  const empty = cell.count === 0;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      disabled={empty}
+                      onClick={() => {
+                        setYearFilter(stripYear);
+                        setMonthFilter((prev) => (prev === key ? null : key));
+                      }}
+                      className={
+                        "flex-1 min-w-[62px] px-2 py-2 text-center transition-colors border-b-2 " +
+                        (active
+                          ? "bg-primary/5 border-b-primary"
+                          : empty
+                            ? "border-b-transparent cursor-default"
+                            : "border-b-transparent hover:bg-muted/50")
+                      }
+                    >
+                      <div className={"text-[11px] font-medium " + (active ? "text-primary" : empty ? "text-muted-foreground/40" : "")}>{label}</div>
+                      <div className={"text-[10px] " + (empty ? "text-muted-foreground/30" : "text-muted-foreground")}>{cell.count} doc</div>
+                      <div className={"text-[11px] font-semibold tabular-nums " + (empty ? "text-muted-foreground/30" : active ? "text-primary" : "")}>
+                        {cell.total ? formatCurrency(cell.total) : "0 €"}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Filters */}
@@ -290,31 +541,50 @@ export default function InvoicesList() {
             </div>
           ) : (
             <>
-            {/* Mobile card list */}
-            <div className="sm:hidden divide-y border rounded-lg">
-              {filtered.map((inv) => {
-                const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.draft;
-                return (
-                  <div key={inv.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs">{inv.invoice_number || "—"}</span>
-                        <Badge variant="secondary" className={`text-xs ${cfg.color}`}>{cfg.label}</Badge>
-                      </div>
-                      <p className="font-medium text-sm mt-0.5 truncate">{inv.client_company_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}
-                        {inv.due_date ? ` · scad. ${format(new Date(inv.due_date), "dd/MM/yy", { locale: it })}` : ""}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className="font-semibold text-sm">{formatCurrency(Number(inv.total))}</span>
-                    </div>
+            {/* Mobile card list — raggruppata per mese */}
+            <div className="sm:hidden space-y-4">
+              {grouped.map((g) => (
+                <div key={g.key} className="border rounded-lg overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2 bg-muted/60 border-b">
+                    <span className="text-sm font-semibold">{g.label}</span>
+                    <span className="text-xs text-muted-foreground">{g.rows.length} fatt. · {formatCurrency(g.total)}</span>
                   </div>
-                );
-              })}
+                  <div className="divide-y">
+                    {g.rows.map((inv) => {
+                      const cfg = STATUS_CONFIG[effectiveStatus(inv)] || STATUS_CONFIG.draft;
+                      return (
+                        <div key={inv.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 active:bg-muted cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-xs">{inv.invoice_number || "—"}</span>
+                              <Badge variant="secondary" className={`text-xs ${cfg.color}`}>{cfg.label}</Badge>
+                              {inv.external_provider && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                                  <Cloud className="h-2.5 w-2.5" />{PROVIDER_LABELS[inv.external_provider] || inv.external_provider}
+                                </span>
+                              )}
+                            </div>
+                            <p className="font-medium text-sm mt-0.5 truncate">{inv.client_company_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}
+                              {(() => {
+                                const gg = !["paid", "cancelled"].includes(inv.status) ? giorniScaduta(inv.due_date) : null;
+                                if (gg) return <span className="font-medium text-rose-600"> · scaduta da {gg} gg</span>;
+                                return inv.due_date ? ` · scad. ${format(new Date(inv.due_date), "dd/MM/yy", { locale: it })}` : "";
+                              })()}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0 text-sm">
+                            <ImportoInfo inv={inv} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
-            {/* Desktop table */}
+            {/* Desktop table — intestazioni di mese con subtotale */}
             <div className="hidden sm:block rounded-lg border overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -330,47 +600,81 @@ export default function InvoicesList() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((inv) => {
-                    const cfg = STATUS_CONFIG[inv.status] || STATUS_CONFIG.draft;
-                    return (
-                      <tr key={inv.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
-                        <td className="p-3 font-mono text-xs">{inv.invoice_number || "—"}</td>
-                        <td className="p-3 font-medium">{inv.client_company_name}</td>
-                        <td className="p-3 text-muted-foreground">{inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}</td>
-                        <td className="p-3 text-muted-foreground">{inv.due_date ? format(new Date(inv.due_date), "dd/MM/yy", { locale: it }) : "—"}</td>
-                        <td className="p-3 text-right font-medium">{fmtEur(Number(inv.total))}</td>
-                        <td className="p-3">
-                          <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
-                        </td>
-                        <td className="p-3">
-                          {inv.external_provider ? (
-                            <Badge variant="outline" className="text-xs">
-                              {PROVIDER_LABELS[inv.external_provider] || inv.external_provider}
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Locale</span>
-                          )}
-                        </td>
-                        <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
-                                <Eye className="h-4 w-4 mr-2" /> Visualizza
-                              </DropdownMenuItem>
-                              {!["paid", "cancelled"].includes(inv.status) && (
-                                <DropdownMenuItem onClick={() => markPaidMutation.mutate({ id: inv.id, total: Number(inv.total) })}>
-                                  <CreditCard className="h-4 w-4 mr-2" /> Segna come pagata
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
+                  {grouped.map((g) => (
+                    <Fragment key={g.key}>
+                      <tr className="bg-muted/40 border-b">
+                        <td colSpan={4} className="px-3 py-2 font-semibold text-sm">{g.label}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-sm">{fmtEur(g.total)}</td>
+                        <td colSpan={3} className="px-3 py-2 text-xs text-muted-foreground">{g.rows.length} fatture</td>
                       </tr>
-                    );
-                  })}
+                      {g.rows.map((inv) => {
+                        const cfg = STATUS_CONFIG[effectiveStatus(inv)] || STATUS_CONFIG.draft;
+                        return (
+                          <tr key={inv.id} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
+                            <td className="p-3 font-mono text-xs">{inv.invoice_number || "—"}</td>
+                            <td className="p-3">
+                              <div className="flex items-center gap-2">
+                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
+                                  {clienteInitials(inv.client_company_name)}
+                                </span>
+                                <span className="font-medium">{inv.client_company_name || "—"}</span>
+                              </div>
+                            </td>
+                            <td className="p-3 text-muted-foreground">{inv.issue_date ? format(new Date(inv.issue_date), "dd/MM/yy", { locale: it }) : "—"}</td>
+                            <td className="p-3">
+                              {(() => {
+                                const gg = !["paid", "cancelled"].includes(inv.status) ? giorniScaduta(inv.due_date) : null;
+                                return gg
+                                  ? <span className="text-xs font-medium text-rose-600">Scaduta da {gg} {gg === 1 ? "giorno" : "giorni"}</span>
+                                  : <span className="text-muted-foreground">{inv.due_date ? format(new Date(inv.due_date), "dd/MM/yy", { locale: it }) : "—"}</span>;
+                              })()}
+                            </td>
+                            <td className="p-3 text-right"><ImportoInfo inv={inv} /></td>
+                            <td className="p-3">
+                              <Badge variant="secondary" className={cfg.color}>{cfg.emoji} {cfg.label}</Badge>
+                            </td>
+                            <td className="p-3">
+                              {inv.external_provider ? (
+                                <Badge variant="outline" className="text-xs gap-1 font-normal">
+                                  <Cloud className="h-3 w-3 text-muted-foreground" />
+                                  {PROVIDER_LABELS[inv.external_provider] || inv.external_provider}
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Locale</span>
+                              )}
+                            </td>
+                            <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => navigate(`/azienda/fatturazione/${inv.id}`)}>
+                                    <Eye className="h-4 w-4 mr-2" /> Visualizza
+                                  </DropdownMenuItem>
+                                  {inv.pdf_url && (
+                                    <DropdownMenuItem onClick={() => window.open(inv.pdf_url!, "_blank", "noopener")}>
+                                      <Download className="h-4 w-4 mr-2" /> Scarica PDF
+                                    </DropdownMenuItem>
+                                  )}
+                                  {inv.external_xml_url && (
+                                    <DropdownMenuItem onClick={() => window.open(inv.external_xml_url!, "_blank", "noopener")}>
+                                      <FileCode className="h-4 w-4 mr-2" /> XML (SDI)
+                                    </DropdownMenuItem>
+                                  )}
+                                  {!["paid", "cancelled"].includes(inv.status) && (
+                                    <DropdownMenuItem onClick={() => markPaidMutation.mutate({ id: inv.id, total: Number(inv.total), externalProvider: inv.external_provider })}>
+                                      <CreditCard className="h-4 w-4 mr-2" /> Segna come pagata
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
                 </tbody>
               </table>
             </div>

@@ -37,6 +37,7 @@ import {
   useEliminaProgetto,
 } from "@/lib/fotovoltaico/queries";
 import { FvCard, FvKpi, FvChip, FvCallout } from "@/lib/fotovoltaico/wizardUI";
+import { scaricaPreventivoComePdf } from "@/lib/fotovoltaico/htmlToPdf";
 import {
   SendSignatureDialog,
   type SendSignatureResult,
@@ -134,33 +135,66 @@ export default function FotovoltaicoDettaglio() {
         .from("fv-progetti")
         .createSignedUrl(path, 300);
       if (error) throw error;
-      // Fix #2: usa URL API per costruire query string in modo safe
-      // (gestisce automaticamente fragment #, query esistenti, encoding)
       const isHtml = path.toLowerCase().endsWith(".html");
-      let finalUrl = data.signedUrl;
-      if (isHtml && options?.autoPrint) {
-        try {
-          const u = new URL(data.signedUrl);
-          u.searchParams.set("print", "1");
-          finalUrl = u.toString();
-        } catch {
-          // Fallback se URL non parsabile (improbabile)
-          finalUrl = `${data.signedUrl}${data.signedUrl.includes("?") ? "&" : "?"}print=1`;
+      if (isHtml) {
+        // Supabase Storage serve .html con Content-Type: text/plain → raw source nel browser.
+        // Fix: scarica il contenuto, crea un Blob con type text/html e apri via objectURL.
+        const res = await fetch(data.signedUrl);
+        if (!res.ok) throw new Error("Errore download preventivo");
+        let htmlContent = await res.text();
+        if (options?.autoPrint) {
+          htmlContent = htmlContent.replace("</body>", "<script>window.onload=function(){window.print()}<\/script></body>");
         }
-      }
-      const a = document.createElement("a");
-      a.href = finalUrl;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.click();
-      if (isHtml && !options?.autoPrint) {
-        toast.success(
-          "Preventivo aperto in nuova scheda. Usa Ctrl+P (Cmd+P su Mac) → 'Salva come PDF'.",
-          { duration: 6000 },
-        );
+        const blob = new Blob([htmlContent], { type: "text/html" });
+        const blobUrl = URL.createObjectURL(blob);
+        const win = window.open(blobUrl, "_blank", "noopener,noreferrer");
+        // Revoca il blob URL dopo l'apertura (il browser ha già caricato il contenuto)
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        if (!win) toast.error("Popup bloccato — abilita i popup per questo sito.");
+        else if (!options?.autoPrint) {
+          toast.success(
+            "Preventivo aperto in nuova scheda. Usa Ctrl+P (Cmd+P su Mac) → 'Salva come PDF'.",
+            { duration: 6000 },
+          );
+        }
+      } else {
+        const a = document.createElement("a");
+        a.href = data.signedUrl;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.click();
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setScaricando(null);
+    }
+  };
+
+  // Download diretto del file .pdf (no finestra di stampa): recupera l'HTML del
+  // preventivo e lo converte in PDF lato browser (html2canvas + jsPDF).
+  const handleScaricaPdf = async (path: string | null, tipo: string) => {
+    if (!path) {
+      toast.error("Anteprima non ancora generata. Completa il wizard fino allo Step 8.");
+      return;
+    }
+    setScaricando(tipo);
+    const tid = toast.loading("Generazione PDF in corso… (qualche secondo)");
+    try {
+      const { data, error } = await supabase.storage
+        .from("fv-progetti")
+        .createSignedUrl(path, 300);
+      if (error) throw error;
+      const res = await fetch(data.signedUrl);
+      if (!res.ok) throw new Error("Recupero preventivo fallito.");
+      const html = await res.text();
+      await scaricaPreventivoComePdf(html, `Preventivo-${progetto?.numero ?? "FV"}`);
+      toast.success("PDF scaricato.", { id: tid });
+    } catch (e) {
+      toast.error(
+        `Download PDF fallito: ${e instanceof Error ? e.message : String(e)}`,
+        { id: tid },
+      );
     } finally {
       setScaricando(null);
     }
@@ -219,6 +253,20 @@ export default function FotovoltaicoDettaglio() {
               </p>
             </div>
             <div className="flex gap-2">
+              {progetto.pdf_vendita_url && (
+                <Button
+                  onClick={() => handleScaricaPdf(progetto.pdf_vendita_url, "header-pdf")}
+                  disabled={scaricando === "header-pdf"}
+                  className="bg-white text-blue-900 hover:bg-blue-50 shadow border-0"
+                >
+                  {scaricando === "header-pdf" ? (
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-1.5" />
+                  )}
+                  Scarica PDF
+                </Button>
+              )}
               {progetto.stato !== "firmato" && progetto.stato !== "annullato" && (
                 <Button
                   asChild
@@ -500,17 +548,17 @@ export default function FotovoltaicoDettaglio() {
                         <TableCell className="text-xs text-slate-500">
                           {c.marca ?? ""} {c.modello ?? ""}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{c.quantita}</TableCell>
+                        <TableCell className="text-right tabular-nums">{c.quantita ?? 1}</TableCell>
                         {isAdmin && (
                           <TableCell className="text-right tabular-nums text-slate-600">
-                            € {(c.quantita * c.prezzo_unitario_netto).toFixed(2)}
+                            € {((Number(c.quantita) || 1) * (Number(c.prezzo_unitario_netto) || 0)).toFixed(2)}
                           </TableCell>
                         )}
                         <TableCell className="text-right tabular-nums">
-                          € {c.prezzo_unitario_vendita.toFixed(2)}
+                          € {(Number(c.prezzo_unitario_vendita) || 0).toFixed(2)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-semibold">
-                          € {(c.quantita * c.prezzo_unitario_vendita).toFixed(2)}
+                          € {((Number(c.quantita) || 1) * (Number(c.prezzo_unitario_vendita) || 0)).toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -533,7 +581,7 @@ export default function FotovoltaicoDettaglio() {
                           <span className="text-slate-400 text-xs">({m.ore} h)</span>
                         </span>
                         <span className="tabular-nums font-semibold">
-                          € {(m.ore * m.tariffa_oraria_vendita).toFixed(2)}
+                          € {((Number(m.ore) || 0) * (Number(m.tariffa_oraria_vendita) || 0)).toFixed(2)}
                         </span>
                       </div>
                     ))}
@@ -606,9 +654,9 @@ export default function FotovoltaicoDettaglio() {
               {progetto.pdf_vendita_url && (
                 <>
                   <FvCallout variant="success" title="Preventivo pronto">
-                    Apri l'anteprima nel browser, poi <strong>Ctrl+P</strong> (Cmd+P su Mac) →
-                    "Salva come PDF" per ottenere il file da inviare al cliente. Il design è
-                    print-ready A4 con tutti i grafici inline.
+                    <strong>Scarica PDF</strong> per ottenere subito il file da inviare al
+                    cliente (download diretto). Oppure <strong>Apri preventivo</strong> per
+                    vederlo nel browser. Design print-ready A4 con tutti i grafici inline.
                   </FvCallout>
                   <div className="grid sm:grid-cols-2 gap-3 mt-4">
                     <Button
@@ -625,9 +673,7 @@ export default function FotovoltaicoDettaglio() {
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() =>
-                        handleScarica(progetto.pdf_vendita_url, "vendita-print", { autoPrint: true })
-                      }
+                      onClick={() => handleScaricaPdf(progetto.pdf_vendita_url, "vendita-print")}
                       disabled={scaricando === "vendita-print"}
                     >
                       {scaricando === "vendita-print" ? (
@@ -635,7 +681,7 @@ export default function FotovoltaicoDettaglio() {
                       ) : (
                         <Download className="h-4 w-4 mr-2" />
                       )}
-                      Apri e stampa subito (PDF)
+                      Scarica PDF
                     </Button>
                   </div>
                 </>

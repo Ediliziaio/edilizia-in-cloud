@@ -134,7 +134,18 @@ export function SerramentiTemplatePreviewDialog({
         });
       }
       const element = React.createElement(SerramentoPDF, enriched);
-      const blob = await pdf(element).toBlob();
+      // Timeout di sicurezza: @react-pdf scarica le immagini remote del template
+      // (loghi/foto/render) SENZA timeout interno → se una non si carica la toBlob()
+      // non si risolve MAI e lo spinner gira a vuoto. Con la race mostriamo un errore
+      // chiaro invece di restare appesi. 45s è generoso anche su connessioni lente.
+      const blob = await Promise.race([
+        pdf(element).toBlob(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(
+            "Generazione troppo lenta (timeout). Probabile causa: un'immagine del template (logo, foto o render) non si carica. Riprova; se persiste, ricarica/sostituisci quell'immagine.",
+          )), 45_000),
+        ),
+      ]);
 
       // 2. Cleanup precedente blob URL + crea nuovo
       if (lastBlobUrlRef.current) {
@@ -354,6 +365,9 @@ export function SerramentiTemplatePreviewDialog({
               <div className="flex flex-col items-center gap-2">
                 <Loader2 className="h-6 w-6 animate-spin text-orange-600" />
                 <p className="text-xs text-muted-foreground">Genero anteprima PDF…</p>
+                <p className="text-[10px] text-muted-foreground/70 max-w-[220px] text-center">
+                  Al primo utilizzo scarico il motore PDF (~1 MB): può richiedere qualche secondo. Le volte successive è istantaneo.
+                </p>
               </div>
             </div>
           )}

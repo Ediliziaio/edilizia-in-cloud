@@ -47,7 +47,6 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   { group: "Catalogo", title: "Import listini", url: "/azienda/impostazioni/listino/import", keywords: ["import", "excel", "csv", "pdf", "carica listino"] },
   { group: "Catalogo", title: "Manodopera e Servizi", url: "/azienda/impostazioni/tariffe", keywords: ["tariffe", "manodopera", "servizi", "posa", "orario", "ricarico"] },
   { group: "Catalogo", title: "Listino Manutenzione", url: "/azienda/impostazioni/tariffe?tab=manutenzione", keywords: ["manutenzione", "abbonamenti", "contratti", "impianti", "interventi"] },
-  { group: "Catalogo", title: "Materiali preventivi", url: "/azienda/impostazioni/materiali-preventivi", keywords: ["materiali", "preventivi"] },
   { group: "Catalogo", title: "Bundle & Pacchetti", url: "/azienda/impostazioni/bundle", keywords: ["bundle", "pacchetti", "chiavi in mano"] },
 
   // ── Preventivi & vendite ──

@@ -66,7 +66,7 @@ function sanitizeSearchTerm(value: string) {
 
 // Stile condiviso dei select del form: stesso look degli input (bordo visibile +
 // sfondo bianco + hover), così il campo si legge chiaramente come selezionabile
-// anche quando è vuoto (es. Titolare/Follower/Call Center non assegnati).
+// anche quando è vuoto (es. Venditore/Follower/Call Center non assegnati).
 // I `!` forzano il bordo: un reset globale `button { border: 0 }` (non in layer)
 // azzerava il bordo dei trigger Radix, che sono <button>, mentre gli <input>
 // restavano bordati — da qui l'incoerenza visiva.
@@ -794,7 +794,7 @@ export function OpportunityDetailDialog({ opportunity, open, onOpenChange, stage
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground">Titolare</Label>
+                          <Label className="text-xs text-muted-foreground">Venditore</Label>
                           <Select value={salespeople.some((s: any) => s.id === assignedTo) ? assignedTo : "none"} onValueChange={(v) => setAssignedTo(v === "none" ? "" : v)}>
                             <SelectTrigger className={SELECT_TRIGGER_CLS}><SelectValue placeholder="Non assegnato" /></SelectTrigger>
                             <SelectContent>

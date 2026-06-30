@@ -6,10 +6,10 @@
  *   1. Cover — hero brandizzato (immagine + overlay), logo, titolo/sottotitolo,
  *              card cliente/cantiere, totale in evidenza.
  *   2. Presentazione impresa — "Chi siamo", esigenze, soluzione, USP, testimonianze.
- *   3+. Computo per capitoli — tabella (descrizione, UdM, qty, prezzo, importo) con
+ *   3. Foto e render — griglia con didascalie (prova visiva, PRIMA del prezzo).
+ *   4+. Computo per capitoli — tabella (descrizione, UdM, qty, prezzo, importo) con
  *              subtotale per capitolo; margini per voce/capitolo SOLO se show_margine.
  *   N. Riepilogo economico — imponibile, sconto, IVA, totale, detrazione, margine.
- *   N. Foto e render — griglia con didascalie.
  *   N. Cronoprogramma — fasi con durata (se show_cronoprogramma).
  *   N. Condizioni e contatti — pagamenti, validità, recapiti azienda.
  *
@@ -21,9 +21,10 @@
  * EdiliziaInCloud / nome azienda. NESSUN claim su server UE/Italia/Europa.
  */
 import * as React from "react";
+import { ChiusuraVendita } from "@/components/preventivi/ChiusuraVenditaPdf";
 import {
   Document, Page, Text, View, StyleSheet, Image, Svg, Rect, Defs,
-  LinearGradient, Stop, Font,
+  LinearGradient, RadialGradient, Stop, Font, Circle, Path, G,
 } from "@react-pdf/renderer";
 import { formatCurrency } from "@/lib/formatters";
 import type { ClmPdfEnriched, ClmPdfCapitolo, ClmPdfTotali } from "@/hooks/useClimatizzazionePDF";
@@ -206,6 +207,11 @@ function makeStyles(C: Palette) {
     },
     coverTotalLabel: { fontSize: 8, color: C.white, textTransform: "uppercase" as const, letterSpacing: 0.5 },
     coverTotalValue: { fontSize: 24, fontWeight: 700, color: C.white, marginTop: 2 },
+    coverEyebrow: {
+      fontSize: 10, color: C.secondary, fontWeight: 700,
+      letterSpacing: 1.6, textTransform: "uppercase" as const, marginBottom: 12,
+    },
+    coverDecoSvg: { position: "absolute", top: 50, right: 50, width: 180, height: 180, opacity: 0.8 },
     // Bullet list (esigenze/soluzione/usp)
     bullet: { flexDirection: "row", marginBottom: 7 },
     bulletDot: {
@@ -364,6 +370,29 @@ const cantiereOf = (p: ClmProgetto) =>
     .filter(Boolean).join(", ").trim();
 
 const dateStr = () => new Date().toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+// ─── Placeholder dinamici nei testi cover (eyebrow/hero/sottotitolo) ──────────
+// Espande i token {variabile} inseriti dall'editor (PlaceholderChips) con i dati
+// del progetto. Token sconosciuti restano testuali (es. "{foo}" → "{foo}") per
+// debug visibility. Porting di renderSubheroTemplate da SerramentoPDF, adattato
+// ai campi di ClmProgetto. Senza questa funzione i chip uscirebbero LETTERALI
+// nel PDF (anteprima editor ≠ PDF).
+function renderCoverTemplate(template: string, p: ClmProgetto): string {
+  const nomeCompleto = [p.cliente_nome, p.cliente_cognome].filter(Boolean).join(" ").trim();
+  const replacements: Record<string, string> = {
+    cliente_nome: p.cliente_nome ?? "",
+    cliente_cognome: p.cliente_cognome ?? "",
+    cliente_nome_completo: nomeCompleto || "cliente",
+    cantiere_citta: p.cantiere_citta ?? "—",
+    cantiere_provincia: p.cantiere_provincia ?? "",
+    tipo_intervento: p.tipo_intervento ?? "intervento",
+    anno: String(new Date().getFullYear()),
+  };
+  return template.replace(/\{([a-z_]+)\}/gi, (full, key) => {
+    const k = String(key).toLowerCase();
+    return replacements[k] !== undefined ? replacements[k] : full;
+  });
+}
 
 // ─── Footer (legale Domus Group) ─────────────────────────────────────────────
 // Anagrafica: preferisce i dati del template (builder) e ripiega su `company.*`.
@@ -552,6 +581,73 @@ function formatPct(v: number): string {
   return `${Number.isInteger(n) ? n : n.toFixed(1)}%`;
 }
 
+// ─── Decorazione cover SVG (style-aware) ─────────────────────────────────────
+// Porting fedele di CoverDecorationSvg da SerramentoPDF, con la variante 'square'
+// adattata al tema climatizzazione (unità split stilizzata invece della finestra).
+// Usa SEMPRE il colore del TESTO cover così armonizza col fondo.
+function CoverDecorationSvg({
+  color,
+  variant = "square",
+}: {
+  color: string;
+  variant?: "square" | "circle" | "line" | "pattern" | "none";
+}) {
+  if (variant === "none") return null;
+  const svgProps = { viewBox: "0 0 180 180", style: { width: 180, height: 180 } as never };
+
+  if (variant === "circle") {
+    return (
+      <Svg {...svgProps}>
+        <Circle cx={90} cy={90} r={80} stroke={color} strokeWidth={3} fill="none" opacity={0.7} />
+        <Circle cx={90} cy={90} r={56} stroke={color} strokeWidth={1.5} fill="none" opacity={0.4} />
+        <Circle cx={90} cy={90} r={32} stroke={color} strokeWidth={1} fill="none" opacity={0.25} />
+      </Svg>
+    );
+  }
+
+  if (variant === "line") {
+    return (
+      <Svg {...svgProps}>
+        <Path d="M 90 10 L 90 170" stroke={color} strokeWidth={2.5} opacity={0.7} />
+        <Path d="M 70 40 L 110 40" stroke={color} strokeWidth={1.5} opacity={0.5} />
+        <Path d="M 70 140 L 110 140" stroke={color} strokeWidth={1.5} opacity={0.5} />
+      </Svg>
+    );
+  }
+
+  if (variant === "pattern") {
+    const dots = [];
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        dots.push(<Circle key={`${r}-${c}`} cx={30 + c * 30} cy={30 + r * 30} r={3} fill={color} opacity={0.45} />);
+      }
+    }
+    return <Svg {...svgProps}><G>{dots}</G></Svg>;
+  }
+
+  // variant === "square" — unità split di climatizzazione stilizzata + flusso d'aria
+  return (
+    <Svg {...svgProps}>
+      <G opacity={0.7} stroke={color} fill="none">
+        <Rect x={24} y={42} width={132} height={56} rx={10} strokeWidth={3} />
+        <Path d="M 36 64 L 144 64" strokeWidth={1.5} opacity={0.6} />
+        <Path d="M 36 76 L 144 76" strokeWidth={1.5} opacity={0.6} />
+        <Path d="M 36 88 L 144 88" strokeWidth={1.5} opacity={0.6} />
+      </G>
+      {/* Flusso d'aria (onde) */}
+      <G opacity={0.5} stroke={color} fill="none" strokeWidth={2}>
+        <Path d="M 60 116 C 66 124 74 124 80 116" />
+        <Path d="M 90 116 C 96 124 104 124 110 116" />
+        <Path d="M 120 116 C 126 124 134 124 140 116" />
+      </G>
+      <G opacity={0.3} stroke={color}>
+        <Path d="M 0 70 L 18 70" strokeWidth={1.5} />
+        <Path d="M 162 70 L 180 70" strokeWidth={1.5} />
+      </G>
+    </Svg>
+  );
+}
+
 // ─── Documento ───────────────────────────────────────────────────────────────
 export function ClimatizzazionePDF(props: ClmPdfEnriched) {
   const { progetto: p, template: t, company, capitoli, totali, media, computoOptions } = props;
@@ -580,15 +676,60 @@ export function ClimatizzazionePDF(props: ClmPdfEnriched) {
   const logoUrl = t.logo_url ?? company?.logo_url ?? null;
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
-  const coverTitle = (t.cover_title ?? "").trim() || "Preventivo di climatizzazione";
-  const coverSubtitle = (t.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano";
-  // Controlli copertina (builder): colore testo, posizione logo, opacità velo.
-  const coverTextColor = (t.cover_text_color ?? "").trim() || "#FFFFFF";
-  const coverLogoPosition = t.cover_logo_position ?? "top_left";
+  // ─── Cover parity (pdf_cover_*) ──────────────────────────────────────────
+  // I campi pdf_cover_* non sono sul tipo ClmTemplatePdf (né su normalizeTemplate):
+  // si leggono dal record grezzo via cast, con fallback ai campi cover_* legacy.
+  const tc = t as unknown as Record<string, unknown>;
+  const cs = (k: string): string | null => (typeof tc[k] === "string" && (tc[k] as string).trim() ? (tc[k] as string) : null);
+  const cn = (k: string): number | null => (typeof tc[k] === "number" ? (tc[k] as number) : null);
+
+  // I testi cover possono contenere placeholder {cliente_nome} ecc. (PlaceholderChips
+  // nell'editor): li risolviamo con i dati del progetto via renderCoverTemplate.
+  const coverTitle = renderCoverTemplate((cs("pdf_cover_hero") ?? t.cover_title ?? "").trim(), p) || "Preventivo di climatizzazione";
+  const coverSubtitle = renderCoverTemplate((cs("pdf_cover_subhero") ?? t.cover_subtitle ?? "").trim(), p) || "La tua casa, clima perfetto chiavi in mano";
+  const coverEyebrow = renderCoverTemplate((cs("pdf_cover_eyebrow") ?? "").trim(), p) || "LA TUA PROPOSTA PERSONALIZZATA";
+  // Immagine sfondo: pdf_cover_image_url → cover_image_url legacy → inline.
+  const coverImageUrl = cs("pdf_cover_image_url") ?? t.cover_image_url ?? null;
+  const coverBgColor = normalizeHexColor(tc.pdf_cover_bg_color, C.coverBg);
+  const coverTextColor = normalizeHexColor(tc.pdf_cover_text_color, (t.cover_text_color ?? "").trim() || "#FFFFFF");
+  const coverTextAlign: "left" | "center" =
+    (cs("pdf_cover_text_align") ?? t.cover_text_align) === "center" ? "center" : "left";
+  const coverTextVertical: "top" | "center" | "bottom" = (() => {
+    const v = cs("pdf_cover_text_vertical");
+    return v === "top" || v === "center" || v === "bottom" ? v : "bottom";
+  })();
+  const coverOverlayStyle: "flat" | "gradient" | "gradient_diag" | "vignette" = (() => {
+    const v = cs("pdf_cover_overlay_style");
+    return v === "gradient" || v === "gradient_diag" || v === "vignette" ? v : "flat";
+  })();
+  const coverDecorationStyle: "square" | "circle" | "line" | "pattern" | "none" = (() => {
+    const v = cs("pdf_cover_decoration_style");
+    return v === "circle" || v === "line" || v === "pattern" || v === "none" ? v : "square";
+  })();
+  const coverShowDecoration = tc.pdf_cover_show_decoration !== false && coverDecorationStyle !== "none";
+  const coverShowClientCard = tc.pdf_cover_show_client_card !== false;
+  const coverEyebrowSize = Math.max(8, Math.min(20, cn("pdf_cover_eyebrow_size") ?? 11));
+  const coverTitleSize = Math.max(22, Math.min(64, cn("pdf_cover_title_size") ?? t.cover_title_size ?? 30));
+  const coverSubtitleSize = Math.max(9, Math.min(22, cn("pdf_cover_subtitle_size") ?? 13));
+  const coverLogoScale = Math.max(60, Math.min(160, cn("pdf_cover_logo_size") ?? 100)) / 100;
+  // Posizione logo: pdf_cover_logo_position → cover_logo_position legacy.
+  const coverLogoPosition: "top_left" | "top_center" | "top_right" | "hidden" = (() => {
+    const v = cs("pdf_cover_logo_position") ?? t.cover_logo_position;
+    return v === "top_right" || v === "top_center" || v === "hidden" ? v : "top_left";
+  })();
   const coverLogoJustify =
     coverLogoPosition === "top_right" ? "flex-end" :
     coverLogoPosition === "top_center" ? "center" : "flex-start";
-  const coverOverlayOpacity = typeof t.cover_overlay_opacity === "number" ? t.cover_overlay_opacity : 0.4;
+  // Overlay opacity: pdf_cover_overlay_opacity (0–100) → cover_overlay_opacity legacy (0–1).
+  const coverOverlayOpacity = (() => {
+    const pct = cn("pdf_cover_overlay_opacity");
+    if (typeof pct === "number") return Math.max(0, Math.min(100, pct)) / 100;
+    return typeof t.cover_overlay_opacity === "number" ? t.cover_overlay_opacity : 0.4;
+  })();
+  // Posizione verticale del blocco testo (top sotto al logo, center, bottom pre-totale).
+  const coverTextTop = coverTextVertical === "top"
+    ? (coverLogoPosition === "hidden" ? 110 : 170)
+    : coverTextVertical === "center" ? 300 : 470;
 
   const esigenze = t.esigenze ?? [];
   const soluzione = t.soluzione ?? [];
@@ -633,36 +774,61 @@ export function ClimatizzazionePDF(props: ClmPdfEnriched) {
       subject={`Preventivo climatizzazione per ${cliente}`}
     >
       {/* ─── PAGINA 1 — COVER ─────────────────────────────────────────────── */}
-      <Page size="A4" style={styles.cover}>
-        {t.cover_image_url && (
+      <Page size="A4" style={[styles.cover, { backgroundColor: coverBgColor }]}>
+        {coverImageUrl && (
           <Image
-            src={t.cover_image_url}
+            src={coverImageUrl}
             style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, objectFit: "cover" }}
           />
         )}
-        {/* Velo scuro configurabile sull'immagine (builder: cover_overlay_opacity) */}
-        {t.cover_image_url && (
-          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, backgroundColor: "#000", opacity: coverOverlayOpacity }} />
+        {/* Overlay sopra l'immagine — 4 stili (flat View / gradient / diag / vignette).
+            Intensità sempre da coverOverlayOpacity. Senza immagine: nessun overlay
+            (il fondo è coverBgColor). */}
+        {coverImageUrl && coverOverlayStyle === "flat" && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, backgroundColor: "#000000", opacity: coverOverlayOpacity }} />
         )}
-        {/* Overlay scuro per leggibilità (gradiente verticale) */}
-        <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
-          <Svg width={595} height={841} viewBox="0 0 595 841">
-            <Defs>
-              <LinearGradient id="clm-cover-grad" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.55 : 1} />
-                <Stop offset="0.6" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.72 : 1} />
-                <Stop offset="1" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.92 : 1} />
-              </LinearGradient>
-            </Defs>
-            <Rect x={0} y={0} width={595} height={841} fill="url(#clm-cover-grad)" />
-          </Svg>
-        </View>
+        {coverImageUrl && coverOverlayStyle !== "flat" && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
+            <Svg width={595} height={841} viewBox="0 0 595 841">
+              <Defs>
+                {coverOverlayStyle === "gradient" && (
+                  <LinearGradient id="clm-cover-overlay" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.15} />
+                    <Stop offset="0.55" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.55} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity} />
+                  </LinearGradient>
+                )}
+                {coverOverlayStyle === "gradient_diag" && (
+                  <LinearGradient id="clm-cover-overlay" x1="0" y1="0" x2="1" y2="1">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.2} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity} />
+                  </LinearGradient>
+                )}
+                {coverOverlayStyle === "vignette" && (
+                  <RadialGradient id="clm-cover-overlay" cx="0.5" cy="0.5" rx="0.7" ry="0.85" fx="0.5" fy="0.5">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.1} />
+                    <Stop offset="0.7" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.5} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.95} />
+                  </RadialGradient>
+                )}
+              </Defs>
+              <Rect x={0} y={0} width={595} height={841} fill="url(#clm-cover-overlay)" />
+            </Svg>
+          </View>
+        )}
+
+        {/* Decoro SVG alto-destra (toggle template). Colore = testo cover. */}
+        {coverShowDecoration && (
+          <View style={styles.coverDecoSvg}>
+            <CoverDecorationSvg color={coverTextColor} variant={coverDecorationStyle} />
+          </View>
+        )}
 
         {coverLogoPosition !== "hidden" && (
           <View style={{ position: "absolute", top: 48, left: 44, right: 44 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: coverLogoJustify }}>
               {logoUrl ? (
-                <Image src={logoUrl} style={styles.coverLogo} />
+                <Image src={logoUrl} style={[styles.coverLogo, { maxWidth: 180 * coverLogoScale, height: 52 * coverLogoScale }]} />
               ) : (
                 <View style={styles.coverLogoCircle}>
                   <Text style={{ color: C.white, fontSize: 24, fontWeight: 700 }}>
@@ -674,32 +840,25 @@ export function ClimatizzazionePDF(props: ClmPdfEnriched) {
           </View>
         )}
 
-        <View style={{ position: "absolute", top: 300, left: 44, right: 44 }}>
-          <Text style={[styles.coverTitle, { color: coverTextColor, fontSize: t.cover_title_size ?? 30, textAlign: t.cover_text_align ?? "left" }]}>{coverTitle}</Text>
-          <Text style={[styles.coverSubtitle, { color: coverTextColor, textAlign: t.cover_text_align ?? "left" }]}>{coverSubtitle}</Text>
+        {/* Blocco testo: eyebrow + titolo + sottotitolo + card cliente.
+            Posizione verticale da coverTextVertical (top/center/bottom). */}
+        <View style={{ position: "absolute", top: coverTextTop, left: 44, right: 44, alignItems: coverTextAlign === "center" ? "center" : "flex-start" }}>
+          <Text style={[styles.coverEyebrow, { fontSize: coverEyebrowSize, color: coverTextColor, textAlign: coverTextAlign }]}>{coverEyebrow}</Text>
+          <Text style={[styles.coverTitle, { color: coverTextColor, fontSize: coverTitleSize, textAlign: coverTextAlign }]}>{coverTitle}</Text>
+          <Text style={[styles.coverSubtitle, { color: coverTextColor, fontSize: coverSubtitleSize, textAlign: coverTextAlign }]}>{coverSubtitle}</Text>
+
+          {coverShowClientCard && (
+            <View style={[styles.coverCard, { marginTop: 22, alignSelf: "stretch" }]}>
+              <Text style={styles.coverCardLabel}>Preparato per</Text>
+              <Text style={styles.coverCardValue}>{cliente}</Text>
+              {cantiere ? <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>{cantiere}</Text> : null}
+            </View>
+          )}
         </View>
 
-        <View style={{ position: "absolute", bottom: 70, left: 44, right: 44 }}>
-          <View style={{ flexDirection: "row", marginHorizontal: -6 }}>
-            <View style={{ flex: 1, paddingHorizontal: 6 }}>
-              <View style={styles.coverCard}>
-                <Text style={styles.coverCardLabel}>Preparato per</Text>
-                <Text style={styles.coverCardValue}>{cliente}</Text>
-                {cantiere ? <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>{cantiere}</Text> : null}
-              </View>
-            </View>
-            <View style={{ flex: 1, paddingHorizontal: 6 }}>
-              <View style={styles.coverCard}>
-                <Text style={styles.coverCardLabel}>Riferimento</Text>
-                <Text style={styles.coverCardValue}>{p.code ?? "—"}</Text>
-                <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>Data: {dateStr()}</Text>
-              </View>
-            </View>
-          </View>
-          <View style={styles.coverTotalBox}>
-            <Text style={styles.coverTotalLabel}>Investimento totale (IVA inclusa)</Text>
-            <Text style={styles.coverTotalValue}>{formatCurrency(totali.totale)}</Text>
-          </View>
+        {/* Footer cover: solo riferimento + data — NESSUN totale (il prezzo non va in cover). */}
+        <View style={{ position: "absolute", bottom: 50, left: 44, right: 44 }}>
+          <Text style={styles.coverTotalLabel}>Rif. {p.code ?? "—"} · {dateStr()}</Text>
         </View>
       </Page>
 
@@ -770,7 +929,25 @@ export function ClimatizzazionePDF(props: ClmPdfEnriched) {
         </Page>
       )}
 
-      {/* ─── COMPUTO PER CAPITOLI + RIEPILOGO ─────────────────────────────── */}
+      {/* ─── FOTO E RENDER (prima del prezzo: la prova visiva precede il costo) ─ */}
+      {media.length > 0 && (
+        <Page size="A4" style={styles.page}>
+          {header}
+          <Text style={styles.sectionTitle}>Foto e render del progetto</Text>
+          <Text style={styles.sectionSub}>Stato attuale, lavori simili e rendering dell'intervento.</Text>
+          <View style={styles.photoGrid}>
+            {media.map((m) => (
+              <View key={m.id} style={styles.photoItem} wrap={false}>
+                <Image src={m.url} style={styles.photoImg} />
+                {m.caption ? <Text style={styles.photoCaption}>{m.caption}</Text> : null}
+              </View>
+            ))}
+          </View>
+          {footer}
+        </Page>
+      )}
+
+      {/* ─── COMPUTO PER CAPITOLI + RIEPILOGO (dopo la prova visiva) ───── */}
       <Page size="A4" style={styles.page}>
         {header}
         <Text style={styles.sectionTitle}>Computo metrico estimativo</Text>
@@ -817,24 +994,6 @@ export function ClimatizzazionePDF(props: ClmPdfEnriched) {
         </View>
         {footer}
       </Page>
-
-      {/* ─── FOTO E RENDER ────────────────────────────────────────────────── */}
-      {media.length > 0 && (
-        <Page size="A4" style={styles.page}>
-          {header}
-          <Text style={styles.sectionTitle}>Foto e render del progetto</Text>
-          <Text style={styles.sectionSub}>Stato attuale, lavori simili e rendering dell'intervento.</Text>
-          <View style={styles.photoGrid}>
-            {media.map((m) => (
-              <View key={m.id} style={styles.photoItem} wrap={false}>
-                <Image src={m.url} style={styles.photoImg} />
-                {m.caption ? <Text style={styles.photoCaption}>{m.caption}</Text> : null}
-              </View>
-            ))}
-          </View>
-          {footer}
-        </Page>
-      )}
 
       {/* ─── CRONOPROGRAMMA + CONDIZIONI + CONTATTI ───────────────────────── */}
       <Page size="A4" style={styles.page}>
@@ -924,6 +1083,7 @@ export function ClimatizzazionePDF(props: ClmPdfEnriched) {
             </View>
           ) : null}
         </View>
+        <ChiusuraVendita c={C} companyName={companyName} validityText={t.validity_text} />
         {footer}
       </Page>
     </Document>

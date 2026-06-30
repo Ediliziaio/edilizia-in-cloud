@@ -28,6 +28,7 @@ export interface BundleVoce {
   vano_label: string | null;
   quantita: number;
   sort_order: number;
+  immagine_url: string | null;
   // Joined
   article_templates?: {
     name: string;
@@ -57,6 +58,11 @@ export interface Bundle {
   vertical: string | null;
   tipo_lavoro: BundleTipoLavoro | null;
   is_template: boolean;
+  // Attributi FV (solo bundle vertical='fotovoltaico'): il kit dichiara taglia + prezzo offerta.
+  fv_kwp: number | null;
+  fv_accumulo_kwh: number | null;
+  prezzo_offerta: number | null;
+  cover_image_url: string | null;
   created_at: string;
   voci?: BundleVoce[];
 }
@@ -74,6 +80,10 @@ export interface BundleUpsertInput {
   vertical?: string | null;
   tipo_lavoro?: BundleTipoLavoro | null;
   is_template?: boolean;
+  fv_kwp?: number | null;
+  fv_accumulo_kwh?: number | null;
+  prezzo_offerta?: number | null;
+  cover_image_url?: string | null;
   voci: BundleVoceInput[];
 }
 
@@ -168,6 +178,10 @@ export function useUpsertBundle() {
         vertical: input.vertical ?? null,
         tipo_lavoro: input.tipo_lavoro ?? null,
         is_template: input.is_template ?? false,
+        fv_kwp: input.fv_kwp ?? null,
+        fv_accumulo_kwh: input.fv_accumulo_kwh ?? null,
+        prezzo_offerta: input.prezzo_offerta ?? null,
+        cover_image_url: input.cover_image_url ?? null,
       };
 
       let bundleId = input.id;
@@ -203,6 +217,7 @@ export function useUpsertBundle() {
           vano_label: v.vano_label ?? null,
           quantita: v.quantita,
           sort_order: v.sort_order ?? idx,
+          immagine_url: v.immagine_url ?? null,
         }));
         const { error: insErr } = await supabase.from("bundle_voci" as never)
           .insert(voceRows);

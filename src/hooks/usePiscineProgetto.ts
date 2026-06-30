@@ -194,6 +194,80 @@ export function useDeleteProgetto() {
   });
 }
 
+// ─── Clona progetto (inizia da un preventivo esistente) ─────────────────────────
+// Crea un nuovo preventivo riusando uno passato come "modello": copia le
+// condizioni (tipo intervento, sconto/IVA/detrazione, note, template) + TUTTE le
+// voci del computo, ma LASCIA VUOTI cliente/cantiere/immobile (è un nuovo cliente).
+export function useClonaProgetto() {
+  const companyId = useEffectiveCompanyId();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (sourceId: string): Promise<PisProgetto> => {
+      if (!companyId) throw new Error("Company non disponibile");
+
+      // 1) Carica origine (condizioni) + voci computo, scoping per company.
+      const [{ data: src, error: sErr }, { data: voci, error: vErr }] = await Promise.all([
+        sb().from("pis_progetti").select("*").eq("id", sourceId).eq("company_id", companyId).maybeSingle(),
+        sb().from("pis_computo_voci").select("*").eq("progetto_id", sourceId).eq("company_id", companyId)
+          .order("ordine", { ascending: true }),
+      ]);
+      if (sErr) throw new Error(sErr.message);
+      if (vErr) throw new Error(vErr.message);
+      if (!src) throw new Error("Preventivo di origine non trovato");
+
+      // 2) Nuovo progetto: copia SOLO condizioni/economia; cliente/cantiere/immobile vuoti.
+      const code = await generateProgettoCode(companyId);
+      const { data: nuovo, error: cErr } = await sb()
+        .from("pis_progetti")
+        .insert({
+          company_id: companyId,
+          code,
+          stato: "bozza",
+          tipo_intervento: src.tipo_intervento,
+          sconto_pct: src.sconto_pct,
+          iva_pct: src.iva_pct,
+          detrazione_pct: src.detrazione_pct,
+          note: src.note,
+          template_id: src.template_id,
+          totale_imponibile: src.totale_imponibile,
+          totale: src.totale,
+        })
+        .select()
+        .single();
+      if (cErr) throw new Error(cErr.message);
+
+      // 3) Copia le voci del computo nel nuovo progetto (importi già calcolati a monte).
+      if (voci && voci.length > 0) {
+        const rows = voci.map((v, idx) => ({
+          progetto_id: nuovo.id,
+          company_id: companyId,
+          capitolo_nome: v.capitolo_nome,
+          descrizione: v.descrizione,
+          unita_misura: v.unita_misura,
+          quantita: v.quantita,
+          prezzo_unitario: v.prezzo_unitario,
+          costo_materiali: v.costo_materiali,
+          costo_manodopera: v.costo_manodopera,
+          sconto_pct: v.sconto_pct,
+          importo: v.importo,
+          margine_eur: v.margine_eur,
+          margine_pct: v.margine_pct,
+          listino_voce_id: v.listino_voce_id ?? null,
+          fonte: v.fonte ?? null,
+          ordine: v.ordine ?? idx,
+        }));
+        const { error: iErr } = await sb().from("pis_computo_voci").insert(rows);
+        if (iErr) throw new Error(iErr.message);
+      }
+
+      return nuovo as PisProgetto;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: K.progetti(companyId) });
+    },
+  });
+}
+
 // ─── Salvataggio computo (replace bulk) ──────────────────────────────────────
 /** Riga di computo in input al salvataggio (id opzionale: viene rigenerato). */
 export type ComputoVoceInput = Omit<
@@ -450,6 +524,14 @@ function normalizeTemplate(row: Record<string, unknown> | null, companyId: strin
     show_percorso: (r.show_percorso as boolean | null) ?? true,
     cover_title_size: (r.cover_title_size as number | null) ?? 30,
     cover_text_align: (r.cover_text_align as PisTemplatePdf["cover_text_align"]) ?? "left",
+    // Cover parity (pdf_cover_*): default allineati a sr_template_pdf / migration.
+    pdf_cover_overlay_style: (r.pdf_cover_overlay_style as PisTemplatePdf["pdf_cover_overlay_style"]) ?? "flat",
+    pdf_cover_text_vertical: (r.pdf_cover_text_vertical as PisTemplatePdf["pdf_cover_text_vertical"]) ?? "bottom",
+    pdf_cover_decoration_style: (r.pdf_cover_decoration_style as PisTemplatePdf["pdf_cover_decoration_style"]) ?? "square",
+    pdf_cover_show_decoration: (r.pdf_cover_show_decoration as boolean | null) ?? true,
+    pdf_cover_show_client_card: (r.pdf_cover_show_client_card as boolean | null) ?? true,
+    pdf_cover_eyebrow_size: (r.pdf_cover_eyebrow_size as number | null) ?? 11,
+    pdf_cover_subtitle_size: (r.pdf_cover_subtitle_size as number | null) ?? 13,
     default_iva_pct: (r.default_iva_pct as number | null) ?? 10,
     default_detrazione_pct: (r.default_detrazione_pct as number | null) ?? 50,
     default_validita_giorni: (r.default_validita_giorni as number | null) ?? 30,

@@ -30,7 +30,7 @@ import {
   Save, Loader2, Upload, Image as ImageIcon, Plus, Trash2, GripVertical,
   Palette, FileText, Sparkles, ListChecks, Quote, Clock, Building2,
   Eye, EyeOff, BadgeEuro, AlertTriangle, FileSearch, Route, ShieldCheck, Percent,
-  Wand2,
+  Wand2, Check,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -49,6 +49,9 @@ import { cn } from "@/lib/utils";
 import { RichTextEditorSafe } from "@/components/ui/rich-text-editor-safe";
 import { useRistrutturazionePDF } from "@/hooks/useRistrutturazionePDF";
 import { RistrutturazioneTemplatePreviewDialog } from "@/components/ristrutturazione/RistrutturazioneTemplatePreviewDialog";
+import { AiTemplateReviewDialog } from "@/components/preventivi/AiTemplateReviewDialog";
+import { AiSalesProfileForm } from "@/components/preventivi/AiSalesProfileForm";
+import { useCompanySalesProfile, EMPTY_SALES_PROFILE, type CompanySalesProfile } from "@/hooks/useCompanySalesProfile";
 import {
   useRstTemplatePdf,
   useUpsertRstTemplatePdf,
@@ -60,6 +63,16 @@ import type {
   RstTemplatePdf, RstListItem, RstFaqItem, RstTestimonianza, RstCronoFase,
   RstProgetto, RstComputoVoce,
 } from "@/types/ristrutturazione";
+import {
+  COVER_PRESETS as RST_COVER_PRESETS,
+  detectActiveCoverPreset,
+  type CoverPresetPatch,
+  type RstCoverPatch,
+} from "@/components/ristrutturazione/coverPresets";
+import {
+  COVER_STOCK_IMAGES,
+  COVER_STOCK_CATEGORIE,
+} from "@/components/ristrutturazione/coverStockImages";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -75,16 +88,64 @@ const PALETTE_PRESETS: Array<{ nome: string; color_primary: string; color_second
   { nome: "Indaco moderno",    color_primary: "#3730A3", color_secondary: "#EC4899", color_accent: "#10B981", color_text: "#1E1B4B" },
 ];
 
-// Stili copertina: combinano colore testo + opacità velo + posizione logo
-// (campi già esistenti della copertina). Pura UI, nessun nuovo campo.
-const COVER_PRESETS: Array<{ nome: string; cover_text_color: string; cover_overlay_opacity: number; cover_logo_position: "top_left" | "top_center" | "top_right" | "hidden" }> = [
-  { nome: "Scuro elegante",  cover_text_color: "#FFFFFF", cover_overlay_opacity: 0.55, cover_logo_position: "top_left" },
-  { nome: "Minimale chiaro", cover_text_color: "#FFFFFF", cover_overlay_opacity: 0.30, cover_logo_position: "top_center" },
-  { nome: "Brand forte",     cover_text_color: "#FFFFFF", cover_overlay_opacity: 0.70, cover_logo_position: "top_left" },
-  { nome: "Senza velo",      cover_text_color: "#0F172A", cover_overlay_opacity: 0.00, cover_logo_position: "top_right" },
-];
+// Gli "stili copertina" 1-click sono ora i COVER_PRESETS importati da
+// `coverPresets.ts` (8 preset layout completi su pdf_cover_*), applicati via
+// applyCoverPreset(). Vedi sezione "Copertina" nell'editor.
 
-// Forma del form locale: stesso shape del patch persistito.
+// Campi {placeholder} inseribili nei testi della copertina (eyebrow/titolo/
+// sottotitolo). Parità con bagni/serramenti: nomi allineati ai campi del
+// progetto ristrutturazione. Al click vengono APPESI come token letterale
+// `{nome}` nel campo collegato (sostituzione lato preventivo, non qui).
+const RST_PLACEHOLDERS = [
+  "cliente_nome", "cliente_cognome", "cliente_nome_completo",
+  "cantiere_citta", "cantiere_provincia", "tipo_intervento", "anno",
+] as const;
+
+/** Chip cliccabili che inseriscono un campo personalizzato nel testo collegato.
+ *  Con `targetRef` inserisce al cursore; senza, appende in coda. */
+function PlaceholderChips({
+  value, onChange, targetRef, label = "Inserisci campo personalizzato (cliccabile):",
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  targetRef?: { current: HTMLTextAreaElement | HTMLInputElement | null };
+  label?: string;
+}) {
+  const insert = (name: string) => {
+    const token = `{${name}}`;
+    const el = targetRef?.current;
+    const v = value ?? "";
+    if (!el || el.selectionStart == null) { onChange(v + token); return; }
+    const start = el.selectionStart ?? v.length;
+    const end = el.selectionEnd ?? v.length;
+    onChange(v.slice(0, start) + token + v.slice(end));
+    requestAnimationFrame(() => {
+      try { el.focus(); const pos = start + token.length; el.setSelectionRange(pos, pos); } catch { /* input non selezionabile */ }
+    });
+  };
+  return (
+    <div className="mt-1.5">
+      <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1">
+        {RST_PLACEHOLDERS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => insert(n)}
+            className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-orange-50 hover:border-orange-300 text-slate-600 hover:text-orange-700 transition-colors"
+          >
+            {`{${n}}`}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Forma del form locale: stesso shape del patch persistito + la slice cover
+// "preset-driven" (pdf_cover_*). Questi ultimi NON sono sul tipo RstTemplatePdf
+// (aggiunti via migration 20271110070000_ristrutturazione_cover_parity.sql e
+// letti via cast nel PDF), quindi li tipizziamo qui con RstCoverPatch.
 type FormState = Required<Pick<RstTemplatePdf,
   | "logo_url" | "color_primary" | "color_secondary" | "color_accent" | "color_text"
   | "chi_siamo" | "chi_siamo_foto_url" | "esigenze" | "soluzione" | "usp"
@@ -97,9 +158,45 @@ type FormState = Required<Pick<RstTemplatePdf,
   | "garanzie" | "faq" | "percorso" | "show_garanzie" | "show_percorso"
   | "cover_title_size" | "cover_text_align"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
->>;
+>> & RstCoverPatch & {
+  /** Eyebrow + titolo/sottotitolo cover usati dal layout preset (pdf_cover_*). */
+  pdf_cover_eyebrow: string | null;
+  pdf_cover_hero: string | null;
+  pdf_cover_subhero: string | null;
+};
+
+/** Default coerenti con la migration cover-parity (pdf_cover_* su rst_template_pdf). */
+const RST_COVER_DEFAULTS: RstCoverPatch & {
+  pdf_cover_eyebrow: string | null;
+  pdf_cover_hero: string | null;
+  pdf_cover_subhero: string | null;
+} = {
+  pdf_cover_bg_color: null,
+  pdf_cover_image_url: null,
+  pdf_cover_overlay_opacity: 65,
+  pdf_cover_overlay_style: "flat",
+  pdf_cover_text_color: "#FFFFFF",
+  pdf_cover_text_align: "left",
+  pdf_cover_text_vertical: "bottom",
+  pdf_cover_eyebrow_size: 10,
+  pdf_cover_title_size: 40,
+  pdf_cover_subtitle_size: 13,
+  pdf_cover_show_decoration: true,
+  pdf_cover_decoration_style: "square",
+  pdf_cover_show_client_card: true,
+  pdf_cover_logo_position: "top_left",
+  pdf_cover_eyebrow: null,
+  pdf_cover_hero: null,
+  pdf_cover_subhero: null,
+};
 
 function templateToForm(t: RstTemplatePdf): FormState {
+  // I campi pdf_cover_* non sono sul tipo RstTemplatePdf: leggiamo via cast
+  // dalla riga grezza (presenti dopo la migration cover-parity).
+  const tc = t as unknown as Partial<RstCoverPatch> & Record<string, unknown>;
+  const num = (v: unknown, d: number | null): number | null =>
+    typeof v === "number" && Number.isFinite(v) ? v : d;
+  const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
   return {
     logo_url: t.logo_url ?? null,
     color_primary: t.color_primary ?? "#1E3A5F",
@@ -143,6 +240,24 @@ function templateToForm(t: RstTemplatePdf): FormState {
     default_iva_pct: t.default_iva_pct ?? 10,
     default_detrazione_pct: t.default_detrazione_pct ?? 50,
     default_validita_giorni: t.default_validita_giorni ?? 30,
+    // ─── Cover preset-driven (pdf_cover_*) ───────────────────────────────
+    pdf_cover_bg_color: str(tc.pdf_cover_bg_color) ?? RST_COVER_DEFAULTS.pdf_cover_bg_color,
+    pdf_cover_image_url: str(tc.pdf_cover_image_url) ?? RST_COVER_DEFAULTS.pdf_cover_image_url,
+    pdf_cover_overlay_opacity: num(tc.pdf_cover_overlay_opacity, RST_COVER_DEFAULTS.pdf_cover_overlay_opacity),
+    pdf_cover_overlay_style: (tc.pdf_cover_overlay_style as FormState["pdf_cover_overlay_style"]) ?? RST_COVER_DEFAULTS.pdf_cover_overlay_style,
+    pdf_cover_text_color: str(tc.pdf_cover_text_color) ?? RST_COVER_DEFAULTS.pdf_cover_text_color,
+    pdf_cover_text_align: (tc.pdf_cover_text_align as FormState["pdf_cover_text_align"]) ?? RST_COVER_DEFAULTS.pdf_cover_text_align,
+    pdf_cover_text_vertical: (tc.pdf_cover_text_vertical as FormState["pdf_cover_text_vertical"]) ?? RST_COVER_DEFAULTS.pdf_cover_text_vertical,
+    pdf_cover_eyebrow_size: num(tc.pdf_cover_eyebrow_size, RST_COVER_DEFAULTS.pdf_cover_eyebrow_size),
+    pdf_cover_title_size: num(tc.pdf_cover_title_size, RST_COVER_DEFAULTS.pdf_cover_title_size),
+    pdf_cover_subtitle_size: num(tc.pdf_cover_subtitle_size, RST_COVER_DEFAULTS.pdf_cover_subtitle_size),
+    pdf_cover_show_decoration: typeof tc.pdf_cover_show_decoration === "boolean" ? tc.pdf_cover_show_decoration : RST_COVER_DEFAULTS.pdf_cover_show_decoration,
+    pdf_cover_decoration_style: (tc.pdf_cover_decoration_style as FormState["pdf_cover_decoration_style"]) ?? RST_COVER_DEFAULTS.pdf_cover_decoration_style,
+    pdf_cover_show_client_card: typeof tc.pdf_cover_show_client_card === "boolean" ? tc.pdf_cover_show_client_card : RST_COVER_DEFAULTS.pdf_cover_show_client_card,
+    pdf_cover_logo_position: (tc.pdf_cover_logo_position as FormState["pdf_cover_logo_position"]) ?? RST_COVER_DEFAULTS.pdf_cover_logo_position,
+    pdf_cover_eyebrow: str((tc as Record<string, unknown>).pdf_cover_eyebrow) ?? RST_COVER_DEFAULTS.pdf_cover_eyebrow,
+    pdf_cover_hero: str((tc as Record<string, unknown>).pdf_cover_hero) ?? RST_COVER_DEFAULTS.pdf_cover_hero,
+    pdf_cover_subhero: str((tc as Record<string, unknown>).pdf_cover_subhero) ?? RST_COVER_DEFAULTS.pdf_cover_subhero,
   };
 }
 
@@ -228,6 +343,20 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
     setDirty(true);
   };
 
+  // ─── Cover preset 1-click (parità Serramenti) ──────────────────────────────
+  // Applica in batch tutti i campi pdf_cover_* di un preset layout.
+  const [stockDialogOpen, setStockDialogOpen] = useState(false);
+  const [stockCategoria, setStockCategoria] = useState<(typeof COVER_STOCK_CATEGORIE)[number]["value"]>("all");
+  const applyCoverPreset = (patch: CoverPresetPatch) => {
+    setForm((prev) => {
+      if (!prev) return prev;
+      return { ...prev, ...patch };
+    });
+    setDirty(true);
+  };
+  // Preset attivo: confronta la slice cover del form con i preset (null = custom).
+  const activeCoverPresetId = form ? detectActiveCoverPreset(form) : null;
+
   const handleSave = async () => {
     if (!form) return;
     const patch: RstTemplatePatch = { ...form };
@@ -247,7 +376,11 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
   // ─── AI: genera la bozza dei testi del template in un click ────────────────
   const [aiOpen, setAiOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiDesc, setAiDesc] = useState("");
+  const { profile: salesProfile, save: saveSalesProfile } = useCompanySalesProfile();
+  const [intake, setIntake] = useState<CompanySalesProfile>(EMPTY_SALES_PROFILE);
+  useEffect(() => { if (!aiOpen) setIntake(salesProfile); }, [salesProfile, aiOpen]);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [aiDraft, setAiDraft] = useState<GeneratedTemplateTexts | null>(null);
 
   /** Riversa i testi generati nel form (solo i campi valorizzati: non-distruttivo). */
   const applyGenerated = (g: GeneratedTemplateTexts) => {
@@ -267,26 +400,42 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
   };
 
   const handleGenerateAi = async () => {
+    if (aiLoading) return;
     if (!companyId) {
       toast.error("Azienda non disponibile");
       return;
     }
     setAiLoading(true);
     try {
+      const descrizione = [
+        intake.attivita.trim() && `Cosa fa / da quanto / zona: ${intake.attivita.trim()}`,
+        intake.problema.trim() && `Problema tipico del cliente: ${intake.problema.trim()}`,
+        intake.usp.trim() && `Cosa lo differenzia (USP): ${intake.usp.trim()}`,
+        intake.prove.trim() && `Fatti veri (numeri, garanzie, certificazioni): ${intake.prove.trim()}`,
+        intake.offerta.trim() && `Incluso e condizioni: ${intake.offerta.trim()}`,
+        intake.obiezioni.trim() && `Domande frequenti del cliente: ${intake.obiezioni.trim()}`,
+        intake.vietati.trim() && `Da NON dire mai: ${intake.vietati.trim()}`,
+      ].filter(Boolean).join("\n");
+      void saveSalesProfile(intake).catch((e) => console.warn("[AI template] profilo vendita non salvato:", e));
       const { data, error } = await supabase.functions.invoke(
         "ai-genera-template-ristrutturazione",
-        { body: { company_id: companyId, descrizione: aiDesc.trim() || undefined } },
+        {
+          body: {
+            company_id: companyId,
+            descrizione: descrizione || undefined,
+            cliente_tipo: intake.cliente_tipo,
+            tono: intake.voce.trim() || undefined,
+          },
+        },
       );
       if (error) throw error;
       const payload = data as { success?: boolean; error?: string; generated?: GeneratedTemplateTexts };
       if (!payload?.success || !payload.generated) {
         throw new Error(payload?.error ?? "Generazione non riuscita");
       }
-      applyGenerated(payload.generated);
+      setAiDraft(payload.generated);
       setAiOpen(false);
-      toast.success("Bozza generata con l'AI", {
-        description: "Controlla i testi nelle sezioni e salva il template.",
-      });
+      setReviewOpen(true);
     } catch (e) {
       toast.error("Generazione non riuscita", {
         description: e instanceof Error ? e.message : "Riprova tra poco.",
@@ -317,6 +466,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
       cliente_nome: "Mario", cliente_cognome: "Rossi", cliente_email: null, cliente_telefono: null,
       cantiere_indirizzo: "Via Roma 1", cantiere_citta: "Milano", cantiere_provincia: "MI", cantiere_cap: "20100",
       immobile_tipo: "Appartamento", immobile_superficie_mq: 90, immobile_anno: 1975, immobile_piani: 1,
+      massimale_detrazione: null, numero_vani: null, altezza_media_m: null,
       opportunita_id: null, cliente_id: null, template_id: null,
       sconto_pct: 0, iva_pct: 10, detrazione_pct: 50,
       totale_imponibile: 0, totale: 0, note: null,
@@ -672,15 +822,96 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
 
           {/* Copertina */}
           {activeSection === "page_cover" && (
-            <SectionCard icon={FileText} title="Copertina" description="Titolo, sottotitolo e immagine della prima pagina.">
-              <div className="grid gap-4 sm:grid-cols-2">
+            <SectionCard icon={FileText} title="Copertina" description="Scegli uno stile pronto e personalizza testo, immagine e layout della prima pagina.">
+              {/* ── Preset stili 1-click (8 layout completi) ──────────────── */}
+              <div className="mb-4">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-orange-500" />
+                  <Label className="text-xs font-medium">Preset stili</Label>
+                  <span className="text-[10px] text-muted-foreground">— un click applica colori, layout, overlay e decorazione</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {RST_COVER_PRESETS.map((preset) => {
+                    const isActive = activeCoverPresetId === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => applyCoverPreset(preset.patch)}
+                        aria-pressed={isActive}
+                        className={cn(
+                          "group relative overflow-hidden rounded-lg border text-left transition-all hover:border-orange-300",
+                          isActive ? "border-orange-400 ring-2 ring-orange-300" : "border-input",
+                        )}
+                      >
+                        {/* Mini-anteprima cover (swatch del preset) */}
+                        <div
+                          className="relative flex h-20 w-full flex-col justify-end p-2"
+                          style={{ backgroundColor: preset.swatchBg }}
+                        >
+                          {preset.category === "photo" && (
+                            <span className="absolute right-1.5 top-1.5 rounded bg-black/40 px-1 py-0.5 text-[8px] font-medium text-white">
+                              foto
+                            </span>
+                          )}
+                          <span
+                            className="text-[9px] font-bold leading-tight"
+                            style={{
+                              color: preset.swatchText,
+                              textAlign: preset.patch.pdf_cover_text_align === "center" ? "center" : "left",
+                            }}
+                          >
+                            {preset.sampleTitle.split("\n").map((line, li) => (
+                              <span key={li} className="block">{line}</span>
+                            ))}
+                          </span>
+                          <span
+                            className="mt-1 inline-block h-1 w-6 rounded-full"
+                            style={{ backgroundColor: preset.swatchAccent }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-1 border-t bg-card px-2 py-1.5">
+                          <span className="truncate text-[10px] font-medium text-foreground">
+                            {preset.emoji} {preset.nome}
+                          </span>
+                          {isActive && <Check className="h-3 w-3 shrink-0 text-orange-500" />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1.5 text-[10px] text-muted-foreground">
+                  {activeCoverPresetId
+                    ? "Preset applicato. Puoi ancora rifinire i dettagli qui sotto."
+                    : "Layout personalizzato. Scegli un preset per ripartire da uno stile pronto."}
+                </p>
+              </div>
+
+              {/* ── Testo cover (titolo / sottotitolo / eyebrow) ──────────── */}
+              <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
                 <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Etichetta (eyebrow)</Label>
+                    <Input
+                      value={form.pdf_cover_eyebrow ?? ""}
+                      onChange={(e) => set("pdf_cover_eyebrow", e.target.value)}
+                      placeholder="LA TUA PROPOSTA PERSONALIZZATA"
+                    />
+                    <PlaceholderChips
+                      value={form.pdf_cover_eyebrow ?? ""}
+                      onChange={(v) => set("pdf_cover_eyebrow", v || null)}
+                    />
+                  </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Titolo</Label>
                     <Input
                       value={form.cover_title ?? ""}
                       onChange={(e) => set("cover_title", e.target.value)}
                       placeholder="Preventivo di ristrutturazione"
+                    />
+                    <PlaceholderChips
+                      value={form.cover_title ?? ""}
+                      onChange={(v) => set("cover_title", v)}
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -690,131 +921,218 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                       onChange={(e) => set("cover_subtitle", e.target.value)}
                       placeholder="La tua casa, rinnovata chiavi in mano"
                     />
+                    <PlaceholderChips
+                      value={form.cover_subtitle ?? ""}
+                      onChange={(v) => set("cover_subtitle", v)}
+                    />
                   </div>
                 </div>
-                <ImageUploadField
-                  label="Immagine copertina"
-                  hint="Foto orizzontale di un cantiere/render."
-                  value={form.cover_image_url}
-                  companyId={companyId}
-                  onChange={(url) => set("cover_image_url", url)}
-                  aspect="aspect-[16/9]"
-                />
+                {/* Immagine sfondo: upload file OPPURE galleria stock */}
+                <div className="space-y-1.5">
+                  <ImageUploadField
+                    label="Immagine copertina (sfondo)"
+                    hint="Foto orizzontale di un cantiere/render."
+                    value={form.pdf_cover_image_url}
+                    companyId={companyId}
+                    onChange={(url) => set("pdf_cover_image_url", url)}
+                    aspect="aspect-[16/9]"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 w-full gap-1.5"
+                    onClick={() => setStockDialogOpen(true)}
+                  >
+                    <ImageIcon className="h-3.5 w-3.5" />
+                    Scegli da galleria stock
+                  </Button>
+                </div>
               </div>
 
-              {/* Stili copertina: preset che impostano testo + velo + logo in un click */}
-              <div className="mt-4 border-t pt-4">
-                <div className="mb-2 flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5 text-orange-500" />
-                  <Label className="text-xs font-medium">Stili copertina</Label>
+              {/* ── Anteprima live A4 + controlli ─────────────────────────── */}
+              <div className="mt-4 grid gap-4 border-t pt-4 lg:grid-cols-[200px_1fr]">
+                {/* Anteprima A4 (decorazione SVG style-aware col colore TESTO cover) */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Anteprima</Label>
+                  <CoverPreviewA4 form={form} logoUrl={form.logo_url} companyName={companyAnagrafica?.ragione_sociale ?? "La tua azienda"} />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {COVER_PRESETS.map((c) => {
-                    const isActive =
-                      form.cover_text_color === c.cover_text_color &&
-                      form.cover_overlay_opacity === c.cover_overlay_opacity &&
-                      form.cover_logo_position === c.cover_logo_position;
-                    return (
-                      <button
-                        key={c.nome}
-                        type="button"
-                        onClick={() => {
-                          set("cover_text_color", c.cover_text_color);
-                          set("cover_overlay_opacity", c.cover_overlay_opacity);
-                          set("cover_logo_position", c.cover_logo_position);
-                        }}
-                        aria-pressed={isActive}
-                        className={cn(
-                          "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-all hover:border-orange-300 hover:bg-orange-50",
-                          isActive
-                            ? "border-orange-400 bg-orange-50 ring-2 ring-orange-300"
-                            : "border-input bg-background",
-                        )}
-                      >
-                        {/* Mini-anteprima: rettangolo con velo + pallino colore testo */}
-                        <span className="relative flex h-6 w-9 shrink-0 items-center justify-center overflow-hidden rounded border border-black/10 bg-gradient-to-br from-slate-300 to-slate-500">
-                          <span className="absolute inset-0 bg-black" style={{ opacity: c.cover_overlay_opacity }} />
-                          <span
-                            className="relative h-2.5 w-2.5 rounded-full border border-black/20"
-                            style={{ backgroundColor: c.cover_text_color }}
-                          />
-                        </span>
-                        <span className="text-[11px] font-medium text-foreground">{c.nome}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="mt-1.5 text-[10px] text-muted-foreground">
-                  Imposta colore testo, velo e posizione logo in modo coordinato.
-                </p>
-              </div>
 
-              {/* Controlli avanzati copertina: posizione logo, colore testo, velo */}
-              <div className="mt-4 grid gap-4 border-t pt-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Posizione logo</Label>
-                  <select
-                    value={form.cover_logo_position ?? "top_left"}
-                    onChange={(e) => set("cover_logo_position", e.target.value as FormState["cover_logo_position"])}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="top_left">In alto a sinistra</option>
-                    <option value="top_center">In alto al centro</option>
-                    <option value="top_right">In alto a destra</option>
-                    <option value="hidden">Nascosto</option>
-                  </select>
-                </div>
-                <ColorField
-                  label="Colore testo copertina"
-                  value={form.cover_text_color}
-                  onChange={(v) => set("cover_text_color", v)}
-                />
-                <div className="space-y-1.5 sm:col-span-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs">Opacità velo scuro sull'immagine</Label>
-                    <span className="text-xs font-mono text-muted-foreground">
-                      {Math.round((form.cover_overlay_opacity ?? 0.4) * 100)}%
-                    </span>
+                {/* Controlli pdf_cover_* */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Posizione testo (verticale)</Label>
+                    <select
+                      value={form.pdf_cover_text_vertical}
+                      onChange={(e) => set("pdf_cover_text_vertical", e.target.value as FormState["pdf_cover_text_vertical"])}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="top">In alto</option>
+                      <option value="center">Al centro</option>
+                      <option value="bottom">In basso</option>
+                    </select>
                   </div>
-                  <Slider
-                    value={[form.cover_overlay_opacity ?? 0.4]}
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    onValueChange={(v) => set("cover_overlay_opacity", v[0])}
-                    className="mt-1"
-                  />
-                  <p className="text-[10px] text-muted-foreground">
-                    Aumenta il velo per rendere il testo più leggibile su immagini chiare.
-                  </p>
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs">Dimensione titolo copertina</Label>
-                    <span className="text-xs font-mono text-muted-foreground">
-                      {form.cover_title_size ?? 30} pt
-                    </span>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Allineamento testo</Label>
+                    <select
+                      value={form.pdf_cover_text_align}
+                      onChange={(e) => set("pdf_cover_text_align", e.target.value as FormState["pdf_cover_text_align"])}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="left">Sinistra</option>
+                      <option value="center">Centro</option>
+                    </select>
                   </div>
-                  <Slider
-                    value={[form.cover_title_size ?? 30]}
-                    min={20}
-                    max={44}
-                    step={1}
-                    onValueChange={(v) => set("cover_title_size", v[0])}
-                    className="mt-1"
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Posizione logo</Label>
+                    <select
+                      value={form.pdf_cover_logo_position}
+                      onChange={(e) => set("pdf_cover_logo_position", e.target.value as FormState["pdf_cover_logo_position"])}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="top_left">In alto a sinistra</option>
+                      <option value="top_center">In alto al centro</option>
+                      <option value="top_right">In alto a destra</option>
+                      <option value="hidden">Nascosto</option>
+                    </select>
+                  </div>
+                  <ColorField
+                    label="Colore testo copertina"
+                    value={form.pdf_cover_text_color}
+                    onChange={(v) => set("pdf_cover_text_color", v)}
                   />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Allineamento titolo</Label>
-                  <select
-                    value={form.cover_text_align ?? "left"}
-                    onChange={(e) => set("cover_text_align", e.target.value as FormState["cover_text_align"])}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="left">Sinistra</option>
-                    <option value="center">Centro</option>
-                    <option value="right">Destra</option>
-                  </select>
+                  <ColorField
+                    label="Colore sfondo (senza foto)"
+                    value={form.pdf_cover_bg_color}
+                    onChange={(v) => set("pdf_cover_bg_color", v)}
+                  />
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Stile velo / overlay (con foto)</Label>
+                    <select
+                      value={form.pdf_cover_overlay_style}
+                      onChange={(e) => set("pdf_cover_overlay_style", e.target.value as FormState["pdf_cover_overlay_style"])}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="flat">Piatto</option>
+                      <option value="gradient">Sfumato (dal basso)</option>
+                      <option value="gradient_diag">Sfumato (diagonale)</option>
+                      <option value="vignette">Vignettatura</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Intensità velo sull'immagine</Label>
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {form.pdf_cover_overlay_opacity ?? 65}%
+                      </span>
+                    </div>
+                    <Slider
+                      value={[form.pdf_cover_overlay_opacity ?? 65]}
+                      min={0}
+                      max={100}
+                      step={5}
+                      onValueChange={(v) => set("pdf_cover_overlay_opacity", v[0])}
+                      className="mt-1"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Aumenta il velo per rendere il testo più leggibile su immagini chiare.
+                    </p>
+                  </div>
+                  {/* Decorazione: toggle + stile */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <label className="flex items-center justify-between gap-3 rounded-lg border p-2.5">
+                      <div>
+                        <p className="text-sm font-medium">Decorazione grafica</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Ornamento SVG in alto a destra, nel colore del testo cover.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={form.pdf_cover_show_decoration}
+                        onCheckedChange={(v) => set("pdf_cover_show_decoration", v)}
+                      />
+                    </label>
+                    {form.pdf_cover_show_decoration && (
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {(["square", "circle", "line", "pattern", "none"] as const).map((variant) => {
+                          const isActive = form.pdf_cover_decoration_style === variant;
+                          return (
+                            <button
+                              key={variant}
+                              type="button"
+                              onClick={() => set("pdf_cover_decoration_style", variant)}
+                              aria-pressed={isActive}
+                              className={cn(
+                                "flex flex-col items-center gap-1 rounded-md border p-1.5 transition-all hover:border-orange-300",
+                                isActive ? "border-orange-400 bg-orange-50 ring-1 ring-orange-300" : "border-input",
+                              )}
+                            >
+                              <CoverDecoThumb variant={variant} />
+                              <span className="text-[9px] capitalize text-muted-foreground">{decoLabel(variant)}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  {/* Dimensioni font */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Dimensione titolo</Label>
+                      <span className="text-xs font-mono text-muted-foreground">{form.pdf_cover_title_size ?? 40} pt</span>
+                    </div>
+                    <Slider
+                      value={[form.pdf_cover_title_size ?? 40]}
+                      min={28}
+                      max={54}
+                      step={1}
+                      onValueChange={(v) => set("pdf_cover_title_size", v[0])}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Dimensione sottotitolo</Label>
+                      <span className="text-xs font-mono text-muted-foreground">{form.pdf_cover_subtitle_size ?? 13} pt</span>
+                    </div>
+                    <Slider
+                      value={[form.pdf_cover_subtitle_size ?? 13]}
+                      min={10}
+                      max={15}
+                      step={1}
+                      onValueChange={(v) => set("pdf_cover_subtitle_size", v[0])}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Dimensione etichetta</Label>
+                      <span className="text-xs font-mono text-muted-foreground">{form.pdf_cover_eyebrow_size ?? 10} pt</span>
+                    </div>
+                    <Slider
+                      value={[form.pdf_cover_eyebrow_size ?? 10]}
+                      min={8}
+                      max={12}
+                      step={1}
+                      onValueChange={(v) => set("pdf_cover_eyebrow_size", v[0])}
+                      className="mt-1"
+                    />
+                  </div>
+                  {/* Card cliente */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <label className="flex items-center justify-between gap-3 rounded-lg border p-2.5">
+                      <div>
+                        <p className="text-sm font-medium">Mostra card cliente in copertina</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Box "Preparato per" con nome cliente, cantiere e totale.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={form.pdf_cover_show_client_card}
+                        onCheckedChange={(v) => set("pdf_cover_show_client_card", v)}
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
             </SectionCard>
@@ -1058,29 +1376,31 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
       />
 
       {/* ── Dialog: genera testi con AI ──────────────────────────────── */}
+      <AiTemplateReviewDialog
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        draft={aiDraft}
+        onApply={(d) => {
+          applyGenerated(d);
+          setReviewOpen(false);
+          toast.success("Testi applicati al template", { description: "Rivedi le singole sezioni e salva." });
+        }}
+      />
+
       <Dialog open={aiOpen} onOpenChange={(o) => !aiLoading && setAiOpen(o)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-orange-500" />
               Genera testi con AI
             </DialogTitle>
             <DialogDescription>
-              Descrivi in una riga la tua impresa: l&apos;AI scrive la bozza dei testi del template.
-              Potrai modificarli prima di salvare.
+              Rispondi a poche domande sulla tua impresa: l&apos;AI scrive la bozza dei testi.
+              Le risposte si salvano nel profilo vendita e si riusano in ogni modulo.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label className="text-xs">La tua impresa (opzionale)</Label>
-            <Textarea
-              value={aiDesc}
-              onChange={(e) => setAiDesc(e.target.value)}
-              rows={3}
-              placeholder="Es. Ristrutturazioni complete chiavi in mano, 20 anni di esperienza, squadra interna e impianti certificati."
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Più sei specifico, più i testi saranno calzanti. Puoi anche lasciare vuoto.
-            </p>
+          <div className="max-h-[60vh] overflow-y-auto pr-1">
+            <AiSalesProfileForm value={intake} onChange={setIntake} />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setAiOpen(false)} disabled={aiLoading}>
@@ -1107,6 +1427,288 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Dialog: galleria immagini stock copertina ────────────────── */}
+      <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ImageIcon className="h-5 w-5 text-orange-500" />
+              Galleria immagini copertina
+            </DialogTitle>
+            <DialogDescription>
+              Scegli una foto pronta per lo sfondo della copertina. Potrai sostituirla
+              con una tua immagine quando vuoi.
+            </DialogDescription>
+          </DialogHeader>
+          {/* Filtro categorie */}
+          <div className="flex flex-wrap gap-1.5">
+            {COVER_STOCK_CATEGORIE.map((cat) => (
+              <button
+                key={cat.value}
+                type="button"
+                onClick={() => setStockCategoria(cat.value)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all",
+                  stockCategoria === cat.value
+                    ? "border-orange-400 bg-orange-50 text-orange-700"
+                    : "border-input bg-background hover:bg-muted",
+                )}
+              >
+                {cat.emoji} {cat.label}
+              </button>
+            ))}
+          </div>
+          {/* Griglia immagini */}
+          <div className="grid max-h-[55vh] grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+            {COVER_STOCK_IMAGES
+              .filter((img) => stockCategoria === "all" || img.categoria === stockCategoria)
+              .map((img) => {
+                const isActive = form.pdf_cover_image_url === img.url;
+                return (
+                  <button
+                    key={img.id}
+                    type="button"
+                    onClick={() => {
+                      set("pdf_cover_image_url", img.url);
+                      setStockDialogOpen(false);
+                    }}
+                    className={cn(
+                      "group relative aspect-[4/3] overflow-hidden rounded-lg border transition-all hover:border-orange-400",
+                      isActive ? "border-orange-400 ring-2 ring-orange-300" : "border-input",
+                    )}
+                  >
+                    <img src={img.thumb} alt={img.label} className="h-full w-full object-cover" loading="lazy" />
+                    <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-2 py-1 text-left text-[10px] text-white">
+                      {img.label}
+                    </span>
+                    {isActive && (
+                      <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white">
+                        <Check className="h-3 w-3" />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setStockDialogOpen(false)}>
+              Chiudi
+            </Button>
+            {form.pdf_cover_image_url && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="gap-1.5 text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+                onClick={() => {
+                  set("pdf_cover_image_url", null);
+                  setStockDialogOpen(false);
+                }}
+              >
+                <Trash2 className="h-4 w-4" /> Rimuovi immagine
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ─── Cover preview (A4) + decorazione SVG style-aware ──────────────────────────
+/** Etichetta umana per la variante decorazione. */
+function decoLabel(v: "square" | "circle" | "line" | "pattern" | "none"): string {
+  switch (v) {
+    case "square": return "Finestra";
+    case "circle": return "Cerchi";
+    case "line": return "Linea";
+    case "pattern": return "Punti";
+    case "none": return "Nessuna";
+  }
+}
+
+/**
+ * Decorazione SVG dell'anteprima editor — stesse 5 varianti del PDF
+ * (CoverDecorationSvg), ma in <svg> HTML nativo. `color` = colore TESTO cover.
+ */
+function CoverDecoSvgHtml({ color, variant, size = 180, className }: {
+  color: string; variant: "square" | "circle" | "line" | "pattern" | "none"; size?: number; className?: string;
+}) {
+  if (variant === "none") return null;
+  const common = { width: size, height: size, viewBox: "0 0 180 180", className } as const;
+  if (variant === "circle") {
+    return (
+      <svg {...common}>
+        <circle cx={90} cy={90} r={80} stroke={color} strokeWidth={3} fill="none" opacity={0.7} />
+        <circle cx={90} cy={90} r={56} stroke={color} strokeWidth={1.5} fill="none" opacity={0.4} />
+        <circle cx={90} cy={90} r={32} stroke={color} strokeWidth={1} fill="none" opacity={0.25} />
+      </svg>
+    );
+  }
+  if (variant === "line") {
+    return (
+      <svg {...common}>
+        <path d="M 90 10 L 90 170" stroke={color} strokeWidth={2.5} opacity={0.7} />
+        <path d="M 70 40 L 110 40" stroke={color} strokeWidth={1.5} opacity={0.5} />
+        <path d="M 70 140 L 110 140" stroke={color} strokeWidth={1.5} opacity={0.5} />
+      </svg>
+    );
+  }
+  if (variant === "pattern") {
+    const dots: React.ReactNode[] = [];
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        dots.push(<circle key={`${r}-${c}`} cx={30 + c * 30} cy={30 + r * 30} r={3} fill={color} opacity={0.45} />);
+      }
+    }
+    return <svg {...common}><g>{dots}</g></svg>;
+  }
+  // square (finestra stilizzata)
+  return (
+    <svg {...common}>
+      <g opacity={0.7}>
+        <rect x={20} y={20} width={140} height={140} rx={6} stroke={color} strokeWidth={3} fill="none" />
+        <path d="M 90 25 L 90 155" stroke={color} strokeWidth={2} />
+        <path d="M 25 90 L 155 90" stroke={color} strokeWidth={2} />
+        <circle cx={84} cy={90} r={3} fill={color} />
+        <path d="M 35 35 L 55 35 L 35 55 Z" fill={color} opacity={0.25} />
+        <path d="M 95 95 L 115 95 L 95 115 Z" fill={color} opacity={0.25} />
+      </g>
+      <g opacity={0.3}>
+        <path d="M 0 90 L 18 90" stroke={color} strokeWidth={1.5} />
+        <path d="M 162 90 L 180 90" stroke={color} strokeWidth={1.5} />
+        <path d="M 90 0 L 90 18" stroke={color} strokeWidth={1.5} />
+        <path d="M 90 162 L 90 180" stroke={color} strokeWidth={1.5} />
+      </g>
+    </svg>
+  );
+}
+
+/** Thumbnail decorazione per i bottoni di scelta variante (24×24). */
+function CoverDecoThumb({ variant }: { variant: "square" | "circle" | "line" | "pattern" | "none" }) {
+  if (variant === "none") {
+    return (
+      <span className="flex h-6 w-6 items-center justify-center text-muted-foreground">
+        <EyeOff className="h-3.5 w-3.5" />
+      </span>
+    );
+  }
+  return (
+    <span className="flex h-6 w-6 items-center justify-center rounded bg-slate-800">
+      <CoverDecoSvgHtml color="#FFFFFF" variant={variant} size={20} />
+    </span>
+  );
+}
+
+/**
+ * Anteprima live della copertina in formato A4 (ratio 595:841). Riproduce in
+ * HTML/CSS la stessa logica del PDF: bg color o foto + overlay (4 stili),
+ * logo, eyebrow/titolo/sottotitolo posizionati (top/center/bottom), decorazione
+ * SVG nel colore TESTO, card cliente.
+ */
+function CoverPreviewA4({ form, logoUrl, companyName }: {
+  form: FormState; logoUrl: string | null; companyName: string;
+}) {
+  const hasImage = Boolean(form.pdf_cover_image_url);
+  const bg = (form.pdf_cover_bg_color && /^#[0-9a-fA-F]{6}$/.test(form.pdf_cover_bg_color))
+    ? form.pdf_cover_bg_color
+    : "#0F1B2A";
+  const textColor = (form.pdf_cover_text_color && /^#[0-9a-fA-F]{6}$/.test(form.pdf_cover_text_color))
+    ? form.pdf_cover_text_color
+    : "#FFFFFF";
+  const overlay = Math.max(0, Math.min(100, form.pdf_cover_overlay_opacity ?? 65)) / 100;
+  const align = form.pdf_cover_text_align === "center" ? "center" : "left";
+  const justify =
+    form.pdf_cover_text_vertical === "top" ? "flex-start"
+    : form.pdf_cover_text_vertical === "center" ? "center"
+    : "flex-end";
+  const logoPos = form.pdf_cover_logo_position;
+  const logoAlignSelf =
+    logoPos === "top_right" ? "flex-end" : logoPos === "top_center" ? "center" : "flex-start";
+  // Overlay HTML coerente con i 4 stili PDF.
+  const overlayBg = (() => {
+    if (!hasImage) return undefined;
+    switch (form.pdf_cover_overlay_style) {
+      case "gradient":
+        return `linear-gradient(to bottom, rgba(0,0,0,${overlay * 0.15}), rgba(0,0,0,${overlay * 0.55}) 55%, rgba(0,0,0,${overlay}))`;
+      case "gradient_diag":
+        return `linear-gradient(to bottom right, rgba(0,0,0,${overlay * 0.2}), rgba(0,0,0,${overlay}))`;
+      case "vignette":
+        return `radial-gradient(ellipse 70% 85% at 50% 50%, rgba(0,0,0,${overlay * 0.1}), rgba(0,0,0,${overlay * 0.5}) 70%, rgba(0,0,0,${overlay * 0.95}))`;
+      default:
+        return `rgba(0,0,0,${overlay})`;
+    }
+  })();
+  // Scala font: l'anteprima è ~190px larga vs 595pt reali → fattore ~0.32.
+  const k = 190 / 595;
+  return (
+    <div
+      className="relative w-full overflow-hidden rounded-lg border shadow-sm"
+      style={{ aspectRatio: "595 / 841", backgroundColor: bg }}
+    >
+      {hasImage && (
+        <img src={form.pdf_cover_image_url ?? undefined} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      )}
+      {hasImage && <div className="absolute inset-0" style={{ background: overlayBg }} />}
+      {!hasImage && (
+        // velo gradiente sul fondo solido (come il PDF su bg pieno)
+        <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${bg}, ${bg})` }} />
+      )}
+      {/* Decorazione */}
+      {form.pdf_cover_show_decoration && (
+        <div className="absolute right-2 top-2 opacity-80">
+          <CoverDecoSvgHtml color={textColor} variant={form.pdf_cover_decoration_style} size={48} />
+        </div>
+      )}
+      {/* Logo */}
+      {logoPos !== "hidden" && (
+        <div className="absolute inset-x-2 top-2 flex" style={{ justifyContent: logoAlignSelf }}>
+          {logoUrl ? (
+            <img src={logoUrl} alt="" className="max-h-5 max-w-[60%] object-contain" />
+          ) : (
+            <span className="text-[8px] font-bold" style={{ color: textColor }}>{companyName}</span>
+          )}
+        </div>
+      )}
+      {/* Blocco testo */}
+      <div
+        className="absolute inset-x-3 flex flex-col gap-1"
+        style={{
+          top: 0, bottom: 0,
+          justifyContent: justify,
+          alignItems: align === "center" ? "center" : "flex-start",
+          paddingTop: form.pdf_cover_text_vertical === "top" ? (logoPos === "hidden" ? 24 : 40) : 0,
+          paddingBottom: form.pdf_cover_text_vertical === "bottom" ? 16 : 0,
+          textAlign: align,
+        }}
+      >
+        {/* L'eyebrow nel PDF mostra sempre un default se vuoto (parità bagni):
+            l'anteprima rispecchia lo stesso comportamento per coerenza. */}
+        <span
+          className="font-bold uppercase tracking-wider"
+          style={{ color: textColor, fontSize: Math.max(6, (form.pdf_cover_eyebrow_size ?? 10) * k), opacity: 0.9 }}
+        >
+          {(form.pdf_cover_eyebrow ?? "").trim() || "LA TUA PROPOSTA PERSONALIZZATA"}
+        </span>
+        <span
+          className="font-extrabold leading-tight"
+          style={{ color: textColor, fontSize: Math.max(11, (form.pdf_cover_title_size ?? 40) * k) }}
+        >
+          {(form.cover_title ?? "").trim() || "Preventivo di ristrutturazione"}
+        </span>
+        <span style={{ color: textColor, fontSize: Math.max(7, (form.pdf_cover_subtitle_size ?? 13) * k), opacity: 0.85 }}>
+          {(form.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano"}
+        </span>
+        {form.pdf_cover_show_client_card && (
+          <div
+            className="mt-1.5 w-full rounded px-2 py-1.5"
+            style={{ backgroundColor: "rgba(255,255,255,0.1)", borderLeft: `2px solid ${textColor}` }}
+          >
+            <span className="block text-[6px] uppercase tracking-wide" style={{ color: textColor, opacity: 0.7 }}>Preparato per</span>
+            <span className="block text-[8px] font-bold" style={{ color: textColor }}>Mario Rossi</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

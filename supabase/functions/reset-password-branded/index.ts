@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     }
 
     // Generate a password recovery link using the Supabase admin API
-    const siteUrl = redirect_to || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.it";
+    const siteUrl = redirect_to || Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
       email,
@@ -131,3 +131,5 @@ Deno.serve(async (req) => {
     return jsonResponse({ success: true });
   }
 });
+
+// redeploy 2026-06-25: propaga _shared email/branding (.it→.com + builder 58 email) — trigger CI HEAD~1 diff

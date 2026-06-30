@@ -101,13 +101,15 @@ export default function WarehouseInventoryStats({ stockItems = [], orderItems = 
     };
   }, [orderItems, stockItems]);
 
+  // Hint empty-state pulito: quando il valore è 0 mostriamo un testo
+  // "all-clear" (es. "tutto ok") invece di "0 articoli sotto soglia" che è rumore.
   const cards = useMemo(
     () => [
       {
         key: "inventory_value" as const,
         label: "Valore inventario",
         value: formatCurrency(stats.valoreTotale),
-        hint: `${stats.totalArticoli} articoli a stock`,
+        hint: stats.totalArticoli > 0 ? `${stats.totalArticoli} articoli a stock` : "magazzino vuoto",
         icon: Euro,
         accent: "blue" as const,
       },
@@ -115,7 +117,7 @@ export default function WarehouseInventoryStats({ stockItems = [], orderItems = 
         key: "stock_items" as const,
         label: "Articoli a stock",
         value: String(stats.totalArticoli),
-        hint: "schede con giacenza",
+        hint: stats.totalArticoli > 0 ? "schede con giacenza" : "nessun articolo",
         icon: Package,
         accent: "primary" as const,
       },
@@ -123,7 +125,7 @@ export default function WarehouseInventoryStats({ stockItems = [], orderItems = 
         key: "total_quantity" as const,
         label: "Quantità totale",
         value: String(stats.quantitaTotale),
-        hint: "pezzi disponibili",
+        hint: stats.quantitaTotale > 0 ? "pezzi disponibili" : "nessun pezzo",
         icon: Boxes,
         accent: "primary" as const,
       },
@@ -131,7 +133,7 @@ export default function WarehouseInventoryStats({ stockItems = [], orderItems = 
         key: "low_stock" as const,
         label: "Sottoscorta",
         value: String(stats.sottoscorta),
-        hint: "sotto soglia minima",
+        hint: stats.sottoscorta > 0 ? "sotto soglia minima" : "tutto ok",
         icon: AlertTriangle,
         accent: stats.sottoscorta > 0 ? ("amber" as const) : ("emerald" as const),
       },
@@ -139,7 +141,7 @@ export default function WarehouseInventoryStats({ stockItems = [], orderItems = 
         key: "critical_materials" as const,
         label: "Materiali critici",
         value: String(stats.materialiCritici),
-        hint: "zero o sotto soglia",
+        hint: stats.materialiCritici > 0 ? "zero o sotto soglia" : "nessuno",
         icon: AlertCircle,
         accent: stats.materialiCritici > 0 ? ("red" as const) : ("emerald" as const),
       },
@@ -147,7 +149,7 @@ export default function WarehouseInventoryStats({ stockItems = [], orderItems = 
         key: "near_low_stock" as const,
         label: "In esaurimento",
         value: String(stats.inEsaurimento),
-        hint: "entro +20% dalla soglia",
+        hint: stats.inEsaurimento > 0 ? "entro +20% dalla soglia" : "scorte stabili",
         icon: TrendingDown,
         accent: stats.inEsaurimento > 0 ? ("amber" as const) : ("emerald" as const),
       },
@@ -155,7 +157,7 @@ export default function WarehouseInventoryStats({ stockItems = [], orderItems = 
         key: "incoming_7d" as const,
         label: "In arrivo 7gg",
         value: String(stats.inArrivo7gg),
-        hint: "con arrivo magazzino previsto",
+        hint: stats.inArrivo7gg > 0 ? "consegne previste" : "nessuna consegna",
         icon: CalendarClock,
         accent: "blue" as const,
       },
@@ -163,7 +165,7 @@ export default function WarehouseInventoryStats({ stockItems = [], orderItems = 
         key: "missing_cost" as const,
         label: "Senza costo",
         value: String(stats.senzaCosto),
-        hint: "falsano il valore inventario",
+        hint: stats.senzaCosto > 0 ? "falsano il valore" : "anagrafica ok",
         icon: Euro,
         accent: stats.senzaCosto > 0 ? ("red" as const) : ("emerald" as const),
       },

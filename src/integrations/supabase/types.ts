@@ -73046,7 +73046,7 @@ export type Database = {
           urgency: string
         }[]
       }
-      get_scadenzario_summary: { Args: { p_company_id: string }; Returns: Json }
+      get_scadenzario_summary: { Args: { p_company_id: string; p_date_from?: string | null; p_date_to?: string | null }; Returns: Json }
       get_stalled_opportunities: {
         Args: { p_company_id: string }
         Returns: {

@@ -146,7 +146,7 @@ async function testOneModel(
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://ediliziaincloud.it",
+        "HTTP-Referer": "https://www.ediliziaincloud.com",
         "X-Title": "EiC AI Models Smoke Test",
       },
       body: JSON.stringify({

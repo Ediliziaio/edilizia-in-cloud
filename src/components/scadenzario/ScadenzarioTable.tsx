@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { format, isPast, isToday, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
@@ -21,9 +22,16 @@ interface Props {
   onMarkPaid: (s: Scadenza) => void;
   onCancel: (id: string) => void;
   onAdd?: () => void;
+  /** Click su una riga (es. apri la fattura/commessa collegata). */
+  onRowClick?: (s: Scadenza) => void;
 }
 
-export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd }: Props) {
+const monthLabel = (d: Date) => {
+  const s = format(d, "LLLL yyyy", { locale: it });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
+export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd, onRowClick }: Props) {
   if (scadenze.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3 text-center border rounded-xl bg-card">
@@ -67,7 +75,11 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd
                 ? `${s.marketing_contacts.first_name} ${s.marketing_contacts.last_name}`
                 : null;
         return (
-          <div key={s.id} className={`px-4 py-3 ${isOverdue ? "bg-destructive/5" : isDueToday ? "bg-amber-50 dark:bg-amber-950/20" : ""} ${isCancelled || isPaid ? "opacity-60" : ""}`}>
+          <div
+            key={s.id}
+            className={`px-4 py-3 ${isOverdue ? "bg-destructive/5" : isDueToday ? "bg-amber-50 dark:bg-amber-950/20" : ""} ${isCancelled || isPaid ? "opacity-60" : ""} ${onRowClick ? "cursor-pointer" : ""}`}
+            onClick={onRowClick ? () => onRowClick(s) : undefined}
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -96,7 +108,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd
                   <p className="text-xs text-muted-foreground">{fmtEur(remaining)} residuo</p>
                 )}
                 {!isPaid && !isCancelled && (
-                  <Button variant="ghost" size="sm" className="text-xs h-7 px-2 mt-1" onClick={() => onMarkPaid(s)}>
+                  <Button variant="ghost" size="sm" className="text-xs h-7 px-2 mt-1" onClick={(e) => { e.stopPropagation(); onMarkPaid(s); }}>
                     <CreditCard className="h-3.5 w-3.5 mr-1" /> Paga
                   </Button>
                 )}
@@ -121,8 +133,9 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd
           </tr>
         </thead>
         <tbody>
-          {scadenze.map((s) => {
+          {scadenze.map((s, idx) => {
             const dueDate = new Date(s.due_date);
+            const showMonthHeader = idx === 0 || monthLabel(dueDate) !== monthLabel(new Date(scadenze[idx - 1].due_date));
             const remaining = s.amount - s.paid_amount;
             const daysLeft = differenceInDays(dueDate, new Date());
             const isOverdue = isPast(dueDate) && !isToday(dueDate) && s.status !== "pagata" && s.status !== "annullata";
@@ -155,7 +168,16 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd
                     : null;
 
             return (
-              <tr key={s.id} className={`border-b hover:bg-muted/30 ${rowStyle}`}>
+              <Fragment key={s.id}>
+                {showMonthHeader && (
+                  <tr className="bg-muted/20">
+                    <td colSpan={7} className="px-3 py-1.5 text-xs font-semibold text-muted-foreground">{monthLabel(dueDate)}</td>
+                  </tr>
+                )}
+              <tr
+                className={`border-b hover:bg-muted/30 ${rowStyle} ${onRowClick ? "cursor-pointer" : ""}`}
+                onClick={onRowClick ? () => onRowClick(s) : undefined}
+              >
                 <td className="p-3">
                   <div className="flex items-center gap-2">
                     {isOverdue && <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />}
@@ -225,7 +247,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd
                         variant="ghost"
                         size="sm"
                         className="text-xs h-7 px-2"
-                        onClick={() => onMarkPaid(s)}
+                        onClick={(e) => { e.stopPropagation(); onMarkPaid(s); }}
                       >
                         <CreditCard className="h-3.5 w-3.5 mr-1" /> Paga
                       </Button>
@@ -233,6 +255,7 @@ export default function ScadenzarioTable({ scadenze, onMarkPaid, onCancel, onAdd
                   )}
                 </td>
               </tr>
+              </Fragment>
             );
           })}
         </tbody>

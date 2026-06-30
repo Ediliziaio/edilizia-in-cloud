@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     }
     if (!email) return errorResponse("Email dell'admin del produttore non trovata", 404, corsH);
 
-    const origin = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.it";
+    const origin = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
     const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
       email,

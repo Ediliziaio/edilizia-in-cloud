@@ -19,6 +19,7 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -41,16 +42,6 @@ interface SendResult {
   sent: number;
   failed: number;
   errors: string[];
-}
-
-/** Applica placeholder {{var}} → value (semplice replace, no escape). */
-function applyPlaceholders(text: string, vars: Record<string, string | number>): string {
-  let out = text;
-  for (const [k, v] of Object.entries(vars)) {
-    const re = new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`, "g");
-    out = out.replace(re, String(v ?? ""));
-  }
-  return out;
 }
 
 interface TemplateRow {
@@ -82,11 +73,18 @@ async function sendEmail(
   templateKey: string,
   to: string,
   vars: Record<string, string | number>,
-  template: TemplateRow,
+  _template: TemplateRow,
 ): Promise<{ ok: boolean; error?: string }> {
-  const subject = applyPlaceholders(template.subject, vars);
-  const html = applyPlaceholders(template.html_body, vars);
-  const text = template.text_body ? applyPlaceholders(template.text_body, vars) : null;
+  // Render builder-driven: override DB (edit nel builder) → SYSTEM_EMAIL_CONTENT
+  // (copy riscritti) → layout. Le vars camelCase si risolvono via alias in applyPlaceholders.
+  const rendered = await renderEmailTemplate({
+    templateName: templateKey,
+    companyId: null,
+    props: vars,
+  });
+  const subject = rendered.subject;
+  const html = rendered.html;
+  const text = rendered.text;
 
   // Invochiamo send-transactional-v2 internamente per beneficiare di
   // branding, suppression, log_delivery.
@@ -431,3 +429,5 @@ Deno.serve(async (req) => {
     headers: { ...CORS, "Content-Type": "application/json" },
   });
 });
+
+// redeploy 2026-06-25: propaga _shared email/branding (.it→.com + builder 58 email) — trigger CI HEAD~1 diff

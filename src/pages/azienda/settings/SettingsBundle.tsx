@@ -6,7 +6,7 @@
  * Per famiglie si può preimpostare vano_label, misure default (L×H), selezioni assi.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -39,6 +39,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useVertical } from "@/hooks/useVertical";
 import { useFamilies } from "@/hooks/useFamilies";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import {
   useBundlesList,
   useUpsertBundle,
@@ -63,6 +64,7 @@ interface DraftVoce {
   altezza_mm: number | null;
   axis_selections: AxisSelection;
   quantita: number;
+  immagine_url: string | null;
 }
 
 interface DraftBundle {
@@ -72,6 +74,11 @@ interface DraftBundle {
   sconto_bundle_pct: number;
   attivo: boolean;
   tipo_lavoro: BundleTipoLavoro | null;
+  // FV (solo vertical fotovoltaico): taglia kit + prezzo offerta fisso + copertina PDF
+  fv_kwp: number | null;
+  fv_accumulo_kwh: number | null;
+  prezzo_offerta: number | null;
+  cover_image_url: string | null;
   voci: DraftVoce[];
 }
 
@@ -88,6 +95,10 @@ function emptyDraft(): DraftBundle {
     sconto_bundle_pct: 0,
     attivo: true,
     tipo_lavoro: null,
+    fv_kwp: null,
+    fv_accumulo_kwh: null,
+    prezzo_offerta: null,
+    cover_image_url: null,
     voci: [],
   };
 }
@@ -104,6 +115,10 @@ function bundleToDraft(b: Bundle): DraftBundle {
     sconto_bundle_pct: Number(b.sconto_bundle_pct ?? 0),
     attivo: b.attivo,
     tipo_lavoro: b.tipo_lavoro,
+    fv_kwp: b.fv_kwp != null ? Number(b.fv_kwp) : null,
+    fv_accumulo_kwh: b.fv_accumulo_kwh != null ? Number(b.fv_accumulo_kwh) : null,
+    prezzo_offerta: b.prezzo_offerta != null ? Number(b.prezzo_offerta) : null,
+    cover_image_url: b.cover_image_url ?? null,
     voci: (b.voci ?? [])
       .slice()
       .sort((a, z) => a.sort_order - z.sort_order)
@@ -122,6 +137,7 @@ function bundleToDraft(b: Bundle): DraftBundle {
         altezza_mm: v.altezza_mm_default,
         axis_selections: (v.axis_selections ?? {}) as AxisSelection,
         quantita: Number(v.quantita ?? 1),
+        immagine_url: v.immagine_url ?? null,
       })),
   };
 }
@@ -129,6 +145,9 @@ function bundleToDraft(b: Bundle): DraftBundle {
 export default function SettingsBundle() {
   const companyId = useEffectiveCompanyId();
   const { vertical } = useVertical();
+  // Mostra i campi "Kit FV" se l'azienda ha il vertical fotovoltaico OPPURE il modulo
+  // FV attivo (aziende "generico" multi-business possono comunque vendere kit FV).
+  const { isEnabled: fvModuloAttivo } = useFeatureAccess("modulo_fotovoltaico_attivo");
   const { families } = useFamilies();
 
   const { bundles, isLoading, refetch } = useBundlesList();
@@ -207,6 +226,9 @@ export default function SettingsBundle() {
   const [deleteTarget, setDeleteTarget] = useState<Bundle | null>(null);
   const [search, setSearch] = useState("");
   const [filterAttivi, setFilterAttivi] = useState<"all" | "active" | "inactive">("all");
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [uploadingVoceKey, setUploadingVoceKey] = useState<string | null>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   // ── Filtered list
   const filteredBundles = useMemo(() => {
@@ -273,6 +295,7 @@ export default function SettingsBundle() {
           altezza_mm: null,
           axis_selections: {},
           quantita: 1,
+          immagine_url: null,
         },
       ],
     }));
@@ -292,16 +315,68 @@ export default function SettingsBundle() {
     }));
   };
 
+  const isFvVertical = vertical === "fotovoltaico" || fvModuloAttivo;
   const canSave = useMemo(() => {
     if (!draft.nome.trim()) return false;
-    if (draft.voci.length === 0) return false;
+    if (draft.voci.length === 0) {
+      // Kit FV: può bastare la taglia (kWp) + prezzo offerta, voci opzionali.
+      return isFvVertical && draft.fv_kwp != null && draft.prezzo_offerta != null;
+    }
     return draft.voci.every((v) => {
       if (v.type === "family") return !!v.family_id;
       if (v.type === "product") return !!v.prodotto_id;
       if (v.type === "tariff") return !!v.tariffa_id;
       return false;
     });
-  }, [draft]);
+  }, [draft, isFvVertical]);
+
+  const handleCoverUpload = async (file: File) => {
+    if (!companyId) return;
+    setCoverUploading(true);
+    try {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `bundle-covers/${companyId}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("fv-progetti")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: signedData, error: signErr } = await supabase.storage
+        .from("fv-progetti")
+        .createSignedUrl(path, 60 * 60 * 24 * 365);
+      if (signErr) throw signErr;
+      setDraft((d) => ({ ...d, cover_image_url: signedData.signedUrl }));
+      toast.success("Immagine caricata");
+    } catch (e) {
+      toast.error("Upload fallito: " + (e instanceof Error ? e.message : "errore"));
+    } finally {
+      setCoverUploading(false);
+    }
+  };
+
+  // Upload foto del singolo prodotto/voce del bundle (compare nel PDF kit).
+  const handleVoceImageUpload = async (key: string, file: File) => {
+    if (!companyId) return;
+    if (!file.type.startsWith("image/")) return toast.error("Carica un file immagine");
+    setUploadingVoceKey(key);
+    try {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `bundle-voci/${companyId}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("fv-progetti")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: signedData, error: signErr } = await supabase.storage
+        .from("fv-progetti")
+        .createSignedUrl(path, 60 * 60 * 24 * 365);
+      if (signErr) throw signErr;
+      updateVoce(key, { immagine_url: signedData.signedUrl });
+      toast.success("Foto prodotto caricata");
+    } catch (e) {
+      toast.error("Upload fallito: " + (e instanceof Error ? e.message : "errore"));
+    } finally {
+      setUploadingVoceKey(null);
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -315,6 +390,7 @@ export default function SettingsBundle() {
         vano_label: v.vano_label.trim() || null,
         quantita: v.quantita,
         sort_order: idx,
+        immagine_url: v.immagine_url ?? null,
       }));
       await upsertMut.mutateAsync({
         id: draft.id,
@@ -324,6 +400,10 @@ export default function SettingsBundle() {
         attivo: draft.attivo,
         vertical,
         tipo_lavoro: draft.tipo_lavoro,
+        fv_kwp: isFvVertical ? draft.fv_kwp : null,
+        fv_accumulo_kwh: isFvVertical ? draft.fv_accumulo_kwh : null,
+        prezzo_offerta: isFvVertical ? draft.prezzo_offerta : null,
+        cover_image_url: isFvVertical ? draft.cover_image_url : null,
         voci,
       });
       toast.success(draft.id ? "Bundle aggiornato" : "Bundle creato");
@@ -625,6 +705,109 @@ export default function SettingsBundle() {
               </div>
             </div>
 
+            {/* Kit FV: taglia + prezzo offerta (usati dal wizard Fotovoltaico) */}
+            {isFvVertical && (
+              <div className="border-t pt-4">
+                <h3 className="font-semibold mb-1">☀ Kit Fotovoltaico</h3>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Taglia e prezzo d'offerta del kit: il wizard FV (Fase 5) li usa quando scegli questo kit. Le voci sotto sono opzionali (servono per magazzino/marginalità).
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <Label>Potenza (kWp)</Label>
+                    <Input
+                      type="number" min={0} step={0.1} inputMode="decimal"
+                      value={draft.fv_kwp ?? ""}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, fv_kwp: e.target.value === "" ? null : Number(e.target.value) }))
+                      }
+                      placeholder="es. 6"
+                    />
+                  </div>
+                  <div>
+                    <Label>Accumulo (kWh)</Label>
+                    <Input
+                      type="number" min={0} step={0.1} inputMode="decimal"
+                      value={draft.fv_accumulo_kwh ?? ""}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, fv_accumulo_kwh: e.target.value === "" ? null : Number(e.target.value) }))
+                      }
+                      placeholder="0 = senza accumulo"
+                    />
+                  </div>
+                  <div>
+                    <Label>Prezzo offerta (€)</Label>
+                    <Input
+                      type="number" min={0} step={1} inputMode="decimal"
+                      value={draft.prezzo_offerta ?? ""}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, prezzo_offerta: e.target.value === "" ? null : Number(e.target.value) }))
+                      }
+                      placeholder="chiavi in mano"
+                    />
+                  </div>
+                </div>
+
+                {/* Immagine copertina kit (usata nel PDF preventivo FV) */}
+                <div className="mt-3">
+                  <Label>Immagine copertina kit (PDF)</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Verrà mostrata nel preventivo PDF nella pagina dedicata al kit scelto.
+                  </p>
+                  <input
+                    ref={coverInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleCoverUpload(f);
+                      e.target.value = "";
+                    }}
+                  />
+                  {draft.cover_image_url ? (
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={draft.cover_image_url}
+                        alt="Copertina kit"
+                        className="h-20 w-32 object-cover rounded border"
+                      />
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => coverInputRef.current?.click()}
+                          disabled={coverUploading}
+                        >
+                          {coverUploading ? "Caricamento…" : "Sostituisci"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive"
+                          onClick={() => setDraft((d) => ({ ...d, cover_image_url: null }))}
+                        >
+                          Rimuovi
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => coverInputRef.current?.click()}
+                      disabled={coverUploading}
+                    >
+                      {coverUploading ? "Caricamento…" : "Carica immagine"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Voci */}
             <div className="border-t pt-4">
               <div className="flex items-center justify-between mb-3">
@@ -658,6 +841,8 @@ export default function SettingsBundle() {
                       tariffe={tariffe}
                       onUpdate={(patch) => updateVoce(v._key, patch)}
                       onRemove={() => removeVoce(v._key)}
+                      uploadingImage={uploadingVoceKey === v._key}
+                      onUploadImage={(f) => handleVoceImageUpload(v._key, f)}
                     />
                   ))}
                 </div>
@@ -716,10 +901,13 @@ interface VoceRowProps {
   tariffe: Array<{ id: string; nome: string; unita: string | null }>;
   onUpdate: (patch: Partial<DraftVoce>) => void;
   onRemove: () => void;
+  uploadingImage: boolean;
+  onUploadImage: (file: File) => void;
 }
 
-function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove }: VoceRowProps) {
+function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove, uploadingImage, onUploadImage }: VoceRowProps) {
   const selectedFamily = families.find((f) => f.id === voce.family_id) ?? null;
+  const imgInputRef = useRef<HTMLInputElement | null>(null);
 
   return (
     <div className="border rounded-md p-3 bg-muted/30 space-y-3">
@@ -869,6 +1057,51 @@ function VoceRow({ index, voce, families, articoli, tariffe, onUpdate, onRemove 
             ))}
           </div>
         )}
+
+        {/* Foto prodotto della voce (mostrata nella pagina kit del preventivo) */}
+        <div className="col-span-12 flex items-center gap-3 border-t pt-3">
+          {voce.immagine_url ? (
+            <img
+              src={voce.immagine_url}
+              alt="Foto prodotto"
+              className="h-12 w-16 rounded object-cover border border-slate-200"
+            />
+          ) : (
+            <div className="h-12 w-16 rounded border border-dashed border-slate-300 bg-muted" />
+          )}
+          <input
+            ref={imgInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onUploadImage(f);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={uploadingImage}
+            onClick={() => imgInputRef.current?.click()}
+          >
+            {uploadingImage ? "Caricamento…" : voce.immagine_url ? "Cambia foto" : "Carica foto prodotto"}
+          </Button>
+          {voce.immagine_url && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-destructive"
+              onClick={() => onUpdate({ immagine_url: null })}
+            >
+              Rimuovi
+            </Button>
+          )}
+          <span className="ml-auto text-[11px] text-muted-foreground">Compare nel preventivo kit</span>
+        </div>
       </div>
     </div>
   );

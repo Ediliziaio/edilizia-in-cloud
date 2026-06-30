@@ -32,6 +32,7 @@ import {
   Trash2,
   ExternalLink,
   Settings,
+  Boxes,
   ArrowLeft,
   AlertTriangle,
   RefreshCw,
@@ -149,7 +150,7 @@ export default function FotovoltaicoIndex() {
           <div className="border-t border-slate-200 pt-5 mt-2">
             <h3 className="text-sm font-bold text-slate-900 mb-3 text-center">Per ottenere il massimo dal modulo</h3>
             <ul className="text-sm text-slate-600 space-y-2 max-w-lg mx-auto">
-              <li className="flex gap-2"><span className="text-emerald-500 font-bold">1.</span> Configura il listino prodotti (pannelli, inverter, accumuli) in <Link to="/azienda/impostazioni/listino" className="text-orange-600 underline">Listino prodotti</Link> con categoria FV.</li>
+              <li className="flex gap-2"><span className="text-emerald-500 font-bold">1.</span> Aggiungi i tuoi pannelli, inverter e accumuli in <Link to="/azienda/marketing/fotovoltaico/componenti" className="text-orange-600 underline">Componenti FV</Link> (puoi precompilarli dal listino già caricato).</li>
               <li className="flex gap-2"><span className="text-emerald-500 font-bold">2.</span> Aggiungi le tue voci di manodopera in <Link to="/azienda/impostazioni/tariffe" className="text-orange-600 underline">Manodopera e Servizi</Link> (vertical "fotovoltaico" o "generico").</li>
               <li className="flex gap-2"><span className="text-emerald-500 font-bold">3.</span> Crea il primo progetto qui sotto. Tutto il resto si configura strada facendo.</li>
             </ul>
@@ -231,6 +232,17 @@ export default function FotovoltaicoIndex() {
                   <Link to="/azienda/impostazioni/template-preventivi?tab=moduli-vendita&modulo=fotovoltaico" aria-label="Impostazioni modulo fotovoltaico">
                     <Settings className="h-4 w-4 sm:mr-1.5" />
                     <span className="hidden sm:inline">Impostazioni</span>
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  size="default"
+                  variant="outline"
+                  className="bg-white/10 backdrop-blur border-white/20 text-white hover:bg-white/20 flex-1 sm:flex-initial sm:size-lg h-10 sm:h-11 text-xs sm:text-sm"
+                >
+                  <Link to="/azienda/marketing/fotovoltaico/componenti" aria-label="Componenti FV (pannelli, inverter, accumuli)">
+                    <Boxes className="h-4 w-4 sm:mr-1.5" />
+                    <span className="hidden sm:inline">Componenti</span>
                   </Link>
                 </Button>
                 <Button

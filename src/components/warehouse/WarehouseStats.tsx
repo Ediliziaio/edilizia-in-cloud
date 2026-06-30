@@ -77,8 +77,8 @@ export default function WarehouseStats({ items, activeFilter, onCardClick, visib
           title="In Ritardo"
           icon={AlertOctagon}
           value={stats.overdue.count}
-          primaryHint={`in ${stats.overdue.orders} ordini`}
-          secondaryHint="lavori scaduti, non pronti"
+          primaryHint={stats.overdue.count > 0 ? `${stats.overdue.orders} ord · scaduti` : "nessun ritardo"}
+          secondaryHint={null}
         />
       )}
 
@@ -91,8 +91,12 @@ export default function WarehouseStats({ items, activeFilter, onCardClick, visib
           title="In Magazzino"
           icon={Package}
           value={stats.inMagazzino.count}
-          primaryHint={`in ${stats.inMagazzino.orders} ordini`}
-          secondaryHint={`${formatCurrency(stats.inMagazzino.value)} valore`}
+          primaryHint={
+            stats.inMagazzino.count > 0
+              ? `${stats.inMagazzino.orders} ord · ${formatCurrency(stats.inMagazzino.value)}`
+              : "nulla in stock"
+          }
+          secondaryHint={null}
         />
       )}
 
@@ -105,8 +109,12 @@ export default function WarehouseStats({ items, activeFilter, onCardClick, visib
           title="In Transito"
           icon={Truck}
           value={stats.ordinati.count}
-          primaryHint={`in ${stats.ordinati.orders} ordini`}
-          secondaryHint={`${formatCurrency(stats.ordinati.value)} in arrivo`}
+          primaryHint={
+            stats.ordinati.count > 0
+              ? `${stats.ordinati.orders} ord · ${formatCurrency(stats.ordinati.value)}`
+              : "nessun arrivo"
+          }
+          secondaryHint={null}
         />
       )}
 
@@ -119,8 +127,12 @@ export default function WarehouseStats({ items, activeFilter, onCardClick, visib
           title="Da Ordinare"
           icon={ShoppingCart}
           value={stats.daOrdinare.count}
-          primaryHint={`in ${stats.daOrdinare.orders} ordini`}
-          secondaryHint={`${formatCurrency(stats.daOrdinare.value)} da spendere`}
+          primaryHint={
+            stats.daOrdinare.count > 0
+              ? `${stats.daOrdinare.orders} ord · ${formatCurrency(stats.daOrdinare.value)}`
+              : "lista vuota"
+          }
+          secondaryHint={null}
         />
       )}
     </div>
@@ -152,14 +164,17 @@ function ClickableCard({
   icon: typeof Package;
   value: number;
   primaryHint: string;
-  secondaryHint: string;
+  // null = empty-state pulito (mostriamo solo primaryHint per evitare
+  // rumore tipo "0 ordini · 0,00 €" che si tronca e non aggiunge info).
+  secondaryHint: string | null;
 }) {
+  const hint = secondaryHint ? `${primaryHint} · ${secondaryHint}` : primaryHint;
   return (
     <OperationalKpiCard
       icon={Icon}
       label={title}
       value={value}
-      hint={`${primaryHint} · ${secondaryHint}`}
+      hint={hint}
       tone={accentTone[accent]}
       onClick={onClick}
       active={active}

@@ -82,6 +82,18 @@ export interface PisTemplatePdf {
   show_percorso: boolean;
   cover_title_size: number | null;
   cover_text_align: "left" | "center" | "right" | null;
+  // ─── Cover parity con Serramenti (preset 1-click) ──────────────────────────
+  // Colonne pdf_cover_* aggiunte dalla migration 20271110060000. Mantengono i
+  // NOMI identici a sr_template_pdf così i preset cover sono trasferibili 1:1.
+  // Opzionali a livello di tipo: i literal esistenti che fanno {...form}/{...template}
+  // restano validi, e normalizeTemplate() li popola sempre con un default.
+  pdf_cover_overlay_style?: "flat" | "gradient" | "gradient_diag" | "vignette" | null;
+  pdf_cover_text_vertical?: "top" | "center" | "bottom" | null;
+  pdf_cover_decoration_style?: "square" | "circle" | "line" | "pattern" | "none" | null;
+  pdf_cover_show_decoration?: boolean | null;
+  pdf_cover_show_client_card?: boolean | null;
+  pdf_cover_eyebrow_size?: number | null;
+  pdf_cover_subtitle_size?: number | null;
   default_iva_pct: number | null;
   default_detrazione_pct: number | null;
   default_validita_giorni: number | null;

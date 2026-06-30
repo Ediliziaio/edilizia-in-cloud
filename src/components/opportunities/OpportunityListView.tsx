@@ -292,7 +292,7 @@ export const OpportunityListView = memo(function OpportunityListView({
             <div className="w-[130px] shrink-0 px-3 py-3 text-right">Valore</div>
             <div className="w-[90px] shrink-0 px-3 py-3">Stato</div>
             <div className="w-[70px] shrink-0 px-3 py-3">Salute</div>
-            <div className="w-[150px] shrink-0 px-3 py-3">Titolare</div>
+            <div className="w-[150px] shrink-0 px-3 py-3">Venditore</div>
             <div className="w-[150px] shrink-0 px-3 py-3">Etichette</div>
             <div className="w-[100px] shrink-0 px-3 py-3">Fonte</div>
             <div className="w-[90px] shrink-0 px-3 py-3">Creato il</div>
@@ -406,7 +406,7 @@ export const OpportunityListView = memo(function OpportunityListView({
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </div>
-                    {/* Titolare */}
+                    {/* Venditore */}
                     <div className="w-[150px] shrink-0 px-3 py-2.5 overflow-hidden">
                       {ownerName ? (
                         <div className="flex items-center gap-1.5 min-w-0">

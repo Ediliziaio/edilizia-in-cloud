@@ -1,6 +1,17 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
+import { renderEmailTemplate } from "../_shared/renderTemplate.ts";
+
+const PARTNER_BASE = "https://app.ediliziaincloud.com/partner";
+// type evento → template_key del builder (platform_email_templates / SYSTEM_EMAIL_CONTENT)
+const PARTNER_KEY_BY_TYPE: Record<string, string> = {
+  welcome: "partner_welcome",
+  conversion: "partner_conversion",
+  commission_calculated: "partner_commission",
+  payout_approved: "partner_payout",
+  tier_upgrade: "partner_tier",
+};
 
 const getErrorMessage = (err: unknown) => err instanceof Error ? err.message : String(err);
 
@@ -43,75 +54,58 @@ Deno.serve(async (req) => {
       return errorResponse("Referrer not found", 404);
     }
 
-    let subject = "";
-    let htmlBody = "";
-
-    switch (type) {
-      case "welcome":
-        subject = "🎉 Benvenuto nel Programma Partner!";
-        htmlBody = `
-          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-            <h2>Ciao ${referrer.name}!</h2>
-            <p>Sei ufficialmente un partner <strong>${referrer.referral_tiers?.name ?? "Bronze"}</strong>.</p>
-            <p>Il tuo codice referral personale è: <code style="background:#f3f4f6;padding:4px 8px;border-radius:4px;font-size:16px">${referrer.referral_code}</code></p>
-            <p>Ogni volta che un'azienda si registra con il tuo link, guadagnerai
-              ${referrer.commission_type === "percentage"
-                ? referrer.commission_value + "% del piano mensile"
-                : "€" + referrer.commission_value + " fissi al mese"
-              }.
-            </p>
-          </div>`;
-        break;
-
-      case "conversion":
-        subject = `🚀 Nuova conversione! ${data?.company_name} si è registrata`;
-        htmlBody = `
-          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-            <h2>Ottimo lavoro, ${referrer.name}!</h2>
-            <p><strong>${data?.company_name}</strong> si è appena registrata usando il tuo link.</p>
-            <p>Inizierai a guadagnare commissioni a partire dal prossimo ciclo di calcolo.</p>
-          </div>`;
-        break;
-
-      case "commission_calculated":
-        subject = `💰 Le tue commissioni di ${data?.month_name} sono pronte`;
-        htmlBody = `
-          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-            <h2>Commissioni ${data?.month_name} ${data?.year}</h2>
-            <p>Ciao ${referrer.name}, abbiamo calcolato le tue commissioni:</p>
-            <div style="text-align:center;padding:20px;background:#f3f4f6;border-radius:8px;margin:16px 0">
-              <div style="font-size:28px;font-weight:bold">€${data?.total_amount}</div>
-              <div style="color:#6b7280">${data?.company_count} aziende attive</div>
-            </div>
-            <p>Vai alla tua dashboard per richiedere il pagamento.</p>
-          </div>`;
-        break;
-
-      case "payout_approved":
-        subject = `✅ Pagamento di €${data?.amount} approvato`;
-        htmlBody = `
-          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-            <h2>Pagamento approvato!</h2>
-            <p>Il tuo pagamento di <strong>€${data?.amount}</strong> è stato approvato.</p>
-            <p>Riceverai il bonifico entro 3-5 giorni lavorativi.</p>
-            <p>Riferimento: ${data?.reference ?? "In elaborazione"}</p>
-          </div>`;
-        break;
-
-      case "tier_upgrade":
-        subject = `🎉 Sei salito a ${data?.new_tier}!`;
-        htmlBody = `
-          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-            <h2>Complimenti ${referrer.name}! 🎊</h2>
-            <p>Hai raggiunto il tier <strong>${data?.new_tier} ${data?.tier_icon}</strong>!</p>
-            <p>Ora guadagni il <strong>${data?.multiplier}x</strong> su ogni commissione.</p>
-            ${data?.perks?.length ? `<ul>${data.perks.map((p: string) => `<li>${p}</li>`).join("")}</ul>` : ""}
-          </div>`;
-        break;
-
-      default:
-        return errorResponse(`Unknown notification type: ${type}`);
+    const tplKey = PARTNER_KEY_BY_TYPE[type as string];
+    if (!tplKey) {
+      return errorResponse(`Unknown notification type: ${type}`);
     }
+
+    // Etichetta commissione formattata (percentuale o importo fisso)
+    const commissioneLabel = referrer.commission_type === "percentage"
+      ? `${referrer.commission_value}% del piano mensile`
+      : `€${referrer.commission_value} fissi al mese`;
+
+    // Props camelCase: gli alias di applyPlaceholders li mappano sui {{var}} del builder.
+    const partnerVarsByType: Record<string, Record<string, unknown>> = {
+      welcome: {
+        fullName: referrer.name,
+        tier: referrer.referral_tiers?.name ?? "Bronze",
+        referralCode: referrer.referral_code,
+        commissionLabel,
+        ctaUrl: PARTNER_BASE,
+      },
+      conversion: {
+        fullName: referrer.name,
+        companyName: data?.company_name,
+        ctaUrl: PARTNER_BASE,
+      },
+      commission_calculated: {
+        fullName: referrer.name,
+        month: data?.month_name,
+        totalAmount: `€${data?.total_amount}`,
+        companyCount: data?.company_count,
+        ctaUrl: `${PARTNER_BASE}/commissions`,
+      },
+      payout_approved: {
+        fullName: referrer.name,
+        amount: `€${data?.amount}`,
+        reference: data?.reference ?? "In elaborazione",
+      },
+      tier_upgrade: {
+        fullName: referrer.name,
+        newTier: data?.new_tier,
+        multiplier: data?.multiplier,
+        ctaUrl: PARTNER_BASE,
+      },
+    };
+
+    const rendered = await renderEmailTemplate({
+      templateName: tplKey,
+      companyId: null,
+      props: partnerVarsByType[type as string] ?? {},
+      adminClient: supabase,
+    });
+    const subject = rendered.subject;
+    const htmlBody = rendered.html;
 
     // Get platform email settings
     const { data: platformSettings } = await supabase
@@ -149,3 +143,5 @@ Deno.serve(async (req) => {
     return errorResponse(message || "Internal error", 500);
   }
 });
+
+// redeploy 2026-06-25: propaga _shared email/branding (.it→.com + builder 58 email) — trigger CI HEAD~1 diff

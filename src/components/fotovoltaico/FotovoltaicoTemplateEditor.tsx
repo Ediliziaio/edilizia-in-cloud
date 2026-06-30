@@ -11,13 +11,14 @@
  *  - Contatti (telefono, whatsapp, email, sito)
  *  - Economia default (validità, recesso, acconto %)
  */
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditorSafe as RichTextEditor } from "@/components/ui/rich-text-editor-safe";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -26,10 +27,12 @@ import {
 import {
   Save, Plus, Trash2, Loader2, Sparkles, Quote, BadgeCheck, Building2,
   Upload, Image as ImageIcon, AlertTriangle, CheckCircle2, ShieldCheck, Sun,
-  Settings2, FileText, ExternalLink,
+  Settings2, FileText, ExternalLink, Eye, Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { AiTemplateGenerator } from "@/components/preventivi/AiTemplateGenerator";
+import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
 import { FvPagesOrderEditor } from "@/components/fotovoltaico/FvPagesOrderEditor";
 import { MacroPagineDedicateManager } from "@/components/listino/MacroPagineDedicateManager";
 import type { FvPdfPageOrderItem } from "@/lib/fotovoltaico/pdfPages";
@@ -43,6 +46,10 @@ import {
   useTemplatePdf as useFvTemplatePdf,
   useUpsertTemplatePdf as useFvUpsertTemplatePdf,
 } from "@/lib/fotovoltaico/queries";
+import { COVER_PRESETS, detectActiveCoverPreset } from "./coverPresets";
+import { useCompanyAnagraficaForTemplate, inheritedPlaceholder } from "@/hooks/useCompanyAnagraficaForTemplate";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from "./coverStockImages";
 import {
   buildFvTemplateQualityItems,
   DEFAULT_FV_FAQ,
@@ -52,6 +59,9 @@ import {
   type FvTemplateQualityItem,
 } from "@/lib/fotovoltaico/preventivatore";
 
+// Anteprima PDF completa (lazy: trascina renderFvPdfHtml ~1700 righe fuori dal chunk iniziale)
+const FvTemplatePreviewDialog = lazy(() => import("./FvTemplatePreviewDialog"));
+
 // ─── Types locali (no dipendenza forte da fv types globali) ─────────────────
 
 interface FvRecensione {
@@ -59,6 +69,8 @@ interface FvRecensione {
   autore: string;
   citta?: string;
   intervento?: string;
+  /** Foto opzionale dell'impianto installato, mostrata accanto alla recensione nel PDF. */
+  foto_url?: string;
 }
 interface FvCertificazione {
   nome: string;
@@ -87,6 +99,15 @@ interface FvTemplate {
   pdf_cover_text_align?: "left" | "center" | null;
   pdf_cover_logo_position?: "top_left" | "top_right" | "top_center" | "hidden" | null;
   pdf_cover_show_client_card?: boolean | null;
+  // Cover parity con Serramenti (preset 1-click + layout completo).
+  // Colonne aggiunte da migration 20271109000000_fv_cover_parity.sql.
+  pdf_cover_show_decoration?: boolean | null;
+  pdf_cover_decoration_style?: "square" | "circle" | "line" | "pattern" | "none" | null;
+  pdf_cover_text_vertical?: "top" | "center" | "bottom" | null;
+  pdf_cover_overlay_style?: "flat" | "gradient" | "gradient_diag" | "vignette" | null;
+  pdf_cover_title_size?: number | null;
+  pdf_cover_subtitle_size?: number | null;
+  pdf_cover_eyebrow_size?: number | null;
   pdf_pages_order?: FvPdfPageOrderItem[] | null;
   presentazione_impresa_html?: string | null;
   foto_team_url?: string | null;
@@ -128,6 +149,37 @@ interface FvTemplate {
   noleggio_fattore_default?: number | null;
   noleggio_aliquota_fiscale_pct?: number | null;
   noleggio_note_legali?: string | null;
+}
+
+// Campi personalizzati cliccabili (parità Serramenti). Inseriscono {token} in coda.
+const FV_PLACEHOLDERS = [
+  "cliente_nome", "potenza_kwp", "accumulo_kwh",
+  "numero_pannelli", "indirizzo", "comune",
+] as const;
+function PlaceholderChips({
+  value, onChange, label = "Inserisci campo personalizzato (cliccabile):",
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  label?: string;
+}) {
+  return (
+    <div className="mt-1.5">
+      <p className="text-[10px] text-muted-foreground mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1">
+        {FV_PLACEHOLDERS.map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onChange((value ?? "") + `{${n}}`)}
+            className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-sky-300 text-slate-600 hover:text-sky-700 transition-colors"
+          >
+            {`{${n}}`}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 interface Props {
@@ -210,7 +262,6 @@ type FvEditorSection =
   | "prodotti"
   | "strategia"
   | "contenuti"
-  | "fiducia"
   | "default"
   | "page_cover"
   | "page_chi_siamo"
@@ -296,21 +347,15 @@ const FV_EDITOR_SECTIONS: Array<{
   },
   {
     id: "strategia",
-    label: "Strategia",
+    label: "Costi tecnici",
     icon: "ROI",
-    description: "Margini, CPL, capacita e noleggio B2B.",
+    description: "Costi base, default preventivo e noleggio B2B.",
   },
   {
     id: "contenuti",
     label: "Contenuti",
     icon: "PDF",
     description: "Presentazione, valore, garanzie, FAQ e condizioni.",
-  },
-  {
-    id: "fiducia",
-    label: "Fiducia",
-    icon: "Trust",
-    description: "Recensioni, certificazioni e prova sociale.",
   },
   {
     id: "default",
@@ -329,6 +374,10 @@ const FV_EDITOR_SECTION_GROUPS: Array<{
     sections: ["brand"],
   },
   {
+    title: "Struttura PDF",
+    sections: ["page_ordine"],
+  },
+  {
     title: "Pagine del PDF",
     sections: [
       "page_cover",
@@ -339,12 +388,11 @@ const FV_EDITOR_SECTION_GROUPS: Array<{
       "page_render",
       "page_cta",
       "page_conversione",
-      "page_ordine",
     ],
   },
   {
     title: "Dati & contenuti",
-    sections: ["prodotti", "strategia", "contenuti", "fiducia", "default"],
+    sections: ["prodotti", "strategia", "contenuti", "default"],
   },
 ];
 
@@ -543,19 +591,117 @@ function FvSectionHeader({
 }: {
   title: string;
   description: string;
-  number: number;
+  number?: number;
 }) {
   return (
     <div className="rounded-md border border-sky-200 bg-sky-50/70 px-4 py-3">
       <div className="flex items-start gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky-700 text-xs font-bold text-white">
-          {number}
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky-700 text-sm font-bold text-white">
+          {number ?? "⇅"}
         </div>
         <div>
           <h3 className="text-sm font-semibold text-slate-950">{title}</h3>
           <p className="mt-0.5 text-xs text-slate-600">{description}</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Preset di copy "1-click" per le sezioni testo (parità con Serramenti) ──
+// Testi pronti professionali: chi non sa scrivere sceglie e adatta in 1 click.
+const FV_COPY_PRESETS: Record<string, Array<{ id: string; label: string; descr: string; html: string }>> = {
+  presentazione_impresa_html: [
+    {
+      id: "specialisti",
+      label: "Specialisti FV",
+      descr: "Focus esclusivo sul fotovoltaico, un solo interlocutore.",
+      html: "<p>Siamo specializzati esclusivamente in fotovoltaico residenziale e commerciale: progettazione, installazione chiavi in mano, pratiche GSE/ENEA e assistenza post-vendita. Un unico interlocutore dal sopralluogo all'allaccio.</p>",
+    },
+    {
+      id: "esperienza",
+      label: "Esperienza + numeri",
+      descr: "Squadra interna, materiali di marca, monitoraggio.",
+      html: "<p>Da anni installiamo impianti fotovoltaici con accumulo sul territorio. Squadra interna certificata, materiali di marca con garanzie reali e monitoraggio della produzione: ti seguiamo prima, durante e dopo l'installazione.</p>",
+    },
+  ],
+  valore_proposta_html: [
+    {
+      id: "analisi",
+      label: "Analisi su misura",
+      descr: "Consumi, tetto, incentivi, accumulo: numeri chiari.",
+      html: "<p>Analizziamo i tuoi consumi reali, l'esposizione del tetto, gli incentivi disponibili e l'accumulo più adatto. Ti consegniamo numeri chiari — produzione, risparmio e rientro — senza sorprese.</p>",
+    },
+    {
+      id: "chiavi",
+      label: "Chiavi in mano",
+      descr: "Gestiamo tutto noi, dalla pratica all'allaccio.",
+      html: "<p>Dalla pratica alla connessione gestiamo tutto noi: dimensionamento, permessi, installazione, collaudo e attivazione GSE. Tu pensi solo a iniziare a risparmiare.</p>",
+    },
+  ],
+  percorso_cliente_intro: [
+    {
+      id: "trasparente",
+      label: "Iter trasparente",
+      descr: "Le fasi una per una, sai sempre a che punto siamo.",
+      html: "<p>Ti accompagniamo passo dopo passo: sopralluogo e analisi consumi, progetto e preventivo chiaro, pratiche e permessi, installazione e collaudo, attivazione e monitoraggio. Sai sempre a che punto siamo.</p>",
+    },
+    {
+      id: "tempi",
+      label: "Tempi e responsabilità",
+      descr: "Ogni fase con tempi e referente definiti.",
+      html: "<p>Ogni fase ha tempi e responsabili definiti. Dalla firma all'allaccio gestiamo pratiche, materiali e cantiere; tu hai un referente unico per qualsiasi domanda.</p>",
+    },
+  ],
+  consulente_descrizione_default: [
+    {
+      id: "referente",
+      label: "Referente unico",
+      descr: "Un solo riferimento per tecnica ed economia.",
+      html: "<p>Il tuo consulente resta il riferimento unico per tutto il progetto: risponde a dubbi tecnici ed economici e coordina squadra e pratiche fino all'attivazione.</p>",
+    },
+    {
+      id: "consulenza",
+      label: "Consulenza, non vendita",
+      descr: "Niente pressioni, scelta giusta per consumi e budget.",
+      html: "<p>Niente pressioni: il consulente ti aiuta a scegliere la soluzione giusta per i tuoi consumi e il tuo budget, con numeri trasparenti e tempi realistici.</p>",
+    },
+  ],
+};
+
+/** Riga di chip "Testi pronti" sopra un RichTextEditor: applica un preset di copy
+ *  (con conferma se il campo ha già contenuto). */
+function CopyPresetRow({
+  field,
+  current,
+  onPick,
+}: {
+  field: keyof typeof FV_COPY_PRESETS;
+  current: string;
+  onPick: (html: string) => void;
+}) {
+  const presets = FV_COPY_PRESETS[field] ?? [];
+  if (presets.length === 0) return null;
+  const hasContent = current.replace(/<[^>]*>/g, "").trim().length > 0;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
+        <Wand2 className="h-3 w-3" /> Testi pronti:
+      </span>
+      {presets.map((p) => (
+        <button
+          key={p.id}
+          type="button"
+          title={p.descr}
+          onClick={() => {
+            if (hasContent && !window.confirm("Sostituire il testo attuale con questo preset?")) return;
+            onPick(p.html);
+          }}
+          className="px-2 py-0.5 text-[11px] font-semibold rounded-md border border-slate-200 bg-white text-slate-600 hover:border-sky-300 hover:text-sky-700 transition-colors"
+        >
+          {p.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -573,6 +719,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   const initialSection: FvEditorSection = isFvEditorSection(sectionParam) ? sectionParam : "brand";
 
   const [form, setForm] = useState<FvTemplate>({});
+  // Dati ereditati dal Profilo azienda → placeholder anagrafica (UX allineata a Serramenti).
+  const companyAnagrafica = useCompanyAnagraficaForTemplate();
   const [dirty, setDirty] = useState(false);
   const [activeSection, setActiveSection] = useState<FvEditorSection>(initialSection);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -580,9 +728,13 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   const [delCertIdx, setDelCertIdx] = useState<number | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingFotoTeam, setUploadingFotoTeam] = useState(false);
+  const [uploadingRecIdx, setUploadingRecIdx] = useState<number | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [selectedSharedLegalId, setSelectedSharedLegalId] = useState("");
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
+  const fotoTeamInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (template) {
@@ -600,6 +752,9 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
     }
   }, [activeSection, searchParams]);
 
+  // NB: nessuno scroll-to-top al cambio sezione — l'utente vuole restare nella
+  // stessa posizione di scroll quando passa da una sezione all'altra.
+
   const selectSection = (section: FvEditorSection) => {
     setActiveSection(section);
     setMobileSidebarOpen(false);
@@ -612,6 +767,41 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
     setForm((prev) => ({ ...prev, [key]: value }));
     setDirty(true);
   };
+
+  // Mappa il draft AI (13 campi generici) sui campi del template Fotovoltaico.
+  const applyGeneratedFv = (d: AiTemplateDraft) => {
+    if (d.cover_title) update("pdf_cover_hero", d.cover_title);
+    if (d.chi_siamo) update("presentazione_impresa_html", d.chi_siamo);
+    if (d.soluzione?.length)
+      update("valore_proposta_html", d.soluzione.map((i) => `<p><strong>${i.titolo}</strong>${i.descrizione ? " — " + i.descrizione : ""}</p>`).join(""));
+    if (d.garanzie?.length)
+      update("garanzie_conversione", d.garanzie.map((g) => ({ icona: "shield" as const, titolo: g.titolo, descrizione: g.descrizione ?? "" })));
+    if (d.faq?.length) update("faq_items", d.faq.map((f) => ({ domanda: f.domanda, risposta: f.risposta })));
+  };
+
+  // ─── Cover presets 1-click (parità Serramenti) ───────────────────────────
+  // Applica in batch tutti i campi pdf_cover_* del preset selezionato.
+  const applyCoverPreset = useCallback((presetId: string) => {
+    const preset = COVER_PRESETS.find((p) => p.id === presetId);
+    if (!preset) return;
+    setForm((prev) => ({ ...prev, ...preset.patch }));
+    setDirty(true);
+  }, []);
+  // Detection live del preset attivo (evidenzia la card). null = personalizzato.
+  const activeCoverPresetId = useMemo(() => detectActiveCoverPreset(form), [form]);
+
+  // ─── Galleria immagini stock cover (parità Serramenti) ───────────────────
+  const [stockDialogOpen, setStockDialogOpen] = useState(false);
+  const [stockCategory, setStockCategory] = useState<CoverStockImage["categoria"] | "all">("all");
+  const stockFiltered = useMemo(
+    () => (stockCategory === "all" ? COVER_STOCK_IMAGES : COVER_STOCK_IMAGES.filter((img) => img.categoria === stockCategory)),
+    [stockCategory],
+  );
+  const applyStockImage = useCallback((img: CoverStockImage) => {
+    setForm((prev) => ({ ...prev, pdf_cover_image_url: img.url }));
+    setDirty(true);
+    setStockDialogOpen(false);
+  }, []);
 
   const handleSave = () => {
     // Cast a Record perché upsert FV accetta Record<string, unknown>
@@ -765,6 +955,60 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
     setDelRecIdx(null);
   };
 
+  // ─── Upload immagini (foto azienda + foto impianti recensioni) ─────────────
+  // Stesso pattern di logo/cover: bucket fv-progetti + signed URL 1 anno.
+  const uploadTemplateImage = async (file: File, folder: string): Promise<string> => {
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    if (!userId) throw new Error("Non autenticato");
+    const { data: profile } = await supabase
+      .from("profiles" as never)
+      .select("company_id")
+      .eq("id", userId)
+      .maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const companyId = (profile as any)?.company_id;
+    if (!companyId) throw new Error("Profilo senza azienda");
+    const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";
+    const storagePath = `${companyId}/${folder}/${crypto.randomUUID()}.${ext}`;
+    const { error: uploadErr } = await supabase.storage
+      .from("fv-progetti")
+      .upload(storagePath, file, { contentType: file.type, upsert: false });
+    if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
+    const { data: signed } = await supabase.storage
+      .from("fv-progetti")
+      .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
+    return signed?.signedUrl ?? "";
+  };
+
+  const handleFotoTeamUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) return toast.error("Carica un file immagine");
+    if (file.size > 8 * 1024 * 1024) return toast.error("File troppo grande (max 8 MB)");
+    setUploadingFotoTeam(true);
+    try {
+      update("foto_team_url", await uploadTemplateImage(file, "template-team"));
+      toast.success("Foto azienda caricata. Salva per applicare.");
+    } catch (e) {
+      toast.error("Errore upload foto", { description: String(e) });
+    } finally {
+      setUploadingFotoTeam(false);
+      if (fotoTeamInputRef.current) fotoTeamInputRef.current.value = "";
+    }
+  };
+
+  const handleRecensioneFotoUpload = async (idx: number, file: File) => {
+    if (!file.type.startsWith("image/")) return toast.error("Carica un file immagine");
+    if (file.size > 8 * 1024 * 1024) return toast.error("File troppo grande (max 8 MB)");
+    setUploadingRecIdx(idx);
+    try {
+      updateRecensione(idx, "foto_url", await uploadTemplateImage(file, "template-recensioni"));
+      toast.success("Foto impianto caricata. Salva per applicare.");
+    } catch (e) {
+      toast.error("Errore upload foto", { description: String(e) });
+    } finally {
+      setUploadingRecIdx(null);
+    }
+  };
+
   // ─── Certificazioni ──────────────────────────────────────────────────────
   const addCertificazione = () => {
     update("certificazioni", [...certificazioni, { nome: "", ente: "" }]);
@@ -900,15 +1144,33 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             Qualità: {qualityCriticalCount > 0 ? `${qualityCriticalCount} critici` : qualityWarningCount > 0 ? `${qualityWarningCount} avvisi` : "pronto"}
           </span>
         </div>
-        <Button
-          onClick={handleSave}
-          disabled={!dirty || upsertMut.isPending}
-          className="shrink-0 bg-sky-700 hover:bg-sky-800 gap-1"
-          size="sm"
-        >
-          {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Salva
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <AiTemplateGenerator
+            settoreFn="ai-genera-template-fotovoltaico"
+            onApply={applyGeneratedFv}
+            className="gap-1.5 h-9 px-3 text-sm bg-orange-500 hover:bg-orange-600"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => setPreviewOpen(true)}
+          >
+            <Eye className="h-4 w-4" />
+            <span className="hidden sm:inline">Anteprima PDF</span>
+            <span className="sm:hidden">Anteprima</span>
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={!dirty || upsertMut.isPending}
+            className="bg-sky-700 hover:bg-sky-800 gap-1"
+            size="sm"
+          >
+            {upsertMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Salva
+          </Button>
+        </div>
       </div>
 
       <FvTemplateQualityPanel items={qualityItems} />
@@ -989,6 +1251,94 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             description="Come nel serramento: puoi controllare immagine, titolo, sottotitolo dinamico, colori e card cliente della prima pagina."
             number={1}
           />
+          {/* ─── Preset stili cover 1-click (parità Serramenti) ───────────── */}
+          <div className="rounded-lg border bg-gradient-to-br from-sky-50 to-cyan-50/30 p-3 space-y-3 mb-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <Label className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                  ✨ Preset stili — anteprima reale 1-click
+                </Label>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Configurazione completa (colori, font, layout) in un click. L'immagine di sfondo non viene modificata.
+                </p>
+              </div>
+              {activeCoverPresetId && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 border border-sky-300 text-sky-800 px-2 h-5 text-[10px]">
+                  <span className="text-sm leading-none">{COVER_PRESETS.find((p) => p.id === activeCoverPresetId)?.emoji}</span>
+                  Attivo: {COVER_PRESETS.find((p) => p.id === activeCoverPresetId)?.nome}
+                </span>
+              )}
+            </div>
+            {(["solid", "photo"] as const).map((cat) => {
+              const presetsInCat = COVER_PRESETS.filter((p) => p.category === cat);
+              if (presetsInCat.length === 0) return null;
+              const catLabel = cat === "solid"
+                ? { emoji: "🎨", title: "Solo colore (no immagine)", subtitle: "Background solido con titolo e accent" }
+                : { emoji: "📷", title: "Con immagine sfondo", subtitle: "Foto come sfondo + overlay scuro per leggibilità" };
+              return (
+                <div key={cat} className="space-y-2">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm">{catLabel.emoji}</span>
+                    <span className="text-xs font-bold uppercase tracking-wide text-slate-700">{catLabel.title}</span>
+                    <span className="text-[10px] text-muted-foreground">{catLabel.subtitle}</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                    {presetsInCat.map((p) => {
+                      const isActive = activeCoverPresetId === p.id;
+                      const tv = p.patch.pdf_cover_text_vertical ?? "bottom";
+                      const ta = p.patch.pdf_cover_text_align ?? "left";
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => applyCoverPreset(p.id)}
+                          title={p.descrizione}
+                          className={
+                            "group relative rounded-lg overflow-hidden transition-all text-left focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white border-2 " +
+                            (isActive ? "border-sky-500 shadow-md ring-2 ring-sky-300" : "border-slate-200 hover:border-sky-300 hover:shadow-sm")
+                          }
+                        >
+                          <div className="relative w-full overflow-hidden flex flex-col p-2" style={{ aspectRatio: "210/297", backgroundColor: p.swatchBg, color: p.swatchText }}>
+                            {p.category === "photo" && (
+                              <div className="absolute inset-0 pointer-events-none opacity-40" style={{ backgroundImage: "linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%, rgba(0,0,0,0.25) 100%)" }} />
+                            )}
+                            <div className="absolute top-1.5 left-1.5 text-[7px] font-bold uppercase tracking-wider px-1 py-px rounded-sm z-10" style={{ backgroundColor: "rgba(255,255,255,0.92)", color: "#475569" }}>
+                              {p.category === "solid" ? "● colore" : "📷 foto"}
+                            </div>
+                            <div className="relative flex-1 flex flex-col z-[1]" style={{ justifyContent: tv === "top" ? "flex-start" : tv === "center" ? "center" : "flex-end" }}>
+                              <div style={{ textAlign: ta === "center" ? "center" : "left" }}>
+                                <div className="font-bold uppercase tracking-wider mb-1" style={{ fontSize: 5, color: p.swatchAccent, opacity: 0.9 }}>★ Proposta</div>
+                                <div className="font-bold leading-tight whitespace-pre-line" style={{ fontSize: Math.max(7, (p.patch.pdf_cover_title_size ?? 40) * 0.16) }}>{p.sampleTitle}</div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="px-2 py-1.5 bg-white border-t border-slate-100">
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm leading-none">{p.emoji}</span>
+                              <span className="text-[11px] font-semibold text-slate-900 truncate">{p.nome}</span>
+                            </div>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <span className="text-[8px] uppercase tracking-wide bg-slate-100 text-slate-600 px-1 py-px rounded font-semibold">{p.tag}</span>
+                            </div>
+                          </div>
+                          {isActive && (
+                            <div className="absolute top-1.5 right-1.5 bg-sky-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow-md z-10">
+                              <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            {!activeCoverPresetId && (
+              <p className="text-[10px] text-amber-700 bg-amber-100/60 rounded px-2 py-1 inline-block">
+                💡 Configurazione personalizzata — non corrisponde a nessun preset. I tuoi valori vengono mantenuti.
+              </p>
+            )}
+          </div>
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
             <FvSettingsCard
               title="Testi e stile copertina"
@@ -1004,6 +1354,10 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     placeholder="La tua proposta personalizzata"
                     className="h-9 text-xs"
                   />
+                  <PlaceholderChips
+                    value={form.pdf_cover_eyebrow ?? ""}
+                    onChange={(v) => update("pdf_cover_eyebrow", v || null)}
+                  />
                 </div>
                 <div className="col-span-12 md:col-span-6">
                   <Label className="text-xs">Titolo hero</Label>
@@ -1012,6 +1366,10 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     onChange={(e) => update("pdf_cover_hero", e.target.value || null)}
                     rows={2}
                     placeholder={"Il sole\ndiventa tuo."}
+                  />
+                  <PlaceholderChips
+                    value={form.pdf_cover_hero ?? ""}
+                    onChange={(v) => update("pdf_cover_hero", v || null)}
                   />
                 </div>
                 <div className="col-span-12">
@@ -1031,9 +1389,10 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     rows={2}
                     placeholder="Impianto fotovoltaico {potenza_kwp} {accumulo_kwh} per {indirizzo}."
                   />
-                  <p className="mt-1 text-[10px] text-muted-foreground">
-                    Placeholder: {"{cliente_nome}"}, {"{potenza_kwp}"}, {"{accumulo_kwh}"}, {"{indirizzo}"}, {"{comune}"}, {"{numero_pannelli}"}.
-                  </p>
+                  <PlaceholderChips
+                    value={form.pdf_cover_subhero_template ?? ""}
+                    onChange={(v) => update("pdf_cover_subhero_template", v || null)}
+                  />
                 </div>
                 <div className="col-span-12 md:col-span-4">
                   <Label className="text-xs">Sfondo solido</Label>
@@ -1068,14 +1427,18 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                   </div>
                 </div>
                 <div className="col-span-12 md:col-span-4">
-                  <Label className="text-xs">Overlay immagine</Label>
-                  <Input
-                    type="number"
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Opacità overlay</Label>
+                    <span className="text-[11px] font-semibold text-sky-700">{form.pdf_cover_overlay_opacity ?? 62}%</span>
+                  </div>
+                  <input
+                    type="range"
                     min={0}
                     max={100}
                     value={form.pdf_cover_overlay_opacity ?? 62}
-                    onChange={(e) => update("pdf_cover_overlay_opacity", Number(e.target.value) || 0)}
-                    className="h-9 text-xs"
+                    onChange={(e) => update("pdf_cover_overlay_opacity", Number(e.target.value))}
+                    className="w-full mt-2 accent-sky-600"
+                    aria-label="Opacità overlay scuro"
                   />
                 </div>
                 <div className="col-span-12 flex flex-wrap gap-2">
@@ -1128,6 +1491,70 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     className="h-9 text-xs"
                   />
                 </div>
+                {/* ─── Layout cover (parità Serramenti): posizione verticale,
+                     overlay, decorazione, dimensioni font ─────────────────── */}
+                <div className="col-span-12">
+                  <Label className="text-xs">Posizione verticale testo</Label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {([["top", "In alto"], ["center", "Centro"], ["bottom", "In basso"]] as const).map(([v, lbl]) => (
+                      <Button key={v} type="button" size="sm"
+                        variant={(form.pdf_cover_text_vertical ?? "bottom") === v ? "default" : "outline"}
+                        onClick={() => update("pdf_cover_text_vertical", v)}
+                        className={(form.pdf_cover_text_vertical ?? "bottom") === v ? "bg-sky-700 hover:bg-sky-800" : ""}
+                      >{lbl}</Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="col-span-12 md:col-span-6">
+                  <Label className="text-xs">Stile overlay (su immagine)</Label>
+                  <select
+                    value={form.pdf_cover_overlay_style ?? "flat"}
+                    onChange={(e) => update("pdf_cover_overlay_style", e.target.value as FvTemplate["pdf_cover_overlay_style"])}
+                    className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs"
+                  >
+                    <option value="flat">Piatto</option>
+                    <option value="gradient">Gradient (dal basso)</option>
+                    <option value="gradient_diag">Gradient diagonale</option>
+                    <option value="vignette">Vignette</option>
+                  </select>
+                </div>
+                <div className="col-span-12 md:col-span-6">
+                  <Label className="text-xs">Decorazione angolo</Label>
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 text-xs whitespace-nowrap">
+                      <input type="checkbox" checked={form.pdf_cover_show_decoration !== false}
+                        onChange={(e) => update("pdf_cover_show_decoration", e.target.checked)} />
+                      Mostra
+                    </label>
+                    <select
+                      value={form.pdf_cover_decoration_style ?? "square"}
+                      onChange={(e) => update("pdf_cover_decoration_style", e.target.value as FvTemplate["pdf_cover_decoration_style"])}
+                      disabled={form.pdf_cover_show_decoration === false}
+                      className="h-9 flex-1 rounded-md border border-input bg-background px-2 py-1 text-xs disabled:opacity-50"
+                    >
+                      <option value="square">Finestra</option>
+                      <option value="circle">Anelli</option>
+                      <option value="line">Linea</option>
+                      <option value="pattern">Pattern</option>
+                      <option value="none">Nessuna</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-xs">Dim. titolo ({form.pdf_cover_title_size ?? 40})</Label>
+                  <input type="range" min={28} max={64} value={form.pdf_cover_title_size ?? 40}
+                    onChange={(e) => update("pdf_cover_title_size", Number(e.target.value))} className="w-full" />
+                </div>
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-xs">Dim. sottotitolo ({form.pdf_cover_subtitle_size ?? 13})</Label>
+                  <input type="range" min={10} max={18} value={form.pdf_cover_subtitle_size ?? 13}
+                    onChange={(e) => update("pdf_cover_subtitle_size", Number(e.target.value))} className="w-full" />
+                </div>
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-xs">Dim. eyebrow ({form.pdf_cover_eyebrow_size ?? 11})</Label>
+                  <input type="range" min={8} max={14} value={form.pdf_cover_eyebrow_size ?? 11}
+                    onChange={(e) => update("pdf_cover_eyebrow_size", Number(e.target.value))} className="w-full" />
+                </div>
               </div>
             </FvSettingsCard>
 
@@ -1158,17 +1585,56 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     aria-hidden="true"
                   />
                 )}
-                {form.pdf_cover_image_url && (
-                  <div
-                    className="absolute inset-0 bg-slate-950"
-                    style={{ opacity: (form.pdf_cover_overlay_opacity ?? 62) / 100 }}
-                  />
-                )}
-                <div className="relative flex h-full flex-col">
+                {form.pdf_cover_image_url && (() => {
+                  const op = (form.pdf_cover_overlay_opacity ?? 62) / 100;
+                  const st = form.pdf_cover_overlay_style ?? "flat";
+                  let bg = "#000000"; let o: number = op;
+                  if (st === "gradient") { bg = `linear-gradient(to bottom, rgba(0,0,0,${op * 0.15}) 0%, rgba(0,0,0,${op * 0.55}) 55%, rgba(0,0,0,${op}) 100%)`; o = 1; }
+                  else if (st === "gradient_diag") { bg = `linear-gradient(135deg, rgba(0,0,0,${op * 0.2}) 0%, rgba(0,0,0,${op}) 100%)`; o = 1; }
+                  else if (st === "vignette") { bg = `radial-gradient(ellipse at center, rgba(0,0,0,${op * 0.1}) 0%, rgba(0,0,0,${op * 0.5}) 70%, rgba(0,0,0,${op * 0.95}) 100%)`; o = 1; }
+                  return <div className="absolute inset-0 pointer-events-none" style={{ background: bg, opacity: o }} />;
+                })()}
+                {/* Decoro angolo style-aware (colore = testo cover → armonizza, come Serramenti) */}
+                {form.pdf_cover_show_decoration !== false && (() => {
+                  const v = form.pdf_cover_decoration_style ?? "square";
+                  if (v === "none") return null;
+                  const c = form.pdf_cover_text_color || "#FFFFFF";
+                  return (
+                    <svg viewBox="0 0 180 180" aria-hidden className="absolute top-3 right-3 w-10 h-10 pointer-events-none z-[1]">
+                      {v === "circle" ? (
+                        <>
+                          <circle cx={90} cy={90} r={80} stroke={c} strokeWidth={3} fill="none" opacity={0.7} />
+                          <circle cx={90} cy={90} r={56} stroke={c} strokeWidth={1.5} fill="none" opacity={0.4} />
+                          <circle cx={90} cy={90} r={32} stroke={c} strokeWidth={1} fill="none" opacity={0.25} />
+                        </>
+                      ) : v === "line" ? (
+                        <>
+                          <path d="M 90 10 L 90 170" stroke={c} strokeWidth={2.5} opacity={0.7} />
+                          <path d="M 70 40 L 110 40" stroke={c} strokeWidth={1.5} opacity={0.5} />
+                          <path d="M 70 140 L 110 140" stroke={c} strokeWidth={1.5} opacity={0.5} />
+                        </>
+                      ) : v === "pattern" ? (
+                        <g opacity={0.45} fill={c}>
+                          {Array.from({ length: 25 }).map((_, i) => (<circle key={i} cx={30 + (i % 5) * 30} cy={30 + Math.floor(i / 5) * 30} r={3} />))}
+                        </g>
+                      ) : (
+                        <>
+                          <g opacity={0.7} stroke={c} fill="none">
+                            <rect x={20} y={20} width={140} height={140} rx={6} strokeWidth={3} />
+                            <path d="M 90 25 L 90 155" strokeWidth={2} />
+                            <path d="M 25 90 L 155 90" strokeWidth={2} />
+                          </g>
+                          <circle cx={84} cy={90} r={3} fill={c} opacity={0.7} />
+                        </>
+                      )}
+                    </svg>
+                  );
+                })()}
+                <div className="relative z-[1] flex h-full flex-col">
                   {(form.pdf_cover_logo_position ?? "top_left") !== "hidden" && (
                     <div
                       className={
-                        "mb-auto flex items-center gap-2 " +
+                        "flex items-center gap-2 " +
                         (form.pdf_cover_logo_position === "top_right"
                           ? "justify-end"
                           : form.pdf_cover_logo_position === "top_center"
@@ -1186,14 +1652,20 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                       <span className="text-xs font-semibold">Azienda</span>
                     </div>
                   )}
-                  <div className="mt-auto space-y-3">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-orange-200">
+                  <div
+                    className="space-y-3"
+                    style={{
+                      marginTop: (form.pdf_cover_text_vertical ?? "bottom") === "top" ? "1rem" : "auto",
+                      marginBottom: (form.pdf_cover_text_vertical ?? "bottom") === "bottom" ? 0 : "auto",
+                    }}
+                  >
+                    <div className="font-bold uppercase tracking-widest text-orange-200" style={{ fontSize: `${(form.pdf_cover_eyebrow_size ?? 11) * 0.85}px` }}>
                       {form.pdf_cover_eyebrow || "La tua proposta personalizzata"}
                     </div>
-                    <div className="whitespace-pre-line text-3xl font-black leading-none">
+                    <div className="whitespace-pre-line font-black leading-none" style={{ fontSize: `${(form.pdf_cover_title_size ?? 40) * 0.7}px` }}>
                       {form.pdf_cover_hero || "Il sole\ndiventa tuo."}
                     </div>
-                    <div className="text-xs leading-relaxed opacity-85">
+                    <div className="leading-relaxed opacity-85" style={{ fontSize: `${(form.pdf_cover_subtitle_size ?? 13) * 0.92}px` }}>
                       {form.pdf_cover_subhero_template || form.pdf_cover_subhero || "Impianto fotovoltaico {potenza_kwp} {accumulo_kwh} per {indirizzo}."}
                     </div>
                     {form.pdf_cover_show_client_card !== false && (
@@ -1219,7 +1691,16 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                   className="flex-1 gap-1"
                 >
                   <Upload className="h-3.5 w-3.5" />
-                  Carica immagine
+                  {form.pdf_cover_image_url ? "Cambia" : "Carica"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStockDialogOpen(true)}
+                  className="flex-1 gap-1 border-sky-200 text-sky-700 hover:bg-sky-50"
+                >
+                  📷 Galleria stock
                 </Button>
                 {form.pdf_cover_image_url && (
                   <Button
@@ -1340,7 +1821,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               <Input
                 value={form.contatto_telefono ?? ""}
                 onChange={(e) => update("contatto_telefono", e.target.value)}
-                placeholder="+39 02 1234 5678"
+                placeholder={inheritedPlaceholder(companyAnagrafica?.telefono, "+39 02 1234 5678")}
                 className="h-9"
               />
             </div>
@@ -1359,7 +1840,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                 type="email"
                 value={form.contatto_email ?? ""}
                 onChange={(e) => update("contatto_email", e.target.value)}
-                placeholder="info@azienda.it"
+                placeholder={inheritedPlaceholder(companyAnagrafica?.email, "info@azienda.it")}
                 className="h-9"
               />
             </div>
@@ -1403,20 +1884,64 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
               </div>
               <div className="col-span-12 md:col-span-7">
                 <Label className="text-xs">Foto team / azienda</Label>
-                <Input
-                  value={form.foto_team_url ?? ""}
-                  onChange={(e) => update("foto_team_url", e.target.value || null)}
-                  placeholder="https://..."
-                  className="h-9 text-xs"
-                />
+                <div className="flex items-center gap-3 mt-1">
+                  {form.foto_team_url ? (
+                    <img
+                      src={form.foto_team_url}
+                      alt="Foto azienda"
+                      className="h-12 w-16 rounded object-cover border border-slate-200"
+                    />
+                  ) : (
+                    <div className="h-12 w-16 rounded border border-dashed border-slate-300 bg-slate-50" />
+                  )}
+                  <input
+                    ref={fotoTeamInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleFotoTeamUpload(f);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingFotoTeam}
+                    onClick={() => fotoTeamInputRef.current?.click()}
+                  >
+                    {uploadingFotoTeam
+                      ? "Caricamento…"
+                      : form.foto_team_url
+                        ? "Cambia"
+                        : "Carica foto"}
+                  </Button>
+                  {form.foto_team_url && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-500 hover:text-red-600"
+                      onClick={() => update("foto_team_url", null)}
+                    >
+                      Rimuovi
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="col-span-12">
                 <Label className="text-xs">Testo Chi siamo</Label>
-                <Textarea
+                <CopyPresetRow
+                  field="presentazione_impresa_html"
+                  current={form.presentazione_impresa_html ?? ""}
+                  onPick={(html) => update("presentazione_impresa_html", html)}
+                />
+                <RichTextEditor
                   value={form.presentazione_impresa_html ?? ""}
-                  onChange={(e) => update("presentazione_impresa_html", e.target.value)}
-                  placeholder="<p>Siamo specializzati in fotovoltaico chiavi in mano, pratiche e assistenza post-installazione...</p>"
-                  rows={8}
+                  onChange={(html) => update("presentazione_impresa_html", html)}
+                  placeholder="Siamo specializzati in fotovoltaico chiavi in mano, pratiche e assistenza post-installazione…"
+                  minHeight={180}
                 />
               </div>
             </div>
@@ -1435,11 +1960,16 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             title="Introduzione percorso cliente"
             icon={<FileText className="h-4 w-4" />}
           >
-            <Textarea
+            <CopyPresetRow
+              field="percorso_cliente_intro"
+              current={form.percorso_cliente_intro ?? ""}
+              onPick={(html) => update("percorso_cliente_intro", html)}
+            />
+            <RichTextEditor
               value={form.percorso_cliente_intro ?? ""}
-              onChange={(e) => update("percorso_cliente_intro", e.target.value)}
-              rows={6}
-              placeholder="<p>Dal sopralluogo alla connessione, ti accompagniamo in ogni fase...</p>"
+              onChange={(html) => update("percorso_cliente_intro", html)}
+              minHeight={140}
+              placeholder="Dal sopralluogo alla connessione, ti accompagniamo in ogni fase…"
             />
           </FvSettingsCard>
         </>
@@ -1456,10 +1986,15 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             title="Descrizione consulente"
             icon={<Quote className="h-4 w-4" />}
           >
-            <Textarea
+            <CopyPresetRow
+              field="consulente_descrizione_default"
+              current={form.consulente_descrizione_default ?? ""}
+              onPick={(html) => update("consulente_descrizione_default", html)}
+            />
+            <RichTextEditor
               value={form.consulente_descrizione_default ?? ""}
-              onChange={(e) => update("consulente_descrizione_default", e.target.value || null)}
-              rows={5}
+              onChange={(html) => update("consulente_descrizione_default", html || null)}
+              minHeight={120}
               placeholder="Il consulente resta il riferimento unico per firma, pratiche, finanziamento e installazione."
             />
           </FvSettingsCard>
@@ -1525,12 +2060,11 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       {activeSection === "page_ordine" && (
         <>
           <FvSectionHeader
-            title="Ordine e visibilita pagine PDF"
-            description="Come per il serramento: cover fissa, pagine riordinabili, opzionali nascondibili. Componenti e macro rimangono dinamici dal listino."
-            number={7}
+            title="Ordine e visibilità delle pagine"
+            description="Da qui decidi l'ORDINE e quali pagine mostrare nel PDF: trascina per riordinare, usa l'occhio per nascondere le opzionali. La cover è sempre la prima. Di default 'Chi siamo e garanzie' e 'Percorso cliente' vengono subito dopo la cover."
           />
           <FvSettingsCard
-            title="Struttura del preventivo"
+            title="Tutte le pagine del preventivo"
             icon={<FileText className="h-4 w-4" />}
           >
             <FvPagesOrderEditor
@@ -1656,63 +2190,11 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       {activeSection === "strategia" && (
         <>
       <FvSectionHeader
-        title="Strategia economica e vendita"
-        description="Margine, capacità, CPL e noleggio operativo: qui il modulo decide se un'offerta è sostenibile prima di venderla o scalarla."
+        title="Default tecnici e noleggio"
+        description="Costi base €/kWp, default di preventivo e noleggio operativo B2B usati per il calcolo dell'offerta."
         number={3}
       />
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <FvSettingsCard
-          title="Strategia economica e commerciale"
-          description="Serve per capire se l'offerta FV e le campagne hanno senso prima di scalare budget."
-          icon={<ShieldCheck className="h-4 w-4" />}
-        >
-          <div className="grid grid-cols-12 gap-3">
-            <div className="col-span-6 md:col-span-4">
-              <Label className="text-xs">Margine target %</Label>
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                step={1}
-                value={Math.round((form.margine_target_pct ?? 0) * 100)}
-                onChange={(e) => update("margine_target_pct", (optionalNumber(e.target.value) ?? 0) / 100)}
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="col-span-6 md:col-span-4">
-              <Label className="text-xs">CPL max sostenibile</Label>
-              <Input
-                type="number"
-                min={0}
-                value={form.cpl_max_sostenibile ?? ""}
-                onChange={(e) => update("cpl_max_sostenibile", optionalNumber(e.target.value))}
-                placeholder="120"
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="col-span-12 md:col-span-4">
-              <Label className="text-xs">Installazioni/mese</Label>
-              <Input
-                type="number"
-                min={0}
-                value={form.capacita_installazioni_mese ?? ""}
-                onChange={(e) => update("capacita_installazioni_mese", optionalNumber(e.target.value))}
-                placeholder="6"
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="col-span-12">
-              <Label className="text-xs">Zona servita e vincoli commerciali</Label>
-              <Textarea
-                value={form.zona_servita_note ?? ""}
-                onChange={(e) => update("zona_servita_note", e.target.value)}
-                placeholder="Es. Monza Brianza, Milano nord, Lecco. Escludere tetti non accessibili o condomini senza delibera."
-                rows={3}
-              />
-            </div>
-          </div>
-        </FvSettingsCard>
-
         <FvSettingsCard
           title="Default tecnici Fotovoltaico"
           description="Valori di controllo per preventivi rapidi, margine e confronto con listini reali."
@@ -1854,17 +2336,17 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       />
       <FvSettingsCard
         title="Presentazione dell'impresa"
-        description="Testo che compare nella sezione 'Chi siamo' del PDF. Puoi usare HTML semplice."
+        description="Testo che compare nella sezione 'Chi siamo' del PDF. Formatta con la toolbar (grassetto, liste, allineamento)."
         icon={<Sparkles className="h-4 w-4" />}
       >
-        <Textarea
+        <RichTextEditor
           value={form.presentazione_impresa_html ?? ""}
-          onChange={(e) => update("presentazione_impresa_html", e.target.value)}
-          placeholder="<p>Siamo un'azienda specializzata in impianti fotovoltaici chiavi in mano dal 2015...</p>"
-          rows={6}
+          onChange={(html) => update("presentazione_impresa_html", html)}
+          placeholder="Siamo un'azienda specializzata in impianti fotovoltaici chiavi in mano dal 2015…"
+          minHeight={160}
         />
         <p className="text-[10px] text-muted-foreground mt-1">
-          Tag supportati: <code>&lt;p&gt;</code>, <code>&lt;br&gt;</code>, <code>&lt;strong&gt;</code>, <code>&lt;em&gt;</code>, <code>&lt;ul&gt;</code>, <code>&lt;li&gt;</code>
+          Usa la toolbar per formattare (grassetto, corsivo, liste, allineamento).
         </p>
       </FvSettingsCard>
 
@@ -1876,11 +2358,16 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
         <div className="space-y-5">
           <div>
             <Label className="text-xs">Proposta di valore FV</Label>
-            <Textarea
+            <CopyPresetRow
+              field="valore_proposta_html"
+              current={form.valore_proposta_html ?? ""}
+              onPick={(html) => update("valore_proposta_html", html)}
+            />
+            <RichTextEditor
               value={form.valore_proposta_html ?? ""}
-              onChange={(e) => update("valore_proposta_html", e.target.value)}
-              placeholder="<p>Analizziamo consumi, tetto, incentivi, accumulo e ritorno economico prima di proporre l'impianto.</p>"
-              rows={4}
+              onChange={(html) => update("valore_proposta_html", html)}
+              placeholder="Analizziamo consumi, tetto, incentivi, accumulo e ritorno economico prima di proporre l'impianto."
+              minHeight={120}
             />
           </div>
 
@@ -2147,7 +2634,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
       )}
 
       {/* Recensioni */}
-      {(activeSection === "fiducia" || activeSection === "page_recensioni") && (
+      {activeSection === "page_recensioni" && (
         <>
       <FvSectionHeader
         title="Fiducia e prova sociale"
@@ -2211,6 +2698,52 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                     placeholder="6 kWp + accumulo 10 kWh"
                     className="h-9 text-xs"
                   />
+                </div>
+                <div className="col-span-12">
+                  <Label className="text-xs">Foto impianto installato (opzionale)</Label>
+                  <div className="flex items-center gap-3 mt-1">
+                    {r.foto_url ? (
+                      <img
+                        src={r.foto_url}
+                        alt="Impianto installato"
+                        className="h-12 w-16 rounded object-cover border border-slate-200"
+                      />
+                    ) : (
+                      <div className="h-12 w-16 rounded border border-dashed border-slate-300 bg-slate-50" />
+                    )}
+                    <label
+                      className={`inline-flex items-center h-8 px-3 text-xs font-medium rounded-md border border-slate-200 cursor-pointer hover:bg-slate-50 ${
+                        uploadingRecIdx === idx ? "opacity-60 pointer-events-none" : ""
+                      }`}
+                    >
+                      {uploadingRecIdx === idx
+                        ? "Caricamento…"
+                        : r.foto_url
+                          ? "Cambia foto"
+                          : "Carica foto impianto"}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleRecensioneFotoUpload(idx, f);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    {r.foto_url && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-500 hover:text-red-600"
+                        onClick={() => updateRecensione(idx, "foto_url", "")}
+                      >
+                        Rimuovi
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -2335,6 +2868,68 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
         </div>
       )}
 
+      {/* Galleria immagini stock cover (parità Serramenti) */}
+      <Dialog open={stockDialogOpen} onOpenChange={setStockDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="p-4 pb-3 border-b">
+            <DialogTitle className="text-base">📷 Galleria immagini stock</DialogTitle>
+            <DialogDescription className="text-xs">
+              Click su un'immagine per usarla come sfondo cover. Tutte libere da licenza (Unsplash) — uso commerciale incluso.
+            </DialogDescription>
+            <div className="flex flex-wrap gap-1 pt-2">
+              {COVER_STOCK_CATEGORIE.map((cat) => {
+                const isActive = stockCategory === cat.value;
+                return (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => setStockCategory(cat.value)}
+                    className={
+                      "text-[11px] px-2 py-1 rounded-md border transition-all gap-1 inline-flex items-center " +
+                      (isActive ? "bg-sky-600 text-white border-sky-600 font-semibold" : "bg-white border-slate-200 hover:border-sky-300 text-slate-700")
+                    }
+                  >
+                    <span>{cat.emoji}</span>{cat.label}
+                  </button>
+                );
+              })}
+            </div>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {stockFiltered.map((img) => {
+                const isActive = form.pdf_cover_image_url === img.url;
+                return (
+                  <button
+                    key={img.id}
+                    type="button"
+                    onClick={() => applyStockImage(img)}
+                    className={
+                      "group relative aspect-[4/3] rounded-lg overflow-hidden border-2 transition-all focus:outline-none focus:ring-2 focus:ring-sky-400 " +
+                      (isActive ? "border-sky-500 shadow-md ring-2 ring-sky-300" : "border-slate-200 hover:border-sky-300 hover:shadow-sm")
+                    }
+                    title={img.label}
+                  >
+                    <img src={img.thumb} alt={img.label} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                      <span className="text-[10px] font-semibold text-white">{img.label}</span>
+                    </div>
+                    {isActive && (
+                      <div className="absolute top-1.5 right-1.5 bg-sky-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {stockFiltered.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-8">Nessuna immagine in questa categoria.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog conferma rimozione recensione */}
       <AlertDialog open={delRecIdx !== null} onOpenChange={(o) => !o && setDelRecIdx(null)}>
         <AlertDialogContent>
@@ -2374,6 +2969,18 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Anteprima PDF completa (lazy) */}
+      {previewOpen && (
+        <Suspense fallback={null}>
+          <FvTemplatePreviewDialog
+            open={previewOpen}
+            onOpenChange={setPreviewOpen}
+            form={form as unknown as Record<string, unknown>}
+            logoUrl={(form.logo_url as string | null) ?? null}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

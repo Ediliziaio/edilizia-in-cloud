@@ -836,11 +836,6 @@ export default function SettingsMargini() {
             <a href="/azienda/impostazioni/template-preventivi" className="text-primary underline font-medium">/template-preventivi</a>.
           </p>
           <p>
-            · I <strong>PDF allegati</strong> (schede tecniche, garanzie) si gestiscono in{" "}
-            <a href="/azienda/impostazioni/materiali-preventivi" className="text-primary underline font-medium">/materiali-preventivi</a>{" "}
-            e vengono inclusi se "Includi schede tecniche" è attivo.
-          </p>
-          <p>
             · Le <strong>categorie prodotto</strong> qui sotto servono a raggruppare gli articoli del listino ({" "}
             <a href="/azienda/impostazioni/listino" className="text-primary underline font-medium">/listino</a>) e a
             calcolare margini target specifici.

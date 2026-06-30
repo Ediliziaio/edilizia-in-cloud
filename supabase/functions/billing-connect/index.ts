@@ -59,7 +59,10 @@ Deno.serve(async (req) => {
       // developers.fattureincloud.it/docs/basics/scopes): NON esiste "issued_documents:r"
       // né "info:r". Servono invoices + credit_notes (documenti emessi importati) +
       // entity.clients (anagrafica cliente embeddata nelle fatture). Separatore = spazio (qui "+").
-      `&scope=issued_documents.invoices:r+issued_documents.credit_notes:r+entity.clients:r` +
+      // issued_* = fatture emesse; received_documents = fatture PASSIVE (ricevute dai
+      // fornitori) → import in fatture_ricevute. ⚠️ Le aziende già collegate devono
+      // RICONNETTERE l'account FIC per concedere il nuovo scope received_documents:r.
+      `&scope=issued_documents.invoices:r+issued_documents.credit_notes:r+received_documents:r+entity.clients:r+entity.suppliers:r` +
       // ⚠️ encodeURIComponent OBBLIGATORIO: btoa() produce base64 con `+`, `/`, `=` che nel
       // querystring vengono interpretati (es. `+`→spazio) corrompendo lo state → al callback
       // atob() fallisce e company_id va perso (token salvato sull'azienda sbagliata).

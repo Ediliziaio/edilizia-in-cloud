@@ -102,7 +102,7 @@ describe("firma elettronica hub helpers", () => {
     expect(source).toContain("SIGNATURE_ARCHIVE_PAGE_SIZE");
     expect(source).toContain("withClientTimeout");
     expect(source).toContain(".not(\"signature_token\", \"is\", null)");
-    expect(source).toContain("readOptionalRows<SignatureRequestBaseRow>");
+    expect(source).toContain("readOptionalRows<QuoteSignatureRow>");
     expect(source).not.toContain('throw new Error("Richieste firma: timeout dopo 12 secondi")');
 
     const signatureQueryStart = source.indexOf('.from("signature_requests" as never)');

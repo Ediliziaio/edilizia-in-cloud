@@ -619,6 +619,19 @@ function SerramentiConversionEditorImpl({
             className="text-xs font-mono"
           />
         )}
+        <label className="flex items-center gap-2 cursor-pointer mt-4 pt-3 border-t">
+          <input
+            type="checkbox"
+            checked={!!form.pdf_mostra_firma_online}
+            onChange={(e) => update("pdf_mostra_firma_online", e.target.checked)}
+            className="h-4 w-4 accent-orange-500"
+          />
+          <span className="text-sm font-medium">Mostra blocco &ldquo;Firma e conferma online&rdquo; nel PDF</span>
+        </label>
+        <p className="text-[11px] text-muted-foreground ml-6">
+          Aggiunge nel preventivo il link alla pagina pubblica per la conferma digitale.
+          Disattivo di default.
+        </p>
       </Section>
     </div>
   );

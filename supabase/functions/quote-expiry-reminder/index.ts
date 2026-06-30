@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const defaultSiteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.it";
+    const defaultSiteUrl = Deno.env.get("SITE_URL") || "https://app.ediliziaincloud.com";
     const now = new Date();
     const results: { quote_id: string; days_left: number; reminders_sent: number }[] = [];
     let totalSent = 0;

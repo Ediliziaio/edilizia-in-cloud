@@ -139,7 +139,6 @@ const SettingsWhatsAppBot = lazy(() => import("@/pages/azienda/settings/Settings
 const SettingsCostCategories = lazy(() => import("@/pages/azienda/settings/SettingsCostCategories"));
 const SettingsFinanceAutomation = lazy(() => import("@/pages/azienda/settings/SettingsFinanceAutomation"));
 const SettingsCredits = lazy(() => import("@/pages/azienda/settings/SettingsCredits"));
-const SettingsQuoteMaterials = lazy(() => import("@/pages/azienda/settings/SettingsQuoteMaterials"));
 const SettingsQuoteTemplates = lazy(() => import("@/pages/azienda/settings/SettingsQuoteTemplates"));
 const AITestLab = lazy(() => import("@/pages/azienda/settings/AITestLab"));
 const SettingsFirmaElettronica = lazy(() => import("@/pages/azienda/settings/SettingsFirmaElettronica"));
@@ -151,6 +150,7 @@ const SettingsFinanziamentiCalcolatore = lazy(() => import("@/pages/azienda/sett
 // Modulo Fotovoltaico (gated da feature flag modulo_fotovoltaico_attivo)
 const FotovoltaicoIndex = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoIndex"));
 const FotovoltaicoWizard = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoWizard"));
+const ComponentiFv = lazy(() => import("@/pages/azienda/fotovoltaico/ComponentiFv"));
 const FotovoltaicoDettaglio = lazy(() => import("@/pages/azienda/fotovoltaico/FotovoltaicoDettaglio"));
 // Modulo Preventivatore Serramenti
 const SerramentiIndex = lazy(() => import("@/pages/azienda/serramenti/SerramentiIndex"));
@@ -413,6 +413,7 @@ const ArchivioSostitutivo = lazy(() => import("@/pages/azienda/ArchivioSostituti
 import { COMPANY_ROLES, withCompanyPermission } from "./company/_shared";
 import { Routes } from "react-router-dom";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePermissions } from "@/hooks/usePermissions";
 
 /**
  * Index /azienda: su MOBILE atterra su Attività (richiesta utente 2026-06:
@@ -422,8 +423,16 @@ import { useIsMobile } from "@/hooks/use-mobile";
  */
 function AziendaIndex() {
   const isMobile = useIsMobile();
+  const permissions = usePermissions();
   if (isMobile) return <Navigate to="/azienda/attivita" replace />;
-  return <>{withCompanyPermission("canViewDashboard", <CompanyDashboard />)}</>;
+  // Desktop: aspetta i permessi, poi mostra il Cruscotto solo a chi può vederlo.
+  // I ruoli ristretti (es. operativo senza dashboard) atterrano su Attività —
+  // pagina senza permission gate — invece di vedere "Accesso negato" al login.
+  if (permissions.isLoading) {
+    return <>{withCompanyPermission("canViewDashboard", <CompanyDashboard />)}</>;
+  }
+  if (!permissions.canViewDashboard) return <Navigate to="/azienda/attivita" replace />;
+  return <CompanyDashboard />;
 }
 
 /**
@@ -637,7 +646,9 @@ export default function CompanyRoutesContainer() {
         <Route path="documenti" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><DocumentiFiscaliList /></BillingModeGuard></FeatureRoute>)} />
         <Route path="documenti/nuovo" element={withCompanyPermissionOrCommercialista("canViewBilling", <CommercialistaWriteGuard fallback="/azienda/documenti"><FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><EditorDocumento /></BillingModeGuard></FeatureRoute></CommercialistaWriteGuard>)} />
         <Route path="documenti/cassetto-sdi" element={<Navigate to="/azienda/documenti?tab=sdi" replace />} />
-        <Route path="documenti/fatture-ricevute" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><FattureRicevutePage /></BillingModeGuard></FeatureRoute>)} />
+        {/* Fatture ricevute = passive: valgono per QUALSIASI modalità (anche provider
+            esterno tipo FIC) → niente BillingModeGuard requiredMode="native". */}
+        <Route path="documenti/fatture-ricevute" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><FattureRicevutePage /></FeatureRoute>)} />
         <Route path="documenti/ddt" element={<Navigate to="/azienda/documenti?tipo=ddt" replace />} />
         <Route path="documenti/incassi" element={<Navigate to="/azienda/documenti?tab=incassi" replace />} />
         <Route path="documenti/registro-iva" element={withCompanyPermissionOrCommercialista("canViewBilling", <FeatureRoute featureKey="documenti"><BillingModeGuard requiredMode="native"><RegistroIVA /></BillingModeGuard></FeatureRoute>)} />
@@ -805,6 +816,12 @@ export default function CompanyRoutesContainer() {
         <Route path="marketing/fotovoltaico/nuovo" element={
           <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
             <ErrorBoundary title="Errore wizard Fotovoltaico"><FotovoltaicoWizard /></ErrorBoundary>
+          </FeatureRoute>
+        } />
+        {/* /componenti PRIMA di /:id per non essere catturata dal match dinamico */}
+        <Route path="marketing/fotovoltaico/componenti" element={
+          <FeatureRoute featureKey="modulo_fotovoltaico_attivo">
+            <ErrorBoundary title="Errore Componenti FV"><ComponentiFv /></ErrorBoundary>
           </FeatureRoute>
         } />
         <Route path="marketing/fotovoltaico/:id" element={
@@ -1145,7 +1162,6 @@ export default function CompanyRoutesContainer() {
           <Route path="preferenze-email" element={withCompanyPermission("canViewMarketingEmail", <SettingsEmailPreferences />)} />
           <Route path="privacy" element={<Navigate to="/azienda/impostazioni/sicurezza-privacy?tab=privacy" replace />} />
           <Route path="branding" element={withCompanyPermission("canViewSettingsCustomization", <SettingsBranding />)} />
-          <Route path="materiali-preventivi" element={withCompanyPermission("canViewSettingsPricing", <SettingsQuoteMaterials />)} />
           <Route path="template-preventivi" element={withCompanyPermission("canViewSettingsPricing", <SettingsQuoteTemplates />)} />
           {/* AI Test Lab — gated all'interno della pagina (auto-redirect se non autorizzato) */}
           <Route path="ai-test-lab" element={<AITestLab />} />

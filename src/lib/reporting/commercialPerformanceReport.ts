@@ -26,6 +26,7 @@ export interface CommercialAppointmentRow {
   status?: string | null;
   is_completed?: boolean | null;
   is_blocked_slot?: boolean | null;
+  calendar_id?: string | null;
 }
 
 export interface CommercialQuoteRow {
@@ -180,7 +181,11 @@ export function buildCommercialPerformanceReport(input: CommercialPerformanceRep
   const now = input.now ?? new Date();
   const contactsById = new Map(input.contacts.map((contact) => [contact.id, contact]));
   const opportunitiesById = new Map(input.opportunities.map((opportunity) => [opportunity.id, opportunity]));
-  const appointmentsByContact = groupBy(input.appointments, (appointment) => appointment.contact_id ?? "");
+  // Solo CALENDARIO MARKETING: tutte le statistiche appuntamenti del report usano
+  // gli appuntamenti con calendar_id (stessa definizione della vista "solo
+  // marketing" dell'app), non quelli operativi/cantiere.
+  const marketingAppointments = input.appointments.filter(isMarketingCalendarAppointment);
+  const appointmentsByContact = groupBy(marketingAppointments, (appointment) => appointment.contact_id ?? "");
   const ordersByQuote = groupBy(input.orders, (order) => order.quote_id ?? "");
 
   const quotes = input.quotes.filter((quote) => !isDeletedLikeStatus(quote.status));
@@ -206,7 +211,7 @@ export function buildCommercialPerformanceReport(input: CommercialPerformanceRep
   const lossReasons = buildLossReasons(input.opportunities, rejectedQuotes);
   const sync = buildSyncHealth({
     contacts: input.contacts,
-    appointments: input.appointments,
+    appointments: marketingAppointments,
     quotes,
     acceptedQuotes,
     opportunities: input.opportunities,
@@ -432,12 +437,26 @@ function hasLossReason(opportunity: CommercialOpportunityRow) {
   return Boolean(cleanLabel(opportunity.lost_reason_category) || cleanLabel(opportunity.lost_reason) || cleanLabel(opportunity.loss_reason) || cleanLabel(opportunity.competitor_won));
 }
 
-function shouldAuditAppointmentContact(appointment: CommercialAppointmentRow) {
+/** True se l'appuntamento è nel CALENDARIO MARKETING (ha un calendar_id assegnato).
+ *  Stessa definizione del calendario marketing dell'app (vista "solo marketing",
+ *  showOperativi OFF → filtra calendar_id NOT NULL). È la fonte di verità per le
+ *  statistiche CRM sugli appuntamenti. */
+export function isMarketingCalendarAppointment(appointment: CommercialAppointmentRow): boolean {
+  return Boolean(cleanLabel(appointment.calendar_id));
+}
+
+/** True se l'appuntamento è COMMERCIALE (di vendita): esclude slot bloccati,
+ *  appuntamenti già legati a un ordine e i tipi operativi di cantiere. */
+export function isSalesAppointment(appointment: CommercialAppointmentRow): boolean {
   if (appointment.is_blocked_slot) return false;
   if (cleanLabel(appointment.order_id)) return false;
   const type = normalizeLookup(appointment.appointment_type);
   if (!type) return true;
   return !["blocked", "bloccato", "inizio lavori", "fine lavori", "posa prova", "collaudo", "verifica cantiere"].includes(type);
+}
+
+function shouldAuditAppointmentContact(appointment: CommercialAppointmentRow) {
+  return isSalesAppointment(appointment);
 }
 
 function shouldAuditOrderQuote(order: CommercialOrderRow) {
@@ -681,7 +700,7 @@ function isDraftOnlyQuote(quote: CommercialQuoteRow) {
   return normalizeLookup(quote.status) === "bozza" && !quote.sent_at && !quote.signed_at;
 }
 
-function isOpenOpportunity(status: string | null | undefined) {
+export function isOpenOpportunity(status: string | null | undefined) {
   const value = normalizeLookup(status);
   return !["won", "closed won", "vinto", "lost", "closed lost", "perso", "cancelled", "canceled", "annullato"].includes(value);
 }

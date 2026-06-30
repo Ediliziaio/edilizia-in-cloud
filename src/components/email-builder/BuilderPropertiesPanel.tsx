@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { AlignLeft, AlignCenter, AlignRight, Bold, Link, Plus, Sparkles, Variable } from "lucide-react";
+import { AlignLeft, AlignCenter, AlignRight, Bold, Italic, Underline, Link, Plus, Sparkles, Variable, Palette } from "lucide-react";
 
 interface BuilderPlaceholder {
   key: string;
@@ -21,9 +21,76 @@ interface BuilderPropertiesPanelProps {
   placeholders?: BuilderPlaceholder[];
   onInsertVariable?: (tag: string) => void;
   onAddQuickSection?: (kind: "greeting" | "cta" | "signature") => void;
+  /** Applica un colore a TUTTI i pulsanti del template (ricorsivo, incl. colonne). */
+  onApplyButtonColor?: (color: string) => void;
+  /** Applica un colore a TUTTI i blocchi di testo del template. */
+  onApplyTextColor?: (color: string) => void;
 }
 
 const FONT_FAMILIES = ["Arial", "Georgia", "Helvetica", "Times New Roman", "Verdana", "Courier New", "Trebuchet MS"];
+
+const FONT_WEIGHTS = [
+  { value: "300", label: "Light" },
+  { value: "400", label: "Regular" },
+  { value: "600", label: "Semibold" },
+  { value: "700", label: "Bold" },
+  { value: "800", label: "Black" },
+];
+
+// Palette brand EiC + neutri/semantici, usata negli swatch dei color picker.
+const BRAND_SWATCHES = [
+  "#F97316", "#1E3A5F", "#1a1a1a", "#333333", "#64748b",
+  "#16a34a", "#dc2626", "#2563eb", "#e2e8f0", "#FFFFFF",
+];
+
+/** Campo colore riutilizzabile: swatch brand + hex + picker nativo. */
+function ColorField({
+  value,
+  onChange,
+  allowClear = false,
+}: {
+  value?: string;
+  onChange: (v: string | undefined) => void;
+  allowClear?: boolean;
+}) {
+  const current = value || "";
+  return (
+    <div className="space-y-1.5">
+      <div className="flex gap-1">
+        <input
+          type="color"
+          value={current || "#000000"}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-8 w-8 shrink-0 cursor-pointer rounded border"
+          aria-label="Scegli colore"
+        />
+        <Input
+          className="h-8 flex-1 text-xs font-mono"
+          value={current}
+          placeholder={allowClear ? "nessuno" : "#000000"}
+          onChange={(e) => onChange(e.target.value || (allowClear ? undefined : ""))}
+        />
+        {allowClear && current && (
+          <Button variant="outline" size="sm" className="h-8 px-2 text-xs" onClick={() => onChange(undefined)}>
+            ✕
+          </Button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {BRAND_SWATCHES.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => onChange(c)}
+            title={c}
+            className={`h-5 w-5 rounded border transition-transform hover:scale-110 ${current.toLowerCase() === c.toLowerCase() ? "ring-2 ring-primary ring-offset-1" : ""}`}
+            style={{ backgroundColor: c }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function AlignButtons({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
@@ -117,8 +184,12 @@ export function BuilderPropertiesPanel({
   placeholders = [],
   onInsertVariable,
   onAddQuickSection,
+  onApplyButtonColor,
+  onApplyTextColor,
 }: BuilderPropertiesPanelProps) {
   const [librarySearch, setLibrarySearch] = useState("");
+  const [themeBtnColor, setThemeBtnColor] = useState("#F97316");
+  const [themeTextColor, setThemeTextColor] = useState("#333333");
   const filteredPlaceholders = useMemo(() => {
     const q = librarySearch.trim().toLowerCase();
     if (!q) return placeholders;
@@ -162,6 +233,32 @@ export function BuilderPropertiesPanel({
               </Button>
             </div>
           </div>
+
+          {(onApplyButtonColor || onApplyTextColor) && (
+            <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+              <Label className="flex items-center gap-1.5 text-xs font-semibold">
+                <Palette className="h-3.5 w-3.5 text-primary" /> Tema colori (tutta l'email)
+              </Label>
+              {onApplyButtonColor && (
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] text-muted-foreground">Colore di tutti i pulsanti</Label>
+                  <ColorField value={themeBtnColor} onChange={(v) => setThemeBtnColor(v ?? "#F97316")} />
+                  <Button variant="outline" size="sm" className="h-7 w-full text-xs" onClick={() => onApplyButtonColor(themeBtnColor)}>
+                    Applica a tutti i pulsanti
+                  </Button>
+                </div>
+              )}
+              {onApplyTextColor && (
+                <div className="space-y-1.5">
+                  <Label className="text-[11px] text-muted-foreground">Colore di tutti i testi</Label>
+                  <ColorField value={themeTextColor} onChange={(v) => setThemeTextColor(v ?? "#333333")} />
+                  <Button variant="outline" size="sm" className="h-7 w-full text-xs" onClick={() => onApplyTextColor(themeTextColor)}>
+                    Applica a tutti i testi
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label className="text-xs">Variabili email</Label>
@@ -241,38 +338,71 @@ function TextProperties({
         <Textarea className="min-h-[120px] text-sm" value={props.content} onChange={(e) => update({ content: e.target.value })} />
         <VariableInsertButton placeholders={placeholders} onInsert={(tag) => update({ content: props.content + " " + tag })} />
       </div>
-      <div className="space-y-1.5">
-        <Label className="text-xs">Font</Label>
-        <Select value={props.fontFamily} onValueChange={(v) => update({ fontFamily: v })}>
-          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>{FONT_FAMILIES.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
-        </Select>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Font</Label>
+          <Select value={props.fontFamily} onValueChange={(v) => update({ fontFamily: v })}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>{FONT_FAMILIES.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Peso</Label>
+          <Select value={normalizeWeight(props.fontWeight)} onValueChange={(v) => update({ fontWeight: v })}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>{FONT_WEIGHTS.map((w) => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1.5">
           <Label className="text-xs">Dimensione</Label>
-          <Input className="h-8 text-xs" value={props.fontSize} onChange={(e) => update({ fontSize: e.target.value })} />
+          <Input className="h-8 text-xs" value={props.fontSize} onChange={(e) => update({ fontSize: e.target.value })} placeholder="16px" />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs">Colore</Label>
+          <Label className="text-xs">Interlinea</Label>
+          <Input className="h-8 text-xs" value={props.lineHeight ?? "1.6"} onChange={(e) => update({ lineHeight: e.target.value })} placeholder="1.6" />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Colore testo</Label>
+        <ColorField value={props.color} onChange={(v) => update({ color: v ?? "#333333" })} />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Sfondo blocco (opzionale)</Label>
+        <ColorField value={props.backgroundColor} onChange={(v) => update({ backgroundColor: v })} allowClear />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Allineamento</Label>
+          <AlignButtons value={props.textAlign} onChange={(v) => update({ textAlign: v })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Stile</Label>
           <div className="flex gap-1">
-            <input type="color" value={props.color} onChange={(e) => update({ color: e.target.value })} className="h-8 w-8 rounded border cursor-pointer" />
-            <Input className="h-8 text-xs flex-1" value={props.color} onChange={(e) => update({ color: e.target.value })} />
+            <Button variant={isBold(props.fontWeight) ? "default" : "outline"} size="icon" className="h-8 w-8" title="Grassetto" onClick={() => update({ fontWeight: isBold(props.fontWeight) ? "400" : "700" })}>
+              <Bold className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant={props.italic ? "default" : "outline"} size="icon" className="h-8 w-8" title="Corsivo" onClick={() => update({ italic: !props.italic })}>
+              <Italic className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant={props.underline ? "default" : "outline"} size="icon" className="h-8 w-8" title="Sottolineato" onClick={() => update({ underline: !props.underline })}>
+              <Underline className="h-3.5 w-3.5" />
+            </Button>
           </div>
         </div>
       </div>
-      <div className="space-y-1.5">
-        <Label className="text-xs">Allineamento</Label>
-        <AlignButtons value={props.textAlign} onChange={(v) => update({ textAlign: v })} />
-      </div>
-      <div className="space-y-1.5">
-        <Label className="text-xs">Peso</Label>
-        <Button variant={props.fontWeight === "bold" ? "default" : "outline"} size="sm" className="h-8 w-8" onClick={() => update({ fontWeight: props.fontWeight === "bold" ? "normal" : "bold" })}>
-          <Bold className="h-3.5 w-3.5" />
-        </Button>
-      </div>
     </>
   );
+}
+
+function normalizeWeight(w: string): string {
+  if (w === "normal") return "400";
+  if (w === "bold") return "700";
+  return FONT_WEIGHTS.some((x) => x.value === w) ? w : "400";
+}
+function isBold(w: string): boolean {
+  return w === "bold" || parseInt(w, 10) >= 600;
 }
 
 function ImageProperties({ props, update }: { props: ImageProps; update: (p: Partial<ImageProps>) => void }) {
@@ -324,25 +454,39 @@ function ButtonProperties({
         <Input className="h-8 text-xs" value={props.url} onChange={(e) => update({ url: e.target.value })} />
         <VariableInsertButton placeholders={placeholders} onInsert={(tag) => update({ url: props.url + tag })} />
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-1.5">
-          <Label className="text-xs">Sfondo</Label>
-          <div className="flex gap-1">
-            <input type="color" value={props.backgroundColor} onChange={(e) => update({ backgroundColor: e.target.value })} className="h-8 w-8 rounded border cursor-pointer" />
-            <Input className="h-8 text-xs flex-1" value={props.backgroundColor} onChange={(e) => update({ backgroundColor: e.target.value })} />
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs">Testo</Label>
-          <div className="flex gap-1">
-            <input type="color" value={props.textColor} onChange={(e) => update({ textColor: e.target.value })} className="h-8 w-8 rounded border cursor-pointer" />
-            <Input className="h-8 text-xs flex-1" value={props.textColor} onChange={(e) => update({ textColor: e.target.value })} />
-          </div>
-        </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Colore sfondo</Label>
+        <ColorField value={props.backgroundColor} onChange={(v) => update({ backgroundColor: v ?? "#F97316" })} />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs">Bordo arrotondato</Label>
-        <Input className="h-8 text-xs" value={props.borderRadius} onChange={(e) => update({ borderRadius: e.target.value })} />
+        <Label className="text-xs">Colore testo</Label>
+        <ColorField value={props.textColor} onChange={(v) => update({ textColor: v ?? "#FFFFFF" })} />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Dimensione testo</Label>
+          <Input className="h-8 text-xs" value={props.fontSize ?? "16px"} onChange={(e) => update({ fontSize: e.target.value })} placeholder="16px" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Bordo arrotondato</Label>
+          <Input className="h-8 text-xs" value={props.borderRadius} onChange={(e) => update({ borderRadius: e.target.value })} placeholder="6px" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Padding verticale</Label>
+          <Input className="h-8 text-xs" value={props.paddingY ?? "13px"} onChange={(e) => update({ paddingY: e.target.value })} placeholder="13px" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Padding orizzontale</Label>
+          <Input className="h-8 text-xs" value={props.paddingX ?? "26px"} onChange={(e) => update({ paddingX: e.target.value })} placeholder="26px" />
+        </div>
+      </div>
+      <div className="flex items-center justify-between rounded-md border px-3 py-2">
+        <Label className="text-xs">Larghezza piena</Label>
+        <Button variant={props.fullWidth ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => update({ fullWidth: !props.fullWidth })}>
+          {props.fullWidth ? "Sì" : "No"}
+        </Button>
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Allineamento</Label>
@@ -361,10 +505,7 @@ function DividerProperties({ props, update }: { props: DividerProps; update: (p:
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Colore</Label>
-        <div className="flex gap-1">
-          <input type="color" value={props.color} onChange={(e) => update({ color: e.target.value })} className="h-8 w-8 rounded border cursor-pointer" />
-          <Input className="h-8 text-xs flex-1" value={props.color} onChange={(e) => update({ color: e.target.value })} />
-        </div>
+        <ColorField value={props.color} onChange={(v) => update({ color: v ?? "#E5E7EB" })} />
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Margine</Label>

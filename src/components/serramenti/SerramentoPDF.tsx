@@ -1565,6 +1565,92 @@ function renderSubheroTemplate(template: string, detail: SrProgettoDetail): stri
   });
 }
 
+// ─── Mini-renderer HTML (output rich-text TipTap) → nodi react-pdf ──────────
+// @react-pdf NON interpreta l'HTML: senza questo i tag <p>/<strong>/<span> escono
+// LETTERALI nel PDF. Parser regex bounded (no DOM) che supporta i tag prodotti
+// dall'editor: <p>, <h1-6>, <ul>/<ol>/<li>, <br>, <strong>/<b>, <em>/<i>, <u>,
+// <s>/<strike>, <span style="font-size:Npx">. Per il testo semplice (senza tag)
+// il chiamante usa il rendering classico (split paragrafi/bullet).
+function isLikelyHtml(s: string): boolean {
+  return /<\/?(p|br|strong|b|em|i|u|s|span|ul|ol|li|h[1-6]|div)\b[^>]*>/i.test(s);
+}
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&rsquo;/g, "’")
+    .replace(/&ldquo;/g, "“").replace(/&rdquo;/g, "”").replace(/&egrave;/g, "è")
+    .replace(/&agrave;/g, "à").replace(/&ograve;/g, "ò").replace(/&ugrave;/g, "ù");
+}
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function parseInlineHtml(frag: string, kp: string): any[] {
+  const out: any[] = [];
+  const re = /<(strong|b|em|i|u|s|strike|span)([^>]*)>([\s\S]*?)<\/\1>|<br\s*\/?>/gi;
+  let last = 0, k = 0, m: RegExpExecArray | null;
+  const pushText = (raw: string) => {
+    const t = decodeEntities(raw.replace(/<[^>]+>/g, ""));
+    if (t) out.push(<Text key={`${kp}t${k++}`}>{t}</Text>);
+  };
+  while ((m = re.exec(frag))) {
+    if (m.index > last) pushText(frag.slice(last, m.index));
+    if (/^<br/i.test(m[0])) {
+      out.push(<Text key={`${kp}br${k++}`}>{"\n"}</Text>);
+    } else {
+      const tag = m[1].toLowerCase();
+      const st: any = {};
+      if (tag === "strong" || tag === "b") st.fontWeight = 700;
+      else if (tag === "em" || tag === "i") st.fontStyle = "italic";
+      else if (tag === "u") st.textDecoration = "underline";
+      else if (tag === "s" || tag === "strike") st.textDecoration = "line-through";
+      else if (tag === "span") {
+        const fs = (m[2] || "").match(/font-size:\s*(\d+(?:\.\d+)?)/i);
+        if (fs) st.fontSize = Math.max(7, Math.min(28, Math.round(Number(fs[1]))));
+      }
+      out.push(<Text key={`${kp}s${k++}`} style={st}>{parseInlineHtml(m[3], `${kp}${k}-`)}</Text>);
+    }
+    last = re.lastIndex;
+  }
+  if (last < frag.length) pushText(frag.slice(last));
+  return out.length ? out : [<Text key={`${kp}e`}>{decodeEntities(frag.replace(/<[^>]+>/g, ""))}</Text>];
+}
+function htmlToPdfNodes(html: string, baseStyle: any, keyPrefix: string): any[] {
+  const nodes: any[] = [];
+  const blockRe = /<(p|h[1-6]|ul|ol)([^>]*)>([\s\S]*?)<\/\1>/gi;
+  let mb: RegExpExecArray | null, bi = 0, matched = false;
+  while ((mb = blockRe.exec(html))) {
+    matched = true;
+    const tag = mb[1].toLowerCase();
+    if (tag === "ul" || tag === "ol") {
+      const items = [...mb[3].matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)];
+      nodes.push(
+        <View key={`${keyPrefix}L${bi++}`} style={{ marginBottom: 6 }}>
+          {items.map((it, li) => (
+            <View key={li} style={{ flexDirection: "row", marginBottom: 2 }}>
+              <Text style={[baseStyle, { marginRight: 4 }]}>{"•"}</Text>
+              <Text style={baseStyle}>{parseInlineHtml(it[1], `${keyPrefix}L${bi}-${li}-`)}</Text>
+            </View>
+          ))}
+        </View>
+      );
+    } else {
+      const isH = tag.startsWith("h");
+      nodes.push(
+        <Text key={`${keyPrefix}P${bi++}`} style={[baseStyle, { marginBottom: 6 }, isH ? { fontWeight: 700 } : {}]}>
+          {parseInlineHtml(mb[3], `${keyPrefix}P${bi}-`)}
+        </Text>
+      );
+    }
+  }
+  if (!matched) {
+    nodes.push(
+      <Text key={`${keyPrefix}P0`} style={[baseStyle, { marginBottom: 6 }]}>
+        {parseInlineHtml(html, `${keyPrefix}0-`)}
+      </Text>
+    );
+  }
+  return nodes;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 // ─── Tipo input ────────────────────────────────────────────────────────────
 
 export interface SerramentoPDFProps {
@@ -1628,17 +1714,26 @@ export function SerramentoPDF({
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tpl = (template ?? {}) as any;
-  const coverHero = tpl.pdf_cover_hero || "La tua casa,\nfinalmente al caldo.";
+
+  // Sostituzione campi personalizzati {placeholder} su QUALSIASI testo/titolo del
+  // template (non più solo il subhero cover). No-op sui testi senza placeholder, quindi
+  // sicura anche sui valori di default. Variabili: cliente_nome, cliente_cognome,
+  // cliente_nome_completo, cantiere_citta, cantiere_provincia, num_serramenti,
+  // data_consegna_stimata, tipo_intervento, anno.
+  const ph = (s: string | null | undefined): string =>
+    typeof s === "string" && s ? renderSubheroTemplate(s, detail) : "";
+
+  const coverHero = ph(tpl.pdf_cover_hero) || "La tua casa,\nfinalmente al caldo.";
 
   // ─── Milestone 4 · Cover subhero dinamico con placeholders ────────────
   // Priorità: pdf_cover_subhero_template (con placeholders) → pdf_cover_subhero
   // (statico) → sintesi auto-generata da BOM.
   const coverSubhero = (() => {
     const tmpl = tpl.pdf_cover_subhero_template as string | null | undefined;
-    if (!tmpl?.trim()) return tpl.pdf_cover_subhero || sintesi;
+    if (!tmpl?.trim()) return ph(tpl.pdf_cover_subhero) || sintesi;
     return renderSubheroTemplate(tmpl, detail);
   })();
-  const coverEyebrow = tpl.pdf_cover_eyebrow || "LA TUA PROPOSTA PERSONALIZZATA";
+  const coverEyebrow = ph(tpl.pdf_cover_eyebrow) || "LA TUA PROPOSTA PERSONALIZZATA";
   const coverImageUrl = tpl.pdf_cover_image_url || null;
   const coverOverlayOpacity = typeof tpl.pdf_cover_overlay_opacity === "number"
     ? Math.max(0, Math.min(100, tpl.pdf_cover_overlay_opacity)) / 100
@@ -1695,6 +1790,10 @@ export function SerramentoPDF({
     : coverLogoPosition === "top_center"
       ? { position: "absolute" as const, top: 54, left: 54, right: 54, alignItems: "center" as const }
       : { position: "absolute" as const, top: 54, left: 54, alignItems: coverTextAlign === "center" ? "center" as const : "flex-start" as const };
+  // Scala dimensione logo cover: % (60–160) → fattore moltiplicativo su maxWidth/height base.
+  const coverLogoScale = typeof tpl.pdf_cover_logo_size === "number"
+    ? Math.max(60, Math.min(160, tpl.pdf_cover_logo_size)) / 100
+    : 1;
   const coverTextBlockStyle = {
     position: "absolute" as const,
     top: coverContentTop,
@@ -1741,9 +1840,9 @@ export function SerramentoPDF({
     .slice(0, 4); // max 4 per riga A4
 
 
-  const ctaTitle = tpl.pdf_cta_finale_titolo || "Cosa fare adesso";
+  const ctaTitle = ph(tpl.pdf_cta_finale_titolo) || "Cosa fare adesso";
   const ctaSteps = (Array.isArray(tpl.pdf_cta_finale_passi) && tpl.pdf_cta_finale_passi.length > 0)
-    ? tpl.pdf_cta_finale_passi as string[]
+    ? (tpl.pdf_cta_finale_passi as string[]).map((s) => ph(s))
 	    : [
 	        "Chiarisci eventuali dubbi tecnici o commerciali",
 	        "Conferma misure, finiture e condizioni definitive",
@@ -1754,8 +1853,8 @@ export function SerramentoPDF({
   // "Chi siamo" — pagina opzionale subito dopo la cover
   const chiSiamoAttivo = !!tpl.chi_siamo_attivo;
   const chiSiamoFotoUrl = tpl.chi_siamo_foto_url || null;
-  const chiSiamoTitolo = tpl.chi_siamo_titolo || `Chi siamo · ${companyName}`;
-  const chiSiamoTesto = tpl.chi_siamo_testo || null;
+  const chiSiamoTitolo = ph(tpl.chi_siamo_titolo) || `Chi siamo · ${companyName}`;
+  const chiSiamoTesto = tpl.chi_siamo_testo ? ph(tpl.chi_siamo_testo) : null;
 
   // Recensioni — toggle
   const recensioniAttivo = tpl.recensioni_attivo !== false;
@@ -2045,13 +2144,12 @@ export function SerramentoPDF({
             </Svg>
           </View>
         )}
-        {/* Decoro SVG finestra in alto a destra (toggle template).
-            Usa il colore PRIMARIO (non l'accent) per coerenza con la preview
-            visuale del template editor, che mostra appunto un blocco accent
-            del colore primario in quella posizione. */}
+        {/* Decoro SVG in alto a destra (toggle template). Usa il colore del
+            TESTO cover (non il brand): armonizza sempre col fondo della cover e
+            resta coerente con l'anteprima del template editor. */}
         {coverShowDecoration && (
           <View style={styles.coverDecoSvg}>
-            <CoverDecorationSvg color={primaryColor} variant={coverDecorationStyle} />
+            <CoverDecorationSvg color={coverTextColor} variant={coverDecorationStyle} />
           </View>
         )}
 
@@ -2059,7 +2157,7 @@ export function SerramentoPDF({
           <View wrap={false} style={coverLogoPositionStyle}>
             <View style={styles.coverLogoBox}>
             {logoUrl ? (
-              <Image src={logoUrl} style={styles.coverLogoImage} />
+              <Image src={logoUrl} style={[styles.coverLogoImage, { maxWidth: 220 * coverLogoScale, height: 70 * coverLogoScale }]} />
             ) : (
               <View style={styles.coverLogoCircle}>
                 <Text style={{ color: "#FFFFFF", fontSize: 28, fontWeight: 700 }}>
@@ -2161,23 +2259,28 @@ export function SerramentoPDF({
                 )}
                 {chiSiamoTesto && (
                   <View>
-                    {chiSiamoTesto.split(/\n\n+/).map((para, i) => {
-                      const lines = para.split("\n").map((l) => l.trim()).filter(Boolean);
-                      const allBullets = lines.length > 0 && lines.every((l) => l.startsWith("- ") || l.startsWith("• "));
-                      if (allBullets) {
-                        return (
-                          <View key={i} style={{ marginBottom: 8 }}>
-                            {lines.map((l, li) => (
-                              <View key={li} style={styles.bulletItem} wrap={false}>
-                                <View style={styles.bulletDot} />
-                                <Text style={[styles.bulletText, { fontSize: 10 }]}>{l.replace(/^[-•]\s*/, "")}</Text>
+                    {isLikelyHtml(chiSiamoTesto)
+                      // Testo dal rich-text editor (HTML): rende grassetto/corsivo/
+                      // sottolineato/dimensioni/liste via mini-renderer.
+                      ? htmlToPdfNodes(chiSiamoTesto, styles.chiSiamoText, "cs-")
+                      // Testo semplice (legacy): split paragrafi + bullet "- ".
+                      : chiSiamoTesto.split(/\n\n+/).map((para, i) => {
+                          const lines = para.split("\n").map((l) => l.trim()).filter(Boolean);
+                          const allBullets = lines.length > 0 && lines.every((l) => l.startsWith("- ") || l.startsWith("• "));
+                          if (allBullets) {
+                            return (
+                              <View key={i} style={{ marginBottom: 8 }}>
+                                {lines.map((l, li) => (
+                                  <View key={li} style={styles.bulletItem} wrap={false}>
+                                    <View style={styles.bulletDot} />
+                                    <Text style={[styles.bulletText, { fontSize: 10 }]}>{l.replace(/^[-•]\s*/, "")}</Text>
+                                  </View>
+                                ))}
                               </View>
-                            ))}
-                          </View>
-                        );
-                      }
-                      return <Text key={i} style={[styles.chiSiamoText, { marginBottom: 8 }]}>{para}</Text>;
-                    })}
+                            );
+                          }
+                          return <Text key={i} style={[styles.chiSiamoText, { marginBottom: 8 }]}>{para}</Text>;
+                        })}
                   </View>
                 )}
                 {/* Strip certificazioni: 5-6 badge qualità in fondo a chi siamo
@@ -3445,7 +3548,7 @@ export function SerramentoPDF({
                 ))}
               </View>
 
-              {publicUrl && (
+              {publicUrl && tpl.pdf_mostra_firma_online === true && (
                 <View style={styles.signatureBox} wrap={false}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.signatureTitle}>Firma e conferma online</Text>
@@ -3495,9 +3598,14 @@ export function SerramentoPDF({
                     return (
                       <View key={i} style={styles.testimonialBox} wrap={false}>
                         <Text style={styles.testimonialQuote}>&ldquo;{t.quote}&rdquo;</Text>
-                        <Text style={styles.testimonialAuthor}>
-                          — {t.autore}{sub ? ` · ${sub}` : ""}
-                        </Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 3 }}>
+                          {t.foto_url ? (
+                            <Image src={t.foto_url} style={{ width: 22, height: 22, borderRadius: 11, marginRight: 6, objectFit: "cover" }} />
+                          ) : null}
+                          <Text style={styles.testimonialAuthor}>
+                            — {t.autore}{sub ? ` · ${sub}` : ""}
+                          </Text>
+                        </View>
                       </View>
                     );
                   })}

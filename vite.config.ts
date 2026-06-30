@@ -447,27 +447,25 @@ export default defineConfig(() => ({
           // critical path), e il chunk jspdf risultante sarà caricato SOLO
           // quando l'utente esporta un PDF.
           // (Removed: id.includes("jspdf") -> "vendor-jspdf" rule)
+          // ⚠️ TUTTO @react-pdf + le sue dipendenze CIRCOLARI (fontkit/textkit/
+          // pdfkit/png-js/layout/yoga/linebreak/restructure/unicode-properties/brotli)
+          // DEVE stare in UN SOLO chunk. Splittarlo in vendor-react-pdf-fonts/layout/core
+          // separati creava import circolari CROSS-CHUNK (core↔fonts, base↔layout, …):
+          // a runtime nessun ordine di load soddisfa i cicli → un chunk accede a un binding
+          // di un altro non ancora inizializzato → TDZ "Cannot access 'X' before
+          // initialization" che rompeva OGNI generazione PDF e l'anteprima template.
+          // Stesso pattern del chunk radix separato da React (commit 93f73e6fa). Un singolo
+          // chunk lascia che Rollup hoisti e ordini le dichiarazioni internamente. È lazy:
+          // caricato solo quando si genera/anteprima un PDF.
           if (
-            id.includes("@react-pdf/font") ||
+            id.includes("@react-pdf") ||
             id.includes("fontkit") ||
             id.includes("unicode-properties") ||
             id.includes("restructure") ||
-            id.includes("brotli")
-          ) {
-            return "vendor-react-pdf-fonts";
-          }
-          if (
-            id.includes("@react-pdf/layout") ||
-            id.includes("@react-pdf/textkit") ||
+            id.includes("brotli") ||
             id.includes("linebreak") ||
             id.includes("yoga-layout")
           ) {
-            return "vendor-react-pdf-layout";
-          }
-          if (id.includes("@react-pdf/pdfkit") || id.includes("@react-pdf/png-js")) {
-            return "vendor-react-pdf-core";
-          }
-          if (id.includes("@react-pdf")) {
             return "vendor-react-pdf";
           }
           if (id.includes("exceljs")) {

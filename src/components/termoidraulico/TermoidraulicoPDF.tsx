@@ -6,10 +6,10 @@
  *   1. Cover — hero brandizzato (immagine + overlay), logo, titolo/sottotitolo,
  *              card cliente/cantiere, totale in evidenza.
  *   2. Presentazione impresa — "Chi siamo", esigenze, soluzione, USP, testimonianze.
- *   3+. Computo per capitoli — tabella (descrizione, UdM, qty, prezzo, importo) con
+ *   3. Foto e render — griglia con didascalie (prova visiva, PRIMA del prezzo).
+ *   4+. Computo per capitoli — tabella (descrizione, UdM, qty, prezzo, importo) con
  *              subtotale per capitolo; margini per voce/capitolo SOLO se show_margine.
  *   N. Riepilogo economico — imponibile, sconto, IVA, totale, detrazione, margine.
- *   N. Foto e render — griglia con didascalie.
  *   N. Cronoprogramma — fasi con durata (se show_cronoprogramma).
  *   N. Condizioni e contatti — pagamenti, validità, recapiti azienda.
  *
@@ -21,9 +21,10 @@
  * EdiliziaInCloud / nome azienda. NESSUN claim su server UE/Italia/Europa.
  */
 import * as React from "react";
+import { ChiusuraVendita } from "@/components/preventivi/ChiusuraVenditaPdf";
 import {
   Document, Page, Text, View, StyleSheet, Image, Svg, Rect, Defs,
-  LinearGradient, Stop, Font,
+  LinearGradient, RadialGradient, Stop, Font, Path, Circle, G,
 } from "@react-pdf/renderer";
 import { formatCurrency } from "@/lib/formatters";
 import type { IdrPdfEnriched, IdrPdfCapitolo, IdrPdfTotali } from "@/hooks/useTermoidraulicoPDF";
@@ -188,8 +189,12 @@ function makeStyles(C: Palette) {
       backgroundColor: C.secondary,
       alignItems: "center", justifyContent: "center",
     },
+    coverEyebrow: {
+      fontSize: 11, fontWeight: 700, color: C.white,
+      letterSpacing: 1.4, textTransform: "uppercase" as const, marginBottom: 12,
+    },
     coverTitle: { fontSize: 30, fontWeight: 700, color: C.white, lineHeight: 1.12 },
-    coverSubtitle: { fontSize: 13, color: hexToTint(C.secondary, 0.2), marginTop: 8 },
+    coverSubtitle: { fontSize: 13, color: hexToTint(C.secondary, 0.2), marginTop: 8, lineHeight: 1.5 },
     coverCard: {
       backgroundColor: "rgba(255,255,255,0.08)",
       borderRadius: 10,
@@ -552,6 +557,130 @@ function formatPct(v: number): string {
   return `${Number.isInteger(n) ? n : n.toFixed(1)}%`;
 }
 
+// ─── Decorazione SVG cover (parità Serramenti — CoverDecorationSvg) ───────────
+// 4 varianti (square/circle/line/pattern) + none. Disegnata col colore del TESTO
+// cover così armonizza sempre col fondo. Identica al render di SerramentoPDF.
+function CoverDecorationSvg({
+  color,
+  variant = "square",
+}: {
+  color: string;
+  variant?: "square" | "circle" | "line" | "pattern" | "none";
+}) {
+  if (variant === "none") return null;
+  const svgProps = { viewBox: "0 0 180 180", style: { width: 180, height: 180 } as never };
+
+  if (variant === "circle") {
+    return (
+      <Svg {...svgProps}>
+        <Circle cx={90} cy={90} r={80} stroke={color} strokeWidth={3} fill="none" opacity={0.7} />
+        <Circle cx={90} cy={90} r={56} stroke={color} strokeWidth={1.5} fill="none" opacity={0.4} />
+        <Circle cx={90} cy={90} r={32} stroke={color} strokeWidth={1} fill="none" opacity={0.25} />
+      </Svg>
+    );
+  }
+
+  if (variant === "line") {
+    return (
+      <Svg {...svgProps}>
+        <Path d="M 90 10 L 90 170" stroke={color} strokeWidth={2.5} opacity={0.7} />
+        <Path d="M 70 40 L 110 40" stroke={color} strokeWidth={1.5} opacity={0.5} />
+        <Path d="M 70 140 L 110 140" stroke={color} strokeWidth={1.5} opacity={0.5} />
+      </Svg>
+    );
+  }
+
+  if (variant === "pattern") {
+    const dots: React.ReactElement[] = [];
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        dots.push(<Circle key={`${r}-${c}`} cx={30 + c * 30} cy={30 + r * 30} r={3} fill={color} opacity={0.45} />);
+      }
+    }
+    return <Svg {...svgProps}><G>{dots}</G></Svg>;
+  }
+
+  // variant === "square" (default — finestra/quadro stilizzato)
+  return (
+    <Svg {...svgProps}>
+      <G opacity={0.7}>
+        <Rect x={20} y={20} width={140} height={140} rx={6} stroke={color} strokeWidth={3} fill="none" />
+        <Path d="M 90 25 L 90 155" stroke={color} strokeWidth={2} />
+        <Path d="M 25 90 L 155 90" stroke={color} strokeWidth={2} />
+        <Circle cx={84} cy={90} r={3} fill={color} />
+        <Path d="M 35 35 L 55 35 L 35 55 Z" fill={color} opacity={0.25} />
+        <Path d="M 95 95 L 115 95 L 95 115 Z" fill={color} opacity={0.25} />
+      </G>
+      <G opacity={0.3}>
+        <Path d="M 0 90 L 18 90" stroke={color} strokeWidth={1.5} />
+        <Path d="M 162 90 L 180 90" stroke={color} strokeWidth={1.5} />
+        <Path d="M 90 0 L 90 18" stroke={color} strokeWidth={1.5} />
+        <Path d="M 90 162 L 90 180" stroke={color} strokeWidth={1.5} />
+      </G>
+    </Svg>
+  );
+}
+
+/** Layer stile cover (pdf_cover_*) letto dalla riga template. La tabella
+ *  idr_template_pdf NON è nei types generati → leggiamo da una vista grezza con
+ *  cast. Default coerenti con sr_template_pdf / SerramentoPDF. */
+function readCoverStyleFromTemplate(t: IdrTemplatePdf) {
+  const r = t as unknown as Record<string, unknown>;
+  const str = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
+  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const bool = (v: unknown): boolean | null => (typeof v === "boolean" ? v : null);
+
+  const overlayStyle = ((): "flat" | "gradient" | "gradient_diag" | "vignette" => {
+    const v = str(r.pdf_cover_overlay_style);
+    return v === "gradient" || v === "gradient_diag" || v === "vignette" ? v : "flat";
+  })();
+  const logoPosition = ((): "top_left" | "top_right" | "top_center" | "hidden" => {
+    // Fallback al campo legacy cover_logo_position se pdf_cover_* assente.
+    const v = str(r.pdf_cover_logo_position) ?? str(r.cover_logo_position);
+    return v === "top_right" || v === "top_center" || v === "hidden" ? v : "top_left";
+  })();
+  const textVertical = ((): "top" | "center" | "bottom" => {
+    const v = str(r.pdf_cover_text_vertical);
+    return v === "top" || v === "center" ? v : "bottom";
+  })();
+  const decorationStyle = ((): "square" | "circle" | "line" | "pattern" | "none" => {
+    const v = str(r.pdf_cover_decoration_style);
+    return v === "circle" || v === "line" || v === "pattern" || v === "none" ? v : "square";
+  })();
+  const textAlign = ((): "left" | "center" => {
+    const v = str(r.pdf_cover_text_align) ?? str(r.cover_text_align);
+    return v === "center" ? "center" : "left";
+  })();
+
+  // overlay opacity 0–100 (smallint). Fallback al legacy cover_overlay_opacity (0–1).
+  const overlayOpacityRaw = num(r.pdf_cover_overlay_opacity);
+  const legacyOverlay = num(r.cover_overlay_opacity);
+  const overlayOpacity =
+    overlayOpacityRaw != null
+      ? Math.max(0, Math.min(100, overlayOpacityRaw)) / 100
+      : legacyOverlay != null
+        ? Math.max(0, Math.min(1, legacyOverlay))
+        : 0.55;
+
+  return {
+    bgColor: str(r.pdf_cover_bg_color),
+    imageUrl: str(r.pdf_cover_image_url) ?? str(r.cover_image_url),
+    overlayOpacity,
+    overlayStyle,
+    textColor: str(r.pdf_cover_text_color) ?? str(r.cover_text_color) ?? "#FFFFFF",
+    textAlign,
+    textVertical,
+    eyebrowSize: Math.max(8, Math.min(20, num(r.pdf_cover_eyebrow_size) ?? 11)),
+    titleSize: Math.max(22, Math.min(64, num(r.pdf_cover_title_size) ?? num(r.cover_title_size) ?? 30)),
+    subtitleSize: Math.max(9, Math.min(22, num(r.pdf_cover_subtitle_size) ?? 13)),
+    showDecoration: bool(r.pdf_cover_show_decoration) !== false,
+    decorationStyle,
+    showClientCard: bool(r.pdf_cover_show_client_card) !== false,
+    logoPosition,
+    logoScale: Math.max(60, Math.min(160, num(r.pdf_cover_logo_size) ?? 100)) / 100,
+  };
+}
+
 // ─── Documento ───────────────────────────────────────────────────────────────
 export function TermoidraulicoPDF(props: IdrPdfEnriched) {
   const { progetto: p, template: t, company, capitoli, totali, media, computoOptions } = props;
@@ -582,13 +711,20 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
   const cantiere = cantiereOf(p);
   const coverTitle = (t.cover_title ?? "").trim() || "Preventivo di termoidraulico";
   const coverSubtitle = (t.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano";
-  // Controlli copertina (builder): colore testo, posizione logo, opacità velo.
-  const coverTextColor = (t.cover_text_color ?? "").trim() || "#FFFFFF";
-  const coverLogoPosition = t.cover_logo_position ?? "top_left";
+  // Layer stile copertina (pdf_cover_* — parità Serramenti): immagine + overlay
+  // style + posizione testo verticale + font + decorazione + logo + card cliente.
+  // Fallback automatico ai campi legacy cover_* dove il pdf_cover_* è assente.
+  const cover = readCoverStyleFromTemplate(t);
+  const coverTextColor = cover.textColor;
   const coverLogoJustify =
-    coverLogoPosition === "top_right" ? "flex-end" :
-    coverLogoPosition === "top_center" ? "center" : "flex-start";
-  const coverOverlayOpacity = typeof t.cover_overlay_opacity === "number" ? t.cover_overlay_opacity : 0.4;
+    cover.logoPosition === "top_right" ? "flex-end" :
+    cover.logoPosition === "top_center" ? "center" : "flex-start";
+  // Offset verticale del blocco testo cover (top/center/bottom), in pt.
+  const coverContentTop =
+    cover.textVertical === "top" ? (cover.logoPosition === "hidden" ? 96 : 150)
+    : cover.textVertical === "center" ? 300
+    : 300;
+  const coverTextAlign = cover.textAlign;
 
   const esigenze = t.esigenze ?? [];
   const soluzione = t.soluzione ?? [];
@@ -632,37 +768,82 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
       author={companyName}
       subject={`Preventivo termoidraulico per ${cliente}`}
     >
-      {/* ─── PAGINA 1 — COVER ─────────────────────────────────────────────── */}
-      <Page size="A4" style={styles.cover}>
-        {t.cover_image_url && (
+      {/* ─── PAGINA 1 — COVER ─────────────────────────────────────────────────
+          Layer assoluti su canvas A4 fisso (595×841pt). Stile guidato dai
+          pdf_cover_* (parità Serramenti): bg/immagine + overlay style + posizione
+          testo + font + decorazione SVG + logo + card cliente. */}
+      <Page
+        size="A4"
+        style={[styles.cover, cover.bgColor ? { backgroundColor: cover.bgColor } : undefined, { color: coverTextColor }]}
+      >
+        {cover.imageUrl && (
           <Image
-            src={t.cover_image_url}
+            src={cover.imageUrl}
             style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, objectFit: "cover" }}
           />
         )}
-        {/* Velo scuro configurabile sull'immagine (builder: cover_overlay_opacity) */}
-        {t.cover_image_url && (
-          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, backgroundColor: "#000", opacity: coverOverlayOpacity }} />
+        {/* Overlay sopra l'immagine — 4 stili (flat/gradient/gradient_diag/vignette).
+            Intensità = cover.overlayOpacity. Identico a SerramentoPDF. */}
+        {cover.imageUrl && cover.overlayStyle === "flat" && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, backgroundColor: "#000000", opacity: cover.overlayOpacity }} />
         )}
-        {/* Overlay scuro per leggibilità (gradiente verticale) */}
-        <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
-          <Svg width={595} height={841} viewBox="0 0 595 841">
-            <Defs>
-              <LinearGradient id="idr-cover-grad" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.55 : 1} />
-                <Stop offset="0.6" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.72 : 1} />
-                <Stop offset="1" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.92 : 1} />
-              </LinearGradient>
-            </Defs>
-            <Rect x={0} y={0} width={595} height={841} fill="url(#idr-cover-grad)" />
-          </Svg>
-        </View>
+        {cover.imageUrl && cover.overlayStyle !== "flat" && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
+            <Svg width={595} height={841} viewBox="0 0 595 841">
+              <Defs>
+                {cover.overlayStyle === "gradient" && (
+                  <LinearGradient id="idr-cover-overlay" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={cover.overlayOpacity * 0.15} />
+                    <Stop offset="0.55" stopColor="#000000" stopOpacity={cover.overlayOpacity * 0.55} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={cover.overlayOpacity} />
+                  </LinearGradient>
+                )}
+                {cover.overlayStyle === "gradient_diag" && (
+                  <LinearGradient id="idr-cover-overlay" x1="0" y1="0" x2="1" y2="1">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={cover.overlayOpacity * 0.2} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={cover.overlayOpacity} />
+                  </LinearGradient>
+                )}
+                {cover.overlayStyle === "vignette" && (
+                  // @react-pdf RadialGradient supporta cx/cy/r/fx/fy (NON rx/ry).
+                  <RadialGradient id="idr-cover-overlay" cx="0.5" cy="0.5" r="0.85" fx="0.5" fy="0.5">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={cover.overlayOpacity * 0.1} />
+                    <Stop offset="0.7" stopColor="#000000" stopOpacity={cover.overlayOpacity * 0.5} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={cover.overlayOpacity * 0.95} />
+                  </RadialGradient>
+                )}
+              </Defs>
+              <Rect x={0} y={0} width={595} height={841} fill="url(#idr-cover-overlay)" />
+            </Svg>
+          </View>
+        )}
+        {/* Senza immagine: gradiente sottile sul colore di sfondo per dare profondità. */}
+        {!cover.imageUrl && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
+            <Svg width={595} height={841} viewBox="0 0 595 841">
+              <Defs>
+                <LinearGradient id="idr-cover-grad" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={cover.bgColor ?? C.coverBg} stopOpacity={0} />
+                  <Stop offset="1" stopColor="#000000" stopOpacity={0.18} />
+                </LinearGradient>
+              </Defs>
+              <Rect x={0} y={0} width={595} height={841} fill="url(#idr-cover-grad)" />
+            </Svg>
+          </View>
+        )}
 
-        {coverLogoPosition !== "hidden" && (
+        {/* Decoro SVG alto-destra (toggle) — colore = testo cover. */}
+        {cover.showDecoration && (
+          <View style={{ position: "absolute", top: 50, right: 44, width: 120, height: 120, opacity: 0.8 }}>
+            <CoverDecorationSvg color={coverTextColor} variant={cover.decorationStyle} />
+          </View>
+        )}
+
+        {cover.logoPosition !== "hidden" && (
           <View style={{ position: "absolute", top: 48, left: 44, right: 44 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: coverLogoJustify }}>
               {logoUrl ? (
-                <Image src={logoUrl} style={styles.coverLogo} />
+                <Image src={logoUrl} style={[styles.coverLogo, { maxWidth: 180 * cover.logoScale, height: 52 * cover.logoScale }]} />
               ) : (
                 <View style={styles.coverLogoCircle}>
                   <Text style={{ color: C.white, fontSize: 24, fontWeight: 700 }}>
@@ -674,20 +855,26 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
           </View>
         )}
 
-        <View style={{ position: "absolute", top: 300, left: 44, right: 44 }}>
-          <Text style={[styles.coverTitle, { color: coverTextColor, fontSize: t.cover_title_size ?? 30, textAlign: t.cover_text_align ?? "left" }]}>{coverTitle}</Text>
-          <Text style={[styles.coverSubtitle, { color: coverTextColor, textAlign: t.cover_text_align ?? "left" }]}>{coverSubtitle}</Text>
+        {/* Blocco testo: eyebrow + titolo + sottotitolo + (opz.) card cliente.
+            Posizione verticale guidata da coverContentTop (top/center/bottom). */}
+        <View style={{ position: "absolute", top: coverContentTop, left: 44, right: 44, alignItems: coverTextAlign === "center" ? "center" : "flex-start" }}>
+          <Text style={[styles.coverEyebrow, { color: coverTextColor, fontSize: cover.eyebrowSize, textAlign: coverTextAlign }]}>
+            LA TUA PROPOSTA PERSONALIZZATA
+          </Text>
+          <Text style={[styles.coverTitle, { color: coverTextColor, fontSize: cover.titleSize, textAlign: coverTextAlign }]}>{coverTitle}</Text>
+          <Text style={[styles.coverSubtitle, { color: coverTextColor, fontSize: cover.subtitleSize, textAlign: coverTextAlign }]}>{coverSubtitle}</Text>
+          {cover.showClientCard && (
+            <View style={[styles.coverCard, { marginTop: 22, alignSelf: "stretch" }]}>
+              <Text style={styles.coverCardLabel}>Preparato per</Text>
+              <Text style={[styles.coverCardValue, { color: coverTextColor }]}>{cliente}</Text>
+              {cantiere ? <Text style={[styles.coverCardLabel, { marginTop: 4 }]}>{cantiere}</Text> : null}
+            </View>
+          )}
         </View>
 
+        {/* Footer cover: riferimento + data + investimento totale (modulo idr). */}
         <View style={{ position: "absolute", bottom: 70, left: 44, right: 44 }}>
           <View style={{ flexDirection: "row", marginHorizontal: -6 }}>
-            <View style={{ flex: 1, paddingHorizontal: 6 }}>
-              <View style={styles.coverCard}>
-                <Text style={styles.coverCardLabel}>Preparato per</Text>
-                <Text style={styles.coverCardValue}>{cliente}</Text>
-                {cantiere ? <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>{cantiere}</Text> : null}
-              </View>
-            </View>
             <View style={{ flex: 1, paddingHorizontal: 6 }}>
               <View style={styles.coverCard}>
                 <Text style={styles.coverCardLabel}>Riferimento</Text>
@@ -695,10 +882,6 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
                 <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>Data: {dateStr()}</Text>
               </View>
             </View>
-          </View>
-          <View style={styles.coverTotalBox}>
-            <Text style={styles.coverTotalLabel}>Investimento totale (IVA inclusa)</Text>
-            <Text style={styles.coverTotalValue}>{formatCurrency(totali.totale)}</Text>
           </View>
         </View>
       </Page>
@@ -770,7 +953,25 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
         </Page>
       )}
 
-      {/* ─── COMPUTO PER CAPITOLI + RIEPILOGO ─────────────────────────────── */}
+      {/* ─── FOTO E RENDER (prima del prezzo: la prova visiva precede il costo) ─ */}
+      {media.length > 0 && (
+        <Page size="A4" style={styles.page}>
+          {header}
+          <Text style={styles.sectionTitle}>Foto e render del progetto</Text>
+          <Text style={styles.sectionSub}>Stato attuale, lavori simili e rendering dell'intervento.</Text>
+          <View style={styles.photoGrid}>
+            {media.map((m) => (
+              <View key={m.id} style={styles.photoItem} wrap={false}>
+                <Image src={m.url} style={styles.photoImg} />
+                {m.caption ? <Text style={styles.photoCaption}>{m.caption}</Text> : null}
+              </View>
+            ))}
+          </View>
+          {footer}
+        </Page>
+      )}
+
+      {/* ─── COMPUTO PER CAPITOLI + RIEPILOGO (dopo la prova visiva) ───── */}
       <Page size="A4" style={styles.page}>
         {header}
         <Text style={styles.sectionTitle}>Computo metrico estimativo</Text>
@@ -817,24 +1018,6 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
         </View>
         {footer}
       </Page>
-
-      {/* ─── FOTO E RENDER ────────────────────────────────────────────────── */}
-      {media.length > 0 && (
-        <Page size="A4" style={styles.page}>
-          {header}
-          <Text style={styles.sectionTitle}>Foto e render del progetto</Text>
-          <Text style={styles.sectionSub}>Stato attuale, lavori simili e rendering dell'intervento.</Text>
-          <View style={styles.photoGrid}>
-            {media.map((m) => (
-              <View key={m.id} style={styles.photoItem} wrap={false}>
-                <Image src={m.url} style={styles.photoImg} />
-                {m.caption ? <Text style={styles.photoCaption}>{m.caption}</Text> : null}
-              </View>
-            ))}
-          </View>
-          {footer}
-        </Page>
-      )}
 
       {/* ─── CRONOPROGRAMMA + CONDIZIONI + CONTATTI ───────────────────────── */}
       <Page size="A4" style={styles.page}>
@@ -924,6 +1107,7 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
             </View>
           ) : null}
         </View>
+        <ChiusuraVendita c={C} companyName={companyName} validityText={t.validity_text} />
         {footer}
       </Page>
     </Document>

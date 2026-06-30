@@ -14,20 +14,13 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, Settings2, Info, Library, HardHat, ChevronDown } from "lucide-react";
+import { Loader2, CheckCircle2, Settings2, Info, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Collapsible, CollapsibleContent, CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import { ImportaPrezzarioDialog } from "@/components/piscine/ImportaPrezzarioDialog";
-import { ManodoperaLookup } from "@/components/piscine/ManodoperaLookup";
-import { REGIONI_ITALIANE } from "@/lib/prezzario/tipi";
+import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
 import { useSaveComputo, useEffectiveCompanyId } from "@/hooks/usePiscineProgetto";
 import { useListinoVociSearch } from "@/hooks/usePiscineListino";
-import type { PisComputoVoce } from "@/types/piscine";
+import type { PisComputoVoce, PisUnitaMisura } from "@/types/piscine";
+import type { ComputoVoceLocal } from "@/types/computo";
 import ComputoEditor from "@/components/piscine/ComputoEditor/ComputoEditor";
 
 interface Props {
@@ -48,10 +41,7 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
   const [computo, setComputo] = useState<PisComputoVoce[]>(() => initialComputo);
   const [dirty, setDirty] = useState(false);
   const [savedOnce, setSavedOnce] = useState(false);
-  const [prezzarioOpen, setPrezzarioOpen] = useState(false);
-  // Lookup tariffe manodopera (read-only, non invasivo): regione + pannello collassabile.
-  const [manodoperaOpen, setManodoperaOpen] = useState(false);
-  const [manodoperaRegione, setManodoperaRegione] = useState<string | undefined>(undefined);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Hint listino vuoto: una ricerca "" restituisce fino a 40 voci → se 0, vuoto.
   const listino = useListinoVociSearch("");
@@ -60,6 +50,38 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
   const handleChange = (next: PisComputoVoce[]) => {
     setComputo(next);
     setDirty(true);
+  };
+
+  // Import AI: le voci estratte (già riviste nel modale) → PisComputoVoce, accodate.
+  const handleImportVoci = (estratte: ComputoVoceLocal[]) => {
+    if (estratte.length === 0) return;
+    const base = computo.length;
+    const nuove: PisComputoVoce[] = estratte.map((v, i) => ({
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `import-${base + i}-${v.id}`,
+      progetto_id: progettoId,
+      company_id: companyId ?? "",
+      capitolo_nome: v.capitolo_nome?.trim() || "Generale",
+      descrizione: (v.descrizione_breve || v.descrizione_estesa || "").trim(),
+      unita_misura: coerceUnita(v.unita_misura),
+      quantita: Number(v.quantita) || 0,
+      prezzo_unitario: Number(v.prezzo_unitario_computo) || 0,
+      costo_materiali: 0,
+      costo_manodopera: 0,
+      sconto_pct: 0,
+      importo: 0,
+      margine_eur: 0,
+      margine_pct: 0,
+      listino_voce_id: null,
+      fonte: v.codice_prezzario?.trim() || null,
+      ordine: base + i,
+    }));
+    handleChange([...computo, ...nuove]);
+    toast.success(`${nuove.length} voci importate nel computo`, {
+      description: "Verifica quantità e prezzi prima di salvare.",
+    });
   };
 
   // Mappa lo stato locale nel payload del save (riusato da autosave e flush).
@@ -184,66 +206,22 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
         </div>
       )}
 
-      {/* Importa da prezzario regionale → popola il listino aziendale */}
+      {/* Import computo da PDF con AI */}
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
           variant="outline"
           size="sm"
           className="h-8 gap-1.5 text-xs"
-          onClick={() => setPrezzarioOpen(true)}
+          disabled={!companyId}
+          onClick={() => setImportOpen(true)}
         >
-          <Library className="h-3.5 w-3.5" /> Importa da prezzario regionale
+          <Sparkles className="h-3.5 w-3.5 text-orange-500" /> Importa computo da PDF (AI)
         </Button>
         <span className="text-[11px] text-muted-foreground">
-          Aggiungi voci ufficiali al listino, poi richiamale qui nel computo.
+          Carica un computo esistente: l'AI estrae le voci, le rivedi e le aggiungi.
         </span>
       </div>
-
-      {/* Tariffe manodopera di riferimento (lookup read-only, non invasivo) */}
-      <Collapsible
-        open={manodoperaOpen}
-        onOpenChange={setManodoperaOpen}
-        className="rounded-xl border border-slate-200 bg-slate-50/40"
-      >
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
-          >
-            <span className="flex items-center gap-2 text-xs font-medium text-slate-700">
-              <HardHat className="h-3.5 w-3.5 text-muted-foreground" />
-              Tariffe manodopera di riferimento
-            </span>
-            <ChevronDown
-              className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${manodoperaOpen ? "rotate-180" : ""}`}
-            />
-          </button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-3 px-3 pb-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={manodoperaRegione}
-              onValueChange={(v) => setManodoperaRegione(v)}
-            >
-              <SelectTrigger className="h-8 w-[220px] text-xs">
-                <SelectValue placeholder="Seleziona una regione…" />
-              </SelectTrigger>
-              <SelectContent>
-                {REGIONI_ITALIANE.map((r) => (
-                  <SelectItem key={r} value={r} className="text-xs">
-                    {r}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span className="text-[11px] text-muted-foreground">
-              Costo orario ufficiale per qualifica (solo consultazione).
-            </span>
-          </div>
-          <ManodoperaLookup regione={manodoperaRegione} />
-        </CollapsibleContent>
-      </Collapsible>
 
       {/* Editor */}
       {companyId ? (
@@ -261,7 +239,24 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
         </div>
       )}
 
-      <ImportaPrezzarioDialog open={prezzarioOpen} onOpenChange={setPrezzarioOpen} />
+      <ComputoUploadModal
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        intent="computo"
+        onConfirmVoci={handleImportVoci}
+        confirmLabel="Aggiungi al computo"
+      />
     </div>
   );
+}
+
+// Coercizione dell'unità di misura estratta dall'AI (testo libero) → enum PisUnitaMisura.
+function coerceUnita(u: string | null | undefined): PisUnitaMisura {
+  const s = (u ?? "").trim().toLowerCase();
+  if (["mq", "m2", "m²", "m^2", "metri quadri", "metri quadrati"].includes(s)) return "mq";
+  if (["ml", "m", "mt", "m.l.", "metri", "metro", "metri lineari"].includes(s)) return "ml";
+  if (["kg", "kg.", "chilo", "chili", "chilogrammi"].includes(s)) return "kg";
+  if (["h", "ora", "ore", "h.", "ora/uomo"].includes(s)) return "h";
+  if (["corpo", "a corpo", "acorpo", "a-corpo"].includes(s)) return "a corpo";
+  return "cad";
 }

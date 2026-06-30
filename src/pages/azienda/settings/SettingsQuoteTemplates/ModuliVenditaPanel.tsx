@@ -9,12 +9,12 @@
 import React, { lazy, Suspense, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft, Bath, Eye, Hammer, Home, Loader2, RectangleVertical, ShoppingBag, Sun, Wind, Zap, Flame, LayoutGrid, Waves,
+  ArrowLeft, Bath, Hammer, Home, Loader2, RectangleVertical, ShoppingBag, Sun, Wind, Zap, Flame, LayoutGrid, Waves,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { useModuliVendita, useModuliVisibilita } from "@/lib/moduli-vendita";
+import { useModuliVisibilita } from "@/lib/moduli-vendita";
 import { buildQuoteTemplatesModuleParams } from "@/lib/settingsQuoteTemplatesRoute";
 
 // PERF: lazy-load editor pesanti (Serramenti ~150KB, Fotovoltaico ~120KB)
@@ -182,72 +182,9 @@ const MODULI_VENDITA: ModuloVendita[] = [
   },
 ];
 
-/**
- * Sezione "Moduli preventivo attivi": l'azienda sceglie quali preventivatori
- * (a cui ha già accesso) mostrare alla propria squadra. È una preferenza di
- * VISIBILITÀ per-azienda — non tocca l'entitlement (gestito dal super admin).
- */
-function ModuliVisibilitaSection() {
-  const { moduli } = useModuliVendita();
-  const { isModuloVisibile, setModuloVisibile, isSaving } = useModuliVisibilita();
-
-  // Solo i moduli sbloccati per l'azienda: ha senso mostrare/nascondere questi.
-  const sbloccati = moduli.filter((m) => m.stato === "attivo");
-  if (sbloccati.length === 0) return null;
-
-  return (
-    <Card>
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-start gap-3">
-          <div className="h-9 w-9 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
-            <Eye className="h-5 w-5 text-emerald-600" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-base font-bold leading-tight">Moduli preventivo attivi</h2>
-            <p className="text-xs text-muted-foreground">
-              Scegli quali preventivatori mostrare alla tua squadra. Quelli disattivati
-              spariscono dal menu <strong>“Nuovo preventivo”</strong> e dal catalogo, ma puoi
-              riattivarli quando vuoi. Il preventivo “Classico” è sempre disponibile.
-            </p>
-          </div>
-        </div>
-        <div className="divide-y rounded-lg border">
-          {sbloccati.map((m) => {
-            const Icon = m.modulo.icon;
-            const visibile = isModuloVisibile(m.modulo.slug);
-            return (
-              <div key={m.modulo.slug} className="flex items-center gap-3 px-3 py-2.5">
-                <div
-                  className={
-                    "h-8 w-8 rounded-md flex items-center justify-center shrink-0 " +
-                    (visibile ? "bg-orange-100 text-orange-600" : "bg-slate-100 text-slate-400")
-                  }
-                >
-                  <Icon className="h-4 w-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={"text-sm font-semibold " + (visibile ? "" : "text-muted-foreground")}>
-                    {m.modulo.nome}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground truncate">{m.modulo.tagline}</p>
-                </div>
-                <span className="text-[11px] text-muted-foreground w-16 text-right shrink-0">
-                  {visibile ? "Attivo" : "Nascosto"}
-                </span>
-                <Switch
-                  checked={visibile}
-                  disabled={isSaving}
-                  onCheckedChange={(v) => setModuloVisibile(m.modulo.slug, v)}
-                  aria-label={`${visibile ? "Nascondi" : "Mostra"} il modulo ${m.modulo.nome}`}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+// La vecchia sezione separata "Moduli preventivo attivi" è stata FUSA nella
+// griglia dei moduli (ModuliVenditaPanel): ogni card ha ora il proprio
+// interruttore on/off, eliminando la lista ridondante in cima.
 
 export function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }) {
   // Se arriva via deeplink un modulo valido E available, lo pre-seleziono.
@@ -266,6 +203,7 @@ export function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }
     setLastInitial(initialFromUrl);
     setActiveSlug(initialFromUrl);
   }
+  const { isModuloVisibile, setModuloVisibile, isSaving } = useModuliVisibilita();
   const active = activeSlug ? MODULI_VENDITA.find((m) => m.slug === activeSlug) : null;
 
   // Sincronizzo l'URL quando l'utente cambia modulo (così back/forward + share funzionano)
@@ -310,66 +248,73 @@ export function ModuliVenditaPanel({ initialModulo }: { initialModulo?: string }
       <div className="space-y-4">
         {header}
 
-        {/* Attivazione/visibilità moduli per-azienda */}
-        <ModuliVisibilitaSection />
-
-        {/* Personalizzazione template PDF per-modulo */}
+        {/* Moduli: attiva/disattiva (toggle per-card) + apri l'editor del PDF */}
         <div className="pt-1">
-          <h2 className="text-base font-bold leading-tight">Template PDF dei moduli</h2>
+          <h2 className="text-base font-bold leading-tight">Moduli preventivo</h2>
           <p className="text-xs text-muted-foreground">
-            Scegli un modulo per configurarne il PDF (logo, copertina, recensioni, USP, cronoprogramma).
+            Attiva/disattiva ogni modulo per la tua squadra con l'interruttore, e clicca <strong>Apri</strong>{" "}
+            per configurarne il PDF (logo, copertina, recensioni, USP, cronoprogramma). I moduli disattivati
+            spariscono dal menu “Nuovo preventivo”; il “Classico” è sempre disponibile.
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {MODULI_VENDITA.map((m) => {
             const Icon = m.icon;
             const isDisabled = !m.available;
+            const visibile = isModuloVisibile(m.slug);
             return (
-              <button
+              <div
                 key={m.slug}
-                type="button"
-                disabled={isDisabled}
-                onClick={() => !isDisabled && handleSelectModulo(m.slug)}
                 className={
-                  "text-left rounded-xl border-2 p-4 transition-all group focus:outline-none " +
+                  "rounded-xl border-2 p-4 transition-all " +
                   (isDisabled
-                    ? "bg-slate-50 border-slate-200 cursor-not-allowed opacity-60"
-                    : "bg-white border-slate-200 hover:border-orange-300 hover:bg-orange-50/30 hover:shadow-md focus:ring-2 focus:ring-orange-400 cursor-pointer")
+                    ? "bg-slate-50 border-slate-200 opacity-60"
+                    : visibile
+                      ? "bg-white border-slate-200"
+                      : "bg-slate-50/60 border-slate-200")
                 }
               >
                 <div className="flex items-start gap-3">
                   <div className={
                     "h-11 w-11 rounded-lg flex items-center justify-center shrink-0 " +
-                    (isDisabled ? "bg-slate-200" : "bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm")
+                    (isDisabled || !visibile ? "bg-slate-200" : "bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-sm")
                   }>
-                    <Icon className={isDisabled ? "h-5 w-5 text-slate-400" : "h-5 w-5 text-white"} />
+                    <Icon className={isDisabled || !visibile ? "h-5 w-5 text-slate-400" : "h-5 w-5 text-white"} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h3 className="font-bold text-slate-900">{m.nome}</h3>
-                      {isDisabled && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">
-                          In arrivo
-                        </span>
-                      )}
-                      {!isDisabled && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">
-                          Disponibile
-                        </span>
-                      )}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap min-w-0">
+                        <h3 className={"font-bold " + (!isDisabled && visibile ? "text-slate-900" : "text-slate-500")}>{m.nome}</h3>
+                        {isDisabled ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">In arrivo</span>
+                        ) : (
+                          <span className={"text-[10px] px-2 py-0.5 rounded-full font-medium " + (visibile ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-500")}>
+                            {visibile ? "Attivo" : "Nascosto"}
+                          </span>
+                        )}
+                      </div>
+                      {/* on/off per-modulo: visibilità del preventivatore per la squadra */}
+                      <Switch
+                        checked={visibile}
+                        disabled={isDisabled || isSaving}
+                        onCheckedChange={(v) => setModuloVisibile(m.slug, v)}
+                        aria-label={`${visibile ? "Disattiva" : "Attiva"} il modulo ${m.nome}`}
+                      />
                     </div>
                     <p className="text-xs text-slate-600 leading-snug">{m.description}</p>
                   </div>
                 </div>
                 {!isDisabled && (
-                  <div className="mt-3 pt-3 border-t flex items-center justify-between text-xs">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectModulo(m.slug)}
+                    className="mt-3 pt-3 border-t w-full flex items-center justify-between text-xs group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 rounded"
+                  >
                     <span className="text-slate-500">Configura logo, recensioni, USP…</span>
-                    <span className="font-semibold text-orange-700 group-hover:translate-x-0.5 transition-transform">
-                      Apri →
-                    </span>
-                  </div>
+                    <span className="font-semibold text-orange-700 group-hover:translate-x-0.5 transition-transform">Apri →</span>
+                  </button>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>

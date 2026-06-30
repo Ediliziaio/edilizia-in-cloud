@@ -6,10 +6,10 @@
  *   1. Cover — hero brandizzato (immagine + overlay), logo, titolo/sottotitolo,
  *              card cliente/cantiere, totale in evidenza.
  *   2. Presentazione impresa — "Chi siamo", esigenze, soluzione, USP, testimonianze.
- *   3+. Computo per capitoli — tabella (descrizione, UdM, qty, prezzo, importo) con
+ *   3. Foto e render — griglia con didascalie (prova visiva, PRIMA del prezzo).
+ *   4+. Computo per capitoli — tabella (descrizione, UdM, qty, prezzo, importo) con
  *              subtotale per capitolo; margini per voce/capitolo SOLO se show_margine.
  *   N. Riepilogo economico — imponibile, sconto, IVA, totale, detrazione, margine.
- *   N. Foto e render — griglia con didascalie.
  *   N. Cronoprogramma — fasi con durata (se show_cronoprogramma).
  *   N. Condizioni e contatti — pagamenti, validità, recapiti azienda.
  *
@@ -21,9 +21,10 @@
  * EdiliziaInCloud / nome azienda. NESSUN claim su server UE/Italia/Europa.
  */
 import * as React from "react";
+import { ChiusuraVendita } from "@/components/preventivi/ChiusuraVenditaPdf";
 import {
   Document, Page, Text, View, StyleSheet, Image, Svg, Rect, Defs,
-  LinearGradient, Stop, Font,
+  LinearGradient, RadialGradient, Stop, Path, Circle, G, Font,
 } from "@react-pdf/renderer";
 import { formatCurrency } from "@/lib/formatters";
 import type { ElePdfEnriched, ElePdfCapitolo, ElePdfTotali } from "@/hooks/useElettricoPDF";
@@ -83,6 +84,21 @@ function normalizeHexColor(value: unknown, fallback: string): string {
   const m6 = raw.match(/^#?([0-9a-fA-F]{6})$/);
   if (m6) return `#${m6[1]}`.toUpperCase();
   return fallback;
+}
+
+// Variante che ritorna null se il valore non è un hex valido (per i campi cover
+// opzionali tipo pdf_cover_bg_color: null ⇒ usa il default coverBg della palette).
+function normalizeHexColorOrNull(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const raw = value.trim();
+  const m3 = raw.match(/^#?([0-9a-fA-F]{3})$/);
+  if (m3) {
+    const [r, g, b] = m3[1].split("");
+    return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
+  }
+  const m6 = raw.match(/^#?([0-9a-fA-F]{6})$/);
+  if (m6) return `#${m6[1]}`.toUpperCase();
+  return null;
 }
 
 function hexToTint(hex: string, alpha: number): string {
@@ -182,11 +198,27 @@ function makeStyles(C: Palette) {
     },
     sectionSub: { fontSize: 8.5, color: C.gray500, marginBottom: 10 },
     // Cover
+    coverDecoSvg: {
+      position: "absolute",
+      top: 50,
+      right: 50,
+      width: 180,
+      height: 180,
+      opacity: 0.8,
+    },
     coverLogo: { maxWidth: 180, height: 52, objectFit: "contain" as const },
     coverLogoCircle: {
       width: 52, height: 52, borderRadius: 12,
       backgroundColor: C.secondary,
       alignItems: "center", justifyContent: "center",
+    },
+    coverEyebrow: {
+      fontSize: 10,
+      color: C.white,
+      fontWeight: 700,
+      letterSpacing: 1.4,
+      textTransform: "uppercase" as const,
+      marginBottom: 12,
     },
     coverTitle: { fontSize: 30, fontWeight: 700, color: C.white, lineHeight: 1.12 },
     coverSubtitle: { fontSize: 13, color: hexToTint(C.secondary, 0.2), marginTop: 8 },
@@ -354,6 +386,75 @@ function makeStyles(C: Palette) {
 }
 
 type Styles = ReturnType<typeof makeStyles>;
+
+// ─── SVG: Decoro cover (5 varianti, parità Serramenti) ─────────────────────────
+// Renderizza una decorazione 180×180pt in alto a destra della cover. La variant
+// 'square' è il default (finestra/quadro stilizzato a 4 settori); le altre sono
+// accenti minimal per cover moderne. Usa il colore del TESTO cover (armonizza
+// sempre col fondo, coerente con l'anteprima del template editor).
+function CoverDecorationSvg({
+  color,
+  variant = "square",
+}: {
+  color: string;
+  variant?: "square" | "circle" | "line" | "pattern" | "none";
+}) {
+  if (variant === "none") return null;
+
+  const svgProps = { viewBox: "0 0 180 180", style: { width: 180, height: 180 } as never };
+
+  if (variant === "circle") {
+    return (
+      <Svg {...svgProps}>
+        <Circle cx={90} cy={90} r={80} stroke={color} strokeWidth={3} fill="none" opacity={0.7} />
+        <Circle cx={90} cy={90} r={56} stroke={color} strokeWidth={1.5} fill="none" opacity={0.4} />
+        <Circle cx={90} cy={90} r={32} stroke={color} strokeWidth={1} fill="none" opacity={0.25} />
+      </Svg>
+    );
+  }
+
+  if (variant === "line") {
+    return (
+      <Svg {...svgProps}>
+        <Path d="M 90 10 L 90 170" stroke={color} strokeWidth={2.5} opacity={0.7} />
+        <Path d="M 70 40 L 110 40" stroke={color} strokeWidth={1.5} opacity={0.5} />
+        <Path d="M 70 140 L 110 140" stroke={color} strokeWidth={1.5} opacity={0.5} />
+      </Svg>
+    );
+  }
+
+  if (variant === "pattern") {
+    const dots = [];
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        dots.push(
+          <Circle key={`${r}-${c}`} cx={30 + c * 30} cy={30 + r * 30} r={3} fill={color} opacity={0.45} />,
+        );
+      }
+    }
+    return <Svg {...svgProps}><G>{dots}</G></Svg>;
+  }
+
+  // variant === "square" (default — quadro/finestra stilizzata a 4 settori)
+  return (
+    <Svg {...svgProps}>
+      <G opacity={0.7}>
+        <Rect x={20} y={20} width={140} height={140} rx={6} stroke={color} strokeWidth={3} fill="none" />
+        <Path d={`M 90 25 L 90 155`} stroke={color} strokeWidth={2} />
+        <Path d={`M 25 90 L 155 90`} stroke={color} strokeWidth={2} />
+        <Circle cx={84} cy={90} r={3} fill={color} />
+        <Path d={`M 35 35 L 55 35 L 35 55 Z`} fill={color} opacity={0.25} />
+        <Path d={`M 95 95 L 115 95 L 95 115 Z`} fill={color} opacity={0.25} />
+      </G>
+      <G opacity={0.3}>
+        <Path d="M 0 90 L 18 90" stroke={color} strokeWidth={1.5} />
+        <Path d="M 162 90 L 180 90" stroke={color} strokeWidth={1.5} />
+        <Path d="M 90 0 L 90 18" stroke={color} strokeWidth={1.5} />
+        <Path d="M 90 162 L 90 180" stroke={color} strokeWidth={1.5} />
+      </G>
+    </Svg>
+  );
+}
 
 // ─── Helpers di formato ──────────────────────────────────────────────────────
 const clienteNomeOf = (p: EleProgetto) =>
@@ -580,15 +681,86 @@ export function ElettricoPDF(props: ElePdfEnriched) {
   const logoUrl = t.logo_url ?? company?.logo_url ?? null;
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
-  const coverTitle = (t.cover_title ?? "").trim() || "Preventivo di elettrico";
-  const coverSubtitle = (t.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano";
-  // Controlli copertina (builder): colore testo, posizione logo, opacità velo.
-  const coverTextColor = (t.cover_text_color ?? "").trim() || "#FFFFFF";
-  const coverLogoPosition = t.cover_logo_position ?? "top_left";
+  // ─── Cover preset-aware (parità Serramenti) ───────────────────────────────
+  // I campi pdf_cover_* (migration `ele_template_pdf`) NON sono nel tipo
+  // `EleTemplatePdf`/tipi generati: li leggiamo via cast. Fallback ai vecchi
+  // campi flat cover_* per retrocompatibilità (template salvati prima del porting).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tpl = (t ?? {}) as any;
+  const coverTitle =
+    (typeof tpl.pdf_cover_hero === "string" && tpl.pdf_cover_hero.trim()) ||
+    (t.cover_title ?? "").trim() || "Preventivo di elettrico";
+  const coverSubtitle =
+    (typeof tpl.pdf_cover_subhero === "string" && tpl.pdf_cover_subhero.trim()) ||
+    (t.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano";
+  const coverEyebrow =
+    (typeof tpl.pdf_cover_eyebrow === "string" && tpl.pdf_cover_eyebrow.trim()) ||
+    "LA TUA PROPOSTA PERSONALIZZATA";
+  // Immagine sfondo: campo nuovo → legacy flat.
+  const coverImageUrl: string | null = tpl.pdf_cover_image_url || t.cover_image_url || null;
+  // Colore di sfondo cover (null = default palette C.coverBg).
+  const coverBgColor = normalizeHexColorOrNull(tpl.pdf_cover_bg_color) ?? C.coverBg;
+  // Opacità overlay: pdf_cover_overlay_opacity è 0..100; legacy flat è 0..1.
+  const coverOverlayOpacity =
+    typeof tpl.pdf_cover_overlay_opacity === "number"
+      ? Math.max(0, Math.min(100, tpl.pdf_cover_overlay_opacity)) / 100
+      : typeof t.cover_overlay_opacity === "number"
+        ? Math.max(0, Math.min(1, t.cover_overlay_opacity))
+        : 0.55;
+  // Stile overlay (flat | gradient | gradient_diag | vignette).
+  const coverOverlayStyle: "flat" | "gradient" | "gradient_diag" | "vignette" =
+    (["flat", "gradient", "gradient_diag", "vignette"] as const).includes(tpl.pdf_cover_overlay_style)
+      ? tpl.pdf_cover_overlay_style
+      : "flat";
+  // Posizione logo cover.
+  const coverLogoPosition: "top_left" | "top_right" | "top_center" | "hidden" =
+    (["top_left", "top_right", "top_center", "hidden"] as const).includes(tpl.pdf_cover_logo_position)
+      ? tpl.pdf_cover_logo_position
+      : (t.cover_logo_position ?? "top_left");
+  // Allineamento verticale blocco testo (top | center | bottom).
+  const coverTextVertical: "top" | "center" | "bottom" =
+    (["top", "center", "bottom"] as const).includes(tpl.pdf_cover_text_vertical)
+      ? tpl.pdf_cover_text_vertical
+      : "bottom";
+  // Variante decorazione (square | circle | line | pattern | none).
+  const coverDecorationStyle: "square" | "circle" | "line" | "pattern" | "none" =
+    (["square", "circle", "line", "pattern", "none"] as const).includes(tpl.pdf_cover_decoration_style)
+      ? tpl.pdf_cover_decoration_style
+      : "square";
+  const coverEyebrowSize =
+    typeof tpl.pdf_cover_eyebrow_size === "number"
+      ? Math.max(8, Math.min(14, tpl.pdf_cover_eyebrow_size))
+      : 10;
+  const coverTitleSize =
+    typeof tpl.pdf_cover_title_size === "number"
+      ? Math.max(20, Math.min(64, tpl.pdf_cover_title_size))
+      : (typeof t.cover_title_size === "number" ? t.cover_title_size : 30);
+  const coverSubtitleSize =
+    typeof tpl.pdf_cover_subtitle_size === "number"
+      ? Math.max(9, Math.min(22, tpl.pdf_cover_subtitle_size))
+      : 13;
+  const coverTextColor =
+    normalizeHexColorOrNull(tpl.pdf_cover_text_color) ??
+    normalizeHexColorOrNull(t.cover_text_color) ?? "#FFFFFF";
+  const coverShowDecoration = tpl.pdf_cover_show_decoration !== false;
+  const coverShowClientCard = tpl.pdf_cover_show_client_card !== false;
+  // Allineamento orizzontale: pdf_cover_text_align → legacy cover_text_align.
+  const coverTextAlign: "left" | "center" =
+    tpl.pdf_cover_text_align === "center" || t.cover_text_align === "center" ? "center" : "left";
+  // Scala logo cover: % (60–160) → fattore moltiplicativo.
+  const coverLogoScale =
+    typeof tpl.pdf_cover_logo_size === "number"
+      ? Math.max(60, Math.min(160, tpl.pdf_cover_logo_size)) / 100
+      : 1;
+  // Top del blocco testo in base alla posizione verticale (e se il logo è visibile).
+  const coverContentTop = coverTextVertical === "top"
+    ? (coverLogoPosition === "hidden" ? 96 : 150)
+    : coverTextVertical === "center"
+      ? 250
+      : 300;
   const coverLogoJustify =
     coverLogoPosition === "top_right" ? "flex-end" :
     coverLogoPosition === "top_center" ? "center" : "flex-start";
-  const coverOverlayOpacity = typeof t.cover_overlay_opacity === "number" ? t.cover_overlay_opacity : 0.4;
 
   const esigenze = t.esigenze ?? [];
   const soluzione = t.soluzione ?? [];
@@ -633,36 +805,80 @@ export function ElettricoPDF(props: ElePdfEnriched) {
       subject={`Preventivo elettrico per ${cliente}`}
     >
       {/* ─── PAGINA 1 — COVER ─────────────────────────────────────────────── */}
-      <Page size="A4" style={styles.cover}>
-        {t.cover_image_url && (
+      {/* Bg color cover override (pdf_cover_bg_color) → altrimenti C.coverBg. */}
+      <Page size="A4" style={[styles.cover, { backgroundColor: coverBgColor }]}>
+        {coverImageUrl && (
           <Image
-            src={t.cover_image_url}
+            src={coverImageUrl}
             style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, objectFit: "cover" }}
           />
         )}
-        {/* Velo scuro configurabile sull'immagine (builder: cover_overlay_opacity) */}
-        {t.cover_image_url && (
-          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, backgroundColor: "#000", opacity: coverOverlayOpacity }} />
+        {/* Overlay sopra immagine. 4 stili (parità Serramenti):
+            - flat: View nera piatta con opacity
+            - gradient: SVG LinearGradient verticale
+            - gradient_diag: SVG LinearGradient diagonale
+            - vignette: SVG RadialGradient (centro chiaro, angoli scuri) */}
+        {coverImageUrl && coverOverlayStyle === "flat" && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841, backgroundColor: "#000000", opacity: coverOverlayOpacity }} />
         )}
-        {/* Overlay scuro per leggibilità (gradiente verticale) */}
-        <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
-          <Svg width={595} height={841} viewBox="0 0 595 841">
-            <Defs>
-              <LinearGradient id="ele-cover-grad" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.55 : 1} />
-                <Stop offset="0.6" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.72 : 1} />
-                <Stop offset="1" stopColor={C.coverBg} stopOpacity={t.cover_image_url ? 0.92 : 1} />
-              </LinearGradient>
-            </Defs>
-            <Rect x={0} y={0} width={595} height={841} fill="url(#ele-cover-grad)" />
-          </Svg>
-        </View>
+        {coverImageUrl && coverOverlayStyle !== "flat" && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
+            <Svg width={595} height={841} viewBox="0 0 595 841">
+              <Defs>
+                {coverOverlayStyle === "gradient" && (
+                  <LinearGradient id="ele-cover-overlay" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.15} />
+                    <Stop offset="0.55" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.55} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity} />
+                  </LinearGradient>
+                )}
+                {coverOverlayStyle === "gradient_diag" && (
+                  <LinearGradient id="ele-cover-overlay" x1="0" y1="0" x2="1" y2="1">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.2} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity} />
+                  </LinearGradient>
+                )}
+                {coverOverlayStyle === "vignette" && (
+                  <RadialGradient id="ele-cover-overlay" cx="0.5" cy="0.5" rx="0.7" ry="0.85" fx="0.5" fy="0.5">
+                    <Stop offset="0" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.1} />
+                    <Stop offset="0.7" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.5} />
+                    <Stop offset="1" stopColor="#000000" stopOpacity={coverOverlayOpacity * 0.95} />
+                  </RadialGradient>
+                )}
+              </Defs>
+              <Rect x={0} y={0} width={595} height={841} fill="url(#ele-cover-overlay)" />
+            </Svg>
+          </View>
+        )}
+        {/* Senza immagine: gradiente sottile sul colore di sfondo per dare
+            profondità (alto chiaro → basso scuro). */}
+        {!coverImageUrl && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
+            <Svg width={595} height={841} viewBox="0 0 595 841">
+              <Defs>
+                <LinearGradient id="ele-cover-grad" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={coverBgColor} stopOpacity={1} />
+                  <Stop offset="0.6" stopColor="#000000" stopOpacity={0.08} />
+                  <Stop offset="1" stopColor="#000000" stopOpacity={0.22} />
+                </LinearGradient>
+              </Defs>
+              <Rect x={0} y={0} width={595} height={841} fill="url(#ele-cover-grad)" />
+            </Svg>
+          </View>
+        )}
+
+        {/* Decoro SVG in alto a destra (toggle template). Colore = TESTO cover. */}
+        {coverShowDecoration && (
+          <View style={styles.coverDecoSvg}>
+            <CoverDecorationSvg color={coverTextColor} variant={coverDecorationStyle} />
+          </View>
+        )}
 
         {coverLogoPosition !== "hidden" && (
           <View style={{ position: "absolute", top: 48, left: 44, right: 44 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: coverLogoJustify }}>
               {logoUrl ? (
-                <Image src={logoUrl} style={styles.coverLogo} />
+                <Image src={logoUrl} style={[styles.coverLogo, { maxWidth: 180 * coverLogoScale, height: 52 * coverLogoScale }]} />
               ) : (
                 <View style={styles.coverLogoCircle}>
                   <Text style={{ color: C.white, fontSize: 24, fontWeight: 700 }}>
@@ -674,32 +890,39 @@ export function ElettricoPDF(props: ElePdfEnriched) {
           </View>
         )}
 
-        <View style={{ position: "absolute", top: 300, left: 44, right: 44 }}>
-          <Text style={[styles.coverTitle, { color: coverTextColor, fontSize: t.cover_title_size ?? 30, textAlign: t.cover_text_align ?? "left" }]}>{coverTitle}</Text>
-          <Text style={[styles.coverSubtitle, { color: coverTextColor, textAlign: t.cover_text_align ?? "left" }]}>{coverSubtitle}</Text>
+        {/* Blocco testo: posizione verticale (top/center/bottom) + allineamento
+            orizzontale (left/center) configurabili. Card cliente opzionale. */}
+        <View style={{
+          position: "absolute",
+          top: coverContentTop,
+          left: 44,
+          right: 44,
+          alignItems: coverTextAlign === "center" ? "center" : "flex-start",
+        }}>
+          <Text style={[styles.coverEyebrow, { color: coverTextColor, fontSize: coverEyebrowSize, textAlign: coverTextAlign }]}>{coverEyebrow}</Text>
+          <Text style={[styles.coverTitle, { color: coverTextColor, fontSize: coverTitleSize, textAlign: coverTextAlign }]}>{coverTitle}</Text>
+          <Text style={[styles.coverSubtitle, { color: coverTextColor, fontSize: coverSubtitleSize, textAlign: coverTextAlign }]}>{coverSubtitle}</Text>
         </View>
 
         <View style={{ position: "absolute", bottom: 70, left: 44, right: 44 }}>
-          <View style={{ flexDirection: "row", marginHorizontal: -6 }}>
-            <View style={{ flex: 1, paddingHorizontal: 6 }}>
-              <View style={styles.coverCard}>
-                <Text style={styles.coverCardLabel}>Preparato per</Text>
-                <Text style={styles.coverCardValue}>{cliente}</Text>
-                {cantiere ? <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>{cantiere}</Text> : null}
+          {coverShowClientCard && (
+            <View style={{ flexDirection: "row", marginHorizontal: -6 }}>
+              <View style={{ flex: 1, paddingHorizontal: 6 }}>
+                <View style={styles.coverCard}>
+                  <Text style={styles.coverCardLabel}>Preparato per</Text>
+                  <Text style={styles.coverCardValue}>{cliente}</Text>
+                  {cantiere ? <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>{cantiere}</Text> : null}
+                </View>
+              </View>
+              <View style={{ flex: 1, paddingHorizontal: 6 }}>
+                <View style={styles.coverCard}>
+                  <Text style={styles.coverCardLabel}>Riferimento</Text>
+                  <Text style={styles.coverCardValue}>{p.code ?? "—"}</Text>
+                  <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>Data: {dateStr()}</Text>
+                </View>
               </View>
             </View>
-            <View style={{ flex: 1, paddingHorizontal: 6 }}>
-              <View style={styles.coverCard}>
-                <Text style={styles.coverCardLabel}>Riferimento</Text>
-                <Text style={styles.coverCardValue}>{p.code ?? "—"}</Text>
-                <Text style={[styles.coverCardLabel, { marginTop: 6 }]}>Data: {dateStr()}</Text>
-              </View>
-            </View>
-          </View>
-          <View style={styles.coverTotalBox}>
-            <Text style={styles.coverTotalLabel}>Investimento totale (IVA inclusa)</Text>
-            <Text style={styles.coverTotalValue}>{formatCurrency(totali.totale)}</Text>
-          </View>
+          )}
         </View>
       </Page>
 
@@ -770,7 +993,25 @@ export function ElettricoPDF(props: ElePdfEnriched) {
         </Page>
       )}
 
-      {/* ─── COMPUTO PER CAPITOLI + RIEPILOGO ─────────────────────────────── */}
+      {/* ─── FOTO E RENDER (prima del prezzo: la prova visiva precede il costo) ─ */}
+      {media.length > 0 && (
+        <Page size="A4" style={styles.page}>
+          {header}
+          <Text style={styles.sectionTitle}>Foto e render del progetto</Text>
+          <Text style={styles.sectionSub}>Stato attuale, lavori simili e rendering dell'intervento.</Text>
+          <View style={styles.photoGrid}>
+            {media.map((m) => (
+              <View key={m.id} style={styles.photoItem} wrap={false}>
+                <Image src={m.url} style={styles.photoImg} />
+                {m.caption ? <Text style={styles.photoCaption}>{m.caption}</Text> : null}
+              </View>
+            ))}
+          </View>
+          {footer}
+        </Page>
+      )}
+
+      {/* ─── COMPUTO PER CAPITOLI + RIEPILOGO (dopo la prova visiva) ───── */}
       <Page size="A4" style={styles.page}>
         {header}
         <Text style={styles.sectionTitle}>Computo metrico estimativo</Text>
@@ -817,24 +1058,6 @@ export function ElettricoPDF(props: ElePdfEnriched) {
         </View>
         {footer}
       </Page>
-
-      {/* ─── FOTO E RENDER ────────────────────────────────────────────────── */}
-      {media.length > 0 && (
-        <Page size="A4" style={styles.page}>
-          {header}
-          <Text style={styles.sectionTitle}>Foto e render del progetto</Text>
-          <Text style={styles.sectionSub}>Stato attuale, lavori simili e rendering dell'intervento.</Text>
-          <View style={styles.photoGrid}>
-            {media.map((m) => (
-              <View key={m.id} style={styles.photoItem} wrap={false}>
-                <Image src={m.url} style={styles.photoImg} />
-                {m.caption ? <Text style={styles.photoCaption}>{m.caption}</Text> : null}
-              </View>
-            ))}
-          </View>
-          {footer}
-        </Page>
-      )}
 
       {/* ─── CRONOPROGRAMMA + CONDIZIONI + CONTATTI ───────────────────────── */}
       <Page size="A4" style={styles.page}>
@@ -924,6 +1147,7 @@ export function ElettricoPDF(props: ElePdfEnriched) {
             </View>
           ) : null}
         </View>
+        <ChiusuraVendita c={C} companyName={companyName} validityText={t.validity_text} />
         {footer}
       </Page>
     </Document>

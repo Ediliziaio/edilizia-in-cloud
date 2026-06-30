@@ -106,7 +106,7 @@ describe("reportistica marketing contract", () => {
   });
 
   it("keeps CRM sales reporting decision-first instead of a wall of metrics", () => {
-    expect(crmSalesReport).toContain("Cosa guardare prima");
+    expect(crmSalesReport).toContain("Cosa guardare");
     expect(crmSalesReport).toContain("Da fare adesso");
     expect(crmSalesReport).toContain("Funnel commerciale");
     expect(crmSalesReport).toContain("Canali paid che generano vendite");

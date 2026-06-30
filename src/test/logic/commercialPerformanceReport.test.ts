@@ -45,6 +45,7 @@ describe("commercial performance report", () => {
           appointment_date: "2026-05-03",
           status: "confermato",
           is_completed: true,
+          calendar_id: "cal-mkt", // calendario marketing → conteggiato nelle stat CRM
         },
       ],
       quotes: [
@@ -174,7 +175,7 @@ describe("commercial performance report", () => {
         { id: "lead-unscored", created_at: "2026-05-01T08:00:00.000Z" },
       ],
       appointments: [
-        { id: "app-orphan", appointment_date: "2026-05-05", status: "confermato", is_completed: true },
+        { id: "app-orphan", calendar_id: "cal-mkt", appointment_date: "2026-05-05", status: "confermato", is_completed: true },
       ],
       quotes: [
         { id: "quote-orphan", status: "accettata", total: 15_000, created_at: "2026-05-06T09:00:00.000Z" },
@@ -210,7 +211,7 @@ describe("commercial performance report", () => {
       appointments: [
         { id: "blocked-slot", appointment_date: "2026-05-05", is_blocked_slot: true },
         { id: "site-start", appointment_date: "2026-05-06", appointment_type: "inizio_lavori", order_id: "order-site" },
-        { id: "commercial-orphan", appointment_date: "2026-05-07", appointment_type: "appuntamento" },
+        { id: "commercial-orphan", calendar_id: "cal-mkt", appointment_date: "2026-05-07", appointment_type: "appuntamento" },
       ],
       quotes: [],
       opportunities: [],
