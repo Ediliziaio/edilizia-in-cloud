@@ -430,11 +430,12 @@ export function useCompanyStaff() {
 }
 
 /**
- * Returns salespeople for the company.
- * Strategy (cascade):
- *  1. Users with role='salesperson' in user_roles
- *  2. Fallback: employees with area='commerciale' who have a user_id (user account)
- *  3. Fallback: all company staff (so dropdown is never empty)
+ * Returns i VENDITORI assegnabili alle opportunità (campo "Venditore").
+ * Sono i ruoli commerciali — super_admin / company_admin / salesperson — così
+ * che anche un titolare/admin che vende (tipico nelle PMI) sia assegnabile e
+ * finisca nelle statistiche venditori (la RPC raggruppa per assigned_to).
+ * ESCLUDE chi è SOLO call center: il CC resta selezionabile nel suo campo
+ * dedicato (useCompanyCallCenterUsers), ma non è un "venditore che chiude".
  */
 export function useCompanySalespeople() {
   const { effectiveCompany } = useAuth();
@@ -442,11 +443,18 @@ export function useCompanySalespeople() {
   const staffQuery = useCompanyStaffUsers(companyId, "sales");
 
   const data = useMemo(
-    () => (staffQuery.data || []).map((p) => ({
-      id: p.id,
-      name: `${p.first_name || ""} ${p.last_name || ""}`.trim(),
-      source: p.roles?.includes("salesperson") ? "role" : "area",
-    })),
+    () =>
+      (staffQuery.data || [])
+        // tieni admin/titolari e venditori; escludi chi ha SOLO il ruolo call_center
+        .filter((p) => {
+          const roles = p.roles ?? [];
+          return roles.length === 0 || roles.some((r) => r !== "call_center");
+        })
+        .map((p) => ({
+          id: p.id,
+          name: `${p.first_name || ""} ${p.last_name || ""}`.trim(),
+          source: p.roles?.includes("salesperson") ? "role" : "area",
+        })),
     [staffQuery.data]
   );
 
