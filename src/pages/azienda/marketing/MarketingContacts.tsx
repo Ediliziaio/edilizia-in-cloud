@@ -48,6 +48,7 @@ const FIELD_TO_COLUMN: Record<string, string> = {
   source: "source",
   city: "city",
   province: "province",
+  region: "region",
   created_at: "created_at",
   last_activity_at: "last_activity_at",
   attr_source: "attr_source",

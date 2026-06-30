@@ -1,3 +1,5 @@
+import { REGION_OPTIONS } from "@/lib/italianRegions";
+
 export interface AutomationFlow {
   id: string;
   company_id: string;
@@ -161,18 +163,7 @@ export const CONTACT_TRIGGER_FIELDS: TriggerFieldDef[] = [
   { key: "source", label: "Fonte Lead", type: "text", group: "Campi standard" },
   { key: "city", label: "Città", type: "text", group: "Località" },
   { key: "province", label: "Provincia (sigla)", type: "text", group: "Località" },
-  { key: "region", label: "Regione", type: "select", group: "Località", options: [
-    { value: "Abruzzo", label: "Abruzzo" }, { value: "Basilicata", label: "Basilicata" },
-    { value: "Calabria", label: "Calabria" }, { value: "Campania", label: "Campania" },
-    { value: "Emilia-Romagna", label: "Emilia-Romagna" }, { value: "Friuli-Venezia Giulia", label: "Friuli-Venezia Giulia" },
-    { value: "Lazio", label: "Lazio" }, { value: "Liguria", label: "Liguria" },
-    { value: "Lombardia", label: "Lombardia" }, { value: "Marche", label: "Marche" },
-    { value: "Molise", label: "Molise" }, { value: "Piemonte", label: "Piemonte" },
-    { value: "Puglia", label: "Puglia" }, { value: "Sardegna", label: "Sardegna" },
-    { value: "Sicilia", label: "Sicilia" }, { value: "Toscana", label: "Toscana" },
-    { value: "Trentino-Alto Adige", label: "Trentino-Alto Adige" }, { value: "Umbria", label: "Umbria" },
-    { value: "Valle d'Aosta", label: "Valle d'Aosta" }, { value: "Veneto", label: "Veneto" },
-  ] },
+  { key: "region", label: "Regione", type: "select", group: "Località", options: REGION_OPTIONS },
   { key: "dnd_status", label: "Stato DND", type: "boolean", group: "Campi standard" },
   { key: "assigned_to", label: "Utente assegnato", type: "user", group: "Campi standard" },
   { key: "created_at", label: "Data creazione", type: "date", group: "Campi standard" },

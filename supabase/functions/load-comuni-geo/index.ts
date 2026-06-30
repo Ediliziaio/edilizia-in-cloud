@@ -21,6 +21,12 @@ Deno.serve(async (_req: Request) => {
   if (!res.ok) {
     return Response.json({ ok: false, error: `fetch ${res.status}` }, { status: 502 });
   }
+  // Normalizza i 2 nomi regione bilingue ISTAT alla forma breve usata in app
+  // (coerenza con it_province + menu filtri automazioni).
+  const REGION_FIX: Record<string, string> = {
+    "Trentino-Alto Adige/Südtirol": "Trentino-Alto Adige",
+    "Valle d'Aosta/Vallée d'Aoste": "Valle d'Aosta",
+  };
   const data = (await res.json()) as string[][];
   const rows = data
     .filter((r) => r && r[0] && r[2])
@@ -29,7 +35,7 @@ Deno.serve(async (_req: Request) => {
       cap: r[1] || null,
       sigla: r[2],
       provincia: r[3] || null,
-      regione: r[4] || null,
+      regione: r[4] ? (REGION_FIX[r[4]] || r[4]) : null,
     }));
 
   let inserted = 0;
