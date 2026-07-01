@@ -1777,6 +1777,9 @@ export function SerramentoPDF({
     ? Math.max(10, Math.min(15, tpl.pdf_cover_subtitle_size))
     : 13;
   const coverTextColor = normalizeHexColor(tpl.pdf_cover_text_color, "#FFFFFF") ?? "#FFFFFF";
+  const coverEyebrowColor = normalizeHexColor(tpl.pdf_cover_eyebrow_color, C.primary) ?? C.primary;
+  const coverTitleColor = normalizeHexColor(tpl.pdf_cover_title_color, coverTextColor) ?? coverTextColor;
+  const coverSubtitleColor = normalizeHexColor(tpl.pdf_cover_subtitle_color, "#D1D5DB") ?? "#D1D5DB";
   const coverShowDecoration = tpl.pdf_cover_show_decoration !== false;
   const coverShowClientCard = tpl.pdf_cover_show_client_card !== false;
   const coverTextAlign = (tpl.pdf_cover_text_align === "center" ? "center" : "left") as "left" | "center";
@@ -2174,9 +2177,9 @@ export function SerramentoPDF({
         )}
 
         <View wrap={false} style={coverTextBlockStyle}>
-          <Text style={[styles.coverEyebrow, { fontSize: coverEyebrowSize, textAlign: coverTextAlign }]}>{coverEyebrow}</Text>
-          <Text style={[styles.coverTitle, { fontSize: coverTitleSize, color: coverTextColor, textAlign: coverTextAlign }]}>{coverHero}</Text>
-          <Text style={[styles.coverSubtitle, { fontSize: coverSubtitleSize, textAlign: coverTextAlign }]}>{coverSubhero}</Text>
+          <Text style={[styles.coverEyebrow, { fontSize: coverEyebrowSize, color: coverEyebrowColor, textAlign: coverTextAlign }]}>{coverEyebrow}</Text>
+          <Text style={[styles.coverTitle, { fontSize: coverTitleSize, color: coverTitleColor, textAlign: coverTextAlign }]}>{coverHero}</Text>
+          <Text style={[styles.coverSubtitle, { fontSize: coverSubtitleSize, color: coverSubtitleColor, textAlign: coverTextAlign }]}>{coverSubhero}</Text>
 
           {coverShowClientCard && (
             <View style={styles.coverCard}>

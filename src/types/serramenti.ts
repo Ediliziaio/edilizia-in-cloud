@@ -436,6 +436,9 @@ export interface SrTemplatePdfRow {
   pdf_cover_title_size: number | null;
   pdf_cover_subtitle_size: number | null;
   pdf_cover_text_color: string | null;
+  pdf_cover_eyebrow_color: string | null;
+  pdf_cover_title_color: string | null;
+  pdf_cover_subtitle_color: string | null;
   pdf_cover_show_decoration: boolean | null;
   pdf_cover_show_client_card: boolean | null;
   pdf_cover_text_align: string | null;

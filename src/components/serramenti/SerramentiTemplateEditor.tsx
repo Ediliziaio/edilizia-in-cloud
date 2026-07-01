@@ -1957,7 +1957,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       <div
                         className="font-semibold uppercase tracking-wider mb-2"
                         style={{
-                          color: form.colore_primario || "#2D7D5C",
+                          color: form.pdf_cover_eyebrow_color || form.colore_primario || "#2D7D5C",
                           fontSize: `${(form.pdf_cover_eyebrow_size ?? 11) * 0.6}px`,
                         }}
                       >
@@ -1967,6 +1967,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       <div
                         className="font-bold leading-tight whitespace-pre-wrap mb-1.5"
                         style={{
+                          color: form.pdf_cover_title_color || form.pdf_cover_text_color || "#FFFFFF",
                           fontSize: `${(form.pdf_cover_title_size ?? 40) * 0.5}px`,
                         }}
                       >
@@ -1974,8 +1975,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                           "La tua casa,\nfinalmente al caldo."}
                       </div>
                       <div
-                        className="opacity-80 line-clamp-2"
+                        className="line-clamp-2"
                         style={{
+                          color: form.pdf_cover_subtitle_color || "#D1D5DB",
                           fontSize: `${(form.pdf_cover_subtitle_size ?? 13) * 0.6}px`,
                         }}
                       >
@@ -2304,7 +2306,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 Tipografia &amp; layout
               </div>
               <div className="grid grid-cols-12 gap-3">
-                {/* Font size — Eyebrow */}
+                {/* Font size + colore — Eyebrow */}
                 <div className="col-span-12 md:col-span-4">
                   <Label className="text-[11px] flex items-center justify-between mb-1">
                     <span>Eyebrow</span>
@@ -2321,8 +2323,31 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     onChange={(e) => update("pdf_cover_eyebrow_size", Number(e.target.value))}
                     className="w-full accent-orange-500"
                   />
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <input
+                      type="color"
+                      value={form.pdf_cover_eyebrow_color || form.colore_primario || "#2D7D5C"}
+                      onChange={(e) => update("pdf_cover_eyebrow_color", e.target.value)}
+                      className="h-5 w-8 rounded border cursor-pointer shrink-0"
+                      title="Colore eyebrow"
+                    />
+                    <Input
+                      value={form.pdf_cover_eyebrow_color ?? ""}
+                      onChange={(e) => update("pdf_cover_eyebrow_color", e.target.value || null)}
+                      placeholder="Brand color"
+                      className="h-5 text-[10px] font-mono flex-1 px-1"
+                    />
+                    {form.pdf_cover_eyebrow_color && (
+                      <button
+                        type="button"
+                        onClick={() => update("pdf_cover_eyebrow_color", null)}
+                        className="text-[10px] text-muted-foreground hover:text-destructive shrink-0"
+                        title="Ripristina colore brand"
+                      >✕</button>
+                    )}
+                  </div>
                 </div>
-                {/* Font size — Titolo */}
+                {/* Font size + colore — Titolo */}
                 <div className="col-span-12 md:col-span-4">
                   <Label className="text-[11px] flex items-center justify-between mb-1">
                     <span>Titolo hero</span>
@@ -2339,8 +2364,31 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     onChange={(e) => update("pdf_cover_title_size", Number(e.target.value))}
                     className="w-full accent-orange-500"
                   />
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <input
+                      type="color"
+                      value={form.pdf_cover_title_color || form.pdf_cover_text_color || "#FFFFFF"}
+                      onChange={(e) => update("pdf_cover_title_color", e.target.value)}
+                      className="h-5 w-8 rounded border cursor-pointer shrink-0"
+                      title="Colore titolo"
+                    />
+                    <Input
+                      value={form.pdf_cover_title_color ?? ""}
+                      onChange={(e) => update("pdf_cover_title_color", e.target.value || null)}
+                      placeholder="Colore testo"
+                      className="h-5 text-[10px] font-mono flex-1 px-1"
+                    />
+                    {form.pdf_cover_title_color && (
+                      <button
+                        type="button"
+                        onClick={() => update("pdf_cover_title_color", null)}
+                        className="text-[10px] text-muted-foreground hover:text-destructive shrink-0"
+                        title="Ripristina colore testo"
+                      >✕</button>
+                    )}
+                  </div>
                 </div>
-                {/* Font size — Sottotitolo */}
+                {/* Font size + colore — Sottotitolo */}
                 <div className="col-span-12 md:col-span-4">
                   <Label className="text-[11px] flex items-center justify-between mb-1">
                     <span>Sottotitolo</span>
@@ -2357,6 +2405,29 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     onChange={(e) => update("pdf_cover_subtitle_size", Number(e.target.value))}
                     className="w-full accent-orange-500"
                   />
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <input
+                      type="color"
+                      value={form.pdf_cover_subtitle_color || "#D1D5DB"}
+                      onChange={(e) => update("pdf_cover_subtitle_color", e.target.value)}
+                      className="h-5 w-8 rounded border cursor-pointer shrink-0"
+                      title="Colore sottotitolo"
+                    />
+                    <Input
+                      value={form.pdf_cover_subtitle_color ?? ""}
+                      onChange={(e) => update("pdf_cover_subtitle_color", e.target.value || null)}
+                      placeholder="#D1D5DB"
+                      className="h-5 text-[10px] font-mono flex-1 px-1"
+                    />
+                    {form.pdf_cover_subtitle_color && (
+                      <button
+                        type="button"
+                        onClick={() => update("pdf_cover_subtitle_color", null)}
+                        className="text-[10px] text-muted-foreground hover:text-destructive shrink-0"
+                        title="Ripristina colore default"
+                      >✕</button>
+                    )}
+                  </div>
                 </div>
                 {/* Dimensione logo cover (scala %) — disabilitata se logo nascosto */}
                 {(form.pdf_cover_logo_position ?? "top_left") !== "hidden" && (
