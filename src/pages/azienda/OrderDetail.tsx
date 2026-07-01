@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderActivityFeed } from "@/components/orders/OrderActivityFeed";
 import { OrderOriginBadge } from "@/components/orders/OrderOriginBadge";
+import { OrderNotesDialog } from "@/components/orders/OrderNotesDialog";
 import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
 import { OrderSupplierOrders } from "@/components/orders/OrderSupplierOrders";
 import { OrderEconomicsSummary } from "@/components/orders/OrderEconomicsSummary";
@@ -312,6 +313,7 @@ function OrderDetailInner() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [mobileTab, setMobileTab] = useState<string>("stato");
   const [desktopTab, setDesktopTab] = useState<string>("panoramica");
+  const [notesOpen, setNotesOpen] = useState(false);
   const [creaFatturaOpen, setCreaFatturaOpen] = useState(false);
   const [creaDDTOpen, setCreaDDTOpen] = useState(false);
   const [creaProformaOpen, setCreaProformaOpen] = useState(false);
@@ -1133,6 +1135,7 @@ function OrderDetailInner() {
           })()}
           onOpenOps={() => setOpsOpen(true)}
           onOpenFiles={() => setFilesOpen(true)}
+          onOpenNotes={() => setNotesOpen(true)}
         />
       )}
 
@@ -2040,6 +2043,14 @@ function OrderDetailInner() {
         onDownloadFattura={handleDownloadFiscalDocument}
         onDownloadOrderPdf={handleDownloadPDF}
         pdfBusy={pdfPreparing || isGeneratingPDF}
+      />
+
+      {/* Note interne collaborative: thread + chat team di commessa (@menzioni + notifiche) */}
+      <OrderNotesDialog
+        open={notesOpen}
+        onOpenChange={setNotesOpen}
+        orderId={id!}
+        orderCode={order.order_code}
       />
 
       {/* Crea/assegna task (dalla strip "Prossima mossa") → task reale: l'attività
