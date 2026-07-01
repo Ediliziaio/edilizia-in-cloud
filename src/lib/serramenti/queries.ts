@@ -4,6 +4,7 @@
  * Mirror del pattern src/lib/fotovoltaico/queries.ts.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   listProgetti, getProgetto, createProgetto, updateProgetto, deleteProgetto,
   addSerramento, updateSerramento, deleteSerramento,
@@ -34,7 +35,7 @@ import { markSurveyConverted } from "@/lib/api/surveys";
 export const SR_QK = {
   progetti: (stato?: SrStatoProgetto) => ["sr-progetti", stato ?? "all"] as const,
   progetto: (id: string) => ["sr-progetto", id] as const,
-  template: () => ["sr-template-pdf"] as const,
+  template: (companyId?: string) => ["sr-template-pdf", companyId ?? "none"] as const,
 };
 
 export function useProgetti(opts?: { stato?: SrStatoProgetto }) {
@@ -448,11 +449,14 @@ export function useDeleteMedia(progettoId: string | undefined) {
 // ─── Template PDF ────────────────────────────────────────────────────────────
 
 export function useTemplatePdf() {
+  const { effectiveCompany } = useAuth();
+  const companyId = (effectiveCompany as any)?.id as string | undefined;
   return useQuery({
-    queryKey: SR_QK.template(),
-    queryFn: () => getTemplatePdf(),
-    // Template aziendale ~statico: 5 min di cache è abbondante e riduce
-    // re-fetch su navigazione tra step del wizard.
+    // La chiave include companyId: il super_admin in "visualizza come" vede
+    // la cache separata per ogni azienda impersonata.
+    queryKey: SR_QK.template(companyId),
+    queryFn: () => getTemplatePdf(companyId),
+    enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -542,11 +546,16 @@ export function useImportDaSopralluogo(progettoId: string | undefined) {
 
 export function useUpsertTemplatePdf() {
   const qc = useQueryClient();
+  const { effectiveCompany } = useAuth();
+  const companyId = (effectiveCompany as any)?.id as string | undefined;
   return useMutation({
-    mutationFn: (patch: Partial<SrTemplatePdfRow>) => upsertTemplatePdf(patch),
+    mutationFn: (patch: Partial<SrTemplatePdfRow>) => {
+      if (!companyId) throw new Error("Azienda non trovata");
+      return upsertTemplatePdf(patch, companyId);
+    },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: SR_QK.template() });
-      await qc.refetchQueries({ queryKey: SR_QK.template(), type: "active" });
+      await qc.invalidateQueries({ queryKey: SR_QK.template(companyId) });
+      await qc.refetchQueries({ queryKey: SR_QK.template(companyId), type: "active" });
       toast.success("Template salvato");
     },
     onError: (e) => toast.error("Salvataggio template fallito", { description: String(e) }),

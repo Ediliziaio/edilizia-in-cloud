@@ -601,10 +601,13 @@ export async function deleteAccessorio(id: string): Promise<void> {
 
 // ─── TEMPLATE PDF (per azienda) ─────────────────────────────────────────────
 
-export async function getTemplatePdf(): Promise<SrTemplatePdfRow | null> {
+export async function getTemplatePdf(companyId?: string): Promise<SrTemplatePdfRow | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .from("sr_template_pdf").select("*").maybeSingle();
+  let q = (supabase as any).from("sr_template_pdf").select("*");
+  // Filtra esplicitamente per company: senza questo il super_admin (che bypassa
+  // il RLS) vedrebbe tutte le righe e maybeSingle() restituirebbe quella di EiC.
+  if (companyId) q = q.eq("company_id", companyId);
+  const { data, error } = await q.maybeSingle();
   if (error && error.code !== "PGRST116") {
     console.error("[serramenti] getTemplatePdf failed", error);
     return null;
@@ -1435,16 +1438,8 @@ export async function importDaSopralluogo(input: {
   return { imported_count: r.imported_count, accessori_imported: r.accessori_imported };
 }
 
-export async function upsertTemplatePdf(patch: Partial<SrTemplatePdfRow>): Promise<void> {
-  const { data: profile } = await supabase
-    .from("profiles" as never)
-    .select("company_id")
-    .eq("id", (await supabase.auth.getUser()).data.user?.id ?? "")
-    .maybeSingle();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const companyId = (profile as any)?.company_id;
+export async function upsertTemplatePdf(patch: Partial<SrTemplatePdfRow>, companyId: string): Promise<void> {
   if (!companyId) throw new Error("Profilo senza azienda");
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
     .from("sr_template_pdf")
