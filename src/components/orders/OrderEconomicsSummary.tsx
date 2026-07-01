@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateNetFromGross } from "@/lib/vatUtils";
@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DonutChart, type DonutChartSegment } from "@/components/ui/donut-chart";
 import { TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
 
 /**
@@ -240,19 +241,18 @@ export function OrderEconomicsSummary({
     [econ],
   );
 
-  // Donut in CSS puro: stops del conic-gradient dalle percentuali della composizione.
-  const donutGradient = useMemo(() => {
-    const tot = composition.reduce((s, d) => s + d.value, 0);
-    if (tot <= 0) return null;
-    let acc = 0;
-    const stops = composition.map((d) => {
-      const start = (acc / tot) * 360;
-      acc += d.value;
-      const end = (acc / tot) * 360;
-      return `${d.color} ${start}deg ${end}deg`;
-    });
-    return `conic-gradient(${stops.join(", ")})`;
-  }, [composition]);
+  // Donut interattivo: hover su segmento (o sulla legenda) → dettaglio al centro.
+  // useCallback obbligatorio: l'effetto interno del DonutChart dipende dal
+  // callback — un'identità nuova a ogni render azzererebbe l'hover della legenda.
+  const compositionTotal = useMemo(
+    () => composition.reduce((s, d) => s + d.value, 0),
+    [composition],
+  );
+  const [hoverSeg, setHoverSeg] = useState<DonutChartSegment | null>(null);
+  const handleSegmentHover = useCallback(
+    (seg: DonutChartSegment | null) => setHoverSeg(seg),
+    [],
+  );
 
   const marginColor =
     econ.marginPct >= 30
@@ -461,32 +461,60 @@ export function OrderEconomicsSummary({
             )}
           </div>
 
-          {/* Donut composizione (CSS puro, nessuna libreria → non può crashare) */}
-          <div className="flex h-[160px] items-center justify-center">
-            {donutGradient ? (
-              <div
-                className="relative h-[140px] w-[140px] rounded-full"
-                style={{ background: donutGradient }}
+          {/* Donut composizione interattivo (SVG a dimensioni fisse, niente
+              ResponsiveContainer → non può rompere il layout). Hover su
+              segmento o legenda → dettaglio della voce al centro. */}
+          <div className="flex h-[170px] items-center justify-center">
+            {composition.length > 0 && compositionTotal > 0 ? (
+              <DonutChart
+                data={composition}
+                size={156}
+                strokeWidth={18}
+                animationDuration={0.9}
+                activeLabel={hoverSeg?.label ?? null}
+                onSegmentHover={handleSegmentHover}
                 aria-label={`Margine ${econ.marginPct.toFixed(0)}%`}
-              >
-                <div className="absolute inset-[22px] flex flex-col items-center justify-center rounded-full bg-card">
-                  <span className={`text-lg font-bold leading-none ${marginColor}`}>
-                    {econ.marginPct.toFixed(0)}%
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">margine</span>
-                </div>
-              </div>
+                centerContent={
+                  hoverSeg ? (
+                    <div className="flex flex-col items-center text-center">
+                      <span className="max-w-[90px] truncate text-[10px] text-muted-foreground">
+                        {hoverSeg.label}
+                      </span>
+                      <span className="text-sm font-bold leading-tight">
+                        {formatCurrency(hoverSeg.value)}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {((hoverSeg.value / compositionTotal) * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <span className={`text-lg font-bold leading-none ${marginColor}`}>
+                        {econ.marginPct.toFixed(0)}%
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">margine</span>
+                    </div>
+                  )
+                }
+              />
             ) : (
               <span className="text-xs text-muted-foreground">Dati costi non ancora disponibili</span>
             )}
           </div>
         </div>
 
-        {/* Legenda composizione */}
+        {/* Legenda composizione: hover su una voce → highlight del segmento nel donut */}
         {composition.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
+          <div className="mt-3 flex flex-wrap gap-x-2 gap-y-1 text-[11px]">
             {composition.map((d) => (
-              <span key={d.key} className="flex items-center gap-1.5">
+              <span
+                key={d.key}
+                className={`flex cursor-default items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors ${
+                  hoverSeg?.label === d.label ? "bg-muted" : ""
+                }`}
+                onMouseEnter={() => setHoverSeg(d)}
+                onMouseLeave={() => setHoverSeg(null)}
+              >
                 <span className="h-2.5 w-2.5 rounded-sm" style={{ background: d.color }} />
                 <span className="text-muted-foreground">{d.label}</span>
                 <span className="font-medium">{formatCurrency(d.value)}</span>

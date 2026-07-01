@@ -90,6 +90,18 @@
   border-color: hsl(var(--input));
 }
 
+/* ── Commessa: card "elevate" ─────────────────────────────────────────────────
+   Nella pagina commessa i blocchi (Conto economico, Articoli, Manodopera,
+   Finanza, ecc.) devono staccarsi di più dal fondo: ombra morbida più marcata
+   della shadow-sm di default. Scoped al wrapper .commessa-elevated (solo
+   OrderDetail) e mirata a .bg-card (la Card shadcn) → il resto dell'app resta
+   invariato. NON-layerizzata così vince sulla utility shadow-sm della Card. */
+.commessa-elevated :where(.bg-card) {
+  box-shadow:
+    0 4px 16px -6px rgb(0 0 0 / 0.1),
+    0 2px 6px -2px rgb(0 0 0 / 0.06);
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
 All colors MUST be HSL.
 */

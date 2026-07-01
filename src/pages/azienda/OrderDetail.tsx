@@ -1063,7 +1063,8 @@ function OrderDetailInner() {
     !!prossimaTask?.due_date && new Date(prossimaTask.due_date) < new Date(new Date().toDateString());
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    // commessa-elevated: ombra più marcata su tutte le Card della pagina (vedi index.css)
+    <div className="commessa-elevated min-h-screen bg-slate-50">
       {/* ── New Header (breadcrumb + title + actions) ──────────── */}
       <OrdineDetailHeader
         ordineId={id!}

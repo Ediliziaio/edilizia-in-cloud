@@ -294,6 +294,27 @@ export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
               {eur.format(totals.scostamento)}
             </p>
           </div>
+
+          {/* Barra consuntivo vs preventivo: colpo d'occhio su quanto budget
+              manodopera è stato consumato (verde entro budget, rosso oltre). */}
+          {totals.preventivo > 0 && (
+            <div className="col-span-3 pt-1">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    totals.consuntivo > totals.preventivo ? "bg-rose-500" : "bg-emerald-500"
+                  }`}
+                  style={{
+                    width: `${Math.min(100, (totals.consuntivo / totals.preventivo) * 100)}%`,
+                  }}
+                />
+              </div>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                Consuntivo al {((totals.consuntivo / totals.preventivo) * 100).toFixed(0)}% del
+                preventivo
+              </p>
+            </div>
+          )}
         </div>
       </CardHeader>
 
