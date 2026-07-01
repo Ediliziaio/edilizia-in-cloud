@@ -1793,7 +1793,7 @@ export function CompanyLayout() {
               </>
             )}
             {showSupport && (
-              <Button variant="outline" size="sm" className="relative hidden sm:flex" onClick={() => setChannelDialogOpen(true)}>
+              <Button variant="outline" size="sm" className="relative hidden sm:flex bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 hover:border-emerald-600 shadow-md hover:shadow-lg transition-shadow" onClick={() => setChannelDialogOpen(true)}>
                 <HeadphonesIcon className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Assistenza</span>
                 {unreadCount > 0 && (
