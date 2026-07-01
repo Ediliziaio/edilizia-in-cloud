@@ -19,6 +19,8 @@ import {
   type PhaseStatus,
   type ExecutorType,
   type ExecutorOption,
+  type AssignmentSource,
+  type AddAssignmentPayload,
 } from "@/hooks/useOrderWorkPhases";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -91,6 +93,7 @@ interface OrderWorkPhasesProps {
 export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
   const {
     phases,
+    unassigned,
     isLoading,
     employees,
     externalTeams,
@@ -225,7 +228,7 @@ export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
             <Loader2 className="h-5 w-5 animate-spin" />
             Caricamento lavorazioni…
           </div>
-        ) : phases.length === 0 ? (
+        ) : phases.length === 0 && unassigned.length === 0 ? (
           <div className="flex flex-col items-center gap-4 rounded-lg border border-dashed py-10 text-center">
             <HardHat className="h-10 w-10 text-muted-foreground/60" />
             <p className="max-w-md text-sm text-muted-foreground">
@@ -248,20 +251,35 @@ export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
             </div>
           </div>
         ) : (
-          phases.map((phase) => (
-            <PhaseCard
-              key={phase.id}
-              phase={phase}
-              orderId={orderId}
-              employees={employees}
-              externalTeams={externalTeams}
-              onUpdatePhase={(patch) => updatePhase.mutate({ id: phase.id, ...patch })}
-              onDeletePhase={() => deletePhase.mutate(phase.id)}
-              onAddAssignment={(payload, opts) => addAssignment.mutate(payload, opts)}
-              onUpdateAssignment={(id, patch) => updateAssignment.mutate({ id, ...patch })}
-              onDeleteAssignment={(id) => deleteAssignment.mutate(id)}
-            />
-          ))
+          <>
+            {phases.map((phase) => (
+              <PhaseCard
+                key={phase.id}
+                phase={phase}
+                employees={employees}
+                externalTeams={externalTeams}
+                onUpdatePhase={(patch) => updatePhase.mutate({ id: phase.id, ...patch })}
+                onDeletePhase={() => deletePhase.mutate(phase.id)}
+                onAddAssignment={(payload, opts) => addAssignment.mutate(payload, opts)}
+                onUpdateAssignment={(id, source, patch) =>
+                  updateAssignment.mutate({ id, source, patch })
+                }
+                onDeleteAssignment={(id, source) => deleteAssignment.mutate({ id, source })}
+              />
+            ))}
+
+            {unassigned.length > 0 && (
+              <UnassignedCard
+                assignments={unassigned}
+                employees={employees}
+                externalTeams={externalTeams}
+                onUpdateAssignment={(id, source, patch) =>
+                  updateAssignment.mutate({ id, source, patch })
+                }
+                onDeleteAssignment={(id, source) => deleteAssignment.mutate({ id, source })}
+              />
+            )}
+          </>
         )}
 
         {/* ── Capocantiere, operai, subappalti e cantiere (sistema operativo) ── */}
@@ -284,24 +302,29 @@ export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
 /* Phase card                                                          */
 /* ------------------------------------------------------------------ */
 
+type AssignmentPatch = Partial<
+  Pick<
+    PhaseAssignment,
+    "cost_preventivo" | "cost_consuntivo" | "hours" | "is_paid" | "paid_date" | "phase_id" | "notes"
+  >
+>;
+
 interface PhaseCardProps {
   phase: WorkPhase;
-  orderId: string;
   employees: ExecutorOption[];
   externalTeams: ExecutorOption[];
   onUpdatePhase: (patch: { name?: string; status?: PhaseStatus }) => void;
   onDeletePhase: () => void;
   onAddAssignment: (
-    payload: Omit<PhaseAssignment, "id">,
+    payload: AddAssignmentPayload,
     opts?: { onSuccess?: () => void }
   ) => void;
-  onUpdateAssignment: (id: string, patch: Partial<PhaseAssignment>) => void;
-  onDeleteAssignment: (id: string) => void;
+  onUpdateAssignment: (id: string, source: AssignmentSource, patch: AssignmentPatch) => void;
+  onDeleteAssignment: (id: string, source: AssignmentSource) => void;
 }
 
 function PhaseCard({
   phase,
-  orderId,
   employees,
   externalTeams,
   onUpdatePhase,
@@ -450,8 +473,8 @@ function PhaseCard({
                 assignment={a}
                 employees={employees}
                 externalTeams={externalTeams}
-                onUpdate={(patch) => onUpdateAssignment(a.id, patch)}
-                onDelete={() => onDeleteAssignment(a.id)}
+                onUpdate={(patch) => onUpdateAssignment(a.id, a.source, patch)}
+                onDelete={() => onDeleteAssignment(a.id, a.source)}
               />
             ))}
           </div>
@@ -459,11 +482,74 @@ function PhaseCard({
 
         <AddAssignmentDialog
           phaseId={phase.id}
-          orderId={orderId}
           employees={employees}
           externalTeams={externalTeams}
           onAdd={onAddAssignment}
         />
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* "Senza fase" group (manodopera legacy / pre-esistente)              */
+/* ------------------------------------------------------------------ */
+
+interface UnassignedCardProps {
+  assignments: PhaseAssignment[];
+  employees: ExecutorOption[];
+  externalTeams: ExecutorOption[];
+  onUpdateAssignment: (id: string, source: AssignmentSource, patch: AssignmentPatch) => void;
+  onDeleteAssignment: (id: string, source: AssignmentSource) => void;
+}
+
+function UnassignedCard({
+  assignments,
+  employees,
+  externalTeams,
+  onUpdateAssignment,
+  onDeleteAssignment,
+}: UnassignedCardProps) {
+  const subtotals = useMemo(() => {
+    return assignments.reduce(
+      (acc, a) => {
+        acc.prev += Number(a.cost_preventivo) || 0;
+        acc.cons += Number(a.cost_consuntivo) || 0;
+        return acc;
+      },
+      { prev: 0, cons: 0 }
+    );
+  }, [assignments]);
+
+  return (
+    <Card className="border-dashed bg-muted/30">
+      <CardHeader className="gap-3 pb-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate font-semibold text-muted-foreground">Senza fase</span>
+            <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-700">
+              Manodopera non assegnata
+            </Badge>
+          </div>
+          <span className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+            Prev: {eur.format(subtotals.prev)} · Cons: {eur.format(subtotals.cons)}
+          </span>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-2 pt-0">
+        <div className="space-y-2">
+          {assignments.map((a) => (
+            <AssignmentRow
+              key={a.id}
+              assignment={a}
+              employees={employees}
+              externalTeams={externalTeams}
+              onUpdate={(patch) => onUpdateAssignment(a.id, a.source, patch)}
+              onDelete={() => onDeleteAssignment(a.id, a.source)}
+            />
+          ))}
+        </div>
       </CardContent>
     </Card>
   );
@@ -488,7 +574,7 @@ interface AssignmentRowProps {
   assignment: PhaseAssignment;
   employees: ExecutorOption[];
   externalTeams: ExecutorOption[];
-  onUpdate: (patch: Partial<PhaseAssignment>) => void;
+  onUpdate: (patch: AssignmentPatch) => void;
   onDelete: () => void;
 }
 
@@ -597,18 +683,16 @@ function AssignmentRow({
 
 interface AddAssignmentDialogProps {
   phaseId: string;
-  orderId: string;
   employees: ExecutorOption[];
   externalTeams: ExecutorOption[];
   onAdd: (
-    payload: Omit<PhaseAssignment, "id">,
+    payload: AddAssignmentPayload,
     opts?: { onSuccess?: () => void }
   ) => void;
 }
 
 function AddAssignmentDialog({
   phaseId,
-  orderId,
   employees,
   externalTeams,
   onAdd,
@@ -645,9 +729,8 @@ function AddAssignmentDialog({
       return;
     }
     const hoursNum = hours.trim() === "" ? null : num(hours);
-    const payload: Omit<PhaseAssignment, "id"> = {
+    const payload: AddAssignmentPayload = {
       phase_id: phaseId,
-      order_id: orderId,
       executor_type: tipo,
       employee_id: tipo === "interno" ? executorId : null,
       external_team_id: tipo === "esterno" ? executorId : null,
