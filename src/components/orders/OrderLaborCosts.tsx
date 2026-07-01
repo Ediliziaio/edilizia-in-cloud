@@ -44,9 +44,18 @@ interface CampoAssignment {
   } | null;
 }
 
+// Giorni mancanti alla data indicata; null se assente o NON valida. Evita che un
+// DURC con data corrotta nel DB risulti silenziosamente "OK" (NaN <= 30 = false).
+function daysUntil(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null;
+  const d = parseISO(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  return differenceInDays(d, new Date());
+}
+
 function DurcBadge({ scadenza }: { scadenza: string | null }) {
-  if (!scadenza) return <Badge variant="outline" className="text-xs">DURC mancante</Badge>;
-  const daysLeft = differenceInDays(parseISO(scadenza), new Date());
+  const daysLeft = daysUntil(scadenza);
+  if (daysLeft === null) return <Badge variant="outline" className="text-xs">DURC mancante</Badge>;
   if (daysLeft < 0) return <Badge className="text-xs bg-red-600 text-white">DURC scaduto</Badge>;
   if (daysLeft <= 30) return <Badge className="text-xs bg-yellow-500 text-white">DURC {daysLeft}gg</Badge>;
   return <Badge className="text-xs bg-green-600 text-white">DURC OK</Badge>;
