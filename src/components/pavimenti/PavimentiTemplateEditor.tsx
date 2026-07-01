@@ -67,6 +67,8 @@ import { COVER_PRESETS, detectActiveCoverPreset, type CoverPresetPatch } from "@
 import {
   COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage,
 } from "@/components/pavimenti/coverStockImages";
+import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
+import type { GalleryLavoroItem } from "@/types/gallery";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -112,6 +114,7 @@ type BaseFormState = Required<Pick<PavTemplatePdf,
   | "garanzie" | "faq" | "percorso" | "show_garanzie" | "show_percorso"
   | "cover_title_size" | "cover_text_align"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
+  | "gallery_lavori"
 >>;
 
 // Forma del form locale: campi persistenti + campi cover pdf_cover_*.
@@ -172,6 +175,7 @@ function templateToForm(t: PavTemplatePdf): FormState {
     default_iva_pct: t.default_iva_pct ?? 10,
     default_detrazione_pct: t.default_detrazione_pct ?? 50,
     default_validita_giorni: t.default_validita_giorni ?? 30,
+    gallery_lavori: t.gallery_lavori ?? null,
     // Campi cover pdf_cover_* — default sensati (Serramenti-like). I valori reali
     // dal DB vengono idratati a parte (vedi effetto hydrateCover): usePavTemplatePdf
     // li scarta perché non sono nel tipo normalizzato. Si parte dai legacy cover_*
@@ -1383,6 +1387,17 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
               <TestimonianzeEditor
                 items={form.testimonianze}
                 onChange={(items) => set("testimonianze", items)}
+              />
+            </SectionCard>
+          )}
+
+          {activeSection === "page_testimonianze" && (
+            <SectionCard icon={ImageIcon} title="Gallery lavori" description="Foto di lavori realizzati, mostrate nel PDF.">
+              <GalleryLavoriEditor
+                items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
+                onChange={(items) => set("gallery_lavori", items)}
+                bucket="companies"
+                uploadPath={`${companyId}/pavimenti/gallery`}
               />
             </SectionCard>
           )}

@@ -62,6 +62,8 @@ import type {
   IdrTemplatePdf, IdrListItem, IdrFaqItem, IdrTestimonianza, IdrCronoFase,
   IdrProgetto, IdrComputoVoce,
 } from "@/types/termoidraulico";
+import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
+import type { GalleryLavoroItem } from "@/types/gallery";
 import {
   COVER_PRESETS, detectActiveCoverPreset, type IdrCoverFields,
 } from "@/components/termoidraulico/coverPresets";
@@ -105,6 +107,7 @@ type FormState = Required<Pick<IdrTemplatePdf,
   | "garanzie" | "faq" | "percorso" | "show_garanzie" | "show_percorso"
   | "cover_title_size" | "cover_text_align"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
+  | "gallery_lavori"
 >> & IdrCoverFields & {
   /** Logo size cover (scala % 60–160). Non in IdrCoverFields perché opzionale. */
   pdf_cover_logo_size: number | null;
@@ -158,6 +161,7 @@ function templateToForm(t: IdrTemplatePdf): FormState {
     // I campi non sono nel tipo IdrTemplatePdf (tabella non nei types generati):
     // letti dalla riga grezza via cast. Default coerenti con sr_template_pdf.
     ...readCoverStyle(t as unknown as Record<string, unknown>),
+    gallery_lavori: t.gallery_lavori ?? [],
   };
 }
 
@@ -1585,6 +1589,17 @@ export function TermoidraulicoTemplateEditor({ embedded = false }: Props) {
               <TestimonianzeEditor
                 items={form.testimonianze}
                 onChange={(items) => set("testimonianze", items)}
+              />
+            </SectionCard>
+          )}
+
+          {activeSection === "page_testimonianze" && (
+            <SectionCard icon={ImageIcon} title="Gallery lavori" description="Foto di lavori realizzati, mostrate nel PDF.">
+              <GalleryLavoriEditor
+                items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
+                onChange={(items) => set("gallery_lavori", items)}
+                bucket="companies"
+                uploadPath={`${companyId}/termoidraulico/gallery`}
               />
             </SectionCard>
           )}

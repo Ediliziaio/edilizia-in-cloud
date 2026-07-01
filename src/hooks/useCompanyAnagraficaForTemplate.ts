@@ -19,6 +19,10 @@ export interface TemplateCompanyAnagrafica {
   telefono: string | null;
   email: string | null;
   partita_iva: string | null;
+  pec: string | null;
+  numero_rea: string | null;
+  capitale_sociale: string | null;
+  anno_fondazione: number | null;
 }
 
 export function useCompanyAnagraficaForTemplate(): TemplateCompanyAnagrafica | null {
@@ -30,7 +34,7 @@ export function useCompanyAnagraficaForTemplate(): TemplateCompanyAnagrafica | n
     queryFn: async () => {
       const { data: c } = await supabase
         .from("companies")
-        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number")
+        .select("name, business_name, legal_address, legal_city, legal_postal_code, legal_province, phone, email, vat_number, pec, numero_rea, capitale_sociale, anno_fondazione")
         .eq("id", companyId!)
         .maybeSingle();
       if (!c) return null;
@@ -45,10 +49,31 @@ export function useCompanyAnagraficaForTemplate(): TemplateCompanyAnagrafica | n
         telefono: (c.phone || "").trim() || null,
         email: (c.email || "").trim() || null,
         partita_iva: (c.vat_number || "").trim() || null,
+        // @ts-ignore — colonne aggiunte da migration 20270514020000/070000
+        pec: (c.pec || "").trim() || null,
+        // @ts-ignore
+        numero_rea: (c.numero_rea || "").trim() || null,
+        // @ts-ignore
+        capitale_sociale: (c.capitale_sociale || "").trim() || null,
+        // @ts-ignore
+        anno_fondazione: c.anno_fondazione ?? null,
       };
     },
   });
   return data ?? null;
+}
+
+/** Genera il testo di default per il brand legitimacy footer dai dati azienda. */
+export function buildBrandFooterText(a: TemplateCompanyAnagrafica): string {
+  const parts: string[] = [];
+  if (a.ragione_sociale) parts.push(a.ragione_sociale);
+  if (a.partita_iva) parts.push(`P.IVA ${a.partita_iva}`);
+  if (a.numero_rea) parts.push(`REA ${a.numero_rea}`);
+  if (a.indirizzo_completo) parts.push(`Sede legale: ${a.indirizzo_completo}`);
+  if (a.pec) parts.push(`PEC: ${a.pec}`);
+  if (a.capitale_sociale) parts.push(`Cap. Soc. ${a.capitale_sociale}`);
+  if (a.anno_fondazione) parts.push(`Attivi dal ${a.anno_fondazione}`);
+  return parts.join(" · ");
 }
 
 /** Placeholder ereditato: mostra il valore del profilo (·dal profilo) o un esempio. */

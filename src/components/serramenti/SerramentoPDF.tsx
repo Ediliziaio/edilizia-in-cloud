@@ -2033,6 +2033,8 @@ export function SerramentoPDF({
     hasTaxDeduction || cashflowYears.length > 0 || hasMonthlyRateBalance || incluso.length > 0 || bonus.length > 0
   );
 
+  const galleryLavori = (tpl.gallery_lavori ?? []) as Array<{ id: string; url: string; didascalia?: string | null; luogo?: string | null }>;
+
   const indirizzo = template?.indirizzo_completo || company?.indirizzo;
   const telefono = template?.telefono || company?.telefono;
   const email = template?.email || company?.email;
@@ -3755,6 +3757,28 @@ export function SerramentoPDF({
                 {brandFooterAttivo && brandFooterTesto && (
                   <Text style={styles.brandFooter}>{brandFooterTesto}</Text>
                 )}
+                <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
+              </Page>
+            )}
+            </>
+          ),
+          // ─── PAGINA I NOSTRI LAVORI (gallery foto realizzazioni) ───────
+          gallery_lavori: (
+            <>
+            {galleryLavori.length > 0 && (
+              <Page size="A4" style={styles.page}>
+                <PageHeader code={p.code} clienteNome={clienteNome} companyName={companyName} logoUrl={logoUrl} primaryColor={primaryColor} styles={styles} />
+                <Text style={styles.sectionTitle}>I nostri lavori</Text>
+                <Text style={{ fontSize: 8.5, color: "#6B7280", marginBottom: 10 }}>Alcuni esempi di interventi realizzati dalla nostra azienda.</Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                  {galleryLavori.map((item, i) => (
+                    <View key={i} style={{ width: "47%", marginBottom: 8 }} wrap={false}>
+                      <Image src={item.url} style={{ width: "100%", height: 110, borderRadius: 4 }} />
+                      {item.didascalia ? <Text style={{ fontSize: 8, marginTop: 3, color: "#374151" }}>{item.didascalia}</Text> : null}
+                      {item.luogo ? <Text style={{ fontSize: 7, color: "#9CA3AF" }}>{item.luogo}</Text> : null}
+                    </View>
+                  ))}
+                </View>
                 <PageFooter companyName={companyName} indirizzo={indirizzo} telefono={telefono} email={email} vat={vat} website={website} styles={styles} quoteCode={p.code} revisionNumber={p.revision_number} showRevisionFooter={tpl.pdf_show_revision_footer !== false} capitaleSociale={capitaleSociale} numeroRea={numeroRea} pec={pec} showLegalFooter={showLegalFooter} />
               </Page>
             )}

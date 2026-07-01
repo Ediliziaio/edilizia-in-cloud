@@ -513,6 +513,8 @@ export interface SrTemplatePdfRow {
   /** Metriche "Perché noi" data-driven (M10, migration 20270514070000).
    *  Array di big-numbers renderizzate sopra la lista USP nel PDF. */
   pdf_perche_noi_metriche: SrPercheNoiMetrica[];
+  /** Galleria foto lavori realizzati (pagina "I nostri lavori" nel PDF). */
+  gallery_lavori: Array<{ id: string; url: string; didascalia?: string | null; luogo?: string | null }> | null;
   created_at: string;
   updated_at: string;
 }
@@ -724,7 +726,8 @@ export type SrPdfPageId =
   | "faq"
   | "render"
   | "cta"
-  | "condizioni";
+  | "condizioni"
+  | "gallery_lavori";
 
 export interface SrPdfPageOrderItem {
   id: SrPdfPageId;
@@ -830,6 +833,12 @@ export const SR_PDF_PAGES_META: SrPdfPageMeta[] = [
     id: "condizioni",
     label: "Condizioni e disclaimer legali",
     descrizione: "Appendice T&C contrattuali + dati legali azienda (P.IVA, REA, assicurazione).",
+    obbligatoria: false,
+  },
+  {
+    id: "gallery_lavori",
+    label: "I nostri lavori",
+    descrizione: "Galleria foto di interventi realizzati dall'azienda.",
     obbligatoria: false,
   },
 ];

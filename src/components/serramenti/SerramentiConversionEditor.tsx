@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Shield, Tag, Sparkles, Award, Gift, HelpCircle, FileText, Scale } from "lucide-react";
+import { Plus, Trash2, Shield, Tag, Sparkles, Award, Gift, HelpCircle, FileText, Scale, Wand2 } from "lucide-react";
 import type {
   SrTemplatePdfRow, SrGaranzia, SrConfrontoRiga,
   SrCertificazione, SrBonus, SrFaq,
@@ -29,10 +29,13 @@ import {
   SR_GARANZIE_DEFAULT, SR_CONFRONTO_DEFAULT, SR_CERTIFICAZIONI_DEFAULT,
   SR_BONUS_DEFAULT, SR_FAQ_DEFAULT,
 } from "@/types/serramenti";
+import type { TemplateCompanyAnagrafica } from "@/hooks/useCompanyAnagraficaForTemplate";
+import { buildBrandFooterText } from "@/hooks/useCompanyAnagraficaForTemplate";
 
 interface Props {
   form: Partial<SrTemplatePdfRow>;
   update: <K extends keyof SrTemplatePdfRow>(key: K, value: SrTemplatePdfRow[K]) => void;
+  companyAnagrafica?: TemplateCompanyAnagrafica | null;
   sharedLegalTemplates?: SharedLegalTemplateOption[];
   onApplySharedLegalTemplate?: (templateId: string, mode: "replace" | "append") => void;
   onSaveSharedLegalTemplate?: (kind: SharedLegalTemplateKind) => void;
@@ -72,6 +75,7 @@ const BONUS_ICONE: Array<{ value: SrBonus["icona"]; label: string }> = [
 function SerramentiConversionEditorImpl({
   form,
   update,
+  companyAnagrafica,
   sharedLegalTemplates = [],
   onApplySharedLegalTemplate,
   onSaveSharedLegalTemplate,
@@ -494,19 +498,48 @@ function SerramentiConversionEditorImpl({
           <input
             type="checkbox"
             checked={!!form.brand_footer_attivo}
-            onChange={(e) => update("brand_footer_attivo", e.target.checked)}
+            onChange={(e) => {
+              const attivo = e.target.checked;
+              update("brand_footer_attivo", attivo);
+              // Auto-compila il testo se vuoto e abbiamo i dati azienda
+              if (attivo && !form.brand_footer_testo && companyAnagrafica) {
+                const testo = buildBrandFooterText(companyAnagrafica);
+                if (testo) update("brand_footer_testo", testo);
+              }
+            }}
             className="h-4 w-4 accent-orange-500"
           />
           <span className="text-sm font-medium">Mostra footer legale nel PDF</span>
         </label>
         {form.brand_footer_attivo && (
-          <Textarea
-            value={form.brand_footer_testo ?? ""}
-            onChange={(e) => update("brand_footer_testo", e.target.value || null)}
-            placeholder="Es. Ke Bei Serramenti S.r.l. · P.IVA 12345678901 · REA MI-1234567 · Sede legale Via X 12, 20100 Milano · Assicurazione RC Cantieri Generali Italia €2.000.000 · Iscritta Albo Confartigianato dal 2008"
-            rows={3}
-            className="text-xs"
-          />
+          <div className="space-y-2">
+            <Textarea
+              value={form.brand_footer_testo ?? ""}
+              onChange={(e) => update("brand_footer_testo", e.target.value || null)}
+              placeholder="Es. Ke Bei Serramenti S.r.l. · P.IVA 12345678901 · REA MI-1234567 · Sede legale Via X 12, 20100 Milano · Assicurazione RC Cantieri Generali Italia €2.000.000 · Iscritta Albo Confartigianato dal 2008"
+              rows={3}
+              className="text-xs"
+            />
+            {companyAnagrafica && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-[11px] gap-1.5"
+                onClick={() => {
+                  const testo = buildBrandFooterText(companyAnagrafica!);
+                  if (testo) update("brand_footer_testo", testo);
+                }}
+              >
+                <Wand2 className="h-3 w-3" />
+                Compila dai dati azienda
+              </Button>
+            )}
+            <p className="text-[10px] text-muted-foreground">
+              Puoi modificare liberamente il testo. I dati vengono presi da{" "}
+              <a href="/azienda/impostazioni/profilo" className="underline hover:text-foreground">Profilo azienda</a>.
+            </p>
+          </div>
         )}
       </Section>
 

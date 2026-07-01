@@ -1,3 +1,5 @@
+import type { GalleryLavoroItem } from "./gallery";
+
 export type RstUnitaMisura = "mq" | "ml" | "cad" | "corpo" | "kg" | "h" | "a corpo";
 export type RstStato = "bozza" | "da_consegnare" | "consegnato" | "in_valutazione" | "accettato" | "rifiutato" | "scaduto" | "archiviato";
 
@@ -86,4 +88,5 @@ export interface RstTemplatePdf {
   default_iva_pct: number | null;
   default_detrazione_pct: number | null;
   default_validita_giorni: number | null;
+  gallery_lavori: GalleryLavoroItem[] | null;
 }

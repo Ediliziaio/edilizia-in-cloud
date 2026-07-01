@@ -1,3 +1,5 @@
+import type { GalleryLavoroItem } from "./gallery";
+
 export type BgnUnitaMisura = "mq" | "ml" | "cad" | "corpo" | "kg" | "h" | "a corpo";
 export type BgnStato = "bozza" | "da_consegnare" | "consegnato" | "in_valutazione" | "accettato" | "rifiutato" | "scaduto" | "archiviato";
 
@@ -113,4 +115,5 @@ export interface BgnTemplatePdf {
   pdf_cover_overlay_style: "flat" | "gradient" | "gradient_diag" | "vignette";
   /** 'top_left' (default) | 'top_center' | 'top_right' | 'hidden'. */
   pdf_cover_logo_position: "top_left" | "top_center" | "top_right" | "hidden";
+  gallery_lavori: GalleryLavoroItem[] | null;
 }

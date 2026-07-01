@@ -61,6 +61,9 @@ import {
 
 // Anteprima PDF completa (lazy: trascina renderFvPdfHtml ~1700 righe fuori dal chunk iniziale)
 const FvTemplatePreviewDialog = lazy(() => import("./FvTemplatePreviewDialog"));
+import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
+import type { GalleryLavoroItem } from "@/types/gallery";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 
 // ─── Types locali (no dipendenza forte da fv types globali) ─────────────────
 
@@ -149,6 +152,7 @@ interface FvTemplate {
   noleggio_fattore_default?: number | null;
   noleggio_aliquota_fiscale_pct?: number | null;
   noleggio_note_legali?: string | null;
+  gallery_lavori?: GalleryLavoroItem[] | null;
 }
 
 // Campi personalizzati cliccabili (parità Serramenti). Inseriscono {token} in coda.
@@ -721,6 +725,7 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   const [form, setForm] = useState<FvTemplate>({});
   // Dati ereditati dal Profilo azienda → placeholder anagrafica (UX allineata a Serramenti).
   const companyAnagrafica = useCompanyAnagraficaForTemplate();
+  const companyId = useEffectiveCompanyId();
   const [dirty, setDirty] = useState(false);
   const [activeSection, setActiveSection] = useState<FvEditorSection>(initialSection);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -2756,6 +2761,19 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             <Plus className="h-4 w-4" /> Aggiungi recensione
           </Button>
         </div>
+      </FvSettingsCard>
+
+      <FvSettingsCard
+        title="Gallery lavori"
+        description="Foto di lavori realizzati, mostrate nel PDF."
+        icon={<ImageIcon className="h-4 w-4" />}
+      >
+        <GalleryLavoriEditor
+          items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
+          onChange={(items) => update("gallery_lavori", items)}
+          bucket="fv-progetti"
+          uploadPath={`${companyId}/fotovoltaico/gallery`}
+        />
       </FvSettingsCard>
 
       {/* Certificazioni */}

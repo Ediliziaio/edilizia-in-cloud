@@ -73,6 +73,8 @@ import {
   COVER_STOCK_IMAGES,
   COVER_STOCK_CATEGORIE,
 } from "@/components/ristrutturazione/coverStockImages";
+import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
+import type { GalleryLavoroItem } from "@/types/gallery";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -158,6 +160,7 @@ type FormState = Required<Pick<RstTemplatePdf,
   | "garanzie" | "faq" | "percorso" | "show_garanzie" | "show_percorso"
   | "cover_title_size" | "cover_text_align"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
+  | "gallery_lavori"
 >> & RstCoverPatch & {
   /** Eyebrow + titolo/sottotitolo cover usati dal layout preset (pdf_cover_*). */
   pdf_cover_eyebrow: string | null;
@@ -240,6 +243,7 @@ function templateToForm(t: RstTemplatePdf): FormState {
     default_iva_pct: t.default_iva_pct ?? 10,
     default_detrazione_pct: t.default_detrazione_pct ?? 50,
     default_validita_giorni: t.default_validita_giorni ?? 30,
+    gallery_lavori: t.gallery_lavori ?? null,
     // ─── Cover preset-driven (pdf_cover_*) ───────────────────────────────
     pdf_cover_bg_color: str(tc.pdf_cover_bg_color) ?? RST_COVER_DEFAULTS.pdf_cover_bg_color,
     pdf_cover_image_url: str(tc.pdf_cover_image_url) ?? RST_COVER_DEFAULTS.pdf_cover_image_url,
@@ -1218,6 +1222,17 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
               <TestimonianzeEditor
                 items={form.testimonianze}
                 onChange={(items) => set("testimonianze", items)}
+              />
+            </SectionCard>
+          )}
+
+          {activeSection === "page_testimonianze" && (
+            <SectionCard icon={ImageIcon} title="Gallery lavori" description="Foto di lavori realizzati, mostrate nel PDF.">
+              <GalleryLavoriEditor
+                items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
+                onChange={(items) => set("gallery_lavori", items)}
+                bucket="companies"
+                uploadPath={`${companyId}/ristrutturazione/gallery`}
               />
             </SectionCard>
           )}

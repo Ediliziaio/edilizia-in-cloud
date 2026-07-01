@@ -728,6 +728,7 @@ export function BagniPDF(props: BgnPdfEnriched) {
   const soluzione = t.soluzione ?? [];
   const usp = t.usp ?? [];
   const testimonianze = (t.testimonianze ?? []).filter((x) => (x.testo ?? "").trim());
+  const galleryLavori = (t.gallery_lavori ?? []) as Array<{ id: string; url: string; didascalia?: string | null; luogo?: string | null }>;
   const crono = (t.cronoprogramma ?? []).filter((x) => (x.fase ?? "").trim());
   const percorso = (t.percorso ?? []).filter((x) => (x.titolo ?? "").trim());
   const garanzie = (t.garanzie ?? []).filter((x) => (x.titolo ?? "").trim());
@@ -945,6 +946,25 @@ export function BagniPDF(props: BgnPdfEnriched) {
               ))}
             </View>
           )}
+          {footer}
+        </Page>
+      )}
+
+      {/* ─── GALLERY LAVORI ──────────────────────────────────────────────── */}
+      {galleryLavori.length > 0 && (
+        <Page size="A4" style={styles.page}>
+          {header}
+          <Text style={styles.sectionTitle}>I nostri lavori</Text>
+          <Text style={styles.sectionSub}>Alcuni esempi di interventi realizzati dalla nostra azienda.</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+            {galleryLavori.map((item, i) => (
+              <View key={i} style={{ width: "47%", marginBottom: 8 }} wrap={false}>
+                <Image src={item.url} style={{ width: "100%", height: 110, objectFit: "cover", borderRadius: 4 }} />
+                {item.didascalia ? <Text style={{ fontSize: 8, marginTop: 3, color: "#374151" }}>{item.didascalia}</Text> : null}
+                {item.luogo ? <Text style={{ fontSize: 7, color: "#9CA3AF" }}>{item.luogo}</Text> : null}
+              </View>
+            ))}
+          </View>
           {footer}
         </Page>
       )}

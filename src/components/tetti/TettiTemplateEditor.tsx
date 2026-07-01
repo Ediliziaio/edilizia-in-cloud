@@ -65,6 +65,8 @@ import type {
 } from "@/types/tetti";
 import { COVER_PRESETS, detectActiveCoverPreset } from "@/components/tetti/coverPresets";
 import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from "@/components/tetti/coverStockImages";
+import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
+import type { GalleryLavoroItem } from "@/types/gallery";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -145,6 +147,7 @@ type FormState = Required<Pick<TetTemplatePdf,
   | "cover_logo_size" | "cover_overlay_style" | "cover_text_vertical"
   | "cover_decoration_style" | "cover_show_decoration" | "cover_show_client_card"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
+  | "gallery_lavori"
 >>;
 
 function templateToForm(t: TetTemplatePdf): FormState {
@@ -202,6 +205,7 @@ function templateToForm(t: TetTemplatePdf): FormState {
     default_iva_pct: t.default_iva_pct ?? 10,
     default_detrazione_pct: t.default_detrazione_pct ?? 50,
     default_validita_giorni: t.default_validita_giorni ?? 30,
+    gallery_lavori: t.gallery_lavori ?? [],
   };
 }
 
@@ -1411,6 +1415,17 @@ export function TettiTemplateEditor({ embedded = false }: Props) {
               <TestimonianzeEditor
                 items={form.testimonianze}
                 onChange={(items) => set("testimonianze", items)}
+              />
+            </SectionCard>
+          )}
+
+          {activeSection === "page_testimonianze" && (
+            <SectionCard icon={ImageIcon} title="Gallery lavori" description="Foto di lavori realizzati, mostrate nel PDF.">
+              <GalleryLavoriEditor
+                items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
+                onChange={(items) => set("gallery_lavori", items)}
+                bucket="companies"
+                uploadPath={`${companyId}/tetti/gallery`}
               />
             </SectionCard>
           )}

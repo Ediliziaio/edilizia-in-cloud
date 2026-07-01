@@ -67,6 +67,8 @@ import type {
   BgnTemplatePdf, BgnListItem, BgnFaqItem, BgnTestimonianza, BgnCronoFase,
   BgnProgetto, BgnComputoVoce,
 } from "@/types/bagni";
+import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
+import type { GalleryLavoroItem } from "@/types/gallery";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -151,6 +153,7 @@ type FormState = Required<Pick<BgnTemplatePdf,
   | "pdf_cover_logo_size" | "pdf_cover_show_client_card" | "pdf_cover_show_decoration"
   | "pdf_cover_decoration_style" | "pdf_cover_text_vertical" | "pdf_cover_overlay_style"
   | "pdf_cover_logo_position"
+  | "gallery_lavori"
 >>;
 
 function templateToForm(t: BgnTemplatePdf): FormState {
@@ -219,6 +222,7 @@ function templateToForm(t: BgnTemplatePdf): FormState {
     pdf_cover_text_vertical: t.pdf_cover_text_vertical ?? "bottom",
     pdf_cover_overlay_style: t.pdf_cover_overlay_style ?? "flat",
     pdf_cover_logo_position: t.pdf_cover_logo_position ?? t.cover_logo_position ?? "top_left",
+    gallery_lavori: t.gallery_lavori ?? [],
   };
 }
 
@@ -1448,6 +1452,17 @@ export function BagniTemplateEditor({ embedded = false }: Props) {
               <TestimonianzeEditor
                 items={form.testimonianze}
                 onChange={(items) => set("testimonianze", items)}
+              />
+            </SectionCard>
+          )}
+
+          {activeSection === "page_testimonianze" && (
+            <SectionCard icon={ImageIcon} title="Gallery lavori" description="Foto di lavori realizzati, mostrate nel PDF.">
+              <GalleryLavoriEditor
+                items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
+                onChange={(items) => set("gallery_lavori", items)}
+                bucket="companies"
+                uploadPath={`${companyId}/bagni/gallery`}
               />
             </SectionCard>
           )}

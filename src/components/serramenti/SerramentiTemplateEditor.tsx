@@ -83,6 +83,8 @@ import { contrastRatio, wcagLevel, suggestBestTextColor } from "@/lib/utils/cont
 import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from "./coverStockImages";
 // M20 · Palette colore intelligente (brand variations + curate)
 import { generateBrandPalette, CURATED_PALETTES } from "@/lib/utils/colorPalette";
+import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
+import type { GalleryLavoroItem } from "@/types/gallery";
 
 const DEFAULT_RENDER_DISCLAIMER =
   "Il render AI è una simulazione indicativa pensata per aiutare il cliente a immaginare il risultato estetico. Non sostituisce rilievo tecnico, schede prodotto e verifica di fattibilità: misure, materiali, colori e finiture definitive vengono confermati prima dell'ordine.";
@@ -665,7 +667,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       items: [
         { id: "contenuti", label: "Contenuti commerciali", emoji: "📝", descr: "Esigenze, USP, incluso" },
         { id: "macro",     label: "Linee prodotto",        emoji: "📦", descr: "Pagine dedicate macrocategoria" },
-        { id: "garanzie",  label: "Garanzie & metriche",   emoji: "🛡️", descr: "Garanzie e perché noi" },
+        { id: "garanzie",  label: "Metriche & perché noi",  emoji: "📊", descr: "Numeri e USP della pagina proposta" },
         { id: "condizioni", label: "Condizioni contrattuali", emoji: "📜", descr: "Termini di vendita nel PDF" },
         { id: "default",   label: "Default tecnici",       emoji: "⚙️", descr: "IVA, anticipo, validità" },
       ],
@@ -2937,6 +2939,19 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 </Button>
               </div>
             </SrCard>
+
+            <SrCard
+              title="Gallery lavori"
+              description="Foto di lavori realizzati, mostrate nel PDF."
+              icon={<ImageIcon className="h-4 w-4" />}
+            >
+              <GalleryLavoriEditor
+                items={(form.gallery_lavori ?? []) as GalleryLavoroItem[]}
+                onChange={(items) => update("gallery_lavori", items)}
+                bucket="sr-progetti"
+                uploadPath={`${companyId}/gallery-lavori`}
+              />
+            </SrCard>
           </TabsContent>
 
           {/* ═══ RENDER AI ═══════════════════════════════════════════════════ */}
@@ -3183,6 +3198,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
               <SerramentiConversionEditor
                 form={form}
                 update={update}
+                companyAnagrafica={companyAnagrafica}
                 sharedLegalTemplates={sharedLegalTemplates}
                 onApplySharedLegalTemplate={applySharedLegalTemplate}
                 onSaveSharedLegalTemplate={saveSharedLegalTemplate}
@@ -3215,89 +3231,13 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       </SrCard>
       </>)}{/* === END SEZIONE PAGINE PDF === */}
 
-      {/* === SEZIONE: GARANZIE & METRICHE === */}
+      {/* === SEZIONE: METRICHE & PERCHÉ NOI === */}
       {activeSection === "garanzie" && (<>
       <SectionHeader
-        title="🛡️ Garanzie & metriche"
-        description="Le garanzie e i numeri 'Perché noi' mostrati come pagine dedicate nel PDF."
+        title="📊 Metriche & perché noi"
+        description="I numeri 'Perché noi' mostrati come big-number nella pagina Proposta del PDF. Le garanzie si modificano nella sezione Conversione."
         number={5}
       />
-      {/* Milestone 5: Garanzie editor — card visibili nella pagina "Le nostre
-          garanzie" del PDF. Default 5 garanzie standard; l'azienda può
-          override singoli campi o aggiungerne fino a 6. */}
-	      <SrCard
-	        title="Garanzie (pagina dedicata PDF)"
-	        description="Le garanzie mostrate come card nel PDF. Usa testi concreti e verificabili: evita promesse generiche o numeri non dimostrabili."
-	        icon={<FileText className="h-4 w-4" />}
-	      >
-        <div className="space-y-2">
-          {(form.garanzie ?? SR_GARANZIE_DEFAULT).slice(0, 6).map((g, idx) => (
-            <div key={idx} className="rounded-md border p-3 grid grid-cols-12 gap-2 bg-slate-50/50">
-              <div className="col-span-12 md:col-span-2">
-                <Label className="text-[10px]">Icona</Label>
-                <select
-                  value={g.icona}
-                  onChange={(e) => {
-                    const next = [...(form.garanzie ?? SR_GARANZIE_DEFAULT)];
-                    next[idx] = { ...next[idx], icona: e.target.value as SrGaranzia["icona"] };
-                    update("garanzie", next);
-                  }}
-                  className="h-9 w-full text-xs rounded-md border bg-background px-2"
-                >
-                  <option value="shield">🛡️ Scudo</option>
-                  <option value="tools">🔧 Strumenti</option>
-                  <option value="money">💰 Penale</option>
-                  <option value="drop">💧 Sigillatura</option>
-                  <option value="refresh">🔄 Sostituzione</option>
-                  <option value="clock">⏰ Tempi</option>
-                  <option value="award">🏆 Qualità</option>
-                  <option value="custom">⭐ Altro</option>
-                </select>
-              </div>
-              <div className="col-span-12 md:col-span-4">
-                <Label className="text-[10px]">Titolo</Label>
-                <Input
-                  value={g.titolo}
-                  onChange={(e) => {
-                    const next = [...(form.garanzie ?? SR_GARANZIE_DEFAULT)];
-                    next[idx] = { ...next[idx], titolo: e.target.value };
-                    update("garanzie", next);
-                  }}
-                  className="h-9 text-xs"
-	                  placeholder="Es. Garanzia prodotto documentata"
-                />
-              </div>
-              <div className="col-span-12 md:col-span-6">
-                <Label className="text-[10px]">Descrizione</Label>
-                <Input
-                  value={g.descrizione}
-                  onChange={(e) => {
-                    const next = [...(form.garanzie ?? SR_GARANZIE_DEFAULT)];
-                    next[idx] = { ...next[idx], descrizione: e.target.value };
-                    update("garanzie", next);
-                  }}
-                  className="h-9 text-xs"
-                  placeholder="Una riga di dettaglio chiaro che il cliente capisce subito"
-                />
-              </div>
-            </div>
-          ))}
-          <div className="flex justify-between items-center pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => update("garanzie", SR_GARANZIE_DEFAULT)}
-              className="text-xs"
-            >
-              Ripristina default
-            </Button>
-            <p className="text-[10px] text-muted-foreground">
-              Massimo 6 garanzie. Le icone vengono renderizzate come SVG nel PDF.
-            </p>
-          </div>
-        </div>
-      </SrCard>
 
       {/* Milestone 10: Perché noi data-driven — riga di big-number metriche
           mostrate sopra la lista USP nella pagina "Proposta". Max 4 per

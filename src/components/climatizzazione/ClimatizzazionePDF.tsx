@@ -744,6 +744,7 @@ export function ClimatizzazionePDF(props: ClmPdfEnriched) {
   const showPercorso = t.show_percorso !== false && percorso.length > 0;
   const showGaranzie = t.show_garanzie !== false && (garanzie.length > 0 || faq.length > 0);
   const showMargine = t.show_margine === true;
+  const galleryLavori = (t.gallery_lavori ?? []) as Array<{ id: string; url: string; didascalia?: string | null; luogo?: string | null }>;
 
   const hasPresentazione = (showChiSiamo && Boolean((t.chi_siamo ?? "").trim()))
     || esigenze.some((e) => (e.titolo ?? "").trim())
@@ -925,6 +926,25 @@ export function ClimatizzazionePDF(props: ClmPdfEnriched) {
               ))}
             </View>
           )}
+          {footer}
+        </Page>
+      )}
+
+      {/* ─── GALLERY LAVORI ──────────────────────────────────────────────── */}
+      {galleryLavori.length > 0 && (
+        <Page size="A4" style={styles.page}>
+          {header}
+          <Text style={styles.sectionTitle}>I nostri lavori</Text>
+          <Text style={styles.sectionSub}>Alcuni esempi di interventi realizzati dalla nostra azienda.</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+            {galleryLavori.map((item, i) => (
+              <View key={i} style={{ width: "47%", marginBottom: 8 }} wrap={false}>
+                <Image src={item.url} style={{ width: "100%", height: 110, borderRadius: 4 }} />
+                {item.didascalia ? <Text style={{ fontSize: 8, marginTop: 3, color: "#374151" }}>{item.didascalia}</Text> : null}
+                {item.luogo ? <Text style={{ fontSize: 7, color: "#9CA3AF" }}>{item.luogo}</Text> : null}
+              </View>
+            ))}
+          </View>
           {footer}
         </Page>
       )}
