@@ -50,6 +50,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AiTemplateGenerator } from "@/components/preventivi/AiTemplateGenerator";
 import type { AiTemplateDraft } from "@/components/preventivi/AiTemplateReviewDialog";
 import { useCompanyAnagraficaForTemplate, inheritedPlaceholder } from "@/hooks/useCompanyAnagraficaForTemplate";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
 import { useTemplatePdf, useUpsertTemplatePdf } from "@/lib/serramenti/queries";
 import { useQuoteTemplates } from "@/hooks/useQuoteTemplates";
 import { SrCard, SrCallout } from "@/lib/serramenti/wizardUI";
@@ -425,6 +426,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   const { templates: quoteTemplates, upsertTemplate: upsertQuoteTemplate } = useQuoteTemplates();
   // Dati ereditati dal Profilo azienda → placeholder anagrafica (UX allineata).
   const companyAnagrafica = useCompanyAnagraficaForTemplate();
+  // Usato dagli upload handler: punta all'azienda impersonata se super_admin.
+  const companyId = useEffectiveCompanyId();
 
   const [form, setForm] = useState<Partial<SrTemplatePdfRow>>({});
   const [dirty, setDirty] = useState(false);
@@ -723,15 +726,6 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     }
     setUploadingLogo(true);
     try {
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) throw new Error("Non autenticato");
-      const { data: profile } = await supabase
-        .from("profiles" as never)
-        .select("company_id")
-        .eq("id", userId)
-        .maybeSingle();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const companyId = (profile as any)?.company_id;
       if (!companyId) throw new Error("Profilo senza azienda");
 
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "png";
@@ -773,15 +767,6 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     }
     setUploadingChiSiamo(true);
     try {
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) throw new Error("Non autenticato");
-      const { data: profile } = await supabase
-        .from("profiles" as never)
-        .select("company_id")
-        .eq("id", userId)
-        .maybeSingle();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const companyId = (profile as any)?.company_id;
       if (!companyId) throw new Error("Profilo senza azienda");
 
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";
@@ -816,12 +801,6 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     if (file.size > 8 * 1024 * 1024) { toast.error("File troppo grande (max 8 MB)"); return; }
     setUploadingTestFoto(idx);
     try {
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) throw new Error("Non autenticato");
-      const { data: profile } = await supabase
-        .from("profiles" as never).select("company_id").eq("id", userId).maybeSingle();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const companyId = (profile as any)?.company_id;
       if (!companyId) throw new Error("Profilo senza azienda");
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";
       const storagePath = `${companyId}/template-recensioni/${crypto.randomUUID()}.${ext}`;
@@ -855,15 +834,6 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     }
     setUploadingCover(true);
     try {
-      const userId = (await supabase.auth.getUser()).data.user?.id;
-      if (!userId) throw new Error("Non autenticato");
-      const { data: profile } = await supabase
-        .from("profiles" as never)
-        .select("company_id")
-        .eq("id", userId)
-        .maybeSingle();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const companyId = (profile as any)?.company_id;
       if (!companyId) throw new Error("Profilo senza azienda");
 
       const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "jpg";
