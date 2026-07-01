@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, AlertCircle, Package, Receipt, HardHat, Hammer, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus } from "lucide-react";
+import { AlertTriangle, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
@@ -50,7 +50,6 @@ import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
 import { OrdineCliente } from "@/components/orders/OrdineCliente";
 import { OrdineTempistiche } from "@/components/orders/OrdineTempistiche";
 import { OrdineAppaltatoreLavoroCard } from "@/components/orders/OrdineAppaltatoreLavoroCard";
-import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
 import { OrderWorkPhases } from "@/components/orders/OrderWorkPhases";
 import { OrdineSAL } from "@/components/orders/OrdineSAL";
 import { OrdineFirma } from "@/components/orders/OrdineFirma";
@@ -1276,12 +1275,6 @@ function OrderDetailInner() {
                   Campo
                 </div>
               </TabsTrigger>
-              <TabsTrigger value="lavori" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">
-                <div className="flex items-center gap-1">
-                  <Hammer className="w-3 h-3" />
-                  Lavori
-                </div>
-              </TabsTrigger>
               <TabsTrigger value="altro" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Altro</TabsTrigger>
               <TabsTrigger value="ritenute" className="text-xs py-2 px-3 shrink-0 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500 data-[state=active]:to-amber-400 data-[state=active]:text-white data-[state=active]:shadow-sm">Ritenute</TabsTrigger>
             </TabsList>
@@ -1350,6 +1343,7 @@ function OrderDetailInner() {
                 onAttachmentsRefresh={handleAttachmentsRefresh}
               />
               <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
+              <OrderWorkPhases orderId={id!} />
             </TabsContent>
 
             {/* Tab 3: Finanza */}
@@ -1557,11 +1551,6 @@ function OrderDetailInner() {
               <WhatsAppActivityFeed cantiereId={id!} />
             </TabsContent>
 
-            {/* Tab Lavori: Manodopera per fase */}
-            <TabsContent value="lavori" className="space-y-4 mt-4">
-              <OrderWorkPhases orderId={id!} />
-            </TabsContent>
-
             {/* Tab 6: Altro */}
             <TabsContent value="altro" className="space-y-4 mt-4">
               <OrdineNote
@@ -1574,7 +1563,6 @@ function OrderDetailInner() {
                 onCancel={() => setIsEditingNotes(false)}
                 onNotesChange={setEditedNotes}
               />
-              <OrderLaborCosts orderId={id!} editable={true} />
               <OrderErrors orderId={id!} />
               <LinkedTasks orderId={id} category="ordini" />
               <LinkedAppointments orderId={id!} />
@@ -1743,6 +1731,8 @@ function OrderDetailInner() {
               onItemUpdate={handleItemUpdate}
               onAttachmentsRefresh={handleAttachmentsRefresh}
             />
+            {/* Lavorazioni / Manodopera — sempre sotto gli Articoli */}
+            <OrderWorkPhases orderId={id!} />
           </div>
 
           {/* ── Right Column (1/3) ──────────────────────────────── */}
@@ -1925,9 +1915,7 @@ function OrderDetailInner() {
           {/* Operatività commessa: card spostate qui dalla sidebar in una griglia
               a 2 colonne a tutta larghezza → niente più vuoto a sinistra accanto
               alla sidebar, e le card a vuoto pesano meno. */}
-          <OrderWorkPhases orderId={id!} />
           <div className="grid gap-6 lg:grid-cols-2 items-start">
-            <OrderLaborCosts orderId={id!} editable={true} />
             <OrderErrors orderId={id!} />
             <LinkedPurchaseOrdersCard
               orderId={id!}

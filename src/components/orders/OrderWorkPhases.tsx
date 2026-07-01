@@ -22,6 +22,8 @@ import {
 } from "@/hooks/useOrderWorkPhases";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -261,6 +263,18 @@ export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
             />
           ))
         )}
+
+        {/* ── Capocantiere, operai, subappalti e cantiere (sistema operativo) ── */}
+        <div className="pt-2">
+          <Separator className="mb-3" />
+          <div className="flex items-center gap-2 mb-3">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-semibold text-muted-foreground">
+              Capocantiere, squadra e subappalti
+            </span>
+          </div>
+          <OrderLaborCosts orderId={orderId} editable embedded />
+        </div>
       </CardContent>
     </Card>
   );

@@ -95,6 +95,23 @@ export function OrderEconomicsSummary({
     },
   });
 
+  // Manodopera per fase (order_phase_assignments): costo consuntivo, fallback preventivo.
+  // Additivo rispetto a order_employees/order_external_teams: sono entry distinte, niente doppioni.
+  const { data: phaseLabor = [] } = useQuery({
+    queryKey: ["oes-phase-labor", orderId],
+    enabled: !!orderId,
+    staleTime: 2 * 60 * 1000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("order_phase_assignments")
+        .select("cost_consuntivo, cost_preventivo")
+        .eq("order_id", orderId);
+      if (error) throw error;
+      return (data ?? []) as { cost_consuntivo: number | null; cost_preventivo: number | null }[];
+    },
+  });
+
   const { data: salespeople = [], isPending: spPending } = useQuery({
     queryKey: ["oes-salespeople", orderId], // chiave DEDICATA: non condividere la cache di OrderCommissions/OrderEconomics
     enabled: !!orderId,
@@ -168,7 +185,12 @@ export function OrderEconomicsSummary({
       const { netAmount } = calculateNetFromGross(t.total_cost || 0, t.vat_rate ?? 22);
       return s + netAmount;
     }, 0);
-    const laborNet = employeesNet + teamsNet;
+    // Manodopera per fase: consuntivo (fallback preventivo), trattata come netta.
+    const phaseLaborNet = phaseLabor.reduce(
+      (s, a) => s + (Number(a.cost_consuntivo) || Number(a.cost_preventivo) || 0),
+      0,
+    );
+    const laborNet = employeesNet + teamsNet + phaseLaborNet;
 
     const commissions = salespeople.reduce(
       (s, sp) => s + calculateStoredCommissionNet(sp.commission_amount, sp.deduction_amount),
@@ -184,7 +206,7 @@ export function OrderEconomicsSummary({
     const attesoMaterialiPct = totalAmount > 0 ? ((totalAmount - itemsNet) / totalAmount) * 100 : 0;
 
     return { itemsNet, laborNet, commissions, errorsTot, costsTot, margin, marginPct, attesoMaterialiPct };
-  }, [items, employees, teams, salespeople, errors, totalAmount]);
+  }, [items, employees, teams, phaseLabor, salespeople, errors, totalAmount]);
 
   // ── PREVISIONALE vs CONSUNTIVO (costi materiali) ────────────────────────────
   // Previsionale = costo materiali PIANIFICATO (order_items.purchase_price × qty,

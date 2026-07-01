@@ -84,9 +84,11 @@ function DurcBadge({ scadenza }: { scadenza: string | null }) {
 interface OrderLaborCostsProps {
   orderId: string;
   editable?: boolean;
+  /** Se true, rende solo il contenuto senza Card/header (per incorporarlo dentro un'altra sezione, es. Lavorazioni per fase). */
+  embedded?: boolean;
 }
 
-export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsProps) {
+export function OrderLaborCosts({ orderId, editable = true, embedded = false }: OrderLaborCostsProps) {
   const { effectiveCompany, role } = useAuth();
   const effectiveCompanyId = effectiveCompany?.id;
   const queryClient = useQueryClient();
@@ -271,15 +273,8 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
   const assegnazioniOperai = assegnazioni.filter((a) => a.role_type === "employee");
   const assegnazioniSub = assegnazioni.filter((a) => a.role_type === "subcontractor");
 
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2">
-          <HardHat className="h-5 w-5" />
-          Manodopera
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+  const body = (
+    <div className="space-y-4">
         {/* ── Capocantiere Responsabile ─────────────────────────── */}
         <div className="rounded-lg border p-3 bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
           <div className="flex items-center justify-between">
@@ -696,7 +691,20 @@ export function OrderLaborCosts({ orderId, editable = true }: OrderLaborCostsPro
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </CardContent>
+    </div>
+  );
+
+  if (embedded) return body;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2">
+          <HardHat className="h-5 w-5" />
+          Manodopera
+        </CardTitle>
+      </CardHeader>
+      <CardContent>{body}</CardContent>
     </Card>
   );
 }
