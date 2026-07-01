@@ -183,46 +183,85 @@ export function useOrderNotesChannel(
     };
   }, [channelId, queryClient]);
 
+  // ── Letture FRESH (non la closure) per evitare canali/membri duplicati ────
+  const fetchChannelRow = async (): Promise<OrderNotesChannel | null> => {
+    const { data, error } = await db
+      .from("internal_chat_channels")
+      .select("*")
+      .eq("order_id", orderId)
+      .eq("company_id", companyId)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return (data as OrderNotesChannel | null) ?? null;
+  };
+
+  const fetchMemberIds = async (chId: string): Promise<string[]> => {
+    const { data, error } = await db
+      .from("internal_chat_members")
+      .select("user_id")
+      .eq("channel_id", chId);
+    if (error) throw error;
+    return ((data as { user_id: string }[]) ?? []).map((m) => m.user_id);
+  };
+
+  const isDuplicateErr = (e: unknown): boolean =>
+    (e as { code?: string } | null)?.code === "23505";
+
   // ── Helper: garantisce l'esistenza del canale + owner membership ─────────
+  // Legge FRESH per commessa: un solo canale per order_id (unique index lato DB).
+  // In caso di corsa (23505) rilegge e riusa il canale esistente.
   const ensureChannel = async (): Promise<{ id: string; members: string[] }> => {
     if (!companyId || !userId || !orderId) {
       throw new Error("Sessione non valida: azienda o utente mancante.");
     }
 
-    if (channel?.id) {
-      return { id: channel.id, members: memberIds };
+    let existing = await fetchChannelRow();
+
+    if (!existing) {
+      const name = `Commessa ${opts?.orderCode ?? ""}`.trim();
+      const { data: created, error: createErr } = await db
+        .from("internal_chat_channels")
+        .insert({
+          company_id: companyId,
+          created_by: userId,
+          type: "order",
+          name,
+          order_id: orderId,
+          is_private: true,
+          channel_emoji: "🏗️",
+        })
+        .select("id")
+        .single();
+
+      if (createErr) {
+        // Corsa: un collega ha appena creato il canale della commessa → riusa.
+        if (isDuplicateErr(createErr)) {
+          existing = await fetchChannelRow();
+          if (!existing) throw createErr;
+        } else {
+          throw createErr;
+        }
+      } else {
+        const newChannelId = created.id as string;
+        const { error: ownerErr } = await db.from("internal_chat_members").insert({
+          channel_id: newChannelId,
+          company_id: companyId,
+          user_id: userId,
+          role: "owner",
+        });
+        // 23505 = sono già membro (race): ok.
+        if (ownerErr && !isDuplicateErr(ownerErr)) {
+          await db.from("internal_chat_channels").delete().eq("id", newChannelId);
+          throw ownerErr;
+        }
+        return { id: newChannelId, members: [userId] };
+      }
     }
 
-    const name = `Commessa ${opts?.orderCode ?? ""}`.trim();
-    const { data: created, error: createErr } = await db
-      .from("internal_chat_channels")
-      .insert({
-        company_id: companyId,
-        created_by: userId,
-        type: "order",
-        name,
-        order_id: orderId,
-        is_private: true,
-        channel_emoji: "🏗️",
-      })
-      .select("id")
-      .single();
-    if (createErr) throw createErr;
-
-    const newChannelId = created.id as string;
-
-    const { error: ownerErr } = await db.from("internal_chat_members").insert({
-      channel_id: newChannelId,
-      company_id: companyId,
-      user_id: userId,
-      role: "owner",
-    });
-    if (ownerErr) {
-      await db.from("internal_chat_channels").delete().eq("id", newChannelId);
-      throw ownerErr;
-    }
-
-    return { id: newChannelId, members: [userId] };
+    // Canale esistente → membri FRESCHI per un dedup corretto.
+    const members = await fetchMemberIds(existing.id);
+    return { id: existing.id, members };
   };
 
   // ── Helper: aggiunge come membri gli userId non ancora presenti ──────────
@@ -245,7 +284,8 @@ export function useOrderNotesChannel(
         role: "member",
       })),
     );
-    if (error) throw error;
+    // 23505 = qualcuno era già membro (race con il dedup): ignora.
+    if (error && !isDuplicateErr(error)) throw error;
   };
 
   const invalidateAll = (activeChannelId: string | null) => {
@@ -270,12 +310,9 @@ export function useOrderNotesChannel(
       const { id: activeId, members } = await ensureChannel();
 
       const cleanMentions = Array.from(new Set(mentions.filter(Boolean)));
-      // Aggiungi come membri i menzionati non ancora presenti (escluso me).
-      await addMissingMembers(
-        activeId,
-        members,
-        cleanMentions.filter((m) => m !== userId),
-      );
+      // Assicura che io sia membro (canali avviati da altri colleghi) e aggiungi
+      // i menzionati non ancora presenti.
+      await addMissingMembers(activeId, members, [userId, ...cleanMentions]);
 
       const { error } = await db.from("internal_chat_messages").insert({
         channel_id: activeId,

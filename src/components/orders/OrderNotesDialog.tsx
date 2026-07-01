@@ -28,7 +28,6 @@ import {
   Send,
   Loader2,
   UserPlus,
-  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, isToday, isYesterday } from "date-fns";
@@ -77,7 +76,7 @@ function shortTime(dateStr: string): string {
 
 // Evidenzia gli @mention come pill accent
 function renderContent(text: string) {
-  const parts = text.split(/(@\w[\w]*(?:\s+\w[\w]*)?)/g);
+  const parts = text.split(/(@[\p{L}]+(?:\s+[\p{L}]+)?)/gu);
   return parts.map((part, i) =>
     part.startsWith("@") ? (
       <span
@@ -275,7 +274,7 @@ export function OrderNotesDialog({
                 Note interne
               </DialogTitle>
               <p className="truncate text-xs text-muted-foreground">
-                Commessa {orderCode ?? ""}
+                {orderCode ? `Commessa ${orderCode} · ` : ""}visibili al team, non al cliente
               </p>
             </div>
           </div>
@@ -321,8 +320,8 @@ export function OrderNotesDialog({
                 <NotebookPen className="h-5 w-5 text-muted-foreground" />
               </div>
               <p className="max-w-[16rem] text-sm text-muted-foreground">
-                Nessuna nota ancora. Scrivi un promemoria per te o coinvolgi il
-                team con @.
+                Nessuna nota ancora. Scrivi un promemoria per il team o coinvolgi
+                un collega con @.
               </p>
             </div>
           ) : (
@@ -349,12 +348,6 @@ export function OrderNotesDialog({
                         <span className="text-[11px] text-muted-foreground">
                           {shortTime(msg.created_at)}
                         </span>
-                        {isMe && isSoloMe && (
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                            <Lock className="h-2.5 w-2.5" />
-                            nota privata
-                          </span>
-                        )}
                       </div>
                       <div className="mt-0.5 whitespace-pre-wrap break-words text-[13px] leading-relaxed text-foreground">
                         {renderContent(msg.content)}
