@@ -95,6 +95,8 @@ export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
     phases,
     unassigned,
     isLoading,
+    isError,
+    refetch,
     employees,
     externalTeams,
     totals,
@@ -228,6 +230,15 @@ export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
             <Loader2 className="h-5 w-5 animate-spin" />
             Caricamento lavorazioni…
           </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-rose-200 bg-rose-50/40 py-10 text-center">
+            <p className="max-w-md text-sm text-rose-700">
+              Impossibile caricare le lavorazioni. Controlla la connessione e riprova.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <Loader2 className="mr-1 h-4 w-4" /> Riprova
+            </Button>
+          </div>
         ) : phases.length === 0 && unassigned.length === 0 ? (
           <div className="flex flex-col items-center gap-4 rounded-lg border border-dashed py-10 text-center">
             <HardHat className="h-10 w-10 text-muted-foreground/60" />
@@ -317,7 +328,7 @@ interface PhaseCardProps {
   onDeletePhase: () => void;
   onAddAssignment: (
     payload: AddAssignmentPayload,
-    opts?: { onSuccess?: () => void }
+    opts?: { onSuccess?: () => void; onError?: () => void }
   ) => void;
   onUpdateAssignment: (id: string, source: AssignmentSource, patch: AssignmentPatch) => void;
   onDeleteAssignment: (id: string, source: AssignmentSource) => void;
@@ -687,7 +698,7 @@ interface AddAssignmentDialogProps {
   externalTeams: ExecutorOption[];
   onAdd: (
     payload: AddAssignmentPayload,
-    opts?: { onSuccess?: () => void }
+    opts?: { onSuccess?: () => void; onError?: () => void }
   ) => void;
 }
 
@@ -747,6 +758,8 @@ function AddAssignmentDialog({
         reset();
         setOpen(false);
       },
+      // Senza questo, un errore lasciava il bottone in spinner per sempre.
+      onError: () => setSubmitting(false),
     });
   };
 

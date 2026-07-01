@@ -4,7 +4,7 @@ import { Loader2, Paperclip, Check } from "lucide-react";
 export interface OrderDocumentAttacherProps {
   orderId: string;
   alreadyAttached: string[]; // array of file_url already attached
-  onAttach: (doc: { name: string; size: number | null; mime: string | null; file_url: string }) => void;
+  onAttach: (doc: { name: string; size: number | null; mime: string | null; file_url: string; bucket: string }) => void;
   onDetach: (fileUrl: string) => void;
 }
 
@@ -15,7 +15,7 @@ function formatSize(bytes: number | null): string {
 }
 
 export function OrderDocumentAttacher({ orderId, alreadyAttached, onAttach, onDetach }: OrderDocumentAttacherProps) {
-  const { data: docs = [], isLoading } = useOrderDocuments(orderId);
+  const { data: docs = [], isLoading, isError, refetch } = useOrderDocuments(orderId);
 
   if (isLoading) {
     return (
@@ -33,7 +33,18 @@ export function OrderDocumentAttacher({ orderId, alreadyAttached, onAttach, onDe
         Documenti commessa
       </div>
 
-      {docs.length === 0 ? (
+      {isError ? (
+        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <span className="italic">Impossibile caricare i documenti.</span>
+          <button
+            type="button"
+            className="text-blue-600 hover:text-blue-800 font-medium"
+            onClick={() => refetch()}
+          >
+            Riprova
+          </button>
+        </div>
+      ) : docs.length === 0 ? (
         <p className="text-[11px] text-muted-foreground italic">
           Nessun documento collegato alla commessa.
         </p>
@@ -65,7 +76,7 @@ export function OrderDocumentAttacher({ orderId, alreadyAttached, onAttach, onDe
                   <button
                     type="button"
                     className="text-blue-600 hover:text-blue-800 font-medium shrink-0 text-[11px]"
-                    onClick={() => onAttach({ name: doc.file_name, size: doc.file_size, mime: doc.file_type, file_url: doc.file_url })}
+                    onClick={() => onAttach({ name: doc.file_name, size: doc.file_size, mime: doc.file_type, file_url: doc.file_url, bucket: "order-attachments" })}
                     title="Allega"
                   >
                     Allega

@@ -162,6 +162,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
     size: number;
     mime: string;
     storage_path: string;
+    bucket?: string;
     uploading?: boolean;
   }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -296,6 +297,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
         body_html: bodyHtml || bodyText.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join(""),
         attachments: attachments.filter((a) => !a.uploading).map((a) => ({
           filename: a.name, size: a.size, mime: a.mime, storage_path: a.storage_path,
+          ...(a.bucket ? { bucket: a.bucket } : {}),
         })),
         status: "draft" as const,
       };
@@ -374,6 +376,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
         body_html: bodyHtml || bodyText.split("\n").map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`).join(""),
         attachments: attachments.filter((a) => !a.uploading).map((a) => ({
           filename: a.name, size: a.size, mime: a.mime, storage_path: a.storage_path,
+          ...(a.bucket ? { bucket: a.bucket } : {}),
         })),
         status: "queued" as const,
       };
@@ -554,9 +557,8 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
                 onApply={(t) => {
                   setSubject(t.subject);
                   const html = t.body_text
-                    .split("
-")
-                    .map((l) => `<p>${l || "<br/>"}</p>`)
+                    .split(/\r?\n/)
+                    .map((l) => `<p>${escapeHtml(l) || "<br/>"}</p>`)
                     .join("");
                   setBodyHtml(html);
                   setBodyText(t.body_text);
@@ -638,6 +640,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
                     size: doc.size ?? 0,
                     mime: doc.mime ?? "application/octet-stream",
                     storage_path: doc.file_url,
+                    bucket: doc.bucket,
                   },
                 ])
               }

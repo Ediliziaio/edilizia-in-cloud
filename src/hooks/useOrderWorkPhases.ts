@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -75,20 +76,31 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["order_work_phases", orderId] });
     // La manodopera vive in order_employees/order_external_teams: invalida anche
-    // le cache di margine/labor che le leggono, così i numeri si aggiornano ovunque.
+    // le cache di margine/labor che le leggono, così i numeri si aggiornano ovunque:
+    // dettaglio commessa (Conto economico), lista commesse (colonne costi/margine),
+    // dashboard (statistiche manodopera). Prefix-match perché le chiavi includono
+    // orderIds/companyId variabili.
     qc.invalidateQueries({ queryKey: ["order-employees", orderId] });
     qc.invalidateQueries({ queryKey: ["order-external-teams", orderId] });
     qc.invalidateQueries({ queryKey: ["oes-employees", orderId] });
     qc.invalidateQueries({ queryKey: ["oes-external-teams", orderId] });
+    qc.invalidateQueries({ queryKey: ["order-employees-costs"] });
+    qc.invalidateQueries({ queryKey: ["order-external-teams-costs"] });
+    qc.invalidateQueries({ queryKey: ["laborStats"] });
   };
 
-  const { data, isLoading } = useQuery({
+  // Ogni mutation fallita mostra un toast (prima: fallimenti silenziosi → spinner
+  // infinito nel dialog "Aggiungi esecutore" e input che tornano indietro senza avviso).
+  const onError = (e: unknown) =>
+    toast.error(e instanceof Error ? e.message : "Operazione non riuscita. Riprova.");
+
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["order_work_phases", orderId],
     enabled: !!orderId && !!companyId,
     queryFn: async () => {
       const [phasesRes, empRes, teamRes] = await Promise.all([
         db.from("order_work_phases").select("*").eq("order_id", orderId!).order("position", { ascending: true }),
-        db.from("order_employees").select("id, employee_id, phase_id, total_cost, cost_preventivo, hours_worked, notes").eq("order_id", orderId!),
+        db.from("order_employees").select("id, employee_id, phase_id, total_cost, cost_preventivo, hours_worked, is_paid, paid_date, notes").eq("order_id", orderId!),
         db.from("order_external_teams").select("id, external_team_id, phase_id, total_cost, cost_preventivo, is_paid, paid_date, notes").eq("order_id", orderId!),
       ]);
       if (phasesRes.error) throw phasesRes.error;
@@ -105,8 +117,8 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         cost_preventivo: Number(e.cost_preventivo) || 0,
         cost_consuntivo: Number(e.total_cost) || 0,
         hours: e.hours_worked != null ? Number(e.hours_worked) : null,
-        is_paid: false,
-        paid_date: null,
+        is_paid: Boolean(e.is_paid),
+        paid_date: (e.paid_date as string) ?? null,
         notes: (e.notes as string) ?? null,
       }));
 
@@ -188,6 +200,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       if (error) throw error;
     },
     onSuccess: invalidate,
+    onError,
   });
 
   const applyTemplate = useMutation({
@@ -200,6 +213,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       if (error) throw error;
     },
     onSuccess: invalidate,
+    onError,
   });
 
   const updatePhase = useMutation({
@@ -211,6 +225,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       if (error) throw error;
     },
     onSuccess: invalidate,
+    onError,
   });
 
   const deletePhase = useMutation({
@@ -221,6 +236,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       if (error) throw error;
     },
     onSuccess: invalidate,
+    onError,
   });
 
   const addAssignment = useMutation({
@@ -252,35 +268,29 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       }
     },
     onSuccess: invalidate,
+    onError,
   });
 
   const updateAssignment = useMutation({
     mutationFn: async ({ id, source, patch }: { id: string; source: AssignmentSource; patch: Partial<Pick<PhaseAssignment, "cost_preventivo" | "cost_consuntivo" | "hours" | "is_paid" | "paid_date" | "phase_id" | "notes">> }) => {
-      if (source === "employee") {
-        const row: Record<string, unknown> = {};
-        if (patch.cost_preventivo !== undefined) row.cost_preventivo = patch.cost_preventivo;
-        if (patch.cost_consuntivo !== undefined) row.total_cost = patch.cost_consuntivo;
-        if (patch.hours !== undefined) row.hours_worked = patch.hours;
-        if (patch.phase_id !== undefined) row.phase_id = patch.phase_id;
-        if (patch.notes !== undefined) row.notes = patch.notes;
-        const { error } = await db.from("order_employees").update(row).eq("id", id);
-        if (error) throw error;
-      } else {
-        const row: Record<string, unknown> = {};
-        if (patch.cost_preventivo !== undefined) row.cost_preventivo = patch.cost_preventivo;
-        if (patch.cost_consuntivo !== undefined) row.total_cost = patch.cost_consuntivo;
-        if (patch.is_paid !== undefined) {
-          row.is_paid = patch.is_paid;
-          row.paid_date = patch.is_paid ? new Date().toLocaleDateString("en-CA") : null;
-        }
-        if (patch.paid_date !== undefined) row.paid_date = patch.paid_date;
-        if (patch.phase_id !== undefined) row.phase_id = patch.phase_id;
-        if (patch.notes !== undefined) row.notes = patch.notes;
-        const { error } = await db.from("order_external_teams").update(row).eq("id", id);
-        if (error) throw error;
+      const table = source === "employee" ? "order_employees" : "order_external_teams";
+      const row: Record<string, unknown> = {};
+      if (patch.cost_preventivo !== undefined) row.cost_preventivo = patch.cost_preventivo;
+      if (patch.cost_consuntivo !== undefined) row.total_cost = patch.cost_consuntivo;
+      if (patch.hours !== undefined && source === "employee") row.hours_worked = patch.hours;
+      // is_paid/paid_date esistono su entrambe le tabelle: gestione uniforme
+      if (patch.is_paid !== undefined) {
+        row.is_paid = patch.is_paid;
+        row.paid_date = patch.is_paid ? new Date().toISOString().slice(0, 10) : null;
       }
+      if (patch.paid_date !== undefined) row.paid_date = patch.paid_date;
+      if (patch.phase_id !== undefined) row.phase_id = patch.phase_id;
+      if (patch.notes !== undefined) row.notes = patch.notes;
+      const { error } = await db.from(table).update(row).eq("id", id);
+      if (error) throw error;
     },
     onSuccess: invalidate,
+    onError,
   });
 
   const deleteAssignment = useMutation({
@@ -290,6 +300,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       if (error) throw error;
     },
     onSuccess: invalidate,
+    onError,
   });
 
   const totals = allAssignments.reduce(
@@ -305,6 +316,8 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     phases,
     unassigned,
     isLoading,
+    isError,
+    refetch,
     employees,
     externalTeams,
     totals: { ...totals, scostamento: totals.consuntivo - totals.preventivo },

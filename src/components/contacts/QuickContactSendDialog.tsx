@@ -110,7 +110,7 @@ export function QuickContactSendDialog({
   const [emailCc, setEmailCc] = useState("");
   const [emailBcc, setEmailBcc] = useState("");
   const [ccBccVisible, setCcBccVisible] = useState(false);
-  const [attachments, setAttachments] = useState<Array<{ name: string; size: number; mime: string; storage_path: string; uploading: boolean }>>([]);
+  const [attachments, setAttachments] = useState<Array<{ name: string; size: number; mime: string; storage_path: string; bucket?: string; uploading: boolean }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // AI assist (condiviso SMS/Email)
@@ -278,7 +278,7 @@ export function QuickContactSendDialog({
           user_id: user.id, company_id: effectiveCompany.id, oauth_connection_id: emailFrom,
           to_emails: [email], cc_emails: parseEmails(emailCc), bcc_emails: parseEmails(emailBcc),
           subject, body_text: finalText, body_html: finalHtml,
-          attachments: attachments.filter((a) => !a.uploading).map((a) => ({ filename: a.name, size: a.size, mime: a.mime, storage_path: a.storage_path })),
+          attachments: attachments.filter((a) => !a.uploading).map((a) => ({ filename: a.name, size: a.size, mime: a.mime, storage_path: a.storage_path, ...(a.bucket ? { bucket: a.bucket } : {}) })),
           status: "queued",
         })
         .select("id").single();
@@ -462,6 +462,7 @@ export function QuickContactSendDialog({
                           size: doc.size ?? 0,
                           mime: doc.mime ?? "application/octet-stream",
                           storage_path: doc.file_url,
+                          bucket: doc.bucket,
                           uploading: false,
                         },
                       ])

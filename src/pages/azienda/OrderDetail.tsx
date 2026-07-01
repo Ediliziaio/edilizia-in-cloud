@@ -37,7 +37,7 @@ import { AllocazioneOperaiAIDialog } from "@/components/orders/AllocazioneOperai
 import { LinkedTasks } from "@/components/tasks/LinkedTasks";
 import { LinkedAppointments } from "@/components/appointments/LinkedAppointments";
 import type { StatusHistoryItem } from "@/components/orders/OrderProgressTracker";
-import { type OrderStatus, type OrderItemData, type Installment, type OrderWithDetails, deleteOrderCascading, buildInstallmentsFromLegacy, getAmountDue } from "@/lib/orderUtils";
+import { type OrderStatus, type OrderItemData, type Installment, deleteOrderCascading, buildInstallmentsFromLegacy } from "@/lib/orderUtils";
 import { useFattureByOrdine } from "@/hooks/billing/useFatturaOrdineLink";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";

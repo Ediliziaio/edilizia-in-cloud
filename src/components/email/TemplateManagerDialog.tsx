@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCompanyEmailTemplates, type CompanyEmailTemplate } from "@/hooks/useCompanyEmailTemplates";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -50,7 +51,8 @@ interface FormState {
 const EMPTY_FORM: FormState = { name: "", category: "generale", subject: "", body_text: "" };
 
 export function TemplateManagerDialog({ open, onOpenChange }: TemplateManagerDialogProps) {
-  const { templates, isLoading, createMutation, updateMutation, deleteMutation } = useCompanyEmailTemplates();
+  const { templates, isLoading, isError, createMutation, updateMutation, deleteMutation } = useCompanyEmailTemplates();
+  const qc = useQueryClient();
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -183,6 +185,17 @@ export function TemplateManagerDialog({ open, onOpenChange }: TemplateManagerDia
             {isLoading ? (
               <div className="flex justify-center py-6">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : isError ? (
+              <div className="flex flex-col items-center gap-2 py-6 text-center">
+                <p className="text-xs text-muted-foreground italic">Impossibile caricare i template.</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => qc.invalidateQueries({ queryKey: ["company_email_templates"] })}
+                >
+                  Riprova
+                </Button>
               </div>
             ) : templates.length === 0 ? (
               <p className="text-xs text-muted-foreground italic text-center py-4">

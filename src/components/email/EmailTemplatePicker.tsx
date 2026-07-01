@@ -20,7 +20,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export function EmailTemplatePicker({ onApply }: EmailTemplatePickerProps) {
-  const { templates, isLoading } = useCompanyEmailTemplates();
+  const { templates, isLoading, isError } = useCompanyEmailTemplates();
   const [managerOpen, setManagerOpen] = useState(false);
   const [selected, setSelected] = useState<string>("");
 
@@ -49,7 +49,11 @@ export function EmailTemplatePicker({ onApply }: EmailTemplatePickerProps) {
   return (
     <>
       <div className="flex items-center gap-1.5">
-        {templates.length === 0 && !isLoading ? (
+        {isError ? (
+          <span className="text-[11px] text-muted-foreground italic flex-1">
+            Template non disponibili (errore).
+          </span>
+        ) : templates.length === 0 && !isLoading ? (
           <span className="text-[11px] text-muted-foreground italic flex-1">
             Nessun template —{" "}
             <button

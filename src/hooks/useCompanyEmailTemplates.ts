@@ -17,7 +17,7 @@ export function useCompanyEmailTemplates() {
   const companyId = effectiveCompany?.id;
   const qc = useQueryClient();
 
-  const { data: templates = [], isLoading } = useQuery({
+  const { data: templates = [], isLoading, isError } = useQuery({
     queryKey: ["company_email_templates", companyId],
     queryFn: async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,6 +34,7 @@ export function useCompanyEmailTemplates() {
 
   const createMutation = useMutation({
     mutationFn: async (t: Omit<CompanyEmailTemplate, "id" | "company_id" | "created_at">) => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("email_templates")
@@ -48,6 +49,7 @@ export function useCompanyEmailTemplates() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...t }: Partial<CompanyEmailTemplate> & { id: string }) => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
         .from("email_templates")
@@ -61,6 +63,7 @@ export function useCompanyEmailTemplates() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!companyId) throw new Error("Nessuna azienda selezionata");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
         .from("email_templates")
@@ -72,5 +75,5 @@ export function useCompanyEmailTemplates() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["company_email_templates", companyId] }),
   });
 
-  return { templates, isLoading, createMutation, updateMutation, deleteMutation };
+  return { templates, isLoading, isError, createMutation, updateMutation, deleteMutation };
 }

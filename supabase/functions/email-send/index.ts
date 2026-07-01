@@ -198,7 +198,7 @@ interface OutboxRow {
   subject: string;
   body_html: string | null;
   body_text: string | null;
-  attachments: Array<{ filename: string; size?: number; mime: string; storage_path: string }> | null;
+  attachments: Array<{ filename: string; size?: number; mime: string; storage_path: string; bucket?: string }> | null;
   status: string;
   attempts: number;
 }
@@ -211,7 +211,7 @@ async function downloadAttachments(
   const result: SmtpAttachment[] = [];
   for (const a of raw) {
     const { data, error } = await supabase.storage
-      .from("email-attachments")
+      .from(a.bucket ?? "email-attachments")
       .download(a.storage_path);
     if (error || !data) {
       throw new Error(`attachment_download_failed: ${a.filename} — ${error?.message}`);
