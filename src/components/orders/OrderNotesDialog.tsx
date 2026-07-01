@@ -263,7 +263,7 @@ export function OrderNotesDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="flex max-h-[85vh] max-w-md flex-col gap-0 p-0">
+      <DialogContent className="flex h-[82vh] max-h-[88vh] w-[95vw] max-w-lg flex-col gap-0 p-0">
         <DialogHeader className="flex-row items-center justify-between gap-3 space-y-0 border-b px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
