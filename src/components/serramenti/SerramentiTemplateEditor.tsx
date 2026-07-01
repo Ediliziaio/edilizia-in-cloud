@@ -1928,17 +1928,25 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                                 : "flex-start",
                         }}
                       >
-                        {form.logo_url ? (
-                          <img width={28} height={28} loading="lazy"
-                            src={form.logo_url}
-                            alt="logo"
-                            className="h-7 w-7 object-contain rounded bg-white/10 p-0.5"
-                          />
-                        ) : (
-                          <div className="h-7 w-7 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">
-                            A
-                          </div>
-                        )}
+                        {(() => {
+                          const sz = Math.round(28 * ((form.pdf_cover_logo_size ?? 100) / 100));
+                          return form.logo_url ? (
+                            <img
+                              loading="lazy"
+                              src={form.logo_url}
+                              alt="logo"
+                              className="object-contain rounded bg-white/10 p-0.5 shrink-0"
+                              style={{ width: sz, height: sz }}
+                            />
+                          ) : (
+                            <div
+                              className="rounded-full bg-white/20 flex items-center justify-center font-bold shrink-0"
+                              style={{ width: sz, height: sz, fontSize: Math.max(7, Math.round(10 * (form.pdf_cover_logo_size ?? 100) / 100)) }}
+                            >
+                              A
+                            </div>
+                          );
+                        })()}
                         <span className="text-[10px] font-semibold uppercase tracking-wide">
                           {form.indirizzo_completo ? "Azienda" : "Il tuo brand"}
                         </span>
@@ -2432,27 +2440,6 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     )}
                   </div>
                 </div>
-                {/* Dimensione logo cover (scala %) — disabilitata se logo nascosto */}
-                {(form.pdf_cover_logo_position ?? "top_left") !== "hidden" && (
-                  <div className="col-span-12 md:col-span-4">
-                    <Label className="text-[11px] flex items-center justify-between mb-1">
-                      <span>Dimensione logo</span>
-                      <span className="font-mono text-muted-foreground">
-                        {form.pdf_cover_logo_size ?? 100}%
-                      </span>
-                    </Label>
-                    <input
-                      type="range"
-                      min={60}
-                      max={160}
-                      step={5}
-                      value={form.pdf_cover_logo_size ?? 100}
-                      onChange={(e) => update("pdf_cover_logo_size", Number(e.target.value))}
-                      className="w-full accent-orange-500"
-                    />
-                  </div>
-                )}
-
                 {/* Allineamento testo */}
                 <div className="col-span-12 md:col-span-4">
                   <Label className="text-[11px] mb-1 block">Allineamento testo</Label>
@@ -2506,6 +2493,27 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                     })}
                   </div>
                 </div>
+
+                {/* Dimensione logo cover (scala %) — subito dopo posizione, nascosta se logo hidden */}
+                {(form.pdf_cover_logo_position ?? "top_left") !== "hidden" && (
+                  <div className="col-span-12 md:col-span-4">
+                    <Label className="text-[11px] flex items-center justify-between mb-1">
+                      <span>Dimensione logo</span>
+                      <span className="font-mono text-muted-foreground">
+                        {form.pdf_cover_logo_size ?? 100}%
+                      </span>
+                    </Label>
+                    <input
+                      type="range"
+                      min={60}
+                      max={160}
+                      step={5}
+                      value={form.pdf_cover_logo_size ?? 100}
+                      onChange={(e) => update("pdf_cover_logo_size", Number(e.target.value))}
+                      className="w-full accent-orange-500"
+                    />
+                  </div>
+                )}
 
                 {/* M18 · Allineamento verticale blocco testo */}
                 <div className="col-span-12 md:col-span-4">
