@@ -1,6 +1,5 @@
 import { useOrderDocuments } from "@/hooks/useOrderDocuments";
 import { Loader2, Paperclip, Check } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 
 export interface OrderDocumentAttacherProps {
   orderId: string;
@@ -48,14 +47,9 @@ export function OrderDocumentAttacher({ orderId, alreadyAttached, onAttach, onDe
                 className="flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px] bg-white"
               >
                 <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
-                  <span className="truncate font-medium">{doc.name}</span>
-                  {doc.category && (
-                    <Badge className="text-[9px] px-1 py-0 bg-slate-100 text-slate-600 font-normal">
-                      {doc.category}
-                    </Badge>
-                  )}
-                  {doc.size_bytes && (
-                    <span className="text-muted-foreground shrink-0">{formatSize(doc.size_bytes)}</span>
+                  <span className="truncate font-medium">{doc.file_name}</span>
+                  {doc.file_size && (
+                    <span className="text-muted-foreground shrink-0">{formatSize(doc.file_size)}</span>
                   )}
                 </div>
                 {attached ? (
@@ -71,7 +65,7 @@ export function OrderDocumentAttacher({ orderId, alreadyAttached, onAttach, onDe
                   <button
                     type="button"
                     className="text-blue-600 hover:text-blue-800 font-medium shrink-0 text-[11px]"
-                    onClick={() => onAttach({ name: doc.name, size: doc.size_bytes, mime: doc.mime_type, file_url: doc.file_url })}
+                    onClick={() => onAttach({ name: doc.file_name, size: doc.file_size, mime: doc.file_type, file_url: doc.file_url })}
                     title="Allega"
                   >
                     Allega
