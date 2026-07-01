@@ -2,6 +2,8 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 
+const SUPABASE_ORIGIN = new URL(import.meta.env.VITE_SUPABASE_URL as string).origin;
+
 interface OAuthStepProps {
   onSuccess: () => void;
   hook: any;
@@ -14,11 +16,13 @@ export function OAuthStep({ onSuccess, hook }: OAuthStepProps) {
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
-      // SECURITY: accetta postMessage solo dalla stessa origine (la popup
-      // OAuth ritorna al nostro callback). Senza questo check qualsiasi
-      // sito terzo aperto in altro tab può inviare un fake "success" e
-      // far credere all'app che l'OAuth sia andato a buon fine.
-      if (event.origin !== window.location.origin) return;
+      // SECURITY: il callback Meta è servito dal dominio Supabase
+      // (functions/v1/meta-oauth-callback), non dalla nostra stessa origine.
+      // Accettiamo solo messaggi provenienti da quel dominio oppure dalla
+      // nostra stessa origine (dev locale). Qualsiasi altro origine viene
+      // ignorato per prevenire fake-success injection da siti terzi.
+      const allowed = event.origin === SUPABASE_ORIGIN || event.origin === window.location.origin;
+      if (!allowed) return;
       if (event.data?.type === "META_OAUTH_RESULT") {
         if (event.data.status === "success") {
           onSuccess();
