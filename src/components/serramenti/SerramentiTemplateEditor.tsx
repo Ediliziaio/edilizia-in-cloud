@@ -440,6 +440,8 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   const chiSiamoInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingCoverLogo, setUploadingCoverLogo] = useState(false);
+  const coverLogoInputRef = useRef<HTMLInputElement | null>(null);
   // Anteprima PDF live: il bottone "Anteprima PDF" apre un dialog con il
   // template renderizzato + dati cliente demo. Aggiornamento auto su edit
   // (debounced 300ms) — vedi SerramentiTemplatePreviewDialog.
@@ -860,6 +862,43 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
     } finally {
       setUploadingCover(false);
       if (coverInputRef.current) coverInputRef.current.value = "";
+    }
+  };
+
+  const handleCoverLogoUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Carica un file immagine (PNG, JPG, WebP)");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File troppo grande (max 5 MB)");
+      return;
+    }
+    setUploadingCoverLogo(true);
+    try {
+      if (!companyId) throw new Error("Profilo senza azienda");
+
+      const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "png";
+      const storagePath = `${companyId}/template-cover-logos/${crypto.randomUUID()}.${ext}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from("sr-progetti")
+        .upload(storagePath, file, { contentType: file.type, upsert: false });
+      if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
+
+      const { data: signed } = await supabase.storage
+        .from("sr-progetti")
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
+      const logoUrl = signed?.signedUrl ?? "";
+
+      update("pdf_cover_logo_url", logoUrl);
+      toast.success("Logo copertina caricato. Salva per applicare.");
+    } catch (e) {
+      console.error("[serramenti-template-editor] cover logo upload", e);
+      toast.error("Errore upload logo copertina", { description: String(e) });
+    } finally {
+      setUploadingCoverLogo(false);
+      if (coverLogoInputRef.current) coverLogoInputRef.current.value = "";
     }
   };
 
@@ -1930,10 +1969,11 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       >
                         {(() => {
                           const sz = Math.round(28 * ((form.pdf_cover_logo_size ?? 100) / 100));
-                          return form.logo_url ? (
+                          const coverLogo = form.pdf_cover_logo_url ?? form.logo_url;
+                          return coverLogo ? (
                             <img
                               loading="lazy"
-                              src={form.logo_url}
+                              src={coverLogo}
                               alt="logo"
                               className="object-contain rounded bg-white/10 p-0.5 shrink-0"
                               style={{ width: sz, height: sz }}
@@ -2461,6 +2501,57 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                       Centro
                     </Button>
                   </div>
+                </div>
+
+                {/* Logo copertina (versione chiara per sfondo scuro) */}
+                <div className="col-span-12 md:col-span-4">
+                  <Label className="text-[11px] mb-1 block">Logo copertina (sfondo scuro)</Label>
+                  <input
+                    ref={coverLogoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && handleCoverLogoUpload(e.target.files[0])}
+                  />
+                  <div
+                    className="aspect-square rounded-md border-2 border-dashed border-slate-200 bg-muted/20 hover:border-orange-300 hover:bg-orange-50/30 cursor-pointer flex items-center justify-center overflow-hidden relative"
+                    onClick={() => !uploadingCoverLogo && coverLogoInputRef.current?.click()}
+                  >
+                    {form.pdf_cover_logo_url ? (
+                      <img loading="lazy" src={form.pdf_cover_logo_url} alt="" className="w-full h-full object-contain p-2" />
+                    ) : (
+                      <div className="text-center p-3">
+                        <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
+                        <p className="text-[10px] text-muted-foreground">Clicca per caricare</p>
+                      </div>
+                    )}
+                    {uploadingCoverLogo && (
+                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                        <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-1 mt-1">
+                    <Button
+                      size="sm" variant="outline"
+                      onClick={() => coverLogoInputRef.current?.click()}
+                      disabled={uploadingCoverLogo}
+                      className="flex-1 h-7 text-[11px]"
+                    >
+                      <Upload className="h-3 w-3 mr-1" />
+                      {form.pdf_cover_logo_url ? "Cambia" : "Carica"}
+                    </Button>
+                    {form.pdf_cover_logo_url && (
+                      <Button
+                        size="sm" variant="outline"
+                        onClick={() => update("pdf_cover_logo_url", null)}
+                        className="h-7 text-[11px] text-rose-600"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">Versione chiara/bianca del logo per la copertina con sfondo scuro. Se vuoto, usa il logo principale.</p>
                 </div>
 
                 {/* M17 · Posizione logo cover */}

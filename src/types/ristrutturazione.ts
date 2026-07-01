@@ -47,6 +47,7 @@ export interface RstTemplatePdf {
   id: string;
   company_id: string;
   logo_url: string | null;
+  cover_logo_url: string | null;
   color_primary: string | null;
   color_secondary: string | null;
   color_accent: string | null;

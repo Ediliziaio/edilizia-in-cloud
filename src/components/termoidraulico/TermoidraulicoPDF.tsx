@@ -707,6 +707,7 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
   const showFooterVersion = t.show_footer_version !== false;
   const showFooterLegal = t.show_footer_legal === true;
   const logoUrl = t.logo_url ?? company?.logo_url ?? null;
+  const coverLogoUrl = t.cover_logo_url ?? logoUrl;
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
   const coverTitle = (t.cover_title ?? "").trim() || "Preventivo di termoidraulico";
@@ -843,8 +844,8 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
         {cover.logoPosition !== "hidden" && (
           <View style={{ position: "absolute", top: 48, left: 44, right: 44 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: coverLogoJustify }}>
-              {logoUrl ? (
-                <Image src={logoUrl} style={[styles.coverLogo, { maxWidth: 180 * cover.logoScale, height: 52 * cover.logoScale }]} />
+              {coverLogoUrl ? (
+                <Image src={coverLogoUrl} style={[styles.coverLogo, { maxWidth: 180 * cover.logoScale, height: 52 * cover.logoScale }]} />
               ) : (
                 <View style={styles.coverLogoCircle}>
                   <Text style={{ color: C.white, fontSize: 24, fontWeight: 700 }}>

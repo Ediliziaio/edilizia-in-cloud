@@ -157,6 +157,7 @@ type FormState = Required<Pick<RstTemplatePdf,
   | "ragione_sociale" | "indirizzo_completo" | "telefono" | "email" | "partita_iva"
   | "font_family" | "show_footer_version" | "show_footer_legal"
   | "cover_logo_position" | "cover_text_color" | "cover_overlay_opacity"
+  | "cover_logo_url"
   | "garanzie" | "faq" | "percorso" | "show_garanzie" | "show_percorso"
   | "cover_title_size" | "cover_text_align"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
@@ -202,6 +203,7 @@ function templateToForm(t: RstTemplatePdf): FormState {
   const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
   return {
     logo_url: t.logo_url ?? null,
+    cover_logo_url: t.cover_logo_url ?? null,
     color_primary: t.color_primary ?? "#1E3A5F",
     color_secondary: t.color_secondary ?? "#F97316",
     color_accent: t.color_accent ?? "#16A34A",
@@ -934,6 +936,14 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                 {/* Immagine sfondo: upload file OPPURE galleria stock */}
                 <div className="space-y-1.5">
                   <ImageUploadField
+                    label="Logo copertina (sfondo scuro)"
+                    hint="Versione chiara/bianca del logo per la copertina con sfondo scuro. Se vuoto, usa il logo principale."
+                    value={form.cover_logo_url}
+                    companyId={companyId}
+                    onChange={(url) => set("cover_logo_url", url)}
+                    aspect="aspect-square"
+                  />
+                  <ImageUploadField
                     label="Immagine copertina (sfondo)"
                     hint="Foto orizzontale di un cantiere/render."
                     value={form.pdf_cover_image_url}
@@ -959,7 +969,7 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                 {/* Anteprima A4 (decorazione SVG style-aware col colore TESTO cover) */}
                 <div className="space-y-1.5">
                   <Label className="text-xs">Anteprima</Label>
-                  <CoverPreviewA4 form={form} logoUrl={form.logo_url} companyName={companyAnagrafica?.ragione_sociale ?? "La tua azienda"} />
+                  <CoverPreviewA4 form={form} logoUrl={(form.cover_logo_url ?? form.logo_url)} companyName={companyAnagrafica?.ragione_sociale ?? "La tua azienda"} />
                 </div>
 
                 {/* Controlli pdf_cover_* */}

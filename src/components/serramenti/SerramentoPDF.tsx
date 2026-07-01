@@ -1703,6 +1703,7 @@ export function SerramentoPDF({
   const p = detail.progetto;
   const companyName = template?.ragione_sociale || company?.ragione_sociale || company?.name || "Azienda";
   const logoUrl = template?.logo_url || company?.logo_url || null;
+  const coverLogoUrl = template?.pdf_cover_logo_url ?? logoUrl;
   const primaryColor = normalizeHexColor(template?.colore_primario, DEFAULT_PRIMARY) ?? DEFAULT_PRIMARY;
   const C = makePalette(primaryColor);
   const styles = makeStyles(C);
@@ -2161,8 +2162,8 @@ export function SerramentoPDF({
         {coverLogoPosition !== "hidden" && (
           <View wrap={false} style={coverLogoPositionStyle}>
             <View style={styles.coverLogoBox}>
-            {logoUrl ? (
-              <Image src={logoUrl} style={[styles.coverLogoImage, { maxWidth: 220 * coverLogoScale, height: 70 * coverLogoScale }]} />
+            {coverLogoUrl ? (
+              <Image src={coverLogoUrl} style={[styles.coverLogoImage, { maxWidth: 220 * coverLogoScale, height: 70 * coverLogoScale }]} />
             ) : (
               <View style={styles.coverLogoCircle}>
                 <Text style={{ color: "#FFFFFF", fontSize: 28, fontWeight: 700 }}>

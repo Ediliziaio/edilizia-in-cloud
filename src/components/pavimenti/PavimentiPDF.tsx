@@ -716,6 +716,7 @@ export function PavimentiPDF(props: PavPdfEnriched) {
   const showFooterVersion = t.show_footer_version !== false;
   const showFooterLegal = t.show_footer_legal === true;
   const logoUrl = t.logo_url ?? company?.logo_url ?? null;
+  const coverLogoUrl = t.cover_logo_url ?? logoUrl;
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
 
@@ -933,8 +934,8 @@ export function PavimentiPDF(props: PavPdfEnriched) {
         {coverLogoPosition !== "hidden" && (
           <View wrap={false} style={coverLogoPositionStyle}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: coverLogoJustify }}>
-              {logoUrl ? (
-                <Image src={logoUrl} style={styles.coverLogo} />
+              {coverLogoUrl ? (
+                <Image src={coverLogoUrl} style={styles.coverLogo} />
               ) : (
                 <View style={styles.coverLogoCircle}>
                   <Text style={{ color: C.white, fontSize: 24, fontWeight: 700 }}>

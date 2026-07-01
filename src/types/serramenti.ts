@@ -425,6 +425,8 @@ export interface SrTemplatePdfRow {
   pdf_cover_logo_position: "top_left" | "top_right" | "top_center" | "hidden";
   /** Dimensione del logo in copertina come scala % (60–160). NULL = 100% (base). */
   pdf_cover_logo_size: number | null;
+  /** Logo versione chiara per la copertina (sfondo scuro). Se null, usa logo_url. */
+  pdf_cover_logo_url: string | null;
   /** M18 · Allineamento verticale blocco testo cover. 'bottom' (default) |
    *  'center' | 'top'. Indipendente da pdf_cover_text_align (orizzontale). */
   pdf_cover_text_vertical: "top" | "center" | "bottom";

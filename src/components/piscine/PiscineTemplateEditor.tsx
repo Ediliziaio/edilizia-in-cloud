@@ -165,6 +165,7 @@ type FormState = Required<Pick<PisTemplatePdf,
   | "ragione_sociale" | "indirizzo_completo" | "telefono" | "email" | "partita_iva"
   | "font_family" | "show_footer_version" | "show_footer_legal"
   | "cover_logo_position" | "cover_text_color" | "cover_overlay_opacity"
+  | "cover_logo_url"
   | "garanzie" | "faq" | "percorso" | "show_garanzie" | "show_percorso"
   | "cover_title_size" | "cover_text_align"
   | "pdf_cover_overlay_style" | "pdf_cover_text_vertical" | "pdf_cover_decoration_style"
@@ -177,6 +178,7 @@ type FormState = Required<Pick<PisTemplatePdf,
 function templateToForm(t: PisTemplatePdf): FormState {
   return {
     logo_url: t.logo_url ?? null,
+    cover_logo_url: t.cover_logo_url ?? null,
     color_primary: t.color_primary ?? "#1E3A5F",
     color_secondary: t.color_secondary ?? "#F97316",
     color_accent: t.color_accent ?? "#16A34A",
@@ -847,6 +849,14 @@ export function PiscineTemplateEditor({ embedded = false }: Props) {
                 </div>
                 <div className="space-y-1.5">
                   <ImageUploadField
+                    label="Logo copertina (sfondo scuro)"
+                    hint="Versione chiara/bianca del logo per la copertina con sfondo scuro. Se vuoto, usa il logo principale."
+                    value={form.cover_logo_url}
+                    companyId={companyId}
+                    onChange={(url) => set("cover_logo_url", url)}
+                    aspect="aspect-square"
+                  />
+                  <ImageUploadField
                     label="Immagine copertina"
                     hint="Foto orizzontale di un cantiere/render."
                     value={form.cover_image_url}
@@ -1112,8 +1122,8 @@ export function PiscineTemplateEditor({ embedded = false }: Props) {
                               : form.cover_logo_position === "top_center" ? "center" : "flex-start",
                           }}
                         >
-                          {form.logo_url ? (
-                            <img width={28} height={28} loading="lazy" src={form.logo_url} alt="logo" className="h-7 w-7 object-contain rounded bg-white/10 p-0.5" />
+                          {(form.cover_logo_url ?? form.logo_url) ? (
+                            <img width={28} height={28} loading="lazy" src={(form.cover_logo_url ?? form.logo_url) as string} alt="logo" className="h-7 w-7 object-contain rounded bg-white/10 p-0.5" />
                           ) : (
                             <div className="h-7 w-7 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">A</div>
                           )}

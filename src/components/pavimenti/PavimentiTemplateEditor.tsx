@@ -111,6 +111,7 @@ type BaseFormState = Required<Pick<PavTemplatePdf,
   | "ragione_sociale" | "indirizzo_completo" | "telefono" | "email" | "partita_iva"
   | "font_family" | "show_footer_version" | "show_footer_legal"
   | "cover_logo_position" | "cover_text_color" | "cover_overlay_opacity"
+  | "cover_logo_url"
   | "garanzie" | "faq" | "percorso" | "show_garanzie" | "show_percorso"
   | "cover_title_size" | "cover_text_align"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
@@ -134,6 +135,7 @@ const PDF_COVER_KEYS = [
 function templateToForm(t: PavTemplatePdf): FormState {
   return {
     logo_url: t.logo_url ?? null,
+    cover_logo_url: t.cover_logo_url ?? null,
     color_primary: t.color_primary ?? "#1E3A5F",
     color_secondary: t.color_secondary ?? "#F97316",
     color_accent: t.color_accent ?? "#16A34A",
@@ -1252,8 +1254,8 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
                             : form.pdf_cover_logo_position === "top_center" ? "justify-center" : "justify-start",
                         )}>
                           <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded bg-orange-500 text-white">
-                            {form.logo_url ? (
-                              <img loading="lazy" src={form.logo_url} alt="" className="h-full w-full rounded object-contain bg-white p-1" />
+                            {(form.cover_logo_url ?? form.logo_url) ? (
+                              <img loading="lazy" src={(form.cover_logo_url ?? form.logo_url) as string} alt="" className="h-full w-full rounded object-contain bg-white p-1" />
                             ) : (
                               <span className="text-xs font-bold">{(form.ragione_sociale ?? companyAnagrafica?.ragione_sociale ?? "A").charAt(0).toUpperCase()}</span>
                             )}
@@ -1294,6 +1296,14 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
                       </Button>
                     )}
                   </div>
+                  <ImageUploadField
+                    label="Logo copertina (sfondo scuro)"
+                    hint="Versione chiara/bianca del logo per la copertina con sfondo scuro. Se vuoto, usa il logo principale."
+                    value={form.cover_logo_url}
+                    companyId={companyId}
+                    onChange={(url) => set("cover_logo_url", url)}
+                    aspect="aspect-square"
+                  />
                   <ImageUploadField
                     label="Immagine copertina"
                     hint="Foto orizzontale di un cantiere/render. Override sull'immagine."

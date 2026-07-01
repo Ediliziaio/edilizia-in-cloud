@@ -159,6 +159,7 @@ type FormState = Required<Pick<EleTemplatePdf,
   | "ragione_sociale" | "indirizzo_completo" | "telefono" | "email" | "partita_iva"
   | "font_family" | "show_footer_version" | "show_footer_legal"
   | "cover_logo_position" | "cover_text_color" | "cover_overlay_opacity"
+  | "cover_logo_url"
   | "garanzie" | "faq" | "percorso" | "show_garanzie" | "show_percorso"
   | "cover_title_size" | "cover_text_align"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
@@ -207,6 +208,7 @@ function templateToForm(t: EleTemplatePdf): FormState {
   return {
     ...cover,
     logo_url: t.logo_url ?? null,
+    cover_logo_url: t.cover_logo_url ?? null,
     color_primary: t.color_primary ?? "#1E3A5F",
     color_secondary: t.color_secondary ?? "#F97316",
     color_accent: t.color_accent ?? "#16A34A",
@@ -1100,8 +1102,8 @@ export function ElettricoTemplateEditor({ embedded = false }: Props) {
                           justifyContent: form.pdf_cover_logo_position === "top_right" ? "flex-end"
                             : form.pdf_cover_logo_position === "top_center" ? "center" : "flex-start",
                         }}>
-                          {form.logo_url ? (
-                            <img width={28} height={28} loading="lazy" src={form.logo_url} alt="logo" className="h-7 w-7 object-contain rounded bg-white/10 p-0.5" />
+                          {(form.cover_logo_url ?? form.logo_url) ? (
+                            <img width={28} height={28} loading="lazy" src={(form.cover_logo_url ?? form.logo_url) as string} alt="logo" className="h-7 w-7 object-contain rounded bg-white/10 p-0.5" />
                           ) : (
                             <div className="h-7 w-7 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">A</div>
                           )}
@@ -1142,6 +1144,15 @@ export function ElettricoTemplateEditor({ embedded = false }: Props) {
 
                 {/* CONTROLLI EDITOR */}
                 <div className="col-span-12 md:col-span-7 space-y-3">
+                  {/* Logo copertina (versione chiara per sfondo scuro) */}
+                  <ImageUploadField
+                    label="Logo copertina (sfondo scuro)"
+                    hint="Versione chiara/bianca del logo per la copertina con sfondo scuro. Se vuoto, usa il logo principale."
+                    value={form.cover_logo_url}
+                    companyId={companyId}
+                    onChange={(url) => set("cover_logo_url", url)}
+                    aspect="aspect-square"
+                  />
                   {/* Immagine di sfondo (upload + galleria stock) */}
                   <div>
                     <Label className="text-xs mb-1 block">Immagine di sfondo cover (opzionale)</Label>

@@ -87,6 +87,7 @@ interface FvCantiereGalleria {
 
 interface FvTemplate {
   logo_url?: string | null;
+  pdf_cover_logo_url?: string | null;
   colore_primario?: string | null;
   colore_accento?: string | null;
   font_titoli?: string | null;
@@ -732,12 +733,14 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   const [delRecIdx, setDelRecIdx] = useState<number | null>(null);
   const [delCertIdx, setDelCertIdx] = useState<number | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingCoverLogo, setUploadingCoverLogo] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingFotoTeam, setUploadingFotoTeam] = useState(false);
   const [uploadingRecIdx, setUploadingRecIdx] = useState<number | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [selectedSharedLegalId, setSelectedSharedLegalId] = useState("");
   const logoInputRef = useRef<HTMLInputElement | null>(null);
+  const coverLogoInputRef = useRef<HTMLInputElement | null>(null);
   const coverInputRef = useRef<HTMLInputElement | null>(null);
   const fotoTeamInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -863,6 +866,48 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
     } finally {
       setUploadingLogo(false);
       if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  };
+
+  const handleCoverLogoUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Carica un file immagine");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File troppo grande (max 5 MB)");
+      return;
+    }
+    setUploadingCoverLogo(true);
+    try {
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) throw new Error("Non autenticato");
+      const { data: profile } = await supabase
+        .from("profiles" as never)
+        .select("company_id")
+        .eq("id", userId)
+        .maybeSingle();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const cid = (profile as any)?.company_id;
+      if (!cid) throw new Error("Profilo senza azienda");
+      const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "png";
+      const storagePath = `${cid}/template-logos/cover-${crypto.randomUUID()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("fv-progetti")
+        .upload(storagePath, file, { contentType: file.type, upsert: false });
+      if (uploadErr) throw new Error(`Upload fallito: ${uploadErr.message}`);
+      const { data: signed } = await supabase.storage
+        .from("fv-progetti")
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
+      const coverLogoUrl = signed?.signedUrl ?? "";
+      update("pdf_cover_logo_url", coverLogoUrl);
+      toast.success("Logo copertina caricato. Salva per applicare.");
+    } catch (e) {
+      console.error("[fv-template] cover logo upload", e);
+      toast.error("Errore upload logo copertina", { description: String(e) });
+    } finally {
+      setUploadingCoverLogo(false);
+      if (coverLogoInputRef.current) coverLogoInputRef.current.value = "";
     }
   };
 
@@ -1648,8 +1693,8 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
                       }
                     >
                       <div className="flex h-9 w-9 items-center justify-center rounded bg-orange-500 text-white">
-                        {form.logo_url ? (
-                          <img loading="lazy" src={form.logo_url} alt="" className="h-full w-full rounded object-contain bg-white p-1" />
+                        {(form.pdf_cover_logo_url ?? form.logo_url) ? (
+                          <img loading="lazy" src={(form.pdf_cover_logo_url ?? form.logo_url) as string} alt="" className="h-full w-full rounded object-contain bg-white p-1" />
                         ) : (
                           <Sun className="h-5 w-5" />
                         )}
@@ -1788,7 +1833,57 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
             <p className="text-[10px] text-muted-foreground mt-1">PNG/JPG, max 5 MB. Sfondo trasparente consigliato.</p>
           </div>
 
-          <div className="col-span-12 md:col-span-9 grid grid-cols-12 gap-3">
+          <div className="col-span-12 md:col-span-3">
+            <Label className="text-xs mb-1 block">Logo copertina (sfondo scuro)</Label>
+            <input
+              ref={coverLogoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && handleCoverLogoUpload(e.target.files[0])}
+            />
+            <div
+              className="aspect-square rounded-md border-2 border-dashed border-slate-200 bg-muted/20 hover:border-sky-300 hover:bg-sky-50/30 cursor-pointer flex items-center justify-center overflow-hidden relative"
+              onClick={() => !uploadingCoverLogo && coverLogoInputRef.current?.click()}
+            >
+              {form.pdf_cover_logo_url ? (
+                <img loading="lazy" src={form.pdf_cover_logo_url} alt="Logo copertina" className="w-full h-full object-contain p-2" />
+              ) : (
+                <div className="text-center p-3">
+                  <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground/40 mb-1" />
+                  <p className="text-[10px] text-muted-foreground">Clicca per caricare</p>
+                </div>
+              )}
+              {uploadingCoverLogo && (
+                <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-sky-700" />
+                </div>
+              )}
+            </div>
+            <div className="flex gap-1 mt-1">
+              <Button
+                size="sm" variant="outline"
+                onClick={() => coverLogoInputRef.current?.click()}
+                disabled={uploadingCoverLogo}
+                className="flex-1 h-7 text-[11px]"
+              >
+                <Upload className="h-3 w-3 mr-1" />
+                {form.pdf_cover_logo_url ? "Cambia" : "Carica"}
+              </Button>
+              {form.pdf_cover_logo_url && (
+                <Button
+                  size="sm" variant="outline"
+                  onClick={() => update("pdf_cover_logo_url", null)}
+                  className="h-7 text-[11px] text-rose-600"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">Versione chiara/bianca del logo per la copertina con sfondo scuro. Se vuoto, usa il logo principale.</p>
+          </div>
+
+          <div className="col-span-12 md:col-span-6 grid grid-cols-12 gap-3">
             <div className="col-span-12 md:col-span-6">
               <Label className="text-xs">Colore primario</Label>
               <div className="flex gap-2">

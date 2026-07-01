@@ -658,6 +658,7 @@ export function BagniPDF(props: BgnPdfEnriched) {
   const showFooterVersion = t.show_footer_version !== false;
   const showFooterLegal = t.show_footer_legal === true;
   const logoUrl = t.logo_url ?? company?.logo_url ?? null;
+  const coverLogoUrl = t.cover_logo_url ?? logoUrl;
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
   // ─── Cover PDF "1-click" (parity SerramentoPDF) ──────────────────────────
@@ -840,8 +841,8 @@ export function BagniPDF(props: BgnPdfEnriched) {
         {coverLogoPosition !== "hidden" && (
           <View style={{ position: "absolute", top: 48, left: 44, right: 44 }}>
             <View style={[styles.coverLogoBox, { justifyContent: coverLogoJustify }]}>
-              {logoUrl ? (
-                <Image src={logoUrl} style={[styles.coverLogo, { maxWidth: 180 * coverLogoScale, height: 52 * coverLogoScale }]} />
+              {coverLogoUrl ? (
+                <Image src={coverLogoUrl} style={[styles.coverLogo, { maxWidth: 180 * coverLogoScale, height: 52 * coverLogoScale }]} />
               ) : (
                 <View style={styles.coverLogoCircle}>
                   <Text style={{ color: C.white, fontSize: 24, fontWeight: 700 }}>
