@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { listSurveysByOrder } from "@/lib/api/surveys";
 import {
-  ClipboardCheck, Plus, MapPin, Calendar, ChevronRight, Ruler, Loader2, FileText,
+  ClipboardCheck, Plus, MapPin, Calendar, ChevronRight, Ruler, Loader2,
 } from "lucide-react";
 
 /**
@@ -27,12 +27,9 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
 
 interface OrderSurveysCardProps {
   orderId: string;
-  /** Preventivo di origine (orders.quote_id / quote_number) se la commessa nasce da un preventivo. */
-  quoteId?: string | null;
-  quoteNumber?: string | null;
 }
 
-export function OrderSurveysCard({ orderId, quoteId, quoteNumber }: OrderSurveysCardProps) {
+export function OrderSurveysCard({ orderId }: OrderSurveysCardProps) {
   const navigate = useNavigate();
   const { data: surveys, isLoading, isError } = useQuery({
     queryKey: ["order-surveys", orderId],
@@ -48,7 +45,7 @@ export function OrderSurveysCard({ orderId, quoteId, quoteNumber }: OrderSurveys
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="flex items-center gap-2 text-base">
           <ClipboardCheck className="h-4 w-4 text-orange-500" />
-          Origine e rilievi misure
+          Rilievi e sopralluoghi
           {surveys && surveys.length > 0 && (
             <span className="text-xs font-normal text-muted-foreground">({surveys.length})</span>
           )}
@@ -59,23 +56,6 @@ export function OrderSurveysCard({ orderId, quoteId, quoteNumber }: OrderSurveys
         </Button>
       </CardHeader>
       <CardContent>
-        {/* Preventivo di origine: la commessa nasce da un preventivo (orders.quote_id) */}
-        {quoteId && (
-          <button
-            type="button"
-            onClick={() => navigate(`/azienda/marketing/preventivi/${quoteId}`)}
-            className="mb-3 flex w-full items-center justify-between gap-2 rounded-lg border border-violet-200 bg-violet-50/60 px-3 py-2 text-left transition-colors hover:bg-violet-50 dark:border-violet-900/40 dark:bg-violet-950/20"
-          >
-            <span className="flex min-w-0 items-center gap-2 text-sm">
-              <FileText className="h-4 w-4 shrink-0 text-violet-500" />
-              <span className="font-medium">Preventivo di origine</span>
-              {quoteNumber && <span className="truncate text-muted-foreground">· {quoteNumber}</span>}
-            </span>
-            <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-violet-600 dark:text-violet-400">
-              Apri <ChevronRight className="h-3.5 w-3.5" />
-            </span>
-          </button>
-        )}
         {isLoading && (
           <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Carico i sopralluoghi…

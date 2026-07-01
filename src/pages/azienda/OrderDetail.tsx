@@ -5,6 +5,8 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { AlertTriangle, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus, LayoutDashboard } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
+import { OrderActivityFeed } from "@/components/orders/OrderActivityFeed";
+import { OrderOriginBadge } from "@/components/orders/OrderOriginBadge";
 import { OrderMeasureControl } from "@/components/orders/OrderMeasureControl";
 import { OrderSupplierOrders } from "@/components/orders/OrderSupplierOrders";
 import { OrderEconomicsSummary } from "@/components/orders/OrderEconomicsSummary";
@@ -1248,10 +1250,9 @@ function OrderDetailInner() {
         </ErrorBoundary>
         )}
 
-        {/* Sopralluoghi collegati (rilievo misure) */}
-        <ErrorBoundary fallback={<></>}>
-          <OrderSurveysCard orderId={id!} quoteId={order.quote_id} quoteNumber={order.quote_number} />
-        </ErrorBoundary>
+        {/* Origine ordine (badge riga): nato da preventivo o diretto. I rilievi/
+            sopralluoghi sono spostati dentro la Panoramica (sono un'attività). */}
+        <OrderOriginBadge quoteId={order.quote_id} quoteNumber={order.quote_number} />
 
         {/* Controllo misure: solo se ci sono articoli su misura (altrimenti null) */}
         <ErrorBoundary fallback={<></>}>
@@ -1285,6 +1286,9 @@ function OrderDetailInner() {
 
             {/* Tab 1: Stato + Cliente + Date */}
             <TabsContent value="stato" className="space-y-4 mt-4">
+              <ErrorBoundary fallback={<></>}>
+                <OrderSurveysCard orderId={id!} />
+              </ErrorBoundary>
               {order.order_type === "appaltatore_lavoro" && (
                 <OrdineAppaltatoreLavoroCard
                   workAddress={order.work_address}
@@ -1647,10 +1651,6 @@ function OrderDetailInner() {
               <Wallet className="w-4 h-4 mr-1.5" />
               Finanza
             </TabsTrigger>
-            <TabsTrigger value="cantiere" className="text-sm">
-              <HardHat className="w-4 h-4 mr-1.5" />
-              Cantiere
-            </TabsTrigger>
             <TabsTrigger value="documenti" className="text-sm">
               <FileText className="w-4 h-4 mr-1.5" />
               Documenti e firma
@@ -1671,10 +1671,63 @@ function OrderDetailInner() {
               />
             )}
 
-            {/* Cliente */}
-            <OrdineCliente customer={order.customer} />
+            {/* Riga 1: Cliente · Tempistiche e date chiave (a colpo d'occhio) */}
+            <div className="grid gap-6 lg:grid-cols-2 items-start">
+              <OrdineCliente customer={order.customer} />
+              <OrdineTempistiche
+                orderId={order.id}
+                expectedDate={order.expected_date}
+                warehouseArrivalDate={order.warehouse_arrival_date}
+                workStartDate={order.work_start_date}
+                workEndDate={order.work_end_date}
+                orderCode={order.order_code}
+                orderDescription={order.description}
+                defaultAddress={order.work_address || order.customer?.address}
+              />
+            </div>
 
-            {/* Note */}
+            {/* Riga 2: Appuntamenti · Rilievi e sopralluoghi (pianificazione) */}
+            <div className="grid gap-6 lg:grid-cols-2 items-start">
+              <LinkedAppointments orderId={id!} />
+              <ErrorBoundary fallback={<></>}>
+                <OrderSurveysCard orderId={id!} />
+              </ErrorBoundary>
+            </div>
+
+            {/* Comunicazioni e attività: feed unico cliente + commessa (email, SMS,
+                WhatsApp, task) in ordine cronologico. Sostituisce le card sparse. */}
+            <OrderActivityFeed
+              orderId={id!}
+              customerId={order.customer_id}
+              customerEmail={order.customer?.email}
+              customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
+            />
+
+            {/* Avanzamento cantiere: SAL, timeline, rapportini campo (era il tab Cantiere) */}
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-2">
+                <HardHat className="h-4 w-4 text-muted-foreground" />
+                <h2 className="text-base font-semibold">Avanzamento cantiere</h2>
+              </div>
+              <div id="section-sal">
+                {companyId && (
+                  <OrdineSAL
+                    orderId={id!}
+                    companyId={companyId}
+                    orderTotalAmount={order.total_amount ?? undefined}
+                    installments={displayInstallments}
+                    vatRate={order.vat_rate || 22}
+                    financingCost={order.payment_type === "financing" ? order.financing_cost ?? 0 : 0}
+                  />
+                )}
+              </div>
+              {effectiveCompany?.id && (
+                <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
+              )}
+              {effectiveCompany?.id && <OrdineRapportiniCampo orderId={id!} />}
+            </div>
+
+            {/* Note interne */}
             <OrdineNote
               notes={order.internal_notes}
               isEditing={isEditingNotes}
@@ -1685,28 +1738,6 @@ function OrderDetailInner() {
               onCancel={() => setIsEditingNotes(false)}
               onNotesChange={setEditedNotes}
             />
-
-            <LinkedTasks orderId={id} category="ordini" />
-
-            {/* Comunicazioni: messaggi col cliente (email/SMS/WhatsApp collegati alla
-                scheda) + feed WhatsApp del cantiere, uniti in un unico blocco invece
-                di due card sparse. */}
-            <div className="space-y-2">
-              <div>
-                <h2 className="text-base font-semibold">Comunicazioni</h2>
-                <p className="text-sm text-muted-foreground">
-                  Messaggi col cliente e attività WhatsApp del cantiere.
-                </p>
-              </div>
-              <div className="grid gap-6 lg:grid-cols-2 items-start">
-                <OrderCommunicationsCard
-                  customerId={order.customer_id}
-                  customerEmail={order.customer?.email}
-                  customerName={order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : undefined}
-                />
-                {effectiveCompany?.id && <WhatsAppActivityFeed cantiereId={id!} />}
-              </div>
-            </div>
           </TabsContent>
 
           {/* Tab: Articoli e lavori */}
@@ -1823,49 +1854,6 @@ function OrderDetailInner() {
             {effectiveCompany?.id && (
               <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
             )}
-          </TabsContent>
-
-          {/* Tab: Cantiere */}
-          <TabsContent value="cantiere" className="space-y-6 mt-4">
-            {/* Tempistiche */}
-            <OrdineTempistiche
-              orderId={order.id}
-              expectedDate={order.expected_date}
-              warehouseArrivalDate={order.warehouse_arrival_date}
-              workStartDate={order.work_start_date}
-              workEndDate={order.work_end_date}
-              orderCode={order.order_code}
-              orderDescription={order.description}
-              defaultAddress={order.work_address || order.customer?.address}
-            />
-
-            <LinkedAppointments orderId={id!} />
-
-            <div id="section-sal">
-              {companyId && (
-                <OrdineSAL
-                  orderId={id!}
-                  companyId={companyId}
-                  orderTotalAmount={order.total_amount ?? undefined}
-                  installments={displayInstallments}
-                  vatRate={order.vat_rate || 22}
-                  financingCost={order.payment_type === "financing" ? order.financing_cost ?? 0 : 0}
-                />
-              )}
-            </div>
-
-            {effectiveCompany?.id && (
-              <div className="space-y-2">
-                <div>
-                  <h2 className="text-base font-semibold">Timeline Cantiere</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Tutti gli aggiornamenti: stati, lavori, SAL e varianti.
-                  </p>
-                </div>
-                <TimelineCantiere orderId={id!} companyId={effectiveCompany.id} adminView={true} />
-              </div>
-            )}
-            {effectiveCompany?.id && <OrdineRapportiniCampo orderId={id!} />}
           </TabsContent>
 
           {/* Tab: Documenti e firma */}
