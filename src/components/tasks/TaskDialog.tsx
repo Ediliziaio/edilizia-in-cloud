@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import {
   CalendarDays, Trash2, RefreshCw, Sparkles, User, Users, UserX,
-  ListChecks, Clock, Link2, ChevronDown, Plus, X,
+  ListChecks, Clock, Link2, ChevronDown, Plus, X, ExternalLink,
 } from "lucide-react";
 import { TaskTemplatePicker } from "./TaskTemplatePicker";
 import { addDays, format } from "date-fns";
@@ -164,6 +165,7 @@ function inferTitleFromText(text: string) {
 
 export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory, defaultOrderId, defaultStockItemId, defaultCostId, defaultContactId, defaultOpportunityId, defaultTicketId, defaultAssignedTo }: TaskDialogProps) {
   const { effectiveCompany, user, profile } = useAuth();
+  const navigate = useNavigate();
   const companyId = effectiveCompany?.id;
   const isEditing = !!task?.id;
   const { onlyAssigned } = usePermissions();
@@ -862,7 +864,18 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
 
           {(category === "ordini" || category === "pagamenti") && (
             <div className="space-y-2">
-              <Label>Ordine collegato</Label>
+              <div className="flex items-center justify-between">
+                <Label>Ordine collegato</Label>
+                {orderId && orderId !== "none" && (
+                  <button
+                    type="button"
+                    onClick={() => { onOpenChange(false); navigate(`/azienda/ordini/${orderId}`); }}
+                    className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3" /> Apri commessa
+                  </button>
+                )}
+              </div>
               <Select value={orderId} onValueChange={setOrderId}>
                 <SelectTrigger><SelectValue placeholder="Seleziona ordine" /></SelectTrigger>
                 <SelectContent>

@@ -1138,7 +1138,7 @@ function OrderDetailInner() {
         <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-2">
           <div className="flex items-center gap-2 flex-wrap text-sm">
             <ListChecks className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground shrink-0">Prossima mossa</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground shrink-0">Attività</span>
             {prossimaTask ? (
               <>
                 <span className="font-medium text-slate-900 truncate">{prossimaTask.title}</span>
@@ -1171,7 +1171,7 @@ function OrderDetailInner() {
                     {applyingPlaybook ? "Applico…" : "Applica processo"}
                   </Button>
                   <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setTaskDialogOpen(true)}>
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Singola
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Attività
                   </Button>
                   <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setPlaybookEditorOpen(true)}>
                     Gestisci
