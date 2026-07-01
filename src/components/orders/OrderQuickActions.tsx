@@ -172,6 +172,7 @@ export function OrderQuickActions({
           defaultChannel={quickSend.channel}
           prefill={quickSend.prefill}
           initialAttachments={quickSend.attachments}
+          orderId={orderId}
           onSent={() => {
             queryClient.invalidateQueries({ queryKey: ["order-messages", orderId] });
             queryClient.invalidateQueries({ queryKey: ["reg-sms"] });

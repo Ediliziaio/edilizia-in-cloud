@@ -29,6 +29,8 @@ import {
 import { cn } from "@/lib/utils";
 import { RichTextEditor } from "./RichTextEditor";
 import { RecipientField } from "./RecipientField";
+import { EmailTemplatePicker } from "@/components/email/EmailTemplatePicker";
+import { OrderDocumentAttacher } from "@/components/email/OrderDocumentAttacher";
 
 export type ComposeMode = "new" | "reply" | "replyAll" | "forward";
 
@@ -62,6 +64,7 @@ interface EmailComposeDialogProps {
   onOpenChange: (open: boolean) => void;
   context: ComposeContext;
   companyIdOverride?: string | null;
+  orderId?: string | null;
 }
 
 const SUBJECT_PREFIX_RE = /^\s*(re|fwd?|i|aw|wg|sv|tr)\s*[:\-[]\s*/i;
@@ -84,7 +87,7 @@ function buildQuoteText(src: ComposeContext["source"]): string {
   return sep + header + quoted;
 }
 
-export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverride }: EmailComposeDialogProps) {
+export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverride, orderId }: EmailComposeDialogProps) {
   const qc = useQueryClient();
   const { user, effectiveCompany } = useAuth();
   const userId = user?.id;
@@ -546,6 +549,20 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
               placeholder="Oggetto del messaggio"
               className="h-9"
             />
+            <div className="mt-1.5">
+              <EmailTemplatePicker
+                onApply={(t) => {
+                  setSubject(t.subject);
+                  const html = t.body_text
+                    .split("
+")
+                    .map((l) => `<p>${l || "<br/>"}</p>`)
+                    .join("");
+                  setBodyHtml(html);
+                  setBodyText(t.body_text);
+                }}
+              />
+            </div>
           </div>
 
           <div>
@@ -608,6 +625,27 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
               e.target.value = "";
             }}
           />
+
+          {orderId && (
+            <OrderDocumentAttacher
+              orderId={orderId}
+              alreadyAttached={attachments.map((a) => a.storage_path)}
+              onAttach={(doc) =>
+                setAttachments((prev) => [
+                  ...prev,
+                  {
+                    name: doc.name,
+                    size: doc.size ?? 0,
+                    mime: doc.mime ?? "application/octet-stream",
+                    storage_path: doc.file_url,
+                  },
+                ])
+              }
+              onDetach={(url) =>
+                setAttachments((prev) => prev.filter((a) => a.storage_path !== url))
+              }
+            />
+          )}
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-blue-100 bg-gradient-to-r from-white via-blue-50/40 to-white px-4 py-2.5">

@@ -31,6 +31,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Smartphone, MessageSquare, Mail, Send, Loader2, Sparkles, PenLine, Paperclip, X } from "lucide-react";
+import { EmailTemplatePicker } from "@/components/email/EmailTemplatePicker";
+import { OrderDocumentAttacher } from "@/components/email/OrderDocumentAttacher";
 
 export type QuickSendChannel = "sms" | "whatsapp" | "email";
 
@@ -49,6 +51,8 @@ interface QuickContactSendDialogProps {
   prefill?: { smsText?: string; emailSubject?: string; emailBody?: string; waText?: string };
   /** Allegati già caricati nel bucket email-attachments (es. PDF della commessa). */
   initialAttachments?: Array<{ name: string; size: number; mime: string; storage_path: string }>;
+  /** ID commessa per mostrare i documenti allegabili. */
+  orderId?: string | null;
 }
 
 interface EmailAccount {
@@ -77,7 +81,7 @@ function parseEmails(raw: string): string[] {
 
 export function QuickContactSendDialog({
   open, onOpenChange, contactId, name, phone, email, context, defaultChannel = "sms", onSent,
-  prefill, initialAttachments,
+  prefill, initialAttachments, orderId,
 }: QuickContactSendDialogProps) {
   const { user, effectiveCompany } = useAuth();
   const qc = useQueryClient();
@@ -414,6 +418,9 @@ export function QuickContactSendDialog({
                     <button type="button" className="text-[10px] text-blue-600 hover:underline font-medium shrink-0" onClick={() => setCcBccVisible(true)}>+ Cc/Ccn</button>
                   )}
                 </div>
+                <EmailTemplatePicker
+                  onApply={(t) => { setEmailSubject(t.subject); setEmailBody(t.body_text); }}
+                />
                 {ccBccVisible && (
                   <div className="grid grid-cols-2 gap-2">
                     <Input placeholder="Cc (virgola)" value={emailCc} onChange={(e) => setEmailCc(e.target.value)} className="h-8 text-xs" />
@@ -441,6 +448,29 @@ export function QuickContactSendDialog({
                   )}
                   {!sigEnabled && <p className="text-[10px] text-muted-foreground">Firma disattivata per questa email.</p>}
                 </div>
+
+                {/* Documenti commessa */}
+                {orderId && (
+                  <OrderDocumentAttacher
+                    orderId={orderId}
+                    alreadyAttached={attachments.map((a) => a.storage_path)}
+                    onAttach={(doc) =>
+                      setAttachments((prev) => [
+                        ...prev,
+                        {
+                          name: doc.name,
+                          size: doc.size ?? 0,
+                          mime: doc.mime ?? "application/octet-stream",
+                          storage_path: doc.file_url,
+                          uploading: false,
+                        },
+                      ])
+                    }
+                    onDetach={(url) =>
+                      setAttachments((prev) => prev.filter((a) => a.storage_path !== url))
+                    }
+                  />
+                )}
 
                 {/* Allegati */}
                 <div className="space-y-1">
