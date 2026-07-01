@@ -187,7 +187,7 @@ export function TaskDialog({ open, onOpenChange, task, onSaved, defaultCategory,
   const [initialChecklistItems, setInitialChecklistItems] = useState<string[]>([]);
   const [checklistDraft, setChecklistDraft] = useState("");
   const [aiBrief, setAiBrief] = useState("");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(true);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<string>("none");
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date | undefined>();
