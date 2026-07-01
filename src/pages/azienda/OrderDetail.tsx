@@ -1353,8 +1353,9 @@ function OrderDetailInner() {
                 onItemUpdate={handleItemUpdate}
                 onAttachmentsRefresh={handleAttachmentsRefresh}
               />
-              <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
+              {/* Manodopera subito dopo gli Articoli (sequenza coerente col desktop) */}
               <OrderWorkPhases orderId={id!} />
+              <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
             </TabsContent>
 
             {/* Tab 3: Finanza */}
