@@ -53,6 +53,110 @@ export const RISTRUTTURAZIONE_TEMPLATE: string[] = [
   "Finiture e pulizie finali",
 ];
 
+/** Modelli di fasi per tipo di lavoro edile: creano in un clic le fasi standard
+ *  della lavorazione, così si può assegnare subito manodopera/subappalti. */
+export interface PhaseTemplate {
+  key: string;
+  label: string;
+  hint: string;
+  phases: string[];
+}
+
+export const PHASE_TEMPLATES: PhaseTemplate[] = [
+  {
+    key: "ristrutturazione_completa",
+    label: "Ristrutturazione completa",
+    hint: "Appartamento/villa a 360°",
+    phases: RISTRUTTURAZIONE_TEMPLATE,
+  },
+  {
+    key: "ristrutturazione_bagno",
+    label: "Ristrutturazione bagno",
+    hint: "Rifacimento bagno chiavi in mano",
+    phases: [
+      "Demolizioni e rimozioni",
+      "Impianto idraulico",
+      "Impianto elettrico",
+      "Massetti e impermeabilizzazione",
+      "Posa rivestimenti e pavimenti",
+      "Sanitari e accessori",
+      "Box doccia e serramenti",
+      "Silicature e finiture",
+    ],
+  },
+  {
+    key: "nuova_costruzione",
+    label: "Nuova costruzione",
+    hint: "Edificio da zero",
+    phases: [
+      "Scavi e fondazioni",
+      "Struttura portante (c.a./muratura)",
+      "Copertura e tetto",
+      "Tamponamenti e tramezzi",
+      "Impianto idraulico",
+      "Impianto elettrico",
+      "Massetti e sottofondi",
+      "Intonaci e cartongessi",
+      "Serramenti",
+      "Posa pavimenti e rivestimenti",
+      "Tinteggiature",
+      "Finiture e pulizie finali",
+    ],
+  },
+  {
+    key: "cappotto_facciata",
+    label: "Cappotto / Facciata",
+    hint: "Isolamento e rifacimento facciata",
+    phases: [
+      "Ponteggio e allestimento cantiere",
+      "Preparazione del supporto",
+      "Posa pannelli isolanti",
+      "Rasatura e rete armata",
+      "Finitura e tinteggiatura",
+      "Smontaggio ponteggio e pulizie",
+    ],
+  },
+  {
+    key: "serramenti_infissi",
+    label: "Serramenti / Infissi",
+    hint: "Sostituzione finestre e porte",
+    phases: [
+      "Rilievo misure",
+      "Rimozione vecchi serramenti",
+      "Posa nuovi serramenti",
+      "Sigillature e finiture",
+      "Oscuranti e zanzariere",
+      "Collaudo e pulizie",
+    ],
+  },
+  {
+    key: "impianti",
+    label: "Impianti",
+    hint: "Elettrico, idraulico, clima",
+    phases: [
+      "Tracce e predisposizioni",
+      "Impianto elettrico",
+      "Impianto idraulico",
+      "Climatizzazione / riscaldamento",
+      "Collaudi e certificazioni",
+    ],
+  },
+  {
+    key: "tetto_copertura",
+    label: "Tetto / Copertura",
+    hint: "Rifacimento copertura",
+    phases: [
+      "Ponteggio e sicurezza",
+      "Rimozione manto esistente",
+      "Struttura e coibentazione",
+      "Impermeabilizzazione / guaina",
+      "Posa manto di copertura",
+      "Lattoneria e pluviali",
+      "Smontaggio e pulizie",
+    ],
+  },
+];
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
@@ -204,9 +308,9 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   });
 
   const applyTemplate = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (names: string[]) => {
       const base = phases.length;
-      const rows = RISTRUTTURAZIONE_TEMPLATE.map((name, i) => ({
+      const rows = names.map((name, i) => ({
         company_id: companyId, order_id: orderId, name, position: base + i,
       }));
       const { error } = await db.from("order_work_phases").insert(rows);

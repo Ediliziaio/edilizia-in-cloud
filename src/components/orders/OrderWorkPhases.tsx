@@ -14,6 +14,7 @@ import { toast } from "sonner";
 
 import {
   useOrderWorkPhases,
+  PHASE_TEMPLATES,
   type WorkPhase,
   type PhaseAssignment,
   type PhaseStatus,
@@ -22,6 +23,7 @@ import {
   type AssignmentSource,
   type AddAssignmentPayload,
 } from "@/hooks/useOrderWorkPhases";
+import { cn } from "@/lib/utils";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -111,6 +113,14 @@ export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
 
   const [newPhaseOpen, setNewPhaseOpen] = useState(false);
   const [newPhaseName, setNewPhaseName] = useState("");
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null);
+  const selectedTemplate = PHASE_TEMPLATES.find((t) => t.key === selectedTemplateKey) ?? null;
+
+  const closePhaseDialog = () => {
+    setNewPhaseOpen(false);
+    setNewPhaseName("");
+    setSelectedTemplateKey(null);
+  };
 
   const handleAddPhase = () => {
     const name = newPhaseName.trim();
@@ -121,7 +131,17 @@ export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
     addPhase.mutate(name, {
       onSuccess: () => {
         setNewPhaseName("");
-        setNewPhaseOpen(false);
+        toast.success("Fase aggiunta");
+      },
+    });
+  };
+
+  const handleApplyTemplate = () => {
+    if (!selectedTemplate) return;
+    applyTemplate.mutate(selectedTemplate.phases, {
+      onSuccess: () => {
+        toast.success(`${selectedTemplate.phases.length} fasi aggiunte`);
+        closePhaseDialog();
       },
     });
   };
@@ -138,66 +158,119 @@ export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
           </CardTitle>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Dialog open={newPhaseOpen} onOpenChange={setNewPhaseOpen}>
+            <Dialog open={newPhaseOpen} onOpenChange={(o) => (o ? setNewPhaseOpen(true) : closePhaseDialog())}>
               <DialogTrigger asChild>
                 <Button size="sm" variant="outline">
-                  <Plus className="mr-1 h-4 w-4" />
-                  Aggiungi fase
+                  <ListPlus className="mr-1 h-4 w-4" />
+                  Aggiungi lavorazioni
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
+              <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                  <DialogTitle>Nuova fase</DialogTitle>
+                  <DialogTitle>Aggiungi lavorazioni</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-2">
-                  <Label htmlFor="new-phase-name">Nome della fase</Label>
-                  <Input
-                    id="new-phase-name"
-                    autoFocus
-                    value={newPhaseName}
-                    placeholder="Es. Opere murarie"
-                    onChange={(e) => setNewPhaseName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddPhase();
-                      }
-                    }}
-                  />
+
+                <div className="space-y-4">
+                  {/* Modelli di fasi per tipo di lavoro */}
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Parti da un modello
+                    </Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {PHASE_TEMPLATES.map((t) => (
+                        <button
+                          key={t.key}
+                          type="button"
+                          onClick={() =>
+                            setSelectedTemplateKey((k) => (k === t.key ? null : t.key))
+                          }
+                          className={cn(
+                            "rounded-full border px-3 py-1 text-xs transition-colors",
+                            selectedTemplateKey === t.key
+                              ? "border-primary bg-primary/10 font-medium text-primary"
+                              : "border-border text-muted-foreground hover:bg-accent",
+                          )}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {selectedTemplate && (
+                      <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                        <p className="text-xs text-muted-foreground">
+                          {selectedTemplate.hint} · {selectedTemplate.phases.length} fasi
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {selectedTemplate.phases.map((p, i) => (
+                            <span
+                              key={i}
+                              className="rounded border bg-background px-1.5 py-0.5 text-[11px] text-foreground"
+                            >
+                              {i + 1}. {p}
+                            </span>
+                          ))}
+                        </div>
+                        <Button
+                          size="sm"
+                          className="w-full"
+                          onClick={handleApplyTemplate}
+                          disabled={applyTemplate.isPending}
+                        >
+                          {applyTemplate.isPending ? (
+                            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                          ) : (
+                            <ListPlus className="mr-1 h-4 w-4" />
+                          )}
+                          Aggiungi le {selectedTemplate.phases.length} fasi
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <Separator />
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-[10px] uppercase text-muted-foreground">
+                      oppure
+                    </span>
+                  </div>
+
+                  {/* Singola fase manuale */}
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="new-phase-name"
+                      className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
+                    >
+                      Aggiungi una singola fase
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="new-phase-name"
+                        value={newPhaseName}
+                        placeholder="Es. Opere murarie"
+                        onChange={(e) => setNewPhaseName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddPhase();
+                          }
+                        }}
+                      />
+                      <Button
+                        onClick={handleAddPhase}
+                        disabled={addPhase.isPending || !newPhaseName.trim()}
+                      >
+                        {addPhase.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setNewPhaseName("");
-                      setNewPhaseOpen(false);
-                    }}
-                  >
-                    Annulla
-                  </Button>
-                  <Button onClick={handleAddPhase} disabled={addPhase.isPending}>
-                    {addPhase.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
-                    Aggiungi
-                  </Button>
-                </DialogFooter>
               </DialogContent>
             </Dialog>
-
-            {phases.length > 0 && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => applyTemplate.mutate()}
-                disabled={applyTemplate.isPending}
-              >
-                {applyTemplate.isPending ? (
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                ) : (
-                  <ListPlus className="mr-1 h-4 w-4" />
-                )}
-                Carica fasi ristrutturazione
-              </Button>
-            )}
           </div>
         </div>
 
@@ -246,20 +319,10 @@ export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
               Nessuna lavorazione ancora. Aggiungi le fasi del cantiere per assegnare operai e
               subappalti e tenere sotto controllo i costi.
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <Button onClick={() => applyTemplate.mutate()} disabled={applyTemplate.isPending}>
-                {applyTemplate.isPending ? (
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                ) : (
-                  <ListPlus className="mr-1 h-4 w-4" />
-                )}
-                Carica fasi ristrutturazione
-              </Button>
-              <Button variant="outline" onClick={() => setNewPhaseOpen(true)}>
-                <Plus className="mr-1 h-4 w-4" />
-                Aggiungi fase manualmente
-              </Button>
-            </div>
+            <Button onClick={() => setNewPhaseOpen(true)}>
+              <ListPlus className="mr-1 h-4 w-4" />
+              Aggiungi lavorazioni
+            </Button>
           </div>
         ) : (
           <>
