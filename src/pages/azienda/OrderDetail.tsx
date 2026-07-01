@@ -1341,6 +1341,8 @@ function OrderDetailInner() {
                 orderDescription={order.description}
                 defaultAddress={order.work_address || order.customer?.address}
               />
+              {/* Documenti Commessa (allegati/file) */}
+              <OrderAttachments orderId={id!} editable={true} />
             </TabsContent>
 
             {/* Tab 2: Articoli */}
@@ -1356,9 +1358,19 @@ function OrderDetailInner() {
                 }}
                 onItemUpdate={handleItemUpdate}
                 onAttachmentsRefresh={handleAttachmentsRefresh}
+                showAttachments={false}
+                showSupplierPayments={false}
               />
               {/* Manodopera subito dopo gli Articoli (sequenza coerente col desktop) */}
               <OrderWorkPhases orderId={id!} />
+              {/* Pagamenti Fornitori sotto la Manodopera, collegati agli OdA */}
+              {permissions.canViewCosts && (
+                <SupplierPaymentsCard
+                  items={orderItems}
+                  companyId={effectiveCompany?.id || ""}
+                  orderId={id!}
+                />
+              )}
               <OrderSerialsTrackingCard orderId={id!} orderItems={orderItems} />
             </TabsContent>
 
@@ -1599,15 +1611,6 @@ function OrderDetailInner() {
                   supplier_id: i.supplier_id,
                   vat_rate: i.vat_rate,
                 }))}
-              />
-              <OrdineFirma
-                orderId={id!}
-                customerEmail={order.customer?.email}
-                customerName={
-                  order.customer
-                    ? `${order.customer.first_name} ${order.customer.last_name}`
-                    : undefined
-                }
               />
               {effectiveCompany?.id && (
                 <OrdineVariazione orderId={id!} companyId={effectiveCompany.id} />
