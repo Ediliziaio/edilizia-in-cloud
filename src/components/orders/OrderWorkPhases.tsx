@@ -1,0 +1,798 @@
+import { useMemo, useState } from "react";
+import {
+  HardHat,
+  Plus,
+  Loader2,
+  Pencil,
+  Check,
+  Trash2,
+  User,
+  Users,
+  ListPlus,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import {
+  useOrderWorkPhases,
+  type WorkPhase,
+  type PhaseAssignment,
+  type PhaseStatus,
+  type ExecutorType,
+  type ExecutorOption,
+} from "@/hooks/useOrderWorkPhases";
+
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+const eur = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+
+const STATUS_OPTIONS: { value: PhaseStatus; label: string; dot: string; badge: string }[] = [
+  {
+    value: "da_iniziare",
+    label: "Da iniziare",
+    dot: "bg-slate-400",
+    badge: "border-slate-300 bg-slate-100 text-slate-700",
+  },
+  {
+    value: "in_corso",
+    label: "In corso",
+    dot: "bg-amber-500",
+    badge: "border-amber-300 bg-amber-100 text-amber-800",
+  },
+  {
+    value: "completata",
+    label: "Completata",
+    dot: "bg-emerald-500",
+    badge: "border-emerald-300 bg-emerald-100 text-emerald-800",
+  },
+];
+
+function statusMeta(status: PhaseStatus) {
+  return STATUS_OPTIONS.find((s) => s.value === status) ?? STATUS_OPTIONS[0];
+}
+
+interface OrderWorkPhasesProps {
+  orderId: string;
+}
+
+export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
+  const {
+    phases,
+    isLoading,
+    employees,
+    externalTeams,
+    totals,
+    addPhase,
+    applyTemplate,
+    updatePhase,
+    deletePhase,
+    addAssignment,
+    updateAssignment,
+    deleteAssignment,
+  } = useOrderWorkPhases(orderId);
+
+  const [newPhaseOpen, setNewPhaseOpen] = useState(false);
+  const [newPhaseName, setNewPhaseName] = useState("");
+
+  const handleAddPhase = () => {
+    const name = newPhaseName.trim();
+    if (!name) {
+      toast.error("Inserisci il nome della fase");
+      return;
+    }
+    addPhase.mutate(name, {
+      onSuccess: () => {
+        setNewPhaseName("");
+        setNewPhaseOpen(false);
+      },
+    });
+  };
+
+  const scostamentoClass = totals.scostamento > 0 ? "text-rose-600" : "text-emerald-600";
+
+  return (
+    <Card>
+      <CardHeader className="gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <HardHat className="h-5 w-5 text-primary" />
+            Lavorazioni / Manodopera
+          </CardTitle>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Dialog open={newPhaseOpen} onOpenChange={setNewPhaseOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline">
+                  <Plus className="mr-1 h-4 w-4" />
+                  Aggiungi fase
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Nuova fase</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-2">
+                  <Label htmlFor="new-phase-name">Nome della fase</Label>
+                  <Input
+                    id="new-phase-name"
+                    autoFocus
+                    value={newPhaseName}
+                    placeholder="Es. Opere murarie"
+                    onChange={(e) => setNewPhaseName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddPhase();
+                      }
+                    }}
+                  />
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setNewPhaseName("");
+                      setNewPhaseOpen(false);
+                    }}
+                  >
+                    Annulla
+                  </Button>
+                  <Button onClick={handleAddPhase} disabled={addPhase.isPending}>
+                    {addPhase.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+                    Aggiungi
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {phases.length > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => applyTemplate.mutate()}
+                disabled={applyTemplate.isPending}
+              >
+                {applyTemplate.isPending ? (
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <ListPlus className="mr-1 h-4 w-4" />
+                )}
+                Carica fasi ristrutturazione
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Totals strip */}
+        <div className="grid grid-cols-3 gap-2 rounded-lg border bg-muted/40 p-3 text-center">
+          <div>
+            <p className="text-xs text-muted-foreground">Preventivo</p>
+            <p className="text-sm font-semibold tabular-nums sm:text-base">
+              {eur.format(totals.preventivo)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Consuntivo</p>
+            <p className="text-sm font-semibold tabular-nums sm:text-base">
+              {eur.format(totals.consuntivo)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Scostamento</p>
+            <p className={`text-sm font-semibold tabular-nums sm:text-base ${scostamentoClass}`}>
+              {eur.format(totals.scostamento)}
+            </p>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        {isLoading ? (
+          <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Caricamento lavorazioni…
+          </div>
+        ) : phases.length === 0 ? (
+          <div className="flex flex-col items-center gap-4 rounded-lg border border-dashed py-10 text-center">
+            <HardHat className="h-10 w-10 text-muted-foreground/60" />
+            <p className="max-w-md text-sm text-muted-foreground">
+              Nessuna lavorazione ancora. Aggiungi le fasi del cantiere per assegnare operai e
+              subappalti e tenere sotto controllo i costi.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button onClick={() => applyTemplate.mutate()} disabled={applyTemplate.isPending}>
+                {applyTemplate.isPending ? (
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <ListPlus className="mr-1 h-4 w-4" />
+                )}
+                Carica fasi ristrutturazione
+              </Button>
+              <Button variant="outline" onClick={() => setNewPhaseOpen(true)}>
+                <Plus className="mr-1 h-4 w-4" />
+                Aggiungi fase manualmente
+              </Button>
+            </div>
+          </div>
+        ) : (
+          phases.map((phase) => (
+            <PhaseCard
+              key={phase.id}
+              phase={phase}
+              orderId={orderId}
+              employees={employees}
+              externalTeams={externalTeams}
+              onUpdatePhase={(patch) => updatePhase.mutate({ id: phase.id, ...patch })}
+              onDeletePhase={() => deletePhase.mutate(phase.id)}
+              onAddAssignment={(payload, opts) => addAssignment.mutate(payload, opts)}
+              onUpdateAssignment={(id, patch) => updateAssignment.mutate({ id, ...patch })}
+              onDeleteAssignment={(id) => deleteAssignment.mutate(id)}
+            />
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Phase card                                                          */
+/* ------------------------------------------------------------------ */
+
+interface PhaseCardProps {
+  phase: WorkPhase;
+  orderId: string;
+  employees: ExecutorOption[];
+  externalTeams: ExecutorOption[];
+  onUpdatePhase: (patch: { name?: string; status?: PhaseStatus }) => void;
+  onDeletePhase: () => void;
+  onAddAssignment: (
+    payload: Omit<PhaseAssignment, "id">,
+    opts?: { onSuccess?: () => void }
+  ) => void;
+  onUpdateAssignment: (id: string, patch: Partial<PhaseAssignment>) => void;
+  onDeleteAssignment: (id: string) => void;
+}
+
+function PhaseCard({
+  phase,
+  orderId,
+  employees,
+  externalTeams,
+  onUpdatePhase,
+  onDeletePhase,
+  onAddAssignment,
+  onUpdateAssignment,
+  onDeleteAssignment,
+}: PhaseCardProps) {
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(phase.name);
+
+  const meta = statusMeta(phase.status);
+
+  const phaseTotals = useMemo(() => {
+    return phase.assignments.reduce(
+      (acc, a) => {
+        acc.prev += Number(a.cost_preventivo) || 0;
+        acc.cons += Number(a.cost_consuntivo) || 0;
+        return acc;
+      },
+      { prev: 0, cons: 0 }
+    );
+  }, [phase.assignments]);
+
+  const commitName = () => {
+    const name = nameDraft.trim();
+    setEditingName(false);
+    if (name && name !== phase.name) {
+      onUpdatePhase({ name });
+    } else {
+      setNameDraft(phase.name);
+    }
+  };
+
+  return (
+    <Card className="border-muted">
+      <CardHeader className="gap-3 pb-3">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          {/* Name + status */}
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            {editingName ? (
+              <Input
+                autoFocus
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={commitName}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitName();
+                  } else if (e.key === "Escape") {
+                    setNameDraft(phase.name);
+                    setEditingName(false);
+                  }
+                }}
+                className="h-8 max-w-xs"
+              />
+            ) : (
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate font-semibold">{phase.name}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0 text-muted-foreground"
+                  onClick={() => {
+                    setNameDraft(phase.name);
+                    setEditingName(true);
+                  }}
+                  aria-label="Modifica nome fase"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+
+            <Badge variant="outline" className={`gap-1 ${meta.badge}`}>
+              <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
+              {meta.label}
+            </Badge>
+          </div>
+
+          {/* Right controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={phase.status}
+              onValueChange={(v) => onUpdatePhase({ status: v as PhaseStatus })}
+            >
+              <SelectTrigger className="h-8 w-[150px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <span className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+              Prev: {eur.format(phaseTotals.prev)} · Cons: {eur.format(phaseTotals.cons)}
+            </span>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-rose-600"
+                  aria-label="Elimina fase"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Eliminare la fase?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Eliminare la fase «{phase.name}» e i suoi esecutori? L'operazione non è
+                    reversibile.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-rose-600 hover:bg-rose-700"
+                    onClick={onDeletePhase}
+                  >
+                    Elimina
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-2 pt-0">
+        {phase.assignments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nessun esecutore assegnato</p>
+        ) : (
+          <div className="space-y-2">
+            {phase.assignments.map((a) => (
+              <AssignmentRow
+                key={a.id}
+                assignment={a}
+                employees={employees}
+                externalTeams={externalTeams}
+                onUpdate={(patch) => onUpdateAssignment(a.id, patch)}
+                onDelete={() => onDeleteAssignment(a.id)}
+              />
+            ))}
+          </div>
+        )}
+
+        <AddAssignmentDialog
+          phaseId={phase.id}
+          orderId={orderId}
+          employees={employees}
+          externalTeams={externalTeams}
+          onAdd={onAddAssignment}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Assignment row                                                      */
+/* ------------------------------------------------------------------ */
+
+function resolveExecutorLabel(
+  a: PhaseAssignment,
+  employees: ExecutorOption[],
+  externalTeams: ExecutorOption[]
+): string {
+  if (a.executor_type === "interno") {
+    return employees.find((e) => e.id === a.employee_id)?.label ?? "—";
+  }
+  return externalTeams.find((t) => t.id === a.external_team_id)?.label ?? "—";
+}
+
+interface AssignmentRowProps {
+  assignment: PhaseAssignment;
+  employees: ExecutorOption[];
+  externalTeams: ExecutorOption[];
+  onUpdate: (patch: Partial<PhaseAssignment>) => void;
+  onDelete: () => void;
+}
+
+function AssignmentRow({
+  assignment,
+  employees,
+  externalTeams,
+  onUpdate,
+  onDelete,
+}: AssignmentRowProps) {
+  const isInterno = assignment.executor_type === "interno";
+  const label = resolveExecutorLabel(assignment, employees, externalTeams);
+
+  const [prevDraft, setPrevDraft] = useState(String(assignment.cost_preventivo ?? 0));
+  const [consDraft, setConsDraft] = useState(String(assignment.cost_consuntivo ?? 0));
+
+  const commit = (field: "cost_preventivo" | "cost_consuntivo", raw: string) => {
+    const parsed = parseFloat(raw);
+    const value = Number.isNaN(parsed) ? 0 : parsed;
+    if (field === "cost_preventivo") setPrevDraft(String(value));
+    else setConsDraft(String(value));
+    if (value !== Number(assignment[field])) {
+      onUpdate({ [field]: value });
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border bg-background p-2.5">
+      {/* Executor */}
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        {isInterno ? (
+          <User className="h-4 w-4 shrink-0 text-blue-600" />
+        ) : (
+          <Users className="h-4 w-4 shrink-0 text-violet-600" />
+        )}
+        <span className="truncate text-sm font-medium">{label}</span>
+        <Badge
+          variant="outline"
+          className={
+            isInterno
+              ? "border-blue-300 bg-blue-100 text-blue-700"
+              : "border-violet-300 bg-violet-100 text-violet-700"
+          }
+        >
+          {isInterno ? "Interno" : "Subappalto"}
+        </Badge>
+      </div>
+
+      {/* Costs */}
+      <div className="flex items-center gap-3">
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          Prev
+          <Input
+            type="number"
+            step="0.01"
+            value={prevDraft}
+            onChange={(e) => setPrevDraft(e.target.value)}
+            onBlur={(e) => commit("cost_preventivo", e.target.value)}
+            className="h-8 w-24 tabular-nums"
+          />
+        </label>
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          Cons
+          <Input
+            type="number"
+            step="0.01"
+            value={consDraft}
+            onChange={(e) => setConsDraft(e.target.value)}
+            onBlur={(e) => commit("cost_consuntivo", e.target.value)}
+            className="h-8 w-24 tabular-nums"
+          />
+        </label>
+      </div>
+
+      {/* Paid + delete */}
+      <div className="flex items-center gap-2">
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Switch
+            checked={assignment.is_paid}
+            onCheckedChange={(checked) =>
+              onUpdate({
+                is_paid: checked,
+                paid_date: checked ? new Date().toISOString().slice(0, 10) : null,
+              })
+            }
+          />
+          Pagato
+        </label>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-rose-600"
+          onClick={onDelete}
+          aria-label="Rimuovi esecutore"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Add assignment dialog                                               */
+/* ------------------------------------------------------------------ */
+
+interface AddAssignmentDialogProps {
+  phaseId: string;
+  orderId: string;
+  employees: ExecutorOption[];
+  externalTeams: ExecutorOption[];
+  onAdd: (
+    payload: Omit<PhaseAssignment, "id">,
+    opts?: { onSuccess?: () => void }
+  ) => void;
+}
+
+function AddAssignmentDialog({
+  phaseId,
+  orderId,
+  employees,
+  externalTeams,
+  onAdd,
+}: AddAssignmentDialogProps) {
+  const [open, setOpen] = useState(false);
+  const [tipo, setTipo] = useState<ExecutorType>("interno");
+  const [executorId, setExecutorId] = useState<string>("");
+  const [prev, setPrev] = useState("0");
+  const [cons, setCons] = useState("0");
+  const [hours, setHours] = useState("");
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const options = tipo === "interno" ? employees : externalTeams;
+
+  const reset = () => {
+    setTipo("interno");
+    setExecutorId("");
+    setPrev("0");
+    setCons("0");
+    setHours("");
+    setNotes("");
+    setSubmitting(false);
+  };
+
+  const num = (raw: string) => {
+    const parsed = parseFloat(raw);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+
+  const handleSubmit = () => {
+    if (!executorId) {
+      toast.error("Seleziona un esecutore");
+      return;
+    }
+    const hoursNum = hours.trim() === "" ? null : num(hours);
+    const payload: Omit<PhaseAssignment, "id"> = {
+      phase_id: phaseId,
+      order_id: orderId,
+      executor_type: tipo,
+      employee_id: tipo === "interno" ? executorId : null,
+      external_team_id: tipo === "esterno" ? executorId : null,
+      cost_preventivo: num(prev),
+      cost_consuntivo: num(cons),
+      hours: hoursNum,
+      is_paid: false,
+      paid_date: null,
+      notes: notes.trim() === "" ? null : notes.trim(),
+    };
+    setSubmitting(true);
+    onAdd(payload, {
+      onSuccess: () => {
+        reset();
+        setOpen(false);
+      },
+    });
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) reset();
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="mt-1">
+          <Plus className="mr-1 h-4 w-4" />
+          Aggiungi esecutore
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Aggiungi esecutore</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Tipo toggle */}
+          <div className="space-y-1.5">
+            <Label>Tipo esecutore</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant={tipo === "interno" ? "default" : "outline"}
+                onClick={() => {
+                  setTipo("interno");
+                  setExecutorId("");
+                }}
+                className="justify-start"
+              >
+                <User className="mr-1.5 h-4 w-4" />
+                Operaio interno
+              </Button>
+              <Button
+                type="button"
+                variant={tipo === "esterno" ? "default" : "outline"}
+                onClick={() => {
+                  setTipo("esterno");
+                  setExecutorId("");
+                }}
+                className="justify-start"
+              >
+                <Users className="mr-1.5 h-4 w-4" />
+                Subappalto / squadra
+              </Button>
+            </div>
+          </div>
+
+          {/* Executor picker */}
+          <div className="space-y-1.5">
+            <Label>{tipo === "interno" ? "Operaio" : "Squadra / subappalto"}</Label>
+            <Select value={executorId} onValueChange={setExecutorId}>
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={
+                    options.length === 0
+                      ? tipo === "interno"
+                        ? "Nessun operaio disponibile"
+                        : "Nessuna squadra disponibile"
+                      : "Seleziona…"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Costs */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="assign-prev">Costo preventivo €</Label>
+              <Input
+                id="assign-prev"
+                type="number"
+                step="0.01"
+                value={prev}
+                onChange={(e) => setPrev(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="assign-cons">Costo consuntivo €</Label>
+              <Input
+                id="assign-cons"
+                type="number"
+                step="0.01"
+                value={cons}
+                onChange={(e) => setCons(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Hours */}
+          <div className="space-y-1.5">
+            <Label htmlFor="assign-hours">Ore (facoltativo)</Label>
+            <Input
+              id="assign-hours"
+              type="number"
+              step="0.5"
+              value={hours}
+              placeholder="Es. 8"
+              onChange={(e) => setHours(e.target.value)}
+            />
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-1.5">
+            <Label htmlFor="assign-notes">Note (facoltativo)</Label>
+            <Textarea
+              id="assign-notes"
+              value={notes}
+              rows={2}
+              placeholder="Dettagli, accordi, riferimenti…"
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Annulla
+          </Button>
+          <Button onClick={handleSubmit} disabled={submitting}>
+            {submitting ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <Check className="mr-1 h-4 w-4" />
+            )}
+            Aggiungi
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
