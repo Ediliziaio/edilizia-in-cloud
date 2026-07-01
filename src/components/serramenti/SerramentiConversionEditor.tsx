@@ -10,17 +10,16 @@
  *   5. Bonus aggiuntivi (value stacking)
  *   6. FAQ obiezioni anticipate
  *   7. Brand legitimacy footer (dati legali)
- *   8. Condizioni e disclaimer legali
  *
  * Tutti i campi sono opzionali: ogni sezione ha il proprio toggle "Attiva".
  * State è esterno: il chiamante (SerramentiTemplateEditor) gestisce save.
  */
-import { memo, useMemo, useState } from "react";
+import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, Shield, Tag, Sparkles, Award, Gift, HelpCircle, FileText, Scale, Wand2 } from "lucide-react";
+import { Plus, Trash2, Shield, Tag, Sparkles, Award, Gift, HelpCircle, FileText, Wand2 } from "lucide-react";
 import type {
   SrTemplatePdfRow, SrGaranzia, SrConfrontoRiga,
   SrCertificazione, SrBonus, SrFaq,
@@ -36,10 +35,6 @@ interface Props {
   form: Partial<SrTemplatePdfRow>;
   update: <K extends keyof SrTemplatePdfRow>(key: K, value: SrTemplatePdfRow[K]) => void;
   companyAnagrafica?: TemplateCompanyAnagrafica | null;
-  sharedLegalTemplates?: SharedLegalTemplateOption[];
-  onApplySharedLegalTemplate?: (templateId: string, mode: "replace" | "append") => void;
-  onSaveSharedLegalTemplate?: (kind: SharedLegalTemplateKind) => void;
-  isSharedLegalSaving?: boolean;
 }
 
 export type SharedLegalTemplateKind = "condizioni" | "legali";
@@ -76,10 +71,6 @@ function SerramentiConversionEditorImpl({
   form,
   update,
   companyAnagrafica,
-  sharedLegalTemplates = [],
-  onApplySharedLegalTemplate,
-  onSaveSharedLegalTemplate,
-  isSharedLegalSaving = false,
 }: Props) {
   // Garanzie
   const garanzie = (form.garanzie ?? []) as SrGaranzia[];
@@ -125,12 +116,6 @@ function SerramentiConversionEditorImpl({
   const removeFaq = (idx: number) =>
     update("faq_items", faqItems.filter((_, i) => i !== idx));
   const resetFaq = () => update("faq_items", SR_FAQ_DEFAULT);
-  const [selectedSharedLegalId, setSelectedSharedLegalId] = useState("");
-  const selectedSharedLegal = useMemo(
-    () => sharedLegalTemplates.find((template) => template.id === selectedSharedLegalId) ?? null,
-    [selectedSharedLegalId, sharedLegalTemplates],
-  );
-  const hasLegalText = Boolean(form.condizioni_legali_testo?.trim());
 
   return (
     <div className="space-y-6">
@@ -543,129 +528,6 @@ function SerramentiConversionEditorImpl({
         )}
       </Section>
 
-      {/* ═══ 8. CONDIZIONI LEGALI ═════════════════════════════════════════ */}
-      <Section icon={<Scale />} title="8. Condizioni e disclaimer" tag="trust">
-        <p className="text-[11px] text-muted-foreground mb-2">
-          Termini e condizioni in pagina appendice: acconto, tempi, recesso, foro
-          competente. Riduce dispute future.
-        </p>
-        <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-900">Libreria condivisa Template offerte</p>
-              <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                Riusa qui le condizioni contrattuali e i termini legali creati nei Template offerte.
-                I testi salvati da questa sezione possono essere riutilizzati anche nei preventivi standard.
-              </p>
-            </div>
-            {sharedLegalTemplates.length > 0 && (
-              <span className="shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-medium text-slate-600 ring-1 ring-slate-200">
-                {sharedLegalTemplates.length} blocchi disponibili
-              </span>
-            )}
-          </div>
-
-          <div className="mt-3 grid gap-2 md:grid-cols-[1fr_auto]">
-            <select
-              value={selectedSharedLegalId}
-              onChange={(e) => setSelectedSharedLegalId(e.target.value)}
-              className="h-9 w-full rounded-md border bg-white px-2 text-xs"
-            >
-              <option value="">
-                {sharedLegalTemplates.length > 0
-                  ? "Seleziona un blocco da Template offerte..."
-                  : "Nessun blocco condizioni/legali creato nei Template offerte"}
-              </option>
-              {sharedLegalTemplates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.kind === "condizioni" ? "Condizioni" : "Termini legali"} · {template.name}
-                </option>
-              ))}
-            </select>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={!selectedSharedLegal || !onApplySharedLegalTemplate}
-                onClick={() => selectedSharedLegal && onApplySharedLegalTemplate?.(selectedSharedLegal.id, "replace")}
-              >
-                Sostituisci testo
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={!selectedSharedLegal || !onApplySharedLegalTemplate}
-                onClick={() => selectedSharedLegal && onApplySharedLegalTemplate?.(selectedSharedLegal.id, "append")}
-              >
-                Aggiungi in coda
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={!hasLegalText || isSharedLegalSaving || !onSaveSharedLegalTemplate}
-              onClick={() => onSaveSharedLegalTemplate?.("condizioni")}
-              className="text-xs"
-            >
-              Salva come condizioni contrattuali
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              disabled={!hasLegalText || isSharedLegalSaving || !onSaveSharedLegalTemplate}
-              onClick={() => onSaveSharedLegalTemplate?.("legali")}
-              className="text-xs"
-            >
-              Salva come termini legali
-            </Button>
-          </div>
-        </div>
-        <label className="flex items-center gap-2 cursor-pointer mb-2">
-          <input
-            type="checkbox"
-            checked={!!form.condizioni_legali_attivo}
-            onChange={(e) => update("condizioni_legali_attivo", e.target.checked)}
-            className="h-4 w-4 accent-orange-500"
-          />
-          <span className="text-sm font-medium">Mostra pagina Condizioni nel PDF</span>
-        </label>
-        {form.condizioni_legali_attivo && (
-          <Textarea
-            value={form.condizioni_legali_testo ?? ""}
-            onChange={(e) => update("condizioni_legali_testo", e.target.value || null)}
-            placeholder={
-              "Es.\n" +
-              "1. PAGAMENTO — 30% acconto alla firma del contratto, saldo alla consegna in cantiere prima della posa.\n" +
-              "2. TEMPI — La data di consegna stimata è di X giorni lavorativi. Eventuali ritardi del fornitore non imputabili saranno comunicati tempestivamente.\n" +
-              "3. RECESSO — Ai sensi dell'art. 52 D.lgs. 206/2005, il cliente consumatore può recedere entro 14 giorni dalla firma senza motivazione.\n" +
-              "4. GARANZIA — 10 anni sul prodotto, 10 anni sulla posa secondo norma UNI 11673.\n" +
-              "5. FORO COMPETENTE — Per ogni controversia è competente il Foro di Milano."
-            }
-            rows={8}
-            className="text-xs font-mono"
-          />
-        )}
-        <label className="flex items-center gap-2 cursor-pointer mt-4 pt-3 border-t">
-          <input
-            type="checkbox"
-            checked={!!form.pdf_mostra_firma_online}
-            onChange={(e) => update("pdf_mostra_firma_online", e.target.checked)}
-            className="h-4 w-4 accent-orange-500"
-          />
-          <span className="text-sm font-medium">Mostra blocco &ldquo;Firma e conferma online&rdquo; nel PDF</span>
-        </label>
-        <p className="text-[11px] text-muted-foreground ml-6">
-          Aggiunge nel preventivo il link alla pagina pubblica per la conferma digitale.
-          Disattivo di default.
-        </p>
-      </Section>
     </div>
   );
 }

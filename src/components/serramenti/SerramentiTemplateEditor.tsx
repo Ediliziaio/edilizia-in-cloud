@@ -798,6 +798,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
   /** Upload foto opzionale di una recensione. Stesso pattern (bucket sr-progetti +
    *  signed URL 1 anno). Salva in testimonianze_default[idx].foto_url. */
   const [uploadingTestFoto, setUploadingTestFoto] = useState<number | null>(null);
+  const [selectedSharedLegalId, setSelectedSharedLegalId] = useState("");
   const handleTestimonianzaFotoUpload = async (idx: number, file: File) => {
     if (!file.type.startsWith("image/")) { toast.error("Carica un file immagine (PNG, JPG, WebP)"); return; }
     if (file.size > 8 * 1024 * 1024) { toast.error("File troppo grande (max 8 MB)"); return; }
@@ -3199,10 +3200,6 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 form={form}
                 update={update}
                 companyAnagrafica={companyAnagrafica}
-                sharedLegalTemplates={sharedLegalTemplates}
-                onApplySharedLegalTemplate={applySharedLegalTemplate}
-                onSaveSharedLegalTemplate={saveSharedLegalTemplate}
-                isSharedLegalSaving={upsertQuoteTemplate.isPending}
               />
             </Suspense>
           </TabsContent>
@@ -3367,8 +3364,83 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
       {activeSection === "condizioni" && (<>
       <SectionHeader
         title="📜 Condizioni contrattuali"
-        description="I termini di vendita stampati come pagina dedicata in fondo al preventivo PDF. Modificabili e riusabili su tutti i template."
+        description="I termini di vendita stampati come pagina dedicata in fondo al preventivo PDF. Puoi partire da un template salvato in libreria, dal modello standard o scrivere da zero."
       />
+
+      {/* ── Libreria condivisa ─────────────────────────────────────────── */}
+      <SrCard
+        title="Libreria Template offerte"
+        description="Riusa blocchi di condizioni/termini legali già salvati. Puoi applicarli direttamente qui senza passare per altri tab."
+        icon={<FileText className="h-4 w-4" />}
+      >
+        <div className="space-y-3">
+          <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+            <select
+              value={selectedSharedLegalId}
+              onChange={(e) => setSelectedSharedLegalId(e.target.value)}
+              className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+            >
+              <option value="">
+                {sharedLegalTemplates.length > 0
+                  ? "Seleziona un blocco dalla tua libreria…"
+                  : "Nessun blocco salvato ancora — scrivi le condizioni e salvale sotto"}
+              </option>
+              {sharedLegalTemplates.map((tpl) => (
+                <option key={tpl.id} value={tpl.id}>
+                  {tpl.kind === "condizioni" ? "📋 Condizioni" : "⚖️ Termini legali"} · {tpl.name}
+                </option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!selectedSharedLegalId}
+                onClick={() => {
+                  const tpl = sharedLegalTemplates.find((t) => t.id === selectedSharedLegalId);
+                  if (tpl) applySharedLegalTemplate(tpl.id, "replace");
+                }}
+              >
+                Sostituisci testo
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!selectedSharedLegalId}
+                onClick={() => {
+                  const tpl = sharedLegalTemplates.find((t) => t.id === selectedSharedLegalId);
+                  if (tpl) applySharedLegalTemplate(tpl.id, "append");
+                }}
+              >
+                Aggiungi in coda
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 border-t pt-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-xs"
+              disabled={!form.condizioni_legali_testo?.trim() || upsertQuoteTemplate.isPending}
+              onClick={() => saveSharedLegalTemplate("condizioni")}
+            >
+              Salva come condizioni contrattuali
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-xs"
+              disabled={!form.condizioni_legali_testo?.trim() || upsertQuoteTemplate.isPending}
+              onClick={() => saveSharedLegalTemplate("legali")}
+            >
+              Salva come termini legali
+            </Button>
+          </div>
+        </div>
+      </SrCard>
+
+      {/* ── Testo condizioni ───────────────────────────────────────────── */}
       <SrCard>
         <div className="space-y-3">
           <label className="flex items-center gap-2 cursor-pointer">
@@ -3380,19 +3452,17 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
           </label>
           {form.condizioni_legali_attivo !== false && (
             <>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    const cur = String(form.condizioni_legali_testo ?? "").trim();
-                    if (cur && !window.confirm("Sovrascrivere il testo attuale con il modello standard serramentista?")) return;
-                    update("condizioni_legali_testo", CONDIZIONI_STANDARD_SERRAMENTI);
-                  }}
-                >
-                  <Sparkles className="h-3.5 w-3.5 mr-1" /> Inserisci modello standard serramentista
-                </Button>
-              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const cur = String(form.condizioni_legali_testo ?? "").trim();
+                  if (cur && !window.confirm("Sovrascrivere il testo attuale con il modello standard serramentista?")) return;
+                  update("condizioni_legali_testo", CONDIZIONI_STANDARD_SERRAMENTI);
+                }}
+              >
+                <Sparkles className="h-3.5 w-3.5 mr-1" /> Inserisci modello standard serramentista
+              </Button>
               <Textarea
                 value={form.condizioni_legali_testo ?? ""}
                 onChange={(e) => update("condizioni_legali_testo", e.target.value || null)}
@@ -3411,12 +3481,27 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 onChange={(v) => update("condizioni_legali_testo", v || null)}
               />
               <p className="text-[11px] text-muted-foreground">
-                Puoi inserire i campi personalizzati (es. {"{cliente_nome_completo}"}) anche qui.
-                Per riusare queste condizioni su tutti i template, salvale nella tua libreria dalla tab
-                ⚡ Conversione → &ldquo;8. Condizioni e disclaimer&rdquo; → &ldquo;Salva nei Template offerte&rdquo;.
+                Puoi usare segnaposto come {"{cliente_nome_completo}"}.
+                Salva il testo nella libreria (sopra) per riutilizzarlo in altri template.
               </p>
             </>
           )}
+
+          {/* Firma online — rimasto dalla vecchia sezione Conversione */}
+          <div className="border-t pt-3 mt-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Switch
+                checked={!!form.pdf_mostra_firma_online}
+                onCheckedChange={(checked) => update("pdf_mostra_firma_online", checked)}
+              />
+              <div>
+                <span className="text-sm font-medium">Mostra blocco &ldquo;Firma e conferma online&rdquo; nel PDF</span>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Aggiunge nel preventivo il link alla pagina pubblica per la conferma digitale. Disattivo di default.
+                </p>
+              </div>
+            </label>
+          </div>
         </div>
       </SrCard>
       </>)}{/* === END SEZIONE CONDIZIONI CONTRATTUALI === */}
