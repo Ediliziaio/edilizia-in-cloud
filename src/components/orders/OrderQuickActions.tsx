@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Phone, MessageSquare, Mail, FileText, CalendarPlus, Loader2, BellRing, ClipboardList, FolderOpen, StickyNote } from "lucide-react";
+import { Phone, MessageSquare, Mail, FileText, CalendarPlus, Loader2, BellRing, ClipboardList, FolderOpen, StickyNote, PenLine } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -39,6 +39,8 @@ interface Props {
   onOpenFiles?: () => void;
   /** Apre il popup "Note interne" collaborative (thread + chat team di commessa). */
   onOpenNotes?: () => void;
+  /** Apre il popup "Firma digitale" (invio/gestione firma cliente). */
+  onOpenFirma?: () => void;
 }
 
 const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
@@ -46,7 +48,7 @@ const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency"
 type Attachment = { name: string; size: number; mime: string; storage_path: string };
 
 export function OrderQuickActions({
-  orderId, orderCode, companyId, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps, onOpenFiles, onOpenNotes,
+  orderId, orderCode, companyId, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps, onOpenFiles, onOpenNotes, onOpenFirma,
 }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -137,6 +139,13 @@ export function OrderQuickActions({
             onClick={onOpenNotes}
             title="Note interne e chat di team sulla commessa (@menziona i colleghi)">
             <StickyNote className="h-3.5 w-3.5 text-violet-600" /> Note interne
+          </Button>
+        )}
+        {onOpenFirma && (
+          <Button variant="outline" size="sm" className="h-8 gap-1.5"
+            onClick={onOpenFirma}
+            title="Firma digitale: invia il documento al cliente e gestisci la firma">
+            <PenLine className="h-3.5 w-3.5 text-blue-600" /> Firma
           </Button>
         )}
         <Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={handleCall} disabled={!hasPhone}

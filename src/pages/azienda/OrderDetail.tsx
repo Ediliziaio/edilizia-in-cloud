@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { AlertTriangle, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus, LayoutDashboard } from "lucide-react";
+import { AlertTriangle, AlertCircle, Package, Receipt, HardHat, Truck, FileText, FileWarning, Download, Sparkles, Wallet, ListChecks, Plus, LayoutDashboard, Paperclip } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { OrderSurveysCard } from "@/components/orders/OrderSurveysCard";
 import { OrderActivityFeed } from "@/components/orders/OrderActivityFeed";
@@ -49,6 +49,8 @@ import { OrdineDetailHeader } from "@/components/orders/OrdineDetailHeader";
 import { ChiediASilvio } from "@/components/silvio/ChiediASilvio";
 import { OrdineStatusStrip } from "@/components/orders/OrdineStatusStrip";
 import { OrdineArticoli } from "@/components/orders/OrdineArticoli";
+import { OrderAttachments } from "@/components/orders/OrderAttachments";
+import { SupplierPaymentsCard } from "@/components/orders/SupplierPaymentsCard";
 import { OrdineEconomico } from "@/components/orders/OrdineEconomico";
 import { OrdineCliente } from "@/components/orders/OrdineCliente";
 import { OrdineTempistiche } from "@/components/orders/OrdineTempistiche";
@@ -314,6 +316,7 @@ function OrderDetailInner() {
   const [mobileTab, setMobileTab] = useState<string>("stato");
   const [desktopTab, setDesktopTab] = useState<string>("panoramica");
   const [notesOpen, setNotesOpen] = useState(false);
+  const [firmaOpen, setFirmaOpen] = useState(false);
   const [creaFatturaOpen, setCreaFatturaOpen] = useState(false);
   const [creaDDTOpen, setCreaDDTOpen] = useState(false);
   const [creaProformaOpen, setCreaProformaOpen] = useState(false);
@@ -1136,6 +1139,7 @@ function OrderDetailInner() {
           onOpenOps={() => setOpsOpen(true)}
           onOpenFiles={() => setFilesOpen(true)}
           onOpenNotes={() => setNotesOpen(true)}
+          onOpenFirma={() => setFirmaOpen(true)}
         />
       )}
 
@@ -1655,10 +1659,6 @@ function OrderDetailInner() {
               <Wallet className="w-4 h-4 mr-1.5" />
               Finanza
             </TabsTrigger>
-            <TabsTrigger value="documenti" className="text-sm">
-              <FileText className="w-4 h-4 mr-1.5" />
-              Documenti e firma
-            </TabsTrigger>
           </TabsList>
 
           {/* Tab: Panoramica */}
@@ -1731,6 +1731,141 @@ function OrderDetailInner() {
               {effectiveCompany?.id && <OrdineRapportiniCampo orderId={id!} />}
             </div>
 
+            {/* Documenti e fatturazione (spostati qui dal vecchio tab "Documenti e firma") */}
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-2">
+                <Paperclip className="h-4 w-4 text-muted-foreground" />
+                <h2 className="text-base font-semibold">Documenti e fatturazione</h2>
+              </div>
+
+              {/* Documenti Commessa (allegati/file) */}
+              <OrderAttachments orderId={id!} editable={true} />
+
+              {/* Fatturazione e documenti fiscali collegati */}
+              <QuoteCard
+                title={
+                  <span className="flex items-center gap-2">
+                    Fatturazione e Documenti
+                    {linkedDocumentsCount > 0 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{linkedDocumentsCount}</span>
+                    )}
+                  </span>
+                }
+                icon={<Receipt className="h-4 w-4" />}
+              >
+                <div className="space-y-3">
+                  {fattureCollegate.length > 0 ? (
+                    <div className="space-y-2">
+                      {fattureCollegate.map((f: LinkedFiscalDocument) => (
+                        <div
+                          key={f.id}
+                          className="flex items-center justify-between gap-2 p-2 rounded-md border bg-white text-sm"
+                        >
+                          <Link to={`/azienda/documenti/${f.id}`} className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium truncate">{f.numero}</span>
+                              <span className="text-[11px] text-muted-foreground">{formatFiscalType(f.tipo)}</span>
+                            </div>
+                            <Badge variant="outline" className="text-xs">
+                              {f.stato}
+                            </Badge>
+                          </Link>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground whitespace-nowrap">
+                              {formatCurrency(f.totale_da_pagare)}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label={`Scarica ${f.numero}`}
+                              onClick={() => handleDownloadFiscalDocument(f)}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="pt-1 border-t flex justify-between text-sm">
+                        <span className="text-muted-foreground">Totale fatturato</span>
+                        <span className="font-medium">
+                          {formatCurrency(
+                            fattureCollegate.reduce(
+                              (s: number, f: LinkedFiscalDocument) => s + (f.totale_da_pagare ?? 0),
+                              0
+                            )
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      Nessun documento fiscale collegato
+                    </p>
+                  )}
+                  <div className="grid grid-cols-4 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (isNativeBilling) {
+                          setCreaFatturaOpen(true);
+                        } else {
+                          toast.info("Per creare fatture dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                        }
+                      }}
+                    >
+                      <Receipt className="h-3.5 w-3.5 mr-1" />
+                      Fattura
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (isNativeBilling) {
+                          setCreaProformaOpen(true);
+                        } else {
+                          toast.info("Per creare proforma dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                        }
+                      }}
+                    >
+                      <FileText className="h-3.5 w-3.5 mr-1" />
+                      Proforma
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (isNativeBilling) {
+                          setCreaDDTOpen(true);
+                        } else {
+                          toast.info("Per creare DDT dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                        }
+                      }}
+                    >
+                      <Truck className="h-3.5 w-3.5 mr-1" />
+                      DDT
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (isNativeBilling) {
+                          setCreaNotaCreditoOpen(true);
+                        } else {
+                          toast.info("Per creare note di credito dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
+                        }
+                      }}
+                    >
+                      <FileWarning className="h-3.5 w-3.5 mr-1" />
+                      N. Credito
+                    </Button>
+                  </div>
+                </div>
+              </QuoteCard>
+            </div>
+
             {/* Note interne */}
             <OrdineNote
               notes={order.internal_notes}
@@ -1758,9 +1893,19 @@ function OrderDetailInner() {
               }}
               onItemUpdate={handleItemUpdate}
               onAttachmentsRefresh={handleAttachmentsRefresh}
+              showAttachments={false}
+              showSupplierPayments={false}
             />
             {/* Lavorazioni / Manodopera — sempre sotto gli Articoli */}
             <OrderWorkPhases orderId={id!} />
+            {/* Pagamenti Fornitori sotto la Manodopera, collegati agli OdA */}
+            {permissions.canViewCosts && (
+              <SupplierPaymentsCard
+                items={orderItems}
+                companyId={effectiveCompany?.id || ""}
+                orderId={id!}
+              />
+            )}
             <OrderUsciteCard orderId={id!} />
             <LinkedPurchaseOrdersCard
               orderId={id!}
@@ -1860,146 +2005,6 @@ function OrderDetailInner() {
             )}
           </TabsContent>
 
-          {/* Tab: Documenti e firma */}
-          <TabsContent value="documenti" className="space-y-6 mt-4">
-            {/* Fatturazione e documenti */}
-            <QuoteCard
-              title={
-                <span className="flex items-center gap-2">
-                  Fatturazione e Documenti
-                  {linkedDocumentsCount > 0 && (
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{linkedDocumentsCount}</span>
-                  )}
-                </span>
-              }
-              icon={<Receipt className="h-4 w-4" />}
-            >
-              <div className="space-y-3">
-                {fattureCollegate.length > 0 ? (
-                  <div className="space-y-2">
-                    {fattureCollegate.map((f: LinkedFiscalDocument) => (
-                      <div
-                        key={f.id}
-                        className="flex items-center justify-between gap-2 p-2 rounded-md border bg-white text-sm"
-                      >
-                        <Link to={`/azienda/documenti/${f.id}`} className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium truncate">{f.numero}</span>
-                            <span className="text-[11px] text-muted-foreground">{formatFiscalType(f.tipo)}</span>
-                          </div>
-                          <Badge variant="outline" className="text-xs">
-                            {f.stato}
-                          </Badge>
-                        </Link>
-                        <div className="flex items-center gap-2">
-                          <span className="text-muted-foreground whitespace-nowrap">
-                            {formatCurrency(f.totale_da_pagare)}
-                          </span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            aria-label={`Scarica ${f.numero}`}
-                            onClick={() => handleDownloadFiscalDocument(f)}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="pt-1 border-t flex justify-between text-sm">
-                      <span className="text-muted-foreground">Totale fatturato</span>
-                      <span className="font-medium">
-                        {formatCurrency(
-                          fattureCollegate.reduce(
-                            (s: number, f: LinkedFiscalDocument) => s + (f.totale_da_pagare ?? 0),
-                            0
-                          )
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-2">
-                    Nessun documento fiscale collegato
-                  </p>
-                )}
-                {/* NB: "Allegati commessa" rimosso da qui — i file della commessa
-                    sono già in "Documenti Commessa" sotto gli Articoli e nel pulsante
-                    "Documenti" (hub). Qui restano solo i documenti fiscali. */}
-                <div className="grid grid-cols-4 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (isNativeBilling) {
-                        setCreaFatturaOpen(true);
-                      } else {
-                        toast.info("Per creare fatture dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                      }
-                    }}
-                  >
-                    <Receipt className="h-3.5 w-3.5 mr-1" />
-                    Fattura
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (isNativeBilling) {
-                        setCreaProformaOpen(true);
-                      } else {
-                        toast.info("Per creare proforma dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                      }
-                    }}
-                  >
-                    <FileText className="h-3.5 w-3.5 mr-1" />
-                    Proforma
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (isNativeBilling) {
-                        setCreaDDTOpen(true);
-                      } else {
-                        toast.info("Per creare DDT dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                      }
-                    }}
-                  >
-                    <Truck className="h-3.5 w-3.5 mr-1" />
-                    DDT
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (isNativeBilling) {
-                        setCreaNotaCreditoOpen(true);
-                      } else {
-                        toast.info("Per creare note di credito dal sistema, attiva la fatturazione nativa nelle Impostazioni > Fatturazione.");
-                      }
-                    }}
-                  >
-                    <FileWarning className="h-3.5 w-3.5 mr-1" />
-                    N. Credito
-                  </Button>
-                </div>
-              </div>
-            </QuoteCard>
-
-            {/* Firma */}
-            <OrdineFirma
-              orderId={id!}
-              customerEmail={order.customer?.email}
-              customerName={
-                order.customer
-                  ? `${order.customer.first_name} ${order.customer.last_name}`
-                  : undefined
-              }
-            />
-          </TabsContent>
         </Tabs>
         </>
         )}
@@ -2053,6 +2058,24 @@ function OrderDetailInner() {
         orderId={id!}
         orderCode={order.order_code}
       />
+
+      {/* Firma digitale (azione rapida): invio/gestione firma del cliente */}
+      <Dialog open={firmaOpen} onOpenChange={setFirmaOpen}>
+        <DialogContent className="max-w-lg max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Firma digitale</DialogTitle>
+          </DialogHeader>
+          <OrdineFirma
+            orderId={id!}
+            customerEmail={order.customer?.email}
+            customerName={
+              order.customer
+                ? `${order.customer.first_name} ${order.customer.last_name}`
+                : undefined
+            }
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Crea/assegna task (dalla strip "Prossima mossa") → task reale: l'attività
           compare nella lista del responsabile. Riusa il dialog standard. */}

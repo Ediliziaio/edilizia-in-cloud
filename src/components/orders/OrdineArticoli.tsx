@@ -17,6 +17,12 @@ interface OrdineArticoliProps {
   onItemsChange: (newItems: OrderItem[]) => void;
   onItemUpdate: (item: OrderItem) => void;
   onAttachmentsRefresh: () => void;
+  /** Mostra la card "Documenti Commessa" sotto gli articoli (default true).
+   *  Il desktop la sposta in Panoramica → passa false. */
+  showAttachments?: boolean;
+  /** Mostra la card "Pagamenti Fornitori" (default true). Il desktop la sposta
+   *  sotto la Manodopera → passa false. */
+  showSupplierPayments?: boolean;
 }
 
 export function OrdineArticoli({
@@ -27,6 +33,8 @@ export function OrdineArticoli({
   onItemsChange,
   onItemUpdate,
   onAttachmentsRefresh,
+  showAttachments = true,
+  showSupplierPayments = true,
 }: OrdineArticoliProps) {
   const queryClient = useQueryClient();
   // Pagamenti fornitori = costi → visibili solo a chi ha canViewCosts.
@@ -80,9 +88,11 @@ export function OrdineArticoli({
         </CardContent>
       </Card>
 
-      <OrderAttachments orderId={orderId} editable={true} />
+      {showAttachments && <OrderAttachments orderId={orderId} editable={true} />}
 
-      {canViewCosts && <SupplierPaymentsCard items={orderItems} companyId={companyId} />}
+      {showSupplierPayments && canViewCosts && (
+        <SupplierPaymentsCard items={orderItems} companyId={companyId} orderId={orderId} />
+      )}
     </div>
   );
 }

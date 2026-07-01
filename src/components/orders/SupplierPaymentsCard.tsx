@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +31,15 @@ interface SupplierPaymentItem {
 interface SupplierPaymentsCardProps {
   items: SupplierPaymentItem[];
   companyId: string;
+  orderId?: string;
+}
+
+interface OdA {
+  id: string;
+  oda_number: string | number | null;
+  status: string;
+  total: number | null;
+  supplier_id: string | null;
 }
 
 interface SupplierGroup {
@@ -48,7 +58,7 @@ function isInstallmentMethod(method: string | null): boolean {
   return !!method && INSTALLMENT_METHODS.includes(method);
 }
 
-export function SupplierPaymentsCard({ items, companyId }: SupplierPaymentsCardProps) {
+export function SupplierPaymentsCard({ items, companyId, orderId }: SupplierPaymentsCardProps) {
   // Fetch supplier names
   const supplierIds = useMemo(
     () => [...new Set(items.map((i) => i.supplier_id).filter(Boolean))] as string[],
@@ -74,6 +84,32 @@ export function SupplierPaymentsCard({ items, companyId }: SupplierPaymentsCardP
     () => new Map(suppliers.map((s) => [s.id, s.name])),
     [suppliers]
   );
+
+  // Fetch the commessa's actual OdA (purchase orders) when orderId is provided
+  const { data: oda = [] } = useQuery({
+    queryKey: ["order-oda-for-payments", orderId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_orders")
+        .select("id, oda_number, status, total, supplier_id")
+        .eq("order_id", orderId!);
+      if (error) throw error;
+      return (data ?? []) as OdA[];
+    },
+    enabled: !!orderId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Group OdA by supplier_id (skip null supplier_id)
+  const odaBySupplier = useMemo(() => {
+    const map = new Map<string, OdA[]>();
+    oda.forEach((o) => {
+      if (!o.supplier_id) return;
+      if (!map.has(o.supplier_id)) map.set(o.supplier_id, []);
+      map.get(o.supplier_id)!.push(o);
+    });
+    return map;
+  }, [oda]);
 
   // Group items by supplier and calculate totals
   const groups = useMemo<SupplierGroup[]>(() => {
@@ -226,6 +262,39 @@ export function SupplierPaymentsCard({ items, companyId }: SupplierPaymentsCardP
                     <span>{deadlineInfo.label}</span>
                   </div>
                 )}
+                {orderId && (() => {
+                  const supplierOda = odaBySupplier.get(group.supplierId ?? "");
+                  return (
+                    <div className="pt-1">
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
+                        OdA
+                      </div>
+                      {supplierOda && supplierOda.length > 0 ? (
+                        <div className="space-y-0.5">
+                          {supplierOda.map((o) => (
+                            <Link
+                              key={o.id}
+                              to={`/azienda/ordini-acquisto/${o.id}`}
+                              className="flex items-center justify-between gap-2 text-xs text-foreground hover:underline"
+                            >
+                              <span className="flex items-center gap-1.5 truncate">
+                                <span>#{o.oda_number}</span>
+                                <Badge variant="outline" className="text-[10px]">
+                                  {o.status}
+                                </Badge>
+                              </span>
+                              <span>{formatCurrency(Number(o.total) || 0)}</span>
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-muted-foreground">
+                          Nessun OdA emesso
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}
