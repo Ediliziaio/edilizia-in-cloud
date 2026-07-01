@@ -453,7 +453,7 @@ function AdminMainSidebar() {
                     Tutte le aziende
                   </p>
                 </div>
-                <ScrollArea className="max-h-[300px]">
+                <div className="max-h-[300px] overflow-y-auto">
                   <div className="px-1 pb-2">
                     {visibleCompanies.map((company) => (
                       <button
@@ -478,7 +478,7 @@ function AdminMainSidebar() {
                       </p>
                     )}
                   </div>
-                </ScrollArea>
+                </div>
               </PopoverContent>
             </Popover>
           </div>
