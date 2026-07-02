@@ -6,17 +6,22 @@ import {
   Pencil,
   Check,
   Trash2,
+  Truck,
+  AlertTriangle,
+  X,
   User,
   Users,
   ListPlus,
 } from "lucide-react";
 import { toast } from "sonner";
+import { differenceInCalendarDays, format, isValid, parseISO } from "date-fns";
 
 import {
   useOrderWorkPhases,
   PHASE_TEMPLATES,
   type WorkPhase,
   type PhaseAssignment,
+  type PhaseMaterial,
   type PhaseStatus,
   type ExecutorType,
   type ExecutorOption,
@@ -28,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { OrderLaborCosts } from "@/components/orders/OrderLaborCosts";
+import { CreatePurchaseOrderButton } from "@/components/orders/CreatePurchaseOrderButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,6 +55,7 @@ import {
   DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -90,9 +97,10 @@ function statusMeta(status: PhaseStatus) {
 
 interface OrderWorkPhasesProps {
   orderId: string;
+  orderCode?: string | null;
 }
 
-export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
+export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
   const {
     phases,
     unassigned,
@@ -109,6 +117,9 @@ export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
     addAssignment,
     updateAssignment,
     deleteAssignment,
+    materialsByPhase,
+    unassignedMaterials,
+    setMaterialPhase,
   } = useOrderWorkPhases(orderId);
 
   const [newPhaseOpen, setNewPhaseOpen] = useState(false);
@@ -353,6 +364,11 @@ export function OrderWorkPhases({ orderId }: OrderWorkPhasesProps) {
                 phase={phase}
                 employees={employees}
                 externalTeams={externalTeams}
+                materials={materialsByPhase.get(phase.id) ?? []}
+                unassignedMaterials={unassignedMaterials}
+                orderId={orderId}
+                orderCode={orderCode}
+                onAssignMaterial={(itemId, phaseId) => setMaterialPhase.mutate({ itemId, phaseId })}
                 onUpdatePhase={(patch) => updatePhase.mutate({ id: phase.id, ...patch })}
                 onDeletePhase={() => deletePhase.mutate(phase.id)}
                 onAddAssignment={(payload, opts) => addAssignment.mutate(payload, opts)}
@@ -408,6 +424,11 @@ interface PhaseCardProps {
   phase: WorkPhase;
   employees: ExecutorOption[];
   externalTeams: ExecutorOption[];
+  materials: PhaseMaterial[];
+  unassignedMaterials: PhaseMaterial[];
+  orderId: string;
+  orderCode?: string | null;
+  onAssignMaterial: (itemId: string, phaseId: string | null) => void;
   onUpdatePhase: (patch: { name?: string; status?: PhaseStatus }) => void;
   onDeletePhase: () => void;
   onAddAssignment: (
@@ -422,6 +443,11 @@ function PhaseCard({
   phase,
   employees,
   externalTeams,
+  materials,
+  unassignedMaterials,
+  orderId,
+  orderCode,
+  onAssignMaterial,
   onUpdatePhase,
   onDeletePhase,
   onAddAssignment,
@@ -443,6 +469,25 @@ function PhaseCard({
       { prev: 0, cons: 0 }
     );
   }, [phase.assignments]);
+
+  // Materiali scoperti (né in magazzino né già ordinati) → candidati all'OdA
+  const missingMaterials = useMemo(
+    () => materials.filter((m) => m.readiness === "da_ordinare"),
+    [materials]
+  );
+  // "Pronti" = coperti da giacenza o da un OdA
+  const prontiCount = materials.length - missingMaterials.length;
+
+  // Avviso: fase non completata in partenza entro 7 giorni con materiali da ordinare
+  const startWarning = useMemo(() => {
+    if (phase.status === "completata" || missingMaterials.length === 0 || !phase.start_date) {
+      return null;
+    }
+    const start = parseISO(phase.start_date);
+    if (!isValid(start)) return null;
+    const days = differenceInCalendarDays(start, new Date());
+    return days >= 0 && days <= 7 ? format(start, "dd/MM") : null;
+  }, [phase.status, phase.start_date, missingMaterials.length]);
 
   const commitName = () => {
     const name = nameDraft.trim();
@@ -581,6 +626,123 @@ function PhaseCard({
           externalTeams={externalTeams}
           onAdd={onAddAssignment}
         />
+
+        {/* ── Materiali della fase (order_items.phase_id) ── */}
+        {(materials.length > 0 || unassignedMaterials.length > 0) && (
+          <div className="mt-3 space-y-2 border-t pt-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Materiali della fase
+              </span>
+              {materials.length > 0 && (
+                <span
+                  className={cn(
+                    "text-xs font-medium tabular-nums",
+                    prontiCount === materials.length ? "text-emerald-600" : "text-amber-600"
+                  )}
+                >
+                  {prontiCount}/{materials.length} pronti
+                </span>
+              )}
+            </div>
+
+            {materials.map((m) => (
+              <div key={m.id} className="flex items-center justify-between gap-2">
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  {m.name}{" "}
+                  <span className="text-xs text-muted-foreground">(x{m.quantity})</span>
+                </span>
+                <div className="flex shrink-0 items-center gap-1">
+                  {m.readiness === "magazzino" ? (
+                    <Badge
+                      variant="outline"
+                      className="gap-1 border-emerald-300 bg-emerald-50 text-emerald-700"
+                    >
+                      <Check className="h-3 w-3" />
+                      In magazzino
+                    </Badge>
+                  ) : m.readiness === "ordinato" ? (
+                    <Badge
+                      variant="outline"
+                      className="gap-1 border-blue-300 bg-blue-50 text-blue-700"
+                    >
+                      <Truck className="h-3 w-3" />
+                      {`OdA ${m.odaNumber ?? ""}`.trim()}
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="gap-1 border-amber-300 bg-amber-50 text-amber-700"
+                    >
+                      <AlertTriangle className="h-3 w-3" />
+                      Da ordinare
+                    </Badge>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-rose-600"
+                    onClick={() => onAssignMaterial(m.id, null)}
+                    aria-label="Togli dalla fase"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Plus className="mr-1 h-4 w-4" />
+                    Aggiungi materiale
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 p-1">
+                  {unassignedMaterials.length === 0 ? (
+                    <p className="p-2 text-xs text-muted-foreground">
+                      Nessun articolo senza fase.
+                    </p>
+                  ) : (
+                    unassignedMaterials.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        className="w-full rounded-sm px-2 py-1.5 text-left text-[13px] hover:bg-accent"
+                        onClick={() => onAssignMaterial(m.id, phase.id)}
+                      >
+                        {m.name} <span className="text-muted-foreground">x{m.quantity}</span>
+                      </button>
+                    ))
+                  )}
+                </PopoverContent>
+              </Popover>
+
+              {missingMaterials.length > 0 && (
+                <CreatePurchaseOrderButton
+                  orderId={orderId}
+                  orderCode={orderCode}
+                  items={missingMaterials.map((m) => ({
+                    id: m.id,
+                    name: m.name,
+                    quantity: m.quantity,
+                    purchase_price: m.purchase_price ?? undefined,
+                    supplier_id: m.supplier_id ?? undefined,
+                    vat_rate: m.vat_rate ?? undefined,
+                  }))}
+                />
+              )}
+            </div>
+
+            {startWarning && (
+              <p className="flex items-center gap-1 text-xs text-amber-600">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                Fase in partenza il {startWarning}: {missingMaterials.length} materiali da ordinare
+              </p>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

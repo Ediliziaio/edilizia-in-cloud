@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +38,22 @@ export interface WorkPhase {
 export interface ExecutorOption {
   id: string;
   label: string;
+}
+
+// Stato di approvvigionamento di un articolo/materiale della commessa:
+// magazzino = collegato a giacenza, ordinato = coperto da un OdA, da_ordinare = scoperto.
+export type MaterialReadiness = "magazzino" | "ordinato" | "da_ordinare";
+
+export interface PhaseMaterial {
+  id: string;
+  name: string;
+  quantity: number;
+  phase_id: string | null;
+  supplier_id: string | null;
+  purchase_price: number | null;
+  vat_rate: number | null;
+  readiness: MaterialReadiness;
+  odaNumber: string | null;
 }
 
 // Fasi standard di una ristrutturazione (template "1 clic")
@@ -193,6 +210,8 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     qc.invalidateQueries({ queryKey: ["order-employees-costs"] });
     qc.invalidateQueries({ queryKey: ["order-external-teams-costs"] });
     qc.invalidateQueries({ queryKey: ["laborStats"] });
+    // Materiali per fase (order_items.phase_id): eliminare una fase li rimanda "Senza fase"
+    qc.invalidateQueries({ queryKey: ["order-items-materials", orderId] });
   };
 
   // Ogni mutation fallita mostra un toast (prima: fallimenti silenziosi → spinner
@@ -293,6 +312,77 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
       return (data ?? []).map((t: { id: string; name: string }) => ({ id: t.id, label: t.name })) as ExecutorOption[];
     },
   });
+
+  // Materiali della commessa (order_items) con stato di approvvigionamento:
+  // coperti da OdA → "ordinato", collegati a giacenza → "magazzino", altrimenti "da_ordinare".
+  // phase_id non è nei tipi generati → db cast.
+  const { data: materials = [] } = useQuery({
+    queryKey: ["order-items-materials", orderId],
+    enabled: !!orderId,
+    staleTime: 30000,
+    queryFn: async () => {
+      const { data: items, error } = await db
+        .from("order_items")
+        .select("id, name, quantity, phase_id, stock_item_id, supplier_id, purchase_price, vat_rate")
+        .eq("order_id", orderId!);
+      if (error) throw error;
+      const rows = (items ?? []) as Record<string, unknown>[];
+
+      // Copertura OdA: order_item_id → numero OdA (stesso pattern di OrderItemsList)
+      const odaByItem = new Map<string, string | null>();
+      if (rows.length > 0) {
+        const { data: coverage, error: covError } = await supabase
+          .from("purchase_order_items")
+          .select("order_item_id, purchase_orders!inner(oda_number, status)")
+          .in("order_item_id", rows.map((r) => r.id as string));
+        if (covError) throw covError;
+        for (const row of (coverage ?? []) as unknown as Array<{
+          order_item_id: string;
+          purchase_orders: { oda_number: string; status: string };
+        }>) {
+          if (!row.order_item_id || odaByItem.has(row.order_item_id)) continue;
+          odaByItem.set(row.order_item_id, row.purchase_orders?.oda_number ?? null);
+        }
+      }
+
+      return rows.map((r): PhaseMaterial => {
+        const id = r.id as string;
+        const covered = odaByItem.has(id);
+        const readiness: MaterialReadiness = covered
+          ? "ordinato"
+          : r.stock_item_id
+            ? "magazzino"
+            : "da_ordinare";
+        return {
+          id,
+          name: (r.name as string) ?? "",
+          quantity: Number(r.quantity) || 0,
+          phase_id: (r.phase_id as string) ?? null,
+          supplier_id: (r.supplier_id as string) ?? null,
+          purchase_price: r.purchase_price != null ? Number(r.purchase_price) : null,
+          vat_rate: r.vat_rate != null ? Number(r.vat_rate) : null,
+          readiness,
+          odaNumber: covered ? (odaByItem.get(id) ?? null) : null,
+        };
+      });
+    },
+  });
+
+  const materialsByPhase = useMemo(() => {
+    const map = new Map<string, PhaseMaterial[]>();
+    for (const m of materials) {
+      if (!m.phase_id) continue;
+      const list = map.get(m.phase_id);
+      if (list) list.push(m);
+      else map.set(m.phase_id, [m]);
+    }
+    return map;
+  }, [materials]);
+
+  const unassignedMaterials = useMemo(
+    () => materials.filter((m) => !m.phase_id),
+    [materials],
+  );
 
   const phases = data?.phases ?? [];
   const unassigned = data?.unassigned ?? [];
@@ -399,6 +489,16 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     onError,
   });
 
+  // Sposta un articolo su una fase (o lo toglie con phaseId = null)
+  const setMaterialPhase = useMutation({
+    mutationFn: async ({ itemId, phaseId }: { itemId: string; phaseId: string | null }) => {
+      const { error } = await db.from("order_items").update({ phase_id: phaseId }).eq("id", itemId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["order-items-materials", orderId] }),
+    onError: () => toast.error("Operazione non riuscita. Riprova."),
+  });
+
   const deleteAssignment = useMutation({
     mutationFn: async ({ id, source }: { id: string; source: AssignmentSource }) => {
       const table = source === "employee" ? "order_employees" : "order_external_teams";
@@ -434,5 +534,8 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     addAssignment,
     updateAssignment,
     deleteAssignment,
+    materialsByPhase,
+    unassignedMaterials,
+    setMaterialPhase,
   };
 }

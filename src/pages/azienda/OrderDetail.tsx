@@ -1414,7 +1414,7 @@ function OrderDetailInner() {
                 showSupplierPayments={false}
               />
               {/* Manodopera subito dopo gli Articoli (sequenza coerente col desktop) */}
-              <OrderWorkPhases orderId={id!} />
+              <OrderWorkPhases orderId={id!} orderCode={order.order_code} />
               {/* Pagamenti Fornitori sotto la Manodopera, collegati agli OdA */}
               {permissions.canViewCosts && (
                 <SupplierPaymentsCard
@@ -1952,7 +1952,7 @@ function OrderDetailInner() {
               showSupplierPayments={false}
             />
             {/* Lavorazioni / Manodopera — sempre sotto gli Articoli */}
-            <OrderWorkPhases orderId={id!} />
+            <OrderWorkPhases orderId={id!} orderCode={order.order_code} />
             {/* Pagamenti Fornitori sotto la Manodopera, collegati agli OdA */}
             {permissions.canViewCosts && (
               <SupplierPaymentsCard
