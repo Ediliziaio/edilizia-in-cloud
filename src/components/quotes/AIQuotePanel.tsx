@@ -30,6 +30,7 @@ import {
   Loader2,
   CheckCircle2,
   AlertTriangle,
+  Info,
   Package,
   Wrench,
   Truck,
@@ -682,6 +683,48 @@ export default function AIQuotePanel({
                   </ul>
                 </div>
               )}
+
+              {/* Cliff no-match: l'AI non inventa prezzi, quindi le voci senza
+                  aggancio al listino escono a €0. Senza questo avviso il
+                  risultato sembra rotto anche quando è corretto. */}
+              {(() => {
+                const senzaMatch = risultato
+                  .flatMap((s) => s.righe)
+                  .filter(
+                    (r) =>
+                      !r.article_template_id &&
+                      !r.family_id &&
+                      !r.tariffa_id &&
+                      !(typeof r.unit_price === "number" && r.unit_price > 0)
+                  ).length;
+                if (senzaMatch === 0) return null;
+                return (
+                  <div className="flex gap-2 p-3 bg-sky-50 border border-sky-200 rounded text-sm text-sky-900">
+                    <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <div className="space-y-1">
+                      <p>
+                        <span className="font-medium">
+                          {senzaMatch === 1
+                            ? "1 voce non ha un prezzo"
+                            : `${senzaMatch} voci non hanno un prezzo`}
+                        </span>{" "}
+                        perché nel tuo listino non c'è una tariffa o un prodotto
+                        corrispondente. L'AI non inventa prezzi: inseriscili tu
+                        sulle righe, oppure arricchisci il listino così la
+                        prossima volta si compilano da soli.
+                      </p>
+                      <a
+                        href="/azienda/impostazioni/listino"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-sky-700 font-medium underline underline-offset-2"
+                      >
+                        Apri il listino
+                      </a>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {risultato.map((sez, si) => (
                 <div key={si} className="space-y-2">

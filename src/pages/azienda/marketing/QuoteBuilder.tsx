@@ -15,6 +15,7 @@ import {
 } from "@/hooks/useQuoteFormHydration";
 import { QuoteTemplatePreview } from "@/components/quotes/QuoteTemplatePreview";
 import AIQuotePanel from "@/components/quotes/AIQuotePanel";
+import { QuoteAdvisorPanel } from "@/components/quotes/QuoteAdvisorPanel";
 import { QuoteRenderPicker } from "@/components/render/QuoteRenderPicker";
 import type { QuoteTemplateLayout } from "@/types/quoteTemplate";
 import type { QuoteItemPro } from "@/types/quoteItem";
@@ -2721,6 +2722,39 @@ export default function QuoteBuilder() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Advisor commerciale AI: storico margini cliente + prezzo target
+                (ai-quote-supreme, on-demand — ha un costo AI per chiamata). */}
+            <div className="mt-4">
+              <QuoteAdvisorPanel
+                contactId={contactId}
+                clientName={clientName}
+                projectDescription={description || title}
+                projectType={tipoLavoro}
+                proposedLines={items
+                  .filter(
+                    (i) =>
+                      !["nota", "subtotale", "sconto"].includes(i.item_category) &&
+                      !i.is_optional
+                  )
+                  .map((i) => ({
+                    descrizione: i.name,
+                    quantita: i.quantity,
+                    prezzo_unitario: i.unit_price,
+                    importo:
+                      Math.round(
+                        i.quantity *
+                          i.unit_price *
+                          (1 - (i.discount_percent || 0) / 100) *
+                          100
+                      ) / 100,
+                  }))}
+                proposedTotal={total}
+                proposedMarginPct={
+                  totaliPro.costo_totale > 0 ? totaliPro.margine_totale_pct : null
+                }
+              />
+            </div>
           </div>
         </div>
       )}

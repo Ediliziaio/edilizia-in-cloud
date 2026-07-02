@@ -222,8 +222,9 @@ export default function Preventivi() {
                 </DropdownMenu>
 
                 {/* "Nuovo preventivo" — dropdown con moduli sbloccati dal super admin
-                    via feature flag. Se nessun modulo è attivo, è un bottone diretto. */}
-                <NewPreventivoMenu size="sm" />
+                    via feature flag. Se nessun modulo è attivo, è un bottone diretto.
+                    onCreaConAI apre il dialog foto/vocale/testo montato qui sotto. */}
+                <NewPreventivoMenu size="sm" onCreaConAI={() => setShowFotoModal(true)} />
               </>
             }
           />

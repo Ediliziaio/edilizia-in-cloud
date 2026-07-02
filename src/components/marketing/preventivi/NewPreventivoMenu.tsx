@@ -22,7 +22,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Plus, ChevronDown, FileText } from "lucide-react";
+import { Plus, ChevronDown, FileText, Sparkles } from "lucide-react";
 import { useModuliVendita, useModuliVisibilita } from "@/lib/moduli-vendita";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +37,12 @@ export interface NewPreventivoMenuProps {
   opportunityId?: string | null;
   /** Label del bottone (default "Nuovo preventivo"). */
   label?: string;
+  /**
+   * Se passata, in cima al menu compare "Crea con AI" (foto, vocale o
+   * descrizione). La pagina host deve montare il dialog relativo
+   * (QuoteFromCaptureDialog) — per questo è opt-in e non un default.
+   */
+  onCreaConAI?: () => void;
 }
 
 export function NewPreventivoMenu({
@@ -45,6 +51,7 @@ export function NewPreventivoMenu({
   contactId,
   opportunityId,
   label = "Nuovo preventivo",
+  onCreaConAI,
 }: NewPreventivoMenuProps) {
   const navigate = useNavigate();
   const { moduli } = useModuliVendita();
@@ -73,8 +80,9 @@ export function NewPreventivoMenu({
 
   const classicoHref = `/azienda/marketing/preventivi/nuovo${qs ? `?${qs}` : ""}`;
 
-  // Se nessun modulo verticale è abilitato → niente dropdown, solo button
-  if (enabledModuli.length === 0) {
+  // Se nessun modulo verticale è abilitato (e non c'è la voce AI) → niente
+  // dropdown, solo button diretto al classico.
+  if (enabledModuli.length === 0 && !onCreaConAI) {
     return (
       <Button asChild size={size} className={cn(triggerClass(size), className)}>
         <Link to={classicoHref}>
@@ -99,6 +107,27 @@ export function NewPreventivoMenu({
           Scegli il tipo di preventivo
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+
+        {/* Crea con AI — vetrina in cima: foto, vocale o descrizione */}
+        {onCreaConAI && (
+          <>
+            <DropdownMenuItem
+              onClick={onCreaConAI}
+              className="flex items-start gap-2.5 py-2.5 cursor-pointer"
+            >
+              <div className="h-8 w-8 rounded-md bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center shrink-0 mt-0.5">
+                <Sparkles className="h-4 w-4 text-violet-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">Crea con AI ✨</p>
+                <p className="text-[11px] text-muted-foreground leading-tight">
+                  Da una foto, un vocale o una descrizione dei lavori.
+                </p>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
 
         {/* Preventivo classico — sempre presente */}
         <DropdownMenuItem

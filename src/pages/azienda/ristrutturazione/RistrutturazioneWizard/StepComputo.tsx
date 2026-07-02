@@ -14,9 +14,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, Settings2, Info, Sparkles } from "lucide-react";
+import { Loader2, CheckCircle2, Settings2, Info, Sparkles, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ComputoUploadModal } from "@/components/computo/ComputoUploadModal";
+import { VoiceComputoDialog } from "@/components/computo/VoiceComputoDialog";
 import { useSaveComputo, useEffectiveCompanyId } from "@/hooks/useRistrutturazioneProgetto";
 import { useListinoVociSearch } from "@/hooks/useListinoLavorazioni";
 import type { RstComputoVoce, RstUnitaMisura } from "@/types/ristrutturazione";
@@ -42,6 +43,7 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
   const [dirty, setDirty] = useState(false);
   const [savedOnce, setSavedOnce] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
 
   // Hint listino vuoto: una ricerca "" restituisce fino a 40 voci → se 0, vuoto.
   const listino = useListinoVociSearch("");
@@ -218,6 +220,16 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
         >
           <Sparkles className="h-3.5 w-3.5 text-orange-500" /> Importa computo da PDF (AI)
         </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 text-xs"
+          disabled={!companyId}
+          onClick={() => setVoiceOpen(true)}
+        >
+          <Mic className="h-3.5 w-3.5 text-violet-500" /> Descrivi a voce (AI)
+        </Button>
         <span className="text-[11px] text-muted-foreground">
           Carica un computo esistente: l'AI estrae le voci, le rivedi e le aggiungi.
         </span>
@@ -238,6 +250,15 @@ export default function StepComputo({ progettoId, initialComputo, scontoPct, iva
           <Loader2 className="h-4 w-4 animate-spin" /> Caricamento azienda…
         </div>
       )}
+
+      {/* Voce/descrizione → voci computo (stessa onConfirmVoci dell'import file) */}
+      <VoiceComputoDialog
+        open={voiceOpen}
+        onOpenChange={setVoiceOpen}
+        onConfirmVoci={handleImportVoci}
+        tipoLavoro="ristrutturazione"
+        confirmLabel="Aggiungi al computo"
+      />
 
       <ComputoUploadModal
         open={importOpen}
