@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { QUOTE_STATUS_CONFIG, type QuoteStatus } from "@/lib/quoteStatus";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface BulkQuoteLite {
   id: string;
@@ -62,6 +63,11 @@ export function QuoteBulkToolbar({
   onReload,
 }: Props) {
   const companyId = useEffectiveCompanyId();
+  // Solo super-admin e admin azienda possono eliminare (coerente con la RLS
+  // q_del su quotes: super_admin OR company_admin). Per gli altri il bottone
+  // NON compare — prima la RLS li bloccava in silenzio e il toast mentiva.
+  const { role } = useAuth();
+  const canDelete = role === "super_admin" || role === "company_admin";
   const [pendingStatus, setPendingStatus] = useState<QuoteStatus | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [working, setWorking] = useState<null | "delete" | "status" | "csv" | "zip">(null);
@@ -71,33 +77,34 @@ export function QuoteBulkToolbar({
   if (count === 0) return null;
 
   const handleBulkDelete = async () => {
-    // Solo bozze: non cancelliamo quote inviate o firmate
-    const onlyDrafts = selectedQuotes.filter((q) => q.status === "bozza");
-    if (onlyDrafts.length === 0) {
-      toast.error("Puoi eliminare solo preventivi in bozza");
-      setConfirmDelete(false);
-      return;
-    }
     if (!companyId) {
       toast.error("Azienda non disponibile");
       setConfirmDelete(false);
       return;
     }
+    if (!canDelete) {
+      toast.error("Solo un amministratore può eliminare i preventivi");
+      setConfirmDelete(false);
+      return;
+    }
     setWorking("delete");
     try {
-      const { error } = await supabase
+      // Admin: elimina QUALSIASI stato (non più solo bozze). `.select()` per
+      // riportare il conteggio REALE eliminato (con la RLS un delete non
+      // autorizzato tornerebbe 0 righe senza errore → niente toast bugiardo).
+      const { data: deleted, error } = await supabase
         .from("quotes")
         .delete()
         .eq("company_id", companyId)
-        .eq("status", "bozza")
-        .in(
-          "id",
-          onlyDrafts.map((q) => q.id)
-        );
+        .in("id", Array.from(selectedIds))
+        .select("id");
       if (error) throw error;
-      toast.success(`${onlyDrafts.length} preventivi eliminati`);
-      const skipped = selectedQuotes.length - onlyDrafts.length;
-      if (skipped > 0) toast.info(`${skipped} saltati (non in bozza)`);
+      const n = deleted?.length ?? 0;
+      if (n === 0) {
+        toast.warning("Nessun preventivo eliminato (permessi insufficienti o già rimossi)");
+      } else {
+        toast.success(`${n} ${n === 1 ? "preventivo eliminato" : "preventivi eliminati"}`);
+      }
       onClearSelection();
       onReload();
     } catch (e) {
@@ -107,6 +114,9 @@ export function QuoteBulkToolbar({
       setConfirmDelete(false);
     }
   };
+
+  // Quanti dei selezionati NON sono bozze (per avvisare nell'anteprima di conferma).
+  const nonBozzaCount = selectedQuotes.filter((q) => q.status !== "bozza").length;
 
   const handleBulkStatus = async (newStatus: QuoteStatus) => {
     if (!companyId) {
@@ -330,23 +340,26 @@ export function QuoteBulkToolbar({
           )}
         </Button>
 
-        <div className="h-6 w-px bg-white/20 mx-1" />
-
-        {/* Elimina — destructive visuale */}
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setConfirmDelete(true)}
-          disabled={!!working}
-          className="h-8 text-red-300 hover:bg-red-500/20 hover:text-red-100 gap-1.5"
-        >
-          {working === "delete" ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Trash2 className="h-3.5 w-3.5" />
-          )}
-          Elimina
-        </Button>
+        {/* Elimina — solo admin azienda / super-admin (coerente con la RLS). */}
+        {canDelete && (
+          <>
+            <div className="h-6 w-px bg-white/20 mx-1" />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setConfirmDelete(true)}
+              disabled={!!working}
+              className="h-8 text-red-300 hover:bg-red-500/20 hover:text-red-100 gap-1.5"
+            >
+              {working === "delete" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+              Elimina
+            </Button>
+          </>
+        )}
       </div>
 
       {/* Conferma cambio stato */}
@@ -382,10 +395,18 @@ export function QuoteBulkToolbar({
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Elimina {count} preventivi</AlertDialogTitle>
+            <AlertDialogTitle>
+              Elimina {count} {count === 1 ? "preventivo" : "preventivi"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Verranno eliminati solo quelli in stato <strong>bozza</strong>. I preventivi
-              inviati, firmati o convertiti saranno saltati. L'azione è irreversibile.
+              {nonBozzaCount > 0 ? (
+                <>
+                  Attenzione: <strong>{nonBozzaCount}</strong> tra i selezionati {nonBozzaCount === 1 ? "è già" : "sono già"} in
+                  stato inviato/accettato/rifiutato. Eliminandoli perderai anche le righe e i
+                  documenti collegati.{" "}
+                </>
+              ) : null}
+              L'azione è <strong>irreversibile</strong>. Procedere?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -394,7 +415,7 @@ export function QuoteBulkToolbar({
               onClick={handleBulkDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Elimina bozze
+              Elimina definitivamente
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
