@@ -29,7 +29,8 @@ import { calcTotaliComputo } from "@/lib/piscine/calcoli";
 import { INCENTIVI_PISCINE, calcDetraibile, superaMassimale } from "@/lib/preventivi/incentivi";
 import type { PisComputoVoce, PisProgetto } from "@/types/piscine";
 import type { PisFormPatch } from "./types";
-import { Switch } from "@/components/ui/switch";
+import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
+import { usePisTemplatePdf } from "@/hooks/usePiscineProgetto";
 
 interface Props {
   form: Partial<PisProgetto>;
@@ -47,6 +48,8 @@ const toPct = (raw: string): number => {
 };
 
 export default function StepEconomia({ form, onChange, computo }: Props) {
+  // Template del modulo (cached): serve a mostrare la rata solo se la promo è attiva.
+  const { data: template } = usePisTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
   const ivaPct = Number(form.iva_pct ?? 10);
   const detrazionePct = Number(form.detrazione_pct ?? 0);
@@ -181,21 +184,14 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
                 icon={BadgePercent}
               />
-
-              {/* Rata di finanziamento nel PDF: scelta PER-PREVENTIVO (cliente cash →
-                  niente rata). null/true = mostra se la promo è attiva nel template. */}
-              <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
-                <span>
-                  <span className="block text-xs font-medium">Rata di finanziamento nel PDF</span>
-                  <span className="block text-[10px] text-muted-foreground">
-                    Vale solo se la promo finanziamento è attiva nel template del modulo.
-                  </span>
-                </span>
-                <Switch
-                  checked={form.mostra_finanziamento !== false}
-                  onCheckedChange={(v) => onChange("mostra_finanziamento", v)}
-                />
-              </label>
+              {/* Rata nel PDF: compare solo se la promo è configurata nel template,
+                  con la rata concreta sul totale corrente (scelta per-preventivo). */}
+              <FinanziamentoQuoteToggle
+                rawPromo={(template as unknown as { finanziamento_promo?: unknown } | undefined)?.finanziamento_promo}
+                total={totali.totale}
+                value={form.mostra_finanziamento}
+                onChange={(v) => onChange("mostra_finanziamento", v)}
+              />
               {/* Preset incentivi piscine: 1-click → imposta detrazione + massimale di spesa */}
               <div>
                 <p className="mb-1 text-[10px] text-muted-foreground">Incentivi rapidi (piscine):</p>

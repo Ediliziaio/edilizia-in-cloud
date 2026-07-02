@@ -184,6 +184,8 @@ export default function StepPdf({ progetto, computo, media }: Props) {
           subtotal={totali.imponibile}
           vatAmount={totali.iva}
           total={totali.totale}
+          disabled={computoVuoto}
+          disabledReason="Aggiungi voci al computo prima di inviare il preventivo."
           generaPdfBlob={async () => {
             const url = await renderIdrPreviewBlobUrl(payload);
             const blob = await (await fetch(url)).blob();

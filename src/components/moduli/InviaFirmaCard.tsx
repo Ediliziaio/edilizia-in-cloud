@@ -38,6 +38,9 @@ interface Props {
   validityDays?: number;
   /** Rende il PDF corrente del modulo (stessa pipeline dell'anteprima). */
   generaPdfBlob: () => Promise<Blob>;
+  /** Es. computo vuoto: blocca l'invio con motivo (niente PDF vuoto al cliente). */
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 export function InviaFirmaCard(props: Props) {
@@ -126,12 +129,24 @@ export function InviaFirmaCard(props: Props) {
           Il cliente riceve il PDF con un link per firmare (o rifiutare) online:
           vedi quando lo apre e il promemoria di scadenza parte da solo.
         </p>
+        {props.disabled && (
+          <p className="text-[11px] text-amber-700 flex items-center gap-1">
+            <Clock className="h-3 w-3 shrink-0" />
+            {props.disabledReason || "Completa il preventivo per poterlo inviare."}
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
             className="h-8 bg-emerald-600 hover:bg-emerald-700"
-            disabled={loading || working || !!quote?.signed_at}
-            onClick={() => setDialogOpen(true)}
+            disabled={loading || working || props.disabled || !!quote?.signed_at}
+            onClick={() => {
+              // Riallinea l'email al valore corrente del cliente ad ogni apertura:
+              // se il venditore l'ha compilata/cambiata in un altro step, il dialog
+              // non deve mostrare il valore vecchio catturato al mount.
+              if (props.clientEmail && !email.trim()) setEmail(props.clientEmail);
+              setDialogOpen(true);
+            }}
           >
             {working ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
             {quote?.sent_at ? "Reinvia aggiornato" : "Invia per firma"}
