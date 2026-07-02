@@ -34,9 +34,9 @@ import {
 } from "@/hooks/useRistrutturazioneProgetto";
 import {
   useRistrutturazionePDF,
-  type RstPdfCompany,
-} from "@/hooks/useRistrutturazionePDF";
+  type RstPdfCompany, renderRstPreviewBlobUrl } from "@/hooks/useRistrutturazionePDF";
 import type { RstProgetto, RstComputoVoce, RstProgettoMedia } from "@/types/ristrutturazione";
+import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
 
 interface Props {
   progetto: RstProgetto;
@@ -170,6 +170,29 @@ export default function StepPdf({ progetto, computo, media }: Props) {
 
   return (
     <div className="space-y-3">
+      {/* Ciclo di chiusura: invio tracciato + firma online + reminder automatico
+          (bridge sulla tabella quotes — vedi src/lib/moduli/quoteBridge.ts). */}
+      {progetto.id && progetto.company_id && (
+        <InviaFirmaCard
+          companyId={progetto.company_id}
+          moduleKey="rst"
+          progettoId={progetto.id}
+          titolo={`Preventivo ${progetto.code ?? ""}`.trim()}
+          clientName={[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente"}
+          clientEmail={progetto.cliente_email}
+          clientPhone={progetto.cliente_telefono}
+          subtotal={totali.imponibile}
+          vatAmount={totali.iva}
+          total={totali.totale}
+          generaPdfBlob={async () => {
+            const url = await renderRstPreviewBlobUrl(payload);
+            const blob = await (await fetch(url)).blob();
+            URL.revokeObjectURL(url);
+            return blob;
+          }}
+        />
+      )}
+
       {/* Anteprima del preventivo — mini-documento brandizzato */}
       <Card>
         <CardContent className="space-y-3 p-4">

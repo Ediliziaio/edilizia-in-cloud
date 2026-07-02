@@ -34,9 +34,9 @@ import {
 } from "@/hooks/useElettricoProgetto";
 import {
   useElettricoPDF,
-  type ElePdfCompany,
-} from "@/hooks/useElettricoPDF";
+  type ElePdfCompany, renderElePreviewBlobUrl } from "@/hooks/useElettricoPDF";
 import type { EleProgetto, EleComputoVoce, EleProgettoMedia } from "@/types/elettrico";
+import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
 
 interface Props {
   progetto: EleProgetto;
@@ -170,6 +170,29 @@ export default function StepPdf({ progetto, computo, media }: Props) {
 
   return (
     <div className="space-y-3">
+      {/* Ciclo di chiusura: invio tracciato + firma online + reminder automatico
+          (bridge sulla tabella quotes — vedi src/lib/moduli/quoteBridge.ts). */}
+      {progetto.id && progetto.company_id && (
+        <InviaFirmaCard
+          companyId={progetto.company_id}
+          moduleKey="ele"
+          progettoId={progetto.id}
+          titolo={`Preventivo ${progetto.code ?? ""}`.trim()}
+          clientName={[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente"}
+          clientEmail={progetto.cliente_email}
+          clientPhone={progetto.cliente_telefono}
+          subtotal={totali.imponibile}
+          vatAmount={totali.iva}
+          total={totali.totale}
+          generaPdfBlob={async () => {
+            const url = await renderElePreviewBlobUrl(payload);
+            const blob = await (await fetch(url)).blob();
+            URL.revokeObjectURL(url);
+            return blob;
+          }}
+        />
+      )}
+
       {/* Anteprima del preventivo — mini-documento brandizzato */}
       <Card>
         <CardContent className="space-y-3 p-4">
