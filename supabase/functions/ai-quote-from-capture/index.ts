@@ -601,28 +601,57 @@ async function matchViaVector(
       return;
     }
 
-    // Fallback su articoli singoli
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: articleMatches, error: articleMatchError } = await (supabase as any).rpc("match_articles", {
-      p_query_embedding: embeddingLiteral,
-      p_match_threshold: 0.5,
-      p_match_count: 3,
-      p_company_id: companyId,
-    });
-    if (articleMatchError) {
-      console.warn("article_vector_match_failed", articleMatchError.message);
+    // Articoli (listino prodotti) e tariffe (listino manodopera/lavorazioni)
+    // in parallelo: vince il candidato con similarity più alta, così una voce
+    // di manodopera non si aggancia a un prodotto debole solo per ordine di prova.
+    const [articlesRes, tariffeRes] = await Promise.all([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).rpc("match_articles", {
+        p_query_embedding: embeddingLiteral,
+        p_match_threshold: 0.5,
+        p_match_count: 3,
+        p_company_id: companyId,
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).rpc("match_tariffe_semantic", {
+        p_query_embedding: embeddingLiteral,
+        p_match_threshold: 0.5,
+        p_match_count: 3,
+        p_company_id: companyId,
+      }),
+    ]);
+    if (articlesRes.error) {
+      console.warn("article_vector_match_failed", articlesRes.error.message);
     }
-    const topArticle = (articleMatches as Array<{
+    if (tariffeRes.error) {
+      console.warn("tariffa_vector_match_failed", tariffeRes.error.message);
+    }
+    const topArticle = (articlesRes.data as Array<{
       id: string;
       name?: string;
       similarity: number;
     }> | null)?.[0];
+    const topTariffa = (tariffeRes.data as Array<{
+      id: string;
+      nome?: string;
+      similarity: number;
+    }> | null)?.[0];
+    const articleSim = topArticle?.similarity ?? 0;
+    const tariffaSim = topTariffa?.similarity ?? 0;
 
-    if (topArticle && topArticle.similarity > 0.5) {
+    if (topArticle && articleSim > 0.5 && articleSim >= tariffaSim) {
       product.matched_template_id = topArticle.id;
       product.matched_name = topArticle.name;
       product.match_type = "vector";
-      product.match_confidence = topArticle.similarity;
+      product.match_confidence = articleSim;
+      return;
+    }
+
+    if (topTariffa && tariffaSim > 0.5) {
+      product.matched_tariffa_id = topTariffa.id;
+      product.matched_name = topTariffa.nome;
+      product.match_type = "vector";
+      product.match_confidence = tariffaSim;
       return;
     }
 
@@ -682,10 +711,10 @@ async function fillInitialPrice(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: tmpl } = await (supabase as any)
         .from("article_templates")
-        .select("price, sale_price, default_price")
+        .select("prezzo_vendita, unit_price")
         .eq("id", product.matched_template_id)
         .single();
-      const tmplPrice = tmpl?.sale_price ?? tmpl?.price ?? tmpl?.default_price;
+      const tmplPrice = tmpl?.prezzo_vendita ?? tmpl?.unit_price;
       if (tmplPrice && Number(tmplPrice) > 0) {
         product.unit_price = Number(tmplPrice);
         product.unit_price_source = "template";
@@ -693,6 +722,25 @@ async function fillInitialPrice(
       }
     } catch (e) {
       console.error("template_price_failed", e);
+    }
+  }
+
+  // Caso 3: tariffa (listino manodopera/lavorazioni) → prezzo vendita tariffa
+  if (product.matched_tariffa_id) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: tar } = await (supabase as any)
+        .from("tariffe_aziendali")
+        .select("prezzo_vendita")
+        .eq("id", product.matched_tariffa_id)
+        .single();
+      if (tar?.prezzo_vendita && Number(tar.prezzo_vendita) > 0) {
+        product.unit_price = Number(tar.prezzo_vendita);
+        product.unit_price_source = "tariffa";
+        return;
+      }
+    } catch (e) {
+      console.error("tariffa_price_failed", e);
     }
   }
 
