@@ -447,7 +447,12 @@ interface PhaseCardProps {
     parts: { phaseId: string | null; quantity: number }[],
     opts?: { onSuccess?: () => void; onError?: () => void }
   ) => void;
-  onUpdatePhase: (patch: { name?: string; status?: PhaseStatus }) => void;
+  onUpdatePhase: (patch: {
+    name?: string;
+    status?: PhaseStatus;
+    start_date?: string | null;
+    end_date?: string | null;
+  }) => void;
   onDeletePhase: () => void;
   onAddAssignment: (
     payload: AddAssignmentPayload,
@@ -510,6 +515,16 @@ function PhaseCard({
     const days = differenceInCalendarDays(start, new Date());
     return days >= 0 && days <= 7 ? format(start, "dd/MM") : null;
   }, [phase.status, phase.start_date, missingMaterials.length]);
+
+  // Date previste formattate per il riepilogo compatto (visibili a fase chiusa)
+  const plannedDates = useMemo(() => {
+    const fmt = (iso: string | null) => {
+      if (!iso) return null;
+      const d = parseISO(iso);
+      return isValid(d) ? format(d, "dd/MM") : null;
+    };
+    return { start: fmt(phase.start_date), end: fmt(phase.end_date) };
+  }, [phase.start_date, phase.end_date]);
 
   const commitName = () => {
     const name = nameDraft.trim();
@@ -599,6 +614,8 @@ function PhaseCard({
               {phase.assignments.length} esecutori
               {materials.length > 0 ? ` · ${materials.length} materiali` : ""} · Prev{" "}
               {eur.format(phaseTotals.prev)} · Cons {eur.format(phaseTotals.cons)}
+              {plannedDates.start ? ` · dal ${plannedDates.start}` : ""}
+              {plannedDates.end ? ` al ${plannedDates.end}` : ""}
             </span>
           </div>
 
@@ -682,6 +699,38 @@ function PhaseCard({
             className="overflow-hidden"
           >
             <CardContent className="space-y-2 pt-0">
+              {/* ── Date previste della fase (start_date / end_date) ── */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Date previste
+                </span>
+                <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                  Inizio
+                  <Input
+                    type="date"
+                    key={`${phase.id}-start-${phase.start_date ?? ""}`}
+                    defaultValue={phase.start_date ?? ""}
+                    onChange={(e) => onUpdatePhase({ start_date: e.target.value || null })}
+                    className="h-8 w-auto text-xs"
+                    aria-label="Data inizio prevista"
+                  />
+                </label>
+                <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                  Fine
+                  <Input
+                    type="date"
+                    key={`${phase.id}-end-${phase.end_date ?? ""}`}
+                    defaultValue={phase.end_date ?? ""}
+                    onChange={(e) => onUpdatePhase({ end_date: e.target.value || null })}
+                    className="h-8 w-auto text-xs"
+                    aria-label="Data fine prevista"
+                  />
+                </label>
+                <span className="text-[11px] text-muted-foreground">
+                  Alimentano l'avviso materiali in partenza.
+                </span>
+              </div>
+
               {phase.assignments.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nessun esecutore assegnato</p>
               ) : (

@@ -1337,10 +1337,10 @@ export function OrderItemsList({
                 return (
               <div
                 key={item.id || index}
-                className={`p-3 rounded-lg space-y-2 ${STATUS_CONFIG[item.status]?.borderColor || STATUS_CONFIG.da_ordinare.borderColor}`}
+                className={`p-3 rounded-lg flex flex-col gap-2 sm:flex-row sm:items-start ${STATUS_CONFIG[item.status]?.borderColor || STATUS_CONFIG.da_ordinare.borderColor}`}
               >
-                {/* Item info (full width) */}
-                <div className="min-w-0">
+                {/* Item info (left) */}
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium">{item.name}</span>
                     {item.quantity > 1 && (
@@ -1499,68 +1499,70 @@ export function OrderItemsList({
                   )}
                 </div>
 
-                {/* Status + actions row */}
-                <div className="flex items-center justify-between gap-2">
-                  {showStatusControls ? (
-                    <Select
-                      value={item.status || "da_ordinare"}
-                      onValueChange={(value: OrderItemStatus) => handleStatusChange(index, value)}
-                    >
-                      <SelectTrigger className={cn(
-                        "flex-1 sm:flex-none sm:w-40 h-8 text-xs font-medium border",
-                        STATUS_CONFIG[item.status]
-                          ? STATUS_CONFIG[item.status].badgeColor.replace(/hover:\S+/g, '')
-                          : STATUS_CONFIG.da_ordinare.badgeColor.replace(/hover:\S+/g, '')
-                      )}>
-                        <SelectValue placeholder="Seleziona stato..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                          <SelectItem key={status} value={status}>
-                            <span className="flex items-center gap-2">
-                              <span className={cn("w-2 h-2 rounded-full", config.badgeColor.split(' ')[0])} />
-                              {config.label}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge className={STATUS_CONFIG[item.status]?.badgeColor || STATUS_CONFIG.da_ordinare.badgeColor}>
-                      {STATUS_CONFIG[item.status]?.label || "Da Ordinare"}
-                    </Badge>
-                  )}
-                  {(editable || allowEdit) && (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button type="button" variant="ghost" size="icon" onClick={() => openEditDialog(index)} title="Modifica">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      {editable && (
-                        <Button type="button" variant="ghost" size="icon" onClick={() => handleDuplicateItem(index)} title="Duplica">
-                          <Copy className="h-4 w-4 text-muted-foreground" />
+                {/* Right column: status + actions + attachments (compact on desktop) */}
+                <div className="flex w-full shrink-0 flex-col items-end gap-1.5 sm:w-auto">
+                  <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
+                    {showStatusControls ? (
+                      <Select
+                        value={item.status || "da_ordinare"}
+                        onValueChange={(value: OrderItemStatus) => handleStatusChange(index, value)}
+                      >
+                        <SelectTrigger className={cn(
+                          "flex-1 sm:flex-none sm:w-36 h-8 text-xs font-medium border",
+                          STATUS_CONFIG[item.status]
+                            ? STATUS_CONFIG[item.status].badgeColor.replace(/hover:\S+/g, '')
+                            : STATUS_CONFIG.da_ordinare.badgeColor.replace(/hover:\S+/g, '')
+                        )}>
+                          <SelectValue placeholder="Seleziona stato..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(STATUS_CONFIG).map(([status, config]) => (
+                            <SelectItem key={status} value={status}>
+                              <span className="flex items-center gap-2">
+                                <span className={cn("w-2 h-2 rounded-full", config.badgeColor.split(' ')[0])} />
+                                {config.label}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge className={STATUS_CONFIG[item.status]?.badgeColor || STATUS_CONFIG.da_ordinare.badgeColor}>
+                        {STATUS_CONFIG[item.status]?.label || "Da Ordinare"}
+                      </Badge>
+                    )}
+                    {(editable || allowEdit) && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button type="button" variant="ghost" size="icon" onClick={() => openEditDialog(index)} title="Modifica">
+                          <Pencil className="h-4 w-4" />
                         </Button>
-                      )}
-                      {editable && (
-                        <Button type="button" variant="ghost" size="icon" onClick={() => handleDeleteItem(index)} title="Elimina">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      )}
+                        {editable && (
+                          <Button type="button" variant="ghost" size="icon" onClick={() => handleDuplicateItem(index)} title="Duplica">
+                            <Copy className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        )}
+                        {editable && (
+                          <Button type="button" variant="ghost" size="icon" onClick={() => handleDeleteItem(index)} title="Elimina">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Attachments */}
+                  {item.id && (
+                    <div className="w-full sm:w-auto sm:max-w-[260px]">
+                      <OrderItemAttachments
+                        itemId={item.id}
+                        itemName={item.name}
+                        attachments={item.attachments || []}
+                        editable={editable || showStatusControls}
+                        onAttachmentsChange={() => onAttachmentsRefresh?.()}
+                      />
                     </div>
                   )}
                 </div>
-
-                {/* Attachments section */}
-                {item.id && (
-                  <div className="pt-2 border-t">
-                    <OrderItemAttachments
-                      itemId={item.id}
-                      itemName={item.name}
-                      attachments={item.attachments || []}
-                      editable={editable || showStatusControls}
-                      onAttachmentsChange={() => onAttachmentsRefresh?.()}
-                    />
-                  </div>
-                )}
               </div>
             );
               })}
