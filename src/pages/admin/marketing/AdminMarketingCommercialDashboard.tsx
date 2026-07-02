@@ -366,7 +366,7 @@ export default function AdminMarketingCommercialDashboard() {
               <TabsTrigger
                 key={t.v}
                 value={t.v}
-                className="gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition-colors data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm dark:text-slate-400 dark:data-[state=active]:bg-slate-900 dark:data-[state=active]:text-orange-400"
+                className="gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition-all hover:text-slate-800 data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-amber-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-orange-500/30 dark:text-slate-400 dark:hover:text-slate-100"
               >
                 <t.icon className="h-4 w-4" aria-hidden="true" /> {t.label}
               </TabsTrigger>

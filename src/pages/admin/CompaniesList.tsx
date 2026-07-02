@@ -1716,8 +1716,8 @@ export default function CompaniesList() {
           <Card className="hidden md:block">
           <CardContent className="p-0 overflow-x-auto">
             <Table className="min-w-[900px]">
-              <TableHeader className="sticky top-0 z-10 bg-card">
-                <TableRow>
+              <TableHeader className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur supports-[backdrop-filter]:bg-slate-50/80 dark:bg-slate-900/70 [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-slate-500 dark:[&_th]:text-slate-400">
+                <TableRow className="border-b-2 border-slate-200 hover:bg-transparent dark:border-slate-700">
                   <TableHead className="w-10 px-2">
                     <Checkbox
                       checked={pagedCompanies.length > 0 && pagedCompanies.every((c) => selectedIds.has(c.id))}

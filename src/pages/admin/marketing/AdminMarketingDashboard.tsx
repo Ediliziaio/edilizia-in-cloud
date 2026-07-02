@@ -26,6 +26,7 @@ import { OutreachConvertContactDialog } from "@/components/admin/outreach/Outrea
 import { OutreachOverdueFollowups } from "@/components/admin/outreach/OutreachOverdueFollowups";
 import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Reveal } from "@/components/admin/Reveal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrandPageHeader } from "@/components/admin/BrandPageHeader";
 import {
@@ -196,7 +197,7 @@ function OutreachCockpit() {
                 <TabsTrigger
                   key={t.value}
                   value={t.value}
-                  className="gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
+                  className="gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-all hover:text-foreground data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-amber-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-orange-500/30"
                 >
                   <t.icon className="h-4 w-4" />
                   {t.label}
@@ -210,7 +211,7 @@ function OutreachCockpit() {
           <TabsContent value="oggi" className="mt-5 space-y-6">
             <OutreachSetupChecklist companyId={companyId} />
 
-            <div className="space-y-3">
+            <Reveal className="space-y-3">
               <SectionLabel>Panoramica</SectionLabel>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <Kpi icon={Users} label="Contatti in rubrica" value={fmt(contacts.data)} hint="nel CRM marketing admin" />
@@ -218,23 +219,23 @@ function OutreachCockpit() {
                 <Kpi icon={ShieldCheck} label="Soppressi / opt-out" value={fmt(suppressed.data)} hint="bounce, lamentele, disiscritti" tone="warn" />
                 <Kpi icon={Send} label="Campagne create" value={fmt(campaigns.data)} hint="totali nel sistema" />
               </div>
-            </div>
+            </Reveal>
 
-            <div className="space-y-3">
+            <Reveal className="space-y-3" delay={0.06}>
               <SectionLabel>Motore &amp; performance</SectionLabel>
               <OutreachQueueStatus companyId={companyId} />
               <OutreachAnalytics companyId={companyId} />
-            </div>
+            </Reveal>
 
-            <div className="space-y-3">
+            <Reveal className="space-y-3" delay={0.12}>
               <SectionLabel>Da leggere &amp; attività</SectionLabel>
               <div className="grid gap-4 lg:grid-cols-2">
                 <OutreachInboxPreview companyId={companyId} onOpenMailbox={() => setTab("posta")} />
                 <OutreachActivityFeed companyId={companyId} />
               </div>
-            </div>
+            </Reveal>
 
-            <div className="space-y-3">
+            <Reveal className="space-y-3" delay={0.18}>
               <SectionLabel>Scorciatoie</SectionLabel>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <Shortcut to="/admin/marketing/lead-scraper" icon={Radar} label="Lead Scraper" desc="Trova nuovi lead (6 sorgenti + AI)" />
@@ -244,7 +245,7 @@ function OutreachCockpit() {
                 <Shortcut to="/admin/marketing/sms" icon={Phone} label="SMS" desc="Campagne SMS (Telnyx)" />
                 <Shortcut to="/admin/marketing/automazioni" icon={Workflow} label="Automazioni" desc="Flussi e sequenze" />
               </div>
-            </div>
+            </Reveal>
           </TabsContent>
 
         {/* ── POSTA ── */}
