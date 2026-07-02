@@ -1780,13 +1780,18 @@ export default function AdsManagerBeta() {
     : "campagne";
 
   // Toggle "mostra esempi" persistito in localStorage
-  const sampleKey = companyId ? `eic_ads_manager_show_samples_${companyId}` : null;
+  // v2: il vecchio default (mostra-se-zero-bozze) veniva auto-persistito → chi
+  // aveva già aperto la pagina restava con gli esempi accesi. Nuova chiave =
+  // tutti ripartono dal default pulito (nascosti).
+  const sampleKey = companyId ? `eic_ads_manager_show_samples_v2_${companyId}` : null;
   const [showSamples, setShowSamples] = useState<boolean>(() => {
-    if (!sampleKey) return drafts.length === 0;
+    // Default: NASCOSTI. Le campagne [ESEMPIO] con numeri finti ("Attiva",
+    // spesa, lead) mescolate alla lista vera confondevano — sembravano
+    // campagne reali sotto un empty-state che dice "non hai ancora campagne".
+    // Chi vuole vederle usa il toggle "Mostra esempi" (scelta persistita).
+    if (!sampleKey) return false;
     try {
-      const raw = window.localStorage.getItem(sampleKey);
-      if (raw === null) return drafts.length === 0; // default: solo se non hai ancora bozze
-      return raw === "1";
+      return window.localStorage.getItem(sampleKey) === "1";
     } catch {
       return false;
     }

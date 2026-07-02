@@ -93,13 +93,16 @@ export function AdsBotChatPanel({ companyId, context }: Props) {
 
   return (
     <>
-      {/* FAB */}
+      {/* FAB — impilato SOPRA la bolla di Silvio (che vive a bottom-5 right-5):
+          prima erano nello stesso punto e Silvio copriva AdsBot. Più piccolo
+          per non affollare l'angolo. */}
       {!isOpen && (
         <button
           type="button"
           onClick={() => setIsOpen(true)}
           aria-label="Apri AdsBot"
-          className="fixed bottom-5 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+          title="AdsBot — consulente campagne"
+          className="fixed bottom-24 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
         >
           <Bot className="h-6 w-6" />
           {hasNew && (
