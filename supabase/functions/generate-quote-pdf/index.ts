@@ -46,6 +46,11 @@ function normalizeTemplateText(value: unknown): string {
     .trim();
 }
 
+// Importi in formato italiano: 1.234,56 € (WinAnsi-safe per pdf-lib)
+function fmtEur(n: number): string {
+  return n.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+
 function wrapText(text: string, maxChars: number): string[] {
   const words = text.trim().split(/\s+/).filter(Boolean);
   const lines: string[] = [];
@@ -243,13 +248,18 @@ Deno.serve(async (req) => {
       const visibileItems = allItems.filter((i: any) => i.mostra_nel_pdf !== false);
       items = visibileItems;
 
-      // Load company info
+      // Load company info (companies non ha "address": la sede è legal_address/legal_city)
       const { data: companyData } = await supabaseAdmin
         .from("companies")
-        .select("name, email, phone, address, logo_url, vat_number")
+        .select("name, email, phone, legal_address, legal_city, logo_url, vat_number")
         .eq("id", quote.company_id)
         .single();
-      company = companyData;
+      company = companyData
+        ? {
+            ...companyData,
+            address: [companyData.legal_address, companyData.legal_city].filter(Boolean).join(", ") || null,
+          }
+        : null;
 
       // Branding dinamico per white-label
       branding = await getBrandingForCompany(supabaseAdmin, quote.company_id);
@@ -517,7 +527,7 @@ Deno.serve(async (req) => {
         }
         if (product.product_indicative_price !== null && product.product_indicative_price !== undefined) {
           const unit = product.product_unit ? `/${product.product_unit}` : "";
-          page.drawText(`€ ${Number(product.product_indicative_price).toFixed(2)}${unit}`, {
+          page.drawText(`${fmtEur(Number(product.product_indicative_price))}${unit}`, {
             x: x + w - 125,
             y: cardTop - 68,
             size: 10,
@@ -612,6 +622,8 @@ Deno.serve(async (req) => {
       // Left: company contact details
       let yl = y;
       page.drawText("Emittente", { x: col1X, y: yl, size: 8, font: fontBold, color: grayC }); yl -= 14;
+      if (company?.name) { page.drawText(company.name, { x: col1X, y: yl, size: 10, font: fontBold, color: textC }); yl -= 13; }
+      if (company?.vat_number) { page.drawText(`P.IVA ${company.vat_number}`, { x: col1X, y: yl, size: 9, font, color: textC }); yl -= 13; }
       if (company?.address) { page.drawText(company.address, { x: col1X, y: yl, size: 9, font, color: textC, maxWidth: contentWidth / 2 - 10 }); yl -= 13; }
       if (company?.email) { page.drawText(company.email, { x: col1X, y: yl, size: 9, font, color: textC }); yl -= 13; }
       if (company?.phone) { page.drawText(company.phone, { x: col1X, y: yl, size: 9, font, color: textC }); yl -= 13; }
@@ -657,11 +669,8 @@ Deno.serve(async (req) => {
       if (quote.client_address) { page.drawText(quote.client_address, { x: boldLeftX, y, size: 10, font, color: textC }); y -= 14; }
     }
 
-    if (quote.title && t.layout !== "modern" && t.layout !== "minimal" && t.layout !== "bold") {
-      y -= 20;
-      page.drawText("Oggetto:", { x: boldLeftX, y, size: 10, font: fontBold, color: textC }); y -= 14;
-      page.drawText(quote.title, { x: boldLeftX, y, size: 10, font, color: textC }); y -= 14;
-    }
+    // (niente secondo blocco "Oggetto": nel layout classic il titolo è già
+    // stampato nell'header sopra il destinatario — evitiamo il doppione)
 
     if (quote.description) {
       y -= 10;
@@ -730,7 +739,7 @@ Deno.serve(async (req) => {
               return s + Number(i.line_total || (i.quantity * i.unit_price * (1 - (i.discount_percent || 0) / 100)));
             }, 0);
             page.drawText("Subtotale", { x: colX[0], y, size: 9, font: fontBold, color: textC });
-            page.drawText(`€ ${subVal.toFixed(2)}`, { x: colX[5], y, size: 9, font: fontBold, color: primaryC });
+            page.drawText(`${fmtEur(subVal)}`, { x: colX[5], y, size: 9, font: fontBold, color: primaryC });
             y -= 18;
             continue;
           }
@@ -745,16 +754,17 @@ Deno.serve(async (req) => {
           if (isChild) namePrefix = "  \u2514 ";
           if (isOptional) namePrefix += "[OPZIONALE] ";
 
-          const nameText = (namePrefix + (item.name || "")).substring(0, 40);
+          const rawName = namePrefix + (item.name || "");
+          const nameText = rawName.length > 46 ? rawName.slice(0, 45) + "…" : rawName;
           const rowColor = isChild ? grayC : textC;
 
           const qty = `${item.quantity} ${item.unit_of_measure || ""}`.trim();
-          const price = `€ ${Number(item.unit_price || 0).toFixed(2)}`;
+          const price = fmtEur(Number(item.unit_price || 0));
           const showDiscount = (quote as any).pdf_mostra_sconti !== false && pdfImp.pdf_mostra_sconti !== false;
           const disc = showDiscount && Number(item.discount_percent || 0) > 0 ? `${item.discount_percent}%` : (showDiscount ? "—" : "");
           const vat = `${Number(item.vat_rate || 0)}%`;
           const lineTotal = Number(item.line_total || (Number(item.quantity) * Number(item.unit_price) * (1 - Number(item.discount_percent || 0) / 100)));
-          const totalText = `€ ${lineTotal.toFixed(2)}`;
+          const totalText = `${fmtEur(lineTotal)}`;
 
           page.drawText(nameText, { x: colX[0], y, size: 9, font, color: rowColor });
           page.drawText(qty, { x: colX[1], y, size: 9, font, color: rowColor });
@@ -768,7 +778,7 @@ Deno.serve(async (req) => {
           page.drawText(totalText, { x: colX[5], y, size: 9, font: fontBold, color: isOptional ? grayC : textC });
           y -= 16;
 
-          if (item.description) {
+          if (item.description && item.description !== item.name) {
             page.drawText(item.description.substring(0, 80), { x: colX[0], y, size: 7, font, color: grayC });
             y -= 12;
           }
@@ -787,9 +797,9 @@ Deno.serve(async (req) => {
         y -= 15;
       };
 
-      drawTotal("Subtotale", `€ ${Number(quote.subtotal || 0).toFixed(2)}`);
+      drawTotal("Subtotale", `${fmtEur(Number(quote.subtotal || 0))}`);
       if (Number(quote.discount_percent || 0) > 0) {
-        drawTotal(`Sconto ${quote.discount_percent}%`, `- € ${Number(quote.discount_amount || 0).toFixed(2)}`);
+        drawTotal(`Sconto ${quote.discount_percent}%`, `- ${fmtEur(Number(quote.discount_amount || 0))}`);
       }
 
       // ── IVA breakdown per aliquota ─────────────────────────────────
@@ -810,14 +820,14 @@ Deno.serve(async (req) => {
         // Show per-rate breakdown
         for (const rate of ivaRates) {
           const iva = Math.round(ivaBreakdown[rate] * discFactor * 100) / 100;
-          drawTotal(`IVA ${rate}%`, `€ ${iva.toFixed(2)}`);
+          drawTotal(`IVA ${rate}%`, `${fmtEur(iva)}`);
         }
       } else {
         // Single rate: show total IVA
-        drawTotal("IVA", `€ ${Number(quote.vat_amount || 0).toFixed(2)}`);
+        drawTotal("IVA", `${fmtEur(Number(quote.vat_amount || 0))}`);
       }
 
-      drawTotal("TOTALE", `€ ${Number(quote.total || 0).toFixed(2)}`, true);
+      drawTotal("TOTALE", `${fmtEur(Number(quote.total || 0))}`, true);
 
       // ── Box Finanziamento (se presente nel preventivo) ─────────────
       // I 6 campi quotes.financing_* vengono popolati dal QuoteBuilder
@@ -846,7 +856,7 @@ Deno.serve(async (req) => {
           size: 8, font: fontBold, color: blueAccent,
         });
         // Rata grande
-        const rataStr = `€ ${Number(fin.financing_monthly_rate).toFixed(2)}`;
+        const rataStr = `${fmtEur(Number(fin.financing_monthly_rate))}`;
         page.drawText(rataStr, {
           x: finBoxX + 8, y: y - 8,
           size: 18, font: fontBold, color: blueAccent,
@@ -858,8 +868,8 @@ Deno.serve(async (req) => {
         });
         // Riga TAN/totale dovuto
         const tan = fin.financing_calculation_json?.tan;
-        const totDue = Number(fin.financing_total_due ?? 0).toFixed(2);
-        const detailLine = `Tot. dovuto € ${totDue}${tan ? ` · TAN ${Number(tan).toFixed(2)}%` : ""}`;
+        const totDue = fmtEur(Number(fin.financing_total_due ?? 0));
+        const detailLine = `Tot. dovuto ${totDue}${tan ? ` · TAN ${Number(tan).toFixed(2)}%` : ""}`;
         page.drawText(detailLine, {
           x: finBoxX + 8, y: y - 22,
           size: 7.5, font: font, color: lightGrayC,
