@@ -1,5 +1,5 @@
 import {
-  getSmoothStepPath,
+  getBezierPath,
   EdgeLabelRenderer,
   BaseEdge,
   type EdgeProps,
@@ -18,13 +18,17 @@ export function AddStepEdge({
   markerEnd,
   data,
 }: EdgeProps) {
-  const [edgePath, labelX, labelY] = getSmoothStepPath({
+  // Curva morbida (bezier) stile ActiveCampaign al posto della linea a
+  // scalino con angoli retti (getSmoothStepPath). Il "+" resta centrato
+  // perché getBezierPath ritorna labelX/labelY sul punto medio del path.
+  const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
     sourcePosition,
     targetX,
     targetY,
     targetPosition,
+    curvature: 0.35,
   });
 
   // Durante il test: la linea da un nodo completato "trasporta" un pacchetto di

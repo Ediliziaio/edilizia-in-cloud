@@ -183,6 +183,70 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
     configSchema: [],
   },
+  {
+    id: 'tag_aggiunto',
+    label: 'Tag aggiunto al contatto',
+    description: 'Scatta quando viene aggiunto un tag a un contatto (evento tag_added, già emesso dal CRM)',
+    icon: 'Tag',
+    categoria: 'crm',
+    dbTable: 'marketing_contacts',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'contatto.full_name', label: 'Nome completo', type: 'string' },
+      { id: 'contatto.tags', label: 'Tag attuali', type: 'string' },
+    ],
+    configSchema: [],
+  },
+  {
+    id: 'tag_rimosso',
+    label: 'Tag rimosso dal contatto',
+    description: 'Scatta quando viene rimosso un tag da un contatto (evento tag_removed)',
+    icon: 'Tag',
+    categoria: 'crm',
+    dbTable: 'marketing_contacts',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'contatto.full_name', label: 'Nome completo', type: 'string' },
+      { id: 'contatto.tags', label: 'Tag attuali', type: 'string' },
+    ],
+    configSchema: [],
+  },
+  {
+    id: 'compleanno_contatto',
+    label: 'Compleanno contatto',
+    description: 'Scatta il giorno del compleanno del contatto (o N giorni prima). Controllo giornaliero.',
+    icon: 'Cake',
+    categoria: 'crm',
+    dbTable: 'marketing_contacts',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'contatto.full_name', label: 'Nome completo', type: 'string' },
+      { id: 'contatto.date_of_birth', label: 'Data di nascita', type: 'date' },
+    ],
+    configSchema: [
+      { id: 'days_before', label: 'Giorni di anticipo', type: 'number', required: false, defaultValue: 0, helpText: '0 = il giorno stesso del compleanno' },
+    ],
+  },
+  {
+    id: 'data_personalizzata',
+    label: 'Ricorrenza su campo data',
+    description: 'Scatta quando un campo data del contatto cade oggi (± offset). Es. anniversario contratto.',
+    icon: 'CalendarClock',
+    categoria: 'crm',
+    dbTable: 'marketing_contacts',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'contatto.full_name', label: 'Nome completo', type: 'string' },
+    ],
+    configSchema: [
+      { id: 'date_field', label: 'Campo data (colonna DB)', type: 'text', required: true, placeholder: 'es. created_at, date_of_birth' },
+      { id: 'days_offset', label: 'Offset giorni', type: 'number', required: false, defaultValue: 0, helpText: 'Positivo = N giorni dopo la data; negativo = prima' },
+    ],
+  },
 
   // ═══ OPPORTUNITÀ & PIPELINE ═══
   {
@@ -267,6 +331,23 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
     configSchema: [],
   },
+  {
+    id: 'opportunita_stale',
+    label: 'Opportunità ferma (stale)',
+    description: 'Scatta quando un\'opportunità aperta non viene toccata da N giorni. Controllo giornaliero.',
+    icon: 'Hourglass',
+    categoria: 'crm',
+    dbTable: 'marketing_opportunities',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'opportunita.id', label: 'ID Opportunità', type: 'uuid' },
+      { id: 'contatto.id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'contatto.full_name', label: 'Nome completo', type: 'string' },
+    ],
+    configSchema: [
+      { id: 'stale_days', label: 'Giorni senza attività', type: 'number', required: false, defaultValue: 30, helpText: 'Scatta se l\'opportunità aperta non viene aggiornata da almeno N giorni' },
+    ],
+  },
 
   // ═══ APPUNTAMENTI & CALENDARIO ═══
   {
@@ -331,6 +412,21 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     label: 'Appuntamento no-show',
     description: "Il cliente non si è presentato all'appuntamento",
     icon: 'XCircle',
+    categoria: 'crm',
+    dbTable: 'appointments',
+    dbEvent: 'UPDATE',
+    outputVariables: [
+      { id: 'appuntamento.id', label: 'ID Appuntamento', type: 'uuid' },
+      { id: 'appuntamento.contact_id', label: 'ID Contatto', type: 'uuid' },
+      { id: 'appuntamento.title', label: 'Titolo', type: 'string' },
+    ],
+    configSchema: [],
+  },
+  {
+    id: 'appuntamento_annullato',
+    label: 'Appuntamento annullato',
+    description: 'Scatta quando un appuntamento viene annullato/cancellato',
+    icon: 'CalendarX',
     categoria: 'crm',
     dbTable: 'appointments',
     dbEvent: 'UPDATE',
@@ -496,6 +592,22 @@ export const TRIGGER_CATALOG: TriggerDefinition[] = [
     ],
     configSchema: [
       { id: 'importo_soglia', label: 'Solo spese superiori a (€) — per approvazione', type: 'number', required: false, placeholder: 'Es: 500' },
+    ],
+  },
+  {
+    id: 'costo_in_scadenza',
+    label: 'Costo in scadenza',
+    description: 'Scatta quando un costo/spesa ha la scadenza di pagamento entro N giorni. Controllo giornaliero.',
+    icon: 'CalendarClock',
+    categoria: 'fatturazione',
+    dbEvent: 'SCHEDULED',
+    outputVariables: [
+      { id: 'costo.id', label: 'ID Spesa', type: 'uuid' },
+      { id: 'costo.importo', label: 'Importo (€)', type: 'number' },
+      { id: 'costo.descrizione', label: 'Descrizione', type: 'string' },
+    ],
+    configSchema: [
+      { id: 'days_before', label: 'Giorni di preavviso', type: 'number', required: false, defaultValue: 7, helpText: 'Scatta se la scadenza è entro N giorni' },
     ],
   },
 
@@ -1499,6 +1611,14 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     configSchema: [
       { id: 'agent_id', label: 'Agente AI', type: 'entity_select', required: true, helpText: "Seleziona l'agente AI da eseguire" },
       { id: 'prompt', label: 'Prompt aggiuntivo (opzionale)', type: 'textarea', required: false, supportsVariables: true, placeholder: 'Analizza il lead {{contatto.first_name}} {{contatto.last_name}} e suggerisci la strategia migliore' },
+      // Il motore leggeva già questi campi ma la UI non li esponeva.
+      { id: 'ai_tone', label: 'Tono', type: 'select', required: false, options: [
+        { value: 'professional', label: 'Professionale' }, { value: 'friendly', label: 'Amichevole' }, { value: 'formal', label: 'Formale' },
+      ]},
+      { id: 'ai_channel', label: 'Canale di risposta', type: 'select', required: false, options: [
+        { value: 'email', label: 'Email' }, { value: 'whatsapp', label: 'WhatsApp' }, { value: 'sms', label: 'SMS' },
+      ]},
+      { id: 'ai_max_length', label: 'Lunghezza max (caratteri)', type: 'number', required: false, placeholder: '600' },
     ],
   },
   {
@@ -1539,6 +1659,14 @@ export const ACTION_CATALOG: ActionDefinition[] = [
       { id: 'target_node_id', label: 'Nodo destinazione', type: 'text', required: true, placeholder: 'ID del nodo destinazione', helpText: 'Seleziona il nodo a cui saltare' },
       { id: 'label', label: 'Etichetta (per il canvas)', type: 'text', required: false, placeholder: 'Es: Torna a inizio' },
     ],
+  },
+  {
+    id: 'end_automation',
+    label: 'Termina automazione',
+    description: 'Chiude il flusso per questo contatto: i nodi successivi non vengono eseguiti. Utile come uscita esplicita di un ramo.',
+    icon: 'CircleStop',
+    categoria: 'logica',
+    configSchema: [],
   },
   {
     id: 'drip_sequenza',

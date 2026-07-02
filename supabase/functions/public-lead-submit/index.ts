@@ -245,6 +245,21 @@ Deno.serve(async (req) => {
       contactId = inserted.id as string;
     }
 
+    // Trigger automazioni "Form compilato" (form_submitted): PRIMA questo
+    // evento non veniva mai emesso da nessuno → il trigger a catalogo era
+    // morto. Best-effort: un errore qui non blocca la submit del lead.
+    try {
+      await supabase.from("automation_trigger_events").insert({
+        company_id: PLATFORM_ADMIN_COMPANY_ID,
+        trigger_event: "form_submitted",
+        entity_id: contactId,
+        entity_type: "contact",
+        payload: { source, page_path: pagePath || null, context_label: contextLabel || null },
+      });
+    } catch (e) {
+      console.warn("[public-lead-submit] form_submitted event skipped:", e);
+    }
+
     await supabase.from("marketing_contact_activities").insert({
       company_id: PLATFORM_ADMIN_COMPANY_ID,
       contact_id: contactId,

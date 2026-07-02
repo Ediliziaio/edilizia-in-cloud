@@ -188,6 +188,19 @@ async function handleTrigger(supabase: any, body: any) {
   const TRIGGER_EVENT_MAP: Record<string, string> = {
     contatto_creato: "contact_created",
     contatto_aggiornato: "contact_updated",
+    // Trigger CRM riattivati/aggiunti (audit automazioni 2026-07-02):
+    contatto_assegnato: "contact_assigned",
+    tag_aggiunto: "tag_added",
+    tag_rimosso: "tag_removed",
+    appuntamento_confermato: "appointment_confirmed",
+    appuntamento_completato: "appointment_completed",
+    appuntamento_no_show: "appointment_no_show",
+    appuntamento_annullato: "appointment_canceled",
+    opportunita_stale: "opportunity_stale",
+    compleanno_contatto: "birthday_reminder",
+    costo_in_scadenza: "cost_due",
+    data_personalizzata: "custom_date",
+    cantiere_fase_completata: "site_phase_completed",
     opportunita_creata: "opportunity_created",
     opportunita_stage_cambiato: "pipeline_stage_change",
     opportunita_vinta: "opportunity_won",
@@ -535,15 +548,50 @@ async function executeNode(supabase: any, node: AutomationNode, queueItem: any) 
 }
 
 // ── Delay ──
-function executeDelay(cfg: Record<string, any>) {
-  // Schema UI del nodo "Attendi": giorni/ore/minuti (catalogo). Si sommano.
-  const giorni = parseInt(cfg.giorni) || 0;
-  const ore = parseInt(cfg.ore) || 0;
-  const minuti = parseInt(cfg.minuti) || 0;
-  let delayMs = giorni * 86400000 + ore * 3600000 + minuti * 60000;
+// Minuti-del-giorno correnti e weekday (0=Dom) in Europe/Rome: il "fino alle
+// 09:00" dell'utente è ora italiana, non UTC del runtime.
+function romeNowParts(at: Date): { minutesOfDay: number; weekday: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Rome", hour12: false,
+    weekday: "short", hour: "2-digit", minute: "2-digit",
+  }).formatToParts(at);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday"));
+  const h = parseInt(get("hour"), 10) % 24;
+  const m = parseInt(get("minute"), 10);
+  return { minutesOfDay: h * 60 + m, weekday: wd < 0 ? at.getUTCDay() : wd };
+}
 
-  // Retro-compat con il vecchio schema delay_value/delay_unit (e usato come
-  // fallback se i campi giorni/ore/minuti sono tutti a zero/assenti).
+function executeDelay(cfg: Record<string, any>) {
+  // Schema del BUILDER (DelayConfigPanel): delay_tipo 'attendi'|'fino_a',
+  // delay_durata + delay_unita (minuti|ore|giorni|settimane), delay_orario
+  // 'HH:MM', delay_giorni_settimana [0..6] (0=Dom). PRIMA il motore leggeva
+  // solo giorni/ore/minuti (schema catalogo) → OGNI attesa configurata dal
+  // builder cadeva nel default di 1 ora ("aspetta 3 giorni" = 1 ora).
+  let delayMs = 0;
+
+  if (cfg.delay_tipo === "fino_a" && typeof cfg.delay_orario === "string" && /^\d{1,2}:\d{2}$/.test(cfg.delay_orario)) {
+    // Prossima occorrenza dell'orario (ora italiana): oggi se futuro, sennò domani.
+    const [th, tm] = cfg.delay_orario.split(":").map((n: string) => parseInt(n, 10));
+    const targetMin = (th % 24) * 60 + tm;
+    const { minutesOfDay } = romeNowParts(new Date());
+    let deltaMin = targetMin - minutesOfDay;
+    if (deltaMin <= 0) deltaMin += 24 * 60;
+    delayMs = deltaMin * 60_000;
+  } else if (cfg.delay_durata != null || cfg.delay_unita) {
+    const durata = Math.max(1, parseInt(cfg.delay_durata) || 1);
+    const MS: Record<string, number> = { minuti: 60_000, ore: 3_600_000, giorni: 86_400_000, settimane: 604_800_000 };
+    delayMs = durata * (MS[String(cfg.delay_unita)] ?? 86_400_000);
+  }
+
+  // Schema catalogo giorni/ore/minuti (nodi creati da template o a mano)
+  if (delayMs <= 0) {
+    const giorni = parseInt(cfg.giorni) || 0;
+    const ore = parseInt(cfg.ore) || 0;
+    const minuti = parseInt(cfg.minuti) || 0;
+    delayMs = giorni * 86400000 + ore * 3600000 + minuti * 60000;
+  }
+  // Retro-compat con il vecchio schema delay_value/delay_unit
   if (delayMs <= 0 && (cfg.delay_value != null || cfg.delay_unit != null)) {
     const value = parseInt(cfg.delay_value) || 1;
     const unit = cfg.delay_unit || "hours";
@@ -552,6 +600,19 @@ function executeDelay(cfg: Record<string, any>) {
       : value * 3600000;
   }
   if (delayMs <= 0) delayMs = 3600000; // default difensivo: 1 ora
+
+  // "Solo in questi giorni": se l'attesa atterra su un giorno non consentito,
+  // slitta di 24h alla volta fino al primo giorno attivo (stessa ora).
+  const giorniOk: number[] = Array.isArray(cfg.delay_giorni_settimana)
+    ? cfg.delay_giorni_settimana.filter((d: unknown) => typeof d === "number")
+    : [];
+  if (giorniOk.length > 0 && giorniOk.length < 7) {
+    let guard = 0;
+    while (!giorniOk.includes(romeNowParts(new Date(Date.now() + delayMs)).weekday) && guard < 7) {
+      delayMs += 86_400_000;
+      guard++;
+    }
+  }
 
   return {
     success: true,
@@ -563,37 +624,94 @@ function executeDelay(cfg: Record<string, any>) {
 
 // ── Condition (If/Else) ──
 async function executeCondition(supabase: any, cfg: Record<string, any>, entityId: string, companyId: string) {
-  // Get contact data
-  const { data: contact } = await supabase
-    .from("marketing_contacts")
-    .select("*")
-    .eq("id", entityId)
-    .eq("company_id", companyId)
-    .maybeSingle();
+  // Il BUILDER (ConditionConfigPanel) salva: `condizioni` = array di
+  // {campo:"contatto.email", operatore:"uguale", valore} + `operatore_logico`
+  // AND|OR. PRIMA il motore leggeva SOLO condition_field/operator/value →
+  // ogni nodo Se/Altrimenti creato dal builder valutava undefined e finiva
+  // SEMPRE sul ramo "no". Ora: array + logica + operatori italiani + campi
+  // con prefisso entità. Il vecchio schema resta supportato (fallback).
+  type Row = { campo?: string; operatore?: string; valore?: unknown };
+  const rows: Row[] = Array.isArray(cfg.condizioni) && cfg.condizioni.length > 0
+    ? cfg.condizioni
+    : (cfg.condition_field
+      ? [{ campo: String(cfg.condition_field), operatore: String(cfg.condition_operator ?? "equals"), valore: cfg.condition_value }]
+      : []);
+  if (rows.length === 0) {
+    return { success: true, output: { branch: "no", reason: "Nessuna condizione configurata" }, branch: "no" };
+  }
+  const logic: "AND" | "OR" = cfg.operatore_logico === "OR" ? "OR" : "AND";
 
-  if (!contact) {
-    return { success: true, output: { branch: "no", reason: "Contact not found" }, branch: "no" };
+  // Risolve il record per prefisso campo (cache per non rifare le query).
+  // contatto.* → il contatto (entityId); opportunita.*/appuntamento.* → il più
+  // recente del contatto; ordine.*/ticket.* → il record se l'entità del flusso
+  // È quell'oggetto (trigger operativi).
+  const cache: Record<string, any> = {};
+  const load = async (prefix: string) => {
+    if (prefix in cache) return cache[prefix];
+    let row: any = null;
+    try {
+      if (prefix === "contatto") {
+        row = (await supabase.from("marketing_contacts").select("*").eq("id", entityId).eq("company_id", companyId).maybeSingle()).data;
+      } else if (prefix === "opportunita") {
+        row = (await supabase.from("marketing_opportunities").select("*").eq("contact_id", entityId).eq("company_id", companyId).order("updated_at", { ascending: false }).limit(1).maybeSingle()).data;
+      } else if (prefix === "appuntamento") {
+        row = (await supabase.from("appointments").select("*").eq("contact_id", entityId).eq("company_id", companyId).order("created_at", { ascending: false }).limit(1).maybeSingle()).data;
+      } else if (prefix === "ordine") {
+        row = (await supabase.from("orders").select("*").eq("id", entityId).eq("company_id", companyId).maybeSingle()).data;
+      } else if (prefix === "ticket") {
+        row = (await supabase.from("tickets").select("*").eq("id", entityId).eq("company_id", companyId).maybeSingle()).data;
+      }
+    } catch (_e) { row = null; }
+    cache[prefix] = row;
+    return row;
+  };
+
+  const evalRow = async (r: Row): Promise<boolean> => {
+    const raw = String(r.campo ?? "").trim();
+    if (!raw) return false;
+    const dot = raw.indexOf(".");
+    const prefix = dot > 0 ? raw.slice(0, dot) : "contatto";
+    const field = dot > 0 ? raw.slice(dot + 1) : raw;
+    const rec = await load(prefix);
+    const actual = rec ? rec[field] : undefined;
+    const value = r.valore;
+    const sa = String(actual ?? "");
+    const sv = String(value ?? "");
+    switch (String(r.operatore ?? "uguale")) {
+      case "uguale": case "equals": return sa === sv;
+      case "diverso": case "not_equals": return sa !== sv;
+      case "contiene": case "contains": return sa.toLowerCase().includes(sv.toLowerCase());
+      case "non_contiene": return !sa.toLowerCase().includes(sv.toLowerCase());
+      case "inizia_con": return sa.toLowerCase().startsWith(sv.toLowerCase());
+      case "vuoto": case "is_empty": return actual == null || sa === "";
+      case "non_vuoto": case "is_not_empty": return !(actual == null || sa === "");
+      case "maggiore": case "gt": return Number(actual) > Number(value);
+      case "minore": case "lt": return Number(actual) < Number(value);
+      case "maggiore_uguale": case "gte": return Number(actual) >= Number(value);
+      case "minore_uguale": case "lte": return Number(actual) <= Number(value);
+      default: return false;
+    }
+  };
+
+  const details: Array<{ campo?: string; ok: boolean }> = [];
+  let result: boolean;
+  if (logic === "AND") {
+    result = true;
+    for (const r of rows) {
+      const ok = await evalRow(r);
+      details.push({ campo: r.campo, ok });
+      if (!ok) { result = false; break; }
+    }
+  } else {
+    result = false;
+    for (const r of rows) {
+      const ok = await evalRow(r);
+      details.push({ campo: r.campo, ok });
+      if (ok) { result = true; break; }
+    }
   }
 
-  const field = cfg.condition_field;
-  const operator = cfg.condition_operator;
-  const value = cfg.condition_value;
-
-  const contactValue = contact[field];
-  let result = false;
-
-  switch (operator) {
-    case "equals": result = String(contactValue) === String(value); break;
-    case "not_equals": result = String(contactValue) !== String(value); break;
-    case "contains": result = String(contactValue || "").includes(String(value)); break;
-    case "is_empty": result = !contactValue; break;
-    case "is_not_empty": result = !!contactValue; break;
-    case "gt": result = Number(contactValue) > Number(value); break;
-    case "lt": result = Number(contactValue) < Number(value); break;
-    default: result = false;
-  }
-
-  return { success: true, output: { branch: result ? "yes" : "no", field, operator, value }, branch: result ? "yes" : "no" };
+  return { success: true, output: { branch: result ? "yes" : "no", logic, conditions: details }, branch: result ? "yes" : "no" };
 }
 
 // ── Split ──
@@ -802,12 +920,27 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
       const field = ncfg.field_name || ncfg.campo;
       const value = ncfg.field_value || ncfg.valore;
       if (!field) return { success: false, error: "No field_name configured" };
-      await supabase
-        .from("marketing_contacts")
+      // Il catalogo espone `tabella` (contatto/opportunità/ticket/task/ordine/
+      // fattura): PRIMA veniva ignorata e si scriveva SEMPRE su
+      // marketing_contacts. Whitelist → niente tabelle arbitrarie.
+      const TABLE_MAP: Record<string, string> = {
+        contacts: "marketing_contacts",
+        opportunities: "marketing_opportunities",
+        tickets: "tickets",
+        tasks: "tasks",
+        orders: "orders",
+        invoices: "invoices",
+      };
+      const requested = String(ncfg.tabella ?? "contacts");
+      const table = TABLE_MAP[requested];
+      if (!table) return { success: false, error: `Tabella non supportata: ${requested}` };
+      const { error: ufErr } = await supabase
+        .from(table)
         .update({ [field]: value })
         .eq("id", entityId)
         .eq("company_id", companyId);
-      return { success: true, output: { action: "update_field", field, value } };
+      if (ufErr) return { success: false, error: `update_field su ${table}: ${ufErr.message}` };
+      return { success: true, output: { action: "update_field", table, field, value } };
     }
 
     case "assign_user": {
@@ -1218,18 +1351,33 @@ Istruzione: ${aiPrompt}`;
         return { success: false, error: `URL non valido: ${url}` };
       }
 
+      // Il catalogo espone `metodo` (POST/PUT/PATCH/GET) e `headers` (JSON):
+      // PRIMA erano ignorati (sempre POST, niente header custom).
+      const method = ["GET", "POST", "PUT", "PATCH"].includes(String(ncfg.metodo ?? "").toUpperCase())
+        ? String(ncfg.metodo).toUpperCase()
+        : "POST";
+      const extraHeaders: Record<string, string> = {};
+      try {
+        const h = typeof ncfg.headers === "string" ? JSON.parse(ncfg.headers) : ncfg.headers;
+        if (h && typeof h === "object" && !Array.isArray(h)) {
+          for (const [k, v] of Object.entries(h)) {
+            if (typeof v === "string" && k.length <= 100 && v.length <= 500) extraHeaders[k] = v;
+          }
+        }
+      } catch { /* headers malformati: ignora, si usa solo Content-Type */ }
+
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10_000);
         const resp = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ entity_id: entityId, company_id: companyId, config: ncfg }),
+          method,
+          headers: { "Content-Type": "application/json", ...extraHeaders },
+          body: method === "GET" ? undefined : JSON.stringify({ entity_id: entityId, company_id: companyId, config: ncfg }),
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
         const text = await resp.text();
-        return { success: resp.ok, output: { action: "webhook_out", status: resp.status, body: text.slice(0, 500) }, error: resp.ok ? undefined : `HTTP ${resp.status}` };
+        return { success: resp.ok, output: { action: "webhook_out", method, status: resp.status, body: text.slice(0, 500) }, error: resp.ok ? undefined : `HTTP ${resp.status}` };
       } catch (e: any) {
         return { success: false, error: e.message };
       }
@@ -1731,8 +1879,24 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
       // condition branches: labels are "yes" / "no"
       nextConns = connections.filter((c: AutomationConnection) => c.label === result.branch);
     }
-    // If no labeled connections found, fall back to all connections
-    if (nextConns.length === 0) nextConns = connections;
+    if (nextConns.length === 0) {
+      // FIX ROUTING: il vecchio fallback "segui TUTTE le connessioni" faceva
+      // proseguire il flusso sul ramo SBAGLIATO quando il ramo perdente non
+      // aveva archi in uscita (es. condizione "no" che semplicemente finisce
+      // lì → il contatto seguiva comunque il ramo "yes"). Ora: fallback SOLO
+      // se nessun arco ha label (flussi legacy non etichettati); se i label
+      // esistono ma il ramo non ha uscite, il flusso termina qui.
+      const anyLabeled = connections.some((c: AutomationConnection) => !!c.label);
+      if (!anyLabeled) {
+        nextConns = connections;
+      } else {
+        await supabase
+          .from("automation_enrollments")
+          .update({ status: "completed", updated_at: new Date().toISOString() })
+          .eq("id", queueItem.enrollment_id);
+        return;
+      }
+    }
   }
 
   // Handle wait_for_event: create a "waiting" queue item with timeout

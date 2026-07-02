@@ -62,6 +62,12 @@ const SCHEDULED_EVENT_MAP: Record<string, string> = {
   cron_giornaliero: "cron_daily",
   cron_settimanale: "cron_weekly",
   cron_mensile: "cron_monthly",
+  // Audit automazioni 2026-07-02: gli handler sotto esistevano già nello
+  // switch ma erano IRRAGGIUNGIBILI (nessun id catalogo vi mappava).
+  opportunita_stale: "opportunity_stale",
+  compleanno_contatto: "birthday_reminder",
+  costo_in_scadenza: "cost_due",
+  data_personalizzata: "custom_date",
 };
 
 // Emette un evento UNA SOLA VOLTA per (company, evento, entity): evita spam giornaliero

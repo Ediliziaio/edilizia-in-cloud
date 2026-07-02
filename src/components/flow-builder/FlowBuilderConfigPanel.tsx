@@ -64,16 +64,21 @@ const TRIGGER_CATEGORY_MAP: Record<string, string> = {
   tag_aggiunto: "contact",
   tag_rimosso: "contact",
   campo_custom_aggiornato: "contact",
+  compleanno_contatto: "contact",
+  data_personalizzata: "contact",
+  form_compilato: "contact",
   // Opportunità
   opportunita_creata: "opportunity",
   opportunita_stage_cambiato: "opportunity",
   opportunita_vinta: "opportunity",
   opportunita_persa: "opportunity",
+  opportunita_stale: "opportunity",
   // Appuntamenti
   appuntamento_creato: "appointment",
   appuntamento_confermato: "appointment",
   appuntamento_completato: "appointment",
   appuntamento_no_show: "appointment",
+  appuntamento_annullato: "appointment",
   appuntamento_imminente: "appointment",
   // Comunicazione
   email_aperta: "communication",
