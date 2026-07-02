@@ -36,6 +36,7 @@ import { CrmNetworksStrip } from "@/components/admin/crm-dashboard/CrmNetworksSt
 import { CrmUnitEconomics } from "@/components/admin/crm-dashboard/CrmUnitEconomics";
 import { CrmChannelRoi } from "@/components/admin/crm-dashboard/CrmChannelRoi";
 import { CrmSpeedToLead } from "@/components/admin/crm-dashboard/CrmSpeedToLead";
+import { HeroAurora } from "@/components/admin/HeroAurora";
 import { motion, AnimatePresence } from "framer-motion";
 
 type PeriodKey = "7" | "30" | "90" | "365";
@@ -285,8 +286,9 @@ export default function AdminMarketingCommercialDashboard() {
           Stesso linguaggio del Cruscotto Aziendale: dà identità e gerarchia,
           i KPI chiave vivono qui in evidenza invece di una griglia bianca. */}
       <section className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
-        <div className="bg-[#173b67] p-5 text-white sm:p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="relative overflow-hidden bg-[#173b67] p-5 text-white sm:p-6">
+          <HeroAurora />
+          <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
                 <BarChart3 className="h-5 w-5" aria-hidden="true" />
@@ -332,7 +334,7 @@ export default function AdminMarketingCommercialDashboard() {
           </div>
 
           {/* KPI chiave dentro l'hero */}
-          <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="relative z-10 mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
             <HeroKpi icon={Layers} label="Pipeline aperta" value={eurCompact(kpis.pipelineOpenValue)} loading={isLoading} />
             <HeroKpi icon={Target} label="Forecast pesato" value={eurCompact(kpis.forecast)} loading={isLoading} />
             <HeroKpi icon={Trophy} label={`Vinto (${days}g)`} value={`${eurCompact(kpis.wonValue)} · ${kpis.wonCount}`} delta={kpis.wonDelta} spark={kpis.sparkWon} loading={isLoading} />

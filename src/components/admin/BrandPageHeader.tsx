@@ -8,6 +8,7 @@
  */
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { HeroAurora } from "@/components/admin/HeroAurora";
 
 interface BrandPageHeaderProps {
   icon: LucideIcon;
@@ -30,8 +31,9 @@ export function BrandPageHeader({
 }: BrandPageHeaderProps) {
   return (
     <section className={"overflow-hidden rounded-2xl border border-slate-200 shadow-sm dark:border-slate-800 " + (className ?? "")}>
-      <div className="bg-[#173b67] p-5 text-white sm:p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="relative overflow-hidden bg-[#173b67] p-5 text-white sm:p-6">
+        <HeroAurora />
+        <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
               <Icon className="h-5 w-5" aria-hidden="true" />
@@ -48,7 +50,7 @@ export function BrandPageHeader({
             </div>
           )}
         </div>
-        {children && <div className="mt-6">{children}</div>}
+        {children && <div className="relative z-10 mt-6">{children}</div>}
       </div>
     </section>
   );

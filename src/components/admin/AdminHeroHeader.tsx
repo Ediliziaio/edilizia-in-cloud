@@ -8,6 +8,7 @@
  * hanno sfondo proprio (outline chiaro / primary) → restano leggibili su navy.
  */
 import type { LucideIcon } from "lucide-react";
+import { HeroAurora } from "@/components/admin/HeroAurora";
 
 interface AdminHeroHeaderProps {
   icon: LucideIcon;
@@ -27,8 +28,9 @@ export function AdminHeroHeader({
   inlineBadge,
 }: AdminHeroHeaderProps) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-[#173b67] p-4 text-white shadow-sm dark:border-slate-800 md:p-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-[#173b67] p-4 text-white shadow-sm dark:border-slate-800 md:p-5">
+      <HeroAurora />
+      <div className="relative z-10 flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
         <div className="flex items-start gap-3 min-w-0">
           <div
             aria-hidden="true"

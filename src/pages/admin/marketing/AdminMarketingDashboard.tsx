@@ -65,22 +65,21 @@ function Kpi({ icon: Icon, label, value, hint, tone = "default" }: {
   tone?: "default" | "good" | "warn";
 }) {
   const toneCls = tone === "good" ? "text-emerald-600" : tone === "warn" ? "text-amber-600" : "text-foreground";
-  const iconWrap = tone === "good"
-    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/25 dark:text-emerald-400"
-    : tone === "warn"
-      ? "bg-amber-50 text-amber-600 dark:bg-amber-900/25 dark:text-amber-400"
-      : "bg-primary/10 text-primary";
-  // hint come chip pill tonale (stile stat-card SaaS), non testo grigio piatto
+  // chip icona con gradiente pieno (contrasto forte, look SaaS moderno)
+  const grad = tone === "good" ? "from-emerald-500 to-teal-400" : tone === "warn" ? "from-amber-500 to-orange-400" : "from-blue-500 to-indigo-500";
+  // hint come chip pill tonale, non testo grigio piatto
   const hintChip = tone === "good"
     ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/25 dark:text-emerald-400"
     : tone === "warn"
       ? "bg-red-50 text-red-600 dark:bg-red-900/25 dark:text-red-400"
       : "bg-muted text-muted-foreground";
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md">
+    <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-transparent hover:shadow-xl hover:shadow-slate-900/[0.08]">
+      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${grad}`} />
+      <div className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br ${grad} opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-20`} />
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconWrap}`}>
+        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br ${grad} text-white shadow-sm transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3`}>
           <Icon className="h-4 w-4" />
         </span>
       </div>
