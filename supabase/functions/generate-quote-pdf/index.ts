@@ -99,6 +99,7 @@ Deno.serve(async (req) => {
   }
 
   const corsH = getCorsHeaders(req);
+  const startedAt = Date.now();
   try {
     const { userId, supabaseAdmin } = await requireAuth(req, corsH);
     const body = await req.json();
@@ -188,81 +189,74 @@ Deno.serve(async (req) => {
       // ─── NORMAL MODE ───
       if (!quote_id) return errorResponse("quote_id richiesto", 400, corsH);
 
-      const { data: quoteData, error: qErr } = await supabaseAdmin
-        .from("quotes")
-        .select("*")
-        .eq("id", quote_id)
-        .single();
-      if (qErr || !quoteData) return errorResponse("Preventivo non trovato", 404, corsH);
-      quote = quoteData;
-
-      // Verify user belongs to company
-      const { data: profile } = await supabaseAdmin
-        .from("profiles")
-        .select("company_id")
-        .eq("id", userId)
-        .single();
+      // Batch 1 — quote e profilo utente sono indipendenti: in parallelo.
+      const [quoteRes, profileRes] = await Promise.all([
+        supabaseAdmin.from("quotes").select("*").eq("id", quote_id).single(),
+        supabaseAdmin.from("profiles").select("company_id").eq("id", userId).single(),
+      ]);
+      if (quoteRes.error || !quoteRes.data) return errorResponse("Preventivo non trovato", 404, corsH);
+      quote = quoteRes.data;
+      const profile = profileRes.data;
       if (!profile || profile.company_id !== quote.company_id) {
         return errorResponse("Non autorizzato", 403, corsH);
       }
 
-      // Load template + blocchi linkati (libreria componibile per kind)
-      let template: ComposedTemplate | null = null;
-      if (quote.template_id) {
-        template = await loadTemplateWithBlocks(supabaseAdmin, quote.template_id, quote.company_id);
-      }
-      if (!template) {
-        // Fallback: cerca template default kind=offerta della company
-        const { data: defaultTmpl } = await supabaseAdmin
-          .from("quote_templates")
-          .select("id")
-          .eq("company_id", quote.company_id)
-          .eq("kind", "offerta")
-          .eq("is_default", true)
-          .eq("is_active", true)
-          .maybeSingle();
-        if (defaultTmpl?.id) {
-          template = await loadTemplateWithBlocks(supabaseAdmin, defaultTmpl.id, quote.company_id);
+      // Batch 2 — tutto il resto dipende solo da quote/company: un giro solo
+      // di rete invece di 7 round-trip sequenziali (≈ -300ms a generazione).
+      const resolveTemplate = async (): Promise<ComposedTemplate | null> => {
+        let tmpl: ComposedTemplate | null = null;
+        if (quote.template_id) {
+          tmpl = await loadTemplateWithBlocks(supabaseAdmin, quote.template_id, quote.company_id);
         }
-      }
+        if (!tmpl) {
+          const { data: defaultTmpl } = await supabaseAdmin
+            .from("quote_templates")
+            .select("id")
+            .eq("company_id", quote.company_id)
+            .eq("kind", "offerta")
+            .eq("is_default", true)
+            .eq("is_active", true)
+            .maybeSingle();
+          if (defaultTmpl?.id) {
+            tmpl = await loadTemplateWithBlocks(supabaseAdmin, defaultTmpl.id, quote.company_id);
+          }
+        }
+        return tmpl;
+      };
+
+      const [template, itemsRes, impRes, companyRes, brandingData, contactRes, attRes] = await Promise.all([
+        resolveTemplate(),
+        supabaseAdmin.from("quote_items").select("*").eq("quote_id", quote_id).order("sort_order"),
+        supabaseAdmin.from("preventivo_impostazioni" as any).select("*").eq("company_id", quote.company_id).maybeSingle(),
+        supabaseAdmin
+          .from("companies")
+          .select("name, email, phone, legal_address, legal_city, logo_url, vat_number")
+          .eq("id", quote.company_id)
+          .single(),
+        getBrandingForCompany(supabaseAdmin, quote.company_id),
+        quote.contact_id
+          ? supabaseAdmin.from("marketing_contacts").select("*").eq("id", quote.contact_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabaseAdmin
+          .from("quote_pdf_attachments")
+          .select("*, quote_pdf_materials(name, storage_path)")
+          .eq("quote_id", quote_id)
+          .order("sort_order"),
+      ]);
+
       t = { ...DEFAULT_T, ...(template || {}) };
-
-      // Load items
-      const { data: itemsData = [] } = await supabaseAdmin
-        .from("quote_items")
-        .select("*")
-        .eq("quote_id", quote_id)
-        .order("sort_order");
-      items = itemsData;
-
-      // Load preventivo_impostazioni
-      const { data: impData } = await supabaseAdmin
-        .from("preventivo_impostazioni" as any)
-        .select("*")
-        .eq("company_id", (quoteData as any).company_id)
-        .maybeSingle();
-      pdfImp = impData ?? {};
-
-      // Filter items: skip mostra_nel_pdf=false
-      const allItems = items;
-      const visibileItems = allItems.filter((i: any) => i.mostra_nel_pdf !== false);
-      items = visibileItems;
-
-      // Load company info (companies non ha "address": la sede è legal_address/legal_city)
-      const { data: companyData } = await supabaseAdmin
-        .from("companies")
-        .select("name, email, phone, legal_address, legal_city, logo_url, vat_number")
-        .eq("id", quote.company_id)
-        .single();
+      items = (itemsRes.data ?? []).filter((i: any) => i.mostra_nel_pdf !== false);
+      pdfImp = impRes.data ?? {};
+      const companyData = companyRes.data;
       company = companyData
         ? {
             ...companyData,
             address: [companyData.legal_address, companyData.legal_city].filter(Boolean).join(", ") || null,
           }
         : null;
-
-      // Branding dinamico per white-label
-      branding = await getBrandingForCompany(supabaseAdmin, quote.company_id);
+      branding = brandingData;
+      const prefetchedContact = (contactRes as { data: Record<string, unknown> | null }).data ?? null;
+      attachmentRows = attRes.data ?? [];
 
       // ── Composizione blocchi linkati + merge tag substitution ────────────
       // Se l'offerta ha blocchi linkati (cover/condizioni/legali), i loro
@@ -284,29 +278,12 @@ Deno.serve(async (req) => {
         }
       }
       try {
-        // Carica contact se presente per merge tag
-        let contact: Record<string, unknown> | null = null;
-        if (quote.contact_id) {
-          const { data: c } = await supabaseAdmin
-            .from("marketing_contacts")
-            .select("*")
-            .eq("id", quote.contact_id)
-            .maybeSingle();
-          contact = c ?? null;
-        }
-        const mergeCtx = buildMergeContext({ quote, company, contact });
+        // Contact già prefetchato nel batch parallelo
+        const mergeCtx = buildMergeContext({ quote, company, contact: prefetchedContact });
         t = applyMergeTagsToTemplate(t as ComposedTemplate, mergeCtx);
       } catch (e) {
         console.warn("[generate-quote-pdf] merge tag substitution fallita (non bloccante):", e instanceof Error ? e.message : e);
       }
-
-      // Load attached PDF materials
-      const { data: attRows = [] } = await supabaseAdmin
-        .from("quote_pdf_attachments")
-        .select("*, quote_pdf_materials(name, storage_path)")
-        .eq("quote_id", quote_id)
-        .order("sort_order");
-      attachmentRows = attRows;
     }
 
     // ─── Build PDF ───
@@ -333,12 +310,12 @@ Deno.serve(async (req) => {
     const logoPath = t.logo_url ?? company?.logo_url;
     if (t.show_logo && logoPath) {
       try {
-        // Try template assets bucket first, then company-assets
-        let fileData = null;
-        for (const bucket of ["quote-template-assets", "company-assets"]) {
-          const { data } = await supabaseAdmin.storage.from(bucket).download(logoPath);
-          if (data) { fileData = data; break; }
-        }
+        // I due bucket possibili vengono interrogati in parallelo
+        const [tplRes, compRes] = await Promise.all([
+          supabaseAdmin.storage.from("quote-template-assets").download(logoPath).catch(() => ({ data: null })),
+          supabaseAdmin.storage.from("company-assets").download(logoPath).catch(() => ({ data: null })),
+        ]);
+        const fileData = tplRes?.data ?? compRes?.data ?? null;
         if (fileData) {
           const bytes = await fileData.arrayBuffer();
           if (logoPath.endsWith(".png")) {
@@ -800,15 +777,18 @@ Deno.serve(async (req) => {
       const ivaRight = itemLeftX + itemWidth - 52;
       const totRight = itemLeftX + itemWidth - 6;
 
-      page.drawRectangle({ x: itemLeftX, y: y - 6, width: itemWidth, height: 20, color: primaryC });
-      page.drawText("N.", { x: nX, y, size: 8, font: fontBold, color: headerTextC });
-      page.drawText("DESCRIZIONE", { x: descX, y, size: 8, font: fontBold, color: headerTextC });
-      drawRight(page, "Q.TÀ", qtyRight, y, 8, fontBold, headerTextC);
-      page.drawText("U.M.", { x: umX, y, size: 8, font: fontBold, color: headerTextC });
-      drawRight(page, "PREZZO UNIT.", priceRight, y, 8, fontBold, headerTextC);
-      drawRight(page, "IVA", ivaRight, y, 8, fontBold, headerTextC);
-      drawRight(page, "TOTALE", totRight, y, 8, fontBold, headerTextC);
-      y -= 24;
+      const drawTableHeader = () => {
+        page.drawRectangle({ x: itemLeftX, y: y - 6, width: itemWidth, height: 20, color: primaryC });
+        page.drawText("N.", { x: nX, y, size: 8, font: fontBold, color: headerTextC });
+        page.drawText("DESCRIZIONE", { x: descX, y, size: 8, font: fontBold, color: headerTextC });
+        drawRight(page, "Q.TÀ", qtyRight, y, 8, fontBold, headerTextC);
+        page.drawText("U.M.", { x: umX, y, size: 8, font: fontBold, color: headerTextC });
+        drawRight(page, "PREZZO UNIT.", priceRight, y, 8, fontBold, headerTextC);
+        drawRight(page, "IVA", ivaRight, y, 8, fontBold, headerTextC);
+        drawRight(page, "TOTALE", totRight, y, 8, fontBold, headerTextC);
+        y -= 24;
+      };
+      drawTableHeader();
       let rowNumber = 0;
 
       // If pdf_mostra_solo_totale: skip item rows, only draw totals
@@ -830,6 +810,8 @@ Deno.serve(async (req) => {
             if (t.layout === "bold") {
               page.drawRectangle({ x: 0, y: 0, width: 80, height: pageHeight, color: primaryC });
             }
+            // La tabella continua: ridisegna l'intestazione delle colonne
+            drawTableHeader();
           }
 
           // Nota row: italic text only
@@ -853,7 +835,13 @@ Deno.serve(async (req) => {
           }
 
           rowNumber += 1;
-          const hasDesc = !!(item.description && item.description !== item.name);
+          // Sotto-descrizione solo se aggiunge informazione (spesso è un
+          // prefisso/duplicato del nome, es. estrazioni AI)
+          const hasDesc = !!(
+            item.description &&
+            item.description !== item.name &&
+            !String(item.name).toLowerCase().includes(String(item.description).toLowerCase().trim())
+          );
           const rowH = hasDesc ? 29 : 18;
 
           // Alternate row background (zebra)
@@ -872,10 +860,12 @@ Deno.serve(async (req) => {
 
           // Q.tà formato italiano, U.M. in colonna separata, sconto riga accodato al prezzo
           const qtyText = Number(item.quantity ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          const umText = String(item.unit_of_measure || "pz").slice(0, 8);
+          const umText = String(item.unit_of_measure || "pz").slice(0, 6);
           const showDiscount = (quote as any).pdf_mostra_sconti !== false && pdfImp.pdf_mostra_sconti !== false;
           const discPct = Number(item.discount_percent || 0);
-          const priceText = fmtEur(Number(item.unit_price || 0)) + (showDiscount && discPct > 0 ? ` (-${discPct}%)` : "");
+          // Sconto riga accodato al prezzo, ma senza invadere la colonna U.M.
+          let priceText = fmtEur(Number(item.unit_price || 0)) + (showDiscount && discPct > 0 ? ` (-${discPct}%)` : "");
+          if (priceText.length > 17) priceText = fmtEur(Number(item.unit_price || 0));
           const vatText = `${Number(item.vat_rate || 0)}%`;
           const lineTotal = Number(item.line_total || (Number(item.quantity) * Number(item.unit_price) * (1 - discPct / 100)));
 
@@ -916,7 +906,8 @@ Deno.serve(async (req) => {
 
       const drawTotal = (label: string, value: string, bold = false) => {
         if (bold) {
-          // Barra TOTALE in evidenza
+          // Barra TOTALE in evidenza (respiro di 5pt dalla riga precedente)
+          y -= 5;
           page.drawRectangle({ x: totX, y: y - 6, width: totBoxW, height: 21, color: accentStrongC });
           page.drawText(classicPremium ? "TOTALE PREVENTIVO" : label, { x: totX + 8, y, size: 9.5, font: fontBold, color: rgb(1, 1, 1) });
           drawRight(page, value, totValX, y, 10.5, fontBold, rgb(1, 1, 1));
@@ -928,7 +919,7 @@ Deno.serve(async (req) => {
         y -= 15;
       };
 
-      drawTotal("Subtotale", `${fmtEur(Number(quote.subtotal || 0))}`);
+      drawTotal("SUBTOTALE", `${fmtEur(Number(quote.subtotal || 0))}`);
       if (Number(quote.discount_percent || 0) > 0) {
         drawTotal(`Sconto ${quote.discount_percent}%`, `- ${fmtEur(Number(quote.discount_amount || 0))}`);
       }
@@ -954,8 +945,8 @@ Deno.serve(async (req) => {
           drawTotal(`IVA ${rate}%`, `${fmtEur(iva)}`);
         }
       } else {
-        // Single rate: show total IVA
-        drawTotal("IVA", `${fmtEur(Number(quote.vat_amount || 0))}`);
+        // Aliquota unica: mostrala nell'etichetta (es. "IVA 10%")
+        drawTotal(`IVA${ivaRates.length === 1 ? ` ${ivaRates[0]}%` : ""}`, `${fmtEur(Number(quote.vat_amount || 0))}`);
       }
 
       drawTotal("TOTALE", `${fmtEur(Number(quote.total || 0))}`, true);
@@ -1160,6 +1151,7 @@ Deno.serve(async (req) => {
     }
 
     // ─── Add page numbers to all pages ───
+    console.log(`[generate-quote-pdf] ${quote?.quote_number ?? "?"} — dati+render in ${Date.now() - startedAt}ms`);
     const totalPages = pdfDoc.getPageCount();
     for (let i = 0; i < totalPages; i++) {
       drawPageExtras(pdfDoc.getPage(i), i + 1, totalPages);
@@ -1191,14 +1183,15 @@ Deno.serve(async (req) => {
       return errorResponse("Errore upload PDF: " + uploadErr.message, 500, corsH);
     }
 
-    await supabaseAdmin
-      .from("quotes")
-      .update({ pdf_storage_path: fileName, pdf_generated_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq("id", quote_id);
-
-    const { data: signedData } = await supabaseAdmin.storage
-      .from("quote-pdfs")
-      .createSignedUrl(fileName, 3600);
+    // Update del record e firma URL sono indipendenti: in parallelo
+    const [, signedRes] = await Promise.all([
+      supabaseAdmin
+        .from("quotes")
+        .update({ pdf_storage_path: fileName, pdf_generated_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq("id", quote_id),
+      supabaseAdmin.storage.from("quote-pdfs").createSignedUrl(fileName, 3600),
+    ]);
+    const signedData = signedRes.data;
 
     return jsonResponse({
       success: true,
