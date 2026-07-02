@@ -85,6 +85,7 @@ import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from 
 import { generateBrandPalette, CURATED_PALETTES } from "@/lib/utils/colorPalette";
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
 import type { GalleryLavoroItem } from "@/types/gallery";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 
 const DEFAULT_RENDER_DISCLAIMER =
   "Il render AI è una simulazione indicativa pensata per aiutare il cliente a immaginare il risultato estetico. Non sostituisce rilievo tecnico, schede prodotto e verifica di fattibilità: misure, materiali, colori e finiture definitive vengono confermati prima dell'ordine.";
@@ -433,6 +434,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
 
   const [form, setForm] = useState<Partial<SrTemplatePdfRow>>({});
   const [dirty, setDirty] = useState(false);
+  // Chiudere/ricaricare la scheda con modifiche non salvate ora chiede conferma
+  // (il salvataggio qui è solo manuale: prima si perdeva tutto in silenzio).
+  useBeforeUnload(dirty);
   const [delTestIdx, setDelTestIdx] = useState<number | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement | null>(null);

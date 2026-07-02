@@ -30,6 +30,7 @@ import { formatCurrency } from "@/lib/formatters";
 import type { ElePdfEnriched, ElePdfCapitolo, ElePdfTotali } from "@/hooks/useElettricoPDF";
 import type { EleProgetto, EleTemplatePdf } from "@/types/elettrico";
 import { htmlToRichBlocks, type EleRichRun } from "@/lib/elettrico/richTextPdf";
+import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderTemplateText";
 
 // ─── Rich text → @react-pdf ──────────────────────────────────────────────────
 // Impagina l'HTML prodotto dall'editor WYSIWYG (o il testo semplice "legacy") in
@@ -688,15 +689,21 @@ export function ElettricoPDF(props: ElePdfEnriched) {
   // campi flat cover_* per retrocompatibilità (template salvati prima del porting).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tpl = (t ?? {}) as any;
-  const coverTitle =
+  // Placeholder {cliente_nome} ecc. (PlaceholderChips): senza l'espansione
+  // uscivano LETTERALI nel PDF del cliente. superficie_mq è il chip extra
+  // offerto dall'editor Elettrico.
+  const coverRepl = buildStandardReplacements(p, {
+    superficie_mq: p.immobile_superficie_mq != null ? String(p.immobile_superficie_mq) : "—",
+  });
+  const coverTitle = renderTemplateText(
     (typeof tpl.pdf_cover_hero === "string" && tpl.pdf_cover_hero.trim()) ||
-    (t.cover_title ?? "").trim() || "Preventivo di elettrico";
-  const coverSubtitle =
+    (t.cover_title ?? "").trim() || "Preventivo di elettrico", coverRepl);
+  const coverSubtitle = renderTemplateText(
     (typeof tpl.pdf_cover_subhero === "string" && tpl.pdf_cover_subhero.trim()) ||
-    (t.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano";
-  const coverEyebrow =
+    (t.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano", coverRepl);
+  const coverEyebrow = renderTemplateText(
     (typeof tpl.pdf_cover_eyebrow === "string" && tpl.pdf_cover_eyebrow.trim()) ||
-    "LA TUA PROPOSTA PERSONALIZZATA";
+    "LA TUA PROPOSTA PERSONALIZZATA", coverRepl);
   // Immagine sfondo: campo nuovo → legacy flat.
   const coverImageUrl: string | null = tpl.pdf_cover_image_url || t.cover_image_url || null;
   // Colore di sfondo cover (null = default palette C.coverBg).

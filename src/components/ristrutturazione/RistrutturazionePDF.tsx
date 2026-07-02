@@ -30,6 +30,7 @@ import { formatCurrency } from "@/lib/formatters";
 import type { RstPdfEnriched, RstPdfCapitolo, RstPdfTotali } from "@/hooks/useRistrutturazionePDF";
 import type { RstProgetto, RstTemplatePdf } from "@/types/ristrutturazione";
 import { htmlToRichBlocks, type RstRichRun } from "@/lib/ristrutturazione/richTextPdf";
+import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderTemplateText";
 
 // ─── Rich text → @react-pdf ──────────────────────────────────────────────────
 // Impagina l'HTML prodotto dall'editor WYSIWYG (o il testo semplice "legacy") in
@@ -661,10 +662,19 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
   const showFooterLegal = t.show_footer_legal === true;
   const logoUrl = t.logo_url ?? company?.logo_url ?? null;
   const coverLogoUrl = t.cover_logo_url ?? logoUrl;
+  // Scala logo cover (60–160%) — parity con gli altri moduli; la colonna
+  // pdf_cover_logo_size arriva dalla migration cover-parity 2026-07-02.
+  const coverLogoScale = (() => {
+    const v = (t as unknown as Record<string, unknown>).pdf_cover_logo_size;
+    return typeof v === "number" && Number.isFinite(v) ? Math.max(60, Math.min(160, v)) / 100 : 1;
+  })();
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
-  const coverTitle = (t.cover_title ?? "").trim() || "Preventivo di ristrutturazione";
-  const coverSubtitle = (t.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano";
+  // Placeholder {cliente_nome} ecc. inseriti dall'editor (PlaceholderChips):
+  // senza l'espansione uscivano LETTERALI nel PDF del cliente.
+  const coverRepl = buildStandardReplacements(p);
+  const coverTitle = renderTemplateText((t.cover_title ?? "").trim(), coverRepl) || "Preventivo di ristrutturazione";
+  const coverSubtitle = renderTemplateText((t.cover_subtitle ?? "").trim(), coverRepl) || "La tua casa, rinnovata chiavi in mano";
 
   // ─── Cover preset-driven (pdf_cover_*) ──────────────────────────────────
   // I campi pdf_cover_* sono aggiunti via migration cover-parity e NON sono sul
@@ -677,7 +687,7 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
     typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
 
   // Eyebrow (etichetta) — nuovo campo, opzionale.
-  const coverEyebrow = asStr(tc.pdf_cover_eyebrow) ?? "LA TUA PROPOSTA PERSONALIZZATA";
+  const coverEyebrow = renderTemplateText(asStr(tc.pdf_cover_eyebrow) ?? "LA TUA PROPOSTA PERSONALIZZATA", coverRepl);
   // Immagine sfondo: pdf_cover_image_url (preset/galleria) → cover_image_url legacy.
   const coverImageUrl = asStr(tc.pdf_cover_image_url) ?? t.cover_image_url ?? null;
   // Colore sfondo (solido, senza foto): null = usa C.coverBg default.
@@ -851,7 +861,7 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
           <View style={{ position: "absolute", top: 48, left: 44, right: 44 }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: coverLogoJustify }}>
               {coverLogoUrl ? (
-                <Image src={coverLogoUrl} style={styles.coverLogo} />
+                <Image src={coverLogoUrl} style={[styles.coverLogo, { maxWidth: 180 * coverLogoScale, height: 52 * coverLogoScale }]} />
               ) : (
                 <View style={styles.coverLogoCircle}>
                   <Text style={{ color: C.white, fontSize: 24, fontWeight: 700 }}>

@@ -717,6 +717,12 @@ export function PavimentiPDF(props: PavPdfEnriched) {
   const showFooterLegal = t.show_footer_legal === true;
   const logoUrl = t.logo_url ?? company?.logo_url ?? null;
   const coverLogoUrl = t.cover_logo_url ?? logoUrl;
+  // Scala logo cover (60–160%) — parity con gli altri moduli; la colonna
+  // pdf_cover_logo_size arriva dalla migration cover-parity 2026-07-02.
+  const coverLogoScale = (() => {
+    const v = (t as unknown as Record<string, unknown>).pdf_cover_logo_size;
+    return typeof v === "number" && Number.isFinite(v) ? Math.max(60, Math.min(160, v)) / 100 : 1;
+  })();
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
 
@@ -935,7 +941,7 @@ export function PavimentiPDF(props: PavPdfEnriched) {
           <View wrap={false} style={coverLogoPositionStyle}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: coverLogoJustify }}>
               {coverLogoUrl ? (
-                <Image src={coverLogoUrl} style={styles.coverLogo} />
+                <Image src={coverLogoUrl} style={[styles.coverLogo, { maxWidth: 180 * coverLogoScale, height: 52 * coverLogoScale }]} />
               ) : (
                 <View style={styles.coverLogoCircle}>
                   <Text style={{ color: C.white, fontSize: 24, fontWeight: 700 }}>

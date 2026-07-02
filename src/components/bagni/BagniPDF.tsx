@@ -30,6 +30,7 @@ import { formatCurrency } from "@/lib/formatters";
 import type { BgnPdfEnriched, BgnPdfCapitolo, BgnPdfTotali } from "@/hooks/useBagniPDF";
 import type { BgnProgetto, BgnTemplatePdf } from "@/types/bagni";
 import { htmlToRichBlocks, type BgnRichRun } from "@/lib/bagni/richTextPdf";
+import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderTemplateText";
 
 // ─── Rich text → @react-pdf ──────────────────────────────────────────────────
 // Impagina l'HTML prodotto dall'editor WYSIWYG (o il testo semplice "legacy") in
@@ -667,12 +668,16 @@ export function BagniPDF(props: BgnPdfEnriched) {
   // via cast `any` perché bgn_template_pdf non è nei types generati.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tc = t as any;
-  const coverTitle =
-    (tc.pdf_cover_hero ?? "").trim() || (t.cover_title ?? "").trim() || "Preventivo di bagni";
-  const coverSubtitle =
+  // Placeholder {cliente_nome} ecc. (PlaceholderChips): senza l'espansione
+  // uscivano LETTERALI nel PDF del cliente.
+  const coverRepl = buildStandardReplacements(p);
+  const coverTitle = renderTemplateText(
+    (tc.pdf_cover_hero ?? "").trim() || (t.cover_title ?? "").trim() || "Preventivo di bagni", coverRepl);
+  const coverSubtitle = renderTemplateText(
     (tc.pdf_cover_subhero ?? "").trim() || (t.cover_subtitle ?? "").trim() ||
-    "La tua casa, rinnovata chiavi in mano";
-  const coverEyebrow = (tc.pdf_cover_eyebrow ?? "").trim() || "La tua proposta personalizzata";
+    "La tua casa, rinnovata chiavi in mano", coverRepl);
+  const coverEyebrow = renderTemplateText(
+    (tc.pdf_cover_eyebrow ?? "").trim() || "La tua proposta personalizzata", coverRepl);
   const coverImageUrl: string | null = tc.pdf_cover_image_url ?? t.cover_image_url ?? null;
   const coverBgColor = (tc.pdf_cover_bg_color ?? "").trim() || null; // null = usa C.coverBg
   // Opacità velo: pdf_cover_overlay_opacity è 0..100 (come Serramenti) → /100;

@@ -92,7 +92,17 @@ export function ChiusuraVendita({ c, companyName, validityText, ctaTitolo }: Chi
     },
   });
 
-  const validita = (validityText ?? "").trim() || "30 giorni dalla data di emissione";
+  // validityText è testo LIBERO dell'editor (spesso una frase completa tipo
+  // "Offerta valida 30 giorni dalla data di emissione"): incollarlo dentro
+  // "è valido …" produceva doppioni sgrammaticati ("è valido Offerta valida
+  // 30 giorni…"). Se il testo è già una frase (inizia con Offerta/Valid/Prevent
+  // o contiene "valid"), lo usiamo da solo; altrimenti componiamo come prima.
+  const validitaRaw = (validityText ?? "").trim();
+  const validitaFrase = validitaRaw
+    ? (/^(offerta|valid|prevent|quest)/i.test(validitaRaw) || /valid/i.test(validitaRaw)
+        ? validitaRaw.replace(/\.+$/, "") + "."
+        : `Questo preventivo è valido ${validitaRaw.replace(/\.+$/, "")}.`)
+    : "Questo preventivo è valido 30 giorni dalla data di emissione.";
   const garanzie = [
     "Lavori eseguiti a regola d'arte, con materiali conformi e certificati.",
     "Rispetto dei tempi e del preventivo concordati, senza sorprese.",
@@ -114,7 +124,7 @@ export function ChiusuraVendita({ c, companyName, validityText, ctaTitolo }: Chi
       <View style={s.urgBox} wrap={false}>
         <Text style={s.urgTitle}>Perché decidere ora</Text>
         <Text style={s.urgText}>
-          Questo preventivo è valido {validita}. I prezzi dei materiali e gli incentivi
+          {validitaFrase} I prezzi dei materiali e gli incentivi
           fiscali possono variare nel tempo: confermando ora blocchi le condizioni di oggi.
         </Text>
       </View>

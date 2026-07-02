@@ -75,6 +75,7 @@ import {
 } from "@/components/ristrutturazione/coverStockImages";
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
 import type { GalleryLavoroItem } from "@/types/gallery";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -167,6 +168,8 @@ type FormState = Required<Pick<RstTemplatePdf,
   pdf_cover_eyebrow: string | null;
   pdf_cover_hero: string | null;
   pdf_cover_subhero: string | null;
+  /** Scala logo cover 60–160% (parity moduli; migration 2026-07-02). */
+  pdf_cover_logo_size: number | null;
 };
 
 /** Default coerenti con la migration cover-parity (pdf_cover_* su rst_template_pdf). */
@@ -192,6 +195,7 @@ const RST_COVER_DEFAULTS: RstCoverPatch & {
   pdf_cover_eyebrow: null,
   pdf_cover_hero: null,
   pdf_cover_subhero: null,
+  pdf_cover_logo_size: null,
 };
 
 function templateToForm(t: RstTemplatePdf): FormState {
@@ -264,6 +268,7 @@ function templateToForm(t: RstTemplatePdf): FormState {
     pdf_cover_eyebrow: str((tc as Record<string, unknown>).pdf_cover_eyebrow) ?? RST_COVER_DEFAULTS.pdf_cover_eyebrow,
     pdf_cover_hero: str((tc as Record<string, unknown>).pdf_cover_hero) ?? RST_COVER_DEFAULTS.pdf_cover_hero,
     pdf_cover_subhero: str((tc as Record<string, unknown>).pdf_cover_subhero) ?? RST_COVER_DEFAULTS.pdf_cover_subhero,
+    pdf_cover_logo_size: num(tc.pdf_cover_logo_size, RST_COVER_DEFAULTS.pdf_cover_logo_size),
   };
 }
 
@@ -328,6 +333,9 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
 
   const [form, setForm] = useState<FormState | null>(null);
   const [dirty, setDirty] = useState(false);
+  // Chiudere/ricaricare la scheda con modifiche non salvate ora chiede conferma
+  // (il salvataggio qui è solo manuale: prima si perdeva tutto in silenzio).
+  useBeforeUnload(dirty);
   const [livePreviewOpen, setLivePreviewOpen] = useState(false);
   // Template "vivo" per l'anteprima in dialog: ricalcolato solo quando il form cambia.
   const previewTemplate = useMemo<RstTemplatePdf | null>(
@@ -1115,6 +1123,20 @@ export function RistrutturazioneTemplateEditor({ embedded = false }: Props) {
                       max={15}
                       step={1}
                       onValueChange={(v) => set("pdf_cover_subtitle_size", v[0])}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Dimensione logo</Label>
+                      <span className="text-xs font-mono text-muted-foreground">{form.pdf_cover_logo_size ?? 100}%</span>
+                    </div>
+                    <Slider
+                      value={[form.pdf_cover_logo_size ?? 100]}
+                      min={60}
+                      max={160}
+                      step={5}
+                      onValueChange={(v) => set("pdf_cover_logo_size", v[0])}
                       className="mt-1"
                     />
                   </div>

@@ -30,6 +30,7 @@ import { formatCurrency } from "@/lib/formatters";
 import type { IdrPdfEnriched, IdrPdfCapitolo, IdrPdfTotali } from "@/hooks/useTermoidraulicoPDF";
 import type { IdrProgetto, IdrTemplatePdf } from "@/types/termoidraulico";
 import { htmlToRichBlocks, type IdrRichRun } from "@/lib/termoidraulico/richTextPdf";
+import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderTemplateText";
 
 // ─── Rich text → @react-pdf ──────────────────────────────────────────────────
 // Impagina l'HTML prodotto dall'editor WYSIWYG (o il testo semplice "legacy") in
@@ -710,8 +711,17 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
   const coverLogoUrl = t.cover_logo_url ?? logoUrl;
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
-  const coverTitle = (t.cover_title ?? "").trim() || "Preventivo di termoidraulico";
-  const coverSubtitle = (t.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano";
+  // Placeholder {cliente_nome} ecc. (PlaceholderChips): senza l'espansione
+  // uscivano LETTERALI nel PDF del cliente.
+  const coverRepl = buildStandardReplacements(p);
+  const coverTitle = renderTemplateText((t.cover_title ?? "").trim(), coverRepl) || "Preventivo di termoidraulico";
+  const coverSubtitle = renderTemplateText((t.cover_subtitle ?? "").trim(), coverRepl) || "La tua casa, rinnovata chiavi in mano";
+  // L'eyebrow era HARDCODED nel JSX: il campo pdf_cover_eyebrow (editabile e
+  // salvato dall'editor) non veniva mai letto. Fallback al testo storico.
+  const coverEyebrow = renderTemplateText(
+    (typeof (t as Record<string, unknown>).pdf_cover_eyebrow === "string"
+      ? ((t as Record<string, unknown>).pdf_cover_eyebrow as string).trim()
+      : "") || "LA TUA PROPOSTA PERSONALIZZATA", coverRepl);
   // Layer stile copertina (pdf_cover_* — parità Serramenti): immagine + overlay
   // style + posizione testo verticale + font + decorazione + logo + card cliente.
   // Fallback automatico ai campi legacy cover_* dove il pdf_cover_* è assente.
@@ -861,7 +871,7 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
             Posizione verticale guidata da coverContentTop (top/center/bottom). */}
         <View style={{ position: "absolute", top: coverContentTop, left: 44, right: 44, alignItems: coverTextAlign === "center" ? "center" : "flex-start" }}>
           <Text style={[styles.coverEyebrow, { color: coverTextColor, fontSize: cover.eyebrowSize, textAlign: coverTextAlign }]}>
-            LA TUA PROPOSTA PERSONALIZZATA
+            {coverEyebrow}
           </Text>
           <Text style={[styles.coverTitle, { color: coverTextColor, fontSize: cover.titleSize, textAlign: coverTextAlign }]}>{coverTitle}</Text>
           <Text style={[styles.coverSubtitle, { color: coverTextColor, fontSize: cover.subtitleSize, textAlign: coverTextAlign }]}>{coverSubtitle}</Text>

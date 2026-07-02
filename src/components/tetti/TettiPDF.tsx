@@ -30,6 +30,7 @@ import { formatCurrency } from "@/lib/formatters";
 import type { TetPdfEnriched, TetPdfCapitolo, TetPdfTotali } from "@/hooks/useTettiPDF";
 import type { TetProgetto, TetTemplatePdf } from "@/types/tetti";
 import { htmlToRichBlocks, type TetRichRun } from "@/lib/tetti/richTextPdf";
+import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderTemplateText";
 
 // ─── Rich text → @react-pdf ──────────────────────────────────────────────────
 // Impagina l'HTML prodotto dall'editor WYSIWYG (o il testo semplice "legacy") in
@@ -662,9 +663,12 @@ export function TettiPDF(props: TetPdfEnriched) {
   const coverLogoUrl = t.cover_logo_url ?? logoUrl;
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
-  const coverTitle = (t.cover_title ?? "").trim() || "Preventivo di tetti";
-  const coverSubtitle = (t.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano";
-  const coverEyebrow = (t.cover_eyebrow ?? "").trim();
+  // Placeholder {cliente_nome} ecc. (PlaceholderChips): senza l'espansione
+  // uscivano LETTERALI nel PDF del cliente.
+  const coverRepl = buildStandardReplacements(p);
+  const coverTitle = renderTemplateText((t.cover_title ?? "").trim(), coverRepl) || "Preventivo di tetti";
+  const coverSubtitle = renderTemplateText((t.cover_subtitle ?? "").trim(), coverRepl) || "La tua casa, rinnovata chiavi in mano";
+  const coverEyebrow = renderTemplateText((t.cover_eyebrow ?? "").trim(), coverRepl);
   // Controlli copertina (builder): colore testo, posizione logo, opacità velo.
   const coverTextColor = (t.cover_text_color ?? "").trim() || "#FFFFFF";
   const coverBgColor = normalizeHexColor(t.cover_bg_color, C.coverBg);

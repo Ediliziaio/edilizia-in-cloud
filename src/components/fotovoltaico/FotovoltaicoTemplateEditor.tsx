@@ -64,6 +64,7 @@ const FvTemplatePreviewDialog = lazy(() => import("./FvTemplatePreviewDialog"));
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 
 // ─── Types locali (no dipendenza forte da fv types globali) ─────────────────
 
@@ -728,6 +729,9 @@ export function FotovoltaicoTemplateEditor({ embedded = false }: Props) {
   const companyAnagrafica = useCompanyAnagraficaForTemplate();
   const companyId = useEffectiveCompanyId();
   const [dirty, setDirty] = useState(false);
+  // Chiudere/ricaricare la scheda con modifiche non salvate ora chiede conferma
+  // (il salvataggio qui è solo manuale: prima si perdeva tutto in silenzio).
+  useBeforeUnload(dirty);
   const [activeSection, setActiveSection] = useState<FvEditorSection>(initialSection);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [delRecIdx, setDelRecIdx] = useState<number | null>(null);
