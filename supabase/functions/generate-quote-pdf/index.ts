@@ -352,8 +352,38 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Layout "classic premium" (default): stile documento professionale ──
+    // Colore forte per la barra del totale e i dettagli: brand white-label se
+    // configurato, altrimenti arancio EiC.
+    const classicPremium = t.layout !== "modern" && t.layout !== "minimal" && t.layout !== "bold";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let accentStrongC: any;
+    try {
+      accentStrongC = branding?.primaryColor ? rgbColor(branding.primaryColor) : rgbColor("#F97415");
+    } catch {
+      accentStrongC = rgbColor("#F97415");
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const textW = (s: string, size: number, f: any = font) => f.widthOfTextAtSize(s, size);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const drawRight = (pg: any, s: string, xRight: number, yy: number, size: number, f: any, color: any) =>
+      pg.drawText(s, { x: xRight - textW(s, size, f), y: yy, size, font: f, color });
+
     // Helper: draw footer + page number on a page
     function drawPageExtras(page: any, pageNum: number, totalPages: number) {
+      if (classicPremium) {
+        // Banda footer brand: nome azienda a sinistra, pagina a destra.
+        page.drawRectangle({ x: 0, y: 0, width: pageWidth, height: 22, color: primaryC });
+        page.drawRectangle({ x: pageWidth * 0.78, y: 22, width: pageWidth * 0.22, height: 3, color: accentStrongC });
+        const footLabel = t.footer_text || `${company?.name ?? ""}${t.cover_tagline ? " — " + t.cover_tagline : ""}`;
+        if (footLabel.trim()) {
+          page.drawText(String(footLabel).slice(0, 90), { x: margin, y: 8, size: 7.5, font: fontBold, color: headerTextC });
+        }
+        if (t.show_page_numbers) {
+          drawRight(page, `${pageNum} / ${totalPages}`, pageWidth - margin, 8, 7.5, font, headerTextC);
+        }
+        return;
+      }
       if (t.footer_text) {
         page.drawText(t.footer_text, {
           x: margin, y: 25, size: 8, font, color: grayC, maxWidth: contentWidth,
@@ -594,70 +624,130 @@ Deno.serve(async (req) => {
       if (quote.title) { page.drawText(quote.title, { x: contentX, y, size: 11, font, color: grayC }); y -= 14; }
       if (t.cover_tagline) { page.drawText(t.cover_tagline, { x: contentX, y, size: 10, font: fontItalic, color: primaryC }); y -= 16; }
     } else {
-      // Classic (default) — header band + logo + company info a sinistra, dati offerta a destra
-      const headerH = 90;
-      page.drawRectangle({ x: 0, y: pageHeight - headerH, width: pageWidth, height: headerH, color: primaryC });
-      // Logo in header
-      let hy = pageHeight - 20;
+      // Classic premium (default) — header brand su bianco, barra bicolore,
+      // titolo centrato, box Dati azienda/cliente, Oggetto, Luogo + Data.
+
+      // ── Header: logo + nome a sinistra, contatti a destra col filetto ──
+      let nameX = margin;
       if (logoEmbed && t.show_logo) {
-        const maxH = t.logo_size === "small" ? 25 : t.logo_size === "large" ? 55 : 40;
-        const scale = Math.min(maxH / logoEmbed.height, 140 / logoEmbed.width);
+        const maxH = 42;
+        const scale = Math.min(maxH / logoEmbed.height, 110 / logoEmbed.width);
         const w = logoEmbed.width * scale;
         const h = logoEmbed.height * scale;
-        page.drawImage(logoEmbed, { x: margin, y: pageHeight - headerH + (headerH - h) / 2, width: w, height: h });
-        hy -= h;
+        page.drawImage(logoEmbed, { x: margin, y: pageHeight - 30 - h, width: w, height: h });
+        nameX = margin + w + 12;
       }
-      // Company name in header right
-      const compNameX = pageWidth - margin - Math.min((company?.name || "").length * 7, 200);
-      page.drawText(company?.name || "Azienda", { x: Math.max(compNameX, pageWidth / 2), y: pageHeight - 35, size: 13, font: fontBold, color: headerTextC, maxWidth: 220 });
-      if (company?.vat_number) {
-        page.drawText(`P.IVA ${company.vat_number}`, { x: Math.max(compNameX, pageWidth / 2), y: pageHeight - 52, size: 8, font, color: rgb(0.85, 0.85, 0.85), maxWidth: 220 });
-      }
-      y = pageHeight - headerH - 25;
-
-      // Company details (left column) + Quote info (right column)
-      const col1X = margin;
-      const col2X = pageWidth / 2 + 20;
-
-      // Left: company contact details
-      let yl = y;
-      page.drawText("Emittente", { x: col1X, y: yl, size: 8, font: fontBold, color: grayC }); yl -= 14;
-      if (company?.name) { page.drawText(company.name, { x: col1X, y: yl, size: 10, font: fontBold, color: textC }); yl -= 13; }
-      if (company?.vat_number) { page.drawText(`P.IVA ${company.vat_number}`, { x: col1X, y: yl, size: 9, font, color: textC }); yl -= 13; }
-      if (company?.address) { page.drawText(company.address, { x: col1X, y: yl, size: 9, font, color: textC, maxWidth: contentWidth / 2 - 10 }); yl -= 13; }
-      if (company?.email) { page.drawText(company.email, { x: col1X, y: yl, size: 9, font, color: textC }); yl -= 13; }
-      if (company?.phone) { page.drawText(company.phone, { x: col1X, y: yl, size: 9, font, color: textC }); yl -= 13; }
-
-      // Right: quote identifiers
-      let yr = y;
-      page.drawText("Offerta commerciale", { x: col2X, y: yr, size: 8, font: fontBold, color: grayC }); yr -= 14;
-      if (t.show_quote_number) {
-        page.drawText(`N. ${quote.quote_number}`, { x: col2X, y: yr, size: 14, font: fontBold, color: primaryC }); yr -= 20;
-      }
-      const createdDate = new Date(quote.created_at).toLocaleDateString("it-IT");
-      page.drawText(`Data: ${createdDate}`, { x: col2X, y: yr, size: 9, font, color: textC }); yr -= 13;
-      if (t.show_validity_date && quote.expires_at) {
-        page.drawText(`Valida fino al: ${new Date(quote.expires_at).toLocaleDateString("it-IT")}`, { x: col2X, y: yr, size: 9, font, color: textC }); yr -= 13;
-      }
-
-      y = Math.min(yl, yr) - 20;
-      // Divider
-      page.drawLine({ start: { x: margin, y }, end: { x: pageWidth - margin, y }, thickness: 0.5, color: lightGrayC });
-      y -= 15;
-
-      // Title
-      if (quote.title) {
-        page.drawText("Oggetto:", { x: margin, y, size: 9, font: fontBold, color: grayC }); y -= 14;
-        page.drawText(quote.title, { x: margin, y, size: 12, font: fontBold, color: textC, maxWidth: contentWidth }); y -= 18;
-      }
+      page.drawText(company?.name || "Azienda", { x: nameX, y: pageHeight - 44, size: 16, font: fontBold, color: primaryC, maxWidth: 255 });
       if (t.cover_tagline) {
-        page.drawText(t.cover_tagline, { x: margin, y, size: 10, font: fontItalic, color: primaryC }); y -= 16;
+        page.drawText(String(t.cover_tagline).toUpperCase().slice(0, 50), { x: nameX, y: pageHeight - 58, size: 6.5, font: fontBold, color: grayC });
+      }
+      page.drawLine({ start: { x: 330, y: pageHeight - 28 }, end: { x: 330, y: pageHeight - 70 }, thickness: 0.7, color: lightGrayC });
+      let cy = pageHeight - 36;
+      const contactLine = (label: string) => {
+        page.drawRectangle({ x: 344, y: cy - 0.5, width: 5, height: 5, color: primaryC });
+        page.drawText(label.slice(0, 44), { x: 354, y: cy, size: 7.5, font, color: textC });
+        cy -= 12;
+      };
+      if (company?.address) contactLine(company.address);
+      if (company?.phone) contactLine(`Tel. ${company.phone}`);
+      if (company?.vat_number) contactLine(`P.IVA ${company.vat_number}`);
+      if (company?.email) contactLine(company.email);
+
+      // Barra bicolore sotto l'header
+      const barY = pageHeight - 86;
+      page.drawRectangle({ x: 0, y: barY, width: pageWidth * 0.72, height: 5, color: primaryC });
+      page.drawRectangle({ x: pageWidth * 0.72, y: barY, width: pageWidth * 0.28, height: 5, color: accentStrongC });
+
+      // ── Titolo centrato + riga meta ──
+      y = barY - 36;
+      const bigTitle = "PREVENTIVO";
+      page.drawText(bigTitle, { x: (pageWidth - textW(bigTitle, 26, fontBold)) / 2, y, size: 26, font: fontBold, color: primaryC });
+      y -= 17;
+      if (quote.title) {
+        const sub = String(quote.title).slice(0, 82);
+        page.drawText(sub, { x: (pageWidth - textW(sub, 10, fontItalic)) / 2, y, size: 10, font: fontItalic, color: grayC });
+        y -= 15;
+      }
+      const metaParts: string[] = [];
+      if (t.show_quote_number) metaParts.push(`N. ${quote.quote_number}`);
+      metaParts.push(`Data: ${new Date(quote.created_at).toLocaleDateString("it-IT")}`);
+      if (t.show_validity_date && quote.expires_at) {
+        metaParts.push(`Valido fino al: ${new Date(quote.expires_at).toLocaleDateString("it-IT")}`);
+      }
+      const meta = metaParts.join("   ·   ");
+      page.drawText(meta, { x: (pageWidth - textW(meta, 9)) / 2, y, size: 9, font, color: textC });
+      y -= 24;
+
+      // ── Helper box con chip titolo ──
+      const boxW = (contentWidth - 14) / 2;
+      const chipBox = (x: number, topY: number, w: number, h: number, label: string) => {
+        page.drawRectangle({ x, y: topY - h, width: w, height: h, borderColor: lightGrayC, borderWidth: 0.7 });
+        const chipW = Math.min(190, textW(label, 8, fontBold) + 28);
+        page.drawRectangle({ x, y: topY - 17, width: chipW, height: 17, color: primaryC });
+        page.drawRectangle({ x: x + 8, y: topY - 11.5, width: 5, height: 5, color: accentStrongC });
+        page.drawText(label, { x: x + 19, y: topY - 12, size: 8, font: fontBold, color: headerTextC });
+      };
+
+      // ── Dati azienda | Dati cliente ──
+      const boxTop = y;
+      const boxH = 100;
+      chipBox(margin, boxTop, boxW, boxH, "DATI AZIENDA");
+      chipBox(margin + boxW + 14, boxTop, boxW, boxH, "DATI CLIENTE");
+      let ay = boxTop - 30;
+      const aLine = (s: string, bold = false) => {
+        if (ay < boxTop - boxH + 8) return;
+        page.drawText(s.slice(0, 46), { x: margin + 10, y: ay, size: 8.5, font: bold ? fontBold : font, color: textC });
+        ay -= 12;
+      };
+      if (company?.name) aLine(company.name, true);
+      if (company?.address) aLine(company.address);
+      if (company?.vat_number) aLine(`P.IVA ${company.vat_number}`);
+      if (company?.phone) aLine(`Tel. ${company.phone}`);
+      if (company?.email) aLine(`Email: ${company.email}`);
+      const bX = margin + boxW + 14 + 10;
+      let by = boxTop - 30;
+      const bLine = (s: string, bold = false) => {
+        if (by < boxTop - boxH + 8) return;
+        page.drawText(s.slice(0, 46), { x: bX, y: by, size: 8.5, font: bold ? fontBold : font, color: textC });
+        by -= 12;
+      };
+      if (quote.client_name) bLine(quote.client_name, true);
+      if (quote.client_company) bLine(quote.client_company);
+      if (quote.client_address) bLine(quote.client_address);
+      if (quote.client_fiscal_code) bLine(`Cod. Fisc. ${quote.client_fiscal_code}`);
+      if (quote.client_vat_number) bLine(`P.IVA ${quote.client_vat_number}`);
+      if (quote.client_phone) bLine(`Tel. ${quote.client_phone}`);
+      if (quote.client_email) bLine(`Email: ${quote.client_email}`);
+      y = boxTop - boxH - 14;
+
+      // ── Oggetto dell'intervento ──
+      if (quote.description || quote.title) {
+        const ogText = String(quote.description || quote.title).replace(/\s+/g, " ");
+        const ogLines = wrapText(ogText, 106).slice(0, 3);
+        const ogH = 34 + ogLines.length * 11;
+        chipBox(margin, y, contentWidth, ogH, "OGGETTO DELL'INTERVENTO");
+        ogLines.forEach((l, li) => {
+          page.drawText(l, { x: margin + 10, y: y - 29 - li * 11, size: 8.5, font, color: textC });
+        });
+        y -= ogH + 14;
+      }
+
+      // ── Luogo intervento | Data ──
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const luogo = (quote as any).indirizzo_lavori || quote.client_address;
+      if (luogo) {
+        const smallH = 44;
+        chipBox(margin, y, boxW, smallH, "LUOGO INTERVENTO");
+        page.drawText(String(luogo).slice(0, 46), { x: margin + 10, y: y - 31, size: 8.5, font, color: textC });
+        chipBox(margin + boxW + 14, y, boxW, smallH, "DATA");
+        page.drawText(new Date(quote.created_at).toLocaleDateString("it-IT"), { x: bX, y: y - 31, size: 8.5, font, color: textC });
+        y -= smallH + 14;
       }
     }
 
-    // Client info (all layouts)
+    // Client info (solo layout non-classic: nel classic è già nei box dedicati)
     const boldLeftX = t.layout === "bold" ? 100 : margin;
-    if (t.show_client_details) {
+    if (!classicPremium && t.show_client_details) {
       y -= 20;
       page.drawText("DESTINATARIO", { x: boldLeftX, y, size: 10, font: fontBold, color: grayC }); y -= 16;
       if (quote.client_name) { page.drawText(quote.client_name, { x: boldLeftX, y, size: 11, font: fontBold, color: textC }); y -= 15; }
@@ -672,17 +762,21 @@ Deno.serve(async (req) => {
     // (niente secondo blocco "Oggetto": nel layout classic il titolo è già
     // stampato nell'header sopra il destinatario — evitiamo il doppione)
 
-    if (quote.description) {
+    if (!classicPremium && quote.description) {
       y -= 10;
       page.drawText(quote.description.substring(0, 300), { x: boldLeftX, y, size: 9, font, color: grayC, maxWidth: t.layout === "bold" ? contentWidth - 50 : contentWidth }); y -= 14;
     }
 
     drawWatermark(page);
 
-    // ─── Items page ───
+    // ─── Items table ───
     if (items.length > 0) {
-      page = pdfDoc.addPage([pageWidth, pageHeight]);
-      y = pageHeight - margin;
+      // Nel classic la tabella resta sulla prima pagina se c'è spazio
+      // (documento monopagina come da impaginazione professionale).
+      if (!classicPremium || y < 280) {
+        page = pdfDoc.addPage([pageWidth, pageHeight]);
+        y = pageHeight - margin;
+      }
 
       if (t.layout === "bold") {
         page.drawRectangle({ x: 0, y: 0, width: 80, height: pageHeight, color: primaryC });
@@ -691,17 +785,31 @@ Deno.serve(async (req) => {
       const itemLeftX = t.layout === "bold" ? 100 : margin;
       const itemWidth = t.layout === "bold" ? contentWidth - 50 : contentWidth;
 
-      page.drawText("DETTAGLIO PRODOTTI E SERVIZI", { x: itemLeftX, y, size: 12, font: fontBold, color: primaryC }); y -= 25;
+      if (!classicPremium) {
+        page.drawText("DETTAGLIO PRODOTTI E SERVIZI", { x: itemLeftX, y, size: 12, font: fontBold, color: primaryC });
+        y -= 25;
+      }
 
-      // Table header
-      const colX = [itemLeftX, itemLeftX + 200, itemLeftX + 270, itemLeftX + 330, itemLeftX + 390, itemLeftX + 445];
-      const headers = ["Descrizione", "Q.tà", "Prezzo", "Sconto", "IVA", "Totale"];
+      // Colonne: N. | DESCRIZIONE | Q.TÀ | U.M. | PREZZO UNIT. | IVA | TOTALE
+      // (numeri allineati a destra; lo sconto riga, se presente, è accodato al prezzo)
+      const nX = itemLeftX + 4;
+      const descX = itemLeftX + 26;
+      const qtyRight = itemLeftX + itemWidth - 200;
+      const umX = qtyRight + 12;
+      const priceRight = itemLeftX + itemWidth - 90;
+      const ivaRight = itemLeftX + itemWidth - 52;
+      const totRight = itemLeftX + itemWidth - 6;
 
-      page.drawRectangle({ x: itemLeftX, y: y - 3, width: itemWidth, height: 18, color: primaryC });
-      headers.forEach((h, i) => {
-        page.drawText(h, { x: colX[i], y, size: 8, font: fontBold, color: headerTextC });
-      });
-      y -= 20;
+      page.drawRectangle({ x: itemLeftX, y: y - 6, width: itemWidth, height: 20, color: primaryC });
+      page.drawText("N.", { x: nX, y, size: 8, font: fontBold, color: headerTextC });
+      page.drawText("DESCRIZIONE", { x: descX, y, size: 8, font: fontBold, color: headerTextC });
+      drawRight(page, "Q.TÀ", qtyRight, y, 8, fontBold, headerTextC);
+      page.drawText("U.M.", { x: umX, y, size: 8, font: fontBold, color: headerTextC });
+      drawRight(page, "PREZZO UNIT.", priceRight, y, 8, fontBold, headerTextC);
+      drawRight(page, "IVA", ivaRight, y, 8, fontBold, headerTextC);
+      drawRight(page, "TOTALE", totRight, y, 8, fontBold, headerTextC);
+      y -= 24;
+      let rowNumber = 0;
 
       // If pdf_mostra_solo_totale: skip item rows, only draw totals
       const soloTotale = (quote as any).pdf_mostra_solo_totale === true || pdfImp.pdf_mostra_solo_totale === true;
@@ -726,7 +834,7 @@ Deno.serve(async (req) => {
 
           // Nota row: italic text only
           if (isNota) {
-            page.drawText((item.name || "").substring(0, 90), { x: colX[0], y, size: 8, font: fontItalic, color: grayC, maxWidth: itemWidth });
+            page.drawText((item.name || "").substring(0, 90), { x: descX, y, size: 8, font: fontItalic, color: grayC, maxWidth: itemWidth - 30 });
             y -= 14;
             continue;
           }
@@ -738,62 +846,85 @@ Deno.serve(async (req) => {
               if ((i as any).is_optional) return s;
               return s + Number(i.line_total || (i.quantity * i.unit_price * (1 - (i.discount_percent || 0) / 100)));
             }, 0);
-            page.drawText("Subtotale", { x: colX[0], y, size: 9, font: fontBold, color: textC });
-            page.drawText(`${fmtEur(subVal)}`, { x: colX[5], y, size: 9, font: fontBold, color: primaryC });
+            page.drawText("Subtotale", { x: descX, y, size: 9, font: fontBold, color: textC });
+            drawRight(page, fmtEur(subVal), totRight, y, 9, fontBold, primaryC);
             y -= 18;
             continue;
           }
 
-          // Alternate row background
-          if (idx % 2 === 0) {
-            page.drawRectangle({ x: itemLeftX, y: y - 3, width: itemWidth, height: 16, color: isChild ? rgb(0.97, 0.97, 0.97) : accentC });
+          rowNumber += 1;
+          const hasDesc = !!(item.description && item.description !== item.name);
+          const rowH = hasDesc ? 29 : 18;
+
+          // Alternate row background (zebra)
+          if (rowNumber % 2 === 1) {
+            page.drawRectangle({ x: itemLeftX, y: y - (rowH - 12), width: itemWidth, height: rowH, color: isChild ? rgb(0.97, 0.97, 0.97) : accentC });
           }
 
           // Name prefix for child rows / optional
           let namePrefix = "";
-          if (isChild) namePrefix = "  \u2514 ";
+          if (isChild) namePrefix = "  - "; // niente U+2514: non \u00e8 WinAnsi, pdf-lib lancerebbe
           if (isOptional) namePrefix += "[OPZIONALE] ";
 
           const rawName = namePrefix + (item.name || "");
-          const nameText = rawName.length > 46 ? rawName.slice(0, 45) + "…" : rawName;
+          const nameText = rawName.length > 42 ? rawName.slice(0, 41) + "…" : rawName;
           const rowColor = isChild ? grayC : textC;
 
-          const qty = `${item.quantity} ${item.unit_of_measure || ""}`.trim();
-          const price = fmtEur(Number(item.unit_price || 0));
+          // Q.tà formato italiano, U.M. in colonna separata, sconto riga accodato al prezzo
+          const qtyText = Number(item.quantity ?? 0).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const umText = String(item.unit_of_measure || "pz").slice(0, 8);
           const showDiscount = (quote as any).pdf_mostra_sconti !== false && pdfImp.pdf_mostra_sconti !== false;
-          const disc = showDiscount && Number(item.discount_percent || 0) > 0 ? `${item.discount_percent}%` : (showDiscount ? "—" : "");
-          const vat = `${Number(item.vat_rate || 0)}%`;
-          const lineTotal = Number(item.line_total || (Number(item.quantity) * Number(item.unit_price) * (1 - Number(item.discount_percent || 0) / 100)));
-          const totalText = `${fmtEur(lineTotal)}`;
+          const discPct = Number(item.discount_percent || 0);
+          const priceText = fmtEur(Number(item.unit_price || 0)) + (showDiscount && discPct > 0 ? ` (-${discPct}%)` : "");
+          const vatText = `${Number(item.vat_rate || 0)}%`;
+          const lineTotal = Number(item.line_total || (Number(item.quantity) * Number(item.unit_price) * (1 - discPct / 100)));
 
-          page.drawText(nameText, { x: colX[0], y, size: 9, font, color: rowColor });
-          page.drawText(qty, { x: colX[1], y, size: 9, font, color: rowColor });
-          // Show price per row based on setting
+          page.drawText(String(rowNumber), { x: nX, y, size: 8.5, font, color: grayC });
+          page.drawText(nameText, { x: descX, y, size: 8.5, font, color: rowColor });
           const showPrezziRiga = (quote as any).pdf_mostra_prezzi_per_riga !== false;
+          drawRight(page, qtyText, qtyRight, y, 8.5, font, rowColor);
+          page.drawText(umText, { x: umX, y, size: 8.5, font, color: rowColor });
           if (showPrezziRiga) {
-            page.drawText(price, { x: colX[2], y, size: 9, font, color: rowColor });
-            if (showDiscount) page.drawText(disc, { x: colX[3], y, size: 9, font, color: rowColor });
-            page.drawText(vat, { x: colX[4], y, size: 9, font, color: rowColor });
+            drawRight(page, priceText, priceRight, y, 8.5, font, rowColor);
+            drawRight(page, vatText, ivaRight, y, 8.5, font, rowColor);
           }
-          page.drawText(totalText, { x: colX[5], y, size: 9, font: fontBold, color: isOptional ? grayC : textC });
-          y -= 16;
+          drawRight(page, fmtEur(lineTotal), totRight, y, 8.5, fontBold, isOptional ? grayC : textC);
+          y -= 12;
 
-          if (item.description && item.description !== item.name) {
-            page.drawText(item.description.substring(0, 80), { x: colX[0], y, size: 7, font, color: grayC });
-            y -= 12;
+          if (hasDesc) {
+            page.drawText(item.description.substring(0, 85), { x: descX, y, size: 7, font, color: grayC });
+            y -= 11;
           }
+          y -= 6;
         }
       }
 
-      // Totals
-      y -= 15;
-      const totX = itemLeftX + 350;
-      const totValX = itemLeftX + 445;
-      page.drawLine({ start: { x: totX, y: y + 5 }, end: { x: totValX + 50, y: y + 5 }, thickness: 0.5, color: lightGrayC });
+      // Totals — blocco a destra, valori allineati a destra, TOTALE su barra colorata
+      y -= 12;
+      const totBoxW = 220;
+      const totX = itemLeftX + itemWidth - totBoxW;
+      const totValX = itemLeftX + itemWidth - 6;
+      if (y < 150) {
+        drawWatermark(page);
+        page = pdfDoc.addPage([pageWidth, pageHeight]);
+        y = pageHeight - margin;
+        if (t.layout === "bold") {
+          page.drawRectangle({ x: 0, y: 0, width: 80, height: pageHeight, color: primaryC });
+        }
+      }
+      page.drawLine({ start: { x: totX, y: y + 6 }, end: { x: itemLeftX + itemWidth, y: y + 6 }, thickness: 0.6, color: lightGrayC });
 
       const drawTotal = (label: string, value: string, bold = false) => {
-        page.drawText(label, { x: totX, y, size: 9, font: bold ? fontBold : font, color: bold ? primaryC : textC });
-        page.drawText(value, { x: totValX, y, size: 9, font: bold ? fontBold : font, color: bold ? primaryC : textC });
+        if (bold) {
+          // Barra TOTALE in evidenza
+          page.drawRectangle({ x: totX, y: y - 6, width: totBoxW, height: 21, color: accentStrongC });
+          page.drawText(classicPremium ? "TOTALE PREVENTIVO" : label, { x: totX + 8, y, size: 9.5, font: fontBold, color: rgb(1, 1, 1) });
+          drawRight(page, value, totValX, y, 10.5, fontBold, rgb(1, 1, 1));
+          y -= 24;
+          return;
+        }
+        page.drawText(label, { x: totX + 8, y, size: 9, font, color: textC });
+        drawRight(page, value, totValX, y, 9, font, textC);
         y -= 15;
       };
 
@@ -917,6 +1048,67 @@ Deno.serve(async (req) => {
         }
       }
 
+      // ── Sezioni finali classic: condizioni/tempi/note + firme ──
+      if (classicPremium) {
+        const newPageIfNeeded = (needed: number) => {
+          if (y < needed) {
+            drawWatermark(page);
+            page = pdfDoc.addPage([pageWidth, pageHeight]);
+            y = pageHeight - margin;
+          }
+        };
+
+        // Tre colonne informative (solo quelle con contenuto)
+        const infoCols: Array<{ label: string; text: string }> = [];
+        const payTxt = normalizeTemplateText(t.payment_terms_text);
+        const delTxt = normalizeTemplateText(t.delivery_terms_text);
+        const noteTxt = normalizeTemplateText(quote.notes) ||
+          `Il presente preventivo ha validità di ${quote.validity_days ?? t.validity_days ?? 30} giorni dalla data indicata. Eventuali variazioni saranno concordate per iscritto.`;
+        if (t.show_payment_terms && payTxt) infoCols.push({ label: "CONDIZIONI DI PAGAMENTO", text: payTxt });
+        if (t.show_delivery_terms && delTxt) infoCols.push({ label: "TEMPI DI ESECUZIONE", text: delTxt });
+        if (t.show_notes) infoCols.push({ label: "NOTE", text: noteTxt });
+
+        if (infoCols.length > 0) {
+          newPageIfNeeded(190);
+          const gap = 12;
+          const colW = (contentWidth - gap * (infoCols.length - 1)) / infoCols.length;
+          const maxChars = Math.max(20, Math.floor(colW / 3.9));
+          const colTop = y;
+          let deepest = colTop;
+          infoCols.forEach((c, ci) => {
+            const cx = margin + ci * (colW + gap);
+            page.drawRectangle({ x: cx, y: colTop - 1, width: 6, height: 6, color: primaryC });
+            page.drawText(c.label, { x: cx + 11, y: colTop, size: 8, font: fontBold, color: primaryC });
+            let ty = colTop - 14;
+            for (const line of wrapText(c.text.replace(/\s+/g, " ").slice(0, 320), maxChars).slice(0, 6)) {
+              page.drawText(line, { x: cx, y: ty, size: 7.5, font, color: grayC });
+              ty -= 10;
+            }
+            deepest = Math.min(deepest, ty);
+          });
+          // Filetti verticali tra le colonne
+          for (let ci = 1; ci < infoCols.length; ci++) {
+            const lx = margin + ci * (colW + gap) - gap / 2;
+            page.drawLine({ start: { x: lx, y: colTop + 6 }, end: { x: lx, y: deepest + 4 }, thickness: 0.5, color: lightGrayC });
+          }
+          y = deepest - 18;
+        }
+
+        // Riquadri firma
+        newPageIfNeeded(110);
+        const sigW = (contentWidth - 14) / 2;
+        const sigH = 66;
+        const sigBox = (x: number, label: string) => {
+          page.drawRectangle({ x, y: y - sigH, width: sigW, height: sigH, borderColor: lightGrayC, borderWidth: 0.7 });
+          page.drawText(label, { x: x + (sigW - textW(label, 8.5, fontBold)) / 2, y: y - 15, size: 8.5, font: fontBold, color: primaryC });
+          page.drawLine({ start: { x: x + 24, y: y - sigH + 26 }, end: { x: x + sigW - 24, y: y - sigH + 26 }, thickness: 0.6, color: grayC });
+          page.drawText("Data ____ / ____ / ________", { x: x + 24, y: y - sigH + 10, size: 7.5, font, color: grayC });
+        };
+        sigBox(margin, "FIRMA CLIENTE");
+        sigBox(margin + sigW + 14, `FIRMA ${String(company?.name ?? "AZIENDA").toUpperCase().slice(0, 26)}`);
+        y -= sigH + 12;
+      }
+
       drawWatermark(page);
     }
 
@@ -935,7 +1127,9 @@ Deno.serve(async (req) => {
     }
 
     // ─── Notes page ───
-    if (t.show_notes && quote.notes) {
+    // Nel classic le note brevi sono già nella colonna NOTE: pagina dedicata
+    // solo se il testo è lungo.
+    if (t.show_notes && quote.notes && (!classicPremium || String(quote.notes).length > 320)) {
       page = pdfDoc.addPage([pageWidth, pageHeight]);
       y = pageHeight - margin;
       if (t.layout === "bold") {
