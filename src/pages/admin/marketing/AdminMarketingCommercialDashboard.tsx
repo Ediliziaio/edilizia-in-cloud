@@ -198,7 +198,31 @@ export default function AdminMarketingCommercialDashboard() {
 
     const delta = (cur: number, prev: number) => (prev > 0 ? ((cur - prev) / prev) * 100 : cur > 0 ? 100 : 0);
 
+    // Sparkline (8 settimane) dai dati già in memoria: trend reale, zero query extra.
+    const WEEK = 7 * 86_400_000;
+    const weekIdx = (iso: string | null) => {
+      if (!iso) return -1;
+      const t = new Date(iso).getTime();
+      if (Number.isNaN(t)) return -1;
+      const weeksAgo = Math.floor((now - t) / WEEK);
+      const i = 7 - weeksAgo;
+      return i >= 0 && i <= 7 ? i : -1;
+    };
+    const sparkLeads = Array.from({ length: 8 }, () => 0);
+    for (const x of c) {
+      const i = weekIdx(x.created_at);
+      if (i >= 0) sparkLeads[i]++;
+    }
+    const sparkWon = Array.from({ length: 8 }, () => 0);
+    for (const x of o) {
+      if (x.status !== "won") continue;
+      const i = weekIdx(x.updated_at);
+      if (i >= 0) sparkWon[i] += x.value ?? 0;
+    }
+
     return {
+      sparkLeads,
+      sparkWon,
       pipelineOpenValue,
       forecast,
       wonValue,
@@ -339,10 +363,11 @@ export default function AdminMarketingCommercialDashboard() {
               label={`Vinto (${days}g)`}
               value={`${eurCompact(kpis.wonValue)} · ${kpis.wonCount}`}
               delta={kpis.wonDelta}
+              spark={kpis.sparkWon}
               loading={isLoading}
             />
             <Kpi icon={TrendingUp} label="Win rate" value={pct(kpis.winRate)} deltaPt={kpis.winRateDeltaPt} loading={isLoading} />
-            <Kpi icon={UserPlus} label="Lead nuovi" value={String(kpis.newLeads)} delta={kpis.newLeadsDelta} loading={isLoading} />
+            <Kpi icon={UserPlus} label="Lead nuovi" value={String(kpis.newLeads)} delta={kpis.newLeadsDelta} spark={kpis.sparkLeads} loading={isLoading} />
             <Kpi
               icon={Flame}
               label="Caldi senza follow-up"
@@ -464,6 +489,21 @@ export default function AdminMarketingCommercialDashboard() {
   );
 }
 
+/** Mini sparkline 8 punti (stile dashboard SaaS): verde se trend su, rossa se giù. */
+function KpiSpark({ data }: { data: number[] }) {
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  if (max === 0) return null; // nessuna storia → niente linea finta
+  const up = data[data.length - 1] >= data[0];
+  const pts = data.map((v, i) => `${(i / (data.length - 1)) * 56},${18 - ((v - min) / range) * 14}`).join(" ");
+  return (
+    <svg width="56" height="20" viewBox="0 0 56 20" className={up ? "text-emerald-500" : "text-red-500"} aria-hidden="true">
+      <polyline points={pts} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function Kpi({
   icon: Icon,
   label,
@@ -472,6 +512,7 @@ function Kpi({
   deltaPt,
   tone = "default",
   hint,
+  spark,
   loading,
 }: {
   icon: typeof Layers;
@@ -481,6 +522,7 @@ function Kpi({
   deltaPt?: number;
   tone?: "default" | "warn";
   hint?: string;
+  spark?: number[];
   loading?: boolean;
 }) {
   const deltaVal = deltaPt ?? delta;
@@ -508,18 +550,21 @@ function Kpi({
         {loading ? (
           <div className="h-7 w-20 animate-pulse rounded-md bg-muted" />
         ) : (
-          <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div
-              key={value}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              className={"text-xl font-bold leading-tight " + (tone === "warn" ? "text-amber-700 dark:text-amber-400" : "")}
-            >
-              {value}
-            </motion.div>
-          </AnimatePresence>
+          <div className="flex items-end justify-between gap-2">
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.div
+                key={value}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                className={"min-w-0 truncate text-xl font-bold leading-tight " + (tone === "warn" ? "text-amber-700 dark:text-amber-400" : "")}
+              >
+                {value}
+              </motion.div>
+            </AnimatePresence>
+            {spark && <span className="shrink-0 pb-0.5"><KpiSpark data={spark} /></span>}
+          </div>
         )}
         {showDelta && !loading && (
           <div className={"mt-0.5 flex items-center gap-1 text-xs " + (up ? "text-emerald-600" : "text-red-600")}>

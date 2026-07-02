@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Users, Send, Eye, MessageSquare, Target, Trophy, Loader2, Wallet, AlertTriangle } from "lucide-react";
+import { Send, Target, Loader2, Wallet, AlertTriangle } from "lucide-react";
 
 const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(n || 0));
 
@@ -30,6 +30,70 @@ interface FunnelData {
   opportunita: number;
   vinti: number;
   vintiValue: number;
+}
+
+/**
+ * FunnelShape — funnel orizzontale a segmenti affusolati (SVG puro).
+ * Ogni segmento interpola l'altezza dello stadio verso il successivo con curve
+ * cubiche (look organico), con un alone soft dietro, il conteggio sopra, la
+ * pill % (sul primo stadio) al centro e l'etichetta sotto. Scala col viewBox.
+ */
+function FunnelShape({ stages, base }: { stages: { label: string; n: number; color: string }[]; base: number }) {
+  const W = 720;
+  const H = 236;
+  const top = 34;
+  const bottom = 206;
+  const cy = (top + bottom) / 2;
+  const maxHalf = (bottom - top) / 2;
+  const n = stages.length;
+  if (n === 0) return null;
+  const segW = W / n;
+  // Altezza normalizzata: √ comprime i salti grossi; minimo visibile anche a 0.
+  const h = stages.map((s) => Math.max(s.n > 0 ? 0.14 : 0.05, Math.sqrt(s.n / base)));
+  const yT = (v: number) => cy - v * maxHalf;
+  const yB = (v: number) => cy + v * maxHalf;
+  const seg = (i: number, scale = 1) => {
+    const hl = Math.min(1, h[i] * scale);
+    const hr = Math.min(1, (h[i + 1] ?? h[i]) * scale);
+    const x0 = i * segW;
+    const x1 = (i + 1) * segW;
+    const dx = segW * 0.45;
+    return [
+      `M ${x0} ${yT(hl)}`,
+      `C ${x0 + dx} ${yT(hl)}, ${x1 - dx} ${yT(hr)}, ${x1} ${yT(hr)}`,
+      `L ${x1} ${yB(hr)}`,
+      `C ${x1 - dx} ${yB(hr)}, ${x0 + dx} ${yB(hl)}, ${x0} ${yB(hl)} Z`,
+    ].join(" ");
+  };
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[560px]" role="img" aria-label="Funnel conversioni outreach">
+      {stages.map((s, i) => {
+        const cx = i * segW + segW / 2;
+        const pct = Math.round((s.n / base) * 100);
+        return (
+          <motion.g
+            key={s.label}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: i * 0.09, ease: "easeOut" }}
+          >
+            <path d={seg(i, 1.22)} fill={s.color} opacity={0.16} />
+            <path d={seg(i)} fill={s.color} opacity={0.92} />
+            <text x={cx} y={20} textAnchor="middle" className="fill-foreground" fontSize="14" fontWeight={700}>
+              {s.n.toLocaleString("it-IT")}
+            </text>
+            <rect x={cx - 27} y={cy - 12} width={54} height={24} rx={12} fill="hsl(222 47% 11%)" />
+            <text x={cx} y={cy + 4} textAnchor="middle" fill="#fff" fontSize="11" fontWeight={700}>
+              {pct}%
+            </text>
+            <text x={cx} y={H - 8} textAnchor="middle" className="fill-muted-foreground" fontSize="11">
+              {s.label}
+            </text>
+          </motion.g>
+        );
+      })}
+    </svg>
+  );
 }
 
 function CountUp({ value, format }: { value: number; format?: (n: number) => string }) {
@@ -80,14 +144,16 @@ export function CrmOperationalFunnel({ companyId }: { companyId: string }) {
   });
 
   const d = q.data;
+  // Colore = fase (legenda) con sfumatura progressiva dentro la fase, così il
+  // funnel a segmenti resta leggibile e coerente con Raggiungere/Coinvolgere/Convertire.
   const stages = d
     ? [
-        { key: "contatti", label: "Contatti", icon: Users, phase: PHASE.reach, n: d.contatti },
-        { key: "inviate", label: "Email inviate", icon: Send, phase: PHASE.reach, n: d.inviate },
-        { key: "aperte", label: "Aperte", icon: Eye, phase: PHASE.reach, n: d.aperte },
-        { key: "risposte", label: "Risposte", icon: MessageSquare, phase: PHASE.engage, n: d.risposte },
-        { key: "opportunita", label: "Opportunità", icon: Target, phase: PHASE.convert, n: d.opportunita },
-        { key: "vinti", label: "Vinti", icon: Trophy, phase: PHASE.convert, n: d.vinti },
+        { key: "contatti", label: "Contatti", phase: "hsl(217 91% 62%)", n: d.contatti },
+        { key: "inviate", label: "Email inviate", phase: "hsl(217 86% 52%)", n: d.inviate },
+        { key: "aperte", label: "Aperte", phase: "hsl(217 78% 42%)", n: d.aperte },
+        { key: "risposte", label: "Risposte", phase: "hsl(43 96% 50%)", n: d.risposte },
+        { key: "opportunita", label: "Opportunità", phase: "hsl(160 84% 42%)", n: d.opportunita },
+        { key: "vinti", label: "Vinti", phase: "hsl(160 84% 30%)", n: d.vinti },
       ]
     : [];
   const base = Math.max(1, stages[0]?.n ?? 1);
@@ -124,39 +190,11 @@ export function CrmOperationalFunnel({ companyId }: { companyId: string }) {
           </div>
         ) : (
           <>
-            <div className="mt-3 flex flex-col gap-2">
-              {stages.map((s, i) => {
-                const prev = i > 0 ? stages[i - 1].n : null;
-                const conv = prev && prev > 0 ? Math.round((s.n / prev) * 100) : null;
-                const w = Math.max(s.n > 0 ? 6 : 0, Math.sqrt(s.n / base) * 100);
-                const Icon = s.icon;
-                return (
-                  <div key={s.key} className="flex items-center gap-2.5">
-                    <span className="w-9 shrink-0 text-right text-[11px] text-muted-foreground">
-                      {conv != null ? `${conv}%` : ""}
-                    </span>
-                    <span
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border"
-                      style={{ color: s.phase }}
-                    >
-                      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-                    </span>
-                    <span className="w-24 shrink-0 text-[13px] sm:w-28">{s.label}</span>
-                    <span className="h-5 flex-1 overflow-hidden rounded-md bg-muted/60">
-                      <motion.span
-                        className="block h-5 rounded-md"
-                        style={{ background: s.phase }}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${w}%` }}
-                        transition={{ duration: 0.9, delay: i * 0.09, ease: [0.2, 0.7, 0.2, 1] }}
-                      />
-                    </span>
-                    <span className="w-14 shrink-0 text-right text-[13px] font-semibold tabular-nums">
-                      <CountUp value={s.n} />
-                    </span>
-                  </div>
-                );
-              })}
+            {/* Funnel a segmenti affusolati (SVG): altezza ∝ √(n/base), pill = % sul
+                primo stadio, conteggio sopra, etichetta sotto. Curvatura cubica tra
+                stadio e stadio + alone soft dietro ogni segmento. Dati reali. */}
+            <div className="mt-3 overflow-x-auto">
+              <FunnelShape stages={stages.map((s) => ({ label: s.label, n: s.n, color: s.phase }))} base={base} />
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3 border-t pt-3">

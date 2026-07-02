@@ -65,20 +65,30 @@ function Kpi({ icon: Icon, label, value, hint, tone = "default" }: {
 }) {
   const toneCls = tone === "good" ? "text-emerald-600" : tone === "warn" ? "text-amber-600" : "text-foreground";
   const iconWrap = tone === "good"
-    ? "bg-emerald-50 text-emerald-600"
+    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/25 dark:text-emerald-400"
     : tone === "warn"
-      ? "bg-amber-50 text-amber-600"
+      ? "bg-amber-50 text-amber-600 dark:bg-amber-900/25 dark:text-amber-400"
       : "bg-primary/10 text-primary";
+  // hint come chip pill tonale (stile stat-card SaaS), non testo grigio piatto
+  const hintChip = tone === "good"
+    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/25 dark:text-emerald-400"
+    : tone === "warn"
+      ? "bg-red-50 text-red-600 dark:bg-red-900/25 dark:text-red-400"
+      : "bg-muted text-muted-foreground";
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/30">
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
         <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconWrap}`}>
           <Icon className="h-4 w-4" />
         </span>
       </div>
       <div className={`mt-2 text-2xl font-bold leading-tight tabular-nums ${toneCls}`}>{value}</div>
-      {hint && <div className="mt-0.5 text-xs text-muted-foreground">{hint}</div>}
+      {hint && (
+        <span className={`mt-1.5 inline-block max-w-full truncate rounded-full px-2 py-0.5 text-[11px] font-medium ${hintChip}`}>
+          {hint}
+        </span>
+      )}
     </div>
   );
 }
@@ -141,10 +151,20 @@ function OutreachCockpit() {
     queryFn: () => safeCount(supabase.from("crm_campaigns").select("*", { count: "exact", head: true })),
     staleTime: 60_000,
   });
+  // Contattabili = contatti della company NON in opt-out. Corretto per costruzione:
+  // prima si faceva contatti − soppressioni GLOBALI (insiemi non confrontabili) →
+  // numero sbagliato mascherato dal Math.max(0, …).
+  const contactable = useQuery({
+    queryKey: ["outreach-count", "contactable", companyId],
+    queryFn: () =>
+      safeCount(
+        supabase.from("marketing_contacts").select("*", { count: "exact", head: true })
+          .eq("company_id", companyId).eq("optout_email", false),
+      ),
+    staleTime: 60_000,
+  });
 
   const fmt = (n: number | null | undefined) => (n === null || n === undefined ? "—" : n.toLocaleString("it-IT"));
-  const contactable = contacts.data != null && suppressed.data != null
-    ? Math.max(0, contacts.data - suppressed.data) : null;
 
   const tabs = [
     { value: "oggi", icon: Flame, label: "Oggi" },
@@ -201,7 +221,7 @@ function OutreachCockpit() {
               <SectionLabel>Panoramica</SectionLabel>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <Kpi icon={Users} label="Contatti in rubrica" value={fmt(contacts.data)} hint="nel CRM marketing admin" />
-                <Kpi icon={ShieldCheck} label="Contattabili" value={fmt(contactable)} hint="al netto dei soppressi" tone="good" />
+                <Kpi icon={ShieldCheck} label="Contattabili" value={fmt(contactable.data)} hint="esclusi gli opt-out email" tone="good" />
                 <Kpi icon={ShieldCheck} label="Soppressi / opt-out" value={fmt(suppressed.data)} hint="bounce, lamentele, disiscritti" tone="warn" />
                 <Kpi icon={Send} label="Campagne create" value={fmt(campaigns.data)} hint="totali nel sistema" />
               </div>
