@@ -499,6 +499,63 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     onError: () => toast.error("Operazione non riuscita. Riprova."),
   });
 
+  // Divide un articolo su più fasi ("100 kg usati in più fasi"): la riga
+  // originale tiene la prima parte (e tutti gli altri campi), le parti
+  // successive diventano nuove righe order_items con i soli campi core copiati.
+  const splitMaterial = useMutation({
+    mutationFn: async ({
+      itemId,
+      parts,
+    }: {
+      itemId: string;
+      parts: { phaseId: string | null; quantity: number }[];
+    }) => {
+      // Rileggo la riga fresca dal DB: la cache potrebbe essere stantia
+      const { data: original, error } = await db
+        .from("order_items")
+        .select("id, order_id, name, quantity, purchase_price, vat_rate, supplier_id, stock_item_id, phase_id")
+        .eq("id", itemId)
+        .single();
+      if (error) throw error;
+
+      if (parts.length < 2) throw new Error("Servono almeno 2 righe per dividere.");
+      if (parts.some((p) => !Number.isInteger(p.quantity) || p.quantity <= 0)) {
+        throw new Error("Ogni quantità deve essere un numero intero maggiore di zero.");
+      }
+      const totalQty = Number(original.quantity) || 0;
+      const sum = parts.reduce((acc, p) => acc + p.quantity, 0);
+      if (sum !== totalQty) throw new Error(`La somma delle quantità deve essere ${totalQty}.`);
+
+      // La riga originale tiene la prima parte
+      const { error: updError } = await db
+        .from("order_items")
+        .update({ quantity: parts[0].quantity, phase_id: parts[0].phaseId })
+        .eq("id", itemId);
+      if (updError) throw updError;
+
+      // Le altre parti diventano nuove righe (solo campi core, il resto vive sull'originale)
+      const rows = parts.slice(1).map((p) => ({
+        order_id: original.order_id,
+        name: original.name,
+        quantity: p.quantity,
+        purchase_price: original.purchase_price,
+        vat_rate: original.vat_rate,
+        supplier_id: original.supplier_id,
+        stock_item_id: original.stock_item_id,
+        phase_id: p.phaseId,
+      }));
+      const { error: insError } = await db.from("order_items").insert(rows);
+      if (insError) throw insError;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["order-items-materials", orderId] });
+      // Lista articoli in OrderDetail: quantità e righe sono cambiate
+      qc.invalidateQueries({ queryKey: ["order-items", orderId] });
+      toast.success("Materiale diviso su più fasi");
+    },
+    onError,
+  });
+
   const deleteAssignment = useMutation({
     mutationFn: async ({ id, source }: { id: string; source: AssignmentSource }) => {
       const table = source === "employee" ? "order_employees" : "order_external_teams";
@@ -537,5 +594,6 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
     materialsByPhase,
     unassignedMaterials,
     setMaterialPhase,
+    splitMaterial,
   };
 }

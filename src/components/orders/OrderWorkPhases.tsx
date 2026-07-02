@@ -12,7 +12,10 @@ import {
   User,
   Users,
   ListPlus,
+  ChevronDown,
+  Split,
 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import { differenceInCalendarDays, format, isValid, parseISO } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
@@ -53,6 +56,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -123,6 +127,7 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
     materialsByPhase,
     unassignedMaterials,
     setMaterialPhase,
+    splitMaterial,
   } = useOrderWorkPhases(orderId);
 
   const [newPhaseOpen, setNewPhaseOpen] = useState(false);
@@ -369,9 +374,13 @@ export function OrderWorkPhases({ orderId, orderCode }: OrderWorkPhasesProps) {
                 externalTeams={externalTeams}
                 materials={materialsByPhase.get(phase.id) ?? []}
                 unassignedMaterials={unassignedMaterials}
+                allPhases={phases.map((p) => ({ id: p.id, name: p.name }))}
                 orderId={orderId}
                 orderCode={orderCode}
                 onAssignMaterial={(itemId, phaseId) => setMaterialPhase.mutate({ itemId, phaseId })}
+                onSplitMaterial={(itemId, parts, opts) =>
+                  splitMaterial.mutate({ itemId, parts }, opts)
+                }
                 onUpdatePhase={(patch) => updatePhase.mutate({ id: phase.id, ...patch })}
                 onDeletePhase={() => deletePhase.mutate(phase.id)}
                 onAddAssignment={(payload, opts) => addAssignment.mutate(payload, opts)}
@@ -429,9 +438,15 @@ interface PhaseCardProps {
   externalTeams: ExecutorOption[];
   materials: PhaseMaterial[];
   unassignedMaterials: PhaseMaterial[];
+  allPhases: { id: string; name: string }[];
   orderId: string;
   orderCode?: string | null;
   onAssignMaterial: (itemId: string, phaseId: string | null) => void;
+  onSplitMaterial: (
+    itemId: string,
+    parts: { phaseId: string | null; quantity: number }[],
+    opts?: { onSuccess?: () => void; onError?: () => void }
+  ) => void;
   onUpdatePhase: (patch: { name?: string; status?: PhaseStatus }) => void;
   onDeletePhase: () => void;
   onAddAssignment: (
@@ -448,9 +463,11 @@ function PhaseCard({
   externalTeams,
   materials,
   unassignedMaterials,
+  allPhases,
   orderId,
   orderCode,
   onAssignMaterial,
+  onSplitMaterial,
   onUpdatePhase,
   onDeletePhase,
   onAddAssignment,
@@ -459,6 +476,8 @@ function PhaseCard({
 }: PhaseCardProps) {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(phase.name);
+  // Aperta di default solo se i lavori sono in corso: è la fase su cui si opera
+  const [open, setOpen] = useState(() => phase.status === "in_corso");
 
   const meta = statusMeta(phase.status);
 
@@ -503,15 +522,57 @@ function PhaseCard({
   };
 
   return (
-    <Card className="border-muted">
-      <CardHeader className="gap-3 pb-3">
+    <Card
+      className={cn(
+        // Accento colorato a sinistra: stato della fase visibile anche da chiusa
+        "border-muted border-l-4",
+        phase.status === "completata"
+          ? "border-l-emerald-400"
+          : phase.status === "in_corso"
+            ? "border-l-amber-400"
+            : "border-l-slate-200",
+      )}
+    >
+      <CardHeader className="gap-3 py-3">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          {/* Name + status */}
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          {/* Zona cliccabile: apre/chiude la fase (accordion fatto a mano:
+              i controlli interattivi restano fuori, a destra) */}
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={open}
+            className="flex min-w-0 flex-1 cursor-pointer flex-wrap items-center gap-2"
+            onClick={() => setOpen((o) => !o)}
+            onKeyDown={(e) => {
+              // Solo Enter/Spazio sulla zona stessa: non intercetta l'Input del nome
+              if (e.target !== e.currentTarget) return;
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setOpen((o) => !o);
+              }
+            }}
+          >
+            <motion.span
+              animate={{ rotate: open ? 0 : -90 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="flex shrink-0 text-muted-foreground"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </motion.span>
+
+            <span
+              className={cn(
+                "h-2 w-2 shrink-0 rounded-full",
+                meta.dot,
+                phase.status === "in_corso" && "animate-pulse",
+              )}
+            />
+
             {editingName ? (
               <Input
                 autoFocus
                 value={nameDraft}
+                onClick={(e) => e.stopPropagation()}
                 onChange={(e) => setNameDraft(e.target.value)}
                 onBlur={commitName}
                 onKeyDown={(e) => {
@@ -526,31 +587,39 @@ function PhaseCard({
                 className="h-8 max-w-xs"
               />
             ) : (
-              <div className="flex min-w-0 items-center gap-1.5">
-                <span className="truncate font-semibold">{phase.name}</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 shrink-0 text-muted-foreground"
-                  onClick={() => {
-                    setNameDraft(phase.name);
-                    setEditingName(true);
-                  }}
-                  aria-label="Modifica nome fase"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+              <span className="truncate font-semibold">{phase.name}</span>
             )}
 
             <Badge variant="outline" className={`gap-1 ${meta.badge}`}>
-              <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
               {meta.label}
             </Badge>
+
+            {/* Riepilogo compatto: leggibile anche a fase chiusa */}
+            <span className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+              {phase.assignments.length} esecutori
+              {materials.length > 0 ? ` · ${materials.length} materiali` : ""} · Prev{" "}
+              {eur.format(phaseTotals.prev)} · Cons {eur.format(phaseTotals.cons)}
+            </span>
           </div>
 
-          {/* Right controls */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Controlli a destra: fuori dalla zona cliccabile */}
+          <div
+            className="flex flex-wrap items-center gap-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 text-muted-foreground"
+              onClick={() => {
+                setNameDraft(phase.name);
+                setEditingName(true);
+              }}
+              aria-label="Modifica nome fase"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+
             <Select
               value={phase.status}
               onValueChange={(v) => onUpdatePhase({ status: v as PhaseStatus })}
@@ -566,10 +635,6 @@ function PhaseCard({
                 ))}
               </SelectContent>
             </Select>
-
-            <span className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
-              Prev: {eur.format(phaseTotals.prev)} · Cons: {eur.format(phaseTotals.cons)}
-            </span>
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -605,148 +670,173 @@ function PhaseCard({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-2 pt-0">
-        {phase.assignments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nessun esecutore assegnato</p>
-        ) : (
-          <div className="space-y-2">
-            {phase.assignments.map((a) => (
-              <AssignmentRow
-                key={a.id}
-                assignment={a}
+      {/* Corpo collassabile: esecutori + materiali */}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+            className="overflow-hidden"
+          >
+            <CardContent className="space-y-2 pt-0">
+              {phase.assignments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nessun esecutore assegnato</p>
+              ) : (
+                <div className="space-y-2">
+                  {phase.assignments.map((a) => (
+                    <AssignmentRow
+                      key={a.id}
+                      assignment={a}
+                      employees={employees}
+                      externalTeams={externalTeams}
+                      onUpdate={(patch) => onUpdateAssignment(a.id, a.source, patch)}
+                      onDelete={() => onDeleteAssignment(a.id, a.source)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <AddAssignmentDialog
+                phaseId={phase.id}
                 employees={employees}
                 externalTeams={externalTeams}
-                onUpdate={(patch) => onUpdateAssignment(a.id, a.source, patch)}
-                onDelete={() => onDeleteAssignment(a.id, a.source)}
+                onAdd={onAddAssignment}
               />
-            ))}
-          </div>
-        )}
 
-        <AddAssignmentDialog
-          phaseId={phase.id}
-          employees={employees}
-          externalTeams={externalTeams}
-          onAdd={onAddAssignment}
-        />
-
-        {/* ── Materiali della fase (order_items.phase_id) ── */}
-        {(materials.length > 0 || unassignedMaterials.length > 0) && (
-          <div className="mt-3 space-y-2 border-t pt-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                Materiali della fase
-              </span>
-              {materials.length > 0 && (
-                <span
-                  className={cn(
-                    "text-xs font-medium tabular-nums",
-                    prontiCount === materials.length ? "text-emerald-600" : "text-amber-600"
-                  )}
-                >
-                  {prontiCount}/{materials.length} pronti
-                </span>
-              )}
-            </div>
-
-            {materials.map((m) => (
-              <div key={m.id} className="flex items-center justify-between gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm">
-                  {m.name}{" "}
-                  <span className="text-xs text-muted-foreground">(x{m.quantity})</span>
-                </span>
-                <div className="flex shrink-0 items-center gap-1">
-                  {m.readiness === "magazzino" ? (
-                    <Badge
-                      variant="outline"
-                      className="gap-1 border-emerald-300 bg-emerald-50 text-emerald-700"
-                    >
-                      <Check className="h-3 w-3" />
-                      In magazzino
-                    </Badge>
-                  ) : m.readiness === "ordinato" ? (
-                    <Badge
-                      variant="outline"
-                      className="gap-1 border-blue-300 bg-blue-50 text-blue-700"
-                    >
-                      <Truck className="h-3 w-3" />
-                      {`OdA ${m.odaNumber ?? ""}`.trim()}
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className="gap-1 border-amber-300 bg-amber-50 text-amber-700"
-                    >
-                      <AlertTriangle className="h-3 w-3" />
-                      Da ordinare
-                    </Badge>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-rose-600"
-                    onClick={() => onAssignMaterial(m.id, null)}
-                    aria-label="Togli dalla fase"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Plus className="mr-1 h-4 w-4" />
-                    Aggiungi materiale
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-72 p-1">
-                  {unassignedMaterials.length === 0 ? (
-                    <p className="p-2 text-xs text-muted-foreground">
-                      Nessun articolo senza fase.
-                    </p>
-                  ) : (
-                    unassignedMaterials.map((m) => (
-                      <button
-                        key={m.id}
-                        type="button"
-                        className="w-full rounded-sm px-2 py-1.5 text-left text-[13px] hover:bg-accent"
-                        onClick={() => onAssignMaterial(m.id, phase.id)}
+              {/* ── Materiali della fase (order_items.phase_id) ── */}
+              {(materials.length > 0 || unassignedMaterials.length > 0) && (
+                <div className="mt-3 space-y-2 border-t pt-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Materiali della fase
+                    </span>
+                    {materials.length > 0 && (
+                      <span
+                        className={cn(
+                          "text-xs font-medium tabular-nums",
+                          prontiCount === materials.length ? "text-emerald-600" : "text-amber-600"
+                        )}
                       >
-                        {m.name} <span className="text-muted-foreground">x{m.quantity}</span>
-                      </button>
-                    ))
+                        {prontiCount}/{materials.length} pronti
+                      </span>
+                    )}
+                  </div>
+
+                  {materials.map((m) => (
+                    <div key={m.id} className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 flex-1 truncate text-sm">
+                        {m.name}{" "}
+                        <span className="text-xs text-muted-foreground">(x{m.quantity})</span>
+                      </span>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {m.readiness === "magazzino" ? (
+                          <Badge
+                            variant="outline"
+                            className="gap-1 border-emerald-300 bg-emerald-50 text-emerald-700"
+                          >
+                            <Check className="h-3 w-3" />
+                            In magazzino
+                          </Badge>
+                        ) : m.readiness === "ordinato" ? (
+                          <Badge
+                            variant="outline"
+                            className="gap-1 border-blue-300 bg-blue-50 text-blue-700"
+                          >
+                            <Truck className="h-3 w-3" />
+                            {`OdA ${m.odaNumber ?? ""}`.trim()}
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="gap-1 border-amber-300 bg-amber-50 text-amber-700"
+                          >
+                            <AlertTriangle className="h-3 w-3" />
+                            Da ordinare
+                          </Badge>
+                        )}
+                        {/* Dividi su più fasi: solo con quantità > 1 e non ancora coperto
+                            da un OdA — una volta ordinato, la ripartizione è vincolata
+                            all'ordine di acquisto e non si può più spezzare. */}
+                        {m.quantity > 1 && m.readiness !== "ordinato" && (
+                          <SplitMaterialDialog
+                            material={m}
+                            phases={allPhases}
+                            currentPhaseId={phase.id}
+                            onSplit={(parts, opts) => onSplitMaterial(m.id, parts, opts)}
+                          />
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-rose-600"
+                          onClick={() => onAssignMaterial(m.id, null)}
+                          aria-label="Togli dalla fase"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Plus className="mr-1 h-4 w-4" />
+                          Aggiungi materiale
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-72 p-1">
+                        {unassignedMaterials.length === 0 ? (
+                          <p className="p-2 text-xs text-muted-foreground">
+                            Nessun articolo senza fase.
+                          </p>
+                        ) : (
+                          unassignedMaterials.map((m) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              className="w-full rounded-sm px-2 py-1.5 text-left text-[13px] hover:bg-accent"
+                              onClick={() => onAssignMaterial(m.id, phase.id)}
+                            >
+                              {m.name} <span className="text-muted-foreground">x{m.quantity}</span>
+                            </button>
+                          ))
+                        )}
+                      </PopoverContent>
+                    </Popover>
+
+                    {missingMaterials.length > 0 && (
+                      <CreatePurchaseOrderButton
+                        orderId={orderId}
+                        orderCode={orderCode}
+                        items={missingMaterials.map((m) => ({
+                          id: m.id,
+                          name: m.name,
+                          quantity: m.quantity,
+                          purchase_price: m.purchase_price ?? undefined,
+                          supplier_id: m.supplier_id ?? undefined,
+                          vat_rate: m.vat_rate ?? undefined,
+                        }))}
+                      />
+                    )}
+                  </div>
+
+                  {startWarning && (
+                    <p className="flex items-center gap-1 text-xs text-amber-600">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      Fase in partenza il {startWarning}: {missingMaterials.length} materiali da ordinare
+                    </p>
                   )}
-                </PopoverContent>
-              </Popover>
-
-              {missingMaterials.length > 0 && (
-                <CreatePurchaseOrderButton
-                  orderId={orderId}
-                  orderCode={orderCode}
-                  items={missingMaterials.map((m) => ({
-                    id: m.id,
-                    name: m.name,
-                    quantity: m.quantity,
-                    purchase_price: m.purchase_price ?? undefined,
-                    supplier_id: m.supplier_id ?? undefined,
-                    vat_rate: m.vat_rate ?? undefined,
-                  }))}
-                />
+                </div>
               )}
-            </div>
-
-            {startWarning && (
-              <p className="flex items-center gap-1 text-xs text-amber-600">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                Fase in partenza il {startWarning}: {missingMaterials.length} materiali da ordinare
-              </p>
-            )}
-          </div>
+            </CardContent>
+          </motion.div>
         )}
-      </CardContent>
+      </AnimatePresence>
     </Card>
   );
 }
@@ -1275,6 +1365,179 @@ function AddAssignmentDialog({
               <Check className="mr-1 h-4 w-4" />
             )}
             Aggiungi
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Split material dialog ("100 kg usati in più fasi")                  */
+/* ------------------------------------------------------------------ */
+
+// Riga di ripartizione: phaseId = "none" → senza fase (Select non accetta "")
+interface SplitRowDraft {
+  phaseId: string;
+  quantity: string;
+}
+
+interface SplitMaterialDialogProps {
+  material: PhaseMaterial;
+  phases: { id: string; name: string }[];
+  currentPhaseId: string | null;
+  onSplit: (
+    parts: { phaseId: string | null; quantity: number }[],
+    opts?: { onSuccess?: () => void; onError?: () => void }
+  ) => void;
+}
+
+function SplitMaterialDialog({
+  material,
+  phases,
+  currentPhaseId,
+  onSplit,
+}: SplitMaterialDialogProps) {
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<SplitRowDraft[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Riga 1 = fase corrente con tutta la quantità, riga 2 = da compilare
+  const initialRows = (): SplitRowDraft[] => [
+    { phaseId: currentPhaseId ?? "none", quantity: String(material.quantity) },
+    { phaseId: "none", quantity: "0" },
+  ];
+
+  const maxRows = phases.length + 1; // tutte le fasi + "Senza fase"
+
+  const qtyOf = (r: SplitRowDraft) => {
+    const parsed = parseInt(r.quantity, 10);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+  const assigned = rows.reduce((acc, r) => acc + qtyOf(r), 0);
+  const sumOk = assigned === material.quantity;
+  const valid = sumOk && rows.every((r) => qtyOf(r) >= 1);
+
+  const updateRow = (i: number, patch: Partial<SplitRowDraft>) =>
+    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+
+  const handleSubmit = () => {
+    if (!valid) return;
+    setSubmitting(true);
+    onSplit(
+      rows.map((r) => ({
+        phaseId: r.phaseId === "none" ? null : r.phaseId,
+        quantity: qtyOf(r),
+      })),
+      {
+        onSuccess: () => {
+          setSubmitting(false);
+          setOpen(false);
+        },
+        // Senza questo, un errore lascerebbe il bottone in spinner per sempre.
+        onError: () => setSubmitting(false),
+      },
+    );
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        setRows(o ? initialRows() : []);
+        if (!o) setSubmitting(false);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-muted-foreground"
+          aria-label="Dividi su più fasi"
+        >
+          <Split className="h-3.5 w-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Dividi materiale</DialogTitle>
+          <DialogDescription>
+            «{material.name}» — {material.quantity} pz da ripartire
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          {rows.map((row, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Select value={row.phaseId} onValueChange={(v) => updateRow(i, { phaseId: v })}>
+                <SelectTrigger className="h-9 flex-1">
+                  <SelectValue placeholder="Fase…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {phases.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="none">Senza fase</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                value={row.quantity}
+                onChange={(e) => updateRow(i, { quantity: e.target.value })}
+                className="h-9 w-20 tabular-nums"
+                aria-label={`Quantità riga ${i + 1}`}
+              />
+              {rows.length > 2 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0 text-muted-foreground hover:text-rose-600"
+                  onClick={() => setRows((rs) => rs.filter((_, idx) => idx !== i))}
+                  aria-label="Rimuovi riga"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          ))}
+
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={rows.length >= maxRows}
+            onClick={() => setRows((rs) => [...rs, { phaseId: "none", quantity: "0" }])}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            Aggiungi riga
+          </Button>
+
+          {/* Contatore live: verde solo quando la ripartizione torna */}
+          <p
+            className={cn(
+              "text-xs font-medium tabular-nums",
+              sumOk ? "text-emerald-600" : "text-rose-600",
+            )}
+          >
+            Assegnate {assigned} / {material.quantity}
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Annulla
+          </Button>
+          <Button onClick={handleSubmit} disabled={!valid || submitting}>
+            {submitting ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <Split className="mr-1 h-4 w-4" />
+            )}
+            Dividi
           </Button>
         </DialogFooter>
       </DialogContent>
