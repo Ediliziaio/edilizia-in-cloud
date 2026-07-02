@@ -29,6 +29,7 @@ import { calcTotaliComputo } from "@/lib/termoidraulico/calcoli";
 import { INCENTIVI_TERMOIDRAULICO, calcDetraibile, superaMassimale } from "@/lib/preventivi/incentivi";
 import type { IdrComputoVoce, IdrProgetto } from "@/types/termoidraulico";
 import type { IdrFormPatch } from "./types";
+import { Switch } from "@/components/ui/switch";
 
 interface Props {
   form: Partial<IdrProgetto>;
@@ -180,6 +181,21 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
                 icon={BadgePercent}
               />
+
+              {/* Rata di finanziamento nel PDF: scelta PER-PREVENTIVO (cliente cash →
+                  niente rata). null/true = mostra se la promo è attiva nel template. */}
+              <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+                <span>
+                  <span className="block text-xs font-medium">Rata di finanziamento nel PDF</span>
+                  <span className="block text-[10px] text-muted-foreground">
+                    Vale solo se la promo finanziamento è attiva nel template del modulo.
+                  </span>
+                </span>
+                <Switch
+                  checked={form.mostra_finanziamento !== false}
+                  onCheckedChange={(v) => onChange("mostra_finanziamento", v)}
+                />
+              </label>
               {/* Preset incentivi termoidraulico: 1-click → imposta detrazione + massimale di spesa */}
               <div>
                 <p className="mb-1 text-[10px] text-muted-foreground">Incentivi rapidi (termoidraulico):</p>

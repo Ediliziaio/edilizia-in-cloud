@@ -27,6 +27,8 @@ export interface IdrProgetto {
   immobile_tipo: string | null; immobile_superficie_mq: number | null; immobile_anno: number | null; immobile_piani: number | null;
   massimale_detrazione: number | null;
   opportunita_id: string | null; cliente_id: string | null; template_id: string | null;
+  /** Rata finanziamento nel PDF: null=segui template, false=nascondi, true=mostra. */
+  mostra_finanziamento?: boolean | null;
   sconto_pct: number; iva_pct: number; detrazione_pct: number;
   totale_imponibile: number; totale: number; note: string | null;
 }

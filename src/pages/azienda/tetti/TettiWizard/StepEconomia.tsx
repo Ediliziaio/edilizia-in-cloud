@@ -47,6 +47,7 @@ const toPct = (raw: string): number => {
 // Preset incentivi: fonte unica condivisa (quadro 2026 — l'array locale con
 // l'Ecobonus 65% era rimasto alle aliquote pre-riforma).
 import { INCENTIVI_TETTI as INCENTIVI_PRESET } from "@/lib/preventivi/incentivi";
+import { Switch } from "@/components/ui/switch";
 
 export default function StepEconomia({ form, onChange, computo }: Props) {
   const scontoPct = Number(form.sconto_pct ?? 0);
@@ -181,6 +182,21 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
                 icon={BadgePercent}
               />
+
+              {/* Rata di finanziamento nel PDF: scelta PER-PREVENTIVO (cliente cash →
+                  niente rata). null/true = mostra se la promo è attiva nel template. */}
+              <label className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+                <span>
+                  <span className="block text-xs font-medium">Rata di finanziamento nel PDF</span>
+                  <span className="block text-[10px] text-muted-foreground">
+                    Vale solo se la promo finanziamento è attiva nel template del modulo.
+                  </span>
+                </span>
+                <Switch
+                  checked={form.mostra_finanziamento !== false}
+                  onCheckedChange={(v) => onChange("mostra_finanziamento", v)}
+                />
+              </label>
               {/* Preset incentivi copertura: 1-click → imposta la detrazione */}
               <div>
                 <p className="mb-1 text-[10px] text-muted-foreground">Incentivi rapidi (coperture):</p>

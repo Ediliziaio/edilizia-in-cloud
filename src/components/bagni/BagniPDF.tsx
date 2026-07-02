@@ -668,7 +668,9 @@ export function BagniPDF(props: BgnPdfEnriched) {
   // Promo finanziamento + colori per TotalsBlock: calcolati QUI perche'
   // generics/cast dentro gli attributi JSX rompono il parse esbuild.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const finanziamentoPromo = parseFinanziamentoPromo((t as any).finanziamento_promo);
+  const finanziamentoPromo = (p as unknown as { mostra_finanziamento?: boolean | null }).mostra_finanziamento === false
+    ? null
+    : parseFinanziamentoPromo((t as any).finanziamento_promo);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const totalsPc = { primary: C.primary, secondary: C.secondary, border: (C as any).primaryBorder ?? C.primary, text: C.text };
   const styles = makeStyles(C);
