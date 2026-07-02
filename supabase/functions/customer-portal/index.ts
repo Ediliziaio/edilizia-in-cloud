@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   const corsH = getCorsHeaders(req);
   try {
     const stripeKey = await getPlatformSetting("stripe_secret_key", "STRIPE_SECRET_KEY");
-    if (!stripeKey) return errorResponse("Stripe non configurato");
+    if (!stripeKey) return errorResponse("Stripe non configurato", 400, corsH);
 
     const { userId, supabaseAdmin } = await requireAuth(req, corsH);
 
@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
       .eq("id", userId)
       .single();
 
-    if (!profile?.company_id) return errorResponse("Azienda non trovata", 404);
+    if (!profile?.company_id) return errorResponse("Azienda non trovata", 404, corsH);
 
     // Get company's Stripe customer ID
     const { data: company } = await supabaseAdmin
@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (!company?.stripe_customer_id) {
-      return errorResponse("Nessun account Stripe associato. Effettua prima un pagamento.", 404);
+      return errorResponse("Nessun account Stripe associato. Effettua prima un pagamento.", 404, corsH);
     }
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
@@ -43,10 +43,10 @@ Deno.serve(async (req) => {
       return_url: `${origin}/impostazioni`,
     });
 
-    return jsonResponse({ url: portalSession.url });
+    return jsonResponse({ url: portalSession.url }, 200, corsH);
   } catch (err) {
     if (err instanceof Response) return err;
     console.error("Customer portal error:", err);
-    return errorResponse((err as Error).message, 500);
+    return errorResponse((err as Error).message, 500, corsH);
   }
 });
