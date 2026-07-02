@@ -55,54 +55,74 @@ Deno.serve(async (req) => {
     if (spError || !salesperson) throw new Error("Venditore non trovato");
     if (salesperson.user_id) throw new Error("Il venditore ha già un account utente");
 
-    const finalPassword = password && password.trim().length > 0
-      ? password.trim()
-      : crypto.randomUUID().substring(0, 12);
-    const isManualPassword = !!(password && password.trim().length > 0);
+    // ── Utente già esistente? (multi-azienda) ──────────────────────────────
+    // La stessa persona può essere admin/staff in un'azienda e venditore in
+    // un'altra. Supabase Auth NON permette due utenti con la stessa email:
+    // creare un doppione fallirebbe con 400 ("already registered"). Se esiste
+    // già un profilo con questa email, COLLEGHIAMO l'utente esistente a questa
+    // azienda come venditore (ruoli additivi + permessi + accesso multi-azienda)
+    // invece di crearne uno nuovo. Il suo account/azienda primaria resta intatto.
+    const { data: existingProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .ilike("email", email)
+      .maybeSingle();
 
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password: finalPassword,
-      email_confirm: true,
-      user_metadata: { first_name: salesperson.first_name, last_name: salesperson.last_name },
-    });
+    const isExistingUser = !!existingProfile?.id;
+    let userId: string;
+    let finalPassword = "";
+    let isManualPassword = false;
 
-    if (createError || !newUser.user) {
-      throw new Error(createError?.message || "Errore nella creazione utente");
+    if (isExistingUser) {
+      userId = existingProfile!.id as string;
+    } else {
+      finalPassword = password && password.trim().length > 0
+        ? password.trim()
+        : crypto.randomUUID().substring(0, 12);
+      isManualPassword = !!(password && password.trim().length > 0);
+
+      const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password: finalPassword,
+        email_confirm: true,
+        user_metadata: { first_name: salesperson.first_name, last_name: salesperson.last_name },
+      });
+      if (createError || !newUser.user) {
+        throw new Error(createError?.message || "Errore nella creazione utente");
+      }
+      userId = newUser.user.id;
+
+      const { error: profileError } = await supabaseAdmin.from("profiles").insert({
+        id: userId,
+        email,
+        first_name: salesperson.first_name,
+        last_name: salesperson.last_name,
+        company_id: salesperson.company_id,
+        phone: phone || salesperson.phone,
+      });
+      if (profileError) {
+        await supabaseAdmin.auth.admin.deleteUser(userId);
+        throw new Error("Errore nella creazione profilo");
+      }
     }
 
-    const { error: profileError } = await supabaseAdmin.from("profiles").insert({
-      id: newUser.user.id,
-      email,
-      first_name: salesperson.first_name,
-      last_name: salesperson.last_name,
-      company_id: salesperson.company_id,
-      phone: phone || salesperson.phone,
-    });
+    // Rollback solo se abbiamo appena CREATO l'utente: non cancellare mai un
+    // utente preesistente (distruggerebbe il suo accesso all'altra azienda).
+    const rollback = async () => { if (!isExistingUser) await supabaseAdmin.auth.admin.deleteUser(userId); };
 
-    if (profileError) {
-      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
-      throw new Error("Errore nella creazione profilo");
-    }
-
+    // Ruoli staff (globali, UNIQUE user_id+role): additivi e idempotenti. Se
+    // l'utente è già admin altrove NON viene declassato (l'effective role prende
+    // il più alto; il ruolo per-azienda vive in multi_company_access).
     const { error: roleError } = await supabaseAdmin
       .from("user_roles")
-      .insert({ user_id: newUser.user.id, role: "salesperson" });
-    if (roleError) {
-      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
-      throw new Error("Errore nell'assegnazione ruolo");
-    }
-
-    const { error: staffRoleError } = await supabaseAdmin
-      .from("user_roles")
-      .insert({ user_id: newUser.user.id, role: "company_staff" });
-    if (staffRoleError) {
-      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
-      throw new Error("Errore nell'assegnazione ruolo staff");
-    }
+      .upsert(
+        [{ user_id: userId, role: "salesperson" }, { user_id: userId, role: "company_staff" }],
+        { onConflict: "user_id,role", ignoreDuplicates: true },
+      );
+    if (roleError) { await rollback(); throw new Error("Errore nell'assegnazione ruoli"); }
 
     const permissionsRecord: Record<string, any> = {
-      user_id: newUser.user.id,
+      user_id: userId,
       company_id: salesperson.company_id,
       can_view_dashboard: false, can_view_orders: false, can_edit_orders: false,
       can_view_warehouse: false, can_edit_warehouse: false, can_view_calendar: false,
@@ -111,38 +131,46 @@ Deno.serve(async (req) => {
       can_view_settings: false, can_view_marketing: false, can_edit_marketing: false,
       only_assigned: false,
     };
-
     if (permissions) {
       for (const [key, value] of Object.entries(permissions)) {
         if (key in permissionsRecord) permissionsRecord[key] = value;
       }
     }
+    // upsert su (user_id, company_id): idempotente se la persona viene ri-aggiunta.
+    const { error: permError } = await supabaseAdmin
+      .from("staff_permissions")
+      .upsert(permissionsRecord, { onConflict: "user_id,company_id" });
+    if (permError) { await rollback(); throw new Error("Errore nella creazione permessi"); }
 
-    const { error: permError } = await supabaseAdmin.from("staff_permissions").insert(permissionsRecord);
-    if (permError) {
-      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
-      throw new Error("Errore nella creazione permessi");
-    }
+    // Accesso multi-azienda: fa comparire questa azienda nel company switcher
+    // con ruolo venditore. Indispensabile quando l'azienda NON è quella primaria
+    // del profilo (caso utente esistente). Idempotente.
+    const { error: mcaError } = await supabaseAdmin
+      .from("multi_company_access")
+      .upsert(
+        { user_id: userId, company_id: salesperson.company_id, access_role: "salesperson", granted_by: caller.id },
+        { onConflict: "user_id,company_id", ignoreDuplicates: true },
+      );
+    if (mcaError) { await rollback(); throw new Error("Errore nell'accesso multi-azienda"); }
 
     const { error: linkError } = await supabaseAdmin
       .from("salespeople")
-      .update({ user_id: newUser.user.id })
+      .update({ user_id: userId })
       .eq("id", salesperson_id);
+    if (linkError) { await rollback(); throw new Error("Errore nel collegamento venditore"); }
 
-    if (linkError) {
-      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
-      throw new Error("Errore nel collegamento venditore");
-    }
-
-    // Send welcome email via unified pipeline
+    // Email: se abbiamo CREATO l'utente → credenziali; se abbiamo COLLEGATO un
+    // utente esistente → nessuna credenziale nuova (usa quelle che ha già),
+    // solo una notifica che ora accede anche a questa azienda.
     try {
       const companyName = (salesperson as any).company?.name || "la piattaforma";
-      await sendEmailUnified({
-        companyId:    salesperson.company_id,
-        stream:       "transactional",
-        to:           [email],
-        subject:      `Il tuo account su ${companyName}`,
-        html: `<html><body>
+      const html = isExistingUser
+        ? `<html><body>
+            <p>Ciao ${salesperson.first_name},</p>
+            <p>Il tuo account è stato abilitato ad accedere anche a <strong>${companyName}</strong> come venditore.</p>
+            <p>Accedi con le <strong>credenziali che usi già</strong> (${email}) e seleziona l'azienda dal menu in alto.</p>
+          </body></html>`
+        : `<html><body>
             <p>Ciao ${salesperson.first_name},</p>
             <p>È stato creato un account per te su <strong>${companyName}</strong>.</p>
             <p>Ecco le tue credenziali di accesso:</p>
@@ -151,11 +179,17 @@ Deno.serve(async (req) => {
               ${isManualPassword ? "" : `<li><strong>Password temporanea:</strong> ${finalPassword}</li>`}
             </ul>
             ${isManualPassword ? "<p>La password è stata impostata dall'amministratore.</p>" : "<p>Ti consigliamo di cambiare la password al primo accesso.</p>"}
-          </body></html>`,
+          </body></html>`;
+      await sendEmailUnified({
+        companyId:    salesperson.company_id,
+        stream:       "transactional",
+        to:           [email],
+        subject:      isExistingUser ? `Nuovo accesso: ${companyName}` : `Il tuo account su ${companyName}`,
+        html,
         templateName: "salesperson_invite",
         skipCredits:  true,
         adminClient:  supabaseAdmin,
-        metadata:     { salesperson_id, user_id: newUser.user.id },
+        metadata:     { salesperson_id, user_id: userId },
       });
     } catch (emailErr) {
       console.error("Failed to send welcome email:", emailErr);
@@ -164,10 +198,13 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        user_id: newUser.user.id,
-        temp_password: isManualPassword ? null : finalPassword,
+        user_id: userId,
+        linked_existing: isExistingUser,
+        temp_password: isExistingUser || isManualPassword ? null : finalPassword,
         is_manual_password: isManualPassword,
-        message: `Account creato per ${salesperson.first_name} ${salesperson.last_name}`,
+        message: isExistingUser
+          ? `${salesperson.first_name} ${salesperson.last_name} ora accede anche a questa azienda (account esistente collegato)`
+          : `Account creato per ${salesperson.first_name} ${salesperson.last_name}`,
       }),
       { headers: { ...getCorsHeaders(req), "Content-Type": "application/json" }, status: 200 }
     );
