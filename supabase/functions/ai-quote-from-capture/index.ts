@@ -132,7 +132,8 @@ REGOLE:
 7. Confidence: 1.0 se foglio chiaro/voce nitida, scendi a 0.5 se molti ambiguità, 0.2 se "credo che dica X ma forse Y".
 8. avvertenze: lista cose da verificare ("misura altezza non chiara", "due nomi possibili: Rossi o Russo").
 9. NON inventare prezzi. Il pricing avviene dopo nel sistema.
-10. attributi: tag corti utili per matching (materiale, colore, tipo apertura, ecc.).`;
+10. attributi: tag corti utili per matching (materiale, colore, tipo apertura, ecc.).
+11. Formati di piastrelle/rivestimenti come "60x60", "30x60", "20x120" indicano il FORMATO della piastrella in centimetri, NON le misure di un serramento: per pavimenti, rivestimenti, piastrelle e lavorazioni al metro quadro NON compilare "misure" e usa unita_misura "mq" (la quantità è la superficie). "misure" va compilato SOLO per serramenti/infissi/porte/box doccia dove larghezza×altezza identificano il pezzo.`;
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
@@ -711,9 +712,13 @@ async function fillInitialPrice(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: tmpl } = await (supabase as any)
         .from("article_templates")
-        .select("prezzo_vendita, unit_price")
+        .select("prezzo_vendita, unit_price, unit_of_measure")
         .eq("id", product.matched_template_id)
         .single();
+      // U.M. del listino quando l'AI non l'ha estratta
+      if (!product.unita_misura && tmpl?.unit_of_measure) {
+        product.unita_misura = tmpl.unit_of_measure;
+      }
       const tmplPrice = tmpl?.prezzo_vendita ?? tmpl?.unit_price;
       if (tmplPrice && Number(tmplPrice) > 0) {
         product.unit_price = Number(tmplPrice);
@@ -731,9 +736,13 @@ async function fillInitialPrice(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: tar } = await (supabase as any)
         .from("tariffe_aziendali")
-        .select("prezzo_vendita")
+        .select("prezzo_vendita, unita")
         .eq("id", product.matched_tariffa_id)
         .single();
+      // U.M. della tariffa quando l'AI non l'ha estratta ('fisso' → 'a corpo')
+      if (!product.unita_misura && tar?.unita) {
+        product.unita_misura = tar.unita === "fisso" ? "a corpo" : tar.unita;
+      }
       if (tar?.prezzo_vendita && Number(tar.prezzo_vendita) > 0) {
         product.unit_price = Number(tar.prezzo_vendita);
         product.unit_price_source = "tariffa";
