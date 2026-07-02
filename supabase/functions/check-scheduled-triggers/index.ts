@@ -776,13 +776,17 @@ Deno.serve(async (req) => {
           // Send notification
           if (apt.assigned_to) {
             const label = apt.reminder_minutes === 1440 ? "24h" : apt.reminder_minutes === 60 ? "1h" : `${apt.reminder_minutes}min`;
+            // Colonne REALI: notification_type (non "type"); nessuna colonna
+            // user_id → destinatario nel metadata. notification_date NULL:
+            // l'indice unico (company,type,date) limiterebbe a 1 promemoria
+            // al giorno. Prima l'insert falliva SEMPRE (colonna inesistente).
             await supabase.from("lifecycle_notifications").insert({
               company_id: apt.company_id,
-              user_id: apt.assigned_to,
-              type: "appointment_reminder",
+              notification_type: "appointment_reminder",
+              notification_date: null,
               title: `Promemoria appuntamento (${label})`,
               message: `Appuntamento "${apt.title}" il ${apt.appointment_date}${apt.appointment_time ? " alle " + apt.appointment_time : ""}.`,
-              metadata: { appointment_id: apt.id, reminder_type: label },
+              metadata: { appointment_id: apt.id, reminder_type: label, user_id: apt.assigned_to },
             });
           }
 
@@ -833,13 +837,14 @@ Deno.serve(async (req) => {
             });
 
             if (apt.assigned_to) {
+              // Colonne reali + date NULL (vedi promemoria custom sopra).
               await supabase.from("lifecycle_notifications").insert({
                 company_id: apt.company_id,
-                user_id: apt.assigned_to,
-                type: "appointment_reminder",
+                notification_type: "appointment_reminder",
+                notification_date: null,
                 title: "Promemoria appuntamento (24h)",
                 message: `Appuntamento "${apt.title}" domani${apt.appointment_time ? " alle " + apt.appointment_time : ""}.`,
-                metadata: { appointment_id: apt.id, reminder_type: "24h" },
+                metadata: { appointment_id: apt.id, reminder_type: "24h", user_id: apt.assigned_to },
               });
             }
 
@@ -873,13 +878,14 @@ Deno.serve(async (req) => {
             });
 
             if (apt.assigned_to) {
+              // Colonne reali + date NULL (vedi promemoria custom sopra).
               await supabase.from("lifecycle_notifications").insert({
                 company_id: apt.company_id,
-                user_id: apt.assigned_to,
-                type: "appointment_reminder",
+                notification_type: "appointment_reminder",
+                notification_date: null,
                 title: "Promemoria appuntamento (1h)",
                 message: `Appuntamento "${apt.title}" tra 1 ora${apt.appointment_time ? " alle " + apt.appointment_time : ""}.`,
-                metadata: { appointment_id: apt.id, reminder_type: "1h" },
+                metadata: { appointment_id: apt.id, reminder_type: "1h", user_id: apt.assigned_to },
               });
             }
 

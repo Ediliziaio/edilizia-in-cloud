@@ -1,0 +1,12 @@
+-- FIX: max 1 notifica di automazione AL GIORNO per azienda.
+-- idx_lifecycle_notif_unique è UNIQUE (company_id, notification_type,
+-- notification_date) — giusto per i digest lifecycle (1/tipo/giorno), ma il
+-- motore automazioni scrive notification_type='automation' con la data di
+-- default (CURRENT_DATE) → dalla SECONDA notifica in poi nello stesso giorno:
+-- duplicate key, action:error, retry in loop. Non si può rendere parziale
+-- l'indice: check-lifecycle-events lo usa come arbitro di upsert
+-- (onConflict: company_id,notification_type,notification_date).
+-- Soluzione: notification_date NULLABLE; il motore passa NULL per le notifiche
+-- evento-driven → i NULL sono distinti nell'indice unico (PG NULLS DISTINCT)
+-- → nessuna collisione, digest intatti. Applicata in prod via MCP 2026-07-02.
+ALTER TABLE public.lifecycle_notifications ALTER COLUMN notification_date DROP NOT NULL;

@@ -285,6 +285,25 @@ async function handleTrigger(supabase: any, body: any) {
       if (!evaluateFilters(filters, enrichedPayload)) continue;
     }
 
+    // Filtri RAPIDI del trigger (configSchema del catalogo): prima erano
+    // IGNORATI → es. il template "Alert Costo > €500" scattava su OGNI costo.
+    const tcfg = matchingTrigger.config_json ?? {};
+    // Soglia importo (costo_registrato / template Alert Costo)
+    const sogliaRaw = tcfg.importo_minimo ?? tcfg.importo_soglia;
+    if (sogliaRaw != null && sogliaRaw !== "") {
+      const soglia = Number(sogliaRaw);
+      const importo = Number((enrichedPayload as Record<string, unknown>)?.importo);
+      if (Number.isFinite(soglia) && !(Number.isFinite(importo) && importo >= soglia)) continue;
+    }
+    // Fonte lead (contatto_creato → fonte_filtro)
+    if (typeof tcfg.fonte_filtro === "string" && tcfg.fonte_filtro !== "") {
+      const src = String((enrichedPayload as Record<string, unknown>)?.source ?? "").toLowerCase();
+      if (!src.includes(tcfg.fonte_filtro.toLowerCase())) continue;
+    }
+    // Stage da/a (opportunita_stage_cambiato)
+    if (tcfg.stage_a && String((enrichedPayload as Record<string, unknown>)?.stage_id ?? "") !== String(tcfg.stage_a)) continue;
+    if (tcfg.stage_da && String((enrichedPayload as Record<string, unknown>)?.old_stage_id ?? "") !== String(tcfg.stage_da)) continue;
+
     // Check re-enrollment settings (from flow config or trigger config)
     const flowSettings = flow.config_json?.settings || {};
     const allowReEnrollment = flowSettings.enable_reenrollment === true || matchingTrigger.config_json?.allow_re_enrollment === true;
@@ -313,6 +332,18 @@ async function handleTrigger(supabase: any, body: any) {
 
     if (enrollErr) {
       console.error("Enrollment error:", enrollErr);
+      // Onestà nel Registro: un enrollment fallito era invisibile (solo
+      // console.error) — così il CHECK entity_type ha nascosto per mesi il
+      // fatto che i trigger operativi non arruolavano MAI (fix 20271127000000).
+      await supabase.from("automation_execution_log").insert({
+        flow_id: flow.id,
+        company_id,
+        node_id: matchingTrigger.id,
+        node_type: "trigger",
+        status: "error",
+        input_json: { trigger_event, entity_id, entity_type },
+        error_message: `Iscrizione fallita: ${enrollErr.message ?? enrollErr}`,
+      });
       continue;
     }
 
@@ -870,7 +901,10 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
   const rv = (s: any): any =>
     typeof s === "string"
       ? s.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m: string, k: string) => {
-          const v = pPayload[k];
+          // Chiave esatta, poi fallback sull'ultimo segmento: i template usano
+          // {{costo.importo}} ma gli emettitori DB mettono chiavi PIATTE
+          // (importo, descrizione…) nel payload.
+          const v = pPayload[k] ?? pPayload[k.split(".").pop() as string];
           return v == null ? "" : String(v);
         })
       : s;
@@ -1036,13 +1070,23 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "create_task": {
+      // rv(): risolve i {{placeholder}} dal payload (prima titolo/note
+      // uscivano letterali sui trigger operativi, es. {{costo.descrizione}}).
+      // task_due_days (builder: scadenza_giorni) → due_date; prima era ignorato.
+      const dueDays = Number(ncfg.task_due_days);
+      // en-CA = YYYY-MM-DD; timezone esplicita: le edge fn girano in UTC ma la
+      // scadenza deve cadere sul giorno ITALIANO (convenzione anti UTC-drift).
+      const dueDate = Number.isFinite(dueDays) && dueDays > 0
+        ? new Date(Date.now() + dueDays * 86_400_000).toLocaleDateString("en-CA", { timeZone: "Europe/Rome" })
+        : null;
       const { error } = await supabase.from("tasks").insert({
         company_id: companyId,
-        title: ncfg.task_title || "Attività automatica",
-        notes: ncfg.task_notes || null,
+        title: rv(ncfg.task_title || "Attività automatica"),
+        notes: rv(ncfg.task_notes || null),
         priority: ncfg.task_priority || "normale",
         category: ncfg.task_category || "generale",
         assigned_to: ncfg.task_assigned_to || null,
+        due_date: dueDate,
         status: "da_fare",
         created_by: "00000000-0000-0000-0000-000000000000",
       });
@@ -1081,9 +1125,11 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
     }
 
     case "send_notification": {
-      // Insert real notification into lifecycle_notifications
-      const title = ncfg.notification_title || "Notifica automazione";
-      const message = ncfg.notification_message || "";
+      // Insert real notification into lifecycle_notifications.
+      // rv(): risolve i {{placeholder}} dal payload del trigger (prima il
+      // titolo usciva letterale, es. "Costo anomalo: €{{costo.importo}}").
+      const title = rv(ncfg.notification_title || "Notifica automazione");
+      const message = rv(ncfg.notification_message || "");
       const recipient = ncfg.notification_recipient || "assigned";
 
       // Determine which company users should receive the notification
@@ -1114,10 +1160,15 @@ async function executeAction(supabase: any, cfg: Record<string, any>, entityId: 
         targetUserIds = [recipient];
       }
 
-      // Insert notification
+      // Insert notification. notification_date=NULL: l'indice unico
+      // (company, type, date) serve ai digest lifecycle 1/giorno — con la
+      // data di default la SECONDA notifica di automazione del giorno
+      // collideva (duplicate key) e il nodo andava in retry-loop. I NULL
+      // sono distinti nell'indice → nessun limite (migration 20271128000000).
       const { error: notifErr } = await supabase.from("lifecycle_notifications").insert({
         company_id: companyId,
         notification_type: "automation",
+        notification_date: null,
         title,
         message,
         metadata: { entity_id: entityId, automation: true, recipient_type: ncfg.notification_recipient },

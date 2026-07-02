@@ -135,12 +135,18 @@ Deno.serve(async (req) => {
             }
 
             case "send_notification": {
+              // Colonne REALI di lifecycle_notifications: notification_type
+              // (non "type"), nessuna target_user_id → destinatario nel
+              // metadata. Prima l'insert falliva SEMPRE (colonna inesistente)
+              // e il job andava in errore. notification_date NULL: evita il
+              // limite 1/giorno dell'indice unico (company,type,date).
               const { error } = await supabase.from("lifecycle_notifications").insert({
                 company_id: job.company_id,
-                type: "automation",
+                notification_type: "automation",
+                notification_date: null,
                 title: interpolate(config.notification_title || "Automazione", context),
                 message: interpolate(config.notification_message || "", context),
-                target_user_id: config.notify_user_id || null,
+                metadata: { user_id: config.notify_user_id || null, internal_automation: true },
               });
               if (error) throw error;
               actionResult = { sent: "notification" };
@@ -165,7 +171,9 @@ Deno.serve(async (req) => {
                 company_id: job.company_id,
                 title: interpolate(config.event_title || "Evento automatico", context),
                 description: interpolate(config.event_description || "", context),
-                appointment_date: config.event_date || new Date().toISOString().split("T")[0],
+                // en-CA + Europe/Rome: il giorno ITALIANO, non quello UTC
+                // (dopo le 22/23 ora italiana toISOString cade sul giorno prima).
+                appointment_date: config.event_date || new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Rome" }),
                 appointment_time: config.event_time || null,
                 created_by: context.created_by || job.entity_id,
               });
@@ -175,12 +183,14 @@ Deno.serve(async (req) => {
             }
 
             case "send_email": {
+              // Stesse colonne reali di send_notification (vedi sopra).
               const { error } = await supabase.from("lifecycle_notifications").insert({
                 company_id: job.company_id,
-                type: "email",
+                notification_type: "email",
+                notification_date: null,
                 title: interpolate(config.email_subject || "Email automatica", context),
                 message: interpolate(config.email_body || "", context),
-                target_user_id: config.notify_user_id || null,
+                metadata: { user_id: config.notify_user_id || null, email_to: config.email_to || null, internal_automation: true },
               });
               if (error) throw error;
               actionResult = { sent: "email", to: config.email_to };
