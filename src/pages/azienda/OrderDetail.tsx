@@ -1166,6 +1166,14 @@ function OrderDetailInner() {
           onOpenFiles={() => setFilesOpen(true)}
           onOpenNotes={() => setNotesOpen(true)}
           onOpenFirma={() => setFirmaOpen(true)}
+          askSilvio={
+            <ChiediASilvio
+              className="h-8 ml-auto"
+              ask={`Analizza la commessa ${order.order_code ? `"${order.order_code}" ` : ""}${
+                order.customer ? `del cliente ${order.customer.first_name} ${order.customer.last_name} ` : ""
+              }(${order.description || "senza descrizione"}): stato avanzamento, costi vs preventivo, scadenze, margine e criticità. Cosa devo sapere e quali sono le prossime mosse?`}
+            />
+          }
         />
       )}
 
@@ -1221,15 +1229,6 @@ function OrderDetailInner() {
           </div>
         </div>
       )}
-
-      {/* ── Chiedi a Silvio (contestuale alla commessa) ───────── */}
-      <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-2 flex justify-end">
-        <ChiediASilvio
-          ask={`Analizza la commessa ${order.order_code ? `"${order.order_code}" ` : ""}${
-            order.customer ? `del cliente ${order.customer.first_name} ${order.customer.last_name} ` : ""
-          }(${order.description || "senza descrizione"}): stato avanzamento, costi vs preventivo, scadenze, margine e criticità. Cosa devo sapere e quali sono le prossime mosse?`}
-        />
-      </div>
 
       {/* ── Status strip ──────────────────────────────────────── */}
       <div className="bg-white border-b border-gray-100 px-3 sm:px-6 py-3">
@@ -1921,17 +1920,10 @@ function OrderDetailInner() {
               </QuoteCard>
             </div>
 
-            {/* Note interne */}
-            <OrdineNote
-              notes={order.internal_notes}
-              isEditing={isEditingNotes}
-              editedNotes={editedNotes}
-              isSaving={updateNotesMutation.isPending}
-              onEdit={handleEditNotes}
-              onSave={handleSaveNotes}
-              onCancel={() => setIsEditingNotes(false)}
-              onNotesChange={setEditedNotes}
-            />
+            {/* Card "Note Interne" (orders.internal_notes) rimossa dalla Panoramica:
+                le note di commessa vivono nel popup "Note interne" delle azioni
+                rapide (thread di team). Il campo legacy resta editabile dal tab
+                "Altro" mobile. */}
           </TabsContent>
 
           {/* Tab: Articoli e lavori */}
@@ -2067,24 +2059,19 @@ function OrderDetailInner() {
 
       {/* ── Dialogs ──────────────────────────────────────────── */}
 
-      {/* Operatività commessa (popup): prossima azione + responsabile + checklist */}
+      {/* Responsabile commessa (popup). Prossima azione e checklist rimosse:
+          duplicavano le Attività (task con scadenza) e le fasi Lavorazioni. */}
       {effectiveCompany?.id && (
         <Dialog open={opsOpen} onOpenChange={setOpsOpen}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Operatività commessa</DialogTitle>
-              <DialogDescription>Prossima azione, responsabile e avanzamento fasi.</DialogDescription>
+              <DialogTitle>Responsabile commessa</DialogTitle>
+              <DialogDescription>Chi segue questa commessa in azienda.</DialogDescription>
             </DialogHeader>
             <OrderOperationalPanel
               orderId={id!}
               companyId={effectiveCompany.id}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              initialNextAction={(order as any).next_action}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              initialNextActionDate={(order as any).next_action_date}
               initialAssignedTo={order.assigned_to}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              initialChecklist={(order as any).operational_checklist}
               canEdit={permissions.canEditOrders}
               asCard={false}
             />

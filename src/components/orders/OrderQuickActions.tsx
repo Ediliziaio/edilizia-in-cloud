@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Phone, MessageSquare, Mail, FileText, CalendarPlus, Loader2, BellRing, ClipboardList, FolderOpen, StickyNote, PenLine } from "lucide-react";
+import { Phone, MessageSquare, Mail, FileText, CalendarPlus, Loader2, BellRing, UserCog, FolderOpen, StickyNote, PenLine } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -33,8 +33,10 @@ interface Props {
   getPdfBlob: () => Promise<{ blob: Blob; filename: string } | null>;
   /** Importo/scadenza da sollecitare (prossima rata non pagata). */
   paymentDue?: { amount: number; dueDate?: string | null; label?: string | null } | null;
-  /** Apre il popup "Operatività commessa" (prossima azione/responsabile/checklist). */
+  /** Apre il popup "Responsabile commessa" (chi segue la commessa). */
   onOpenOps?: () => void;
+  /** Slot per il bottone "Chiedi a Silvio" contestuale (renderizzato in coda alla barra). */
+  askSilvio?: React.ReactNode;
   /** Apre il popup "Documenti e file" della commessa. */
   onOpenFiles?: () => void;
   /** Apre il popup "Note interne" collaborative (thread + chat team di commessa). */
@@ -48,7 +50,7 @@ const fmtEur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency"
 type Attachment = { name: string; size: number; mime: string; storage_path: string };
 
 export function OrderQuickActions({
-  orderId, orderCode, companyId, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps, onOpenFiles, onOpenNotes, onOpenFirma,
+  orderId, orderCode, companyId, customer, workAddress, workCity, workProvince, getPdfBlob, paymentDue, onOpenOps, onOpenFiles, onOpenNotes, onOpenFirma, askSilvio,
 }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -123,8 +125,8 @@ export function OrderQuickActions({
         {onOpenOps && (
           <Button variant="outline" size="sm" className="h-8 gap-1.5 border-primary/40 text-primary hover:bg-primary/5"
             onClick={onOpenOps}
-            title="Prossima azione, responsabile e checklist fasi">
-            <ClipboardList className="h-3.5 w-3.5" /> Operatività
+            title="Assegna chi segue questa commessa">
+            <UserCog className="h-3.5 w-3.5" /> Responsabile
           </Button>
         )}
         {onOpenFiles && (
@@ -176,6 +178,7 @@ export function OrderQuickActions({
             <BellRing className="h-3.5 w-3.5" /> Sollecita pagamento
           </Button>
         )}
+        {askSilvio}
       </div>
 
       {(hasPhone || hasEmail) && customer && (
