@@ -47,7 +47,7 @@ export function AdminHeroHeader({
           </div>
         </div>
         {actions ? (
-          <div className="flex flex-wrap items-center justify-end gap-2 md:shrink-0">
+          <div className="flex flex-wrap items-center justify-end gap-2 md:shrink-0 [&_button.bg-background]:!border-white/25 [&_button.bg-background]:!bg-white/10 [&_button.bg-background]:!text-white [&_button.bg-background:hover]:!bg-white/20">
             {actions}
           </div>
         ) : null}

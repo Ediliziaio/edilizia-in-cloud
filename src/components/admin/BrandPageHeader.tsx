@@ -42,7 +42,11 @@ export function BrandPageHeader({
               {subtitle && <p className="mt-1 max-w-2xl text-sm leading-6 text-blue-50/80">{subtitle}</p>}
             </div>
           </div>
-          {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+          {actions && (
+            <div className="flex shrink-0 flex-wrap items-center gap-2 [&_button.bg-background]:!border-white/25 [&_button.bg-background]:!bg-white/10 [&_button.bg-background]:!text-white [&_button.bg-background:hover]:!bg-white/20">
+              {actions}
+            </div>
+          )}
         </div>
         {children && <div className="mt-6">{children}</div>}
       </div>
