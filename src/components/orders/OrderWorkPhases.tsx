@@ -15,6 +15,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { differenceInCalendarDays, format, isValid, parseISO } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 import {
   useOrderWorkPhases,
@@ -948,12 +951,27 @@ interface AddAssignmentDialogProps {
   ) => void;
 }
 
+// Voce del listino manodopera aziendale (tariffe_aziendali): costo sostenuto
+// (prezzo_costo) + prezzo di vendita → il ricarico è visibile al volo.
+interface TariffaManodopera {
+  id: string;
+  nome: string;
+  unita: string | null;
+  prezzo_costo: number | null;
+  prezzo_vendita: number | null;
+  attiva: boolean | null;
+  attivo: boolean | null;
+}
+
 function AddAssignmentDialog({
   phaseId,
   employees,
   externalTeams,
   onAdd,
 }: AddAssignmentDialogProps) {
+  const { effectiveCompany } = useAuth();
+  const companyId = effectiveCompany?.id;
+
   const [open, setOpen] = useState(false);
   const [tipo, setTipo] = useState<ExecutorType>("interno");
   const [executorId, setExecutorId] = useState<string>("");
@@ -962,6 +980,42 @@ function AddAssignmentDialog({
   const [hours, setHours] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Prefill dal listino manodopera (facoltativo)
+  const [tariffaId, setTariffaId] = useState("");
+  const [tariffaQty, setTariffaQty] = useState("1");
+
+  // Listino manodopera aziendale — caricato solo a dialog aperto.
+  const { data: tariffe = [] } = useQuery({
+    queryKey: ["tariffe-manodopera", companyId],
+    enabled: open && !!companyId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<TariffaManodopera[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("tariffe_aziendali")
+        .select("id, nome, unita, prezzo_costo, prezzo_vendita, attiva, attivo")
+        .eq("company_id", companyId)
+        .order("nome");
+      if (error) throw error;
+      return (data ?? []) as TariffaManodopera[];
+    },
+  });
+  const tariffeAttive = tariffe.filter((t) => t.attiva ?? t.attivo ?? true);
+  const tariffaSel = tariffeAttive.find((t) => t.id === tariffaId) ?? null;
+
+  // Applica costo (e nota, se vuota) da tariffa × quantità. Il campo resta
+  // modificabile: il listino è un prefill, non un vincolo.
+  const applyTariffa = (t: TariffaManodopera | null, qtyRaw: string) => {
+    if (!t) return;
+    const qty = Math.max(0, parseFloat(qtyRaw) || 0);
+    const costo = (Number(t.prezzo_costo) || 0) * qty;
+    setPrev(costo.toFixed(2));
+    setNotes((n) =>
+      n.trim() === "" || /^Listino: /.test(n)
+        ? `Listino: ${t.nome} × ${qtyRaw || "1"}${t.unita ? ` ${t.unita}` : ""}`
+        : n,
+    );
+  };
 
   const options = tipo === "interno" ? employees : externalTeams;
 
@@ -973,6 +1027,8 @@ function AddAssignmentDialog({
     setHours("");
     setNotes("");
     setSubmitting(false);
+    setTariffaId("");
+    setTariffaQty("1");
   };
 
   const num = (raw: string) => {
@@ -1084,6 +1140,79 @@ function AddAssignmentDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Da listino manodopera: prefill costo sostenuto + ricarico visibile.
+              L'azienda può importare il prezziario regionale o caricare il
+              proprio listino in Impostazioni → Tariffe. */}
+          {tariffeAttive.length > 0 && (
+            <div className="space-y-1.5 rounded-lg border bg-muted/20 p-2.5">
+              <Label className="text-xs text-muted-foreground">
+                Da listino manodopera (facoltativo)
+              </Label>
+              <div className="flex gap-2">
+                <Select
+                  value={tariffaId}
+                  onValueChange={(v) => {
+                    setTariffaId(v);
+                    const t = tariffeAttive.find((x) => x.id === v) ?? null;
+                    applyTariffa(t, tariffaQty);
+                  }}
+                >
+                  <SelectTrigger className="h-9 flex-1">
+                    <SelectValue placeholder="Cerca una voce di listino…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tariffeAttive.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.nome} · {eur.format(Number(t.prezzo_costo) || 0)}
+                        {t.unita ? `/${t.unita}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={tariffaQty}
+                  onChange={(e) => {
+                    setTariffaQty(e.target.value);
+                    applyTariffa(tariffaSel, e.target.value);
+                  }}
+                  className="h-9 w-20"
+                  aria-label="Quantità"
+                />
+              </div>
+              {tariffaSel && (
+                <p className="text-[11px] text-muted-foreground">
+                  Costo {eur.format(Number(tariffaSel.prezzo_costo) || 0)}
+                  {tariffaSel.unita ? `/${tariffaSel.unita}` : ""} → preventivo{" "}
+                  <strong className="text-foreground">{eur.format(num(prev))}</strong>
+                  {Number(tariffaSel.prezzo_vendita) > 0 && (
+                    <>
+                      {" "}· vendita consigliata{" "}
+                      {eur.format(
+                        (Number(tariffaSel.prezzo_vendita) || 0) *
+                          Math.max(0, parseFloat(tariffaQty) || 0),
+                      )}{" "}
+                      <span className="text-emerald-600">
+                        (ricarico{" "}
+                        {Number(tariffaSel.prezzo_costo) > 0
+                          ? Math.round(
+                              ((Number(tariffaSel.prezzo_vendita) -
+                                Number(tariffaSel.prezzo_costo)) /
+                                Number(tariffaSel.prezzo_costo)) *
+                                100,
+                            )
+                          : 0}
+                        %)
+                      </span>
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Costs */}
           <div className="grid grid-cols-2 gap-3">
