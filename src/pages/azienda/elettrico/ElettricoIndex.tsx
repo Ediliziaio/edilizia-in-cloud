@@ -46,9 +46,15 @@ import {
 } from "@/hooks/useElettricoProgetto";
 import { ELE_STATI_LABEL } from "./ElettricoWizard/helpers";
 import type { EleStato } from "@/types/elettrico";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useTableSelection } from "@/hooks/useTableSelection";
+import { ModuloBulkToolbar } from "@/components/moduli/ModuloBulkToolbar";
 
 export default function ElettricoIndex() {
   const navigate = useNavigate();
+  const companyId = useEffectiveCompanyId();
+  const sel = useTableSelection();
   const { data: progetti = [], isLoading, isError, refetch } = useElettricoProgetti();
   const deleteMut = useDeleteProgetto();
   const cloneMut = useClonaProgetto();
@@ -260,11 +266,26 @@ export default function ElettricoIndex() {
               </div>
             ) : (
               <>
+                <ModuloBulkToolbar
+                  tableName="ele_progetti"
+                  companyId={companyId}
+                  selectedIds={sel.selected}
+                  statoOptions={(Object.keys(ELE_STATI_LABEL) as (keyof typeof ELE_STATI_LABEL)[]).map((k) => ({ value: k as string, label: ELE_STATI_LABEL[k].label }))}
+                  onClear={sel.clear}
+                  onDone={() => { sel.clear(); void refetch(); }}
+                />
                 {/* Desktop tabella */}
                 <div className="hidden md:block overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={progettiFiltrati.length > 0 && progettiFiltrati.every((p) => sel.isSelected(p.id))}
+                            onCheckedChange={() => sel.toggleAll(progettiFiltrati.map((p) => p.id))}
+                            aria-label="Seleziona tutti"
+                          />
+                        </TableHead>
                         <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Codice</TableHead>
                         <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Cliente</TableHead>
                         <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Cantiere</TableHead>
@@ -284,6 +305,13 @@ export default function ElettricoIndex() {
                             className="cursor-pointer hover:bg-orange-50/40 transition-colors"
                             onClick={() => navigate(`/azienda/elettrico/${p.id}/modifica`)}
                           >
+                            <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={sel.isSelected(p.id)}
+                                onCheckedChange={() => sel.toggle(p.id)}
+                                aria-label="Seleziona riga"
+                              />
+                            </TableCell>
                             <TableCell className="font-mono text-xs font-semibold text-orange-600">
                               {p.code ?? "—"}
                             </TableCell>
