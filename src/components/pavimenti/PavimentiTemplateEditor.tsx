@@ -70,6 +70,7 @@ import {
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
+import { FinanziamentoPromoField } from "@/components/preventivi/FinanziamentoPromoField";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -1521,6 +1522,13 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
                   </div>
                   <Switch checked={form.show_margine} onCheckedChange={(v) => set("show_margine", v)} />
                 </label>
+
+              {/* Promo finanziamento nel PDF: legge il jsonb dal template raw e scrive
+                  via set con cast (campo fuori dal FormState tipato di questo editor). */}
+              <FinanziamentoPromoField
+                rawValue={(template as unknown as Record<string, unknown> | null)?.finanziamento_promo}
+                onChange={(v) => (set as unknown as (k: string, val: unknown) => void)("finanziamento_promo", v)}
+              />
               </SectionCard>
               <SectionCard icon={Percent} title="Default economici" description="Valori precompilati sui nuovi preventivi pavimenti.">
                 <div className="grid gap-3 sm:grid-cols-3">

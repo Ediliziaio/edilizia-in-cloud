@@ -1,11 +1,22 @@
 /**
  * Incentivi fiscali edilizi — catalogo preset + calcolo del detraibile con
- * MASSIMALE di spesa. Condiviso tra i verticali (Ristrutturazione, Bagni, Tetti, Climatizzazione, Elettrico, Termoidraulico, Pavimenti, Piscine).
+ * MASSIMALE di spesa. Condiviso tra i verticali (Ristrutturazione, Bagni,
+ * Tetti, Climatizzazione, Elettrico, Termoidraulico, Pavimenti, Piscine).
  *
- * Il detraibile non è semplicemente `imponibile × %`: le detrazioni hanno un
- * tetto di spesa (es. Bonus Casa 50% su max 96.000 €). `calcDetraibile` applica
- * il cap. I valori dei massimali sono indicativi (la normativa cambia ogni anno):
- * NON sostituiscono la valutazione di un fiscalista.
+ * ⚠️ QUADRO 2026 (aggiornato 2026-07): le vecchie aliquote separate NON
+ * esistono più — niente Ecobonus 65%, niente Sismabonus 70/80/85%, il Bonus
+ * Barriere 75% è scaduto a fine 2025 senza proroga. Bonus casa ed ecobonus
+ * sono UNIFICATI: 50% ABITAZIONE PRINCIPALE / 36% altre abitazioni, tetto di
+ * spesa 96.000 € per unità immobiliare (dal 2027 previsto scalino 36%/30%).
+ * Le caldaie a combustibili fossili sono ESCLUSE dalla detrazione dal 2025.
+ *
+ * REGOLA: quando cambia la finanziaria si aggiorna QUESTO file e tutti i
+ * moduli seguono. Mai ri-hardcodare aliquote negli StepEconomia (Tetti lo
+ * faceva con un array locale al 65%: bonificato).
+ *
+ * Il detraibile non è semplicemente `imponibile × %`: `calcDetraibile`
+ * applica il massimale. I valori restano indicativi: requisiti e capienza
+ * fiscale del cliente vanno verificati con un fiscalista.
  */
 
 export interface Incentivo {
@@ -23,66 +34,81 @@ export interface Incentivo {
 
 const NESSUNO: Incentivo = {
   key: "nessuno",
-  label: "Nessuno",
+  label: "Nessuna",
   pct: 0,
   massimale: null,
-  hint: "Nessuna detrazione fiscale.",
+  hint: "Nessuna detrazione (es. committente impresa, immobile non agevolabile).",
 };
 
-/** Preset per ristrutturazioni generiche (il set più ricco). */
+/** Coppia base 2026, uguale per tutti i lavori edilizi sull'abitazione. */
+const PRIMA_CASA_50 = (hint: string): Incentivo => ({
+  key: "prima_casa_50",
+  label: "Prima casa 50%",
+  pct: 50,
+  massimale: 96000,
+  hint,
+});
+const ALTRE_36 = (hint: string): Incentivo => ({
+  key: "altre_abitazioni_36",
+  label: "Altre abitazioni 36%",
+  pct: 36,
+  massimale: 96000,
+  hint,
+});
+
+/** Preset per ristrutturazioni generiche. */
 export const INCENTIVI_RISTRUTTURAZIONE: readonly Incentivo[] = [
-  { key: "bonus_casa", label: "Bonus Casa 50%", pct: 50, massimale: 96000, hint: "Ristrutturazione edilizia / manutenzione straordinaria. Tetto di spesa 96.000 € per unità immobiliare." },
-  { key: "ecobonus", label: "Ecobonus 65%", pct: 65, massimale: 60000, hint: "Riqualificazione energetica (cappotto, infissi, caldaia). Massimale variabile per intervento (indic. 60.000 €)." },
-  { key: "sismabonus", label: "Sismabonus 70%", pct: 70, massimale: 96000, hint: "Interventi antisismici. Tetto 96.000 € per unità (aliquote 70/80/85% per classi di rischio)." },
-  { key: "barriere", label: "Bonus Barriere 75%", pct: 75, massimale: 50000, hint: "Abbattimento barriere architettoniche. Tetto 50.000 € (edifici unifamiliari)." },
+  PRIMA_CASA_50("Ristrutturazione dell'abitazione principale — aliquota 2026, tetto 96.000 € per unità."),
+  ALTRE_36("Ristrutturazione di abitazioni diverse dalla principale — aliquota 2026, tetto 96.000 €."),
   NESSUNO,
 ];
 
-/** Preset per i bagni: ristrutturazione + barriere (vasca→doccia/accessibilità). */
+/** Preset per i bagni (il 75% barriere è scaduto a fine 2025: si applica l'ordinario). */
 export const INCENTIVI_BAGNI: readonly Incentivo[] = [
-  { key: "bonus_casa", label: "Bonus Casa 50%", pct: 50, massimale: 96000, hint: "Rifacimento bagno come manutenzione straordinaria. Tetto 96.000 € per unità." },
-  { key: "barriere", label: "Bonus Barriere 75%", pct: 75, massimale: 50000, hint: "Bagno accessibile / vasca→doccia: abbattimento barriere. Tetto 50.000 €." },
+  PRIMA_CASA_50("Rifacimento bagno come manutenzione straordinaria sull'abitazione principale."),
+  ALTRE_36("Rifacimento bagno su abitazione diversa dalla principale."),
   NESSUNO,
 ];
 
-/** Preset per le coperture/tetti: efficientamento + ristrutturazione. */
+/** Preset per le coperture/tetti (coibentazione inclusa: aliquote unificate 2026). */
 export const INCENTIVI_TETTI: readonly Incentivo[] = [
-  { key: "ecobonus", label: "Ecobonus 65%", pct: 65, massimale: 60000, hint: "Coibentazione/isolamento della copertura (riqualificazione energetica)." },
-  { key: "bonus_casa", label: "Bonus Casa 50%", pct: 50, massimale: 96000, hint: "Rifacimento tetto come manutenzione straordinaria. Tetto 96.000 €." },
+  PRIMA_CASA_50("Rifacimento/coibentazione del tetto sull'abitazione principale."),
+  ALTRE_36("Rifacimento/coibentazione su abitazione diversa dalla principale."),
   NESSUNO,
 ];
 
-/** Preset per la climatizzazione: efficientamento energetico (pompe di calore / clima efficiente). */
+/** Preset climatizzazione (pompe di calore incluse nelle aliquote unificate). */
 export const INCENTIVI_CLIMATIZZAZIONE: readonly Incentivo[] = [
-  { key: "ecobonus", label: "Ecobonus 65%", pct: 65, massimale: 46154, hint: "Climatizzatori / pompe di calore ad alta efficienza in sostituzione dell'impianto. Tetto di spesa indic. 46.154 €." },
-  { key: "bonus_casa", label: "Bonus Casa 50%", pct: 50, massimale: 96000, hint: "Nuovo impianto di climatizzazione nell'ambito di una ristrutturazione edilizia. Tetto 96.000 €." },
+  PRIMA_CASA_50("Clima/pompa di calore nell'ambito di lavori sull'abitazione principale."),
+  ALTRE_36("Clima/pompa di calore su abitazione diversa dalla principale."),
   NESSUNO,
 ];
 
-/** Preset per gli impianti elettrici: ristrutturazione + domotica/building automation. */
+/** Preset impianti elettrici. */
 export const INCENTIVI_ELETTRICO: readonly Incentivo[] = [
-  { key: "bonus_casa", label: "Bonus Casa 50%", pct: 50, massimale: 96000, hint: "Rifacimento/adeguamento impianto elettrico come manutenzione straordinaria. Tetto 96.000 € per unità." },
-  { key: "ecobonus", label: "Ecobonus 65%", pct: 65, massimale: 15000, hint: "Building automation / domotica per la gestione efficiente di riscaldamento, climatizzazione e produzione ACS." },
+  PRIMA_CASA_50("Rifacimento/adeguamento impianto elettrico sull'abitazione principale."),
+  ALTRE_36("Impianto elettrico su abitazione diversa dalla principale."),
   NESSUNO,
 ];
 
-/** Preset per il termoidraulico: efficientamento generatore + ristrutturazione. */
+/** Preset termoidraulico — ATTENZIONE: caldaie a combustibili fossili ESCLUSE dal 2025. */
 export const INCENTIVI_TERMOIDRAULICO: readonly Incentivo[] = [
-  { key: "ecobonus", label: "Ecobonus 65%", pct: 65, massimale: 30000, hint: "Sostituzione del generatore con caldaia a condensazione o pompa di calore ad alta efficienza." },
-  { key: "bonus_casa", label: "Bonus Casa 50%", pct: 50, massimale: 96000, hint: "Rifacimento impianto termoidraulico come manutenzione straordinaria. Tetto 96.000 € per unità." },
+  PRIMA_CASA_50("Pompa di calore / impianto idrico sull'abitazione principale. Caldaie a gas: NON detraibili dal 2025."),
+  ALTRE_36("Su abitazione diversa dalla principale. Caldaie a gas: NON detraibili dal 2025."),
   NESSUNO,
 ];
 
-/** Preset per pavimenti & resine: ristrutturazione edilizia. */
+/** Preset pavimenti & resine. */
 export const INCENTIVI_PAVIMENTI: readonly Incentivo[] = [
-  { key: "bonus_casa", label: "Bonus Casa 50%", pct: 50, massimale: 96000, hint: "Rifacimento pavimenti nell'ambito di una manutenzione straordinaria / ristrutturazione. Tetto 96.000 € per unità." },
+  PRIMA_CASA_50("Rifacimento pavimenti nell'ambito di manutenzione straordinaria sull'abitazione principale."),
+  ALTRE_36("Pavimenti su abitazione diversa dalla principale."),
   NESSUNO,
 ];
 
-/** Preset per le piscine: agevolazioni limitate — la piscina in sé NON accede ai bonus edilizi. */
+/** Preset piscine: la piscina in sé NON accede ai bonus edilizi. */
 export const INCENTIVI_PISCINE: readonly Incentivo[] = [
-  { key: "ecobonus", label: "Ecobonus 65% (solo PdC)", pct: 65, massimale: 30000, hint: "Limitato alla sola pompa di calore per il riscaldamento dell'acqua. La realizzazione della piscina non è agevolata." },
   NESSUNO,
+  PRIMA_CASA_50("SOLO se la piscina rientra in una ristrutturazione più ampia dell'abitazione principale — caso raro, da verificare col fiscalista."),
 ];
 
 /**

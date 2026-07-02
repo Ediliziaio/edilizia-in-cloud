@@ -44,12 +44,9 @@ const toPct = (raw: string): number => {
   return Math.min(100, Math.max(0, v));
 };
 
-/** Preset incentivi tipici per le coperture (impostano la % di detrazione con un click). */
-const INCENTIVI_PRESET = [
-  { label: "Ecobonus 65%", pct: 65, hint: "Coibentazione/isolamento termico della copertura (riqualificazione energetica)." },
-  { label: "Bonus Casa 50%", pct: 50, hint: "Rifacimento tetto come manutenzione straordinaria (ristrutturazione edilizia)." },
-  { label: "Nessuno", pct: 0, hint: "Nessuna detrazione." },
-] as const;
+// Preset incentivi: fonte unica condivisa (quadro 2026 — l'array locale con
+// l'Ecobonus 65% era rimasto alle aliquote pre-riforma).
+import { INCENTIVI_TETTI as INCENTIVI_PRESET } from "@/lib/preventivi/incentivi";
 
 export default function StepEconomia({ form, onChange, computo }: Props) {
   const scontoPct = Number(form.sconto_pct ?? 0);
@@ -192,7 +189,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                     const active = Number(form.detrazione_pct ?? 0) === p.pct;
                     return (
                       <button
-                        key={p.label}
+                        key={p.key}
                         type="button"
                         title={p.hint}
                         onClick={() => onChange("detrazione_pct", p.pct)}

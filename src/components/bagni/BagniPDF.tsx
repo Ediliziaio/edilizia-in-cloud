@@ -31,6 +31,7 @@ import type { BgnPdfEnriched, BgnPdfCapitolo, BgnPdfTotali } from "@/hooks/useBa
 import type { BgnProgetto, BgnTemplatePdf } from "@/types/bagni";
 import { htmlToRichBlocks, type BgnRichRun } from "@/lib/bagni/richTextPdf";
 import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderTemplateText";
+import { parseFinanziamentoPromo, calcolaRataMensile } from "@/lib/preventivi/finanziamentoLite";
 
 // ─── Rich text → @react-pdf ──────────────────────────────────────────────────
 // Impagina l'HTML prodotto dall'editor WYSIWYG (o il testo semplice "legacy") in
@@ -575,8 +576,10 @@ function formatQty(q: number): string {
 }
 
 // ─── Riepilogo economico ─────────────────────────────────────────────────────
-function TotalsBlock({ styles, totali, detrazioneText, showMargine }: {
+function TotalsBlock({ styles, totali, detrazioneText, showMargine, promo, pc }: {
   styles: Styles; totali: BgnPdfTotali; detrazioneText: string | null; showMargine: boolean;
+  promo: ReturnType<typeof parseFinanziamentoPromo>;
+  pc: { primary: string; secondary: string; border: string; text: string };
 }) {
   return (
     <View>
@@ -604,6 +607,24 @@ function TotalsBlock({ styles, totali, detrazioneText, showMargine }: {
           <Text style={styles.totalsGrandValue}>{formatCurrency(totali.totale)}</Text>
         </View>
       </View>
+
+      {/* Finanziamento promo (template-driven): "da €X/mese" — leva di chiusura.
+          Simulazione indicativa, non offerta vincolante (footnote). */}
+      {promo && (() => {
+        const rata = calcolaRataMensile(totali.totale, promo.rate, promo.tan_pct);
+        if (rata <= 0) return null;
+        return (
+          <View style={{ marginTop: 8, borderWidth: 1, borderColor: pc.border, borderRadius: 6, padding: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={{ fontSize: 10.5, fontWeight: 700, color: pc.primary }}>Possibilità di finanziamento</Text>
+              <Text style={{ fontSize: 7.5, color: pc.text, opacity: 0.7, marginTop: 2 }}>
+                Simulazione indicativa in {promo.rate} rate mensili{promo.tan_pct > 0 ? ` (TAN ${promo.tan_pct}%)` : " a tasso zero"} — soggetta ad approvazione della finanziaria.
+              </Text>
+            </View>
+            <Text style={{ fontSize: 15, fontWeight: 700, color: pc.secondary }}>da {formatCurrency(rata)}/mese</Text>
+          </View>
+        );
+      })()}
 
       {totali.detrazionePct > 0 && (
         <View style={styles.detrazioneNote}>
@@ -644,6 +665,12 @@ export function BagniPDF(props: BgnPdfEnriched) {
   const mostraSubtotali = co.mostraSubtotali !== false;
   const importoLordoComputo = capitoli.reduce((s, c) => s + (Number(c.subtotale) || 0), 0);
   const C = makePalette(t);
+  // Promo finanziamento + colori per TotalsBlock: calcolati QUI perche'
+  // generics/cast dentro gli attributi JSX rompono il parse esbuild.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const finanziamentoPromo = parseFinanziamentoPromo((t as any).finanziamento_promo);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const totalsPc = { primary: C.primary, secondary: C.secondary, border: (C as any).primaryBorder ?? C.primary, text: C.text };
   const styles = makeStyles(C);
 
   // Anagrafica risolta: template (builder) → company (profilo) → fallback.
@@ -1046,6 +1073,8 @@ export function BagniPDF(props: BgnPdfEnriched) {
         <View style={{ marginTop: 14 }} wrap={false}>
           <Text style={styles.sectionTitle}>Riepilogo economico</Text>
           <TotalsBlock
+            promo={finanziamentoPromo}
+            pc={totalsPc}
             styles={styles}
             totali={totali}
             detrazioneText={null}
