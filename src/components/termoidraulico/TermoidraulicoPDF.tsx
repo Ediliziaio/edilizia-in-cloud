@@ -513,7 +513,7 @@ function TotalsBlock({ styles, totali, detrazioneText, showMargine }: {
         {totali.scontoPct > 0 && (
           <View style={styles.totalsRow}>
             <Text style={styles.totalsLabel}>Sconto {formatPct(totali.scontoPct)}</Text>
-            <Text style={styles.totalsValueNeg}>− {formatCurrency(totali.scontoEur)}</Text>
+            <Text style={styles.totalsValueNeg}>- {formatCurrency(totali.scontoEur)}</Text>
           </View>
         )}
         <View style={styles.totalsRow}>
@@ -835,11 +835,18 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
             <Svg width={595} height={841} viewBox="0 0 595 841">
               <Defs>
                 <LinearGradient id="idr-cover-grad" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor={cover.bgColor ?? C.coverBg} stopOpacity={0} />
-                  <Stop offset="1" stopColor="#000000" stopOpacity={0.18} />
+                  <Stop offset="0" stopColor={cover.bgColor ?? C.coverBg} stopOpacity={1} />
+                  <Stop offset="0.72" stopColor={cover.bgColor ?? C.coverBg} stopOpacity={1} />
+                  <Stop offset="1" stopColor="#000000" stopOpacity={0.32} />
                 </LinearGradient>
+                {/* Glow del secondario dietro il titolo: profondità senza foto. */}
+                <RadialGradient id="idr-cover-grad-glow" cx="0.24" cy="0.74" r="0.55" fx="0.24" fy="0.74">
+                  <Stop offset="0" stopColor={C.secondary} stopOpacity={0.22} />
+                  <Stop offset="1" stopColor={C.secondary} stopOpacity={0} />
+                </RadialGradient>
               </Defs>
               <Rect x={0} y={0} width={595} height={841} fill="url(#idr-cover-grad)" />
+              <Rect x={0} y={0} width={595} height={841} fill="url(#idr-cover-grad-glow)" />
             </Svg>
           </View>
         )}
@@ -857,10 +864,13 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
               {coverLogoUrl ? (
                 <Image src={coverLogoUrl} style={[styles.coverLogo, { maxWidth: 180 * cover.logoScale, height: 52 * cover.logoScale }]} />
               ) : (
-                <View style={styles.coverLogoCircle}>
-                  <Text style={{ color: C.white, fontSize: 24, fontWeight: 700 }}>
-                    {companyName.charAt(0).toUpperCase()}
+                <View>
+                  {/* Wordmark: il cerchio con la sola iniziale era anonimo come
+                      prima impressione — meglio il nome azienda per esteso. */}
+                  <Text style={{ color: coverTextColor, fontSize: 15, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>
+                    {companyName}
                   </Text>
+                  <View style={{ marginTop: 4, width: 34, height: 3, backgroundColor: C.secondary, borderRadius: 2 }} />
                 </View>
               )}
             </View>
@@ -928,17 +938,22 @@ export function TermoidraulicoPDF(props: IdrPdfEnriched) {
             </View>
           )}
 
-          {esigenze.some((e) => (e.titolo ?? "").trim()) && (
-            <View style={{ marginTop: 14 }}>
-              <Text style={styles.sectionTitle}>Le tue esigenze</Text>
-              <BulletList styles={styles} items={esigenze} />
-            </View>
-          )}
-
-          {soluzione.some((s) => (s.titolo ?? "").trim()) && (
-            <View style={{ marginTop: 14 }}>
-              <Text style={styles.sectionTitle}>La nostra soluzione</Text>
-              <BulletList styles={styles} items={soluzione} />
+          {/* Esigenze ↔ Soluzione affiancate: sono una coppia concettuale e la
+              colonna doppia spezza la monotonia della pagina di presentazione. */}
+          {(esigenze.some((e) => (e.titolo ?? "").trim()) || soluzione.some((s) => (s.titolo ?? "").trim())) && (
+            <View style={{ marginTop: 14, flexDirection: "row", gap: 16 }}>
+              {esigenze.some((e) => (e.titolo ?? "").trim()) && (
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>Le tue esigenze</Text>
+                  <BulletList styles={styles} items={esigenze} />
+                </View>
+              )}
+              {soluzione.some((s) => (s.titolo ?? "").trim()) && (
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>La nostra soluzione</Text>
+                  <BulletList styles={styles} items={soluzione} />
+                </View>
+              )}
             </View>
           )}
 

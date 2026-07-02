@@ -90,6 +90,25 @@ export function ChiusuraVendita({ c, companyName, validityText, ctaTitolo }: Chi
       textTransform: "uppercase" as const,
       letterSpacing: 0.4,
     },
+    stepsRow: { flexDirection: "row" as const, marginBottom: 10 },
+    stepCol: {
+      flex: 1,
+      marginRight: 8,
+      borderWidth: 1,
+      borderColor: hexTint(c.primary, 0.8),
+      borderRadius: 6,
+      padding: 8,
+      backgroundColor: hexTint(c.primary, 0.96),
+    },
+    stepBadge: {
+      width: 16, height: 16, borderRadius: 8,
+      backgroundColor: c.primary,
+      alignItems: "center" as const, justifyContent: "center" as const,
+      marginBottom: 4,
+    },
+    stepBadgeText: { fontSize: 8.5, fontWeight: 700 as const, color: c.white },
+    stepTitle: { fontSize: 9.5, fontWeight: 700 as const, color: c.primary, marginBottom: 2 },
+    stepText: { fontSize: 8, color: hexTint(c.text, 0.15), lineHeight: 1.35 },
   });
 
   // validityText è testo LIBERO dell'editor (spesso una frase completa tipo
@@ -127,6 +146,25 @@ export function ChiusuraVendita({ c, companyName, validityText, ctaTitolo }: Chi
           {validitaFrase} I prezzi dei materiali e gli incentivi
           fiscali possono variare nel tempo: confermando ora blocchi le condizioni di oggi.
         </Text>
+      </View>
+
+      {/* I prossimi passi: la pagina di chiusura restava vuota all'80% e la
+          firma "sospesa" — la strip a 3 step dà orientamento e riempie con
+          contenuto utile, non decorativo. */}
+      <View style={s.stepsRow} wrap={false}>
+        {[
+          { n: "1", t: "Conferma", d: "Firma questo preventivo o rispondici anche solo via messaggio." },
+          { n: "2", t: "Sopralluogo", d: "Fissiamo il rilievo tecnico e definiamo insieme i dettagli." },
+          { n: "3", t: "Partenza lavori", d: "Concordiamo la data di inizio e il cronoprogramma definitivo." },
+        ].map((step, i) => (
+          <View key={i} style={[s.stepCol, i === 2 ? { marginRight: 0 } : {}]}>
+            <View style={s.stepBadge}>
+              <Text style={s.stepBadgeText}>{step.n}</Text>
+            </View>
+            <Text style={s.stepTitle}>{step.t}</Text>
+            <Text style={s.stepText}>{step.d}</Text>
+          </View>
+        ))}
       </View>
 
       <View style={s.ctaBox} wrap={false}>
