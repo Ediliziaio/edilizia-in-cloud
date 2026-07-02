@@ -17,6 +17,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
+import { requireCompanyAccess } from "../_shared/auth.ts";
 import { chat, InsufficientCreditsError } from "../_shared/ai-provider/index.ts";
 
 interface AdsBotChatRequest {
@@ -74,20 +75,19 @@ Deno.serve(async (req) => {
       return json({ error: "missing_required_fields" }, 400, corsHeaders);
     }
 
-    // AUTHZ
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("company_id, full_name")
-      .eq("id", user.id)
-      .maybeSingle();
-    const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", user.id);
-    const isSA = (roles ?? []).some((r) => r.role === "super_admin");
-    if (!isSA && profile?.company_id !== body.company_id) {
+    // AUTHZ — requireCompanyAccess gestisce anche gli utenti MULTI-AZIENDA
+    // (multi_company_access): il vecchio check su profiles.company_id
+    // bloccava con 403 chi lavorava sull'azienda non-primaria.
+    try {
+      await requireCompanyAccess(admin, user.id, body.company_id, corsHeaders);
+    } catch (resp) {
+      if (resp instanceof Response) return resp;
       return json({ error: "forbidden" }, 403, corsHeaders);
     }
 
-    // CONTEXT BUILDING — informazioni sull'azienda
-    const [companyRes, campaignsRes] = await Promise.all([
+    // CONTEXT BUILDING — informazioni sull'azienda + PERFORMANCE reali (7gg)
+    const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    const [companyRes, campaignsRes, insightsRes, guardRes] = await Promise.all([
       admin.from("companies").select("name, settore").eq("id", body.company_id).maybeSingle(),
       admin
         .from("meta_campaigns")
@@ -96,6 +96,18 @@ Deno.serve(async (req) => {
         .neq("status", "archived")
         .order("updated_at", { ascending: false })
         .limit(10),
+      admin
+        .from("meta_insights_cache")
+        .select("campaign_id, spend_cents, impressions, clicks, leads")
+        .eq("company_id", body.company_id)
+        .gte("date_start", sevenDaysAgo)
+        .not("campaign_id", "is", null)
+        .limit(500),
+      admin
+        .from("ad_spend_guard")
+        .select("id")
+        .eq("company_id", body.company_id)
+        .limit(1),
     ]);
 
     const companyName = companyRes.data?.name ?? "l'azienda";
@@ -104,6 +116,35 @@ Deno.serve(async (req) => {
     const draftsCount = allCampaigns.filter((c) => c.status === "draft").length;
     const activeCount = allCampaigns.filter((c) => c.status === "active").length;
     const reviewCount = allCampaigns.filter((c) => c.status === "review").length;
+
+    // Performance ultimi 7 giorni per campagna (spesa, lead, CPL, CTR) dalla
+    // insights cache — così il bot ragiona su NUMERI reali, non a sensazione.
+    const perf = new Map<string, { spend: number; imp: number; clicks: number; leads: number }>();
+    for (const r of insightsRes.data ?? []) {
+      const k = r.campaign_id as string;
+      const p = perf.get(k) ?? { spend: 0, imp: 0, clicks: 0, leads: 0 };
+      p.spend += r.spend_cents ?? 0;
+      p.imp += r.impressions ?? 0;
+      p.clicks += r.clicks ?? 0;
+      p.leads += r.leads ?? 0;
+      perf.set(k, p);
+    }
+    let performanceContext = "";
+    if (perf.size > 0) {
+      const lines: string[] = [];
+      for (const [cid, p] of perf) {
+        const name = allCampaigns.find((c) => c.id === cid)?.name ?? cid.slice(0, 8);
+        const eur = (p.spend / 100).toFixed(0);
+        const ctr = p.imp > 0 ? ((p.clicks / p.imp) * 100).toFixed(1) : "0";
+        const cpl = p.leads > 0 ? (p.spend / 100 / p.leads).toFixed(0) : "—";
+        lines.push(`- ${name}: €${eur} spesi · ${p.imp} impression · CTR ${ctr}% · ${p.leads} lead · CPL €${cpl}`);
+      }
+      performanceContext = `\n\n## PERFORMANCE ULTIMI 7 GIORNI (dati reali)\n${lines.slice(0, 10).join("\n")}\nUSA questi numeri quando l'utente chiede di performance, CPL o ottimizzazioni.`;
+    }
+    const hasSpendGuard = (guardRes.data ?? []).length > 0;
+    const guardContext = hasSpendGuard
+      ? ""
+      : "\n\nNOTA: l'azienda NON ha una guardia spesa (ad_spend_guard) configurata — se parlate di budget, suggerisci di attivarla dalle impostazioni Pubblicità.";
 
     let selectedCampaignInfo = "";
     if (body.context?.selected_campaign_id) {
@@ -141,7 +182,7 @@ Settore azienda: ${settore}.
 - Bozze locali: ${draftsCount}
 - Campagne attive: ${activeCount}
 - In attesa approvazione: ${reviewCount}
-- Campagne totali: ${allCampaigns.length}${selectedCampaignInfo}${wizardContext}${platformContext}
+- Campagne totali: ${allCampaigns.length}${selectedCampaignInfo}${wizardContext}${platformContext}${performanceContext}${guardContext}
 
 ## REGOLE OBBLIGATORIE
 - Italiano professionale ma diretto, non gergale
@@ -160,7 +201,7 @@ Settore azienda: ${settore}.
 
 ## OUTPUT JSON
 {
-  "reply": "testo risposta (max 400 caratteri)",
+  "reply": "testo risposta (max 700 caratteri)",
   "suggestions": ["domanda follow-up 1", "..."],  // 0-3 elementi
   "actions": [{"label": "...", "type": "open_wizard|open_settings|open_help"}]  // 0-2 elementi
 }
@@ -181,10 +222,12 @@ NIENTE altro fuori dal JSON.`;
     try {
       aiResp = await chat({
         company_id: body.company_id,
-        task_kind: "chat_routine",
+        // Task dedicato (ai_router_config): primary claude-sonnet-4.5 — stesso
+        // tier premium di Silvio. Prima era chat_routine → gpt-4o-mini.
+        task_kind: "ads_bot_chat",
         messages,
         temperature: 0.6,
-        max_tokens: 800,
+        max_tokens: 1200,
         json_mode: true,
       });
     } catch (e) {

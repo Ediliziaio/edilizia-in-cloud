@@ -33,9 +33,12 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const admin = createClient(supabaseUrl, serviceKey);
 
-  // Auth: service_role only (chiamata cron)
+  // Auth: service_role oppure x-cron-secret (stesso pattern degli altri cron
+  // meta-*: il job pg_cron invia l'header col CRON_SECRET).
   const authHeader = req.headers.get("Authorization");
-  if (authHeader !== `Bearer ${serviceKey}`) {
+  const cronSecret = Deno.env.get("CRON_SECRET");
+  const viaCron = !!cronSecret && req.headers.get("x-cron-secret") === cronSecret;
+  if (!viaCron && authHeader !== `Bearer ${serviceKey}`) {
     return json({ error: "service_role_required" }, 401, corsHeaders);
   }
 

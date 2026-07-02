@@ -170,6 +170,14 @@ verify_jwt = false
 [functions.meta-health-check]
 verify_jwt = false
 
+# Worker cron ads (insights 4h / guardia spesa oraria): auth in-code via
+# x-cron-secret == CRON_SECRET oppure service_role oppure JWT company_admin.
+[functions.meta-ads-sync-insights]
+verify_jwt = false
+
+[functions.meta-ads-spend-check]
+verify_jwt = false
+
 [functions.suggest-calendars]
 verify_jwt = false
 

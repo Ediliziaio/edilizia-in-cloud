@@ -46,9 +46,12 @@ Deno.serve(async (req) => {
   const admin = createClient(supabaseUrl, serviceKey);
 
   try {
-    // Auth: service_role o bearer user con company_admin
+    // Auth: service_role, x-cron-secret (pg_cron, come gli altri worker meta-*)
+    // o bearer user con company_admin
     const authHeader = req.headers.get("Authorization");
-    const isServiceRole = authHeader === `Bearer ${serviceKey}`;
+    const cronSecret = Deno.env.get("CRON_SECRET");
+    const viaCron = !!cronSecret && req.headers.get("x-cron-secret") === cronSecret;
+    const isServiceRole = viaCron || authHeader === `Bearer ${serviceKey}`;
     let userCompanyId: string | undefined;
 
     if (!isServiceRole) {
@@ -79,25 +82,42 @@ Deno.serve(async (req) => {
 
     const filterCompanyId = isServiceRole ? body.company_id : (userCompanyId ?? body.company_id);
 
-    const query = admin
+    // FIX COLLEGAMENTO: la vecchia query usava l'embed `integrations!inner(access_token_encrypted)`
+    // ma (1) non esiste una FK meta_ad_accounts→integrations (PostgREST: "Could not find a
+    // relationship") e (2) il token NON sta su `integrations` bensì su `integration_credentials`
+    // (stessa fonte di meta-api-proxy). Risultato: il sync cron-wide non era MAI partito.
+    const accountsQuery = admin
       .from("meta_ad_accounts")
-      .select("id, company_id, integration_id, ad_account_id, integrations!inner(access_token_encrypted, status)")
-      .eq("integrations.status", "connected");
-    if (filterCompanyId) query.eq("company_id", filterCompanyId);
-
-    const { data: accounts, error: accountsErr } = await query;
+      .select("id, company_id, integration_id, ad_account_id");
+    if (filterCompanyId) accountsQuery.eq("company_id", filterCompanyId);
+    const { data: accounts, error: accountsErr } = await accountsQuery;
     if (accountsErr) {
       return json({ error: "accounts_fetch_failed", detail: String(accountsErr.message) }, 500, corsHeaders);
     }
 
-    // deno-lint-ignore no-explicit-any
-    companies = (accounts ?? []).map((a: any) => ({
-      company_id: a.company_id,
-      integration_id: a.integration_id,
-      ad_account_id: a.id,
-      meta_act_id: a.ad_account_id.startsWith("act_") ? a.ad_account_id : `act_${a.ad_account_id}`,
-      token_encrypted: a.integrations.access_token_encrypted,
-    }));
+    const integrationIds = [...new Set((accounts ?? []).map((a) => a.integration_id).filter(Boolean))];
+    const [integrationsRes, credsRes] = await Promise.all([
+      integrationIds.length
+        ? admin.from("integrations").select("id, status").in("id", integrationIds).eq("status", "connected")
+        : Promise.resolve({ data: [] as { id: string; status: string }[] }),
+      integrationIds.length
+        ? admin.from("integration_credentials").select("integration_id, access_token_encrypted").in("integration_id", integrationIds)
+        : Promise.resolve({ data: [] as { integration_id: string; access_token_encrypted: string }[] }),
+    ]);
+    const connected = new Set((integrationsRes.data ?? []).map((i) => i.id));
+    const tokenByIntegration = new Map(
+      (credsRes.data ?? []).map((c) => [c.integration_id, c.access_token_encrypted]),
+    );
+
+    companies = (accounts ?? [])
+      .filter((a) => connected.has(a.integration_id) && tokenByIntegration.get(a.integration_id))
+      .map((a) => ({
+        company_id: a.company_id,
+        integration_id: a.integration_id,
+        ad_account_id: a.id,
+        meta_act_id: a.ad_account_id.startsWith("act_") ? a.ad_account_id : `act_${a.ad_account_id}`,
+        token_encrypted: tokenByIntegration.get(a.integration_id)!,
+      }));
 
     const encKey = await getEncryptionKey();
     const errors: string[] = [];
