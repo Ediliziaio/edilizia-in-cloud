@@ -57,7 +57,9 @@ export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
         .filter(g => g.templates.length > 0)
     : [{ label: '', emoji: '', templates: filtered }];
 
-  const handleUseTemplate = async (template: FlowTemplate) => {
+  // publish=true → "Attiva subito": il flusso nasce già PUBLISHED e operativo
+  // (solo per template prontoAllUso, completi senza campi da scegliere).
+  const handleUseTemplate = async (template: FlowTemplate, publish = false) => {
     if (!companyId || !user?.id) {
       toast.error("Devi essere autenticato per usare un template");
       return;
@@ -75,7 +77,7 @@ export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
         .insert({
           name: template.nome,
           company_id: companyId,
-          status: "draft",
+          status: publish ? "published" : "draft",
           description: template.descrizione,
           created_by: user.id,
           config_json: { template_id: template.id, template_icona: template.icona },
@@ -135,7 +137,13 @@ export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
       void queryClient.invalidateQueries({ queryKey: ["automation-node-summaries"] });
       void queryClient.invalidateQueries({ queryKey: ["automation-enrollment-counts"] });
 
-      toast.success(`Template "${template.nome}" creato! Apro il builder...`);
+      if (publish) {
+        toast.success(`"${template.nome}" ATTIVA e già operativa`, {
+          description: "Il flusso è pubblicato: scatterà al prossimo evento. Puoi personalizzarlo nel builder.",
+        });
+      } else {
+        toast.success(`Template "${template.nome}" creato! Apro il builder...`);
+      }
       navigate(`${routePrefix}/automazioni/${flowId}`);
     } catch (err: any) {
       console.error("Errore attivazione template:", err);
@@ -242,18 +250,36 @@ export function AutomazioniTemplateGallery({ categoriaFiltro }: Props) {
                         {diff.label}
                       </span>
                     </div>
-                    <Button
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => handleUseTemplate(template)}
-                      disabled={isActivating}
-                    >
-                      {isActivating ? (
-                        <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />Creazione...</>
-                      ) : (
-                        <><Zap className="w-3.5 h-3.5 mr-1" />Usa template</>
+                    <div className="flex gap-1.5">
+                      {template.prontoAllUso && (
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
+                          onClick={() => handleUseTemplate(template, true)}
+                          disabled={isActivating}
+                          title="Completo così com'è: lo pubblica subito, operativo dal prossimo evento"
+                        >
+                          {isActivating ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <><Zap className="w-3.5 h-3.5 mr-1" />Attiva subito</>
+                          )}
+                        </Button>
                       )}
-                    </Button>
+                      <Button
+                        size="sm"
+                        variant={template.prontoAllUso ? "outline" : "default"}
+                        className="h-7 text-xs"
+                        onClick={() => handleUseTemplate(template)}
+                        disabled={isActivating}
+                      >
+                        {isActivating ? (
+                          <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />Creazione...</>
+                        ) : (
+                          <>{!template.prontoAllUso && <Zap className="w-3.5 h-3.5 mr-1" />}Personalizza</>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               );

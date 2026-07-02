@@ -27,6 +27,10 @@ export interface FlowTemplate {
   triggerTipo: string;
   nodes: FlowTemplateNode[];
   connections: FlowTemplateConnection[];
+  /** True SOLO se il template è completo così com'è (nessun campo da scegliere,
+   *  es. agente/pipeline): la galleria mostra "Attiva subito" che lo pubblica
+   *  direttamente senza passare dal builder. */
+  prontoAllUso?: boolean;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -61,6 +65,7 @@ const T02: FlowTemplate = {
   descrizione: 'Alla creazione di qualsiasi nuovo contatto: invia email di benvenuto personalizzata e crea task di follow-up per l\'agente assegnato.',
   icona: '👤',
   difficolta: 'base',
+  prontoAllUso: true,
   triggerTipo: 'contatto_creato',
   nodes: [
     { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50, configJson: { trigger_type: 'contatto_creato' }, label: 'Nuovo contatto' },
@@ -1022,6 +1027,7 @@ const T45: FlowTemplate = {
   descrizione: 'Costo > €500 registrato → notifica in-app all\'admin → crea task di approvazione con scadenza 24h.',
   icona: '💸',
   difficolta: 'base',
+  prontoAllUso: true,
   triggerTipo: 'costo_registrato',
   nodes: [
     { id: 'trigger-1', nodeType: 'trigger', posX: 250, posY: 50,  configJson: { trigger_type: 'costo_registrato', importo_minimo: 500 }, label: 'Costo > €500 registrato' },

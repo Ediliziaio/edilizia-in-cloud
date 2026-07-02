@@ -1669,6 +1669,28 @@ export const ACTION_CATALOG: ActionDefinition[] = [
     configSchema: [],
   },
   {
+    id: 'wait_for_event',
+    label: 'Aspetta evento / risposta',
+    description: 'Mette in pausa il flusso finché il contatto non compie un\'azione (es. apre l\'email, risponde su WhatsApp) o scade il tempo massimo. Poi il flusso prosegue dal nodo successivo. Es: email → aspetta apertura 3 giorni → WhatsApp di follow-up.',
+    icon: 'Hourglass',
+    categoria: 'logica',
+    configSchema: [
+      { id: 'await_event', label: 'Evento da attendere', type: 'select', required: true, options: [
+        { value: 'email_opened', label: 'Email aperta' },
+        { value: 'email_clicked', label: 'Link email cliccato' },
+        { value: 'whatsapp_message_received', label: 'Risposta WhatsApp ricevuta' },
+        { value: 'appointment_booked', label: 'Appuntamento prenotato' },
+        { value: 'quote_accepted', label: 'Preventivo accettato' },
+        { value: 'payment_received', label: 'Pagamento ricevuto' },
+        { value: 'opportunity_won', label: 'Opportunità vinta' },
+        { value: 'form_submitted', label: 'Form compilato' },
+        { value: 'contact_updated', label: 'Contatto aggiornato' },
+        { value: 'tag_added', label: 'Tag aggiunto' },
+      ]},
+      { id: 'timeout_days', label: 'Tempo massimo (giorni)', type: 'number', required: false, defaultValue: 7, helpText: 'Se l\'evento non arriva entro N giorni, il flusso prosegue comunque (o si chiude se non ci sono nodi successivi)' },
+    ],
+  },
+  {
     id: 'drip_sequenza',
     label: 'Sequenza Drip',
     description: 'Invia una serie di messaggi a intervalli programmati (drip campaign)',

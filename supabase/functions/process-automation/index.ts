@@ -1910,9 +1910,30 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
       .update({ status: "waiting", updated_at: new Date().toISOString() })
       .eq("id", queueItem.enrollment_id);
 
-    // Create a timeout queue item that will fire on the "timeout" branch
-    for (const conn of nextConns) {
-      if (conn.label === "timeout") {
+    // Crea l'item "waiting" con timeout. Rami: label "timeout" se presente;
+    // FALLBACK sugli archi SENZA label (il builder disegna un solo arco non
+    // etichettato → prima NESSUN item veniva creato e il flusso restava
+    // bloccato in waiting per sempre, anche se l'evento arrivava).
+    const timeoutConns = nextConns.filter((c: AutomationConnection) => c.label === "timeout");
+    const waitConns = timeoutConns.length > 0
+      ? timeoutConns
+      : nextConns.filter((c: AutomationConnection) => !c.label);
+
+    if (waitConns.length === 0) {
+      // Nessuna uscita: attesa "terminale" — su timeout l'iscrizione si chiude.
+      await supabase.from("automation_queue").insert({
+        enrollment_id: queueItem.enrollment_id,
+        flow_id: queueItem.flow_id,
+        company_id: queueItem.company_id,
+        current_node_id: node.id,
+        entity_id: queueItem.entity_id,
+        entity_type: queueItem.entity_type,
+        status: "waiting",
+        execute_at: timeoutAt,
+        context_json: { ...queueItem.context_json, branch: "timeout", terminal_wait: true, await_event: result.awaitEvent, waiting_for: result.awaitEvent, wait_node_id: node.id },
+      });
+    } else {
+      for (const conn of waitConns) {
         await supabase.from("automation_queue").insert({
           enrollment_id: queueItem.enrollment_id,
           flow_id: queueItem.flow_id,
@@ -1922,7 +1943,7 @@ async function queueNextNodes(supabase: any, queueItem: any, node: AutomationNod
           entity_type: queueItem.entity_type,
           status: "waiting",
           execute_at: timeoutAt,
-          context_json: { ...queueItem.context_json, branch: "timeout", await_event: result.awaitEvent, waiting_for: result.awaitEvent, wait_node_id: node.id },
+          context_json: { ...queueItem.context_json, branch: conn.label || "timeout", await_event: result.awaitEvent, waiting_for: result.awaitEvent, wait_node_id: node.id },
         });
       }
     }
@@ -2076,7 +2097,13 @@ async function resolveWaitingEnrollments(supabase: any, evt: any) {
       // Get the action node that created this wait - we need the parent node
       const parentNodeId = item.context_json?.wait_node_id;
       if (parentNodeId) {
-        const eventConns = connections.filter((c: any) => c.from_node_id === parentNodeId && c.label === "event");
+        // Ramo "event" se etichettato; FALLBACK sugli archi senza label
+        // (il builder disegna un solo arco non etichettato → l'evento
+        // riprende il flusso dal nodo successivo).
+        let eventConns = connections.filter((c: any) => c.from_node_id === parentNodeId && c.label === "event");
+        if (eventConns.length === 0) {
+          eventConns = connections.filter((c: any) => c.from_node_id === parentNodeId && !c.label);
+        }
         for (const conn of eventConns) {
           await supabase.from("automation_queue").insert({
             enrollment_id: item.enrollment_id,
@@ -2117,6 +2144,16 @@ async function processWaitingTimeouts(supabase: any) {
       .from("automation_queue")
       .update({ status: "completed", updated_at: now })
       .eq("id", item.id);
+
+    // Attesa "terminale" (nodo wait senza uscite): il timeout chiude
+    // l'iscrizione, senza ri-eseguire il nodo di attesa (loop infinito).
+    if (item.context_json?.terminal_wait) {
+      await supabase
+        .from("automation_enrollments")
+        .update({ status: "completed", updated_at: now })
+        .eq("id", item.enrollment_id);
+      continue;
+    }
 
     // Reactivate enrollment
     await supabase
