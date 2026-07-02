@@ -1,13 +1,11 @@
 /**
- * AdminHeroHeader — header riusabile per pagine admin in stile "Commesse"
- * (vedi /azienda/ordini): icona arancio, titolo grande, sottotitolo,
- * azioni allineate a destra.
+ * AdminHeroHeader — header riusabile per le pagine admin, stesso linguaggio del
+ * Cruscotto Aziendale (brand): fascia navy #173b67, icona in box gradient
+ * arancione→ambra, titolo grande, sottotitolo, azioni a destra.
  *
- * Coerenza UX cross-pagina:
- *   - Stesso aspetto visivo del hero in CompanyHeader/Commesse → l'utente
- *     impara la shell una volta e la riconosce ovunque.
- *   - Icona in box gradient arancio (brand accent) su sfondo bianco.
- *   - Actions a destra: wrap su mobile, all'orizzontale su desktop.
+ * Coerenza UX cross-pagina: l'utente impara la shell una volta e la riconosce
+ * ovunque (Aziende, Fatturato, Operazioni, CS, AI, …). I bottoni delle actions
+ * hanno sfondo proprio (outline chiaro / primary) → restano leggibili su navy.
  */
 import type { LucideIcon } from "lucide-react";
 
@@ -29,7 +27,7 @@ export function AdminHeroHeader({
   inlineBadge,
 }: AdminHeroHeaderProps) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-[#173b67] p-4 text-white shadow-sm dark:border-slate-800 md:p-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
         <div className="flex items-start gap-3 min-w-0">
           <div
@@ -40,11 +38,11 @@ export function AdminHeroHeader({
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-bold tracking-tight text-slate-900 md:text-xl">{title}</h1>
+              <h1 className="text-lg font-bold tracking-tight text-white md:text-xl">{title}</h1>
               {inlineBadge}
             </div>
             {subtitle ? (
-              <p className="mt-1 text-sm leading-5 text-slate-500">{subtitle}</p>
+              <p className="mt-1 text-sm leading-5 text-blue-50/80">{subtitle}</p>
             ) : null}
           </div>
         </div>

@@ -27,6 +27,7 @@ import { OutreachOverdueFollowups } from "@/components/admin/outreach/OutreachOv
 import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BrandPageHeader } from "@/components/admin/BrandPageHeader";
 import {
   Loader2, LayoutDashboard, Flame, Users, Send, Briefcase, ShieldCheck,
   Radar, Mail, MessageSquare, Phone, Workflow, ArrowRight, Inbox, BarChart3,
@@ -179,21 +180,14 @@ function OutreachCockpit() {
   return (
     <div className="min-h-full bg-muted/30">
       <div className="space-y-6 p-4 sm:p-6">
-        {/* Header pagina */}
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-              <Radar className="h-6 w-6 text-primary" />
-            </span>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Outreach Engine</h1>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                La tua console quotidiana di cold outreach multi-canale. Email-first, poi WhatsApp e SMS.
-              </p>
-            </div>
-          </div>
-          <OutreachComposeDialog companyId={companyId} />
-        </div>
+        {/* Header pagina — hero brand (navy + arancione) */}
+        <BrandPageHeader
+          icon={Radar}
+          eyebrow="Cold Outreach"
+          title="Outreach Engine"
+          subtitle="La tua console quotidiana di cold outreach multi-canale. Email-first, poi WhatsApp e SMS."
+          actions={<OutreachComposeDialog companyId={companyId} />}
+        />
 
         <Tabs value={tab} onValueChange={setTab}>
           {/* Tab bar segmented/underline alla Instantly */}

@@ -37,9 +37,9 @@ interface FunnelData {
  */
 function FunnelShape({ stages, base }: { stages: { label: string; n: number; color: string }[]; base: number }) {
   const W = 720;
-  const H = 150;
-  const top = 26;
-  const bottom = 120;
+  const H = 118;
+  const top = 30;
+  const bottom = 88;
   const cy = (top + bottom) / 2;
   const maxHalf = (bottom - top) / 2;
   const n = stages.length;
@@ -63,7 +63,7 @@ function FunnelShape({ stages, base }: { stages: { label: string; n: number; col
     ].join(" ");
   };
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[560px]" role="img" aria-label="Funnel conversioni outreach">
+    <svg viewBox={`0 0 ${W} ${H}`} className="mx-auto w-full min-w-[520px] max-w-3xl" role="img" aria-label="Funnel conversioni outreach">
       {stages.map((s, i) => {
         const cx = i * segW + segW / 2;
         const pct = Math.round((s.n / base) * 100);
