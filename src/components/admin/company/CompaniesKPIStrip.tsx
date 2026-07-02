@@ -72,7 +72,7 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
     sub?: string;
     icon: typeof Building2;
     accent: string;
-    bg: string;
+    grad: string;
     ring: string;
     onClick?: () => void;
   }> = [
@@ -83,7 +83,7 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
       sub: `${revenue.totalCompanies} totali`,
       icon: Building2,
       accent: "text-primary",
-      bg: "bg-primary/10",
+      grad: "from-blue-500 to-indigo-500",
       ring: "ring-primary/40",
       onClick: () => onKpiClick?.("active"),
     },
@@ -94,7 +94,7 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
       sub: activeCount > 0 ? `${Math.round((payingCount / activeCount) * 100)}% degli attivi` : undefined,
       icon: TrendingUp,
       accent: "text-blue-600 dark:text-blue-400",
-      bg: "bg-blue-500/10",
+      grad: "from-sky-500 to-blue-500",
       ring: "ring-blue-500/40",
       onClick: () => onKpiClick?.("paying"),
     },
@@ -105,7 +105,7 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
       sub: payingCount > 0 ? `media ${formatCurrency(totalMRR / payingCount)}/azienda` : "—",
       icon: DollarSign,
       accent: "text-emerald-600 dark:text-emerald-400",
-      bg: "bg-emerald-500/10",
+      grad: "from-emerald-500 to-teal-400",
       ring: "ring-emerald-500/40",
       onClick: () => onKpiClick?.("paying"),
     },
@@ -116,7 +116,7 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
       sub: compedCount > 0 ? `${compedCount} regalate` : "nessuna comp",
       icon: Gift,
       accent: excludedMRR > 0 ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground",
-      bg: excludedMRR > 0 ? "bg-orange-500/10" : "bg-muted/40",
+      grad: excludedMRR > 0 ? "from-orange-500 to-amber-400" : "from-slate-400 to-slate-300",
       ring: "ring-orange-500/40",
       onClick: () => onKpiClick?.("excluded"),
     },
@@ -127,7 +127,7 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
       sub: atRiskCount > 0 ? "richiedono attenzione" : "tutto sotto controllo",
       icon: AlertTriangle,
       accent: atRiskCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground",
-      bg: atRiskCount > 0 ? "bg-amber-500/10" : "bg-muted/40",
+      grad: atRiskCount > 0 ? "from-amber-500 to-orange-400" : "from-emerald-500 to-teal-400",
       ring: "ring-amber-500/40",
       onClick: () => onKpiClick?.("atRisk"),
     },
@@ -142,8 +142,8 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
           <Card
             key={kpi.key}
             className={cn(
-              "p-4 flex items-center gap-3 transition-all duration-200",
-              isClickable && "cursor-pointer hover:shadow-md hover:-translate-y-0.5",
+              "group relative overflow-hidden p-4 flex items-center gap-3 transition-all duration-200",
+              isClickable && "cursor-pointer hover:shadow-xl hover:shadow-slate-900/[0.08] hover:-translate-y-1 hover:border-transparent",
               isActive && `ring-2 ${kpi.ring} shadow-sm`,
               !isActive && isClickable && "hover:ring-1 hover:ring-border"
             )}
@@ -159,8 +159,9 @@ export function CompaniesKPIStrip({ companies, healthData, activeKpi = null, onK
             aria-pressed={isClickable ? isActive : undefined}
             aria-label={`${kpi.label}: ${kpi.value}${kpi.sub ? `. ${kpi.sub}` : ""}${isClickable ? ". Click per filtrare" : ""}`}
           >
-            <div className={`rounded-lg p-2.5 shrink-0 ${kpi.bg}`}>
-              <kpi.icon className={`h-5 w-5 ${kpi.accent}`} />
+            <div className={cn("pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-20", kpi.grad)} />
+            <div className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white shadow-sm transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3", kpi.grad)}>
+              <kpi.icon className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
