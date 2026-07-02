@@ -31,14 +31,11 @@ import { CrmProductCards } from "@/components/admin/crm-dashboard/CrmProductCard
 import { CrmHotTable } from "@/components/admin/crm-dashboard/CrmHotTable";
 import { CrmPartnerReferralCard } from "@/components/admin/crm-dashboard/CrmPartnerReferralCard";
 import { CrmTrendCard } from "@/components/admin/crm-dashboard/CrmTrendCard";
-import { CrmSourcesDonutCard } from "@/components/admin/crm-dashboard/CrmSourcesDonutCard";
 import { CrmOperationalFunnel } from "@/components/admin/crm-dashboard/CrmOperationalFunnel";
 import { CrmNetworksStrip } from "@/components/admin/crm-dashboard/CrmNetworksStrip";
 import { CrmUnitEconomics } from "@/components/admin/crm-dashboard/CrmUnitEconomics";
 import { CrmChannelRoi } from "@/components/admin/crm-dashboard/CrmChannelRoi";
-import { CrmGrowthLevers } from "@/components/admin/crm-dashboard/CrmGrowthLevers";
 import { CrmSpeedToLead } from "@/components/admin/crm-dashboard/CrmSpeedToLead";
-import { CrmForecast } from "@/components/admin/crm-dashboard/CrmForecast";
 import { motion, AnimatePresence } from "framer-motion";
 
 type PeriodKey = "7" | "30" | "90" | "365";
@@ -385,21 +382,10 @@ export default function AdminMarketingCommercialDashboard() {
 
           <Reveal className="grid items-start gap-4 lg:grid-cols-2">
             <CrmChannelRoi companyId={companyId} days={days} />
-            <CrmGrowthLevers companyId={companyId} />
-          </Reveal>
-
-          <Reveal className="grid items-start gap-4 lg:grid-cols-2">
             <CrmSpeedToLead companyId={companyId} days={days} />
-            <CrmForecast companyId={companyId} />
           </Reveal>
 
-          {/* Riga: andamento (2/3) + fonti (1/3) */}
-          <Reveal className="grid gap-4 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <CrmTrendCard companyId={companyId} />
-            </div>
-            <CrmSourcesDonutCard companyId={companyId} />
-          </Reveal>
+          <Reveal><CrmTrendCard companyId={companyId} /></Reveal>
 
           <Reveal><CrmHotTable companyId={companyId} /></Reveal>
 

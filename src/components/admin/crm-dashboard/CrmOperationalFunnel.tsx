@@ -7,14 +7,11 @@
  * (outreach_send_queue / outreach_replies) non sono nei tipi generati e possono
  * non essere ancora su prod → query cast + fail-open a 0 (step onesto, non finto).
  */
-import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Send, Target, Loader2, Wallet, AlertTriangle } from "lucide-react";
-
-const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(Math.round(n || 0));
+import { Send, Loader2, AlertTriangle } from "lucide-react";
 
 const PHASE = {
   reach: "hsl(217 91% 60%)",
@@ -40,9 +37,9 @@ interface FunnelData {
  */
 function FunnelShape({ stages, base }: { stages: { label: string; n: number; color: string }[]; base: number }) {
   const W = 720;
-  const H = 236;
-  const top = 34;
-  const bottom = 206;
+  const H = 150;
+  const top = 26;
+  const bottom = 120;
   const cy = (top + bottom) / 2;
   const maxHalf = (bottom - top) / 2;
   const n = stages.length;
@@ -96,24 +93,6 @@ function FunnelShape({ stages, base }: { stages: { label: string; n: number; col
   );
 }
 
-function CountUp({ value, format }: { value: number; format?: (n: number) => string }) {
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    let raf = 0;
-    let start = 0;
-    const dur = 900;
-    const tick = (t: number) => {
-      if (!start) start = t;
-      const p = Math.min((t - start) / dur, 1);
-      setN(value * (1 - Math.pow(1 - p, 3)));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [value]);
-  return <>{format ? format(n) : Math.round(n).toLocaleString("it-IT")}</>;
-}
-
 export function CrmOperationalFunnel({ companyId }: { companyId: string }) {
   const q = useQuery({
     queryKey: ["crm-dash", "operational-funnel", companyId],
@@ -157,7 +136,6 @@ export function CrmOperationalFunnel({ companyId }: { companyId: string }) {
       ]
     : [];
   const base = Math.max(1, stages[0]?.n ?? 1);
-  const overallConv = d && d.contatti > 0 ? (d.vinti / d.contatti) * 100 : 0;
   const constraint = (() => {
     let worst: { r: number; from: string; to: string } | null = null;
     for (let i = 1; i < stages.length; i++) {
@@ -197,33 +175,8 @@ export function CrmOperationalFunnel({ companyId }: { companyId: string }) {
               <FunnelShape stages={stages.map((s) => ({ label: s.label, n: s.n, color: s.phase }))} base={base} />
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 border-t pt-3">
-              <div className="flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: "hsl(160 84% 39% / 0.12)", color: PHASE.convert }}>
-                  <Wallet className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <div>
-                  <div className="text-[11px] text-muted-foreground">Valore vinto</div>
-                  <div className="text-lg font-bold leading-tight" style={{ color: PHASE.convert }}>
-                    <CountUp value={d?.vintiValue ?? 0} format={(n) => eur(n)} />
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Target className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <div>
-                  <div className="text-[11px] text-muted-foreground">Conversione contatti → vinti</div>
-                  <div className="text-lg font-bold leading-tight">
-                    <CountUp value={overallConv} format={(n) => `${n.toFixed(1)}%`} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {constraint && constraint.r < 1 && (
-              <div className="mt-3 flex items-start gap-2 rounded-lg border p-2.5 text-[12px]" style={{ borderColor: "hsl(0 84% 60% / 0.35)" }}>
+              <div className="mt-4 flex items-start gap-2 rounded-lg border p-2.5 text-[12px]" style={{ borderColor: "hsl(0 84% 60% / 0.35)" }}>
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" aria-hidden="true" />
                 <span>
                   <strong>Collo di bottiglia:</strong> {constraint.from} → {constraint.to} — passa solo il {Math.round(constraint.r * 100)}%. È qui che perdi di più: agisci su questo step prima di alzare il volume.
