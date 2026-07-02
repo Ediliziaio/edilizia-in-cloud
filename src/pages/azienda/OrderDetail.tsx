@@ -425,6 +425,31 @@ function OrderDetailInner() {
     gcTime: 30 * 60 * 1000,
   });
 
+  // Progresso cantiere: conteggio fasi lavorazioni completate/totali. Alimenta
+  // la riga sotto lo stepper — per le ristrutturazioni l'avanzamento vero vive
+  // nelle fasi, non negli stati commerciali. Query minima (solo status);
+  // invalidata da useOrderWorkPhases a ogni modifica delle fasi.
+  const { data: phaseProgress } = useQuery({
+    queryKey: ["order-phases-progress", id],
+    queryFn: async () => {
+      // order_work_phases non è nei tipi generati (colonna creata via MCP)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("order_work_phases")
+        .select("status")
+        .eq("order_id", id);
+      if (error) throw error;
+      const rows = (data ?? []) as { status: string }[];
+      return {
+        total: rows.length,
+        done: rows.filter((p) => p.status === "completata").length,
+        inCorso: rows.filter((p) => p.status === "in_corso").length,
+      };
+    },
+    enabled: !!id,
+    staleTime: 30_000,
+  });
+
   // Fetch status history
   const { data: statusHistory = [] } = useQuery({
     queryKey: ["order-status-history", id],
@@ -1214,6 +1239,32 @@ function OrderDetailInner() {
           statusHistory={progressHistory}
           onStatusChange={handleStatusChange}
         />
+
+        {/* Avanzamento cantiere derivato dalle lavorazioni: lo stato in alto
+            resta commerciale (corto per le ristrutturazioni), il progresso
+            operativo si legge qui — nessun doppio aggiornamento manuale. */}
+        {(phaseProgress?.total ?? 0) > 0 && (
+          <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+            <HardHat className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+            <span className="shrink-0">
+              Cantiere:{" "}
+              <strong className="text-foreground">
+                {phaseProgress!.done}/{phaseProgress!.total}
+              </strong>{" "}
+              fasi completate
+              {phaseProgress!.inCorso > 0 && <> · {phaseProgress!.inCorso} in corso</>}
+            </span>
+            <div className="h-1.5 min-w-[80px] max-w-[220px] flex-1 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-amber-500 transition-all"
+                style={{ width: `${(phaseProgress!.done / phaseProgress!.total) * 100}%` }}
+              />
+            </div>
+            <span className="shrink-0 font-medium text-foreground">
+              {Math.round((phaseProgress!.done / phaseProgress!.total) * 100)}%
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">

@@ -179,6 +179,8 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
   const qc = useQueryClient();
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["order_work_phases", orderId] });
+    // Riga "Cantiere: N/M fasi" sotto lo stepper in OrderDetail
+    qc.invalidateQueries({ queryKey: ["order-phases-progress", orderId] });
     // La manodopera vive in order_employees/order_external_teams: invalida anche
     // le cache di margine/labor che le leggono, così i numeri si aggiornano ovunque:
     // dettaglio commessa (Conto economico), lista commesse (colonne costi/margine),
