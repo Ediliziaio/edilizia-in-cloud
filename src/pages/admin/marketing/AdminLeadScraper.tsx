@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminMarketing } from "@/hooks/useAdminMarketing";
@@ -162,11 +162,33 @@ function stimaCostoRicerca(source: string, n: number): { testo: string } {
       return { testo: `~${eur.toLocaleString("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 2 })} (${n} aziende × ~€0,03)` };
     }
     case "apollo": return { testo: `consuma ~${n} crediti Apollo` };
+    case "apify_maps": return { testo: "usa il piano Apify ($5 free/mese, poi a consumo)" };
     case "google_maps": return { testo: "gratis (entro il cap giornaliero Google Places)" };
     case "linkedin": return { testo: "~gratis (ricerca web)" };
     case "internal": return { testo: "gratis (DB proprietario / scraper self-host)" };
     default: return { testo: "" };
   }
+}
+
+// Split di una riga CSV rispettando le virgolette RFC-4180: una cella quotata
+// può contenere il separatore ("Rossi, Bianchi & C. SNC") e "" = " letterale.
+// (Il vecchio line.split(sep) spezzava i nomi azienda con la virgola.)
+function splitCsvLine(line: string, sep: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; } else inQ = false;
+      } else cur += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === sep) { out.push(cur); cur = ""; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out.map((c) => c.trim());
 }
 
 // Normalizza un numero IT in E.164 e indica se è mobile (per WhatsApp).
@@ -633,6 +655,10 @@ export default function AdminLeadScraper() {
   const [massiveTarget, setMassiveTarget] = useState("1000");
   const [jobId, setJobId] = useState<string | null>(null);
   const activeMassiveJobRef = useRef<string | null>(null); // ferma il polling orfano del job massivo
+  // All'uscita dalla pagina il polling del job massivo si ferma (il job continua
+  // nel worker; senza questo cleanup la catena di setTimeout continuava a
+  // chiamare l'edge function ogni 4s anche dopo la navigazione altrove).
+  useEffect(() => () => { activeMassiveJobRef.current = null; }, []);
   const [renderLimit, setRenderLimit] = useState(200);    // righe renderizzate (anti-jank su migliaia)
 
   const [progress, setProgress] = useState<{ label: string; done: number; total: number } | null>(null);
@@ -1082,12 +1108,12 @@ export default function AdminLeadScraper() {
       const lines = text.split(/\r?\n/).filter((l) => l.trim());
       if (lines.length < 2) { toast.error("CSV vuoto o senza intestazione"); return; }
       const sep = lines[0].includes(";") ? ";" : ",";
-      const headers = lines[0].split(sep).map((h) => h.trim().toLowerCase().replace(/"/g, ""));
+      const headers = splitCsvLine(lines[0], sep).map((h) => h.toLowerCase());
       const idx = (names: string[]) => headers.findIndex((h) => names.some((n) => h.includes(n)));
       const ci = { name: idx(["azienda", "nome", "ragione", "business", "company"]), web: idx(["sito", "website", "web", "url"]), phone: idx(["telefono", "phone", "tel"]), email: idx(["email", "mail"]), city: idx(["città", "citta", "city", "comune"]) };
       if (ci.name < 0) { toast.error("Colonna nome/azienda non trovata nel CSV"); return; }
       const rows = lines.slice(1).map((line) => {
-        const cells = line.split(sep).map((c) => c.trim().replace(/^"|"$/g, ""));
+        const cells = splitCsvLine(line, sep);
         return { business_name: cells[ci.name] || "", website: ci.web >= 0 ? cells[ci.web] : undefined, phone: ci.phone >= 0 ? cells[ci.phone] : undefined, email: ci.email >= 0 ? cells[ci.email] : undefined, city: ci.city >= 0 ? cells[ci.city] : undefined };
       }).filter((r) => r.business_name).slice(0, 500);
       if (!rows.length) { toast.error("Nessuna riga valida"); return; }

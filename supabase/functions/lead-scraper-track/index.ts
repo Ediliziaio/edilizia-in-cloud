@@ -46,30 +46,12 @@ Deno.serve(async (req) => {
   if (isUuid) {
     try {
       const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-      // Legge lo stato corrente per incrementare i contatori e impostare i timestamp.
-      const { data: row } = await admin
-        .from("lead_scraper_outreach")
-        .select("id, status, open_count, click_count, opened_at, clicked_at")
-        .eq("id", id)
-        .maybeSingle();
-      if (row) {
-        const now = new Date().toISOString();
-        if (type === "click") {
-          await admin.from("lead_scraper_outreach").update({
-            click_count: (row.click_count ?? 0) + 1,
-            clicked_at: row.clicked_at ?? now,
-            // apertura implicita nel click
-            opened_at: row.opened_at ?? now,
-            status: row.status === "replied" ? row.status : "clicked",
-          }).eq("id", id);
-        } else {
-          await admin.from("lead_scraper_outreach").update({
-            open_count: (row.open_count ?? 0) + 1,
-            opened_at: row.opened_at ?? now,
-            status: (row.status === "sent") ? "opened" : row.status,
-          }).eq("id", id);
-        }
-      }
+      // Incremento ATOMICO in un solo UPDATE (RPC): due pixel/click concorrenti
+      // non si perdono più a vicenda (il vecchio select→update era un TOCTOU).
+      await admin.rpc("lead_scraper_track_bump", {
+        p_id: id,
+        p_kind: type === "click" ? "click" : "open",
+      });
     } catch {
       // tracking best-effort: non bloccare mai la consegna del pixel/redirect
     }

@@ -48,7 +48,10 @@ async function poolMap<T, R>(
       const i = cursor++;
       try {
         out[i] = await fn(items[i], i);
-      } catch (_e) {
+      } catch (e) {
+        // Non inghiottire in silenzio: il fallimento del singolo item resta
+        // non-bloccante (out[i] = undefined) ma finisce nei log della function.
+        console.error(`poolMap: item ${i} fallito:`, (e as Error)?.message ?? e);
         out[i] = undefined as unknown as R;
       }
     }
@@ -1341,13 +1344,17 @@ Deno.serve(async (req) => {
         return errorResponse(`Qualificazione AI fallita: ${(e as Error).message}`, 502, corsH);
       }
 
+      // Conteggio ONESTO: gli update falliti (record eliminato nel frattempo,
+      // permessi) non vengono più riportati come "qualificati".
+      let updateFailed = 0;
       for (const s of scored) {
-        await supabaseAdmin
+        const { error: uErr } = await supabaseAdmin
           .from("lead_scraper_results")
           .update({ ai_score: s.ai_score, ai_label: s.ai_label, ai_reason: s.ai_reason })
           .eq("id", s.id);
+        if (uErr) { updateFailed++; console.error("qualify: update fallito", s.id, uErr.message); }
       }
-      return jsonResponse({ qualified: scored.length, results: scored }, 200, corsH);
+      return jsonResponse({ qualified: scored.length - updateFailed, update_failed: updateFailed || undefined, results: scored }, 200, corsH);
     }
 
     // ════════════════════════════ PUSH CRM ════════════════════════════
