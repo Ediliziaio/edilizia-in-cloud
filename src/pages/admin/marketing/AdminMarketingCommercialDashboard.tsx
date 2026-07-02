@@ -11,7 +11,7 @@
  * Le sezioni successive (torte, fonti/ROI, cluster, Aziende, team, alert, AI)
  * si agganciano allo stesso companyId + periodo.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminMarketing } from "@/hooks/useAdminMarketing";
@@ -28,7 +28,7 @@ import { CrmVelocityCard } from "@/components/admin/crm-dashboard/CrmVelocityCar
 import { CrmAgentTargetsCard } from "@/components/admin/crm-dashboard/CrmAgentTargetsCard";
 import { CrmFirmographicsCard } from "@/components/admin/crm-dashboard/CrmFirmographicsCard";
 import { CrmProductCards } from "@/components/admin/crm-dashboard/CrmProductCards";
-import { CrmHotLeadsCard } from "@/components/admin/crm-dashboard/CrmHotLeadsCard";
+import { CrmHotTable } from "@/components/admin/crm-dashboard/CrmHotTable";
 import { CrmPartnerReferralCard } from "@/components/admin/crm-dashboard/CrmPartnerReferralCard";
 import { CrmTrendCard } from "@/components/admin/crm-dashboard/CrmTrendCard";
 import { CrmSourcesDonutCard } from "@/components/admin/crm-dashboard/CrmSourcesDonutCard";
@@ -39,7 +39,7 @@ import { CrmChannelRoi } from "@/components/admin/crm-dashboard/CrmChannelRoi";
 import { CrmGrowthLevers } from "@/components/admin/crm-dashboard/CrmGrowthLevers";
 import { CrmSpeedToLead } from "@/components/admin/crm-dashboard/CrmSpeedToLead";
 import { CrmForecast } from "@/components/admin/crm-dashboard/CrmForecast";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 type PeriodKey = "7" | "30" | "90" | "365";
 const PERIODS: { key: PeriodKey; label: string }[] = [
@@ -48,6 +48,21 @@ const PERIODS: { key: PeriodKey; label: string }[] = [
   { key: "90", label: "90 giorni" },
   { key: "365", label: "12 mesi" },
 ];
+
+/** Reveal-on-scroll leggero per le sezioni della dashboard (una volta sola). */
+function Reveal({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <motion.div
+      className={className}
+      initial={{ opacity: 0, y: 14 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-40px" }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 const eur = (n: number) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(
@@ -250,8 +265,15 @@ export default function AdminMarketingCommercialDashboard() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-xl font-bold leading-tight sm:text-2xl">Dashboard commerciale — AEDIX</h1>
-          <p className="text-sm text-muted-foreground">
-            {dateLabel} · <span className="font-medium text-emerald-600">● Live</span>
+          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            {dateLabel} ·
+            <span className="inline-flex items-center gap-1 font-medium text-emerald-600">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              Live
+            </span>
           </p>
         </div>
         <div className="inline-flex overflow-hidden rounded-lg border">
@@ -261,13 +283,18 @@ export default function AdminMarketingCommercialDashboard() {
               type="button"
               onClick={() => setPeriod(p.key)}
               className={
-                "px-3 py-1.5 text-sm transition-colors " +
-                (period === p.key
-                  ? "bg-primary/10 font-medium text-primary"
-                  : "text-muted-foreground hover:bg-muted/50")
+                "relative px-3 py-1.5 text-sm transition-colors " +
+                (period === p.key ? "font-medium text-primary" : "text-muted-foreground hover:bg-muted/50")
               }
             >
-              {p.label}
+              {period === p.key && (
+                <motion.span
+                  layoutId="crm-period-pill"
+                  className="absolute inset-0 bg-primary/10"
+                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                />
+              )}
+              <span className="relative">{p.label}</span>
             </button>
           ))}
         </div>
@@ -326,32 +353,32 @@ export default function AdminMarketingCommercialDashboard() {
             />
           </div>
 
-          <CrmOperationalFunnel companyId={companyId} />
+          <Reveal><CrmOperationalFunnel companyId={companyId} /></Reveal>
 
-          <CrmUnitEconomics companyId={companyId} days={days} />
+          <Reveal><CrmUnitEconomics companyId={companyId} days={days} /></Reveal>
 
-          <div className="grid items-start gap-4 lg:grid-cols-2">
+          <Reveal className="grid items-start gap-4 lg:grid-cols-2">
             <CrmChannelRoi companyId={companyId} days={days} />
             <CrmGrowthLevers companyId={companyId} />
-          </div>
+          </Reveal>
 
-          <div className="grid items-start gap-4 lg:grid-cols-2">
+          <Reveal className="grid items-start gap-4 lg:grid-cols-2">
             <CrmSpeedToLead companyId={companyId} days={days} />
             <CrmForecast companyId={companyId} />
-          </div>
+          </Reveal>
 
           {/* Riga: andamento (2/3) + fonti (1/3) */}
-          <div className="grid gap-4 lg:grid-cols-3">
+          <Reveal className="grid gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2">
               <CrmTrendCard companyId={companyId} />
             </div>
             <CrmSourcesDonutCard companyId={companyId} />
-          </div>
+          </Reveal>
 
-          <CrmHotLeadsCard companyId={companyId} />
+          <Reveal><CrmHotTable companyId={companyId} /></Reveal>
 
           {/* Riga: pipeline per stadio + alert */}
-          <div className="grid items-start gap-4 lg:grid-cols-2">
+          <Reveal className="grid items-start gap-4 lg:grid-cols-2">
           <Card>
             <CardContent className="p-4 sm:p-5">
               <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
@@ -393,11 +420,11 @@ export default function AdminMarketingCommercialDashboard() {
             </CardContent>
           </Card>
             <CrmAlertsCard companyId={companyId} />
-          </div>
+          </Reveal>
 
-          <CrmNetworksStrip />
+          <Reveal><CrmNetworksStrip /></Reveal>
 
-          <CrmAccountsCard companyId={companyId} />
+          <Reveal><CrmAccountsCard companyId={companyId} /></Reveal>
         </TabsContent>
 
         {/* ─── PIPELINE ─────────────────────────────────────────────── */}
@@ -460,19 +487,45 @@ function Kpi({
   const showDelta = typeof deltaVal === "number" && Number.isFinite(deltaVal) && Math.abs(deltaVal) >= 0.5;
   const up = (deltaVal ?? 0) >= 0;
   return (
-    <Card className={tone === "warn" ? "border-amber-200 bg-amber-50/40" : ""}>
+    <Card
+      className={
+        "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md " +
+        (tone === "warn" ? "border-amber-200 bg-amber-50/40 dark:border-amber-900/40 dark:bg-amber-950/20" : "")
+      }
+    >
       <CardContent className="p-3.5">
-        <div className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Icon className={"h-3.5 w-3.5 " + (tone === "warn" ? "text-amber-600" : "")} aria-hidden="true" />
-          <span className={tone === "warn" ? "text-amber-700" : ""}>{label}</span>
+        <div className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span
+            className={
+              "flex h-6 w-6 items-center justify-center rounded-md " +
+              (tone === "warn" ? "bg-amber-100 dark:bg-amber-900/30" : "bg-primary/10")
+            }
+          >
+            <Icon className={"h-3.5 w-3.5 " + (tone === "warn" ? "text-amber-600" : "text-primary")} aria-hidden="true" />
+          </span>
+          <span className={"truncate " + (tone === "warn" ? "text-amber-700 dark:text-amber-400" : "")}>{label}</span>
         </div>
-        <div className={"text-xl font-bold leading-tight " + (tone === "warn" ? "text-amber-700" : "")}>
-          {loading ? "…" : value}
-        </div>
+        {loading ? (
+          <div className="h-7 w-20 animate-pulse rounded-md bg-muted" />
+        ) : (
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.div
+              key={value}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className={"text-xl font-bold leading-tight " + (tone === "warn" ? "text-amber-700 dark:text-amber-400" : "")}
+            >
+              {value}
+            </motion.div>
+          </AnimatePresence>
+        )}
         {showDelta && !loading && (
           <div className={"mt-0.5 flex items-center gap-1 text-xs " + (up ? "text-emerald-600" : "text-red-600")}>
             {up ? <TrendingUp className="h-3 w-3" aria-hidden="true" /> : <TrendingDown className="h-3 w-3" aria-hidden="true" />}
             {deltaPt != null ? `${up ? "+" : ""}${Math.round(deltaVal!)}pt` : `${up ? "+" : ""}${Math.round(deltaVal!)}%`}
+            <span className="text-muted-foreground/70">vs periodo prec.</span>
           </div>
         )}
         {hint && !showDelta && !loading && <div className={"mt-0.5 text-xs " + (tone === "warn" ? "text-amber-600" : "text-muted-foreground")}>{hint}</div>}

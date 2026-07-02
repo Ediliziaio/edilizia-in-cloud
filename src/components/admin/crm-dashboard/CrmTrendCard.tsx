@@ -33,12 +33,16 @@ export function CrmTrendCard({ companyId }: { companyId: string }) {
   });
 
   const data = useMemo(() => {
-    const buckets = Array.from({ length: WEEKS }, (_, i) => ({
-      // settimana i = la più vecchia; etichetta = settimane fa
-      label: i === WEEKS - 1 ? "ora" : `-${WEEKS - 1 - i}s`,
-      lead: 0,
-      opp: 0,
-    }));
+    // Etichetta = inizio settimana in data reale ("12 mag"), non "-Ns" criptico.
+    const fmt = new Intl.DateTimeFormat("it-IT", { day: "numeric", month: "short" });
+    const buckets = Array.from({ length: WEEKS }, (_, i) => {
+      const weeksAgo = WEEKS - 1 - i;
+      return {
+        label: weeksAgo === 0 ? "questa" : fmt.format(new Date(nowMs - weeksAgo * WEEK_MS)),
+        lead: 0,
+        opp: 0,
+      };
+    });
     const idx = (iso: string) => {
       const t = new Date(iso).getTime();
       if (Number.isNaN(t)) return -1;
