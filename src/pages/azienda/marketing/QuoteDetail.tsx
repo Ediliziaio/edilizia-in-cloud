@@ -46,9 +46,21 @@ export default function QuoteDetail() {
       });
       if (error) throw error;
       if (data?.signed_url) {
-        window.open(data.signed_url, "_blank");
+        // Scarica direttamente in Download: l'attributo download non funziona
+        // cross-origin, quindi passiamo da un blob locale.
+        const fileName = (data.pdf_path as string | undefined)?.split("/").pop() ?? "preventivo.pdf";
+        const resp = await fetch(data.signed_url);
+        const blob = await resp.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(blobUrl);
       }
-      toast.success("PDF generato con successo");
+      toast.success("PDF scaricato nei Download");
       queryClient.invalidateQueries({ queryKey: queryKeys.quotes.detail(id) });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "errore";

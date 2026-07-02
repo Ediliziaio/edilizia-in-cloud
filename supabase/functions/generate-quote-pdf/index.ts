@@ -186,14 +186,14 @@ Deno.serve(async (req) => {
       t = applyMergeTagsToTemplate(t as ComposedTemplate, buildMergeContext({ quote, company }));
     } else {
       // ─── NORMAL MODE ───
-      if (!quote_id) return errorResponse("quote_id richiesto");
+      if (!quote_id) return errorResponse("quote_id richiesto", 400, corsH);
 
       const { data: quoteData, error: qErr } = await supabaseAdmin
         .from("quotes")
         .select("*")
         .eq("id", quote_id)
         .single();
-      if (qErr || !quoteData) return errorResponse("Preventivo non trovato", 404);
+      if (qErr || !quoteData) return errorResponse("Preventivo non trovato", 404, corsH);
       quote = quoteData;
 
       // Verify user belongs to company
@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
         .eq("id", userId)
         .single();
       if (!profile || profile.company_id !== quote.company_id) {
-        return errorResponse("Non autorizzato", 403);
+        return errorResponse("Non autorizzato", 403, corsH);
       }
 
       // Load template + blocchi linkati (libreria componibile per kind)
@@ -981,7 +981,7 @@ Deno.serve(async (req) => {
         binary += String.fromCharCode(uint8[i]);
       }
       const base64 = btoa(binary);
-      return jsonResponse({ success: true, pdf_base64: base64 });
+      return jsonResponse({ success: true, pdf_base64: base64 }, 200, corsH);
     }
 
     // ─── Save to storage ───
@@ -994,7 +994,7 @@ Deno.serve(async (req) => {
 
     if (uploadErr) {
       console.error("Upload error:", uploadErr);
-      return errorResponse("Errore upload PDF: " + uploadErr.message, 500);
+      return errorResponse("Errore upload PDF: " + uploadErr.message, 500, corsH);
     }
 
     await supabaseAdmin
@@ -1010,10 +1010,10 @@ Deno.serve(async (req) => {
       success: true,
       pdf_path: fileName,
       signed_url: signedData?.signedUrl || null,
-    });
+    }, 200, corsH);
   } catch (e) {
     if (e instanceof Response) return e;
     console.error("generate-quote-pdf error:", e);
-    return errorResponse("Errore interno", 500);
+    return errorResponse("Errore interno", 500, corsH);
   }
 });
