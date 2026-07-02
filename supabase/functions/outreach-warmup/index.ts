@@ -49,9 +49,25 @@ Deno.serve(async (req) => {
   try {
     const { data: raw, error } = await supabase
       .from("outreach_sender_accounts")
-      .select("id,email,display_name,warmup_day,status,warmup_started_on")
+      .select("id,email,display_name,warmup_day,status,warmup_started_on,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref")
       .in("status", ["active", "warming"]);
     if (error) throw error;
+
+    // Le caselle SMTP proprie devono scaldare il LORO server (SPF/DKIM del dominio),
+    // non il provider marketing. Costruiamo l'override SMTP per casella (password in
+    // Vault). Cache per-ref così non ripetiamo la RPC per la stessa casella.
+    const secretCache = new Map<string, string | null>();
+    const mailboxFor = async (box: any) => {
+      if (!box || box.provider !== "smtp" || !box.secret_ref || !box.smtp_host || !box.smtp_port) return undefined;
+      let pwd = secretCache.get(box.secret_ref);
+      if (pwd === undefined) {
+        const { data } = await supabase.rpc("outreach_mailbox_secret", { p_ref: box.secret_ref });
+        pwd = (data as string | null) ?? null;
+        secretCache.set(box.secret_ref, pwd);
+      }
+      if (!pwd) return undefined;
+      return { host: box.smtp_host, port: box.smtp_port, secure: box.smtp_secure ?? true, username: box.smtp_username ?? box.email, password: pwd };
+    };
     const boxes = (raw || []) as any[];
     result.boxes = boxes.length;
     if (boxes.length < 2) return json({ ...result, note: "pool troppo piccolo per il warm-up" }, 200, cors);
@@ -91,6 +107,7 @@ Deno.serve(async (req) => {
           // multipart/alternative: il corpo warm-up è già prosa, il plain è il body nudo.
           text: body,
           senderOverride: { from: fromAddr, replyTo: p.fromEmail, source: "outreach_warmup" },
+          mailboxOverride: await mailboxFor(from),
           metadata: { warmup: true, from_box: p.fromId, to_box: p.toId },
         });
         if (res && res.ok === false) result.failed++; else result.sent++;
@@ -115,6 +132,7 @@ Deno.serve(async (req) => {
           html: "<p>Ricevuto, grazie! Ci sentiamo presto.</p>",
           text: "Ricevuto, grazie! Ci sentiamo presto.",
           senderOverride: { from: replierAddr, replyTo: p.toEmail, source: "outreach_warmup_reply" },
+          mailboxOverride: await mailboxFor(replier),
           metadata: { warmup: true, reply: true, from_box: p.toId, to_box: p.fromId },
         });
         if (!(res && res.ok === false)) result.replied++;

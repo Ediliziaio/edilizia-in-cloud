@@ -164,7 +164,11 @@ export function LeadImportCard({ companyId, onImported }: { companyId: string; o
       const chunk = uniq.slice(i, i + BATCH);
       const { data, error } = await supabase
         .from("marketing_contacts").select("email").eq("company_id", companyId).in("email", chunk);
-      if (!error) data?.forEach((r) => r.email && set.add(r.email.toLowerCase()));
+      // Se la query dedup fallisce (rete/RLS) NON proseguire: prima l'errore veniva
+      // ingoiato e il set restava vuoto → tutte le righe risultavano "nuove" e
+      // venivano reimportate come duplicati. Meglio abortire con errore chiaro.
+      if (error) throw new Error(`Verifica duplicati fallita: ${error.message}`);
+      data?.forEach((r) => r.email && set.add(r.email.toLowerCase()));
     }
     return set;
   }

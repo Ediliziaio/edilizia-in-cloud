@@ -1,7 +1,7 @@
 import { getCorsHeaders, errorResponse, jsonResponse } from "../_shared/headers.ts";
 import { requireAuth, requireRole } from "../_shared/auth.ts";
 import { sendEmailUnified } from "../_shared/sendEmailUnified.ts";
-import { htmlToPlainText } from "../_shared/outreach-template.ts";
+import { htmlToPlainText, renderTemplate, contactToVars, hashSeed } from "../_shared/outreach-template.ts";
 
 /**
  * outreach-send-single — il SUPER_ADMIN invia UNA email al volo da una casella
@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
 
     const { data: sender, error: sErr } = await admin
       .from("outreach_sender_accounts")
-      .select("id,email,display_name,status,daily_sent,daily_sent_date")
+      .select("id,email,display_name,status,daily_sent,daily_sent_date,provider,smtp_host,smtp_port,smtp_secure,smtp_username,secret_ref")
       .eq("id", senderId).maybeSingle();
     if (sErr) throw sErr;
     if (!sender) return errorResponse("Casella mittente non trovata", 404, corsH);
@@ -39,16 +39,46 @@ Deno.serve(async (req) => {
       return errorResponse("La casella è in pausa o disabilitata", 409, corsH);
     }
 
+    // Personalizzazione: se è collegato un contatto, sostituiamo {{first_name}} &
+    // co. PRIMA dell'invio. Senza questo, i chip variabile del compositore
+    // arrivavano LETTERALI al prospect ("Ciao {{first_name}}").
+    let vars: ReturnType<typeof contactToVars> = {};
+    if (contactId) {
+      const { data: contact } = await admin
+        .from("marketing_contacts")
+        .select("first_name,last_name,company_name,email,phone")
+        .eq("id", contactId).maybeSingle();
+      if (contact) vars = contactToVars(contact);
+    }
+    const seed = hashSeed(to);
+    const renderedSubject = renderTemplate(subject, vars, { seed });
+    const renderedHtml = renderTemplate(html, vars, { seed });
+
+    // Casella SMTP propria: instrada l'invio sul suo server (password in Vault)
+    // così SPF/DKIM combaciano e il warm-up scalda l'infrastruttura giusta. Le
+    // caselle legacy Elastic Email restano su mailboxOverride=undefined.
+    let mailboxOverride: { host: string; port: number; secure: boolean; username: string; password: string } | undefined;
+    if (sender.provider === "smtp" && sender.secret_ref && sender.smtp_host && sender.smtp_port) {
+      const { data: pwd } = await admin.rpc("outreach_mailbox_secret", { p_ref: sender.secret_ref });
+      if (pwd) {
+        mailboxOverride = {
+          host: sender.smtp_host, port: sender.smtp_port, secure: sender.smtp_secure ?? true,
+          username: sender.smtp_username ?? sender.email, password: pwd as string,
+        };
+      }
+    }
+
     const from = sender.display_name ? `${sender.display_name} <${sender.email}>` : sender.email;
     const res = await sendEmailUnified({
       companyId: PLATFORM_COMPANY,
       stream: "marketing",
       to,
-      subject,
-      html,
+      subject: renderedSubject,
+      html: renderedHtml,
       // part text/plain (multipart/alternative): meno spam-score della HTML-only.
-      text: htmlToPlainText(html),
+      text: htmlToPlainText(renderedHtml),
       senderOverride: { from, replyTo: sender.email, source: "outreach_single" },
+      mailboxOverride,
       adminClient: admin,
       metadata: { outreach_single: true, sender_account_id: sender.id, by: userId },
     });
@@ -63,10 +93,10 @@ Deno.serve(async (req) => {
       .update({ daily_sent: base + 1, daily_sent_date: today, last_sent_at: now.toISOString() })
       .eq("id", sender.id);
 
-    // storico nello stesso registro della coda
+    // storico nello stesso registro della coda (col testo effettivamente inviato)
     await admin.from("outreach_send_queue").insert({
       company_id: PLATFORM_COMPANY, contact_id: contactId, sender_account_id: sender.id,
-      channel: "email", to_email: to, subject, body: html,
+      channel: "email", to_email: to, subject: renderedSubject, body: renderedHtml,
       status: "sent", sent_at: now.toISOString(),
     });
 

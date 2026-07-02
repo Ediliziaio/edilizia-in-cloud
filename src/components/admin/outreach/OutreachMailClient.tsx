@@ -861,16 +861,34 @@ export function OutreachMailClient({ companyId }: { companyId: string }) {
 }
 
 /**
- * PostaUnreadBadge — pillola arancione col numero di risposte non lette, da usare
- * accanto al label del TabsTrigger "Posta". Riusa il conteggio del hook condiviso
- * (stessa fonte del client), così resta sempre allineato. Niente badge se zero.
+ * PostaUnreadBadge — pillola arancione col numero di risposte non lette, accanto
+ * al TabsTrigger "Posta". Vive nella tab bar ed è montato SU OGNI TAB, quindi usa
+ * una singola query di conteggio (`count exact, head`) invece del hook completo:
+ * prima montava le 7 query dell'inbox (500 email + 500 risposte + 1000 contatti +
+ * 5000 enrollment + …) solo per mostrare un numero, a ogni render della dashboard.
  */
 export function PostaUnreadBadge({ companyId }: { companyId: string }) {
-  const { counts, tableMissing, errored } = useOutreachConversations(companyId);
-  if (tableMissing || errored || counts.unread <= 0) return null;
+  const q = useQuery({
+    queryKey: ["outreach-posta-unread-count", companyId],
+    retry: false,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { count, error } = await (supabase as any)
+        .from("outreach_replies")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("status", "unread");
+      if (error) return null; // tabella assente o RLS → nessun badge (non rompe la tab bar)
+      return count ?? 0;
+    },
+  });
+  const unread = q.data ?? 0;
+  if (unread <= 0) return null;
   return (
     <Badge className="ml-1.5 h-4 min-w-4 justify-center bg-primary px-1 text-[10px] tabular-nums">
-      {counts.unread > 99 ? "99+" : counts.unread}
+      {unread > 99 ? "99+" : unread}
     </Badge>
   );
 }

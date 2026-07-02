@@ -82,8 +82,13 @@ Deno.serve(async (req) => {
   const companyId = url.searchParams.get("co");
   const redirectUrl = url.searchParams.get("url");
   const isAutomationTracking = type === "automation_unsub" || type === "automation_open";
+  // Unsub "diretto" (cold outreach): il footer/List-Unsubscribe punta qui SENZA
+  // cid (non c'è una campagna email_logs dietro). La soppressione usa solo
+  // marketing_contacts + email_suppressions, quindi il cid non serve. Senza
+  // questo ramo il gate sotto rispondeva 400 e il link di disiscrizione era rotto.
+  const isDirectUnsub = type === "unsub" && !campaignId;
 
-  if (!type || !contactId || !companyId || (!campaignId && !isAutomationTracking)) {
+  if (!type || !contactId || !companyId || (!campaignId && !isAutomationTracking && !isDirectUnsub)) {
     return new Response("Missing params", { status: 400, headers: secureHeaders });
   }
 
@@ -152,6 +157,24 @@ Deno.serve(async (req) => {
         source: "automation_email_tracking",
         contact_id: contactId,
       });
+      return new Response(unsubscribeConfirmationHtml(), {
+        status: 200,
+        headers: { ...secureHeaders, "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+
+    // Unsub diretto cold outreach (nessun cid): sopprime il contatto senza il
+    // lookup email_logs (che l'outreach non scrive). Gestisce sia il click GET
+    // (pagina di conferma) sia il POST one-click RFC 8058 (204). Prima questo
+    // percorso cadeva nel gate 400 / 404 e la disiscrizione non funzionava.
+    if (isDirectUnsub) {
+      await unsubscribeContact(adminClient, contactId, companyId, now, {
+        source: "outreach_unsub",
+        contact_id: contactId,
+      });
+      if (req.method === "POST") {
+        return new Response(null, { status: 204, headers: secureHeaders });
+      }
       return new Response(unsubscribeConfirmationHtml(), {
         status: 200,
         headers: { ...secureHeaders, "Content-Type": "text/html; charset=utf-8" },

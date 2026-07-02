@@ -24,22 +24,27 @@ export function OutreachOverdueFollowups({ companyId }: { companyId: string }) {
   const [todayMs] = useState(() => Date.now());
   const today = new Date(todayMs).toISOString().slice(0, 10);
 
+  const LIST_CAP = 50;
   const q = useQuery({
     queryKey: ["overdue-followups", companyId, today],
     staleTime: 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase
+      // `count: exact` col limit: `data` sono le prime 50 righe da mostrare, ma
+      // `count` è il TOTALE reale delle scadute → il badge non si ferma a 50.
+      const { data, error, count } = await supabase
         .from("marketing_opportunities")
-        .select("id,name,next_action,next_action_date,value")
+        .select("id,name,next_action,next_action_date,value", { count: "exact" })
         .eq("company_id", companyId).eq("status", "open").is("deleted_at", null)
         .not("next_action_date", "is", null).lt("next_action_date", today)
-        .order("next_action_date", { ascending: true }).limit(50);
+        .order("next_action_date", { ascending: true }).limit(LIST_CAP);
       if (error) throw error;
-      return (data ?? []) as Overdue[];
+      return { rows: (data ?? []) as Overdue[], total: count ?? (data?.length ?? 0) };
     },
   });
 
-  const rows = q.data ?? [];
+  const rows = q.data?.rows ?? [];
+  const total = q.data?.total ?? rows.length;
+  const capped = total > rows.length; // ci sono più scadute di quelle mostrate
   const has = rows.length > 0;
   const daysOverdue = (d: string) => Math.max(0, Math.floor((todayMs - new Date(d).getTime()) / 86400000));
 
@@ -56,11 +61,11 @@ export function OutreachOverdueFollowups({ companyId }: { companyId: string }) {
             <AlarmClock className={`h-4 w-4 ${has ? "text-amber-600" : "text-primary"}`} />
           </span>
           Follow-up scaduti
-          {has && <Badge className="border-transparent bg-amber-500 text-white hover:bg-amber-500">{rows.length}</Badge>}
+          {has && <Badge className="border-transparent bg-amber-500 text-white hover:bg-amber-500">{total}</Badge>}
         </CardTitle>
         {has && totalValue > 0 && (
           <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            {eur(totalValue)} a rischio
+            {capped ? "≥ " : ""}{eur(totalValue)} a rischio{capped ? ` · primi ${rows.length}` : ""}
           </span>
         )}
       </CardHeader>

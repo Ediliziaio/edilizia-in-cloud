@@ -41,7 +41,17 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const CRON_SECRET = Deno.env.get("PROACTIVE_CRON_SECRET") || "";
 const PLATFORM_COMPANY = "00000000-0000-0000-0000-000000000001";
-const BATCH = 200;
+// Batch per tick: tenuto basso perché il loop invii è sequenziale e ogni item
+// costa più roundtrip DB (+ handshake SMTP per le caselle proprie). Con 100 e il
+// time-budget sotto, un tick chiude sempre entro il limite 150s della edge.
+const BATCH = 100;
+// Budget di tempo del tick: sopra questa soglia interrompiamo il loop e usciamo
+// puliti (le righe non ancora prese restano 'queued' per il tick successivo).
+// Sotto il limite 150s della edge function, con margine per l'update finale.
+const TICK_BUDGET_MS = 110_000;
+// Righe rimaste 'sending' oltre questa età = orfane (tick precedente ucciso dal
+// timeout o crashato): il reaper le rimette in coda così non si perdono.
+const REAP_STUCK_MS = 15 * 60_000;
 // Iscrizioni "chiuse": i loro messaggi in coda non vanno spediti.
 const TERMINAL_ENROLLMENT = new Set(["stopped", "completed", "replied", "bounced", "opted_out"]);
 
@@ -418,8 +428,11 @@ async function processMessageChannelQueue(
       continue;
     }
 
-    // lock ottimistico (idempotenza anti-doppio, come il pass email)
-    await supabase.from("outreach_send_queue").update({ status: "sending" }).eq("id", item.id);
+    // CLAIM ATOMICO (compare-and-swap), come il pass email: passa a 'sending'
+    // solo se ancora 'queued'; 0 righe aggiornate = già preso da un altro run → skip.
+    const { data: claimedMsg } = await supabase.from("outreach_send_queue")
+      .update({ status: "sending" }).eq("id", item.id).eq("status", "queued").select("id");
+    if (!claimedMsg || claimedMsg.length === 0) { result.skipped++; continue; }
     try {
       // personalizzazione al send: variabili + spintax, seed stabile per destinatario.
       // SMS/WhatsApp non hanno oggetto: si invia solo il body renderizzato.
@@ -484,8 +497,9 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
   const now = new Date();
+  const startedAt = Date.now();
   const today = now.toISOString().slice(0, 10);
-  const result = { processed: 0, sent: 0, failed: 0, skipped: 0, deferred: 0 };
+  const result = { processed: 0, sent: 0, failed: 0, skipped: 0, deferred: 0, reaped: 0, budgetHit: false };
 
   // finestra di invio configurabile (platform_settings.outreach_send_window);
   // default Lun-Ven 8-19 Europe/Rome. Niente cold di notte o nel weekend.
@@ -500,6 +514,25 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // 0-ter. REAPER — righe rimaste 'sending' oltre REAP_STUCK_MS sono orfane
+    // (tick precedente ucciso dal timeout 150s o crashato prima di scrivere
+    // 'sent'/'failed'): senza questo pass non tornano MAI in coda (il select
+    // filtra solo 'queued') → email perse a ogni kill. Le rimettiamo 'queued'
+    // incrementando attempts (così un messaggio davvero problematico finisce
+    // comunque 'failed' dopo max_attempts invece di ciclare all'infinito).
+    try {
+      const stuckBefore = new Date(now.getTime() - REAP_STUCK_MS).toISOString();
+      const { data: reaped } = await supabase
+        .from("outreach_send_queue")
+        .update({ status: "queued", last_error: "reaped: stuck in sending" })
+        .eq("status", "sending")
+        .lt("updated_at", stuckBefore)
+        .select("id");
+      result.reaped = reaped?.length ?? 0;
+    } catch (reapErr) {
+      console.warn("[outreach-dispatch] reaper skip:", reapErr instanceof Error ? reapErr.message : reapErr);
+    }
+
     // 0. PASS GRAFO — instradamenti differiti dovuti (righe 'advance', tipiche dei
     // nodi 'wait'): NON si spediscono, riprendono la traversata valutando le
     // condizioni con segnali aggiornati. Best-effort: se la colonna 'kind' non
@@ -633,9 +666,18 @@ Deno.serve(async (req) => {
       result.deferred += ids.length - r.assignments.length;
     }
 
-    const incr = new Map<string, number>(); // invii riusciti per casella in questo tick
+    // Running total per casella, seminato dallo snapshot iniziale. Il contatore
+    // viene scritto DOPO OGNI invio (non a fine tick): se il tick viene ucciso
+    // dal timeout, i daily_sent già spediti non si perdono e il warm-up cap
+    // resta rispettato al tick successivo.
+    const dailyCount = new Map<string, number>();
+    for (const s of senders) dailyCount.set(s.id, s.daily_sent_date === today ? (s.daily_sent || 0) : 0);
 
     for (const a of assignments) {
+      // Time-budget: usciamo puliti prima del limite 150s della edge. Le righe
+      // non ancora prese restano 'queued' per il tick successivo; nessuna resta
+      // orfana in 'sending' (le prendiamo solo col CAS appena prima dell'invio).
+      if (Date.now() - startedAt > TICK_BUDGET_MS) { result.budgetHit = true; break; }
       result.processed++;
       const item = queueById.get(a.queueId);
       const sender = senderById.get(a.senderId);
@@ -662,8 +704,14 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // lock ottimistico
-      await supabase.from("outreach_send_queue").update({ status: "sending" }).eq("id", item.id);
+      // CLAIM ATOMICO (compare-and-swap): passiamo a 'sending' SOLO se la riga è
+      // ancora 'queued'. `.select()` ritorna le righe effettivamente aggiornate:
+      // se un altro run del dispatcher (cron sovrapposto / invocazione manuale)
+      // l'ha già presa, qui otteniamo 0 righe → la saltiamo. Senza questo check
+      // due tick concorrenti spedirebbero la STESSA email due volte.
+      const { data: claimed } = await supabase.from("outreach_send_queue")
+        .update({ status: "sending" }).eq("id", item.id).eq("status", "queued").select("id");
+      if (!claimed || claimed.length === 0) { result.skipped++; continue; }
       try {
         const brand = sender.brand_id ? brandById.get(sender.brand_id) : null;
         const fromName = brand?.from_name || sender.display_name;
@@ -739,17 +787,29 @@ Deno.serve(async (req) => {
           metadata: { outreach_queue_id: item.id, sender_account_id: sender.id, variant_index: variantIndex, unsubscribe_url: unsubscribeUrl },
         });
         if (res && res.ok === false) {
-          // recapito non riuscito a livello provider (es. soppresso): non ritentare
+          // Recapito rifiutato a livello provider (tipicamente: soppresso, hard
+          // fail): non ritentare E fermare l'iscrizione. Prima si faceva solo
+          // 'skipped' + continue: l'enrollment restava 'active' con next_action_at
+          // nel passato e nessuna riga futura → sequenza bloccata per sempre.
           await supabase.from("outreach_send_queue")
             .update({ status: "skipped", sender_account_id: sender.id, last_error: JSON.stringify(res.body ?? "skipped") })
             .eq("id", item.id);
+          if (enr) {
+            await supabase.from("outreach_enrollments")
+              .update({ status: "stopped", next_action_at: null, stop_reason: "send_rejected" }).eq("id", enr.id);
+          }
           result.skipped++;
           continue;
         }
         await supabase.from("outreach_send_queue")
           .update({ status: "sent", sent_at: now.toISOString(), sender_account_id: sender.id, variant_index: variantIndex })
           .eq("id", item.id);
-        incr.set(sender.id, (incr.get(sender.id) || 0) + 1);
+        // Contatore casella scritto SUBITO (non a fine tick): sopravvive al timeout.
+        const nextCount = (dailyCount.get(sender.id) ?? 0) + 1;
+        dailyCount.set(sender.id, nextCount);
+        await supabase.from("outreach_sender_accounts")
+          .update({ daily_sent: nextCount, daily_sent_date: today, last_sent_at: now.toISOString() })
+          .eq("id", sender.id);
         result.sent++;
         // avanza la cadenza: prossimo step email o completamento iscrizione
         if (enr) {
@@ -759,23 +819,27 @@ Deno.serve(async (req) => {
       } catch (e) {
         const attempts = (item.attempts || 0) + 1;
         const isFinal = attempts >= (item.max_attempts || 3);
+        // Retry con backoff esponenziale (15min·2^attempts): niente martellamento
+        // ravvicinato di un provider magari in rate-limit. Al tentativo finale
+        // fermiamo anche l'iscrizione, altrimenti resta 'active' bloccata.
+        const backoffMin = 15 * Math.pow(2, attempts - 1);
+        const nextAt = new Date(now.getTime() + backoffMin * 60_000).toISOString();
         await supabase.from("outreach_send_queue").update({
           status: isFinal ? "failed" : "queued",
           attempts,
+          scheduled_for: isFinal ? item.scheduled_for : nextAt,
           last_error: e instanceof Error ? e.message : String(e),
         }).eq("id", item.id);
+        if (isFinal && enr) {
+          await supabase.from("outreach_enrollments")
+            .update({ status: "stopped", next_action_at: null, stop_reason: "send_failed" }).eq("id", enr.id);
+        }
         result.failed++;
       }
     }
 
-    // 4. contatori giornalieri delle caselle (reset implicito se cambia il giorno)
-    for (const [sid, n] of incr) {
-      const s = senderById.get(sid);
-      const base = s && s.daily_sent_date === today ? (s.daily_sent || 0) : 0;
-      await supabase.from("outreach_sender_accounts").update({
-        daily_sent: base + n, daily_sent_date: today, last_sent_at: now.toISOString(),
-      }).eq("id", sid);
-    }
+    // I contatori giornalieri delle caselle sono già scritti per-invio nel loop
+    // (sopravvivono al timeout del tick): niente flush finale da fare qui.
 
     return json(result, 200, cors);
   } catch (e) {
