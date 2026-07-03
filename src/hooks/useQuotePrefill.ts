@@ -35,6 +35,8 @@ export interface QuotePrefill {
   orderItems: OrderItem[];
   paymentMethod: string | null;
   installments: Installment[];
+  /** Il preventivo ha un finanziamento (financing_table_id o importo finanziato). */
+  hasFinancing: boolean;
   client: QuotePrefillClient;
 }
 
@@ -101,6 +103,7 @@ export function useQuotePrefill(quoteId: string | null | undefined) {
         is_paid: false,
       }));
       const paymentMethod = typeof q.payment_method === "string" ? q.payment_method : null;
+      const hasFinancing = (Number(q.financing_amount) || 0) > 0 || q.financing_table_id != null;
 
       const quoteTyped = quote as {
         description?: string | null;
@@ -121,6 +124,7 @@ export function useQuotePrefill(quoteId: string | null | undefined) {
         orderItems,
         paymentMethod,
         installments,
+        hasFinancing,
         client: {
           name: quoteTyped.client_name ?? "",
           email: quoteTyped.client_email ?? "",

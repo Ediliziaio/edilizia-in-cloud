@@ -89,10 +89,8 @@ function CreateOrderInner() {
   const quoteCustomerInitial = (() => {
     const c = quotePrefill?.client;
     if (!c || !c.name.trim()) return undefined;
-    const parts = c.name.trim().split(/\s+/);
     return {
-      firstName: parts[0] ?? "",
-      lastName: parts.slice(1).join(" "),
+      fullName: c.name.trim(),
       email: c.email || undefined,
       phone: c.phone || undefined,
       address: c.address || undefined,
@@ -254,6 +252,9 @@ function CreateOrderInner() {
     if (quotePrefill.orderItems.length > 0) setOrderItems(quotePrefill.orderItems);
     // Fasi di pagamento del preventivo → rate della commessa (già compilate).
     if (quotePrefill.installments.length > 0) setInstallments(prefillExpectedDates(quotePrefill.installments));
+    // Preventivo con finanziamento → commessa in modalità finanziamento (il "Costo
+    // Finanziaria"/commissione lo conferma l'utente: dipende dalla tabella finanziaria).
+    if (quotePrefill.hasFinancing) setValue("payment_type", "financing");
     // Contatto del preventivo → apri il dialog "Nuovo cliente" già precompilato (una volta).
     if (quotePrefill.client.name.trim()) setShowCreateCustomer(true);
   }, [quotePrefill, selectedQuoteId, setValue]);
@@ -1030,14 +1031,18 @@ function CreateOrderInner() {
       </form>
 
       {/* Create Customer Dialog */}
-      <CreateCustomerDialog
-        key={quoteCustomerInitial ? `q-${selectedQuoteId}` : "new"}
-        open={showCreateCustomer}
-        onOpenChange={setShowCreateCustomer}
-        onCustomerCreated={handleCustomerCreated}
-        initialValues={quoteCustomerInitial}
-        defaultCreatePortalAccount={quoteCustomerInitial ? false : undefined}
-      />
+      {/* Montaggio condizionale: il dialog nasce SOLO all'apertura (quando i dati
+          del preventivo sono già caricati) → niente remount che cancella l'input. */}
+      {showCreateCustomer && (
+        <CreateCustomerDialog
+          key={selectedQuoteId ?? "new"}
+          open
+          onOpenChange={setShowCreateCustomer}
+          onCustomerCreated={handleCustomerCreated}
+          initialValues={quoteCustomerInitial}
+          defaultCreatePortalAccount={quoteCustomerInitial ? false : undefined}
+        />
+      )}
     </div>
   );
 }
