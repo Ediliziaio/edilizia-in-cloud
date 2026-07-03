@@ -30,6 +30,8 @@ import { formatCurrency } from "@/lib/formatters";
 import type { TetPdfEnriched, TetPdfCapitolo, TetPdfTotali } from "@/hooks/useTettiPDF";
 import type { TetProgetto, TetTemplatePdf } from "@/types/tetti";
 import { htmlToRichBlocks, type TetRichRun } from "@/lib/tetti/richTextPdf";
+import { renderTemplateText, buildStandardReplacements } from "@/lib/pdf/renderTemplateText";
+import { parseFinanziamentoPromo, calcolaRataMensile } from "@/lib/preventivi/finanziamentoLite";
 
 // ─── Rich text → @react-pdf ──────────────────────────────────────────────────
 // Impagina l'HTML prodotto dall'editor WYSIWYG (o il testo semplice "legacy") in
@@ -575,8 +577,10 @@ function formatQty(q: number): string {
 }
 
 // ─── Riepilogo economico ─────────────────────────────────────────────────────
-function TotalsBlock({ styles, totali, detrazioneText, showMargine }: {
+function TotalsBlock({ styles, totali, detrazioneText, showMargine, promo, pc }: {
   styles: Styles; totali: TetPdfTotali; detrazioneText: string | null; showMargine: boolean;
+  promo: ReturnType<typeof parseFinanziamentoPromo>;
+  pc: { primary: string; secondary: string; border: string; text: string };
 }) {
   return (
     <View>
@@ -588,7 +592,7 @@ function TotalsBlock({ styles, totali, detrazioneText, showMargine }: {
         {totali.scontoPct > 0 && (
           <View style={styles.totalsRow}>
             <Text style={styles.totalsLabel}>Sconto {formatPct(totali.scontoPct)}</Text>
-            <Text style={styles.totalsValueNeg}>− {formatCurrency(totali.scontoEur)}</Text>
+            <Text style={styles.totalsValueNeg}>- {formatCurrency(totali.scontoEur)}</Text>
           </View>
         )}
         <View style={styles.totalsRow}>
@@ -604,6 +608,24 @@ function TotalsBlock({ styles, totali, detrazioneText, showMargine }: {
           <Text style={styles.totalsGrandValue}>{formatCurrency(totali.totale)}</Text>
         </View>
       </View>
+
+      {/* Finanziamento promo (template-driven): "da €X/mese" — leva di chiusura.
+          Simulazione indicativa, non offerta vincolante (footnote). */}
+      {promo && (() => {
+        const rata = calcolaRataMensile(totali.totale, promo.rate, promo.tan_pct);
+        if (rata <= 0) return null;
+        return (
+          <View style={{ marginTop: 8, borderWidth: 1, borderColor: pc.border, borderRadius: 6, padding: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={{ fontSize: 10.5, fontWeight: 700, color: pc.primary }}>Possibilità di finanziamento</Text>
+              <Text style={{ fontSize: 7.5, color: pc.text, opacity: 0.7, marginTop: 2 }}>
+                Simulazione indicativa in {promo.rate} rate mensili{promo.tan_pct > 0 ? ` (TAN ${promo.tan_pct}%)` : " a tasso zero"} — soggetta ad approvazione della finanziaria.
+              </Text>
+            </View>
+            <Text style={{ fontSize: 15, fontWeight: 700, color: pc.secondary }}>da {formatCurrency(rata)}/mese</Text>
+          </View>
+        );
+      })()}
 
       {totali.detrazionePct > 0 && (
         <View style={styles.detrazioneNote}>
@@ -644,6 +666,14 @@ export function TettiPDF(props: TetPdfEnriched) {
   const mostraSubtotali = co.mostraSubtotali !== false;
   const importoLordoComputo = capitoli.reduce((s, c) => s + (Number(c.subtotale) || 0), 0);
   const C = makePalette(t);
+  // Promo finanziamento + colori per TotalsBlock: calcolati QUI perche'
+  // generics/cast dentro gli attributi JSX rompono il parse esbuild.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const finanziamentoPromo = (p as unknown as { mostra_finanziamento?: boolean | null }).mostra_finanziamento === false
+    ? null
+    : parseFinanziamentoPromo((t as any).finanziamento_promo);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const totalsPc = { primary: C.primary, secondary: C.secondary, border: (C as any).primaryBorder ?? C.primary, text: C.text };
   const styles = makeStyles(C);
 
   // Anagrafica risolta: template (builder) → company (profilo) → fallback.
@@ -662,9 +692,12 @@ export function TettiPDF(props: TetPdfEnriched) {
   const coverLogoUrl = t.cover_logo_url ?? logoUrl;
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
-  const coverTitle = (t.cover_title ?? "").trim() || "Preventivo di tetti";
-  const coverSubtitle = (t.cover_subtitle ?? "").trim() || "La tua casa, rinnovata chiavi in mano";
-  const coverEyebrow = (t.cover_eyebrow ?? "").trim();
+  // Placeholder {cliente_nome} ecc. (PlaceholderChips): senza l'espansione
+  // uscivano LETTERALI nel PDF del cliente.
+  const coverRepl = buildStandardReplacements(p);
+  const coverTitle = renderTemplateText((t.cover_title ?? "").trim(), coverRepl) || "Preventivo di tetti";
+  const coverSubtitle = renderTemplateText((t.cover_subtitle ?? "").trim(), coverRepl) || "La tua casa, rinnovata chiavi in mano";
+  const coverEyebrow = renderTemplateText((t.cover_eyebrow ?? "").trim(), coverRepl);
   // Controlli copertina (builder): colore testo, posizione logo, opacità velo.
   const coverTextColor = (t.cover_text_color ?? "").trim() || "#FFFFFF";
   const coverBgColor = normalizeHexColor(t.cover_bg_color, C.coverBg);
@@ -794,10 +827,17 @@ export function TettiPDF(props: TetPdfEnriched) {
               <Defs>
                 <LinearGradient id="tet-cover-grad" x1="0" y1="0" x2="0" y2="1">
                   <Stop offset="0" stopColor={coverBgColor} stopOpacity={1} />
-                  <Stop offset="1" stopColor={coverBgColor} stopOpacity={1} />
+                  <Stop offset="0.72" stopColor={coverBgColor} stopOpacity={1} />
+                  <Stop offset="1" stopColor="#000000" stopOpacity={0.32} />
                 </LinearGradient>
+                {/* Glow del secondario dietro il titolo: profondità sulla cover senza foto. */}
+                <RadialGradient id="tet-cover-grad-glow" cx="0.24" cy="0.74" r="0.55" fx="0.24" fy="0.74">
+                  <Stop offset="0" stopColor={C.secondary} stopOpacity={0.22} />
+                  <Stop offset="1" stopColor={C.secondary} stopOpacity={0} />
+                </RadialGradient>
               </Defs>
               <Rect x={0} y={0} width={595} height={841} fill="url(#tet-cover-grad)" />
+              <Rect x={0} y={0} width={595} height={841} fill="url(#tet-cover-grad-glow)" />
             </Svg>
           </View>
         )}
@@ -815,10 +855,13 @@ export function TettiPDF(props: TetPdfEnriched) {
               {coverLogoUrl ? (
                 <Image src={coverLogoUrl} style={[styles.coverLogo, { maxWidth: 180 * coverLogoScale, height: 52 * coverLogoScale }]} />
               ) : (
-                <View style={styles.coverLogoCircle}>
-                  <Text style={{ color: C.white, fontSize: 24, fontWeight: 700 }}>
-                    {companyName.charAt(0).toUpperCase()}
+                <View>
+                  {/* Wordmark: il cerchio con la sola iniziale era anonimo come
+                      prima impressione — meglio il nome azienda per esteso. */}
+                  <Text style={{ color: coverTextColor, fontSize: 15, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>
+                    {companyName}
                   </Text>
+                  <View style={{ marginTop: 4, width: 34, height: 3, backgroundColor: C.secondary, borderRadius: 2 }} />
                 </View>
               )}
             </View>
@@ -887,17 +930,22 @@ export function TettiPDF(props: TetPdfEnriched) {
             </View>
           )}
 
-          {esigenze.some((e) => (e.titolo ?? "").trim()) && (
-            <View style={{ marginTop: 14 }}>
-              <Text style={styles.sectionTitle}>Le tue esigenze</Text>
-              <BulletList styles={styles} items={esigenze} />
-            </View>
-          )}
-
-          {soluzione.some((s) => (s.titolo ?? "").trim()) && (
-            <View style={{ marginTop: 14 }}>
-              <Text style={styles.sectionTitle}>La nostra soluzione</Text>
-              <BulletList styles={styles} items={soluzione} />
+          {/* Esigenze ↔ Soluzione affiancate: sono una coppia concettuale e la
+              colonna doppia spezza la monotonia della pagina di presentazione. */}
+          {(esigenze.some((e) => (e.titolo ?? "").trim()) || soluzione.some((s) => (s.titolo ?? "").trim())) && (
+            <View style={{ marginTop: 14, flexDirection: "row", gap: 16 }}>
+              {esigenze.some((e) => (e.titolo ?? "").trim()) && (
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>Le tue esigenze</Text>
+                  <BulletList styles={styles} items={esigenze} />
+                </View>
+              )}
+              {soluzione.some((s) => (s.titolo ?? "").trim()) && (
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>La nostra soluzione</Text>
+                  <BulletList styles={styles} items={soluzione} />
+                </View>
+              )}
             </View>
           )}
 
@@ -1000,6 +1048,8 @@ export function TettiPDF(props: TetPdfEnriched) {
         <View style={{ marginTop: 14 }} wrap={false}>
           <Text style={styles.sectionTitle}>Riepilogo economico</Text>
           <TotalsBlock
+            promo={finanziamentoPromo}
+            pc={totalsPc}
             styles={styles}
             totali={totali}
             detrazioneText={null}

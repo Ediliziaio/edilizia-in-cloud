@@ -46,9 +46,15 @@ import {
 } from "@/hooks/usePiscineProgetto";
 import { PIS_STATI_LABEL } from "./PiscineWizard/helpers";
 import type { PisStato } from "@/types/piscine";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useTableSelection } from "@/hooks/useTableSelection";
+import { ModuloBulkToolbar } from "@/components/moduli/ModuloBulkToolbar";
 
 export default function PiscineIndex() {
   const navigate = useNavigate();
+  const companyId = useEffectiveCompanyId();
+  const sel = useTableSelection();
   const { data: progetti = [], isLoading, isError, refetch } = usePiscineProgetti();
   const deleteMut = useDeleteProgetto();
   const cloneMut = useClonaProgetto();
@@ -260,11 +266,26 @@ export default function PiscineIndex() {
               </div>
             ) : (
               <>
+                <ModuloBulkToolbar
+                  tableName="pis_progetti"
+                  companyId={companyId}
+                  selectedIds={sel.selected}
+                  statoOptions={(Object.keys(PIS_STATI_LABEL) as (keyof typeof PIS_STATI_LABEL)[]).map((k) => ({ value: k as string, label: PIS_STATI_LABEL[k].label }))}
+                  onClear={sel.clear}
+                  onDone={() => { sel.clear(); void refetch(); }}
+                />
                 {/* Desktop tabella */}
                 <div className="hidden md:block overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={progettiFiltrati.length > 0 && progettiFiltrati.every((p) => sel.isSelected(p.id))}
+                            onCheckedChange={() => sel.toggleAll(progettiFiltrati.map((p) => p.id))}
+                            aria-label="Seleziona tutti"
+                          />
+                        </TableHead>
                         <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Codice</TableHead>
                         <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Cliente</TableHead>
                         <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Cantiere</TableHead>
@@ -284,6 +305,13 @@ export default function PiscineIndex() {
                             className="cursor-pointer hover:bg-orange-50/40 transition-colors"
                             onClick={() => navigate(`/azienda/piscine/${p.id}/modifica`)}
                           >
+                            <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={sel.isSelected(p.id)}
+                                onCheckedChange={() => sel.toggle(p.id)}
+                                aria-label="Seleziona riga"
+                              />
+                            </TableCell>
                             <TableCell className="font-mono text-xs font-semibold text-orange-600">
                               {p.code ?? "—"}
                             </TableCell>

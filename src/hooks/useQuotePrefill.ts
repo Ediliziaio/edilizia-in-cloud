@@ -1,26 +1,43 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { OrderItem } from "@/components/orders/OrderItemsList";
+import type { Installment } from "@/lib/orderUtils";
+import { parseQuotePaymentPhases } from "@/lib/preventivi/paymentTerms";
 
 /**
  * useQuotePrefill — legge un preventivo (quotes + quote_items) e lo mappa in
  * dati pronti per precompilare la creazione commessa (/azienda/ordini/nuovo).
  *
- * Porta con sé la "spina misure" dei prodotti su misura: per ogni riga con
- * `family_id` valorizzato copia famiglia + assi + misura INIZIALE e imposta
- * measure_status='da_rilevare' (verrà poi rilevata in sopralluogo).
- *
- * Nota: NON precompila il cliente. I preventivi vivono nel modulo marketing e
- * usano `contact_id`/`opportunity_id`, non il `customer_id` della commessa:
- * il mapping cross-modulo è ambiguo, quindi il cliente lo conferma l'utente.
+ * Porta con sé:
+ *  - righe (articoli/prezzi/costi/IVA) + "spina misure" dei prodotti su misura;
+ *  - FASI DI PAGAMENTO strutturate → rate della commessa (order_installments),
+ *    stesso schema `type` (deposit/balance/financing);
+ *  - MODALITÀ di pagamento;
+ *  - dati CLIENTE del preventivo (per creare/collegare l'anagrafica in commessa).
  */
 
 const SKIP_CATEGORIES = new Set(["subtotale", "sconto", "nota"]);
+
+export interface QuotePrefillClient {
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  address: string;
+  fiscalCode: string;
+  vatNumber: string;
+  contactId: string | null;
+}
 
 export interface QuotePrefill {
   description: string;
   quoteNumber: string | null;
   orderItems: OrderItem[];
+  paymentMethod: string | null;
+  installments: Installment[];
+  /** Il preventivo ha un finanziamento (financing_table_id o importo finanziato). */
+  hasFinancing: boolean;
+  client: QuotePrefillClient;
 }
 
 export function useQuotePrefill(quoteId: string | null | undefined) {
@@ -33,7 +50,7 @@ export function useQuotePrefill(quoteId: string | null | undefined) {
 
       const { data: quote, error: qErr } = await supabase
         .from("quotes")
-        .select("id, description, quote_number")
+        .select("*")
         .eq("id", quoteId)
         .single();
       if (qErr) throw qErr;
@@ -76,10 +93,48 @@ export function useQuotePrefill(quoteId: string | null | undefined) {
           };
         });
 
+      // ── Fasi di pagamento del preventivo → rate della commessa ──
+      const q = quote as Record<string, unknown>;
+      const installments: Installment[] = parseQuotePaymentPhases(q.payment_phases).map((p, idx) => ({
+        position: idx,
+        label: p.label,
+        type: p.type,
+        amount: p.amount,
+        is_paid: false,
+      }));
+      const paymentMethod = typeof q.payment_method === "string" ? q.payment_method : null;
+      const hasFinancing = (Number(q.financing_amount) || 0) > 0 || q.financing_table_id != null;
+
+      const quoteTyped = quote as {
+        description?: string | null;
+        quote_number?: string | null;
+        client_name?: string | null;
+        client_email?: string | null;
+        client_phone?: string | null;
+        client_company?: string | null;
+        client_address?: string | null;
+        client_fiscal_code?: string | null;
+        client_vat_number?: string | null;
+        contact_id?: string | null;
+      };
+
       return {
-        description: (quote?.description as string | null) ?? "",
-        quoteNumber: (quote?.quote_number as string | null) ?? null,
+        description: quoteTyped.description ?? "",
+        quoteNumber: quoteTyped.quote_number ?? null,
         orderItems,
+        paymentMethod,
+        installments,
+        hasFinancing,
+        client: {
+          name: quoteTyped.client_name ?? "",
+          email: quoteTyped.client_email ?? "",
+          phone: quoteTyped.client_phone ?? "",
+          company: quoteTyped.client_company ?? "",
+          address: quoteTyped.client_address ?? "",
+          fiscalCode: quoteTyped.client_fiscal_code ?? "",
+          vatNumber: quoteTyped.client_vat_number ?? "",
+          contactId: quoteTyped.contact_id ?? null,
+        },
       };
     },
   });

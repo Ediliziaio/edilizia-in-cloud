@@ -129,13 +129,19 @@ function isAllowedOriginSync(origin: string): boolean {
 
 /**
  * Restituisce gli header CORS con l'Origin specifico del chiamante se è ammesso,
- * altrimenti usa il dominio di produzione principale.
+ * altrimenti "*" come fallback.
  * SINCRONA — sicura da usare senza await.
+ *
+ * 2026-07-02 — il fallback per origin non in whitelist era STATIC_ORIGINS[0]
+ * (app.ediliziaincloud.com fisso): sui domini custom white-label — che oggi
+ * non sono validabili perché refreshDomainCacheInBackground è disabilitata
+ * (emergency 2026-05-27) — il browser scartava OGNI risposta. "*" è sicuro:
+ * niente cookie né Allow-Credentials, l'autorizzazione è il Bearer JWT.
  */
 export function getCorsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get("Origin") ?? "";
   const allowed = isAllowedOriginSync(origin);
-  const allowedOrigin = allowed ? origin : STATIC_ORIGINS[0];
+  const allowedOrigin = allowed ? origin : "*";
   return {
     "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers": ALLOW_HEADERS,
@@ -152,11 +158,20 @@ export const getCorsHeadersSync = getCorsHeaders;
  * @deprecated Usa getCorsHeaders(req) per rispondere con l'Origin corretto.
  * Mantenuto per retrocompatibilità con webhook inbound (Stripe, Meta, SDI)
  * che sono chiamate server-to-server e non necessitano di CORS dinamico.
+ *
+ * 2026-07-02 — Allow-Origin: "*" invece del dominio .com fisso. Con l'origin
+ * pinnato, ogni errorResponse/jsonResponse senza corsOverride veniva SCARTATA
+ * dal browser su .it / localhost / white-label ("Failed to send a request to
+ * the Edge Function") mentre il server aveva già eseguito il lavoro.
+ * "*" è sicuro qui: auth solo Bearer token, nessun cookie, nessun
+ * Access-Control-Allow-Credentials in tutta la piattaforma. CORS non è il
+ * livello di autorizzazione — lo è il JWT. getCorsHeaders(req) resta la via
+ * preferita quando req è disponibile (echo dell'Origin specifico).
  */
 export const corsHeaders: Record<string, string> = {
-  "Access-Control-Allow-Origin": STATIC_ORIGINS[0],
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": ALLOW_HEADERS,
-  "Vary": "Origin",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 };
 
 /** CORS + security headers combinati. Usa per tutte le risposte non-OPTIONS. */

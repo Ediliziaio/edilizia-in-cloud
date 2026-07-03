@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CaptureReviewPanel } from "./CaptureReviewPanel";
+import { AIExtractionProgress } from "./AIExtractionProgress";
 
 const MAX_AUDIO_SECONDS = 180; // 3 min
 const MAX_IMAGES = 10;
@@ -712,7 +713,7 @@ export function QuoteFromCaptureDialog({ open, onOpenChange, onQuoteCreated }: P
                         : "border-destructive/40"
                     }`}>
                       <span className="h-3 w-3 rounded-full bg-destructive animate-pulse" />
-                      <span className="font-mono text-2xl tabular-nums font-bold text-destructive">
+                      <span className="text-2xl tabular-nums font-bold text-destructive">
                         {formatTime(recordingSeconds)}
                       </span>
                       {recordingSeconds >= MAX_AUDIO_SECONDS - 15 && (
@@ -765,7 +766,7 @@ Ordine:
 - Posa inclusa
 `}
                 rows={12}
-                className="font-mono text-sm"
+                className="text-sm"
               />
             </TabsContent>
 
@@ -807,11 +808,10 @@ Ordine:
             </div>
           </Tabs>
         ) : phase === "processing" ? (
-          <div className="py-12 text-center space-y-3">
-            <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary" />
-            <p className="font-medium">{progressMsg}</p>
-            <p className="text-xs text-muted-foreground">
-              Può richiedere 5-15 secondi a seconda della complessità.
+          <div className="py-8 space-y-4">
+            <AIExtractionProgress mode={activeTab} />
+            <p className="text-xs text-center text-muted-foreground">
+              {progressMsg} · Può richiedere 5-20 secondi a seconda della complessità.
             </p>
           </div>
         ) : phase === "review" && runId ? (

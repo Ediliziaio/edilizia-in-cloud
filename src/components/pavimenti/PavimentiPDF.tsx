@@ -30,6 +30,7 @@ import { formatCurrency } from "@/lib/formatters";
 import type { PavPdfEnriched, PavPdfCapitolo, PavPdfTotali } from "@/hooks/usePavimentiPDF";
 import type { PavProgetto, PavTemplatePdf } from "@/types/pavimenti";
 import { htmlToRichBlocks, type PavRichRun } from "@/lib/pavimenti/richTextPdf";
+import { parseFinanziamentoPromo, calcolaRataMensile } from "@/lib/preventivi/finanziamentoLite";
 
 // ─── Rich text → @react-pdf ──────────────────────────────────────────────────
 // Impagina l'HTML prodotto dall'editor WYSIWYG (o il testo semplice "legacy") in
@@ -632,8 +633,10 @@ function formatQty(q: number): string {
 }
 
 // ─── Riepilogo economico ─────────────────────────────────────────────────────
-function TotalsBlock({ styles, totali, detrazioneText, showMargine }: {
+function TotalsBlock({ styles, totali, detrazioneText, showMargine, promo, pc }: {
   styles: Styles; totali: PavPdfTotali; detrazioneText: string | null; showMargine: boolean;
+  promo: ReturnType<typeof parseFinanziamentoPromo>;
+  pc: { primary: string; secondary: string; border: string; text: string };
 }) {
   return (
     <View>
@@ -645,7 +648,7 @@ function TotalsBlock({ styles, totali, detrazioneText, showMargine }: {
         {totali.scontoPct > 0 && (
           <View style={styles.totalsRow}>
             <Text style={styles.totalsLabel}>Sconto {formatPct(totali.scontoPct)}</Text>
-            <Text style={styles.totalsValueNeg}>− {formatCurrency(totali.scontoEur)}</Text>
+            <Text style={styles.totalsValueNeg}>- {formatCurrency(totali.scontoEur)}</Text>
           </View>
         )}
         <View style={styles.totalsRow}>
@@ -661,6 +664,24 @@ function TotalsBlock({ styles, totali, detrazioneText, showMargine }: {
           <Text style={styles.totalsGrandValue}>{formatCurrency(totali.totale)}</Text>
         </View>
       </View>
+
+      {/* Finanziamento promo (template-driven): "da €X/mese" — leva di chiusura.
+          Simulazione indicativa, non offerta vincolante (footnote). */}
+      {promo && (() => {
+        const rata = calcolaRataMensile(totali.totale, promo.rate, promo.tan_pct);
+        if (rata <= 0) return null;
+        return (
+          <View style={{ marginTop: 8, borderWidth: 1, borderColor: pc.border, borderRadius: 6, padding: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={{ fontSize: 10.5, fontWeight: 700, color: pc.primary }}>Possibilità di finanziamento</Text>
+              <Text style={{ fontSize: 7.5, color: pc.text, opacity: 0.7, marginTop: 2 }}>
+                Simulazione indicativa in {promo.rate} rate mensili{promo.tan_pct > 0 ? ` (TAN ${promo.tan_pct}%)` : " a tasso zero"} — soggetta ad approvazione della finanziaria.
+              </Text>
+            </View>
+            <Text style={{ fontSize: 15, fontWeight: 700, color: pc.secondary }}>da {formatCurrency(rata)}/mese</Text>
+          </View>
+        );
+      })()}
 
       {totali.detrazionePct > 0 && (
         <View style={styles.detrazioneNote}>
@@ -701,6 +722,14 @@ export function PavimentiPDF(props: PavPdfEnriched) {
   const mostraSubtotali = co.mostraSubtotali !== false;
   const importoLordoComputo = capitoli.reduce((s, c) => s + (Number(c.subtotale) || 0), 0);
   const C = makePalette(t);
+  // Promo finanziamento + colori per TotalsBlock: calcolati QUI perche'
+  // generics/cast dentro gli attributi JSX rompono il parse esbuild.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const finanziamentoPromo = (p as unknown as { mostra_finanziamento?: boolean | null }).mostra_finanziamento === false
+    ? null
+    : parseFinanziamentoPromo((t as any).finanziamento_promo);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const totalsPc = { primary: C.primary, secondary: C.secondary, border: (C as any).primaryBorder ?? C.primary, text: C.text };
   const styles = makeStyles(C);
 
   // Anagrafica risolta: template (builder) → company (profilo) → fallback.
@@ -717,6 +746,12 @@ export function PavimentiPDF(props: PavPdfEnriched) {
   const showFooterLegal = t.show_footer_legal === true;
   const logoUrl = t.logo_url ?? company?.logo_url ?? null;
   const coverLogoUrl = t.cover_logo_url ?? logoUrl;
+  // Scala logo cover (60–160%) — parity con gli altri moduli; la colonna
+  // pdf_cover_logo_size arriva dalla migration cover-parity 2026-07-02.
+  const coverLogoScale = (() => {
+    const v = (t as unknown as Record<string, unknown>).pdf_cover_logo_size;
+    return typeof v === "number" && Number.isFinite(v) ? Math.max(60, Math.min(160, v)) / 100 : 1;
+  })();
   const cliente = clienteNomeOf(p);
   const cantiere = cantiereOf(p);
 
@@ -924,6 +959,28 @@ export function PavimentiPDF(props: PavPdfEnriched) {
         )}
 
         {/* Decoro SVG in alto a destra (toggle). Colore = TESTO cover. */}
+        {/* Cover senza foto: gradiente di profondità + glow del secondario
+            dietro il blocco titolo — prima il fondo era completamente piatto. */}
+        {!coverImageUrl && (
+          <View style={{ position: "absolute", top: 0, left: 0, width: 595, height: 841 }}>
+            <Svg width={595} height={841} viewBox="0 0 595 841">
+              <Defs>
+                <LinearGradient id="pav-cover-depth" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor={coverBgColor ?? C.coverBg} stopOpacity={0} />
+                  <Stop offset="0.72" stopColor="#000000" stopOpacity={0} />
+                  <Stop offset="1" stopColor="#000000" stopOpacity={0.32} />
+                </LinearGradient>
+                <RadialGradient id="pav-cover-glow" cx="0.24" cy="0.74" r="0.55" fx="0.24" fy="0.74">
+                  <Stop offset="0" stopColor={C.secondary} stopOpacity={0.22} />
+                  <Stop offset="1" stopColor={C.secondary} stopOpacity={0} />
+                </RadialGradient>
+              </Defs>
+              <Rect x={0} y={0} width={595} height={841} fill="url(#pav-cover-depth)" />
+              <Rect x={0} y={0} width={595} height={841} fill="url(#pav-cover-glow)" />
+            </Svg>
+          </View>
+        )}
+
         {coverShowDecoration && (
           <View style={styles.coverDecoSvg}>
             <CoverDecorationSvg color={coverTextColor} variant={coverDecorationStyle} />
@@ -935,12 +992,15 @@ export function PavimentiPDF(props: PavPdfEnriched) {
           <View wrap={false} style={coverLogoPositionStyle}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: coverLogoJustify }}>
               {coverLogoUrl ? (
-                <Image src={coverLogoUrl} style={styles.coverLogo} />
+                <Image src={coverLogoUrl} style={[styles.coverLogo, { maxWidth: 180 * coverLogoScale, height: 52 * coverLogoScale }]} />
               ) : (
-                <View style={styles.coverLogoCircle}>
-                  <Text style={{ color: C.white, fontSize: 24, fontWeight: 700 }}>
-                    {companyName.charAt(0).toUpperCase()}
+                <View>
+                  {/* Wordmark: il cerchio con la sola iniziale era anonimo come
+                      prima impressione — meglio il nome azienda per esteso. */}
+                  <Text style={{ color: coverTextColor, fontSize: 15, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" }}>
+                    {companyName}
                   </Text>
+                  <View style={{ marginTop: 4, width: 34, height: 3, backgroundColor: C.secondary, borderRadius: 2 }} />
                 </View>
               )}
             </View>
@@ -1005,17 +1065,22 @@ export function PavimentiPDF(props: PavPdfEnriched) {
             </View>
           )}
 
-          {esigenze.some((e) => (e.titolo ?? "").trim()) && (
-            <View style={{ marginTop: 14 }}>
-              <Text style={styles.sectionTitle}>Le tue esigenze</Text>
-              <BulletList styles={styles} items={esigenze} />
-            </View>
-          )}
-
-          {soluzione.some((s) => (s.titolo ?? "").trim()) && (
-            <View style={{ marginTop: 14 }}>
-              <Text style={styles.sectionTitle}>La nostra soluzione</Text>
-              <BulletList styles={styles} items={soluzione} />
+          {/* Esigenze ↔ Soluzione affiancate: sono una coppia concettuale e la
+              colonna doppia spezza la monotonia della pagina di presentazione. */}
+          {(esigenze.some((e) => (e.titolo ?? "").trim()) || soluzione.some((s) => (s.titolo ?? "").trim())) && (
+            <View style={{ marginTop: 14, flexDirection: "row", gap: 16 }}>
+              {esigenze.some((e) => (e.titolo ?? "").trim()) && (
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>Le tue esigenze</Text>
+                  <BulletList styles={styles} items={esigenze} />
+                </View>
+              )}
+              {soluzione.some((s) => (s.titolo ?? "").trim()) && (
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>La nostra soluzione</Text>
+                  <BulletList styles={styles} items={soluzione} />
+                </View>
+              )}
             </View>
           )}
 
@@ -1118,6 +1183,8 @@ export function PavimentiPDF(props: PavPdfEnriched) {
         <View style={{ marginTop: 14 }} wrap={false}>
           <Text style={styles.sectionTitle}>Riepilogo economico</Text>
           <TotalsBlock
+            promo={finanziamentoPromo}
+            pc={totalsPc}
             styles={styles}
             totali={totali}
             detrazioneText={null}

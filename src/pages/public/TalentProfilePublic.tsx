@@ -58,6 +58,12 @@ const answerOptions = [
   { value: "C" as const, label: "Falso / No" },
 ];
 
+// Valori realmente selezionabili dalla UI. Il CHECK del DB ammette anche "D"
+// (versioni storiche), ma il questionario V5 è a 3 opzioni: qualunque valore
+// fuori da questo set viene trattato come "non risposto" (l'utente lo re-inserisce)
+// invece di restare invisibile ma conteggiato.
+const SELECTABLE_ANSWER_VALUES = new Set<AnswerValue>(answerOptions.map((o) => o.value));
+
 function reasonLabel(reason?: string) {
   if (reason === "expired") return "Questo link è scaduto. Chiedi all'azienda un nuovo invito.";
   if (reason === "token_missing") return "Link incompleto.";
@@ -84,6 +90,10 @@ export default function TalentProfilePublic() {
 
   const PAGE_SIZE = 10;
   const questions = useMemo(() => session?.questions || [], [session?.questions]);
+  // Set degli ID domanda realmente presenti nella sessione corrente. Serve a
+  // NON inviare mai al DB risposte "orfane" (domande disattivate o di un'altra
+  // versione), che farebbero fallire l'intero salvataggio con un errore SQL.
+  const validQuestionIds = useMemo(() => new Set(questions.map((q) => q.question_id)), [questions]);
   const pages = useMemo(() => {
     const result: typeof questions[] = [];
     for (let i = 0; i < questions.length; i += PAGE_SIZE) {
@@ -95,8 +105,13 @@ export default function TalentProfilePublic() {
   const currentPage = pages[pageIndex] || [];
   const currentPageStartNum = pageIndex * PAGE_SIZE + 1;
   const currentPageEndNum = Math.min(questions.length, (pageIndex + 1) * PAGE_SIZE);
-  const isLastPage = pageIndex >= totalPages - 1;
-  const answeredCount = Object.keys(answers).length;
+  const isLastPage = totalPages > 0 && pageIndex >= totalPages - 1;
+  // Conta solo le risposte relative a domande della sessione corrente: risposte
+  // orfane non gonfiano il contatore (che divergerebbe dal DB al completamento).
+  const answeredCount = useMemo(
+    () => questions.reduce((n, q) => (answers[q.question_id] ? n + 1 : n), 0),
+    [answers, questions],
+  );
   const missingAnswersCount = Math.max(0, questions.length - answeredCount);
   const progressPct = questions.length > 0 ? Math.round((answeredCount / questions.length) * 100) : 0;
   const currentPageAnsweredCount = currentPage.filter((q) => answers[q.question_id]).length;
@@ -117,9 +132,14 @@ export default function TalentProfilePublic() {
       setSession(nextSession);
 
       if (nextSession.valid) {
+        const sessionQuestionIds = new Set((nextSession.questions || []).map((q) => q.question_id));
         const nextAnswers = Object.entries(nextSession.answers || {}).reduce<Record<number, AnswerValue>>(
           (acc, [questionId, value]) => {
-            acc[Number(questionId)] = value;
+            // Tieni solo risposte di domande esistenti e con un valore selezionabile:
+            // così i contatori e il payload di salvataggio restano coerenti col DB.
+            if (sessionQuestionIds.has(Number(questionId)) && SELECTABLE_ANSWER_VALUES.has(value)) {
+              acc[Number(questionId)] = value;
+            }
             return acc;
           },
           {},
@@ -165,10 +185,16 @@ export default function TalentProfilePublic() {
 
       setSaving(true);
       try {
-        const payload = Object.entries(answers).map(([questionId, answerValue]) => ({
-          question_id: Number(questionId),
-          answer_value: answerValue,
-        }));
+        const payload = Object.entries(answers)
+          // Non inviare risposte orfane o con valore non ammesso: eviterebbero il
+          // RAISE lato RPC che altrimenti bloccherebbe ogni salvataggio successivo.
+          .filter(([questionId, answerValue]) =>
+            validQuestionIds.has(Number(questionId)) && SELECTABLE_ANSWER_VALUES.has(answerValue),
+          )
+          .map(([questionId, answerValue]) => ({
+            question_id: Number(questionId),
+            answer_value: answerValue,
+          }));
 
         const { data, error } = await talentRpc.rpc<PublicSaveResponse>("hr_talent_public_save_answers", {
           p_token: token,
@@ -195,22 +221,45 @@ export default function TalentProfilePublic() {
           );
         }
         if (!silent) toast.success(complete ? "Test completato" : "Risposte salvate");
+        return data ?? undefined;
       } finally {
         setSaving(false);
       }
     },
-    [answeredCount, answers, privacyAccepted, questions.length, token],
+    [answeredCount, answers, privacyAccepted, questions.length, token, validQuestionIds],
   );
 
   useEffect(() => {
-    if (!loadedRef.current || !dirty || completed || !started) return;
+    // `saving` nella guardia: mai lanciare l'autosave mentre un altro salvataggio
+    // è in volo (evita chiamate concorrenti e indicatori "salvato" prematuri).
+    if (!loadedRef.current || !dirty || completed || !started || saving) return;
     const timeout = window.setTimeout(() => {
       persistAnswers({ silent: true }).catch(() => {
         // Il salvataggio manuale resta disponibile e mostrera l'errore.
       });
     }, 900);
     return () => window.clearTimeout(timeout);
-  }, [completed, dirty, persistAnswers, started]);
+  }, [completed, dirty, persistAnswers, started, saving]);
+
+  // Cambio pagina "best-effort": tenta il salvataggio ma NON blocca la navigazione
+  // se fallisce (le risposte restano in stato e verranno risalvate). Prima un save
+  // in errore imprigionava l'utente sulla pagina, senza avanti né indietro.
+  const changePage = useCallback(
+    async (delta: number) => {
+      if (dirty) {
+        try {
+          await persistAnswers({ silent: true });
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Salvataggio non riuscito, riprovo tra poco");
+        }
+      }
+      setPageIndex((p) => Math.min(totalPages - 1, Math.max(0, p + delta)));
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [dirty, persistAnswers, totalPages],
+  );
+  const goNextPage = useCallback(() => changePage(1), [changePage]);
+  const goPrevPage = useCallback(() => changePage(-1), [changePage]);
 
   useEffect(() => {
     if (!started || completed) return;
@@ -227,34 +276,7 @@ export default function TalentProfilePublic() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [started, completed, pageIndex, totalPages, dirty]);
-
-  const goNextPage = async () => {
-    if (dirty) {
-      try {
-        await persistAnswers({ silent: true });
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Non sono riuscito a salvare le risposte");
-        return;
-      }
-    }
-    setPageIndex((p) => Math.min(totalPages - 1, p + 1));
-    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const goPrevPage = async () => {
-    if (dirty) {
-      try {
-        await persistAnswers({ silent: true });
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Non sono riuscito a salvare le risposte");
-        return;
-      }
-    }
-    setPageIndex((p) => Math.max(0, p - 1));
-    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  }, [started, completed, pageIndex, totalPages, goNextPage, goPrevPage]);
 
   const acceptPrivacyAndStart = async () => {
     // Persisti PRIMA il consenso; avvia il test solo se il backend conferma
@@ -262,10 +284,34 @@ export default function TalentProfilePublic() {
     // di rete non lascia l'utente "avviato" senza consenso salvato, e il
     // pulsante resta in stato di caricamento finché non completa.
     try {
-      await persistAnswers({ acceptPrivacy: true, silent: false });
+      const result = await persistAnswers({ acceptPrivacy: true, silent: false });
+      // Avvia solo se il backend conferma il consenso: evita di entrare nel test
+      // con privacy non registrata (che poi bloccherebbe il completamento).
+      if (result?.privacy_accepted === false) {
+        toast.error("Non è stato possibile registrare il consenso. Riprova.");
+        return;
+      }
       setStarted(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Non sono riuscito ad avviare il test");
+    }
+  };
+
+  const handleComplete = async () => {
+    try {
+      await persistAnswers({ complete: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Errore";
+      toast.error(message);
+      // Se il backend segnala risposte mancanti (divergenza col conteggio locale),
+      // porta l'utente direttamente alla prima domanda senza risposta.
+      if (message === reasonLabel("incomplete")) {
+        const firstMissingIdx = questions.findIndex((q) => !answers[q.question_id]);
+        if (firstMissingIdx >= 0) {
+          setPageIndex(Math.floor(firstMissingIdx / PAGE_SIZE));
+          if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      }
     }
   };
 
@@ -281,13 +327,47 @@ export default function TalentProfilePublic() {
   }
 
   if (!session?.valid) {
+    // Distingue gli errori permanenti (link scaduto/non valido) da quelli
+    // potenzialmente transitori (rete/RPC): in entrambi i casi offriamo "Riprova"
+    // così un errore di caricamento momentaneo non diventa un vicolo cieco.
+    const permanentReasons = new Set(["expired", "token_missing", "token_invalid", "privacy_required"]);
+    const isPermanent = permanentReasons.has(session?.reason || "");
     return (
       <PublicShell>
         <Card className="mx-auto max-w-lg border-red-200">
-          <CardContent className="space-y-3 p-8 text-center">
+          <CardContent className="space-y-4 p-8 text-center">
             <AlertTriangle className="mx-auto h-12 w-12 text-red-500" />
             <h1 className="text-xl font-bold text-slate-950">Questionario non disponibile</h1>
             <p className="text-sm text-slate-600">{reasonLabel(session?.reason)}</p>
+            {!isPermanent && (
+              <Button
+                variant="outline"
+                onClick={() => loadSession()}
+                disabled={loading}
+                className="mx-auto"
+              >
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Riprova
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      </PublicShell>
+    );
+  }
+
+  // Sessione valida ma nessuna domanda attiva: stato dedicato invece di mostrare
+  // un test vuoto "Schermata 1 di 0" che si potrebbe pure "completare" a vuoto.
+  if (questions.length === 0) {
+    return (
+      <PublicShell companyName={session.company?.name || undefined}>
+        <Card className="mx-auto max-w-lg border-amber-200">
+          <CardContent className="space-y-3 p-8 text-center">
+            <AlertTriangle className="mx-auto h-12 w-12 text-amber-500" />
+            <h1 className="text-xl font-bold text-slate-950">Assessment in preparazione</h1>
+            <p className="text-sm text-slate-600">
+              Il questionario non è ancora disponibile. Riprova più tardi o contatta l'azienda che ti ha invitato.
+            </p>
           </CardContent>
         </Card>
       </PublicShell>
@@ -371,7 +451,7 @@ export default function TalentProfilePublic() {
                   <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-orange-500" />
                   <div>
                     <p className="text-sm font-semibold text-slate-900">Circa 25-35 minuti</p>
-                    <p className="text-xs text-slate-600">{questions.length} domande divise in {totalPages} schermate da {PAGE_SIZE}.</p>
+                    <p className="text-xs text-slate-600">{questions.length} domande in {totalPages} schermate, circa {PAGE_SIZE} per schermata.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -588,9 +668,10 @@ export default function TalentProfilePublic() {
               <Button
                 size="lg"
                 disabled={saving}
-                onClick={() => persistAnswers({ complete: true }).catch((e) => toast.error(e instanceof Error ? e.message : "Errore"))}
+                onClick={handleComplete}
                 className="flex-[2] bg-gradient-to-r from-emerald-600 to-emerald-500 font-semibold hover:from-emerald-700 hover:to-emerald-600"
               >
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 ✓ Completa test
               </Button>
             )}

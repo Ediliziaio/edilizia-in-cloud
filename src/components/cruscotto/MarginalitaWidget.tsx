@@ -76,7 +76,24 @@ export function MarginalitaWidget() {
     );
   }
 
-  if (summary.nCommesse === 0) return null;
+  // Niente widget-fantasma: senza commesse spieghiamo il perché invece di sparire.
+  if (summary.nCommesse === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            Marginalità Cantieri
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Nessuna commessa con dati economici nel periodo: la marginalità comparirà qui con la prima commessa.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>

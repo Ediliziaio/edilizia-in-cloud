@@ -68,6 +68,8 @@ import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
 import type { GalleryLavoroItem } from "@/types/gallery";
 import { COVER_PRESETS, detectActiveCoverPreset } from "@/components/piscine/coverPresets";
 import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from "@/components/piscine/coverStockImages";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
+import { FinanziamentoPromoField } from "@/components/preventivi/FinanziamentoPromoField";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -173,7 +175,11 @@ type FormState = Required<Pick<PisTemplatePdf,
   | "pdf_cover_eyebrow_size" | "pdf_cover_subtitle_size"
   | "default_iva_pct" | "default_detrazione_pct" | "default_validita_giorni"
   | "gallery_lavori"
->>;
+>> & {
+  /** Scala logo cover 60–160% — colonna aggiunta dalla parity 2026-07-02,
+   *  non presente sul tipo PisTemplatePdf generato. */
+  pdf_cover_logo_size: number | null;
+};
 
 function templateToForm(t: PisTemplatePdf): FormState {
   return {
@@ -224,6 +230,7 @@ function templateToForm(t: PisTemplatePdf): FormState {
     pdf_cover_show_client_card: t.pdf_cover_show_client_card ?? true,
     pdf_cover_eyebrow_size: t.pdf_cover_eyebrow_size ?? 11,
     pdf_cover_subtitle_size: t.pdf_cover_subtitle_size ?? 13,
+    pdf_cover_logo_size: (t as unknown as Record<string, unknown>).pdf_cover_logo_size as number | null ?? null,
     default_iva_pct: t.default_iva_pct ?? 10,
     default_detrazione_pct: t.default_detrazione_pct ?? 50,
     default_validita_giorni: t.default_validita_giorni ?? 30,
@@ -292,6 +299,9 @@ export function PiscineTemplateEditor({ embedded = false }: Props) {
 
   const [form, setForm] = useState<FormState | null>(null);
   const [dirty, setDirty] = useState(false);
+  // Chiudere/ricaricare la scheda con modifiche non salvate ora chiede conferma
+  // (il salvataggio qui è solo manuale: prima si perdeva tutto in silenzio).
+  useBeforeUnload(dirty);
   const [livePreviewOpen, setLivePreviewOpen] = useState(false);
   // Template "vivo" per l'anteprima in dialog: ricalcolato solo quando il form cambia.
   const previewTemplate = useMemo<PisTemplatePdf | null>(
@@ -1350,6 +1360,20 @@ export function PiscineTemplateEditor({ embedded = false }: Props) {
                         className="mt-1"
                       />
                     </div>
+                    <div>
+                      <Label className="text-[11px] flex items-center justify-between mb-1">
+                        <span>Logo</span>
+                        <span className="font-mono text-muted-foreground">{form.pdf_cover_logo_size ?? 100}%</span>
+                      </Label>
+                      <Slider
+                        value={[form.pdf_cover_logo_size ?? 100]}
+                        min={60}
+                        max={160}
+                        step={5}
+                        onValueChange={(val) => set("pdf_cover_logo_size", val[0])}
+                        className="mt-1"
+                      />
+                    </div>
                   </div>
 
                   {/* Toggle decorazione + card cliente */}
@@ -1603,6 +1627,13 @@ export function PiscineTemplateEditor({ embedded = false }: Props) {
                   </div>
                   <Switch checked={form.show_margine} onCheckedChange={(v) => set("show_margine", v)} />
                 </label>
+
+              {/* Promo finanziamento nel PDF: legge il jsonb dal template raw e scrive
+                  via set con cast (campo fuori dal FormState tipato di questo editor). */}
+              <FinanziamentoPromoField
+                rawValue={(template as unknown as Record<string, unknown> | null)?.finanziamento_promo}
+                onChange={(v) => (set as unknown as (k: string, val: unknown) => void)("finanziamento_promo", v)}
+              />
               </SectionCard>
               <SectionCard icon={Percent} title="Default economici" description="Valori precompilati sui nuovi preventivi piscine.">
                 <div className="grid gap-3 sm:grid-cols-3">

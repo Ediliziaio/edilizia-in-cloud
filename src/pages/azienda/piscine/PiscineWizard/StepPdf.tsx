@@ -34,9 +34,9 @@ import {
 } from "@/hooks/usePiscineProgetto";
 import {
   usePiscinePDF,
-  type PisPdfCompany,
-} from "@/hooks/usePiscinePDF";
+  type PisPdfCompany, renderPisPreviewBlobUrl } from "@/hooks/usePiscinePDF";
 import type { PisProgetto, PisComputoVoce, PisProgettoMedia } from "@/types/piscine";
+import { InviaFirmaCard } from "@/components/moduli/InviaFirmaCard";
 
 interface Props {
   progetto: PisProgetto;
@@ -170,6 +170,31 @@ export default function StepPdf({ progetto, computo, media }: Props) {
 
   return (
     <div className="space-y-3">
+      {/* Ciclo di chiusura: invio tracciato + firma online + reminder automatico
+          (bridge sulla tabella quotes — vedi src/lib/moduli/quoteBridge.ts). */}
+      {progetto.id && progetto.company_id && (
+        <InviaFirmaCard
+          companyId={progetto.company_id}
+          moduleKey="pis"
+          progettoId={progetto.id}
+          titolo={`Preventivo ${progetto.code ?? ""}`.trim()}
+          clientName={[progetto.cliente_nome, progetto.cliente_cognome].filter(Boolean).join(" ") || "Cliente"}
+          clientEmail={progetto.cliente_email}
+          clientPhone={progetto.cliente_telefono}
+          subtotal={totali.imponibile}
+          vatAmount={totali.iva}
+          total={totali.totale}
+          disabled={computoVuoto}
+          disabledReason="Aggiungi voci al computo prima di inviare il preventivo."
+          generaPdfBlob={async () => {
+            const url = await renderPisPreviewBlobUrl(payload);
+            const blob = await (await fetch(url)).blob();
+            URL.revokeObjectURL(url);
+            return blob;
+          }}
+        />
+      )}
+
       {/* Anteprima del preventivo — mini-documento brandizzato */}
       <Card>
         <CardContent className="space-y-3 p-4">

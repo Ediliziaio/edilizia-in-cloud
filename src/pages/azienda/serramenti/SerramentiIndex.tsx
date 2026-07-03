@@ -21,7 +21,6 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { OnboardingCard } from "@/components/serramenti/OnboardingCard";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -61,11 +60,15 @@ import {
   type TriState, type SortKey, SORT_LABELS, PAGE_SIZE,
 } from "./SerramentiIndex/constants";
 import { fmtEur, fmtEurRangeOrSingle } from "./SerramentiIndex/helpers";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useTableSelection } from "@/hooks/useTableSelection";
+import { ModuloBulkToolbar } from "@/components/moduli/ModuloBulkToolbar";
 
 export default function SerramentiIndex() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const companyId = useEffectiveCompanyId();
+  const selBulk = useTableSelection();
   const { data: progetti = [], isLoading, isError, refetch } = useProgetti();
   const deleteMut = useDeleteProgetto();
 
@@ -456,10 +459,6 @@ export default function SerramentiIndex() {
       </div>
 
       <div className="max-w-[1400px] mx-auto px-4 sm:px-8 py-5 sm:py-6 space-y-4 sm:space-y-5">
-        {/* Onboarding card — checklist setup (visibile solo se incompleto +
-            non dismissato). Si auto-nasconde quando l'azienda raggiunge 4/4. */}
-        <OnboardingCard />
-
         {/* KPI Dashboard — informativi, non cliccabili */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <KpiCard label="Totale preventivi" value={stats.totale} icon={<FileText className="h-4 w-4" />} tone="slate" />
@@ -827,11 +826,26 @@ export default function SerramentiIndex() {
               <EmptyStateNoMatches onReset={resetFiltri} onOpenFilters={() => setFiltersOpen(true)} />
             ) : (
               <>
+                <ModuloBulkToolbar
+                  tableName="sr_progetti"
+                  companyId={companyId}
+                  selectedIds={selBulk.selected}
+                  statoOptions={(Object.keys(STATI_LABEL) as (keyof typeof STATI_LABEL)[]).map((k) => ({ value: k as string, label: STATI_LABEL[k].label }))}
+                  onClear={selBulk.clear}
+                  onDone={() => { selBulk.clear(); void refetch(); }}
+                />
                 {/* Desktop tabella */}
                 <div className="hidden md:block overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={paginaCorrente.length > 0 && paginaCorrente.every((p) => selBulk.isSelected(p.id))}
+                            onCheckedChange={() => selBulk.toggleAll(paginaCorrente.map((p) => p.id))}
+                            aria-label="Seleziona pagina"
+                          />
+                        </TableHead>
                         <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Codice</TableHead>
                         <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Cliente</TableHead>
                         <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600 hidden lg:table-cell">Commerciale</TableHead>
@@ -854,6 +868,13 @@ export default function SerramentiIndex() {
                             className="cursor-pointer hover:bg-orange-50/40 transition-colors"
                             onClick={() => navigate(`/azienda/serramenti/${p.id}/modifica`)}
                           >
+                            <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={selBulk.isSelected(p.id)}
+                                onCheckedChange={() => selBulk.toggle(p.id)}
+                                aria-label="Seleziona riga"
+                              />
+                            </TableCell>
                             <TableCell className="font-mono text-xs font-semibold text-orange-600">
                               {p.code}
                             </TableCell>

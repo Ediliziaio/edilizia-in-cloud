@@ -132,7 +132,8 @@ REGOLE:
 7. Confidence: 1.0 se foglio chiaro/voce nitida, scendi a 0.5 se molti ambiguità, 0.2 se "credo che dica X ma forse Y".
 8. avvertenze: lista cose da verificare ("misura altezza non chiara", "due nomi possibili: Rossi o Russo").
 9. NON inventare prezzi. Il pricing avviene dopo nel sistema.
-10. attributi: tag corti utili per matching (materiale, colore, tipo apertura, ecc.).`;
+10. attributi: tag corti utili per matching (materiale, colore, tipo apertura, ecc.).
+11. Formati di piastrelle/rivestimenti come "60x60", "30x60", "20x120" indicano il FORMATO della piastrella in centimetri, NON le misure di un serramento: per pavimenti, rivestimenti, piastrelle e lavorazioni al metro quadro NON compilare "misure" e usa unita_misura "mq" (la quantità è la superficie). "misure" va compilato SOLO per serramenti/infissi/porte/box doccia dove larghezza×altezza identificano il pezzo.`;
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
@@ -601,28 +602,57 @@ async function matchViaVector(
       return;
     }
 
-    // Fallback su articoli singoli
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: articleMatches, error: articleMatchError } = await (supabase as any).rpc("match_articles", {
-      p_query_embedding: embeddingLiteral,
-      p_match_threshold: 0.5,
-      p_match_count: 3,
-      p_company_id: companyId,
-    });
-    if (articleMatchError) {
-      console.warn("article_vector_match_failed", articleMatchError.message);
+    // Articoli (listino prodotti) e tariffe (listino manodopera/lavorazioni)
+    // in parallelo: vince il candidato con similarity più alta, così una voce
+    // di manodopera non si aggancia a un prodotto debole solo per ordine di prova.
+    const [articlesRes, tariffeRes] = await Promise.all([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).rpc("match_articles", {
+        p_query_embedding: embeddingLiteral,
+        p_match_threshold: 0.5,
+        p_match_count: 3,
+        p_company_id: companyId,
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).rpc("match_tariffe_semantic", {
+        p_query_embedding: embeddingLiteral,
+        p_match_threshold: 0.5,
+        p_match_count: 3,
+        p_company_id: companyId,
+      }),
+    ]);
+    if (articlesRes.error) {
+      console.warn("article_vector_match_failed", articlesRes.error.message);
     }
-    const topArticle = (articleMatches as Array<{
+    if (tariffeRes.error) {
+      console.warn("tariffa_vector_match_failed", tariffeRes.error.message);
+    }
+    const topArticle = (articlesRes.data as Array<{
       id: string;
       name?: string;
       similarity: number;
     }> | null)?.[0];
+    const topTariffa = (tariffeRes.data as Array<{
+      id: string;
+      nome?: string;
+      similarity: number;
+    }> | null)?.[0];
+    const articleSim = topArticle?.similarity ?? 0;
+    const tariffaSim = topTariffa?.similarity ?? 0;
 
-    if (topArticle && topArticle.similarity > 0.5) {
+    if (topArticle && articleSim > 0.5 && articleSim >= tariffaSim) {
       product.matched_template_id = topArticle.id;
       product.matched_name = topArticle.name;
       product.match_type = "vector";
-      product.match_confidence = topArticle.similarity;
+      product.match_confidence = articleSim;
+      return;
+    }
+
+    if (topTariffa && tariffaSim > 0.5) {
+      product.matched_tariffa_id = topTariffa.id;
+      product.matched_name = topTariffa.nome;
+      product.match_type = "vector";
+      product.match_confidence = tariffaSim;
       return;
     }
 
@@ -682,10 +712,14 @@ async function fillInitialPrice(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: tmpl } = await (supabase as any)
         .from("article_templates")
-        .select("price, sale_price, default_price")
+        .select("prezzo_vendita, unit_price, unit_of_measure")
         .eq("id", product.matched_template_id)
         .single();
-      const tmplPrice = tmpl?.sale_price ?? tmpl?.price ?? tmpl?.default_price;
+      // U.M. del listino quando l'AI non l'ha estratta
+      if (!product.unita_misura && tmpl?.unit_of_measure) {
+        product.unita_misura = tmpl.unit_of_measure;
+      }
+      const tmplPrice = tmpl?.prezzo_vendita ?? tmpl?.unit_price;
       if (tmplPrice && Number(tmplPrice) > 0) {
         product.unit_price = Number(tmplPrice);
         product.unit_price_source = "template";
@@ -693,6 +727,29 @@ async function fillInitialPrice(
       }
     } catch (e) {
       console.error("template_price_failed", e);
+    }
+  }
+
+  // Caso 3: tariffa (listino manodopera/lavorazioni) → prezzo vendita tariffa
+  if (product.matched_tariffa_id) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: tar } = await (supabase as any)
+        .from("tariffe_aziendali")
+        .select("prezzo_vendita, unita")
+        .eq("id", product.matched_tariffa_id)
+        .single();
+      // U.M. della tariffa quando l'AI non l'ha estratta ('fisso' → 'a corpo')
+      if (!product.unita_misura && tar?.unita) {
+        product.unita_misura = tar.unita === "fisso" ? "a corpo" : tar.unita;
+      }
+      if (tar?.prezzo_vendita && Number(tar.prezzo_vendita) > 0) {
+        product.unit_price = Number(tar.prezzo_vendita);
+        product.unit_price_source = "tariffa";
+        return;
+      }
+    } catch (e) {
+      console.error("tariffa_price_failed", e);
     }
   }
 

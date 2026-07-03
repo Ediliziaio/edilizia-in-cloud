@@ -69,6 +69,8 @@ import {
 } from "@/components/pavimenti/coverStockImages";
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
 import type { GalleryLavoroItem } from "@/types/gallery";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
+import { FinanziamentoPromoField } from "@/components/preventivi/FinanziamentoPromoField";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -99,6 +101,8 @@ type CoverFormFields = CoverPresetPatch & {
   pdf_cover_hero?: string | null;
   pdf_cover_subhero?: string | null;
   pdf_cover_subhero_template?: string | null;
+  /** Scala logo cover 60–160% (colonna già in pav_template_pdf, prima mai usata). */
+  pdf_cover_logo_size?: number | null;
 };
 
 // Sottoinsieme persistente del form (mappato 1:1 su PavTemplatePdf).
@@ -127,7 +131,7 @@ const PDF_COVER_KEYS = [
   "pdf_cover_bg_color", "pdf_cover_image_url", "pdf_cover_eyebrow", "pdf_cover_hero",
   "pdf_cover_subhero", "pdf_cover_subhero_template", "pdf_cover_text_color",
   "pdf_cover_text_align", "pdf_cover_overlay_opacity", "pdf_cover_eyebrow_size",
-  "pdf_cover_title_size", "pdf_cover_subtitle_size", "pdf_cover_show_client_card",
+  "pdf_cover_title_size", "pdf_cover_subtitle_size", "pdf_cover_logo_size", "pdf_cover_show_client_card",
   "pdf_cover_show_decoration", "pdf_cover_decoration_style", "pdf_cover_text_vertical",
   "pdf_cover_overlay_style", "pdf_cover_logo_position",
 ] as const satisfies ReadonlyArray<keyof CoverFormFields>;
@@ -196,6 +200,7 @@ function templateToForm(t: PavTemplatePdf): FormState {
     pdf_cover_eyebrow_size: 11,
     pdf_cover_title_size: t.cover_title_size ?? 40,
     pdf_cover_subtitle_size: 13,
+    pdf_cover_logo_size: null,
     pdf_cover_show_client_card: true,
     pdf_cover_show_decoration: true,
     pdf_cover_decoration_style: "square",
@@ -304,6 +309,9 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
 
   const [form, setForm] = useState<FormState | null>(null);
   const [dirty, setDirty] = useState(false);
+  // Chiudere/ricaricare la scheda con modifiche non salvate ora chiede conferma
+  // (il salvataggio qui è solo manuale: prima si perdeva tutto in silenzio).
+  useBeforeUnload(dirty);
   const [livePreviewOpen, setLivePreviewOpen] = useState(false);
   // Template "vivo" per l'anteprima in dialog: ricalcolato solo quando il form cambia.
   const previewTemplate = useMemo<PavTemplatePdf | null>(
@@ -1184,6 +1192,11 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
                       <Slider value={[form.pdf_cover_eyebrow_size ?? 11]} min={8} max={14} step={1}
                         onValueChange={(v) => set("pdf_cover_eyebrow_size", v[0])} className="mt-2" />
                     </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Dim. logo ({form.pdf_cover_logo_size ?? 100}%)</Label>
+                      <Slider value={[form.pdf_cover_logo_size ?? 100]} min={60} max={160} step={5}
+                        onValueChange={(v) => set("pdf_cover_logo_size", v[0])} className="mt-2" />
+                    </div>
                   </div>
                 </div>
 
@@ -1509,6 +1522,13 @@ export function PavimentiTemplateEditor({ embedded = false }: Props) {
                   </div>
                   <Switch checked={form.show_margine} onCheckedChange={(v) => set("show_margine", v)} />
                 </label>
+
+              {/* Promo finanziamento nel PDF: legge il jsonb dal template raw e scrive
+                  via set con cast (campo fuori dal FormState tipato di questo editor). */}
+              <FinanziamentoPromoField
+                rawValue={(template as unknown as Record<string, unknown> | null)?.finanziamento_promo}
+                onChange={(v) => (set as unknown as (k: string, val: unknown) => void)("finanziamento_promo", v)}
+              />
               </SectionCard>
               <SectionCard icon={Percent} title="Default economici" description="Valori precompilati sui nuovi preventivi pavimenti.">
                 <div className="grid gap-3 sm:grid-cols-3">

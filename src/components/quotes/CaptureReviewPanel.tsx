@@ -944,7 +944,7 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
                       onChange={(e) =>
                         updateProduct(i, { unit_price: parseFloat(e.target.value) || 0 })
                       }
-                      className="h-8 font-mono"
+                      className="h-8 tabular-nums"
                     />
                   </div>
                 </div>
@@ -1012,15 +1012,15 @@ export function CaptureReviewPanel({ runId, onCancel, onApplied }: Props) {
       <div className="border rounded-md p-3 bg-muted/30 space-y-1 text-sm">
         <div className="flex justify-between">
           <span className="text-muted-foreground">Subtotale</span>
-          <span className="font-mono">{formatter.format(subtotal)}</span>
+          <span className="tabular-nums font-medium">{formatter.format(subtotal)}</span>
         </div>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">IVA 22%</span>
-          <span className="font-mono">{formatter.format(totalIva)}</span>
+          <span className="tabular-nums">{formatter.format(totalIva)}</span>
         </div>
         <div className="flex justify-between font-semibold border-t pt-1">
           <span>Totale</span>
-          <span className="font-mono text-primary">{formatter.format(total)}</span>
+          <span className="tabular-nums text-primary">{formatter.format(total)}</span>
         </div>
       </div>
 

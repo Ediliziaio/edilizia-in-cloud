@@ -44,14 +44,15 @@ const toPct = (raw: string): number => {
   return Math.min(100, Math.max(0, v));
 };
 
-/** Preset incentivi tipici per le coperture (impostano la % di detrazione con un click). */
-const INCENTIVI_PRESET = [
-  { label: "Ecobonus 65%", pct: 65, hint: "Coibentazione/isolamento termico della copertura (riqualificazione energetica)." },
-  { label: "Bonus Casa 50%", pct: 50, hint: "Rifacimento tetto come manutenzione straordinaria (ristrutturazione edilizia)." },
-  { label: "Nessuno", pct: 0, hint: "Nessuna detrazione." },
-] as const;
+// Preset incentivi: fonte unica condivisa (quadro 2026 — l'array locale con
+// l'Ecobonus 65% era rimasto alle aliquote pre-riforma).
+import { INCENTIVI_TETTI as INCENTIVI_PRESET } from "@/lib/preventivi/incentivi";
+import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
+import { useTetTemplatePdf } from "@/hooks/useTettiProgetto";
 
 export default function StepEconomia({ form, onChange, computo }: Props) {
+  // Template del modulo (cached): serve a mostrare la rata solo se la promo è attiva.
+  const { data: template } = useTetTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
   const ivaPct = Number(form.iva_pct ?? 10);
   const detrazionePct = Number(form.detrazione_pct ?? 0);
@@ -184,6 +185,14 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
                 icon={BadgePercent}
               />
+              {/* Rata nel PDF: compare solo se la promo è configurata nel template,
+                  con la rata concreta sul totale corrente (scelta per-preventivo). */}
+              <FinanziamentoQuoteToggle
+                rawPromo={(template as unknown as { finanziamento_promo?: unknown } | undefined)?.finanziamento_promo}
+                total={totali.totale}
+                value={form.mostra_finanziamento}
+                onChange={(v) => onChange("mostra_finanziamento", v)}
+              />
               {/* Preset incentivi copertura: 1-click → imposta la detrazione */}
               <div>
                 <p className="mb-1 text-[10px] text-muted-foreground">Incentivi rapidi (coperture):</p>
@@ -192,7 +201,7 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                     const active = Number(form.detrazione_pct ?? 0) === p.pct;
                     return (
                       <button
-                        key={p.label}
+                        key={p.key}
                         type="button"
                         title={p.hint}
                         onClick={() => onChange("detrazione_pct", p.pct)}

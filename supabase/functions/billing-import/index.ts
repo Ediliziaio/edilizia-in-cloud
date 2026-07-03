@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createAdapter, arubaSignin, arubaRefresh, arubaFindByUsername, ARUBA_STATUS_MAP, acubeLogin, acubeListInvoices, ACUBE_MARKING_MAP } from "../_shared/billingAdapter.ts";
+import { createAdapter, arubaSignin, arubaRefresh, arubaFindByUsername, arubaFindInByUsername, ARUBA_STATUS_MAP, acubeLogin, acubeListInvoices, ACUBE_MARKING_MAP } from "../_shared/billingAdapter.ts";
 import { getCorsHeaders } from "../_shared/headers.ts";
 import { resolveEffectiveCompanyId, canAccessCompany } from "../_shared/effectiveCompany.ts";
 
@@ -225,12 +225,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    // FATTURE PASSIVE: solo FIC, in tabella dedicata fatture_ricevute. Non blocca
-    // l'import delle emesse se fallisce (best-effort, scope opzionale).
+    // FATTURE PASSIVE (cassetto SDI): FIC + Aruba, in tabella dedicata
+    // fatture_ricevute. Non blocca l'import delle emesse se fallisce
+    // (best-effort). Gli altri provider restano solo-emesse finché il loro
+    // endpoint ricevute non è validato su account reale.
     let received = { imported: 0, updated: 0, failed: 0 };
-    if (provider === "fattureincloud") {
+    if (provider === "fattureincloud" || provider === "aruba") {
       try {
-        received = await importFICReceived(integ, companyId!);
+        received = provider === "fattureincloud"
+          ? await importFICReceived(integ, companyId!)
+          : await importArubaReceived(integ, companyId!);
       } catch (e) {
         if (importErrors.length < 5) importErrors.push(`passive: ${String(e)}`);
       }
@@ -555,6 +559,74 @@ async function importFICReceived(integ: any, companyId: string): Promise<{ impor
     } else {
       const { error } = await supabase.from("fatture_ricevute").insert(row);
       if (error) failed++; else imported++;
+    }
+  }
+  return { imported, updated, failed };
+}
+
+/**
+ * Fatture RICEVUTE da Aruba (cassetto SDI): GET /services/invoice/in/findByUsername.
+ * Il controparte è `sender` (il fornitore). Come per le emesse, la lista Aruba NON
+ * espone gli importi (servirebbe l'XML p7m firmato): importiamo header + anagrafica
+ * cedente + stato, con importi a null e nota esplicita — mai zeri finti.
+ * Dedup sulla stessa chiave naturale di FIC (company, numero, data, cedente_piva).
+ */
+async function importArubaReceived(integ: any, companyId: string): Promise<{ imported: number; updated: number; failed: number }> {
+  const token = await ensureFreshArubaToken(integ);
+  const username = integ.company_external_id;
+
+  const items: any[] = [];
+  let page = 1;
+  while (true) {
+    const d = await arubaFindInByUsername(token, username, { page, size: 50 });
+    const content = (d.content || []) as any[];
+    items.push(...content);
+    const totalPages = d.totalPages || 1;
+    if (page >= totalPages) break;
+    page++;
+    if (page > 20) break; // safety cap: max ~1000 file
+  }
+
+  let imported = 0, updated = 0, failed = 0;
+  for (const item of items) {
+    const sender = (item.sender || {}) as Record<string, any>;
+    const cedentePiva = sender.vatCode || null;
+    // Un file XML può contenere più fatture (lotto): iteriamo invoices[].
+    for (const inv of (item.invoices || [])) {
+      const numero = (inv.number ?? "").toString();
+      const dataFattura = inv.invoiceDate || null;
+      if (!numero || !dataFattura) { failed++; continue; }
+
+      const row = {
+        company_id: companyId,
+        cedente_ragione_sociale: sender.description || "Fornitore",
+        cedente_piva: cedentePiva,
+        cedente_cf: sender.fiscalCode || null,
+        cedente_paese: sender.countryCode || "IT",
+        tipo_documento: "TD01", // il TD reale è nell'XML, non nella lista Aruba
+        numero_fattura: numero,
+        data_fattura: dataFattura,
+        imponibile_totale: null, // limite API Aruba: importi solo nell'XML p7m
+        iva_totale: null,
+        totale_documento: null,
+        note: "Importata dal cassetto SDI Aruba. Importi non inclusi nella lista Aruba: apri l'XML sul portale Aruba per il dettaglio.",
+        updated_at: new Date().toISOString(),
+      };
+
+      let q = supabase.from("fatture_ricevute").select("id")
+        .eq("company_id", companyId).eq("numero_fattura", numero).eq("data_fattura", dataFattura);
+      q = cedentePiva ? q.eq("cedente_piva", cedentePiva) : q.is("cedente_piva", null);
+      const { data: existing } = await q.maybeSingle();
+
+      if (existing) {
+        // Non sovrascrivere con null gli importi eventualmente già arricchiti a mano/AI.
+        const { imponibile_totale: _i, iva_totale: _v, totale_documento: _t, note: _n, ...header } = row;
+        const { error } = await supabase.from("fatture_ricevute").update(header).eq("id", existing.id);
+        if (error) failed++; else updated++;
+      } else {
+        const { error } = await supabase.from("fatture_ricevute").insert(row);
+        if (error) failed++; else imported++;
+      }
     }
   }
   return { imported, updated, failed };

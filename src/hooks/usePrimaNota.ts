@@ -57,22 +57,31 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
   const queryClient = useQueryClient();
   const companyId = effectiveCompany?.id;
 
+  // Un unico posto per i filtri → lista, saldo ed export restano allineati.
+  // (Prima il saldo ignorava direzione/categoria/ricerca e l'export prendeva
+  //  solo la pagina corrente: due incoerenze sui numeri, ora rimosse.)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const applyFilters = (q: any) => {
+    if (filters.fromDate) q = q.gte("entry_date", filters.fromDate);
+    if (filters.toDate) q = q.lte("entry_date", filters.toDate);
+    if (filters.direction) q = q.eq("direction", filters.direction);
+    if (filters.category) q = q.eq("category", filters.category);
+    if (filters.isAuto === true) q = q.eq("is_auto", true);
+    if (filters.isAuto === false) q = q.eq("is_auto", false);
+    if (filters.autoSource) q = q.eq("auto_source", filters.autoSource);
+    if (filters.search?.trim()) q = q.ilike("description", `%${filters.search.trim()}%`);
+    return q;
+  };
+
   const entriesQuery = useQuery({
     queryKey: [...queryKeys.primaNota.list(companyId, filters), page, pageSize],
     queryFn: async () => {
-      let query = supabase
-        .from("prima_nota_entries")
-        .select(`*, suppliers(name), invoices(invoice_number), orders(order_code), documenti_fiscali(id, numero, tipo)`, { count: "exact" })
-        .eq("company_id", companyId!);
-
-      if (filters.fromDate) query = query.gte("entry_date", filters.fromDate);
-      if (filters.toDate) query = query.lte("entry_date", filters.toDate);
-      if (filters.direction) query = query.eq("direction", filters.direction);
-      if (filters.category) query = query.eq("category", filters.category);
-      if (filters.isAuto === true) query = query.eq("is_auto", true);
-      if (filters.isAuto === false) query = query.eq("is_auto", false);
-      if (filters.autoSource) query = query.eq("auto_source", filters.autoSource);
-      if (filters.search?.trim()) query = query.ilike("description", `%${filters.search.trim()}%`);
+      let query = applyFilters(
+        supabase
+          .from("prima_nota_entries")
+          .select(`*, suppliers(name), invoices(invoice_number), orders(order_code), documenti_fiscali(id, numero, tipo)`, { count: "exact" })
+          .eq("company_id", companyId!)
+      );
 
       query = query
         .range((page - 1) * pageSize, page * pageSize - 1)
@@ -88,21 +97,60 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
     gcTime: 15 * 60 * 1000,
   });
 
+  // Il saldo deve rispecchiare la lista filtrata. Con soli filtri di data usiamo
+  // la RPC server-side (SUM completa, nessun cap). Con filtri extra (direzione/
+  // categoria/ricerca/auto) aggreghiamo lato client sulle righe filtrate, così i
+  // KPI combaciano con ciò che l'utente vede (prima mostravano l'intero periodo).
+  const hasNonDateFilter = !!(
+    filters.direction || filters.category || filters.search?.trim() ||
+    filters.isAuto != null || filters.autoSource
+  );
+
   const saldoQuery = useQuery({
-    queryKey: queryKeys.primaNota.saldo(companyId, filters.fromDate, filters.toDate),
+    queryKey: [
+      ...queryKeys.primaNota.saldo(companyId, filters.fromDate, filters.toDate),
+      filters.direction ?? "", filters.category ?? "", filters.search?.trim() ?? "",
+      filters.isAuto ?? "", filters.autoSource ?? "",
+    ],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_prima_nota_saldo", {
-        p_company_id: companyId!,
-        p_from_date: filters.fromDate || undefined,
-        p_to_date: filters.toDate || undefined,
-      });
+      if (!hasNonDateFilter) {
+        const { data, error } = await supabase.rpc("get_prima_nota_saldo", {
+          p_company_id: companyId!,
+          p_from_date: filters.fromDate || undefined,
+          p_to_date: filters.toDate || undefined,
+        });
+        if (error) throw error;
+        return data as unknown as PrimaNotaSaldo;
+      }
+      const { data, error } = await applyFilters(
+        supabase.from("prima_nota_entries").select("amount, direction").eq("company_id", companyId!)
+      ).limit(50000);
       if (error) throw error;
-      return data as unknown as PrimaNotaSaldo;
+      let entrate = 0, uscite = 0;
+      for (const r of ((data as { amount: number | null; direction: string }[]) ?? [])) {
+        const amt = Number(r.amount) || 0;
+        if (r.direction === "entrata") entrate += amt; else uscite += amt;
+      }
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      return { entrate: round2(entrate), uscite: round2(uscite), saldo: round2(entrate - uscite), entry_count: data?.length ?? 0 };
     },
     enabled: !!companyId,
     staleTime: 5 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
+
+  /** Tutte le righe filtrate (senza paginazione) per l'export CSV completo. */
+  const fetchAllForExport = async (): Promise<PrimaNotaEntry[]> => {
+    if (!companyId) return [];
+    const { data, error } = await applyFilters(
+      supabase
+        .from("prima_nota_entries")
+        .select(`*, suppliers(name), invoices(invoice_number), orders(order_code), documenti_fiscali(id, numero, tipo)`)
+        .eq("company_id", companyId)
+    ).order("entry_date", { ascending: false }).order("created_at", { ascending: false }).limit(50000);
+    if (error) throw error;
+    return (data as unknown as PrimaNotaEntry[]) ?? [];
+  };
 
   const createMutation = useMutation({
     mutationFn: async (params: {
@@ -173,5 +221,6 @@ export function usePrimaNota(filters: PrimaNotaFilters = {}, page: number = 1, p
     isSaldoLoading: saldoQuery.isLoading,
     create: createMutation,
     remove: deleteMutation,
+    fetchAllForExport,
   };
 }

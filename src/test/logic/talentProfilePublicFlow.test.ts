@@ -51,9 +51,12 @@ describe("Talent Profile public candidate flow", () => {
   it("salva in silenzioso prima di cambiare blocco nel questionario pubblico", () => {
     const publicPageSource = readFileSync(PUBLIC_PAGE_PATH, "utf8");
 
-    expect(publicPageSource).toContain("const goNextPage = async ()");
+    // La navigazione fra schermate passa da changePage (useCallback), che tenta
+    // un salvataggio silenzioso e poi clampa pageIndex nel range valido.
+    expect(publicPageSource).toContain("const changePage = useCallback");
     expect(publicPageSource).toContain("await persistAnswers({ silent: true })");
-    expect(publicPageSource).toContain("const goPrevPage = async ()");
-    expect(publicPageSource).toContain("setPageIndex((p) => Math.min(totalPages - 1, p + 1))");
+    expect(publicPageSource).toContain("const goNextPage = useCallback(() => changePage(1)");
+    expect(publicPageSource).toContain("const goPrevPage = useCallback(() => changePage(-1)");
+    expect(publicPageSource).toContain("setPageIndex((p) => Math.min(totalPages - 1, Math.max(0, p + delta)))");
   });
 });

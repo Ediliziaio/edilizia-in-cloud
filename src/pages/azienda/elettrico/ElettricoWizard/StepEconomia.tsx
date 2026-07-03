@@ -29,6 +29,8 @@ import { calcTotaliComputo } from "@/lib/elettrico/calcoli";
 import { INCENTIVI_ELETTRICO, calcDetraibile, superaMassimale } from "@/lib/preventivi/incentivi";
 import type { EleComputoVoce, EleProgetto } from "@/types/elettrico";
 import type { EleFormPatch } from "./types";
+import { FinanziamentoQuoteToggle } from "@/components/moduli/FinanziamentoQuoteToggle";
+import { useEleTemplatePdf } from "@/hooks/useElettricoProgetto";
 
 interface Props {
   form: Partial<EleProgetto>;
@@ -46,6 +48,8 @@ const toPct = (raw: string): number => {
 };
 
 export default function StepEconomia({ form, onChange, computo }: Props) {
+  // Template del modulo (cached): serve a mostrare la rata solo se la promo è attiva.
+  const { data: template } = useEleTemplatePdf();
   const scontoPct = Number(form.sconto_pct ?? 0);
   const ivaPct = Number(form.iva_pct ?? 10);
   const detrazionePct = Number(form.detrazione_pct ?? 0);
@@ -179,6 +183,14 @@ export default function StepEconomia({ form, onChange, computo }: Props) {
                 onCommit={(v) => onChange("detrazione_pct", v)}
                 hint="Opzionale: % di detrazione fiscale (es. 50%) — importo indicativo."
                 icon={BadgePercent}
+              />
+              {/* Rata nel PDF: compare solo se la promo è configurata nel template,
+                  con la rata concreta sul totale corrente (scelta per-preventivo). */}
+              <FinanziamentoQuoteToggle
+                rawPromo={(template as unknown as { finanziamento_promo?: unknown } | undefined)?.finanziamento_promo}
+                total={totali.totale}
+                value={form.mostra_finanziamento}
+                onChange={(v) => onChange("mostra_finanziamento", v)}
               />
               {/* Preset incentivi elettrico: 1-click → imposta detrazione + massimale di spesa */}
               <div>

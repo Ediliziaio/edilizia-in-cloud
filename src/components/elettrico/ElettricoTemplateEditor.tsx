@@ -71,6 +71,8 @@ import type {
 } from "@/types/elettrico";
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
 import type { GalleryLavoroItem } from "@/types/gallery";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
+import { FinanziamentoPromoField } from "@/components/preventivi/FinanziamentoPromoField";
 
 const BUCKET = "company-photo-library";
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8 MB
@@ -315,6 +317,9 @@ export function ElettricoTemplateEditor({ embedded = false }: Props) {
 
   const [form, setForm] = useState<FormState | null>(null);
   const [dirty, setDirty] = useState(false);
+  // Chiudere/ricaricare la scheda con modifiche non salvate ora chiede conferma
+  // (il salvataggio qui è solo manuale: prima si perdeva tutto in silenzio).
+  useBeforeUnload(dirty);
   const [livePreviewOpen, setLivePreviewOpen] = useState(false);
   // Template "vivo" per l'anteprima in dialog: ricalcolato solo quando il form cambia.
   const previewTemplate = useMemo<EleTemplatePdf | null>(
@@ -1653,6 +1658,13 @@ export function ElettricoTemplateEditor({ embedded = false }: Props) {
                   </div>
                   <Switch checked={form.show_margine} onCheckedChange={(v) => set("show_margine", v)} />
                 </label>
+
+              {/* Promo finanziamento nel PDF: legge il jsonb dal template raw e scrive
+                  via set con cast (campo fuori dal FormState tipato di questo editor). */}
+              <FinanziamentoPromoField
+                rawValue={(template as unknown as Record<string, unknown> | null)?.finanziamento_promo}
+                onChange={(v) => (set as unknown as (k: string, val: unknown) => void)("finanziamento_promo", v)}
+              />
               </SectionCard>
               <SectionCard icon={Percent} title="Default economici" description="Valori precompilati sui nuovi preventivi elettrico.">
                 <div className="grid gap-3 sm:grid-cols-3">

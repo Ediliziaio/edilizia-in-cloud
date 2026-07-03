@@ -55,6 +55,10 @@ import {
   mapRistrutturazioneStato,
   type UnifiedStato,
 } from "@/lib/preventivi/statoUnificato";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTableSelection } from "@/hooks/useTableSelection";
+import { UnifiedBulkToolbar } from "./UnifiedBulkToolbar";
 
 export type PreventivoTipo = "classico" | "serramenti" | "fotovoltaico" | "ristrutturazione" | "bagni" | "tetti" | "climatizzazione" | "elettrico" | "termoidraulico" | "pavimenti" | "piscine";
 export type { UnifiedStato };
@@ -112,6 +116,8 @@ function formatDateSafe(s: string | null | undefined): string {
 export function UnifiedPreventiviList() {
   const navigate = useNavigate();
   const companyId = useEffectiveCompanyId();
+  const queryClient = useQueryClient();
+  const sel = useTableSelection();
   const { moduli } = useModuliVendita();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -1076,10 +1082,23 @@ export function UnifiedPreventiviList() {
             </div>
           ) : (
             <>
+              <UnifiedBulkToolbar
+                selectedRows={filtered.filter((r) => sel.isSelected(`${r.tipo}:${r.id}`))}
+                companyId={companyId}
+                onClear={sel.clear}
+                onDone={() => { sel.clear(); void queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && String(q.queryKey[0]).startsWith('unified-prev') }); }}
+              />
               <div className="hidden md:block overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={pageRows.length > 0 && pageRows.every((r) => sel.isSelected(`${r.tipo}:${r.id}`))}
+                          onCheckedChange={() => sel.toggleAll(pageRows.map((r) => `${r.tipo}:${r.id}`))}
+                          aria-label="Seleziona pagina"
+                        />
+                      </TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Numero</TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Cliente</TableHead>
                       <TableHead className="text-[11px] uppercase tracking-wider font-semibold text-slate-600">Tipo</TableHead>
@@ -1101,6 +1120,13 @@ export function UnifiedPreventiviList() {
                           className="cursor-pointer hover:bg-orange-50/40 transition-colors"
                           onClick={() => navigate(r.href)}
                         >
+                          <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={sel.isSelected(`${r.tipo}:${r.id}`)}
+                              onCheckedChange={() => sel.toggle(`${r.tipo}:${r.id}`)}
+                              aria-label="Seleziona riga"
+                            />
+                          </TableCell>
                           <TableCell className="font-mono text-xs font-semibold text-orange-600">{r.numero}</TableCell>
                           <TableCell className="text-xs font-medium text-slate-900 max-w-[200px] truncate">{r.cliente}</TableCell>
                           <TableCell>

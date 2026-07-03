@@ -211,6 +211,34 @@ export async function arubaFindByUsername(
   return d;
 }
 
+/**
+ * Fatture RICEVUTE (cassetto SDI) — endpoint speculare a /out/findByUsername:
+ * GET /services/invoice/in/findByUsername. Stessa forma di risposta della lista
+ * emesse (content[] con filename/idSdi/invoices[]), ma il controparte è `sender`
+ * (il FORNITORE che ha emesso verso di noi). Come per le emesse, la lista NON
+ * espone gli importi (servirebbe l'XML p7m): importiamo header + anagrafica.
+ */
+export async function arubaFindInByUsername(
+  token: string,
+  username: string,
+  opts: { page?: number; size?: number; startDate?: string; endDate?: string; demo?: boolean } = {},
+): Promise<{ errorCode?: string; content?: Record<string, unknown>[]; totalPages?: number; totalElements?: number }> {
+  const qs = new URLSearchParams({
+    username,
+    page: String(opts.page ?? 1),
+    size: String(Math.min(opts.size ?? 50, 100)),
+  });
+  if (opts.startDate) qs.set("startDate", opts.startDate);
+  if (opts.endDate) qs.set("endDate", opts.endDate);
+  const r = await fetch(`${ARUBA_WS(opts.demo)}/services/invoice/in/findByUsername?${qs}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  if (!r.ok) throw new Error(r.status === 429 ? "Aruba: limite richieste superato (12/min)." : `Aruba list ricevute HTTP ${r.status}`);
+  const d = await r.json();
+  if (d.errorCode && d.errorCode !== "0000") throw new Error(`Aruba ricevute: ${d.errorDescription || d.errorCode}`);
+  return d;
+}
+
 export class ArubaAdapter implements BillingProviderAdapter {
   provider: BillingProvider = "aruba";
   private username: string;

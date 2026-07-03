@@ -85,6 +85,7 @@ import { COVER_STOCK_IMAGES, COVER_STOCK_CATEGORIE, type CoverStockImage } from 
 import { generateBrandPalette, CURATED_PALETTES } from "@/lib/utils/colorPalette";
 import { GalleryLavoriEditor } from "@/components/shared/GalleryLavoriEditor";
 import type { GalleryLavoroItem } from "@/types/gallery";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 
 const DEFAULT_RENDER_DISCLAIMER =
   "Il render AI è una simulazione indicativa pensata per aiutare il cliente a immaginare il risultato estetico. Non sostituisce rilievo tecnico, schede prodotto e verifica di fattibilità: misure, materiali, colori e finiture definitive vengono confermati prima dell'ordine.";
@@ -433,6 +434,9 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
 
   const [form, setForm] = useState<Partial<SrTemplatePdfRow>>({});
   const [dirty, setDirty] = useState(false);
+  // Chiudere/ricaricare la scheda con modifiche non salvate ora chiede conferma
+  // (il salvataggio qui è solo manuale: prima si perdeva tutto in silenzio).
+  useBeforeUnload(dirty);
   const [delTestIdx, setDelTestIdx] = useState<number | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
@@ -1443,7 +1447,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                 <div className="flex-1 min-w-0">
                   <Label className="text-sm font-medium block">Mostra netto dopo recupero fiscale</Label>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Sotto al totale, in evidenza: <code className="font-mono text-[10px] bg-white px-1 rounded">Netto dopo ecobonus 50%: € 7.450</code>.
+                    Sotto al totale, in evidenza: <code className="font-mono text-[10px] bg-white px-1 rounded">Netto dopo detrazione 50% (prima casa): € 7.450</code>.
                     Richiede aliquota detrazione configurata sul preventivo. <strong>On di default</strong>.
                   </p>
                 </div>
@@ -1458,7 +1462,7 @@ export function SerramentiTemplateEditor({ embedded: _embedded = false }: Serram
                   className="mt-0.5"
                 />
                 <div className="flex-1 min-w-0">
-                  <Label className="text-sm font-medium block">Mostra tabella ecobonus 10 anni</Label>
+                  <Label className="text-sm font-medium block">Mostra tabella detrazione 10 anni</Label>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
                     Sotto la card "Detrazione fiscale" del PDF compare una mini-tabella 5×2 con
                     quota annuale e cumulato per ogni anno. <strong>Off di default</strong> — utile per

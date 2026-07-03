@@ -59,7 +59,7 @@ Schema di output:
   "dati_incerti": [],
   "note": ""
 }
-Date in formato ISO YYYY-MM-DD. Importi come numero (punto decimale). Per i DDT lascia null i campi fiscali non presenti. Per DDT/bolle (e fatture con dettaglio) popola "righe" come array di oggetti { "descrizione": string, "codice": string|null, "qta": number, "prezzo": number|null }. Includi in dati_incerti i nomi dei campi con conf < 0.75.`;
+Date in formato ISO YYYY-MM-DD (converti dall'italiano gg/mm/aaaa: "13/07/2026" → "2026-07-13", MAI invertire giorno e mese). Importi SEMPRE come numero JSON con punto decimale, senza separatore migliaia né simbolo €: nel documento italiano è "1.234,56" (punto=migliaia, virgola=decimali) → nel JSON scrivi 1234.56. Non restituire mai importi negativi salvo note di credito. Per i DDT lascia null i campi fiscali non presenti. Per DDT/bolle (e fatture con dettaglio) popola "righe" come array di oggetti { "descrizione": string, "codice": string|null, "qta": number, "prezzo": number|null }. Includi in dati_incerti i nomi dei campi con conf < 0.75.`;
 
 Deno.serve(async (req) => {
   const cors = getCorsHeaders(req);
