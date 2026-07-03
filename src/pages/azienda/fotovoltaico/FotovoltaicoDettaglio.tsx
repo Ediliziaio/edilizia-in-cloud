@@ -37,7 +37,7 @@ import {
   useEliminaProgetto,
 } from "@/lib/fotovoltaico/queries";
 import { FvCard, FvKpi, FvChip, FvCallout } from "@/lib/fotovoltaico/wizardUI";
-import { scaricaPreventivoComePdf } from "@/lib/fotovoltaico/htmlToPdf";
+import { stampaPreventivoNativo } from "@/lib/fotovoltaico/htmlToPdf";
 import {
   SendSignatureDialog,
   type SendSignatureResult,
@@ -171,15 +171,17 @@ export default function FotovoltaicoDettaglio() {
     }
   };
 
-  // Download diretto del file .pdf (no finestra di stampa): recupera l'HTML del
-  // preventivo e lo converte in PDF lato browser (html2canvas + jsPDF).
+  // "Scarica PDF" via stampa NATIVA del browser: stesso motore di rendering
+  // dell'anteprima → il PDF salvato è identico per definizione (testo vettoriale
+  // selezionabile). La vecchia pipeline html2canvas+jsPDF produceva un PDF
+  // raster DIVERSO dall'anteprima (gradienti/font persi, pagine schiacciate).
   const handleScaricaPdf = async (path: string | null, tipo: string) => {
     if (!path) {
       toast.error("Anteprima non ancora generata. Completa il wizard fino allo Step 8.");
       return;
     }
     setScaricando(tipo);
-    const tid = toast.loading("Generazione PDF in corso… (qualche secondo)");
+    const tid = toast.loading("Preparazione stampa…");
     try {
       const { data, error } = await supabase.storage
         .from("fv-progetti")
@@ -188,11 +190,14 @@ export default function FotovoltaicoDettaglio() {
       const res = await fetch(data.signedUrl);
       if (!res.ok) throw new Error("Recupero preventivo fallito.");
       const html = await res.text();
-      await scaricaPreventivoComePdf(html, `Preventivo-${progetto?.numero ?? "FV"}`);
-      toast.success("PDF scaricato.", { id: tid });
+      await stampaPreventivoNativo(html, `Preventivo-${progetto?.numero ?? "FV"}`);
+      toast.success(
+        "Nella finestra di stampa scegli “Salva come PDF”: il file sarà identico all'anteprima.",
+        { id: tid, duration: 7000 },
+      );
     } catch (e) {
       toast.error(
-        `Download PDF fallito: ${e instanceof Error ? e.message : String(e)}`,
+        `Stampa PDF fallita: ${e instanceof Error ? e.message : String(e)}`,
         { id: tid },
       );
     } finally {
@@ -654,9 +659,10 @@ export default function FotovoltaicoDettaglio() {
               {progetto.pdf_vendita_url && (
                 <>
                   <FvCallout variant="success" title="Preventivo pronto">
-                    <strong>Scarica PDF</strong> per ottenere subito il file da inviare al
-                    cliente (download diretto). Oppure <strong>Apri preventivo</strong> per
-                    vederlo nel browser. Design print-ready A4 con tutti i grafici inline.
+                    <strong>Scarica PDF</strong> apre la stampa già pronta: scegli
+                    “Salva come PDF” e il file è identico all'anteprima. Oppure{" "}
+                    <strong>Apri preventivo</strong> per vederlo nel browser. Design
+                    print-ready A4 con tutti i grafici inline.
                   </FvCallout>
                   <div className="grid sm:grid-cols-2 gap-3 mt-4">
                     <Button
