@@ -559,7 +559,10 @@ export function ShipmentDDTPDF({
         {/* TABELLA RIGHE (SENZA prezzi) */}
         <Text style={styles.sectionTitle}>Articoli trasportati</Text>
         <View style={styles.table}>
-          <View style={styles.tableHeader}>
+          {/* fixed: l'header colonne si ripete sulle pagine successive SOLO
+              finché la tabella righe continua (react-pdf lo propaga insieme
+              al frammento della View tabella, non a note/firme). */}
+          <View style={styles.tableHeader} fixed>
             <Text style={[styles.tableHeaderText, styles.cellNum]}>#</Text>
             <Text style={[styles.tableHeaderText, styles.cellCode]}>Codice</Text>
             <Text style={[styles.tableHeaderText, styles.cellDesc]}>Descrizione</Text>

@@ -198,7 +198,7 @@ function makeStyles(C: Palette) {
       fontSize: 9.5,
       color: C.text,
       paddingTop: 38,
-      paddingBottom: 56,
+      paddingBottom: 92,
       paddingHorizontal: 42,
       backgroundColor: C.white,
     },
@@ -532,8 +532,8 @@ function CapitoloTable({ styles, cap, showMargine, mostraPrezzi, mostraQta, most
   mostraPrezzi: boolean; mostraQta: boolean; mostraSubtotali: boolean;
 }) {
   return (
-    <View wrap={false}>
-      <View style={styles.capHeader}>
+    <View>
+      <View style={styles.capHeader} minPresenceAhead={40}>
         <Text style={styles.capHeaderTitle}>{cap.nome}</Text>
         <Text style={styles.capHeaderSub}>{formatCurrency(cap.subtotale)}</Text>
       </View>
@@ -958,7 +958,7 @@ export function RistrutturazionePDF(props: RstPdfEnriched) {
         <Page size="A4" style={styles.page}>
           {header}
           {showChiSiamo && (t.chi_siamo ?? "").trim() ? (
-            <View wrap={false}>
+            <View>
               <Text style={styles.sectionTitle}>Chi siamo</Text>
               <View style={{ flexDirection: "row" }}>
                 <View style={{ flex: t.chi_siamo_foto_url ? 1.6 : 1 }}>

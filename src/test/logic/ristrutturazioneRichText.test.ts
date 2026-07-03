@@ -55,11 +55,12 @@ describe("richTextPdf — htmlToRichBlocks", () => {
     expect(runs[0]).toEqual({ text: "Testo " });
   });
 
-  it("HTML: <br> diventa spazio nel paragrafo", () => {
+  it("HTML: <br> diventa a-capo reale nel paragrafo", () => {
     const b = htmlToRichBlocks("<p>Riga uno<br/>Riga due</p>");
     expect(b).toHaveLength(1);
-    expect(richBlocksToPlainText(b)).toContain("Riga uno");
-    expect(richBlocksToPlainText(b)).toContain("Riga due");
+    // Fix impaginazione PDF: il <br> emette "\n" (in @react-pdf va a capo),
+    // non più uno spazio che incollava le righe.
+    expect(b[0].runs.map((r) => r.text).join("")).toBe("Riga uno\nRiga due");
   });
 
   it("HTML: tag sconosciuti vengono rimossi, entità decodificate", () => {

@@ -217,12 +217,14 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   nota_interna: "Nota interna",
 };
 
+// Solo testo ASCII/WinAnsi: le emoji non esistono in Helvetica e diventano
+// caratteri spazzatura nel PDF.
 const METEO_LABELS: Record<string, string> = {
-  sereno: "☀️ Sereno",
-  nuvoloso: "☁️ Nuvoloso",
-  pioggia: "🌧️ Pioggia",
-  neve: "❄️ Neve",
-  vento: "💨 Vento",
+  sereno: "Sereno",
+  nuvoloso: "Nuvoloso",
+  pioggia: "Pioggia",
+  neve: "Neve",
+  vento: "Vento",
 };
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -403,7 +405,7 @@ export function OrdinePDF({
                     color: isCurrent ? C.orange : isPast ? C.green : C.gray500,
                     fontFamily: isCurrent ? "Helvetica-Bold" : "Helvetica",
                   }]}>{s.name}</Text>
-                  {idx < statuses.length - 1 && <Text style={{ fontSize: 7, color: C.gray300 }}>→</Text>}
+                  {idx < statuses.length - 1 && <Text style={{ fontSize: 7, color: C.gray300 }}>{"->"}</Text>}
                 </View>
               );
             })}
@@ -471,7 +473,10 @@ export function OrdinePDF({
             <Text style={styles.sectionTitle}>Articoli della Commessa ({items.length})</Text>
             <View style={styles.sectionLine} />
             <View style={styles.table}>
-              <View style={styles.tableHeader}>
+              {/* fixed: l'header colonne si ripete sulle pagine successive SOLO
+                  finché questa tabella continua (react-pdf lo propaga insieme al
+                  frammento della View tabella, non alle altre sezioni). */}
+              <View style={styles.tableHeader} fixed>
                 <Text style={[styles.tableHeaderText, { flex: 2.5 }]}>Articolo</Text>
                 <Text style={[styles.tableHeaderText, { flex: 1.5 }]}>Fornitore</Text>
                 <Text style={[styles.tableHeaderText, { flex: 0.5, textAlign: "center" }]}>Qty</Text>
@@ -496,7 +501,7 @@ export function OrdinePDF({
                     <View style={{ flex: 2.5 }}>
                       <Text style={[styles.tableCell, { fontFamily: "Helvetica-Bold" }]}>{item.name ?? "—"}</Text>
                       {item.description ? (
-                        <Text style={{ fontSize: 6, color: C.gray500, marginTop: 1 }} numberOfLines={1}>{item.description}</Text>
+                        <Text style={{ fontSize: 6, color: C.gray500, marginTop: 1, maxLines: 1, textOverflow: "ellipsis" }}>{item.description}</Text>
                       ) : null}
                     </View>
                     <Text style={[styles.tableCell, { flex: 1.5, fontSize: 7 }]}>{supplier}</Text>
@@ -904,12 +909,12 @@ export function OrdinePDF({
                 )}
                 {g.giornale_foto && g.giornale_foto.length > 0 && (
                   <Text style={{ fontSize: 7, color: C.gray500, marginTop: 3 }}>
-                    📷 {g.giornale_foto.length} foto allegate
+                    {g.giornale_foto.length} foto allegate
                   </Text>
                 )}
                 {g.firmato_da && (
                   <Text style={{ fontSize: 7, color: C.green, marginTop: 2 }}>
-                    ✓ Firmato da {g.firmato_da} il {fmtDate(g.firmato_il)}
+                    Firmato da {g.firmato_da} il {fmtDate(g.firmato_il)}
                   </Text>
                 )}
               </View>
@@ -944,7 +949,7 @@ export function OrdinePDF({
                   <View key={idx} style={rowStyle} wrap={false}>
                     <View style={{ flex: 2.5 }}>
                       <Text style={[styles.tableCell, { fontFamily: "Helvetica-Bold" }]}>{v.titolo ?? v.numero_odv ?? "—"}</Text>
-                      {v.descrizione && <Text style={{ fontSize: 6, color: C.gray500 }} numberOfLines={2}>{v.descrizione}</Text>}
+                      {v.descrizione && <Text style={{ fontSize: 6, color: C.gray500, maxLines: 2, textOverflow: "ellipsis" }}>{v.descrizione}</Text>}
                     </View>
                     <View style={{ flex: 1, alignItems: "center" }}>
                       <Text style={statoStyle}>{statoLabel}</Text>
@@ -989,7 +994,7 @@ export function OrdinePDF({
                   let detail = "";
                   if (e.payload) {
                     if (e.event_type === "stato_cambiato" && e.payload.to_name) {
-                      detail = `→ ${e.payload.to_name}`;
+                      detail = `-> ${e.payload.to_name}`;
                     } else if (e.event_type === "articolo_aggiunto" && e.payload.name) {
                       detail = e.payload.name as string;
                     } else if (e.event_type === "acconto_ricevuto" && e.payload.amount) {
@@ -1011,7 +1016,7 @@ export function OrdinePDF({
                 } else {
                   const m = entry.data;
                   const channelLabel = CHANNEL_LABELS[m.channel] ?? m.channel;
-                  const dirIcon = m.direction === "out" ? "↗" : "↙";
+                  const dirIcon = m.direction === "out" ? "->" : "<-";
                   const statusColor = m.status === "delivered" || m.status === "read" ? C.green
                     : m.status === "failed" ? C.red : C.gray500;
                   return (
@@ -1022,7 +1027,7 @@ export function OrdinePDF({
                       </View>
                       <View style={{ flex: 1 }}>
                         {m.subject && <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", color: C.gray900 }}>{m.subject}</Text>}
-                        <Text style={{ fontSize: 7, color: C.gray700 }} numberOfLines={2}>{(m.body ?? "").substring(0, 120)}</Text>
+                        <Text style={{ fontSize: 7, color: C.gray700, maxLines: 2, textOverflow: "ellipsis" }}>{(m.body ?? "").substring(0, 120)}</Text>
                       </View>
                       <Text style={{ fontSize: 7, color: statusColor, width: 50, textAlign: "right" }}>
                         {m.status === "read" ? "Letto" : m.status === "delivered" ? "Consegnato" : m.status === "sent" ? "Inviato" : m.status === "failed" ? "Fallito" : "In attesa"}
