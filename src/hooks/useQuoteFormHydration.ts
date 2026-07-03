@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { type QuotePaymentPhase, parseQuotePaymentPhases } from "@/lib/preventivi/paymentTerms";
 
 /**
  * P1-4: campi extra del preventivo (migration 20260324200*_preventivo_pro_v2).
@@ -17,6 +18,8 @@ export interface QuoteExtraFields {
   pdf_includi_schede_tecniche?: boolean | null;
   firma_digitale_abilitata?: boolean | null;
   template_layout_override?: string | null;
+  payment_method?: string | null;
+  payment_phases?: unknown;
 }
 
 export interface QuoteFormSetters {
@@ -46,6 +49,8 @@ export interface QuoteFormSetters {
   setPdfSchedeTecniche: (v: boolean) => void;
   setPdfFirma: (v: boolean) => void;
   setLayoutOverride: (v: string | null) => void;
+  setPaymentMethod: (v: string) => void;
+  setPaymentPhases: (v: QuotePaymentPhase[]) => void;
 }
 
 interface ExistingQuoteCore {
@@ -120,5 +125,7 @@ export function useQuoteFormHydration(
     s.setPdfSchedeTecniche(q.pdf_includi_schede_tecniche ?? false);
     s.setPdfFirma(q.firma_digitale_abilitata ?? true);
     s.setLayoutOverride(q.template_layout_override ?? null);
+    s.setPaymentMethod(q.payment_method || "");
+    s.setPaymentPhases(parseQuotePaymentPhases(q.payment_phases));
   }, [existingQuote]);
 }

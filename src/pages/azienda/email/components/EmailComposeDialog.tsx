@@ -348,6 +348,11 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
   }, [to, cc, bcc, subject, bodyText, bodyHtml, accountId, attachments, open]);
 
   // Send
+  // Guard sincrono anti-doppio-invio: due click rapidissimi arrivano PRIMA che
+  // isPending (async) disabiliti il bottone → due insert in email_outbox → email
+  // duplicata. Il ref blocca la seconda chiamata nello stesso tick.
+  const sendingRef = useRef(false);
+
   const sendMutation = useMutation({
     mutationFn: async () => {
       // 1) Save (o update) bozza con status=queued
@@ -441,7 +446,14 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
       onOpenChange(false);
     },
     onError: (e) => toast.error("Invio fallito", { description: String(e) }),
+    onSettled: () => { sendingRef.current = false; },
   });
+
+  const handleSend = () => {
+    if (sendingRef.current || sendMutation.isPending) return;
+    sendingRef.current = true;
+    sendMutation.mutate();
+  };
 
   const isSending = sendMutation.isPending;
   const hasActiveSender = !!accountId && !!connections?.some((connection) => connection.id === accountId);
@@ -656,7 +668,7 @@ export function EmailComposeDialog({ open, onOpenChange, context, companyIdOverr
               stanno ancora caricando. Prima si cliccava → toast.error "Attendi"
               ma il bottone restava cliccabile (e n-click partivano N submit). */}
           <Button
-            onClick={() => sendMutation.mutate()}
+            onClick={handleSend}
             disabled={isSending || !hasActiveSender || attachments.some((a) => a.uploading)}
             className="gap-2 rounded-xl bg-blue-600 px-5 hover:bg-blue-700"
             size="sm"

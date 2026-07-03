@@ -134,6 +134,10 @@ const allNavItems: AdminNavItem[] = [
   // (Revenue · Piani · Fatture · Promo · Dunning). Pulisce visualmente la
   // navigazione mantenendo l'accesso a tutti i sotto-strumenti con 1 click.
   { title: "Fatturato", url: "/admin/fatturato", icon: Wallet, permission: "billing_read", subcategory: "sa_revenue" },
+  // Clienti-Servizio: relazione ricorrente cliente↔servizio (provvigioni/incassi)
+  // — sorgente del tab "Servizi" dell'hub Fatturato. Prima raggiungibile solo via
+  //   link dal catalogo Prodotti & Servizi; ora voce di menu sotto Fatturato.
+  { title: "Clienti Servizi", url: "/admin/marketing/clienti-servizio", icon: Users, permission: "can_manage_marketing", subcategory: "sa_revenue" },
   // Fatturazione Elettronica — chi usa la FE, volumi, costi e wallet openapi.
   { title: "Fatturazione Elettronica", url: "/admin/fatturazione-elettronica", icon: Receipt, permission: "billing_read", subcategory: "sa_revenue" },
   // ─── AI MANAGEMENT — Hub unico (Operate · Monitor · Config · Memoria

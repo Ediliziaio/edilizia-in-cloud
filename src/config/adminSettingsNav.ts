@@ -1,7 +1,7 @@
 import {
   User, Users, Server, Mail, Bell,
   ScrollText, Globe, Zap, Plug, Landmark,
-  Webhook, Activity, CalendarDays, Wrench, Variable,
+  Webhook, Activity, CalendarDays, Wrench, Variable, Package,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -62,6 +62,14 @@ export const ADMIN_SETTINGS_NAV: AdminSettingsGroup[] = [
         description: "Catalogo campi di sistema, copertura per oggetto e campi creati dalle aziende",
         icon: Variable,
         url: "/admin/impostazioni/campi-personalizzati",
+        permission: "can_manage_admins",
+      },
+      {
+        id: "prodotti-servizi",
+        label: "Prodotti & Servizi",
+        description: "Catalogo dei servizi venduti oltre a Edilizia in Cloud (consulenza, agenzia, performance…)",
+        icon: Package,
+        url: "/admin/impostazioni/prodotti-servizi",
         permission: "can_manage_admins",
       },
       {

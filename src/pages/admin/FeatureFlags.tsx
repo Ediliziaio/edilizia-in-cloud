@@ -64,6 +64,7 @@ interface FlagRow {
   plans_included: string[] | null;
   price_per_month: number | null;
   sort_order: number;
+  supports_preview: boolean;
 }
 
 interface CompanyRow {
@@ -75,6 +76,10 @@ interface OverrideRow {
   company_id: string;
   feature_key: string;
   is_enabled: boolean;
+  access_level: string | null;
+  limit_value: number | null;
+  price_override: number | null;
+  expires_at: string | null;
 }
 
 interface PlanSlugRow {
@@ -105,6 +110,7 @@ export default function FeatureFlags() {
   const [bulkConfirm, setBulkConfirm] = useState<{ flagKey: string; flagName: string; value: boolean; enableCount: number; disableCount: number } | null>(null);
   const [rolloutPct, setRolloutPct] = useState<number>(0);
   const [rolloutConfirm, setRolloutConfirm] = useState<{ flagKey: string; pct: number } | null>(null);
+  const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
 
   // CRUD state
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -117,7 +123,7 @@ export default function FeatureFlags() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("platform_feature_flags")
-        .select("id, key, name, icon, category, description, is_beta, default_value, plans_included, price_per_month, sort_order")
+        .select("id, key, name, icon, category, description, is_beta, default_value, plans_included, price_per_month, sort_order, supports_preview")
         .order("sort_order");
       if (error) throw error;
       return (data ?? []) as FlagRow[];
@@ -156,7 +162,7 @@ export default function FeatureFlags() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("company_feature_overrides")
-        .select("company_id, feature_key, is_enabled");
+        .select("company_id, feature_key, is_enabled, access_level, limit_value, price_override, expires_at");
       if (error) throw error;
       return (data ?? []) as OverrideRow[];
     },
@@ -170,10 +176,20 @@ export default function FeatureFlags() {
   const overridesByFlag = useMemo(() => {
     const m = new Map<string, Set<string>>();
     for (const o of allOverrides) {
-      if (!o.is_enabled) continue;
+      // "enabled" reale: access_level è la fonte di verità (is_enabled solo fallback).
+      const on = o.access_level ? o.access_level === "enabled" : o.is_enabled;
+      if (!on) continue;
       if (!m.has(o.feature_key)) m.set(o.feature_key, new Set());
       m.get(o.feature_key)!.add(o.company_id);
     }
+    return m;
+  }, [allOverrides]);
+
+  // Lookup O(1) dell'override completo per (flag, company): serve al controllo
+  // tri-stato e ai campi avanzati (limite/prezzo/scadenza) nel dialog per-azienda.
+  const overrideByFlagCompany = useMemo(() => {
+    const m = new Map<string, OverrideRow>();
+    for (const o of allOverrides) m.set(`${o.feature_key}::${o.company_id}`, o);
     return m;
   }, [allOverrides]);
 
@@ -215,15 +231,27 @@ export default function FeatureFlags() {
     onError: () => toast.error("Errore nell'aggiornamento"),
   });
 
-  const toggleOverrideMutation = useMutation({
-    mutationFn: async ({ companyId, flagKey, enabled }: { companyId: string; flagKey: string; enabled: boolean }) => {
-      const { error } = await supabase
-        .from("company_feature_overrides")
-        .upsert(
-          { company_id: companyId, feature_key: flagKey, is_enabled: enabled },
-          { onConflict: "company_id,feature_key" }
-        );
-      if (error) throw error;
+  // Stato accesso per-azienda (tri-stato). access_level è la fonte di verità per
+  // resolve_company_feature (is_enabled solo COALESCE di fallback), quindi va sempre
+  // scritto. "inherit" = nessun override → l'azienda eredita da piano/default.
+  const setAccessMutation = useMutation({
+    mutationFn: async ({ companyId, flagKey, level }: { companyId: string; flagKey: string; level: "inherit" | "disabled" | "preview" | "enabled" }) => {
+      if (level === "inherit") {
+        const { error } = await supabase
+          .from("company_feature_overrides")
+          .delete()
+          .eq("company_id", companyId)
+          .eq("feature_key", flagKey);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("company_feature_overrides")
+          .upsert(
+            { company_id: companyId, feature_key: flagKey, access_level: level, is_enabled: level === "enabled" },
+            { onConflict: "company_id,feature_key" }
+          );
+        if (error) throw error;
+      }
     },
     onSuccess: async (_, vars) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureOverrides });
@@ -232,14 +260,34 @@ export default function FeatureFlags() {
       if (session?.user?.id) {
         await supabase.from("admin_audit_log").insert({
           user_id: session.user.id,
-          action: "feature_flag_toggle",
+          action: "feature_flag_access",
           target_type: "company",
           target_id: vars.companyId,
-          details: { feature: vars.flagKey, enabled: vars.enabled },
+          details: { feature: vars.flagKey, access_level: vars.level },
         });
       }
     },
     onError: () => toast.error("Errore nell'aggiornamento"),
+  });
+
+  // Campi avanzati dell'override (limite, prezzo override, scadenza). Upsert
+  // parziale: merge-duplicates aggiorna solo i campi passati, preserva il resto.
+  const setOverrideFieldMutation = useMutation({
+    mutationFn: async ({ companyId, flagKey, patch }: { companyId: string; flagKey: string; patch: { limit_value?: number | null; price_override?: number | null; expires_at?: string | null } }) => {
+      const { error } = await supabase
+        .from("company_feature_overrides")
+        .upsert(
+          { company_id: companyId, feature_key: flagKey, ...patch },
+          { onConflict: "company_id,feature_key" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.featureOverrides });
+      queryClient.invalidateQueries({ queryKey: queryKeys.featureFlags.companyOverrides(undefined) });
+      toast.success("Override aggiornato");
+    },
+    onError: () => toast.error("Errore nel salvataggio del campo"),
   });
 
   const bulkOverrideMutation = useMutation({
@@ -249,6 +297,7 @@ export default function FeatureFlags() {
           company_id: c.id,
           feature_key: flagKey,
           is_enabled: true,
+          access_level: "enabled" as const,
         }));
         const { error } = await supabase
           .from("company_feature_overrides")
@@ -277,7 +326,7 @@ export default function FeatureFlags() {
       const toEnable = sorted.slice(0, count).map((c) => c.id);
       const toDisable = sorted.slice(count).map((c) => c.id);
       if (toEnable.length > 0) {
-        const rows = toEnable.map((id) => ({ company_id: id, feature_key: flagKey, is_enabled: true }));
+        const rows = toEnable.map((id) => ({ company_id: id, feature_key: flagKey, is_enabled: true, access_level: "enabled" as const }));
         const { error } = await supabase
           .from("company_feature_overrides")
           .upsert(rows, { onConflict: "company_id,feature_key" });
@@ -552,6 +601,7 @@ export default function FeatureFlags() {
             setDialogFlagKey(null);
             setSearchTerm("");
             setRolloutPct(0);
+            setExpandedCompany(null);
           }
         }}
       >
@@ -637,25 +687,44 @@ export default function FeatureFlags() {
 
               <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
                 {filteredDialogCompanies.map((company) => {
-                  const hasOverride = overridesByFlag.get(activeDialogFlag.key)?.has(company.id) ?? false;
+                  const ov = overrideByFlagCompany.get(`${activeDialogFlag.key}::${company.id}`);
+                  const level = ov ? (ov.access_level ?? (ov.is_enabled ? "enabled" : "disabled")) : "inherit";
+                  const expanded = expandedCompany === company.id;
                   return (
-                    <label
-                      key={company.id}
-                      className="flex items-center gap-2 rounded-md px-3 py-2 hover:bg-muted cursor-pointer transition-colors"
-                    >
-                      <Checkbox
-                        checked={hasOverride}
-                        onCheckedChange={(checked) =>
-                          toggleOverrideMutation.mutate({
-                            companyId: company.id,
-                            flagKey: activeDialogFlag.key,
-                            enabled: !!checked,
-                          })
-                        }
-                        disabled={toggleOverrideMutation.isPending}
-                      />
-                      <span className="text-sm truncate">{company.name}</span>
-                    </label>
+                    <div key={company.id} className="rounded-md border px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="flex-1 truncate text-sm">{company.name}</span>
+                        <Select value={level} onValueChange={(v) => setAccessMutation.mutate({ companyId: company.id, flagKey: activeDialogFlag.key, level: v as "inherit" | "disabled" | "preview" | "enabled" })} disabled={setAccessMutation.isPending}>
+                          <SelectTrigger className="h-8 w-[7.5rem] text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="inherit">Eredita</SelectItem>
+                            <SelectItem value="disabled">Disabilitato</SelectItem>
+                            {activeDialogFlag.supports_preview && <SelectItem value="preview">Preview</SelectItem>}
+                            <SelectItem value="enabled">Abilitato</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button type="button" variant="ghost" size="sm" className="h-8 px-2 text-xs" disabled={!ov} onClick={() => setExpandedCompany(expanded ? null : company.id)}>Avanzate</Button>
+                      </div>
+                      {expanded && ov && (
+                        <div className="mt-2 grid grid-cols-3 gap-2 border-t pt-2">
+                          <div className="grid gap-1">
+                            <Label className="text-[11px] text-muted-foreground">Limite</Label>
+                            <Input type="number" className="h-8" defaultValue={ov.limit_value ?? ""} placeholder="—"
+                              onBlur={(e) => setOverrideFieldMutation.mutate({ companyId: company.id, flagKey: activeDialogFlag.key, patch: { limit_value: e.target.value === "" ? null : Number(e.target.value) } })} />
+                          </div>
+                          <div className="grid gap-1">
+                            <Label className="text-[11px] text-muted-foreground">Prezzo € (override)</Label>
+                            <Input type="number" className="h-8" defaultValue={ov.price_override ?? ""} placeholder="—"
+                              onBlur={(e) => setOverrideFieldMutation.mutate({ companyId: company.id, flagKey: activeDialogFlag.key, patch: { price_override: e.target.value === "" ? null : Number(e.target.value) } })} />
+                          </div>
+                          <div className="grid gap-1">
+                            <Label className="text-[11px] text-muted-foreground">Scadenza</Label>
+                            <Input type="date" className="h-8" defaultValue={ov.expires_at ? ov.expires_at.slice(0, 10) : ""}
+                              onChange={(e) => setOverrideFieldMutation.mutate({ companyId: company.id, flagKey: activeDialogFlag.key, patch: { expires_at: e.target.value === "" ? null : new Date(e.target.value + "T00:00:00").toISOString() } })} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
                 {filteredDialogCompanies.length === 0 && (

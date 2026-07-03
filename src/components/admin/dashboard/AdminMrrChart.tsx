@@ -1,12 +1,13 @@
 import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/formatters";
 import { TrendingUp } from "lucide-react";
+import { BrandTrendChart } from "@/components/admin/BrandTrendChart";
 
 interface MrrChartData {
   month: string;
   mrr: number;
+  nuove: number;
 }
 
 interface Props {
@@ -14,10 +15,14 @@ interface Props {
   currentMrr: number;
 }
 
+// Palette brand: blu (MRR, barre) + arancione (nuove aziende, linea su asse destro).
+const C_MRR = "hsl(217 91% 60%)";
+const C_NEW = "hsl(24 95% 53%)";
+
 /**
  * Memo: dashboard admin re-renderizza al cambio filtro/periodo, ma
  * quando `data` e `currentMrr` restano invariati (array ref stabile)
- * evitiamo il re-compute recharts + re-render dell'intera Area chart.
+ * evitiamo il re-compute recharts + re-render dell'intera chart.
  */
 function AdminMrrChartImpl({ data, currentMrr }: Props) {
   const arr = currentMrr * 12;
@@ -25,7 +30,7 @@ function AdminMrrChartImpl({ data, currentMrr }: Props) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-emerald-600" />
             <CardTitle className="text-base">MRR Pagante Trend</CardTitle>
@@ -41,32 +46,23 @@ function AdminMrrChartImpl({ data, currentMrr }: Props) {
             </div>
           </div>
         </div>
+        <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: C_MRR }} /> MRR pagante</span>
+          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: C_NEW }} /> Nuove aziende</span>
+        </div>
       </CardHeader>
       <CardContent>
         {data.length > 0 ? (
-          <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={data} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-              <defs>
-                <linearGradient id="mrrGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="month" className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
-              <YAxis className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} tickFormatter={formatCurrencyCompact} />
-              <Tooltip
-                formatter={(value: number) => [formatCurrency(value), "MRR pagante"]}
-                contentStyle={{
-                  backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                  fontSize: "12px",
-                }}
-              />
-              <Area type="monotone" dataKey="mrr" stroke="hsl(var(--primary))" fill="url(#mrrGradient)" strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
+          <BrandTrendChart
+            data={data}
+            xKey="month"
+            height={260}
+            bars={[{ key: "mrr", name: "MRR pagante", color: C_MRR }]}
+            line={{ key: "nuove", name: "Nuove aziende", color: C_NEW, rightAxis: true }}
+            yFormatter={(v) => formatCurrencyCompact(v)}
+            rightFormatter={(v) => String(Math.round(v))}
+            valueFormatter={(v, name) => (name === "Nuove aziende" ? String(Math.round(v)) : formatCurrency(v))}
+          />
         ) : (
           <div className="flex items-center justify-center h-[260px] text-muted-foreground text-sm">
             Dati insufficienti per il grafico

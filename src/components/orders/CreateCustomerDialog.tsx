@@ -41,16 +41,40 @@ function sanitizeFileName(fileName: string) {
   return fileName.replace(/[^\w.-]+/g, "_");
 }
 
+/** Divide un nome completo / ragione sociale in nome + cognome (best-effort:
+ *  primo token = nome, resto = cognome; parola singola → tutto nel nome). */
+function splitFullName(full: string): { first: string; last: string } {
+  const tokens = full.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length <= 1) return { first: tokens[0] ?? "", last: "" };
+  return { first: tokens[0], last: tokens.slice(1).join(" ") };
+}
+
 interface CreateCustomerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCustomerCreated: (customerId: string, customerName: string) => void;
+  /** Precompila i campi all'apertura (es. dal contatto di un preventivo). */
+  initialValues?: {
+    /** Nome completo / ragione sociale — diviso in automatico in nome/cognome. */
+    fullName?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    fiscalCode?: string;
+  };
+  /** Default per il toggle "crea account portale" (es. dal preventivo: OFF → solo
+   *  anagrafica, niente email di benvenuto a sorpresa). Se assente usa companyPortalEnabled. */
+  defaultCreatePortalAccount?: boolean;
 }
 
 export function CreateCustomerDialog({
   open,
   onOpenChange,
   onCustomerCreated,
+  initialValues,
+  defaultCreatePortalAccount,
 }: CreateCustomerDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
@@ -58,16 +82,21 @@ export function CreateCustomerDialog({
   const companyPortalEnabled = (effectiveCompany as { customer_portal_enabled?: boolean } | null)
     ?.customer_portal_enabled !== false;
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [fiscalCode, setFiscalCode] = useState("");
+  // Init dai valori del contatto (es. preventivo). Il RE-mount via `key` lato
+  // chiamante rifà l'init quando i dati async arrivano → niente effetto/ref.
+  const _initialFullName = initialValues?.fullName ?? [initialValues?.firstName, initialValues?.lastName].filter(Boolean).join(" ");
+  const _initialSplit = splitFullName(_initialFullName ?? "");
+  const [fullName, setFullName] = useState(_initialFullName ?? "");
+  const [firstName, setFirstName] = useState(initialValues?.firstName ?? _initialSplit.first);
+  const [lastName, setLastName] = useState(initialValues?.lastName ?? _initialSplit.last);
+  const [email, setEmail] = useState(initialValues?.email ?? "");
+  const [phone, setPhone] = useState(initialValues?.phone ?? "");
+  const [address, setAddress] = useState(initialValues?.address ?? "");
+  const [fiscalCode, setFiscalCode] = useState(initialValues?.fiscalCode ?? "");
   const [siteAddress, setSiteAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [customerDocuments, setCustomerDocuments] = useState<Partial<Record<CustomerDocumentType, File>>>({});
-  const [createPortalAccount, setCreatePortalAccount] = useState(companyPortalEnabled);
+  const [createPortalAccount, setCreatePortalAccount] = useState(defaultCreatePortalAccount ?? companyPortalEnabled);
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -146,6 +175,7 @@ export function CreateCustomerDialog({
   }, [email]);
 
   const resetForm = () => {
+    setFullName("");
     setFirstName("");
     setLastName("");
     setEmail("");
@@ -155,7 +185,7 @@ export function CreateCustomerDialog({
     setSiteAddress("");
     setNotes("");
     setCustomerDocuments({});
-    setCreatePortalAccount(companyPortalEnabled);
+    setCreatePortalAccount(defaultCreatePortalAccount ?? companyPortalEnabled);
     setSendWelcomeEmail(true);
     setShowSuccessStep(false);
     setGeneratedPassword(null);
@@ -193,12 +223,8 @@ export function CreateCustomerDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!firstName.trim()) {
-      toast.error("Campo obbligatorio", { description: "Inserisci il nome del cliente." });
-      return;
-    }
-    if (!lastName.trim()) {
-      toast.error("Campo obbligatorio", { description: "Inserisci il cognome del cliente." });
+    if (!firstName.trim() && !lastName.trim()) {
+      toast.error("Campo obbligatorio", { description: "Inserisci il nome completo o la ragione sociale del cliente." });
       return;
     }
     const shouldCreatePortal = companyPortalEnabled && createPortalAccount;
@@ -378,27 +404,44 @@ export function CreateCustomerDialog({
             </DialogHeader>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="dialog-fullName">Nome completo / Ragione sociale</Label>
+                <Input
+                  id="dialog-fullName"
+                  value={fullName}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFullName(v);
+                    const s = splitFullName(v);
+                    setFirstName(s.first);
+                    setLastName(s.last);
+                  }}
+                  placeholder="Es. Mario Rossi — oppure Edilizia Rossi SRL"
+                  autoComplete="name"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Diviso in automatico in Nome/Cognome. Correggi sotto se serve (basta Nome o Cognome).
+                </p>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="dialog-firstName">Nome *</Label>
+                  <Label htmlFor="dialog-firstName">Nome</Label>
                   <Input
                     id="dialog-firstName"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                     placeholder="Mario"
                     autoComplete="given-name"
-                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="dialog-lastName">Cognome *</Label>
+                  <Label htmlFor="dialog-lastName">Cognome</Label>
                   <Input
                     id="dialog-lastName"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
                     placeholder="Rossi"
                     autoComplete="family-name"
-                    required
                   />
                 </div>
               </div>

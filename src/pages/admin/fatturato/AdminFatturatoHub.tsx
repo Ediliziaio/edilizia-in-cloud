@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Wallet,
   LineChart as LineChartIcon,
+  Package as PackageIcon,
   CreditCard,
   FileText,
   Ticket,
@@ -55,14 +56,15 @@ import {
 
 // Tutte le pagine sono lazy-loaded — solo il tab attivo paga il bundle cost.
 const AdminRevenueDashboard = lazy(() => import("@/pages/admin/AdminRevenueDashboard"));
+const ServiziFatturatoTab = lazy(() => import("@/components/admin/fatturato/ServiziFatturatoTab").then((m) => ({ default: m.ServiziFatturatoTab })));
 const SubscriptionPlans = lazy(() => import("@/pages/admin/SubscriptionPlans"));
 const AdminInvoiceHistory = lazy(() => import("@/pages/admin/AdminInvoiceHistory"));
 const PromoCodes = lazy(() => import("@/pages/admin/PromoCodes"));
 const AdminDunningConfig = lazy(() => import("@/pages/admin/AdminDunningConfig"));
 
-type FatturatoTab = "revenue" | "piani" | "fatture" | "promo" | "dunning";
+type FatturatoTab = "revenue" | "servizi" | "piani" | "fatture" | "promo" | "dunning";
 
-const VALID_TABS: readonly FatturatoTab[] = ["revenue", "piani", "fatture", "promo", "dunning"];
+const VALID_TABS: readonly FatturatoTab[] = ["revenue", "servizi", "piani", "fatture", "promo", "dunning"];
 
 function isValidTab(value: string | null): value is FatturatoTab {
   return value != null && (VALID_TABS as readonly string[]).includes(value);
@@ -150,6 +152,13 @@ export default function AdminFatturatoHub() {
       icon: LineChartIcon,
       show: permissions.billing_read,
       description: "KPI ARR, MRR, churn",
+    },
+    {
+      id: "servizi" as const,
+      label: "Servizi",
+      icon: PackageIcon,
+      show: permissions.billing_read,
+      description: "Fatturato e incassato dei servizi (consulenze, agenzia, performance)",
     },
     {
       id: "piani" as const,
@@ -408,6 +417,7 @@ export default function AdminFatturatoHub() {
       {/* ─── Tab content ────────────────────────────────────────────────── */}
       <Suspense fallback={<HubTabSkeleton />}>
         {activeTab === "revenue" && <AdminRevenueDashboard />}
+        {activeTab === "servizi" && <ServiziFatturatoTab />}
         {activeTab === "piani" && <SubscriptionPlans />}
         {activeTab === "fatture" && <AdminInvoiceHistory />}
         {activeTab === "promo" && <PromoCodes />}

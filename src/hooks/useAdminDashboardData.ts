@@ -38,6 +38,8 @@ export interface AdminMrrStats {
 export interface MrrChartData {
   month: string;
   mrr: number;
+  /** Nuove aziende registrate nel mese (linea su asse secondario del grafico). */
+  nuove: number;
 }
 
 export interface AdminDashboardData {
@@ -110,22 +112,17 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
         .limit(5000)
     ),
     withDashboardTimeout(
+      // DAC (aziende attive 24h): attività reale da user_sessions via RPC.
+      // Prima interrogava public.audit_log — tabella inesistente → sempre 0.
       "Attivita giornaliera",
-      supabase
-        .from("audit_log")
-        .select("company_id", { count: "exact", head: false })
-        .gte("created_at", oneDayAgo)
-        .not("company_id", "is", null)
-        .limit(1000)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).rpc("get_active_companies", { p_since: oneDayAgo })
     ),
     withDashboardTimeout(
+      // WAC (aziende attive 7gg): stessa RPC su finestra 7 giorni.
       "Attivita settimanale",
-      supabase
-        .from("audit_log")
-        .select("company_id", { count: "exact", head: false })
-        .gte("created_at", sevenDaysAgo)
-        .not("company_id", "is", null)
-        .limit(5000)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).rpc("get_active_companies", { p_since: sevenDaysAgo })
     ),
   ]);
 
@@ -224,13 +221,16 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
   const mrrChartData: MrrChartData[] = [];
   for (let i = 5; i >= 0; i--) {
     const monthDate = subMonths(now, i);
+    const mStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
     const monthEnd = new Date(
       monthDate.getFullYear(),
       monthDate.getMonth() + 1,
       0
     );
+    let nuove = 0;
     const monthMrr = allCompanies.reduce((sum, c) => {
       const created = new Date(c.created_at);
+      if (created >= mStart && created <= monthEnd) nuove++;
       if (created > monthEnd) return sum;
       const price = getCompanyMonthlyRevenue(c);
       if (price === 0) return sum;
@@ -246,6 +246,7 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
     mrrChartData.push({
       month: format(monthDate, "MMM yy", { locale: it }),
       mrr: monthMrr,
+      nuove,
     });
   }
 

@@ -26,7 +26,9 @@ import { OutreachConvertContactDialog } from "@/components/admin/outreach/Outrea
 import { OutreachOverdueFollowups } from "@/components/admin/outreach/OutreachOverdueFollowups";
 import { EmailSuppressionsTable } from "@/components/admin/settings/EmailSuppressionsTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Reveal } from "@/components/admin/Reveal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BrandPageHeader } from "@/components/admin/BrandPageHeader";
 import {
   Loader2, LayoutDashboard, Flame, Users, Send, Briefcase, ShieldCheck,
   Radar, Mail, MessageSquare, Phone, Workflow, ArrowRight, Inbox, BarChart3,
@@ -64,22 +66,21 @@ function Kpi({ icon: Icon, label, value, hint, tone = "default" }: {
   tone?: "default" | "good" | "warn";
 }) {
   const toneCls = tone === "good" ? "text-emerald-600" : tone === "warn" ? "text-amber-600" : "text-foreground";
-  const iconWrap = tone === "good"
-    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/25 dark:text-emerald-400"
-    : tone === "warn"
-      ? "bg-amber-50 text-amber-600 dark:bg-amber-900/25 dark:text-amber-400"
-      : "bg-primary/10 text-primary";
-  // hint come chip pill tonale (stile stat-card SaaS), non testo grigio piatto
+  // chip icona con gradiente pieno (contrasto forte, look SaaS moderno)
+  const grad = tone === "good" ? "from-emerald-500 to-teal-400" : tone === "warn" ? "from-amber-500 to-orange-400" : "from-blue-500 to-indigo-500";
+  // hint come chip pill tonale, non testo grigio piatto
   const hintChip = tone === "good"
     ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/25 dark:text-emerald-400"
     : tone === "warn"
       ? "bg-red-50 text-red-600 dark:bg-red-900/25 dark:text-red-400"
       : "bg-muted text-muted-foreground";
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md">
+    <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-transparent hover:shadow-xl hover:shadow-slate-900/[0.08]">
+      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${grad}`} />
+      <div className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br ${grad} opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-20`} />
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
-        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconWrap}`}>
+        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br ${grad} text-white shadow-sm transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3`}>
           <Icon className="h-4 w-4" />
         </span>
       </div>
@@ -179,21 +180,14 @@ function OutreachCockpit() {
   return (
     <div className="min-h-full bg-muted/30">
       <div className="space-y-6 p-4 sm:p-6">
-        {/* Header pagina */}
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-              <Radar className="h-6 w-6 text-primary" />
-            </span>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Outreach Engine</h1>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                La tua console quotidiana di cold outreach multi-canale. Email-first, poi WhatsApp e SMS.
-              </p>
-            </div>
-          </div>
-          <OutreachComposeDialog companyId={companyId} />
-        </div>
+        {/* Header pagina — hero brand (navy + arancione) */}
+        <BrandPageHeader
+          icon={Radar}
+          eyebrow="Cold Outreach"
+          title="Outreach Engine"
+          subtitle="La tua console quotidiana di cold outreach multi-canale. Email-first, poi WhatsApp e SMS."
+          actions={<OutreachComposeDialog companyId={companyId} />}
+        />
 
         <Tabs value={tab} onValueChange={setTab}>
           {/* Tab bar segmented/underline alla Instantly */}
@@ -203,7 +197,7 @@ function OutreachCockpit() {
                 <TabsTrigger
                   key={t.value}
                   value={t.value}
-                  className="gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none"
+                  className="gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-all hover:text-foreground data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-amber-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-orange-500/30"
                 >
                   <t.icon className="h-4 w-4" />
                   {t.label}
@@ -217,7 +211,7 @@ function OutreachCockpit() {
           <TabsContent value="oggi" className="mt-5 space-y-6">
             <OutreachSetupChecklist companyId={companyId} />
 
-            <div className="space-y-3">
+            <Reveal className="space-y-3">
               <SectionLabel>Panoramica</SectionLabel>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <Kpi icon={Users} label="Contatti in rubrica" value={fmt(contacts.data)} hint="nel CRM marketing admin" />
@@ -225,23 +219,23 @@ function OutreachCockpit() {
                 <Kpi icon={ShieldCheck} label="Soppressi / opt-out" value={fmt(suppressed.data)} hint="bounce, lamentele, disiscritti" tone="warn" />
                 <Kpi icon={Send} label="Campagne create" value={fmt(campaigns.data)} hint="totali nel sistema" />
               </div>
-            </div>
+            </Reveal>
 
-            <div className="space-y-3">
+            <Reveal className="space-y-3" delay={0.06}>
               <SectionLabel>Motore &amp; performance</SectionLabel>
               <OutreachQueueStatus companyId={companyId} />
               <OutreachAnalytics companyId={companyId} />
-            </div>
+            </Reveal>
 
-            <div className="space-y-3">
+            <Reveal className="space-y-3" delay={0.12}>
               <SectionLabel>Da leggere &amp; attività</SectionLabel>
               <div className="grid gap-4 lg:grid-cols-2">
                 <OutreachInboxPreview companyId={companyId} onOpenMailbox={() => setTab("posta")} />
                 <OutreachActivityFeed companyId={companyId} />
               </div>
-            </div>
+            </Reveal>
 
-            <div className="space-y-3">
+            <Reveal className="space-y-3" delay={0.18}>
               <SectionLabel>Scorciatoie</SectionLabel>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <Shortcut to="/admin/marketing/lead-scraper" icon={Radar} label="Lead Scraper" desc="Trova nuovi lead (6 sorgenti + AI)" />
@@ -251,7 +245,7 @@ function OutreachCockpit() {
                 <Shortcut to="/admin/marketing/sms" icon={Phone} label="SMS" desc="Campagne SMS (Telnyx)" />
                 <Shortcut to="/admin/marketing/automazioni" icon={Workflow} label="Automazioni" desc="Flussi e sequenze" />
               </div>
-            </div>
+            </Reveal>
           </TabsContent>
 
         {/* ── POSTA ── */}

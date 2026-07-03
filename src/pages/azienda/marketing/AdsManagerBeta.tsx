@@ -5115,7 +5115,8 @@ function CreativeStudioTab({ companyId }: { companyId?: string }) {
   const deleteMedia = async (id: string) => {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("ad_media").delete().eq("id", id);
+      const { error } = await (supabase as any).from("ad_media").delete().eq("id", id);
+      if (error) throw error;
       qc.invalidateQueries({ queryKey: ["ad-media-library", companyId] });
       toast.success("Asset eliminato dalla libreria");
     } catch {

@@ -36,7 +36,7 @@ export const DEFAULT_WIDGETS: DashboardWidget[] = [
   { id: "consumption", label: "Consumo tool a costo", category: "kpi", visible: true, span: 1 },
   { id: "health-summary", label: "Health Summary", category: "alerts", visible: true, span: 1 },
   { id: "system-health", label: "System Health", category: "tables", visible: true, span: 2 },
-  { id: "mrr-chart", label: "MRR Chart", category: "charts", visible: true, span: 1 },
+  { id: "mrr-chart", label: "MRR Chart", category: "charts", visible: true, span: 2 },
   { id: "mrr-movements", label: "MRR Movements", category: "charts", visible: true, span: 1 },
   { id: "revenue-sector", label: "Revenue per Settore", category: "charts", visible: true, span: 1 },
   { id: "feature-usage", label: "Feature Usage", category: "charts", visible: true, span: 1 },

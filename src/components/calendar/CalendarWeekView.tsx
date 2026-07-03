@@ -148,7 +148,7 @@ export function CalendarWeekView({
           const posaDate = posaEnabled ? o.expected_date : null;
           const merceDate = merceEnabled ? o.warehouse_arrival_date : null;
           while (cur <= end) {
-            const dateStr = cur.toISOString().split("T")[0];
+            const dateStr = format(cur, "yyyy-MM-dd");
             if (dateStr !== posaDate && dateStr !== merceDate) {
               addEvent(dateStr, { type: "lavoro", order: o });
             }
@@ -169,7 +169,7 @@ export function CalendarWeekView({
         const end = new Date(lr.end_date);
         const cur = new Date(start);
         while (cur <= end) {
-          addEvent(cur.toISOString().split("T")[0], { type: "leave", leave: lr });
+          addEvent(format(cur, "yyyy-MM-dd"), { type: "leave", leave: lr });
           cur.setDate(cur.getDate() + 1);
         }
       });

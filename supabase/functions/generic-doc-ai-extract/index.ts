@@ -106,6 +106,26 @@ const SCHEMA_BY_TYPE: Record<string, string> = {
   "qualita_immagine": "buona|media|scarsa",
   "uso_consigliato": "string"
 }`,
+  contratto_commessa: `{
+  "cliente": {
+    "nome_completo": "ragione sociale OPPURE nome e cognome del committente/cliente",
+    "email": "string o null",
+    "telefono": "string o null",
+    "indirizzo": "string o null",
+    "codice_fiscale": "string o null",
+    "partita_iva": "string o null"
+  },
+  "descrizione_lavori": "sintesi dei lavori/oggetto del contratto o della copia commissione",
+  "indirizzo_cantiere": "string o null",
+  "importo_totale_eur": numero imponibile (IVA esclusa) o null,
+  "iva_pct": numero (es. 22, 10, 4) o null,
+  "importo_totale_ivato_eur": numero totale con IVA o null,
+  "voci": [{ "descrizione": "string", "quantita": numero, "prezzo_unitario_eur": numero }],
+  "modalita_pagamento": "string (es. Bonifico bancario / Assegno / Finanziamento) o null",
+  "fasi_pagamento": [{ "descrizione": "string es. Acconto alla firma / SAL / Saldo", "percentuale": numero o null, "importo_eur": numero o null }],
+  "data_inizio_lavori": "YYYY-MM-DD o null",
+  "data_fine_lavori": "YYYY-MM-DD o null"
+}`,
 };
 
 const PROMPT_TEMPLATE = (docType: string, schema: string) => `Sei un assistente esperto in documenti tecnici, amministrativi e legali per l'edilizia italiana.

@@ -1,7 +1,7 @@
-import { RefreshCw, Clock } from "lucide-react";
+import { RefreshCw, Clock, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { BrandPageHeader } from "@/components/admin/BrandPageHeader";
 
 interface DashboardHeaderProps {
   title: string;
@@ -13,10 +13,10 @@ interface DashboardHeaderProps {
 }
 
 /**
- * Header unificato Dashboard:
- * - Titolo + sottotitolo + badge "ultimo aggiornamento" a sinistra
- * - Toolbar azioni (Esporta / Widget / Aggiorna / Nuova Azienda) a destra,
- *   tutto in un'unica riga su desktop, wrap pulito su mobile.
+ * Header unificato Dashboard Super Admin — hero brand (navy + arancione, stesso
+ * linguaggio del Cruscotto Aziendale). Titolo + badge "ultimo aggiornamento" a
+ * sinistra; toolbar azioni (Esporta / Widget / Nuova Azienda / Aggiorna) a
+ * destra: i bottoni outline hanno sfondo chiaro, quindi restano leggibili su navy.
  */
 export function DashboardHeader({
   title,
@@ -27,38 +27,37 @@ export function DashboardHeader({
   children,
 }: DashboardHeaderProps) {
   return (
-    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-      <div className="min-w-0 flex-1">
-        <h1 className="text-xl md:text-2xl font-bold text-foreground truncate">{title}</h1>
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
-          <p className="text-muted-foreground text-xs md:text-sm hidden sm:block">{subtitle}</p>
+    <BrandPageHeader
+      icon={LayoutDashboard}
+      eyebrow="Piattaforma"
+      title={title}
+      subtitle={
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="hidden sm:inline">{subtitle}</span>
           {lastUpdatedAt && (
-            <Badge
-              variant="outline"
-              className="text-xs gap-1 font-normal text-muted-foreground shrink-0"
-            >
+            <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[11px] text-blue-50/80">
               <Clock className="h-2.5 w-2.5" />
               {lastUpdatedAt}
-            </Badge>
+            </span>
           )}
-        </div>
-      </div>
-      <div className="flex items-center gap-2 flex-wrap shrink-0">
-        {children}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onRefresh}
-          disabled={isRefreshing}
-          className="gap-2"
-          aria-label="Aggiorna dati dashboard"
-        >
-          <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
-          <span className="hidden sm:inline">
-            {isRefreshing ? "Aggiornamento..." : "Aggiorna"}
-          </span>
-        </Button>
-      </div>
-    </div>
+        </span>
+      }
+      actions={
+        <>
+          {children}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="gap-2"
+            aria-label="Aggiorna dati dashboard"
+          >
+            <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+            <span className="hidden sm:inline">{isRefreshing ? "Aggiornamento..." : "Aggiorna"}</span>
+          </Button>
+        </>
+      }
+    />
   );
 }

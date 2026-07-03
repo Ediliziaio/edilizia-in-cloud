@@ -31,14 +31,12 @@ import { CrmProductCards } from "@/components/admin/crm-dashboard/CrmProductCard
 import { CrmHotTable } from "@/components/admin/crm-dashboard/CrmHotTable";
 import { CrmPartnerReferralCard } from "@/components/admin/crm-dashboard/CrmPartnerReferralCard";
 import { CrmTrendCard } from "@/components/admin/crm-dashboard/CrmTrendCard";
-import { CrmSourcesDonutCard } from "@/components/admin/crm-dashboard/CrmSourcesDonutCard";
 import { CrmOperationalFunnel } from "@/components/admin/crm-dashboard/CrmOperationalFunnel";
 import { CrmNetworksStrip } from "@/components/admin/crm-dashboard/CrmNetworksStrip";
 import { CrmUnitEconomics } from "@/components/admin/crm-dashboard/CrmUnitEconomics";
 import { CrmChannelRoi } from "@/components/admin/crm-dashboard/CrmChannelRoi";
-import { CrmGrowthLevers } from "@/components/admin/crm-dashboard/CrmGrowthLevers";
 import { CrmSpeedToLead } from "@/components/admin/crm-dashboard/CrmSpeedToLead";
-import { CrmForecast } from "@/components/admin/crm-dashboard/CrmForecast";
+import { HeroAurora } from "@/components/admin/HeroAurora";
 import { motion, AnimatePresence } from "framer-motion";
 
 type PeriodKey = "7" | "30" | "90" | "365";
@@ -284,45 +282,68 @@ export default function AdminMarketingCommercialDashboard() {
 
   return (
     <div className="space-y-5 p-1">
-      {/* Header + filtro periodo */}
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold leading-tight sm:text-2xl">Dashboard commerciale — AEDIX</h1>
-          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            {dateLabel} ·
-            <span className="inline-flex items-center gap-1 font-medium text-emerald-600">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-              </span>
-              Live
-            </span>
-          </p>
+      {/* ── HERO direzionale (palette brand: navy #173b67 + arancione) ──
+          Stesso linguaggio del Cruscotto Aziendale: dà identità e gerarchia,
+          i KPI chiave vivono qui in evidenza invece di una griglia bianca. */}
+      <section className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+        <div className="relative overflow-hidden bg-[#173b67] p-5 text-white sm:p-6">
+          <HeroAurora />
+          <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex min-w-0 gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-[0_8px_18px_rgba(249,115,22,0.28)]">
+                <BarChart3 className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-100">Dashboard commerciale</p>
+                <h1 className="mt-1 text-xl font-semibold leading-tight sm:text-2xl">AEDIX · CRM</h1>
+                <p className="mt-1 flex items-center gap-1.5 text-sm text-blue-50/80">
+                  {dateLabel} ·
+                  <span className="inline-flex items-center gap-1 font-medium text-emerald-300">
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                    </span>
+                    Live
+                  </span>
+                </p>
+              </div>
+            </div>
+            {/* Filtro periodo — su navy, pill attiva arancione */}
+            <div className="inline-flex shrink-0 overflow-hidden rounded-lg border border-white/15 bg-white/5 p-0.5">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => setPeriod(p.key)}
+                  className={
+                    "relative rounded-md px-3 py-1.5 text-sm transition-colors " +
+                    (period === p.key ? "font-semibold text-white" : "text-blue-50/70 hover:text-white")
+                  }
+                >
+                  {period === p.key && (
+                    <motion.span
+                      layoutId="crm-period-pill"
+                      className="absolute inset-0 rounded-md bg-gradient-to-r from-orange-500 to-amber-500"
+                      transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                    />
+                  )}
+                  <span className="relative">{p.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* KPI chiave dentro l'hero */}
+          <div className="relative z-10 mt-6 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+            <HeroKpi icon={Layers} label="Pipeline aperta" value={eurCompact(kpis.pipelineOpenValue)} loading={isLoading} />
+            <HeroKpi icon={Target} label="Forecast pesato" value={eurCompact(kpis.forecast)} loading={isLoading} />
+            <HeroKpi icon={Trophy} label={`Vinto (${days}g)`} value={`${eurCompact(kpis.wonValue)} · ${kpis.wonCount}`} delta={kpis.wonDelta} spark={kpis.sparkWon} loading={isLoading} />
+            <HeroKpi icon={TrendingUp} label="Win rate" value={pct(kpis.winRate)} deltaPt={kpis.winRateDeltaPt} loading={isLoading} />
+            <HeroKpi icon={UserPlus} label="Lead nuovi" value={String(kpis.newLeads)} delta={kpis.newLeadsDelta} spark={kpis.sparkLeads} loading={isLoading} />
+            <HeroKpi icon={Flame} label="Caldi senza follow-up" value={String(kpis.hotNoFollowup)} tone="warn" hint="da 5+ giorni" loading={isLoading} />
+          </div>
         </div>
-        <div className="inline-flex overflow-hidden rounded-lg border">
-          {PERIODS.map((p) => (
-            <button
-              key={p.key}
-              type="button"
-              onClick={() => setPeriod(p.key)}
-              className={
-                "relative px-3 py-1.5 text-sm transition-colors " +
-                (period === p.key ? "font-medium text-primary" : "text-muted-foreground hover:bg-muted/50")
-              }
-            >
-              {period === p.key && (
-                <motion.span
-                  layoutId="crm-period-pill"
-                  className="absolute inset-0 bg-primary/10"
-                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                />
-              )}
-              <span className="relative">{p.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+      </section>
 
       {isError && (
         <Card>
@@ -333,50 +354,29 @@ export default function AdminMarketingCommercialDashboard() {
       )}
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
-          <TabsTrigger value="overview" className="gap-1.5 rounded-lg border data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-            <BarChart3 className="h-4 w-4" aria-hidden="true" /> Overview
-          </TabsTrigger>
-          <TabsTrigger value="pipeline" className="gap-1.5 rounded-lg border data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-            <Crosshair className="h-4 w-4" aria-hidden="true" /> Pipeline
-          </TabsTrigger>
-          <TabsTrigger value="cluster" className="gap-1.5 rounded-lg border data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-            <Package className="h-4 w-4" aria-hidden="true" /> Cluster &amp; LTV
-          </TabsTrigger>
-          <TabsTrigger value="partner" className="gap-1.5 rounded-lg border data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-            <Share2 className="h-4 w-4" aria-hidden="true" /> Partner &amp; Referral
-          </TabsTrigger>
-          <TabsTrigger value="team" className="gap-1.5 rounded-lg border data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-            <Trophy className="h-4 w-4" aria-hidden="true" /> Team
-          </TabsTrigger>
-        </TabsList>
+        <div className="-mx-1 overflow-x-auto px-1">
+          <TabsList className="inline-flex h-auto items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/60">
+            {([
+              { v: "overview", icon: BarChart3, label: "Overview" },
+              { v: "pipeline", icon: Crosshair, label: "Pipeline" },
+              { v: "cluster", icon: Package, label: "Cluster & LTV" },
+              { v: "partner", icon: Share2, label: "Partner & Referral" },
+              { v: "team", icon: Trophy, label: "Team" },
+            ] as const).map((t) => (
+              <TabsTrigger
+                key={t.v}
+                value={t.v}
+                className="gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 transition-all hover:text-slate-800 data-[state=active]:bg-gradient-to-r data-[state=active]:from-orange-500 data-[state=active]:to-amber-500 data-[state=active]:text-white data-[state=active]:shadow-md data-[state=active]:shadow-orange-500/30 dark:text-slate-400 dark:hover:text-slate-100"
+              >
+                <t.icon className="h-4 w-4" aria-hidden="true" /> {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
         {/* ─── OVERVIEW ─────────────────────────────────────────────── */}
         <TabsContent value="overview" className="space-y-4 pt-5">
           <CrmAiInsightsBanner metrics={aiMetrics} />
-
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-            <Kpi icon={Layers} label="Pipeline aperta" value={eurCompact(kpis.pipelineOpenValue)} loading={isLoading} />
-            <Kpi icon={Target} label="Forecast pesato" value={eurCompact(kpis.forecast)} loading={isLoading} />
-            <Kpi
-              icon={Trophy}
-              label={`Vinto (${days}g)`}
-              value={`${eurCompact(kpis.wonValue)} · ${kpis.wonCount}`}
-              delta={kpis.wonDelta}
-              spark={kpis.sparkWon}
-              loading={isLoading}
-            />
-            <Kpi icon={TrendingUp} label="Win rate" value={pct(kpis.winRate)} deltaPt={kpis.winRateDeltaPt} loading={isLoading} />
-            <Kpi icon={UserPlus} label="Lead nuovi" value={String(kpis.newLeads)} delta={kpis.newLeadsDelta} spark={kpis.sparkLeads} loading={isLoading} />
-            <Kpi
-              icon={Flame}
-              label="Caldi senza follow-up"
-              value={String(kpis.hotNoFollowup)}
-              tone="warn"
-              hint="da 5+ giorni"
-              loading={isLoading}
-            />
-          </div>
 
           <Reveal><CrmOperationalFunnel companyId={companyId} /></Reveal>
 
@@ -384,21 +384,10 @@ export default function AdminMarketingCommercialDashboard() {
 
           <Reveal className="grid items-start gap-4 lg:grid-cols-2">
             <CrmChannelRoi companyId={companyId} days={days} />
-            <CrmGrowthLevers companyId={companyId} />
-          </Reveal>
-
-          <Reveal className="grid items-start gap-4 lg:grid-cols-2">
             <CrmSpeedToLead companyId={companyId} days={days} />
-            <CrmForecast companyId={companyId} />
           </Reveal>
 
-          {/* Riga: andamento (2/3) + fonti (1/3) */}
-          <Reveal className="grid gap-4 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <CrmTrendCard companyId={companyId} />
-            </div>
-            <CrmSourcesDonutCard companyId={companyId} />
-          </Reveal>
+          <Reveal><CrmTrendCard companyId={companyId} /></Reveal>
 
           <Reveal><CrmHotTable companyId={companyId} /></Reveal>
 
@@ -504,7 +493,8 @@ function KpiSpark({ data }: { data: number[] }) {
   );
 }
 
-function Kpi({
+/** KPI dentro l'hero navy: card traslucide su blu scuro, accenti brand. */
+function HeroKpi({
   icon: Icon,
   label,
   value,
@@ -528,53 +518,54 @@ function Kpi({
   const deltaVal = deltaPt ?? delta;
   const showDelta = typeof deltaVal === "number" && Number.isFinite(deltaVal) && Math.abs(deltaVal) >= 0.5;
   const up = (deltaVal ?? 0) >= 0;
+  const warn = tone === "warn";
   return (
-    <Card
+    <div
       className={
-        "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md " +
-        (tone === "warn" ? "border-amber-200 bg-amber-50/40 dark:border-amber-900/40 dark:bg-amber-950/20" : "")
+        "rounded-xl border p-3.5 transition-colors " +
+        (warn
+          ? "border-amber-300/30 bg-amber-400/10 hover:bg-amber-400/15"
+          : "border-white/12 bg-white/[0.07] hover:bg-white/[0.11]")
       }
     >
-      <CardContent className="p-3.5">
-        <div className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span
-            className={
-              "flex h-6 w-6 items-center justify-center rounded-md " +
-              (tone === "warn" ? "bg-amber-100 dark:bg-amber-900/30" : "bg-primary/10")
-            }
-          >
-            <Icon className={"h-3.5 w-3.5 " + (tone === "warn" ? "text-amber-600" : "text-primary")} aria-hidden="true" />
-          </span>
-          <span className={"truncate " + (tone === "warn" ? "text-amber-700 dark:text-amber-400" : "")}>{label}</span>
+      <div className="mb-1.5 flex items-center gap-1.5 text-xs">
+        <span
+          className={
+            "flex h-6 w-6 items-center justify-center rounded-md border " +
+            (warn ? "border-amber-300/30 bg-amber-400/15 text-amber-200" : "border-white/15 bg-white/10 text-blue-100")
+          }
+        >
+          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+        </span>
+        <span className={"truncate font-medium " + (warn ? "text-amber-100" : "text-blue-100")}>{label}</span>
+      </div>
+      {loading ? (
+        <div className="h-7 w-20 animate-pulse rounded-md bg-white/15" />
+      ) : (
+        <div className="flex items-end justify-between gap-2">
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.div
+              key={value}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className={"min-w-0 truncate text-xl font-bold leading-tight " + (warn ? "text-amber-200" : "text-white")}
+            >
+              {value}
+            </motion.div>
+          </AnimatePresence>
+          {spark && <span className="shrink-0 pb-0.5"><KpiSpark data={spark} /></span>}
         </div>
-        {loading ? (
-          <div className="h-7 w-20 animate-pulse rounded-md bg-muted" />
-        ) : (
-          <div className="flex items-end justify-between gap-2">
-            <AnimatePresence mode="popLayout" initial={false}>
-              <motion.div
-                key={value}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                className={"min-w-0 truncate text-xl font-bold leading-tight " + (tone === "warn" ? "text-amber-700 dark:text-amber-400" : "")}
-              >
-                {value}
-              </motion.div>
-            </AnimatePresence>
-            {spark && <span className="shrink-0 pb-0.5"><KpiSpark data={spark} /></span>}
-          </div>
-        )}
-        {showDelta && !loading && (
-          <div className={"mt-0.5 flex items-center gap-1 text-xs " + (up ? "text-emerald-600" : "text-red-600")}>
-            {up ? <TrendingUp className="h-3 w-3" aria-hidden="true" /> : <TrendingDown className="h-3 w-3" aria-hidden="true" />}
-            {deltaPt != null ? `${up ? "+" : ""}${Math.round(deltaVal!)}pt` : `${up ? "+" : ""}${Math.round(deltaVal!)}%`}
-            <span className="text-muted-foreground/70">vs periodo prec.</span>
-          </div>
-        )}
-        {hint && !showDelta && !loading && <div className={"mt-0.5 text-xs " + (tone === "warn" ? "text-amber-600" : "text-muted-foreground")}>{hint}</div>}
-      </CardContent>
-    </Card>
+      )}
+      {showDelta && !loading && (
+        <div className={"mt-0.5 flex items-center gap-1 text-xs " + (up ? "text-emerald-300" : "text-red-300")}>
+          {up ? <TrendingUp className="h-3 w-3" aria-hidden="true" /> : <TrendingDown className="h-3 w-3" aria-hidden="true" />}
+          {deltaPt != null ? `${up ? "+" : ""}${Math.round(deltaVal!)}pt` : `${up ? "+" : ""}${Math.round(deltaVal!)}%`}
+          <span className="text-blue-50/50">vs prec.</span>
+        </div>
+      )}
+      {hint && !showDelta && !loading && <div className={"mt-0.5 text-xs " + (warn ? "text-amber-100/80" : "text-blue-50/60")}>{hint}</div>}
+    </div>
   );
 }

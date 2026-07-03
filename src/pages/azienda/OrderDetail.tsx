@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error/ErrorBoundary";
@@ -688,10 +688,18 @@ function OrderDetailInner() {
     },
   });
 
+  // Guard SINCRONO: `isPending` è async → due click nello stesso tick lo vedono
+  // ancora false e, sul path legacy (count→insert non atomico, nessun UNIQUE su
+  // order_installments), inserirebbero DUE volte tutte le rate = pagamenti
+  // raddoppiati. Il ref blocca la seconda chiamata nello stesso tick.
+  const paymentTogglingRef = useRef(false);
   const handleInstallmentPaidToggle = (installment: Installment, paid: boolean) => {
-    // Anti doppio-click: una scrittura alla volta (il bottone non e' disabled)
-    if (updatePaymentMutation.isPending) return;
-    updatePaymentMutation.mutate({ installment, paid });
+    if (paymentTogglingRef.current || updatePaymentMutation.isPending) return;
+    paymentTogglingRef.current = true;
+    updatePaymentMutation.mutate(
+      { installment, paid },
+      { onSettled: () => { paymentTogglingRef.current = false; } },
+    );
   };
 
   // SAL semplificato: data incasso/prevista modificabile direttamente dal

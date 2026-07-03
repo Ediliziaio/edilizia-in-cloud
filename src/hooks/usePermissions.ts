@@ -83,6 +83,10 @@ export interface Permissions {
   /** Preventivi (prima ereditavano da CRM opportunità) */
   canViewPreventivi: boolean;
   canEditPreventivi: boolean;
+  /** Autorizzato a impostare/approvare sconti oltre soglia (approvazione sconti).
+   *  Distinto da canEditPreventivi: uno può creare preventivi ma non forzare gli
+   *  sconti — deve usare "Richiedi approvazione". Gli admin d'azienda ce l'hanno. */
+  canApproveDiscounts: boolean;
   canViewAutomazioni: boolean;
   canViewRenderAi: boolean;
   canViewSalesOs: boolean;
@@ -166,6 +170,7 @@ const STAFF_PERMISSIONS_SELECT = [
   "can_view_sopralluoghi",
   "can_view_preventivi",
   "can_edit_preventivi",
+  "can_approve_discounts",
   "can_view_automazioni",
   "can_view_render_ai",
   "can_view_sales_os",
@@ -210,6 +215,7 @@ const ALL_PERMISSIONS: Permissions = {
   canEditGiornaleLavori: true,
   canViewSopralluoghi: true,
   canViewPreventivi: true, canEditPreventivi: true,
+  canApproveDiscounts: true,
   canViewAutomazioni: true, canViewRenderAi: true,
   canViewSalesOs: true, canViewSmsMarketing: true,
   canViewFirmaElettronica: true, canViewReputazione: true,
@@ -251,6 +257,7 @@ const NO_PERMISSIONS: Permissions = {
   canEditGiornaleLavori: false,
   canViewSopralluoghi: false,
   canViewPreventivi: false, canEditPreventivi: false,
+  canApproveDiscounts: false,
   canViewAutomazioni: false, canViewRenderAi: false,
   canViewSalesOs: false, canViewSmsMarketing: false,
   canViewFirmaElettronica: false, canViewReputazione: false,
@@ -280,6 +287,7 @@ const COMMERCIALISTA_PERMISSIONS: Permissions = {
   canEditGiornaleLavori: false,
   canViewSopralluoghi: false,
   canViewPreventivi: false, canEditPreventivi: false,
+  canApproveDiscounts: false,
   canViewInterventi: true,
   canViewManutenzione: true,
   canViewTickets: true, canEditTickets: false,
@@ -415,6 +423,7 @@ function mapDbRowToPermissions(row: Record<string, unknown> | null | undefined):
     canViewSopralluoghi:      g("can_view_sopralluoghi"),
     canViewPreventivi:        g("can_view_preventivi"),
     canEditPreventivi:        g("can_edit_preventivi"),
+    canApproveDiscounts:      g("can_approve_discounts"),
     canViewAutomazioni:       g("can_view_automazioni"),
     canViewRenderAi:          g("can_view_render_ai"),
     canViewSalesOs:           g("can_view_sales_os"),

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/formatters";
@@ -65,9 +66,13 @@ export default function AnalisiPreventivi() {
   const [spFilter, setSpFilter] = useState<string>("tutti");
   const [statusRowFilter, setStatusRowFilter] = useState<string>("tutti");
 
-  const { effectiveCompany, role, isLoading: authLoading } = useAuth() as any;
+  const { effectiveCompany, isLoading: authLoading } = useAuth() as any;
+  const permissions = usePermissions();
   const companyId = effectiveCompany?.id as string | undefined;
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  // Analisi AI = dati margini/commissioni → gate PER-AZIENDA sulla vista margini/costi
+  // (prima ruolo GLOBALE → un admin multi-azienda vedeva l'analisi anche dove è
+  // solo staff marketing).
+  const isAdmin = permissions.canViewMargins || permissions.canViewCosts;
 
   // Fetch commerciali per filtro
   const { data: salespeopleList = [] } = useQuery({

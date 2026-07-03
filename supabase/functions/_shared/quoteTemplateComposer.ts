@@ -168,6 +168,7 @@ export interface MergeContext {
     totale?: string;
     subtotale?: string;
     iva?: string;
+    piano_pagamenti?: string;
   };
   azienda?: {
     ragione_sociale?: string;
@@ -325,6 +326,22 @@ export function buildMergeContext(args: {
       totale: fmtMoney(quote?.total),
       subtotale: fmtMoney(quote?.subtotal),
       iva: fmtMoney(quote?.vat_amount),
+      // Piano pagamenti strutturato (modalità + fasi) su una riga, disponibile nei
+      // template PDF via {{preventivo.piano_pagamenti}} → il cliente lo firma.
+      piano_pagamenti: (() => {
+        const parts: string[] = [];
+        const method = typeof quote?.payment_method === "string" ? quote.payment_method.trim() : "";
+        if (method) parts.push(`Modalità: ${method}`);
+        const phases = Array.isArray(quote?.payment_phases) ? quote.payment_phases : [];
+        for (const p of phases) {
+          if (!p || typeof p !== "object") continue;
+          const label = String((p as { label?: unknown }).label ?? "").trim() || "Rata";
+          const pct = Number((p as { percent?: unknown }).percent) || 0;
+          const amt = fmtMoney((p as { amount?: unknown }).amount);
+          parts.push(`${label} ${pct}%${amt ? ` (${amt})` : ""}`);
+        }
+        return parts.join(" · ");
+      })(),
     },
     azienda: {
       ragione_sociale: company?.name ?? "",

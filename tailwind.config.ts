@@ -119,6 +119,19 @@ export default {
           "0%, 100%": { transform: "translateY(0) rotate(0deg)" },
           "50%": { transform: "translateY(-15px) rotate(3deg)" },
         },
+        "aurora-a": {
+          "0%, 100%": { transform: "translate(0, 0) scale(1)" },
+          "50%": { transform: "translate(30px, -22px) scale(1.18)" },
+        },
+        "aurora-b": {
+          "0%, 100%": { transform: "translate(0, 0) scale(1.1)" },
+          "50%": { transform: "translate(-34px, 20px) scale(1.28)" },
+        },
+        "aurora-c": {
+          "0%, 100%": { transform: "translate(0, 0) scale(0.95)" },
+          "33%": { transform: "translate(24px, 18px) scale(1.15)" },
+          "66%": { transform: "translate(-20px, -14px) scale(1.05)" },
+        },
         "pulse-glow": {
           "0%, 100%": { boxShadow: "0 0 20px rgba(15,166,140,0.3)" },
           "50%": { boxShadow: "0 0 50px rgba(15,166,140,0.6)" },
@@ -173,6 +186,9 @@ export default {
         "count-up": "count-up 0.5s ease-out forwards",
         "float": "float 6s ease-in-out infinite",
         "float-slow": "float-slow 8s ease-in-out infinite",
+        "aurora-a": "aurora-a 11s ease-in-out infinite",
+        "aurora-b": "aurora-b 14s ease-in-out infinite",
+        "aurora-c": "aurora-c 17s ease-in-out infinite",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
         "slide-in-left": "slide-in-left 0.7s ease-out forwards",
         "slide-in-right": "slide-in-right 0.7s ease-out forwards",

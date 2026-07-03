@@ -27,6 +27,7 @@ import {
   Lock, Send, TrendingDown,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -107,8 +108,14 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
   //  - approvare richieste di sconto fuori regola
   // I commerciali con permesso edit_marketing possono richiedere approvazione
   // ma non bypassare le regole.
-  const { role, user } = useAuth();
-  const isAdmin = role === "super_admin" || role === "company_admin";
+  const { user } = useAuth();
+  const permissions = usePermissions();
+  // "isAdmin" qui = autorizzato a IMPOSTARE/APPROVARE sconti oltre soglia
+  // nell'azienda selezionata (admin d'azienda o staff con can_approve_discounts).
+  // Prima usava il ruolo GLOBALE → uno staff marketing multi-azienda poteva forzare
+  // sconti anche in un'azienda dove non è autorizzato. La VISTA MARGINI è separata.
+  const isAdmin = permissions.canApproveDiscounts;
+  const canViewImpresa = permissions.canViewMargins || permissions.canViewCosts;
   const qc = useQueryClient();
 
   // ─── Calcoli BOM ──────────────────────────────────────────────────────────
@@ -196,7 +203,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
 
   const { data: costGridRows = [], isFetching: isFetchingGridCosts } = useQuery({
     queryKey: ["sr-margin-grid-costs", progettoId, costGridIds],
-    enabled: isAdmin && costGridIds.length > 0,
+    enabled: canViewImpresa && costGridIds.length > 0,
     staleTime: 60_000,
     queryFn: async (): Promise<Array<{ id: string; prezzo_acquisto: number | null }>> => {
       const { data, error } = await (supabase as any)
@@ -224,7 +231,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
   // post-sconto meno costo acquisto netto. Se i costi non sono completi, non
   // mostriamo percentuali fuorvianti (es. 100% quando manca il costo).
   const marginCalc = useMemo(() => {
-    if (!isAdmin) return null;
+    if (!canViewImpresa) return null;
     let costoTotale = 0;
     let righeConVendita = 0;
     let righeConCosto = 0;
@@ -300,7 +307,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
       isFetchingGridCosts,
     };
   }, [
-    isAdmin, isFetchingGridCosts, prezzoAcquistoByGridId,
+    canViewImpresa, isFetchingGridCosts, prezzoAcquistoByGridId,
     detail.serramenti, detail.accessori, detail.servizi, detail.manodopera,
     totaleCalc.imponibile_netto, discountEval.margineMinPct,
   ]);
@@ -863,7 +870,7 @@ export function StepEconomia({ progettoId, detail, form, onChange }: Props) {
               Visibile esclusivamente a super_admin / company_admin.
               Mostra costo acquisto totale, margine € e % con confronto contro
               margine_min della regola scontistica (alert sotto target). */}
-          {isAdmin && marginCalc && (
+          {canViewImpresa && marginCalc && (
             <div className="col-span-12">
               <div
                 className={`rounded-md border p-4 ${

@@ -58,7 +58,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
-import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { formatCurrency } from "@/lib/formatters";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -92,9 +92,12 @@ interface QuoteInfo {
 
 export default function QuoteApprovals() {
   const companyId = useEffectiveCompanyId();
-  const { role } = useAuth();
+  const permissions = usePermissions();
   const qc = useQueryClient();
-  const isAdmin = role === "super_admin" || role === "company_admin";
+  // Approvazione sconti = permesso PER-AZIENDA can_approve_discounts (gli admin
+  // d'azienda ce l'hanno via bypass). Prima usava il ruolo GLOBALE → un admin
+  // multi-azienda poteva approvare sconti anche dove è solo staff marketing.
+  const isAdmin = permissions.canApproveDiscounts;
 
   const { data: approvals = [], isLoading } = useQuery({
     queryKey: ["quote-approvals", companyId],

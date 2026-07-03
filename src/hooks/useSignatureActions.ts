@@ -10,10 +10,9 @@ export interface SendSignatureParams {
   expiresDays: number;
 }
 
-/** Costruisce l'URL pubblico di firma dato il token */
-export function buildSignatureUrl(quoteId: string, token: string): string {
-  const base = window.location.origin;
-  return `${base}/accetta-preventivo/${quoteId}?token=${encodeURIComponent(token)}`;
+/** Costruisce l'URL pubblico di firma (rotta /offerta/:token) dato il signature_token del preventivo. */
+export function buildSignatureUrl(token: string): string {
+  return `${window.location.origin}/offerta/${token}`;
 }
 
 async function resolveQuoteSignatureUrl(quoteId: string, legacyToken?: string | null): Promise<string | null> {
@@ -29,7 +28,7 @@ async function resolveQuoteSignatureUrl(quoteId: string, legacyToken?: string | 
     return `${window.location.origin}/firma-fea/${data.token}`;
   }
 
-  return legacyToken ? buildSignatureUrl(quoteId, legacyToken) : null;
+  return legacyToken ? buildSignatureUrl(legacyToken) : null;
 }
 
 export function useSignatureActions(quoteId: string | undefined) {

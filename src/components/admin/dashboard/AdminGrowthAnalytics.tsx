@@ -64,23 +64,25 @@ function KpiTile({
   icon: React.ElementType;
   tone?: "primary" | "emerald" | "sky" | "amber" | "rose";
 }) {
-  const toneClass = {
-    primary: "bg-primary/10 text-primary",
-    emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    sky: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
-    amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    rose: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+  const grad = {
+    primary: "from-blue-500 to-indigo-500",
+    emerald: "from-emerald-500 to-teal-400",
+    sky: "from-sky-500 to-blue-400",
+    amber: "from-amber-500 to-orange-400",
+    rose: "from-rose-500 to-red-400",
   }[tone];
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="group relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:border-transparent hover:shadow-xl hover:shadow-slate-900/[0.08]">
+      <div className={cn("absolute inset-x-0 top-0 h-1 bg-gradient-to-r", grad)} />
+      <div className={cn("pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-20", grad)} />
       <CardContent className="p-3 md:p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-[10px] md:text-xs font-semibold uppercase text-muted-foreground">{label}</p>
             <p className="mt-1 text-xl md:text-2xl font-bold tabular-nums truncate">{value}</p>
           </div>
-          <div className={cn("rounded-md p-2 shrink-0", toneClass)}>
+          <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white shadow-sm transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3", grad)}>
             <Icon className="h-4 w-4" />
           </div>
         </div>

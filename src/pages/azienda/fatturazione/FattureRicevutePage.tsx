@@ -63,9 +63,11 @@ interface FatturaRicevuta {
   tipo_documento: string;
   numero_fattura: string;
   data_fattura: string;
-  imponibile_totale: number;
-  iva_totale: number;
-  totale_documento: number;
+  // Nullable: alcuni provider (es. Aruba dal cassetto SDI) non espongono gli
+  // importi nella lista → restano NULL finché non si apre l'XML.
+  imponibile_totale: number | null;
+  iva_totale: number | null;
+  totale_documento: number | null;
   righe: Record<string, unknown>[];
   riepilogo_iva: Record<string, unknown>[];
   xml_raw: string | null;
@@ -128,7 +130,10 @@ export default function FattureRicevutePage() {
     const nonLette = fatture.filter((f) => f.stato === "non_letta").length;
     const contabilizzate = fatture.filter((f) => f.stato === "contabilizzata").length;
     const importoTotale = fatture.reduce((s, f) => s + (f.totale_documento ?? 0), 0);
-    return { totale, nonLette, contabilizzate, importoTotale };
+    // Fatture importate senza importi (es. cassetto SDI Aruba): il totale le
+    // conta come 0 → lo dichiariamo, così il KPI non sembra falsato.
+    const senzaImporto = fatture.filter((f) => f.totale_documento == null).length;
+    return { totale, nonLette, contabilizzate, importoTotale, senzaImporto };
   }, [fatture]);
 
   // ─── Filters ────────────────────────────────────────────
@@ -295,6 +300,11 @@ export default function FattureRicevutePage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(kpi.importoTotale)}</div>
+            {kpi.senzaImporto > 0 && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {kpi.senzaImporto} {kpi.senzaImporto === 1 ? "fattura" : "fatture"} senza importo (non conteggiat{kpi.senzaImporto === 1 ? "a" : "e"})
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -373,11 +383,13 @@ export default function FattureRicevutePage() {
                   <TableCell className="font-mono text-sm">{f.numero_fattura}</TableCell>
                   <TableCell>{formatDateShort(f.data_fattura)}</TableCell>
                   <TableCell className="text-right">
-                    {formatCurrency(f.imponibile_totale)}
+                    {f.imponibile_totale != null ? formatCurrency(f.imponibile_totale) : <span className="text-muted-foreground" title="Importo non incluso nella lista del provider: apri l'XML per il dettaglio">—</span>}
                   </TableCell>
-                  <TableCell className="text-right">{formatCurrency(f.iva_totale)}</TableCell>
+                  <TableCell className="text-right">
+                    {f.iva_totale != null ? formatCurrency(f.iva_totale) : <span className="text-muted-foreground">—</span>}
+                  </TableCell>
                   <TableCell className="text-right font-medium">
-                    {formatCurrency(f.totale_documento)}
+                    {f.totale_documento != null ? formatCurrency(f.totale_documento) : <span className="text-muted-foreground">—</span>}
                   </TableCell>
                   <TableCell>
                     <StatoBadge stato={f.stato} />
@@ -400,16 +412,21 @@ export default function FattureRicevutePage() {
                           size="icon"
                           title="Scarica XML"
                           onClick={async () => {
-                            const { data } = await supabase.storage
-                              .from("fatture-xml")
-                              .download(f.xml_url!);
-                            if (data) {
+                            try {
+                              const { data, error } = await supabase.storage
+                                .from("fatture-xml")
+                                .download(f.xml_url!);
+                              if (error || !data) throw error ?? new Error("File non trovato");
                               const url = URL.createObjectURL(data);
                               const a = document.createElement("a");
                               a.href = url;
                               a.download = f.xml_url!.split("/").pop() ?? "fattura.xml";
                               a.click();
                               URL.revokeObjectURL(url);
+                            } catch (err) {
+                              toast.error("Impossibile scaricare l'XML", {
+                                description: err instanceof Error ? err.message : undefined,
+                              });
                             }
                           }}
                         >

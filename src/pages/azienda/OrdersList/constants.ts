@@ -3,7 +3,7 @@
  * Estratto da OrdersList.tsx (MP-CAN-001).
  */
 import type { ImportField } from "@/components/shared/CSVImportDialog";
-import type { OrderWithDetails } from "@/types/orders";
+import type { OrderWithDetails } from "@/lib/orderUtils";
 
 export interface DateRange {
   from: Date | undefined;
