@@ -16,7 +16,9 @@ import type { HrProfilo } from "@/types/hr";
 import { HrDocumentiSection } from "@/components/hr/HrDocumentiSection";
 import { HrAssenzeSection } from "@/components/hr/HrAssenzeSection";
 import { HrRuoloObiettiviTab } from "@/components/hr/HrRuoloObiettiviTab";
-import { Save, Loader2, Info } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { Save, Loader2, Info, User, Target, FileText, CalendarDays, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
@@ -190,16 +192,64 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-2xl p-0 flex flex-col">
-        <SheetHeader className="px-6 pt-6 pb-2">
-          <SheetTitle>{isEditing ? `${profilo?.nome} ${profilo?.cognome}` : "Nuovo Profilo HR"}</SheetTitle>
+        <SheetHeader className="border-b border-slate-100 px-6 pb-4 pt-6">
+          {isEditing && profilo ? (
+            <div className="flex items-center gap-3.5 pr-8">
+              <div
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-base font-bold uppercase text-white shadow-sm ring-2 ring-white"
+                style={{ backgroundColor: profilo.colore_avatar || "#0EA5E9" }}
+              >
+                {`${profilo.nome?.[0] ?? ""}${profilo.cognome?.[0] ?? ""}`}
+              </div>
+              <div className="min-w-0 flex-1">
+                <SheetTitle className="truncate text-left text-lg leading-tight">
+                  {profilo.nome} {profilo.cognome}
+                </SheetTitle>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  {profilo.mansione && (
+                    <span className="inline-flex items-center gap-1 font-medium text-slate-600">
+                      <Briefcase className="h-3 w-3 text-orange-500" />
+                      {profilo.mansione}
+                    </span>
+                  )}
+                  {profilo.reparto && <span className="text-slate-400">· {profilo.reparto}</span>}
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "h-5 px-1.5 py-0 text-[11px] font-medium",
+                      profilo.attivo
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-slate-200 bg-slate-50 text-slate-500",
+                    )}
+                  >
+                    {profilo.attivo ? "Attivo" : "Cessato"}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <SheetTitle className="text-left">Nuovo Profilo HR</SheetTitle>
+          )}
         </SheetHeader>
 
         <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col min-h-0">
-          <TabsList className="mx-6 self-start flex-wrap h-auto">
-            <TabsTrigger value="anagrafica">Anagrafica</TabsTrigger>
-            <TabsTrigger value="ruolo" disabled={!isEditing}>Ruolo & Obiettivi</TabsTrigger>
-            <TabsTrigger value="documenti" disabled={!isEditing}>Documenti & Scadenze</TabsTrigger>
-            <TabsTrigger value="assenze" disabled={!isEditing}>Assenze</TabsTrigger>
+          <TabsList className="mx-6 mt-4 grid h-auto w-auto grid-cols-4 gap-1 rounded-xl bg-slate-100/80 p-1">
+            {[
+              { value: "anagrafica", label: "Anagrafica", icon: User, disabled: false },
+              { value: "ruolo", label: "Ruolo", icon: Target, disabled: !isEditing },
+              { value: "documenti", label: "Documenti", icon: FileText, disabled: !isEditing },
+              { value: "assenze", label: "Assenze", icon: CalendarDays, disabled: !isEditing },
+            ].map(({ value, label, icon: Icon, disabled }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                disabled={disabled}
+                className="flex flex-col items-center gap-1 rounded-lg py-2 text-xs font-medium text-slate-500 transition data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm sm:flex-row sm:gap-1.5"
+              >
+                <Icon className="h-4 w-4" />
+                <span>{label}</span>
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           {/* ── ANAGRAFICA ──────────────────────────────────────────────── */}
