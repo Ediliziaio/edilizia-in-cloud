@@ -17,6 +17,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Loader2, Wallet } from "lucide-react";
 
+export interface ProvRiga { line_id: string; etichetta: string; base: string; base_valore: number; percentuale: number; importo: number; }
 export interface ServiceBilling {
   id: string;
   service_client_id: string;
@@ -27,12 +28,14 @@ export interface ServiceBilling {
   societa: string | null;
   stato: string;
   note: string | null;
+  righe_provvigione: ProvRiga[] | null;
   provvigione_commerciale: string | null;
   provvigione_pct: number | null;
   provvigione_importo: number;
   provvigione_stato: string;
   provvigione_pagata_at: string | null;
 }
+interface CommLineLite { id: string; etichetta: string; base: string; percentuale: number; }
 
 const STATI = [
   { value: "dovuto", label: "Dovuto" },
@@ -67,6 +70,19 @@ export function ServiceBillingsDialog({
     },
   });
 
+  // Righe provvigione ricorrenti del cliente (se modello "provvigione").
+  const { data: commLines = [] } = useQuery({
+    enabled: !!client?.id && open,
+    queryKey: ["admin", "commission-lines", client?.id],
+    queryFn: async (): Promise<CommLineLite[]> => {
+      const { data, error } = await sb().from("aedix_service_commission_lines").select("*").eq("service_client_id", client!.id).eq("attivo", true).order("ordine");
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data ?? []) as any[]).map((l) => ({ id: l.id as string, etichetta: (l.etichetta ?? "") as string, base: (l.base ?? "fatturato") as string, percentuale: Number(l.percentuale) || 0 }));
+    },
+  });
+  const isProvClient = commLines.length > 0;
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["admin", "service-billings", client?.id] });
     qc.invalidateQueries({ queryKey: ["admin", "servizi-fatturato"] });
@@ -80,6 +96,7 @@ export function ServiceBillingsDialog({
       const payload = {
         service_client_id: client!.id, periodo: d.periodo, importo_dovuto: dovuto, importo_incassato: incassato,
         data_incasso: d.data_incasso || null, societa: d.societa?.trim() || null, stato, note: d.note ?? null,
+        righe_provvigione: d.righe_provvigione ?? [],
         provvigione_commerciale: d.provvigione_commerciale?.trim() || null,
         provvigione_pct: d.provvigione_pct != null ? Number(d.provvigione_pct) : null,
         provvigione_importo: Number(d.provvigione_importo) || 0,
@@ -105,11 +122,22 @@ export function ServiceBillingsDialog({
     incassato: rows.reduce((s, r) => s + Number(r.importo_incassato), 0),
   }), [rows]);
 
+  const seedRighe = (): ProvRiga[] => commLines.map((l) => ({ line_id: l.id, etichetta: l.etichetta, base: l.base, base_valore: 0, percentuale: l.percentuale, importo: 0 }));
   const openNew = () => {
     const now = new Date();
     const m = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    setForm({ periodo: fromMonthInput(m), importo_dovuto: client?.importo ?? 0, importo_incassato: 0, stato: "dovuto", provvigione_commerciale: client?.commerciale ?? null, provvigione_stato: "da_pagare", provvigione_importo: 0 });
+    setForm({ periodo: fromMonthInput(m), importo_dovuto: isProvClient ? 0 : (client?.importo ?? 0), importo_incassato: 0, stato: "dovuto", provvigione_commerciale: client?.commerciale ?? null, provvigione_stato: "da_pagare", provvigione_importo: 0, righe_provvigione: seedRighe() });
   };
+  const openEditRow = (r: ServiceBilling) => {
+    const righe = r.righe_provvigione && r.righe_provvigione.length ? r.righe_provvigione : seedRighe();
+    setForm({ ...r, righe_provvigione: isProvClient ? righe : (r.righe_provvigione ?? []) });
+  };
+  // Aggiorna la base di una riga → ricalcola importo riga e dovuto totale.
+  const updateRiga = (i: number, base_valore: number) => setForm((f) => {
+    if (!f?.righe_provvigione) return f;
+    const righe = f.righe_provvigione.map((rg, j) => (j === i ? { ...rg, base_valore, importo: Math.round((base_valore * rg.percentuale) / 100) } : rg));
+    return { ...f, righe_provvigione: righe, importo_dovuto: righe.reduce((s, rg) => s + rg.importo, 0) };
+  });
   const canSave = !!form?.periodo;
 
   return (
@@ -143,7 +171,7 @@ export function ServiceBillingsDialog({
                   </div>
                 </div>
                 <span className={`rounded-full px-2 py-0.5 text-[11px] ${r.stato === "incassato" ? "bg-emerald-100 text-emerald-700" : r.stato === "parziale" ? "bg-amber-100 text-amber-700" : "bg-slate-200 text-slate-600"}`}>{r.stato}</span>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setForm({ ...r })} aria-label="Modifica"><Pencil className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditRow(r)} aria-label="Modifica"><Pencil className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => { if (confirm("Eliminare questo incasso?")) del.mutate(r.id); }} aria-label="Elimina"><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))
@@ -162,10 +190,30 @@ export function ServiceBillingsDialog({
                 <Input value={form.societa ?? ""} onChange={(e) => setForm((f) => ({ ...f, societa: e.target.value }))} placeholder="Su quale società" />
               </div>
             </div>
+            {isProvClient && form.righe_provvigione && (
+              <div className="rounded-lg border border-dashed p-2.5">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Provvigione del mese — base cliente × %</div>
+                <div className="space-y-2">
+                  {form.righe_provvigione.map((rg, i) => (
+                    <div key={rg.line_id || i} className="grid grid-cols-[1fr_6rem_4.5rem] items-center gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm">{rg.etichetta || "Provvigione"}</div>
+                        <div className="text-[11px] text-muted-foreground">{rg.base === "incassato" ? "Incassato" : "Fatturato"} cliente · {rg.percentuale}%</div>
+                      </div>
+                      <div className="relative">
+                        <Input type="number" value={rg.base_valore} onChange={(e) => updateRiga(i, Number(e.target.value))} className="h-9 pr-5" aria-label="Base del mese" placeholder="0" />
+                        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">€</span>
+                      </div>
+                      <div className="text-right text-sm font-medium tabular-nums">{eur(rg.importo)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <div className="grid gap-1.5">
                 <Label>Dovuto €</Label>
-                <Input type="number" value={form.importo_dovuto ?? 0} onChange={(e) => setForm((f) => ({ ...f, importo_dovuto: Number(e.target.value) }))} />
+                <Input type="number" value={form.importo_dovuto ?? 0} readOnly={isProvClient} className={isProvClient ? "bg-muted/50" : ""} title={isProvClient ? "Calcolato dalle basi qui sopra" : undefined} onChange={(e) => setForm((f) => ({ ...f, importo_dovuto: Number(e.target.value) }))} />
               </div>
               <div className="grid gap-1.5">
                 <Label>Incassato €</Label>

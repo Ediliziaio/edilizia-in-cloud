@@ -52,6 +52,12 @@ interface ServiceClient {
   note: string | null;
 }
 interface BillingRow { service_client_id: string; periodo: string; importo_dovuto: number; importo_incassato: number; }
+interface CommLine { id?: string; etichetta: string; base: string; percentuale: number; }
+
+const COMM_BASE = [
+  { value: "fatturato", label: "Fatturato cliente" },
+  { value: "incassato", label: "Incassato cliente" },
+];
 
 const BILLING = [
   { value: "retainer_fisso", label: "Retainer fisso" },
@@ -80,6 +86,7 @@ export default function AdminServiceClients() {
   const [clientQuery, setClientQuery] = useState("");
   const [billClient, setBillClient] = useState<{ id: string; cliente_nome: string; importo: number; commerciale?: string | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ServiceClient | null>(null);
+  const [commLines, setCommLines] = useState<CommLine[]>([]);
   // Filtri lista
   const [search, setSearch] = useState("");
   const [filtServizio, setFiltServizio] = useState("tutti");
@@ -157,20 +164,40 @@ export default function AdminServiceClients() {
 
   const save = useMutation({
     mutationFn: async (d: Draft) => {
+      const isProv = d.billing_model === "provvigione";
+      const activeLines = commLines.filter((l) => l.etichetta.trim() !== "" || Number(l.percentuale) > 0);
       const payload = {
         product_line_id: d.product_line_id, package_id: d.package_id ?? null,
         contact_id: d.contact_id ?? null, company_id: d.company_id ?? null, cliente_nome: d.cliente_nome,
         commerciale: d.commerciale?.trim() || null,
         billing_model: d.billing_model, importo: Number(d.importo) || 0,
-        provvigione_pct: d.billing_model === "provvigione" ? (Number(d.provvigione_pct) || 0) : null,
+        // provvigione_pct legacy = prima riga (compat. letture vecchie); le righe reali stanno in aedix_service_commission_lines
+        provvigione_pct: isProv ? (activeLines[0] ? Number(activeLines[0].percentuale) || 0 : null) : null,
         ricorrenza: d.ricorrenza, stato: d.stato, data_inizio: d.data_inizio, data_fine: d.data_fine ?? null,
         note: d.note ?? null, updated_at: new Date().toISOString(),
       };
       const t = sb().from("aedix_service_clients");
-      const { error } = d.id ? await t.update(payload).eq("id", d.id) : await t.insert(payload);
-      if (error) throw error;
+      let clientId = d.id;
+      if (d.id) {
+        const { error } = await t.update(payload).eq("id", d.id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await t.insert(payload).select("id").single();
+        if (error) throw error;
+        clientId = (data as { id: string }).id;
+      }
+      // Sostituzione integrale delle righe provvigione del cliente.
+      if (clientId) {
+        await sb().from("aedix_service_commission_lines").delete().eq("service_client_id", clientId);
+        if (isProv && activeLines.length) {
+          const { error } = await sb().from("aedix_service_commission_lines").insert(
+            activeLines.map((l, i) => ({ service_client_id: clientId, etichetta: l.etichetta.trim() || null, base: l.base, percentuale: Number(l.percentuale) || 0, ordine: i, attivo: true }))
+          );
+          if (error) throw error;
+        }
+      }
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); toast.success(isEdit ? "Cliente-servizio aggiornato" : "Cliente-servizio creato"); setDialogOpen(false); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); qc.invalidateQueries({ queryKey: ["admin", "commission-lines"] }); toast.success(isEdit ? "Cliente-servizio aggiornato" : "Cliente-servizio creato"); setDialogOpen(false); },
     onError: (e: unknown) => toast.error("Errore nel salvataggio", { description: e instanceof Error ? e.message : String(e) }),
   });
   const del = useMutation({
@@ -188,8 +215,19 @@ export default function AdminServiceClients() {
     onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
 
-  const openNew = () => { setDraft(EMPTY); setClientQuery(""); setDialogOpen(true); };
-  const openEdit = (r: ServiceClient) => { setDraft({ ...r }); setClientQuery(""); setDialogOpen(true); };
+  const openNew = () => { setDraft(EMPTY); setClientQuery(""); setCommLines([{ etichetta: "", base: "fatturato", percentuale: 0 }]); setDialogOpen(true); };
+  const openEdit = async (r: ServiceClient) => {
+    setDraft({ ...r }); setClientQuery("");
+    if (r.billing_model === "provvigione") {
+      const { data } = await sb().from("aedix_service_commission_lines").select("*").eq("service_client_id", r.id).order("ordine");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const loaded = ((data ?? []) as any[]).map((l) => ({ id: l.id as string, etichetta: (l.etichetta ?? "") as string, base: (l.base ?? "fatturato") as string, percentuale: Number(l.percentuale) || 0 }));
+      setCommLines(loaded.length ? loaded : [{ etichetta: "", base: "fatturato", percentuale: 0 }]);
+    } else {
+      setCommLines([]);
+    }
+    setDialogOpen(true);
+  };
 
   const kpi = useMemo(() => {
     const attivi = rows.filter((r) => r.stato === "attivo");
@@ -425,38 +463,45 @@ export default function AdminServiceClients() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>{draft.billing_model === "provvigione" ? "Importo medio €" : "Importo €"}</Label>
+                <Label>{draft.billing_model === "provvigione" ? "Importo medio €/mese (stima)" : "Importo €"}</Label>
                 <Input type="number" value={draft.importo ?? 0} onChange={(e) => setDraft((d) => ({ ...d, importo: Number(e.target.value) }))} />
               </div>
-              {draft.billing_model === "provvigione" ? (
-                <div className="grid gap-1.5">
-                  <Label>Provvigione %</Label>
-                  <Input type="number" value={draft.provvigione_pct ?? 0} onChange={(e) => setDraft((d) => ({ ...d, provvigione_pct: Number(e.target.value) }))} />
-                </div>
-              ) : (
-                <div className="grid gap-1.5">
-                  <Label>Stato</Label>
-                  <Select value={draft.stato} onValueChange={(v) => setDraft((d) => ({ ...d, stato: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="attivo">Attivo</SelectItem><SelectItem value="pausa">In pausa</SelectItem><SelectItem value="cessato">Cessato</SelectItem></SelectContent>
-                  </Select>
-                </div>
-              )}
+              <div className="grid gap-1.5">
+                <Label>Stato</Label>
+                <Select value={draft.stato} onValueChange={(v) => setDraft((d) => ({ ...d, stato: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="attivo">Attivo</SelectItem><SelectItem value="pausa">In pausa</SelectItem><SelectItem value="cessato">Cessato</SelectItem></SelectContent>
+                </Select>
+              </div>
             </div>
+
+            {draft.billing_model === "provvigione" && (
+              <div className="grid gap-2 rounded-lg border border-dashed p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Provvigioni — % sul fatturato/incassato mensile del cliente (una o più)</div>
+                {commLines.map((l, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_7.5rem_4.75rem_auto] items-center gap-2">
+                    <Input value={l.etichetta} onChange={(e) => setCommLines((cs) => cs.map((c, j) => (j === i ? { ...c, etichetta: e.target.value } : c)))} placeholder={i === 0 ? "Etichetta (es. Fatturato)" : "Etichetta (es. Prodotto B)"} className="h-9" />
+                    <Select value={l.base} onValueChange={(v) => setCommLines((cs) => cs.map((c, j) => (j === i ? { ...c, base: v } : c)))}>
+                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                      <SelectContent>{COMM_BASE.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                    <div className="relative">
+                      <Input type="number" value={l.percentuale} onChange={(e) => setCommLines((cs) => cs.map((c, j) => (j === i ? { ...c, percentuale: Number(e.target.value) } : c)))} className="h-9 pr-5" aria-label="Percentuale" />
+                      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">%</span>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive" onClick={() => setCommLines((cs) => cs.filter((_, j) => j !== i))} aria-label="Rimuovi riga"><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                ))}
+                <Button variant="outline" size="sm" className="w-fit gap-1.5" onClick={() => setCommLines((cs) => [...cs, { etichetta: "", base: "fatturato", percentuale: 0 }])}><Plus className="h-3.5 w-3.5" /> Aggiungi provvigione</Button>
+                <p className="text-[11px] text-muted-foreground">Ogni mese, nel registro incassi, inserisci la base (fatturato/incassato del cliente) e il sistema calcola la provvigione dovuta.</p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
                 <Label>Dal</Label>
                 <Input type="date" value={draft.data_inizio ?? ""} onChange={(e) => setDraft((d) => ({ ...d, data_inizio: e.target.value }))} />
               </div>
-              {draft.billing_model === "provvigione" && (
-                <div className="grid gap-1.5">
-                  <Label>Stato</Label>
-                  <Select value={draft.stato} onValueChange={(v) => setDraft((d) => ({ ...d, stato: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="attivo">Attivo</SelectItem><SelectItem value="pausa">In pausa</SelectItem><SelectItem value="cessato">Cessato</SelectItem></SelectContent>
-                  </Select>
-                </div>
-              )}
             </div>
             <div className="grid gap-1.5">
               <Label>Commerciale</Label>
