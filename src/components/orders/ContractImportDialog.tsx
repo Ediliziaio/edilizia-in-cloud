@@ -5,6 +5,7 @@
  * anteprima dei dati estratti → "Applica alla commessa" (onApply).
  * L'utente rivede sempre prima di applicare (l'AI può sbagliare).
  */
+// (montaggio condizionale lato CreateOrder: nasce solo all'apertura)
 import { useState, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import {
