@@ -2263,6 +2263,11 @@ function RoofSatelliteView({
     };
   }, [lat, lng]);
 
+  // Hook SEMPRE chiamato prima di ogni early return: se stesse sotto
+  // `if (state === "error") return null` sarebbe condizionale e React
+  // crasherebbe ("Rendered fewer hooks than expected") al cambio di stato.
+  const containerRef = useRef<HTMLDivElement>(null);
+
   if (state === "error") return null; // niente immagine → nessuna card (graceful)
 
   const nReali = Math.max(numeroPannelli ?? 0, 0);
@@ -2273,7 +2278,6 @@ function RoofSatelliteView({
   const cols = Math.min(Math.max(L.cols || 6, 2), 12);
   const nShow = Math.min(nReali, isEdit ? 80 : 30); // editor: conteggio reale
 
-  const containerRef = useRef<HTMLDivElement>(null);
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!isEdit) return;
     e.preventDefault();
