@@ -47,6 +47,10 @@ import {
 import { resolveFvModuloIndexGate } from "@/lib/fotovoltaico/moduloAccess";
 import { FvCard, FvKpi, FvChip, FvCallout } from "@/lib/fotovoltaico/wizardUI";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useEffectiveCompanyId } from "@/hooks/useEffectiveCompanyId";
+import { useTableSelection } from "@/hooks/useTableSelection";
+import { ModuloBulkToolbar } from "@/components/moduli/ModuloBulkToolbar";
 
 const STATI_LABEL = {
   bozza: { label: "Bozza", variant: "default" as const },
@@ -69,6 +73,8 @@ const ARCHETIPI_LABEL = {
 export default function FotovoltaicoIndex() {
   const { role } = useAuth();
   const navigate = useNavigate();
+  const companyId = useEffectiveCompanyId();
+  const selBulk = useTableSelection();
   const isAdmin = role === "company_admin" || role === "super_admin";
 
   const moduloQuery = useFvModuloAttivo();
@@ -496,12 +502,27 @@ export default function FotovoltaicoIndex() {
             )}
           </div>
 
+          <ModuloBulkToolbar
+            tableName="fv_progetti"
+            companyId={companyId}
+            selectedIds={selBulk.selected}
+            statoOptions={(Object.keys(STATI_LABEL) as (keyof typeof STATI_LABEL)[]).map((k) => ({ value: k as string, label: STATI_LABEL[k].label }))}
+            onClear={selBulk.clear}
+            onDone={() => { selBulk.clear(); void progettiQuery.refetch(); }}
+          />
           {/* ── DESKTOP: tabella ── */}
           <FvCard compact className="hidden sm:block">
             <div className="overflow-x-auto -mx-4 sm:mx-0">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50 hover:bg-slate-50">
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={progettiFiltrati.length > 0 && progettiFiltrati.every((p) => selBulk.isSelected(p.id))}
+                        onCheckedChange={() => selBulk.toggleAll(progettiFiltrati.map((p) => p.id))}
+                        aria-label="Seleziona tutti"
+                      />
+                    </TableHead>
                     <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                       Numero
                     </TableHead>
@@ -529,7 +550,7 @@ export default function FotovoltaicoIndex() {
                 <TableBody>
                   {progettiFiltrati.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-slate-500">
+                      <TableCell colSpan={9} className="text-center py-8 text-slate-500">
                         Nessun progetto trovato con i filtri attuali.
                         <Button
                           variant="link"
@@ -555,6 +576,13 @@ export default function FotovoltaicoIndex() {
                         className="cursor-pointer hover:bg-orange-50/50 transition-colors"
                         onClick={() => navigate(`/azienda/marketing/fotovoltaico/${p.id}`)}
                       >
+                        <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selBulk.isSelected(p.id)}
+                            onCheckedChange={() => selBulk.toggle(p.id)}
+                            aria-label="Seleziona riga"
+                          />
+                        </TableCell>
                         <TableCell className="font-mono text-xs font-semibold text-slate-900">
                           {p.numero}
                         </TableCell>
