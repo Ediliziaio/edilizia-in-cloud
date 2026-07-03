@@ -316,7 +316,7 @@ export function useOrderDiary(orderId: string | undefined) {
             table: "order_messages",
             filter: `order_id=eq.${orderId}`,
           },
-          () => { qc.invalidateQueries({ queryKey: ["order-messages", orderId] }); }
+          () => { qc.invalidateQueries({ queryKey: ["order-messages", effectiveCompany?.id, orderId] }); }
         )
         .on(
           "postgres_changes",
@@ -326,7 +326,7 @@ export function useOrderDiary(orderId: string | undefined) {
             table: "order_events",
             filter: `order_id=eq.${orderId}`,
           },
-          () => { qc.invalidateQueries({ queryKey: ["order-events", orderId] }); }
+          () => { qc.invalidateQueries({ queryKey: ["order-events", effectiveCompany?.id, orderId] }); }
         )
         .subscribe((status, error) => {
           if (error) {
@@ -340,7 +340,7 @@ export function useOrderDiary(orderId: string | undefined) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [orderId, qc]);
+  }, [orderId, qc, effectiveCompany?.id]);
 
   // ── Timeline unificata (merge + sort) ─────────────────────────────────────
   const timeline: DiaryEntry[] = useMemo(() => {
@@ -372,7 +372,7 @@ export function useOrderDiary(orderId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["order-messages", orderId] });
+      qc.invalidateQueries({ queryKey: ["order-messages", effectiveCompany?.id, orderId] });
       qc.invalidateQueries({ queryKey: ["order-diary-audit", orderId] });
     },
     onError: (e: unknown) => {
@@ -394,7 +394,7 @@ export function useOrderDiary(orderId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["order-messages", orderId] });
+      qc.invalidateQueries({ queryKey: ["order-messages", effectiveCompany?.id, orderId] });
       qc.invalidateQueries({ queryKey: ["order-diary-audit", orderId] });
     },
     onError: (e: unknown) => {
