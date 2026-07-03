@@ -1036,6 +1036,7 @@ function CreateOrderInner() {
         onOpenChange={setShowCreateCustomer}
         onCustomerCreated={handleCustomerCreated}
         initialValues={quoteCustomerInitial}
+        defaultCreatePortalAccount={quoteCustomerInitial ? false : undefined}
       />
     </div>
   );

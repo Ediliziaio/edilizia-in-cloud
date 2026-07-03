@@ -48,14 +48,18 @@ export function recalcPhaseAmounts(phases: QuotePaymentPhase[], total: number): 
   const t = Math.max(0, round2(total));
   const n = phases.length;
   if (n === 0) return phases;
-  let allocated = 0;
+  let remaining = t;
   return phases.map((p, i) => {
     if (i === n - 1) {
-      const rest = round2(t - allocated);
-      return { ...p, amount: rest < 0 ? 0 : rest };
+      // L'ultima fase assorbe SEMPRE il residuo esatto (mai negativo).
+      return { ...p, amount: remaining > 0 ? round2(remaining) : 0 };
     }
-    const amount = round2((t * (Number(p.percent) || 0)) / 100);
-    allocated = round2(allocated + amount);
+    // Fase intermedia: quota da percentuale, MA clampata a [0, residuo] così la
+    // somma degli importi non supera mai il totale (percentuali >100% o negative
+    // non producono importi assurdi/negativi né over-allocazione).
+    const want = round2((t * (Number(p.percent) || 0)) / 100);
+    const amount = Math.min(Math.max(0, want), Math.max(0, round2(remaining)));
+    remaining = round2(remaining - amount);
     return { ...p, amount };
   });
 }

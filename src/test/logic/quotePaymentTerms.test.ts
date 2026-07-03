@@ -57,6 +57,33 @@ describe("quote payment terms", () => {
     expect(phases[1].amount).toBeGreaterThanOrEqual(0);
   });
 
+  it("recalc: percent sum > 100% with 3+ phases NEVER over-allocates (sum stays == total)", () => {
+    // Regression: prima [800,800,0] su 1000 = 1600 (over-allocazione).
+    const phases = recalcPhaseAmounts(
+      [
+        { label: "a", type: "deposit", percent: 80, amount: 0 },
+        { label: "b", type: "deposit", percent: 80, amount: 0 },
+        { label: "c", type: "balance", percent: 80, amount: 0 },
+      ],
+      1000,
+    );
+    expect(phasesAmountTotal(phases)).toBe(1000);
+    expect(phases.every((p) => p.amount >= 0 && p.amount <= 1000)).toBe(true);
+  });
+
+  it("recalc: negative percent never yields a negative amount, total still balances", () => {
+    // Regression: prima [-300, 1300] (acconto negativo).
+    const phases = recalcPhaseAmounts(
+      [
+        { label: "a", type: "deposit", percent: -30, amount: 0 },
+        { label: "b", type: "balance", percent: 130, amount: 0 },
+      ],
+      1000,
+    );
+    expect(phases.every((p) => p.amount >= 0)).toBe(true);
+    expect(phasesAmountTotal(phases)).toBe(1000);
+  });
+
   it("percent total sums percentages", () => {
     expect(phasesPercentTotal(defaultQuotePaymentPhases())).toBe(100);
   });

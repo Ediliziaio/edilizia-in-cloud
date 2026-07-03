@@ -54,6 +54,9 @@ interface CreateCustomerDialogProps {
     address?: string;
     fiscalCode?: string;
   };
+  /** Default per il toggle "crea account portale" (es. dal preventivo: OFF → solo
+   *  anagrafica, niente email di benvenuto a sorpresa). Se assente usa companyPortalEnabled. */
+  defaultCreatePortalAccount?: boolean;
 }
 
 export function CreateCustomerDialog({
@@ -61,6 +64,7 @@ export function CreateCustomerDialog({
   onOpenChange,
   onCustomerCreated,
   initialValues,
+  defaultCreatePortalAccount,
 }: CreateCustomerDialogProps) {
   const { effectiveCompany, user } = useAuth();
   const queryClient = useQueryClient();
@@ -79,7 +83,7 @@ export function CreateCustomerDialog({
   const [siteAddress, setSiteAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [customerDocuments, setCustomerDocuments] = useState<Partial<Record<CustomerDocumentType, File>>>({});
-  const [createPortalAccount, setCreatePortalAccount] = useState(companyPortalEnabled);
+  const [createPortalAccount, setCreatePortalAccount] = useState(defaultCreatePortalAccount ?? companyPortalEnabled);
   const [sendWelcomeEmail, setSendWelcomeEmail] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -167,7 +171,7 @@ export function CreateCustomerDialog({
     setSiteAddress("");
     setNotes("");
     setCustomerDocuments({});
-    setCreatePortalAccount(companyPortalEnabled);
+    setCreatePortalAccount(defaultCreatePortalAccount ?? companyPortalEnabled);
     setSendWelcomeEmail(true);
     setShowSuccessStep(false);
     setGeneratedPassword(null);
