@@ -142,7 +142,7 @@ function buildGiornaleHtml(
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${escHtml(title)}</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body { font-family: Arial, sans-serif; font-size: 10pt; color: #1e293b; background: white; }
     @media print {
       body { margin: 0; }

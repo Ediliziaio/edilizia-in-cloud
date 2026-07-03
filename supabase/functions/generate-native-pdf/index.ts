@@ -89,11 +89,14 @@ function buildNativeHtml(doc: Record<string, any>, azienda: Record<string, any>,
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <style>
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   @page { size: A4; margin: 15mm; }
   body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 9pt; color: #1a1a1a; line-height: 1.5; margin: 0; padding: 15mm; }
   .header { display: flex; justify-content: space-between; margin-bottom: 24px; }
   table { width: 100%; border-collapse: collapse; }
   thead th { background: #f1f5f9; padding: 8px; font-size: 7pt; text-transform: uppercase; color: #475569; letter-spacing: 0.5px; text-align: left; }
+  tr, .totali { break-inside: avoid; page-break-inside: avoid; }
+  @media print { body { padding: 0; } }
 </style>
 </head><body>
 <div class="header">
@@ -156,7 +159,7 @@ ${righe.length > 0 ? `
   <tbody>${righeHtml}</tbody>
 </table>` : ''}
 
-<div style="display:flex;justify-content:space-between;gap:24px;margin-top:8px;">
+<div class="totali" style="display:flex;justify-content:space-between;gap:24px;margin-top:8px;">
   ${riepilogo.length > 0 ? `
   <div style="flex:1;">
     <div style="font-size:7pt;text-transform:uppercase;color:#94a3b8;letter-spacing:1px;margin-bottom:4px;">Riepilogo IVA</div>

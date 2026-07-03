@@ -52,9 +52,17 @@ export function PreviewFattura({ documento, azienda, scale = 0.65 }: Props) {
   const colorePrimario = azienda?.colore_primario || "#0ea5e9";
 
   return (
-    <div style={{ transform: `scale(${scale})`, transformOrigin: "top center" }}>
+    <div
+      className="preview-fattura-scale"
+      style={{
+        transform: `scale(${scale})`,
+        transformOrigin: "top center",
+        WebkitPrintColorAdjust: "exact",
+        printColorAdjust: "exact",
+      }}
+    >
       <div
-        className="bg-white text-foreground shadow-lg border rounded-sm mx-auto"
+        className="preview-fattura-sheet bg-white text-foreground shadow-lg border rounded-sm mx-auto"
         style={{
           width: "210mm",
           minHeight: "297mm",

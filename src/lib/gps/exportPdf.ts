@@ -94,35 +94,42 @@ export async function esportaPercorsoPdf(
   );
   yPos += 5;
 
-  // ── Intestazione tabella ──────────────────────────────────────────────────
+  // ── Intestazione tabella (riusabile dopo ogni addPage) ───────────────────
   const colWidths = [10, 40, 22, 22, 20, 20];
   const colHeaders = ['N°', 'Data/Ora', 'Latitudine', 'Longitudine', 'Vel. (km/h)', 'Acc. (m)'];
   const rowHeight = 6;
 
-  doc.setFillColor(NAVY);
-  doc.rect(marginL, yPos, contentWidth, rowHeight, 'F');
-  doc.setTextColor('#FFFFFF');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  const disegnaIntestazioneTabella = (yStart: number): number => {
+    doc.setFillColor(NAVY);
+    doc.rect(marginL, yStart, contentWidth, rowHeight, 'F');
+    doc.setTextColor('#FFFFFF');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
 
-  let xPos = marginL + 1;
-  colHeaders.forEach((header, i) => {
-    doc.text(header, xPos, yPos + 4);
-    xPos += colWidths[i];
-  });
-  yPos += rowHeight;
+    let xHead = marginL + 1;
+    colHeaders.forEach((header, i) => {
+      doc.text(header, xHead, yStart + 4);
+      xHead += colWidths[i];
+    });
+    return yStart + rowHeight;
+  };
+
+  yPos = disegnaIntestazioneTabella(yPos);
 
   // ── Righe dati ────────────────────────────────────────────────────────────
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
 
+  let xPos = marginL + 1;
   const righe = posizioni.slice(0, MAX_RIGHE_TABELLA);
   righe.forEach((p, idx) => {
-    // Controllo fine pagina
+    // Controllo fine pagina: footer, nuova pagina e intestazione colonne ridisegnata
     if (yPos + rowHeight > pageHeight - 15) {
       aggiungiFooter(doc, pageWidth, pageHeight);
       doc.addPage();
-      yPos = 15;
+      yPos = disegnaIntestazioneTabella(15);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
     }
 
     const isEven = idx % 2 === 0;

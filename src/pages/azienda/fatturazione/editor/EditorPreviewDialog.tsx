@@ -28,7 +28,13 @@ export function EditorPreviewDialog({ state, open, onOpenChange }: Props) {
       .map((s) => s.outerHTML)
       .join("\n");
     printWindow.document.write(`<!DOCTYPE html><html><head>${styles}<style>
-      @media print { body { margin: 0; } @page { size: A4; margin: 10mm; } }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      @media print {
+        body { margin: 0; }
+        @page { size: A4; margin: 10mm; }
+        .preview-fattura-scale { transform: none !important; }
+        .preview-fattura-sheet { width: 190mm !important; min-height: auto !important; padding: 10mm !important; margin: 0 !important; border: none !important; box-shadow: none !important; border-radius: 0 !important; }
+      }
       body { font-family: system-ui, sans-serif; }
     </style></head><body>${el.innerHTML}</body></html>`);
     printWindow.document.close();

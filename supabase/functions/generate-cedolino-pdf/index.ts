@@ -85,7 +85,8 @@ function buildHtml(cedolino: any, azienda: any): string {
   <meta charset="UTF-8" />
   <title>Cedolino Paga — ${cedolino.employee_name} — ${periodoLabel}</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { size: A4; margin: 12mm; }
     body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; background: #fff; padding: 20px; }
     .page { max-width: 800px; margin: 0 auto; }
     /* Header */

@@ -268,6 +268,12 @@ function MessageEntry({ message }: { message: OrderMessage }) {
   );
 }
 
+// Tronca i dettagli (payload/metadata JSON) per evitare blocchi chilometrici negli export
+const MAX_DETTAGLI_LENGTH = 500;
+function truncateDettagli(value: string): string {
+  return value.length > MAX_DETTAGLI_LENGTH ? `${value.slice(0, MAX_DETTAGLI_LENGTH)}…` : value;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 interface OrderDiaryTabProps {
   orderId: string;
@@ -312,7 +318,7 @@ export function OrderDiaryTab({
           origine: "Evento automatico",
           descrizione: formatEventDescription(entry.data),
           responsabile: entry.data.actor_name || "",
-          dettagli: JSON.stringify(entry.data.payload ?? {}),
+          dettagli: truncateDettagli(JSON.stringify(entry.data.payload ?? {})),
         };
       }
 
@@ -324,7 +330,7 @@ export function OrderDiaryTab({
           origine: entry.data.title,
           descrizione: entry.data.description,
           responsabile: entry.data.actor_name || "",
-          dettagli: entry.data.metadata ? JSON.stringify(entry.data.metadata) : "",
+          dettagli: entry.data.metadata ? truncateDettagli(JSON.stringify(entry.data.metadata)) : "",
         };
       }
 
@@ -408,6 +414,11 @@ export function OrderDiaryTab({
         y += 12;
         doc.setFont("helvetica", "normal");
         lines.slice(1).forEach((line) => {
+          // Guardia fine pagina anche dentro il blocco: un blocco più alto di una pagina non deve uscire dal foglio
+          if (y > pageHeight - 48) {
+            doc.addPage();
+            y = 48;
+          }
           doc.text(line, margin, y);
           y += 12;
         });

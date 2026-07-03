@@ -732,8 +732,26 @@ function investmentSection(p: PdfDoc, inputs: RoiInputs, results: RoiResults) {
   }
   p.y += 4;
 
-  // Box CTA navy
-  const ctaH = 34;
+  // Box CTA navy — altezza e posizioni dinamiche: la headline può andare a capo
+  const ctaHeadline = guadagna
+    ? `Smetti di perdere ${eur(results.guadagnoNettoAnnuo)} ogni anno: attiva EdiliziaInCloud oggi.`
+    : "Attiva EdiliziaInCloud e inizia a recuperare margine da subito.";
+  const ctaSub =
+    "Attivazione immediata, supporto incluso, nessun vincolo pluriennale. Restiamo a disposizione per ogni chiarimento.";
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  const headlineLines = doc.splitTextToSize(ctaHeadline, CONTENT_W - 12) as string[];
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  const subLines = doc.splitTextToSize(ctaSub, CONTENT_W - 12) as string[];
+
+  const headlineLineH = 6; // ~14pt
+  const subLineH = 4; // ~9pt
+  const subOffset = 13 + (headlineLines.length - 1) * headlineLineH + 8;
+  const contactOffset = subOffset + (subLines.length - 1) * subLineH + 8;
+  const ctaH = contactOffset + 6;
+
   p.ensure(ctaH + 2);
   doc.setFillColor(...BRAND.navy);
   doc.rect(MARGIN, p.y, CONTENT_W, ctaH, "F");
@@ -742,25 +760,15 @@ function investmentSection(p: PdfDoc, inputs: RoiInputs, results: RoiResults) {
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  const ctaHeadline = guadagna
-    ? `Smetti di perdere ${eur(results.guadagnoNettoAnnuo)} ogni anno: attiva EdiliziaInCloud oggi.`
-    : "Attiva EdiliziaInCloud e inizia a recuperare margine da subito.";
-  doc.text(ctaHeadline, MARGIN + 6, p.y + 13, {
-    maxWidth: CONTENT_W - 12,
-  });
+  doc.text(headlineLines, MARGIN + 6, p.y + 13);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(190, 205, 228);
-  doc.text(
-    "Attivazione immediata, supporto incluso, nessun vincolo pluriennale. Restiamo a disposizione per ogni chiarimento.",
-    MARGIN + 6,
-    p.y + 21,
-    { maxWidth: CONTENT_W - 12 },
-  );
+  doc.text(subLines, MARGIN + 6, p.y + subOffset);
   doc.setTextColor(...BRAND.orange);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9.5);
-  doc.text(`${BRAND.email}  ·  ${BRAND.phone}`, MARGIN + 6, p.y + 29);
+  doc.text(`${BRAND.email}  ·  ${BRAND.phone}`, MARGIN + 6, p.y + contactOffset);
   p.y += ctaH + 4;
 }
 
