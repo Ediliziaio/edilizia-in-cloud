@@ -135,6 +135,7 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { id: "mkt-contacts",      label: "Contatti CRM",        description: "Gestisci contatti marketing",              viewKey: "can_view_marketing_contacts",      editKey: "can_edit_marketing_contacts" },
       { id: "mkt-opportunities", label: "Opportunità",         description: "Gestisci pipeline e opportunità",          viewKey: "can_view_marketing_opportunities", editKey: "can_edit_marketing_opportunities", includes: ["Sales OS"] },
       { id: "mkt-preventivi",    label: "Preventivi",          description: "Crea e gestisci i preventivi",             viewKey: "can_view_preventivi",              editKey: "can_edit_preventivi" },
+      { id: "mkt-approve-disc",  label: "Approva Sconti",      description: "Può approvare/impostare sconti oltre soglia (approvazione sconti)", viewKey: "can_approve_discounts" },
       { id: "mkt-sopralluoghi",  label: "Sopralluoghi",        description: "Sopralluoghi tecnici e firma cliente",     viewKey: "can_view_sopralluoghi" },
       { id: "mkt-activities",    label: "Attività",            description: "Visualizza attività marketing",            viewKey: "can_view_marketing_activities" },
       { id: "mkt-appointments",  label: "Appuntamenti",        description: "Gestisci appuntamenti commerciali",        viewKey: "can_view_marketing_appointments" },

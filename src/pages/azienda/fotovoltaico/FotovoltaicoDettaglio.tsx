@@ -27,7 +27,7 @@ import {
   AlertTriangle,
   FileSignature,
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useProgetto,
@@ -57,8 +57,18 @@ const STATI_LABEL = {
 export default function FotovoltaicoDettaglio() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { role } = useAuth();
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // Vista "impresa" (costo netto, margine €/%, colonna Netto, PDF tecnici interni):
+  // visibile SOLO a chi ha il permesso margini/costi NELL'AZIENDA SELEZIONATA.
+  // Prima il gate usava il ruolo GLOBALE (useAuth().role), che NON cambia passando
+  // da un'azienda all'altra: un utente admin di un'azienda vedeva margini/costi anche
+  // in un'altra azienda dove è solo staff marketing (fuga cross-azienda). usePermissions()
+  // risolve per company selezionata: company_admin → tutto; company_staff → staff_permissions.
+  const isAdmin = permissions.canViewMargins || permissions.canViewCosts;
+  // Azioni di gestione del preventivo (Annulla): chi può EDITARE i preventivi
+  // nell'azienda selezionata (admin o staff con can_edit_preventivi). Così la staff
+  // marketing può gestire i propri preventivi pur SENZA vedere i margini (isAdmin).
+  const canManagePreventivo = permissions.canEditPreventivi;
 
   const { data: progetto, isLoading } = useProgetto(id);
   const { data: componenti = [] } = useComponentiProgetto(id);
@@ -277,7 +287,7 @@ export default function FotovoltaicoDettaglio() {
                   </Link>
                 </Button>
               )}
-              {isAdmin && progetto.stato !== "firmato" && (
+              {canManagePreventivo && progetto.stato !== "firmato" && (
                 <Button
                   variant="outline"
                   onClick={handleElimina}

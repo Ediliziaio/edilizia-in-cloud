@@ -37,7 +37,7 @@ import {
   AlertTriangle,
   RefreshCw,
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   useProgetti,
   useStatsAzienda,
@@ -67,9 +67,14 @@ const ARCHETIPI_LABEL = {
 } as const;
 
 export default function FotovoltaicoIndex() {
-  const { role } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  const permissions = usePermissions();
+  // Dato "impresa" (margine medio): visibile solo con permesso margini/costi
+  // NELL'AZIENDA SELEZIONATA. Azioni gestione preventivo (crea/annulla progetto):
+  // canEditPreventivi, così la staff marketing può creare preventivi FV in
+  // un'azienda pur senza vedere i margini. Prima usava il ruolo GLOBALE.
+  const canManagePreventivo = permissions.canEditPreventivi;
+  const canViewImpresa = permissions.canViewMargins || permissions.canViewCosts;
 
   const moduloQuery = useFvModuloAttivo();
   const moduloGate = resolveFvModuloIndexGate({
@@ -156,7 +161,7 @@ export default function FotovoltaicoIndex() {
             </ul>
           </div>
           <div className="text-center mt-6">
-            {isAdmin && (
+            {canManagePreventivo && (
               <Button
                 asChild
                 size="lg"
@@ -221,7 +226,7 @@ export default function FotovoltaicoIndex() {
             </p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
-            {isAdmin && (
+            {canManagePreventivo && (
               <>
                 <Button
                   asChild
@@ -300,7 +305,7 @@ export default function FotovoltaicoIndex() {
             }
             unit="€"
           />
-          {isAdmin && (
+          {canViewImpresa && (
             <FvKpi
               label="Margine medio"
               value={
@@ -405,7 +410,7 @@ export default function FotovoltaicoIndex() {
                   finanziario, PDF Vendita personalizzato.
                 </p>
               </div>
-              {isAdmin ? (
+              {canManagePreventivo ? (
                 <Button
                   asChild
                   size="lg"
@@ -605,7 +610,7 @@ export default function FotovoltaicoIndex() {
                                 <ExternalLink className="h-4 w-4" />
                               </Link>
                             </Button>
-                            {isAdmin && p.stato !== "firmato" && (
+                            {canManagePreventivo && p.stato !== "firmato" && (
                               <Button
                                 variant="ghost"
                                 size="sm"

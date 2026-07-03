@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -304,11 +305,17 @@ export default function QuoteBuilder() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const isEdit = !!id;
-  const { effectiveCompany, user, role } = useAuth();
+  const { effectiveCompany, user } = useAuth();
+  const permissions = usePermissions();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  // Gate PER-AZIENDA. Vista margini (link "Margini", margini inline legacy) →
+  // canViewMargins/Costs; azioni sul preventivo (override PDF) → canEditPreventivi.
+  // Prima usava il ruolo GLOBALE, che non cambia con lo switch azienda → un admin
+  // multi-azienda vedeva i margini anche dove è solo staff marketing.
+  const canViewImpresa = permissions.canViewMargins || permissions.canViewCosts;
+  const canEditPreventivi = permissions.canEditPreventivi;
   // #40 Governance — soglie per-azienda (fallback a default su errore/tabella assente).
   const { data: governanceCfg } = useGovernanceThresholds(companyId);
   /**
@@ -321,7 +328,7 @@ export default function QuoteBuilder() {
    * Settare a `true` per ripristinare temporaneamente i blocchi inline.
    */
   const QUOTE_BUILDER_INLINE_MARGINS_LEGACY = false;
-  const showInlineMargins = isAdmin && QUOTE_BUILDER_INLINE_MARGINS_LEGACY;
+  const showInlineMargins = canViewImpresa && QUOTE_BUILDER_INLINE_MARGINS_LEGACY;
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -1744,7 +1751,7 @@ export default function QuoteBuilder() {
                 </div>
               </div>
             )}
-            {isAdmin && isEdit && id && (
+            {canViewImpresa && isEdit && id && (
               <Link
                 to={`/azienda/marketing/preventivi/${id}/margini`}
                 className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors h-9"
@@ -2552,7 +2559,6 @@ export default function QuoteBuilder() {
                         currentDiscount={discountPercent}
                         approvalStatus={approvalStatus}
                         onDiscountChange={setDiscountPercent}
-                        isAdmin={isAdmin}
                       />
                     )}
                     <div className="flex justify-end">
@@ -2762,7 +2768,7 @@ export default function QuoteBuilder() {
       {/* ── STEP 2: Documenti + PDF settings ── */}
       {step === 2 && (
         <div className="space-y-4">
-          {isAdmin ? (
+          {canEditPreventivi ? (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

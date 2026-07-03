@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 
 import { Button } from "@/components/ui/button";
@@ -61,24 +62,25 @@ import AnalisiPreventivi from "./AnalisiPreventivi";
 import QuoteApprovals from "./QuoteApprovals";
 
 const ALLOWED_USER_TABS = new Set(["lista", "moduli"]);
-const ALLOWED_ADMIN_TABS = new Set(["lista", "moduli", "approvazioni", "analisi"]);
 
 export default function Preventivi() {
-  const { effectiveCompany, role } = useAuth();
+  const { effectiveCompany } = useAuth();
+  const permissions = usePermissions();
   const companyId = effectiveCompany?.id;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // NOTA: `isAdmin` controlla l'accesso a dati finanziari sensibili
-  // (margine %, commissioni, approvazioni sconto, analisi AI).
-  // - `company_admin`: admin DELL'AZIENDA corrente → corretto vedere margini
-  // - `super_admin`: staff EdiliziaInCloud → oggi vede sempre.
-  const isAdmin = role === "company_admin" || role === "super_admin";
+  // Gate PER-AZIENDA (prima usava il ruolo GLOBALE → leak cross-azienda per utenti
+  // multi-azienda). "Approvazioni sconto" richiede can_approve_discounts; "Analisi
+  // AI" (margine %, commissioni) richiede la vista margini/costi.
+  const canSeeApprovazioni = permissions.canApproveDiscounts;
+  const canSeeAnalisi = permissions.canViewMargins || permissions.canViewCosts;
 
   const requestedTab = searchParams.get("tab") || "lista";
-  const activeTab = (isAdmin ? ALLOWED_ADMIN_TABS : ALLOWED_USER_TABS).has(requestedTab)
-    ? requestedTab
-    : "lista";
+  const allowedTabs = new Set(ALLOWED_USER_TABS);
+  if (canSeeApprovazioni) allowedTabs.add("approvazioni");
+  if (canSeeAnalisi) allowedTabs.add("analisi");
+  const activeTab = allowedTabs.has(requestedTab) ? requestedTab : "lista";
   const handleTabChange = (tab: string) => {
     const next = new URLSearchParams(searchParams);
     if (tab === "lista") next.delete("tab");
@@ -101,7 +103,7 @@ export default function Preventivi() {
   // ─── Count approvazioni pending (badge sul tab — solo admin) ─────────────
   const { data: pendingApprovalsCount = 0 } = useQuery({
     queryKey: ["quote-approvals-pending-count", companyId],
-    enabled: !!companyId && isAdmin,
+    enabled: !!companyId && canSeeApprovazioni,
     staleTime: 30_000,
     queryFn: async () => {
       const { count, error } = await supabase
@@ -152,7 +154,7 @@ export default function Preventivi() {
   const hubTabs: HubTab[] = [
     { key: "lista", label: "Lista Preventivi", icon: <FileSignature className="h-4 w-4" /> },
     { key: "moduli", label: "Moduli Vendita", icon: <ShoppingBag className="h-4 w-4" /> },
-    ...(isAdmin
+    ...(canSeeApprovazioni
       ? [
           {
             key: "approvazioni",
@@ -164,6 +166,10 @@ export default function Preventivi() {
               </Badge>
             ) : null,
           },
+        ]
+      : []),
+    ...(canSeeAnalisi
+      ? [
           {
             key: "analisi",
             label: "Analisi AI",
@@ -234,8 +240,8 @@ export default function Preventivi() {
       )}
 
       {activeTab === "moduli" && <ModuliVendutaTab />}
-      {activeTab === "approvazioni" && isAdmin && <QuoteApprovals />}
-      {activeTab === "analisi" && isAdmin && <AnalisiPreventivi />}
+      {activeTab === "approvazioni" && canSeeApprovazioni && <QuoteApprovals />}
+      {activeTab === "analisi" && canSeeAnalisi && <AnalisiPreventivi />}
 
       {/* Modal AI: Computo metrico → Preventivo */}
       <ComputoUploadModal

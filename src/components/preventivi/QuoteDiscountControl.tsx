@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
 import { useComputeMaxDiscount } from "@/hooks/useDiscountRules";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface Props {
   quoteId: string;
@@ -25,8 +26,6 @@ interface Props {
   approvalStatus?: "not_required" | "pending" | "approved" | "rejected" | "counter_proposed";
   /** Callback dopo update sconto locale. */
   onDiscountChange: (value: number) => void;
-  /** true se l'utente è admin (bypassa limiti). */
-  isAdmin?: boolean;
 }
 
 export function QuoteDiscountControl({
@@ -34,9 +33,13 @@ export function QuoteDiscountControl({
   currentDiscount,
   approvalStatus = "not_required",
   onDiscountChange,
-  isAdmin = false,
 }: Props) {
   const qc = useQueryClient();
+  // Autorizzazione a IMPOSTARE sconti oltre soglia = permesso PER-AZIENDA
+  // (admin d'azienda o staff con can_approve_discounts). Prima arrivava come prop
+  // canApproveDiscounts derivata dal ruolo GLOBALE del chiamante → uno staff marketing
+  // multi-azienda poteva forzare sconti in un'azienda dove non è autorizzato.
+  const { canApproveDiscounts } = usePermissions();
   const { data: limits, isLoading } = useComputeMaxDiscount(quoteId);
 
   const maxSconto = limits?.max_sconto_pct ?? 10;
@@ -49,12 +52,12 @@ export function QuoteDiscountControl({
   const [submitting, setSubmitting] = useState(false);
 
   const needsApproval = useMemo(() => {
-    if (isAdmin) return false;
+    if (canApproveDiscounts) return false;
     if (approvaOltre != null && currentDiscount > approvaOltre) return true;
     return currentDiscount > maxSconto;
-  }, [isAdmin, approvaOltre, currentDiscount, maxSconto]);
+  }, [canApproveDiscounts, approvaOltre, currentDiscount, maxSconto]);
 
-  const effectiveMax = isAdmin ? 100 : maxSconto;
+  const effectiveMax = canApproveDiscounts ? 100 : maxSconto;
 
   const handleSlider = (val: number[]) => {
     const v = Math.min(val[0], effectiveMax);
@@ -144,7 +147,7 @@ export function QuoteDiscountControl({
         disabled={approvalStatus === "pending"}
       />
 
-      {!isAdmin && needsApproval && approvalStatus !== "pending" && (
+      {!canApproveDiscounts && needsApproval && approvalStatus !== "pending" && (
         <Alert className="border-orange-500 bg-orange-50 dark:bg-orange-950/30">
           <AlertTriangle className="h-4 w-4 text-orange-600" />
           <AlertTitle className="text-orange-900 dark:text-orange-200">Sconto oltre il consentito</AlertTitle>
@@ -170,7 +173,7 @@ export function QuoteDiscountControl({
         </Alert>
       )}
 
-      {isAdmin && margine != null && (
+      {canApproveDiscounts && margine != null && (
         <div className="text-xs text-muted-foreground flex items-center gap-1">
           <Info className="h-3 w-3" />
           Visibile solo admin: margine pre-sconto stimato <strong>{margine.toFixed(1)}%</strong>
