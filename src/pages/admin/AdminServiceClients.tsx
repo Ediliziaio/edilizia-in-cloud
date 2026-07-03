@@ -24,7 +24,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Users, Plus, Pencil, Trash2, Loader2, Building2, UserRound, Link2 } from "lucide-react";
+import { Users, Plus, Pencil, Trash2, Loader2, Building2, UserRound, Link2, Wallet } from "lucide-react";
+import { ServiceBillingsDialog } from "@/components/admin/settings/ServiceBillingsDialog";
 
 interface ProductLineLite { id: string; nome: string; colore: string | null; }
 interface PackageLite { id: string; nome: string; prezzo: number; product_line_id: string; }
@@ -70,6 +71,7 @@ export default function AdminServiceClients() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [clientQuery, setClientQuery] = useState("");
+  const [billClient, setBillClient] = useState<{ id: string; cliente_nome: string; importo: number } | null>(null);
   const isEdit = !!draft.id;
 
   const { data: lines = [] } = useQuery({
@@ -224,6 +226,7 @@ export default function AdminServiceClients() {
                         <TableCell><Badge variant="secondary" className={`border-0 ${STATI[r.stato] ?? ""}`}>{r.stato}</Badge></TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBillClient({ id: r.id, cliente_nome: r.cliente_nome, importo: r.importo })} aria-label="Incassi" title="Registro incassi"><Wallet className="h-4 w-4" /></Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)} aria-label="Modifica"><Pencil className="h-4 w-4" /></Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => { if (confirm(`Eliminare "${r.cliente_nome}"?`)) del.mutate(r.id); }} aria-label="Elimina"><Trash2 className="h-4 w-4" /></Button>
                           </div>
@@ -350,6 +353,8 @@ export default function AdminServiceClients() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ServiceBillingsDialog client={billClient} open={!!billClient} onOpenChange={(v) => { if (!v) setBillClient(null); }} />
     </div>
   );
 }
