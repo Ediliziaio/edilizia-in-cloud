@@ -6,7 +6,7 @@
  * client-side per UX. I calcoli reali di detrazione 50% / capienza fiscale
  * sono in edge function (fvCalcoli.ts). Non duplicare logica fiscale qui.
  */
-import type { FvArchetipo } from "@/types/fotovoltaico";
+import type { FvArchetipo } from "@/lib/fotovoltaico/tipi";
 import {
   ITALIA_LAT_MAX, ITALIA_LAT_MIN, ITALIA_LNG_MAX, ITALIA_LNG_MIN,
   LS_KEY_PREFIX, LS_KEY_NEW, DRAFT_TTL_MS, INITIAL, TOTAL_STEPS,

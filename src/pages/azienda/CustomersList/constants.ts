@@ -2,7 +2,7 @@
  * CustomersList — constants
  * Estratto da CustomersList.tsx (MP-CAN-001 Fase 2).
  */
-import type { CustomerImportField } from "@/lib/customerImport";
+import type { CustomerImportField } from "@/components/clients/CustomerImportDialog";
 
 export const PAGE_SIZES = [25, 50, 100, 200];
 

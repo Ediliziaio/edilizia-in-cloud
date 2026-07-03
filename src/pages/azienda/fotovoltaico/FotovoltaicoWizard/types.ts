@@ -8,7 +8,7 @@
  */
 import type {
   FvArchetipo, FvProfiloAutoconsumoCodice, FvTariffaTipo,
-} from "@/types/fotovoltaico";
+} from "@/lib/fotovoltaico/tipi";
 
 export interface WizardData {
   // Step 1: Cliente
