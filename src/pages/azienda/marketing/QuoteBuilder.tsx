@@ -34,6 +34,8 @@ import {
 import type { ArticlePro, TariffaPro, BundleConVoci } from "@/hooks/usePreventivoCosti";
 import ApplyBundleDialog from "@/components/marketing/preventivi/ApplyBundleDialog";
 import { AddItemDialog } from "@/components/marketing/preventivi/AddItemDialog";
+import { QuotePaymentTermsCard } from "@/components/marketing/preventivi/QuotePaymentTermsCard";
+import { type QuotePaymentPhase, recalcPhaseAmounts } from "@/lib/preventivi/paymentTerms";
 // Refactor 2026-05-10: ProductSearchDialog estratto in file separato (-316 righe)
 import { ProductSearchDialog } from "@/components/marketing/preventivi/ProductSearchDialog";
 import { QuoteDiscountControl } from "@/components/preventivi/QuoteDiscountControl";
@@ -344,6 +346,8 @@ export default function QuoteBuilder() {
   const [validityDays, setValidityDays] = useState(30);
   const [notes, setNotes] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentPhases, setPaymentPhases] = useState<QuotePaymentPhase[]>([]);
   const [selectedRenders, setSelectedRenders] = useState<{ id: string; result_url: string | null; render_type: string; session_table: string }[]>([]);
 
   // P03: Step 0 extras
@@ -612,6 +616,8 @@ export default function QuoteBuilder() {
     setPdfSchedeTecniche,
     setPdfFirma,
     setLayoutOverride,
+    setPaymentMethod,
+    setPaymentPhases,
   });
 
   // Preventivi V2 — hydrate salesperson + approval status (fuori dal hook legacy)
@@ -1491,6 +1497,8 @@ export default function QuoteBuilder() {
         description: description || null,
         notes: notes || null,
         internal_notes: internalNotes || null,
+        payment_method: paymentMethod || null,
+        payment_phases: paymentPhases.length ? recalcPhaseAmounts(paymentPhases, total) : null,
         validity_days: validityDays,
         discount_percent: discountPercent,
         created_by: user.id,
@@ -1857,6 +1865,17 @@ export default function QuoteBuilder() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Blocco 3b: Modalità e fasi di pagamento (firmate dal cliente, riportate in commessa) */}
+            <div className="border-t pt-4">
+              <QuotePaymentTermsCard
+                total={total}
+                method={paymentMethod}
+                phases={paymentPhases}
+                onMethodChange={setPaymentMethod}
+                onPhasesChange={setPaymentPhases}
+              />
             </div>
 
             {/* Blocco 4: Dettagli lavoro */}
