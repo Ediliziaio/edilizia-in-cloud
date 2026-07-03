@@ -167,7 +167,11 @@ export default function EditorDocumento() {
       if (resp.error) throw new Error(resp.error.message);
       const result = resp.data as { success: boolean; sdi_id?: string; errors?: any[] };
       if (!result.success) {
-        toast.error("Errore invio SDI", { description: JSON.stringify(result.errors) });
+        // Errori SDI leggibili invece del JSON grezzo degli scarti.
+        const descr = Array.isArray(result.errors) && result.errors.length
+          ? result.errors.map((e) => (typeof e === "string" ? e : e?.message ?? JSON.stringify(e))).join("; ")
+          : "Il SDI ha rifiutato la fattura. Controlla i dati e riprova.";
+        toast.error("Errore invio SDI", { description: descr });
         return;
       }
       toast.success("Fattura inviata al SDI", { description: `ID trasmissione: ${result.sdi_id}` });

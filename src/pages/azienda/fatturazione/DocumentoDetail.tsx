@@ -18,6 +18,17 @@ import { ArrowLeft, Download, FileText, FileWarning, Loader2, CreditCard, AlertT
 import { toast } from "sonner";
 import { useState } from "react";
 import type { AnagraficaAzienda } from "@/types/fatturazione";
+import { usePaymentGateStore } from "@/store/paymentGateStore";
+
+// Rende leggibili gli scarti SDI (array di stringhe o {message}) invece del JSON grezzo.
+function formatSdiErrors(errors: unknown): string {
+  if (Array.isArray(errors) && errors.length > 0) {
+    return errors
+      .map((e) => (typeof e === "string" ? e : (e as { message?: string })?.message ?? JSON.stringify(e)))
+      .join("; ");
+  }
+  return "Il SDI ha rifiutato la fattura. Controlla i dati e riprova.";
+}
 
 const NC_ALLOWED_STATES = ["emessa", "consegnata", "inviata_sdi", "accettata", "pagata", "parzialmente_pagata"];
 const TIPI_PAGABILI = ["fattura", "fattura_pa", "parcella", "fattura_accompagnatoria", "nota_debito"];
@@ -106,10 +117,21 @@ export default function DocumentoDetail() {
     try {
       const { supabase: sb } = await import("@/integrations/supabase/client");
       const resp = await sb.functions.invoke("invia-sdi", { body: { documento_id: doc.id } });
-      if (resp.error) throw new Error(resp.error.message);
+      if (resp.error) {
+        // 402 = gate "carta obbligatoria": apri il dialog "Aggiungi carta"
+        // (coerente con CassettoSDI). invoke diretto → non passa dal MutationCache.
+        if ((resp.error as { context?: { status?: number } })?.context?.status === 402) {
+          usePaymentGateStore.getState().show();
+          return;
+        }
+        const detail = (resp.error as { context?: { json?: () => Promise<{ error?: string }> } }).context
+          ? await (resp.error as { context: { json?: () => Promise<{ error?: string }> } }).context.json?.().catch((): null => null)
+          : null;
+        throw new Error(detail?.error || resp.error.message);
+      }
       const result = resp.data as { success: boolean; sdi_id?: string; errors?: unknown[] };
       if (!result.success) {
-        toast.error("Errore invio SDI", { description: JSON.stringify(result.errors) });
+        toast.error("Errore invio SDI", { description: formatSdiErrors(result.errors) });
         return;
       }
       toast.success("Fattura inviata al SDI", { description: `ID: ${result.sdi_id}` });
@@ -128,10 +150,12 @@ export default function DocumentoDetail() {
   };
 
   const handleSegnaPagata = () => {
+    if (updateMutation.isPending) return;
     updateMutation.mutate({ id: doc.id, stato: "pagata", importo_pagato: doc.totale_da_pagare, pagato_at: new Date().toISOString() });
   };
 
   const handleStatoPreventivo = (nuovoStato: "accettata" | "annullata") => {
+    if (updateMutation.isPending) return;
     updateMutation.mutate({ id: doc.id, stato: nuovoStato === "accettata" ? "accettata" : "annullata" });
   };
 
@@ -234,17 +258,17 @@ export default function DocumentoDetail() {
 
           {isPreventivo && doc.stato === "emessa" && (
             <>
-              <Button size="sm" variant="default" onClick={() => handleStatoPreventivo("accettata")}>
+              <Button size="sm" variant="default" onClick={() => handleStatoPreventivo("accettata")} disabled={updateMutation.isPending}>
                 <CheckCircle className="h-4 w-4 mr-1" /> Accettato
               </Button>
-              <Button size="sm" variant="destructive" onClick={() => handleStatoPreventivo("annullata")}>
+              <Button size="sm" variant="destructive" onClick={() => handleStatoPreventivo("annullata")} disabled={updateMutation.isPending}>
                 Rifiutato
               </Button>
             </>
           )}
 
           {canSegnaPagata && (
-            <Button variant="outline" size="sm" onClick={handleSegnaPagata}>
+            <Button variant="outline" size="sm" onClick={handleSegnaPagata} disabled={updateMutation.isPending}>
               <CreditCard className="h-4 w-4 mr-1" /> Segna pagata
             </Button>
           )}
