@@ -4,7 +4,8 @@
  * Gestisce public.aedix_service_clients: le relazioni RICORRENTI cliente ↔ servizio
  * (es. le aziende clienti di Marketing Edile a provvigione mensile). Il cliente può
  * essere collegato a un contatto CRM o a un'azienda piattaforma (o solo un nome).
- * Mostra un MRR ricorrente stimato e lo stato di ogni relazione.
+ * Mostra MRR ricorrente stimato, incassato reale (da aedix_service_billings) e lo
+ * stato di ogni relazione, con ricerca + filtri per servizio/stato.
  */
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -20,11 +21,15 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Users, Plus, Pencil, Trash2, Loader2, Building2, UserRound, Link2, Wallet } from "lucide-react";
+import { Users, Plus, Pencil, Trash2, Loader2, Building2, UserRound, Link2, Wallet, Search, AlertTriangle } from "lucide-react";
 import { ServiceBillingsDialog } from "@/components/admin/settings/ServiceBillingsDialog";
 
 interface ProductLineLite { id: string; nome: string; colore: string | null; }
@@ -46,6 +51,7 @@ interface ServiceClient {
   data_fine: string | null;
   note: string | null;
 }
+interface BillingRow { service_client_id: string; periodo: string; importo_dovuto: number; importo_incassato: number; }
 
 const BILLING = [
   { value: "retainer_fisso", label: "Retainer fisso" },
@@ -73,7 +79,13 @@ export default function AdminServiceClients() {
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [clientQuery, setClientQuery] = useState("");
   const [billClient, setBillClient] = useState<{ id: string; cliente_nome: string; importo: number; commerciale?: string | null } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ServiceClient | null>(null);
+  // Filtri lista
+  const [search, setSearch] = useState("");
+  const [filtServizio, setFiltServizio] = useState("tutti");
+  const [filtStato, setFiltStato] = useState("tutti");
   const isEdit = !!draft.id;
+  const currentMonth = useMemo(() => new Date().toISOString().slice(0, 7), []);
 
   const { data: lines = [] } = useQuery({
     queryKey: ["admin", "product-lines-lite"],
@@ -100,6 +112,29 @@ export default function AdminServiceClients() {
       if (error) throw error; return (data ?? []) as ServiceClient[];
     },
   });
+
+  // Incassi reali (aedix_service_billings) aggregati per cliente-servizio.
+  const { data: billings = [] } = useQuery({
+    queryKey: ["admin", "service-billings-all"],
+    queryFn: async (): Promise<BillingRow[]> => {
+      const { data, error } = await sb().from("aedix_service_billings").select("service_client_id,periodo,importo_dovuto,importo_incassato");
+      if (error) throw error; return (data ?? []) as BillingRow[];
+    },
+  });
+
+  const billSummary = useMemo(() => {
+    const per = new Map<string, { incassatoTot: number; dovutoMese: number; incassatoMese: number; ultimo: string | null }>();
+    let incassatoMeseTot = 0, dovutoMeseTot = 0;
+    for (const b of billings) {
+      const inc = Number(b.importo_incassato) || 0, dov = Number(b.importo_dovuto) || 0;
+      const e = per.get(b.service_client_id) ?? { incassatoTot: 0, dovutoMese: 0, incassatoMese: 0, ultimo: null };
+      e.incassatoTot += inc;
+      if (inc > 0 && (!e.ultimo || b.periodo > e.ultimo)) e.ultimo = b.periodo;
+      if ((b.periodo ?? "").slice(0, 7) === currentMonth) { e.dovutoMese += dov; e.incassatoMese += inc; incassatoMeseTot += inc; dovutoMeseTot += dov; }
+      per.set(b.service_client_id, e);
+    }
+    return { per, incassatoMeseTot, daIncassareMese: Math.max(0, dovutoMeseTot - incassatoMeseTot) };
+  }, [billings, currentMonth]);
 
   // Ricerca cliente: aziende piattaforma + contatti CRM
   const { data: clientResults = [] } = useQuery({
@@ -140,7 +175,16 @@ export default function AdminServiceClients() {
   });
   const del = useMutation({
     mutationFn: async (id: string) => { const { error } = await sb().from("aedix_service_clients").delete().eq("id", id); if (error) throw error; },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); toast.success("Eliminato"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }); toast.success("Eliminato"); setDeleteTarget(null); },
+    onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
+  });
+  // Cambio stato rapido dalla lista (senza aprire il dialog completo).
+  const setStato = useMutation({
+    mutationFn: async ({ id, stato }: { id: string; stato: string }) => {
+      const { error } = await sb().from("aedix_service_clients").update({ stato, updated_at: new Date().toISOString() }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "service-clients"] }),
     onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
 
@@ -153,6 +197,17 @@ export default function AdminServiceClients() {
     return { attivi: attivi.length, tot: rows.length, mrr };
   }, [rows]);
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (filtServizio !== "tutti" && r.product_line_id !== filtServizio) return false;
+      if (filtStato !== "tutti" && r.stato !== filtStato) return false;
+      if (q && !`${r.cliente_nome} ${r.commerciale ?? ""}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [rows, search, filtServizio, filtStato]);
+
+  const hasFilters = search.trim() !== "" || filtServizio !== "tutti" || filtStato !== "tutti";
   const canSave = !!draft.cliente_nome?.trim() && !!draft.product_line_id;
 
   return (
@@ -164,19 +219,50 @@ export default function AdminServiceClients() {
         subtitle="Le relazioni ricorrenti cliente ↔ servizio (retainer, provvigioni, performance). Collega ogni cliente a un contatto CRM o a un'azienda."
         actions={<Button onClick={openNew} className="gap-2"><Plus className="h-4 w-4" /> Nuovo cliente-servizio</Button>}
       >
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {[
             { l: "Clienti attivi", v: String(kpi.attivi) },
             { l: "Totale relazioni", v: String(kpi.tot) },
             { l: "Ricorrente ~mese", v: eur(kpi.mrr) },
+            { l: "Incassato (mese)", v: eur(billSummary.incassatoMeseTot) },
+            { l: "Da incassare", v: eur(billSummary.daIncassareMese) },
           ].map((k) => (
             <div key={k.l} className="rounded-xl bg-white/[0.07] p-3">
               <div className="text-[11px] uppercase tracking-wide text-blue-50/70">{k.l}</div>
-              <div className="mt-1 text-xl font-bold">{k.v}</div>
+              <div className="mt-1 text-xl font-bold tabular-nums">{k.v}</div>
             </div>
           ))}
         </div>
       </BrandPageHeader>
+
+      {/* Toolbar: ricerca + filtri */}
+      {rows.length > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1 sm:max-w-xs">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cerca cliente o commerciale…" className="pl-8" />
+          </div>
+          <Select value={filtServizio} onValueChange={setFiltServizio}>
+            <SelectTrigger className="sm:w-52"><SelectValue placeholder="Servizio" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutti i servizi</SelectItem>
+              {lines.map((l) => <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filtStato} onValueChange={setFiltStato}>
+            <SelectTrigger className="sm:w-40"><SelectValue placeholder="Stato" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tutti">Tutti gli stati</SelectItem>
+              <SelectItem value="attivo">Attivi</SelectItem>
+              <SelectItem value="pausa">In pausa</SelectItem>
+              <SelectItem value="cessato">Cessati</SelectItem>
+            </SelectContent>
+          </Select>
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setFiltServizio("tutti"); setFiltStato("tutti"); }}>Azzera</Button>
+          )}
+        </div>
+      )}
 
       <Card>
         <CardContent className="p-0">
@@ -188,29 +274,41 @@ export default function AdminServiceClients() {
               <p className="text-sm text-muted-foreground">Nessun cliente-servizio. Aggiungi la prima relazione (es. un'azienda cliente di Marketing Edile).</p>
               <Button onClick={openNew} className="gap-2"><Plus className="h-4 w-4" /> Nuovo cliente-servizio</Button>
             </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <Search className="h-10 w-10 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">Nessun cliente-servizio corrisponde ai filtri.</p>
+              <Button variant="outline" size="sm" onClick={() => { setSearch(""); setFiltServizio("tutti"); setFiltStato("tutti"); }}>Azzera filtri</Button>
+            </div>
           ) : (
             <div className="overflow-x-auto">
-              <Table className="min-w-[880px]">
+              <Table className="min-w-[960px]">
                 <TableHeader className="[&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-slate-500">
                   <TableRow>
                     <TableHead>Cliente</TableHead>
                     <TableHead>Servizio</TableHead>
                     <TableHead>Modello</TableHead>
                     <TableHead className="text-right">Importo</TableHead>
+                    <TableHead className="text-right">Incassato</TableHead>
                     <TableHead>Dal</TableHead>
                     <TableHead>Stato</TableHead>
                     <TableHead className="text-right">Azioni</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((r) => {
+                  {filtered.map((r) => {
                     const line = lineMap.get(r.product_line_id);
+                    const bs = billSummary.per.get(r.id);
+                    const inRitardo = r.stato === "attivo" && !!bs && bs.dovutoMese > bs.incassatoMese;
                     return (
                       <TableRow key={r.id} className={r.stato === "cessato" ? "opacity-55" : ""}>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             {r.company_id ? <Building2 className="h-3.5 w-3.5 text-muted-foreground" /> : r.contact_id ? <UserRound className="h-3.5 w-3.5 text-muted-foreground" /> : null}
-                            <span className="font-medium">{r.cliente_nome}</span>
+                            <div className="min-w-0">
+                              <span className="font-medium">{r.cliente_nome}</span>
+                              {r.commerciale && <div className="text-[11px] text-muted-foreground truncate">comm. {r.commerciale}</div>}
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -224,13 +322,31 @@ export default function AdminServiceClients() {
                           {r.billing_model === "provvigione" && r.provvigione_pct != null ? ` · ${r.provvigione_pct}%` : ""}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{eur(r.importo)}<span className="text-xs text-muted-foreground">/{r.ricorrenza === "mensile" ? "mese" : r.ricorrenza === "annuale" ? "anno" : "una tantum"}</span></TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {bs ? (
+                            <span className="inline-flex items-center justify-end gap-1.5">
+                              {inRitardo && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" aria-label="Mese corrente non ancora saldato" />}
+                              <span className="font-medium">{eur(bs.incassatoTot)}</span>
+                            </span>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{r.data_inizio}</TableCell>
-                        <TableCell><Badge variant="secondary" className={`border-0 ${STATI[r.stato] ?? ""}`}>{r.stato}</Badge></TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            title="Clic per cambiare stato"
+                            onClick={() => setStato.mutate({ id: r.id, stato: r.stato === "attivo" ? "pausa" : "attivo" })}
+                            disabled={r.stato === "cessato" || setStato.isPending}
+                            className="disabled:cursor-default"
+                          >
+                            <Badge variant="secondary" className={`border-0 ${STATI[r.stato] ?? ""} ${r.stato !== "cessato" ? "cursor-pointer hover:opacity-80" : ""}`}>{r.stato}</Badge>
+                          </button>
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBillClient({ id: r.id, cliente_nome: r.cliente_nome, importo: r.importo, commerciale: r.commerciale })} aria-label="Incassi" title="Registro incassi"><Wallet className="h-4 w-4" /></Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)} aria-label="Modifica"><Pencil className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => { if (confirm(`Eliminare "${r.cliente_nome}"?`)) del.mutate(r.id); }} aria-label="Elimina"><Trash2 className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteTarget(r)} aria-label="Elimina"><Trash2 className="h-4 w-4" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -359,6 +475,26 @@ export default function AdminServiceClients() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare "{deleteTarget?.cliente_nome}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              La relazione cliente-servizio verrà eliminata. Gli incassi già registrati per questo cliente non saranno più visibili qui. L'azione non è reversibile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (deleteTarget) del.mutate(deleteTarget.id); }}
+            >
+              {del.isPending ? "Eliminazione…" : "Elimina"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ServiceBillingsDialog client={billClient} open={!!billClient} onOpenChange={(v) => { if (!v) setBillClient(null); }} />
     </div>
