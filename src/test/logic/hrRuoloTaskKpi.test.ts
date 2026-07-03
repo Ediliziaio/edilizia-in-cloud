@@ -41,11 +41,12 @@ describe("HR Ruolo/Task/KPI — migration schema", () => {
 });
 
 describe("HR Ruolo/Task/KPI — UI wiring", () => {
-  it("HrProfiloSheet monta il tab Ruolo & Obiettivi", () => {
+  it("HrProfiloSheet monta il tab Ruolo (obiettivi)", () => {
     const src = readFileSync(SHEET, "utf8");
     expect(src).toContain('value="ruolo"');
     expect(src).toContain("HrRuoloObiettiviTab");
-    expect(src).toContain("Ruolo & Obiettivi");
+    // La tab è etichettata "Ruolo" (icona Target) dopo il polish del header/tab.
+    expect(src).toContain('label: "Ruolo"');
   });
 
   it("esistono i 3 blocchi + il tab contenitore + il dialog catalogo", () => {
