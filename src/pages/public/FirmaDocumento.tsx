@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
-type Step = 'loading' | 'errore' | 'riepilogo' | 'otp' | 'b2c_recesso' | 'b2c_clausole' | 'firma' | 'successo' | 'gia_firmato';
+type Step = 'loading' | 'errore' | 'riepilogo' | 'otp' | 'b2c_recesso' | 'b2c_clausole' | 'firma' | 'successo' | 'gia_firmato' | 'rifiutato';
 
 export default function FirmaDocumento() {
   const { token } = useParams<{ token: string }>();
@@ -28,6 +28,9 @@ export default function FirmaDocumento() {
   const [verificaOtpInCorso, setVerificaOtpInCorso] = useState(false);
   const [firmaInCorso, setFirmaInCorso] = useState(false);
   const [firmaTimestamp, setFirmaTimestamp] = useState('');
+  const [rifiutoDialogAperto, setRifiutoDialogAperto] = useState(false);
+  const [rifiutoMotivo, setRifiutoMotivo] = useState('');
+  const [rifiutoInCorso, setRifiutoInCorso] = useState(false);
   const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -174,6 +177,25 @@ export default function FirmaDocumento() {
       toast.error(err instanceof Error ? err.message : 'Errore nella firma');
     } finally {
       setFirmaInCorso(false);
+    }
+  };
+
+  const confermaRifiuto = async () => {
+    setRifiutoInCorso(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fea-rifiuta-firma', {
+        body: {
+          token,
+          motivo: rifiutoMotivo.trim() || null,
+        },
+      });
+      if (error || data?.error) throw new Error(data?.error ?? 'Errore nel rifiuto del documento');
+      setRifiutoDialogAperto(false);
+      setStep('rifiutato');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Errore nel rifiuto del documento');
+    } finally {
+      setRifiutoInCorso(false);
     }
   };
 
@@ -468,6 +490,86 @@ export default function FirmaDocumento() {
         </Button>
         <p className="text-slate-400 text-xs text-center">
           La tua firma elettronica ha valore legale ai sensi del CAD e del Regolamento eIDAS
+        </p>
+        <div className="pt-2 border-t border-slate-100">
+          <Button
+            variant="outline"
+            className="w-full border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+            disabled={firmaInCorso}
+            onClick={() => { setRifiutoMotivo(''); setRifiutoDialogAperto(true); }}
+          >
+            Rifiuta il documento
+          </Button>
+        </div>
+      </div>
+
+      {rifiutoDialogAperto && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rifiuto-titolo"
+        >
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 space-y-4">
+            <div>
+              <h3 id="rifiuto-titolo" className="text-lg font-bold text-slate-800">Rifiuta il documento</h3>
+              <p className="text-slate-500 text-sm mt-1">
+                Stai per rifiutare la firma di questo documento. L&apos;azione è definitiva.
+              </p>
+            </div>
+            <div>
+              <label htmlFor="rifiuto-motivo" className="text-sm font-medium text-slate-700">
+                Motivo (opzionale)
+              </label>
+              <textarea
+                id="rifiuto-motivo"
+                value={rifiutoMotivo}
+                onChange={e => setRifiutoMotivo(e.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder="Es. i dati non sono corretti, importo errato..."
+                className="mt-1 w-full rounded-xl border-2 border-slate-200 p-3 text-sm outline-none focus:border-red-400 resize-none"
+              />
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row gap-2">
+              <Button
+                variant="outline"
+                className="w-full sm:flex-1"
+                disabled={rifiutoInCorso}
+                onClick={() => setRifiutoDialogAperto(false)}
+              >
+                Annulla
+              </Button>
+              <Button
+                className="w-full sm:flex-1 bg-red-600 hover:bg-red-700 text-white font-bold"
+                disabled={rifiutoInCorso}
+                onClick={confermaRifiuto}
+              >
+                {rifiutoInCorso ? (
+                  <><Loader2 className="h-4 w-4 animate-spin mr-2" />Rifiuto in corso...</>
+                ) : (
+                  'Conferma rifiuto'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Wrapper>
+  );
+
+  if (step === 'rifiutato') return (
+    <Wrapper>
+      <div className="flex flex-col items-center gap-4 py-6 text-center">
+        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
+          <AlertCircle className="h-10 w-10 text-red-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-800">Documento rifiutato</h2>
+        <p className="text-slate-600 text-sm max-w-xs">
+          Hai rifiutato la firma di questo documento. L&apos;azienda che ti ha inviato il link è stata informata.
+        </p>
+        <p className="text-slate-500 text-sm max-w-xs">
+          Non è richiesta nessuna ulteriore azione. Per assistenza contatta l&apos;azienda.
         </p>
       </div>
     </Wrapper>
