@@ -210,6 +210,13 @@ function PrimaNotaInner() {
               conto: e.category,
             }))}
             anno={new Date(fromDate).getFullYear()}
+            fetchAll={async () => (await fetchAllForExport()).map(e => ({
+              data: e.entry_date,
+              descrizione: e.description,
+              importo_dare: e.direction === 'uscita' ? Number(e.amount) : 0,
+              importo_avere: e.direction === 'entrata' ? Number(e.amount) : 0,
+              conto: e.category,
+            }))}
           />
           <Button
             variant="outline"
