@@ -27,6 +27,11 @@ export interface ServiceBilling {
   societa: string | null;
   stato: string;
   note: string | null;
+  provvigione_commerciale: string | null;
+  provvigione_pct: number | null;
+  provvigione_importo: number;
+  provvigione_stato: string;
+  provvigione_pagata_at: string | null;
 }
 
 const STATI = [
@@ -46,7 +51,7 @@ type Draft = Partial<ServiceBilling>;
 export function ServiceBillingsDialog({
   client, open, onOpenChange,
 }: {
-  client: { id: string; cliente_nome: string; importo: number } | null;
+  client: { id: string; cliente_nome: string; importo: number; commerciale?: string | null } | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
@@ -75,6 +80,11 @@ export function ServiceBillingsDialog({
       const payload = {
         service_client_id: client!.id, periodo: d.periodo, importo_dovuto: dovuto, importo_incassato: incassato,
         data_incasso: d.data_incasso || null, societa: d.societa?.trim() || null, stato, note: d.note ?? null,
+        provvigione_commerciale: d.provvigione_commerciale?.trim() || null,
+        provvigione_pct: d.provvigione_pct != null ? Number(d.provvigione_pct) : null,
+        provvigione_importo: Number(d.provvigione_importo) || 0,
+        provvigione_stato: d.provvigione_stato || "da_pagare",
+        provvigione_pagata_at: d.provvigione_stato === "pagata" ? (d.provvigione_pagata_at || new Date().toISOString().slice(0, 10)) : null,
         updated_at: new Date().toISOString(),
       };
       const t = sb().from("aedix_service_billings");
@@ -98,7 +108,7 @@ export function ServiceBillingsDialog({
   const openNew = () => {
     const now = new Date();
     const m = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    setForm({ periodo: fromMonthInput(m), importo_dovuto: client?.importo ?? 0, importo_incassato: 0, stato: "dovuto" });
+    setForm({ periodo: fromMonthInput(m), importo_dovuto: client?.importo ?? 0, importo_incassato: 0, stato: "dovuto", provvigione_commerciale: client?.commerciale ?? null, provvigione_stato: "da_pagare", provvigione_importo: 0 });
   };
   const canSave = !!form?.periodo;
 
@@ -129,6 +139,7 @@ export function ServiceBillingsDialog({
                   <div className="text-xs text-muted-foreground">
                     {eur(r.importo_incassato)} / {eur(r.importo_dovuto)}
                     {r.societa ? ` · ${r.societa}` : ""}
+                    {r.provvigione_importo > 0 ? ` · prov. ${eur(r.provvigione_importo)}${r.provvigione_commerciale ? ` (${r.provvigione_commerciale})` : ""} ${r.provvigione_stato === "pagata" ? "✓" : "⏳"}` : ""}
                   </div>
                 </div>
                 <span className={`rounded-full px-2 py-0.5 text-[11px] ${r.stato === "incassato" ? "bg-emerald-100 text-emerald-700" : r.stato === "parziale" ? "bg-amber-100 text-amber-700" : "bg-slate-200 text-slate-600"}`}>{r.stato}</span>
@@ -172,6 +183,38 @@ export function ServiceBillingsDialog({
               <Label>Data incasso</Label>
               <Input type="date" value={form.data_incasso ?? ""} onChange={(e) => setForm((f) => ({ ...f, data_incasso: e.target.value }))} />
             </div>
+
+            <div className="rounded-lg border border-dashed p-2.5">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Provvigione commerciale</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>Commerciale</Label>
+                  <Input value={form.provvigione_commerciale ?? ""} onChange={(e) => setForm((f) => ({ ...f, provvigione_commerciale: e.target.value }))} placeholder="Nome" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Stato</Label>
+                  <Select value={form.provvigione_stato ?? "da_pagare"} onValueChange={(v) => setForm((f) => ({ ...f, provvigione_stato: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="da_pagare">Da pagare</SelectItem><SelectItem value="pagata">Pagata</SelectItem></SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="mt-2.5 grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>% su incassato</Label>
+                  <Input type="number" value={form.provvigione_pct ?? ""} placeholder="es. 10"
+                    onChange={(e) => {
+                      const pct = e.target.value === "" ? null : Number(e.target.value);
+                      setForm((f) => ({ ...f, provvigione_pct: pct, provvigione_importo: pct != null ? Math.round(((Number(f.importo_incassato) || 0) * pct) / 100) : (f.provvigione_importo ?? 0) }));
+                    }} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label>Importo €</Label>
+                  <Input type="number" value={form.provvigione_importo ?? 0} onChange={(e) => setForm((f) => ({ ...f, provvigione_importo: Number(e.target.value) }))} />
+                </div>
+              </div>
+            </div>
+
             <div className="flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setForm(null)}>Annulla</Button>
               <Button size="sm" disabled={!canSave || save.isPending} onClick={() => save.mutate(form)} className="gap-2">

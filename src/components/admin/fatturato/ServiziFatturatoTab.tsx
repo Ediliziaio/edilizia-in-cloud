@@ -11,7 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { BrandTrendChart } from "@/components/admin/BrandTrendChart";
-import { Loader2, Package, TrendingUp, Wallet, Building2, Repeat } from "lucide-react";
+import { Loader2, Package, TrendingUp, Wallet, Building2, Repeat, Users, PiggyBank } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb = () => supabase as any;
@@ -19,7 +19,7 @@ const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", c
 const monthKey = (d: string) => d.slice(0, 7);
 const monthShort = (k: string) => new Date(k + "-01T00:00:00").toLocaleDateString("it-IT", { month: "short", year: "2-digit" });
 
-interface Billing { id: string; service_client_id: string; periodo: string; importo_dovuto: number; importo_incassato: number; societa: string | null; }
+interface Billing { id: string; service_client_id: string; periodo: string; importo_dovuto: number; importo_incassato: number; societa: string | null; provvigione_importo: number; provvigione_stato: string; provvigione_commerciale: string | null; }
 interface Client { id: string; product_line_id: string; importo: number; ricorrenza: string; stato: string; }
 interface Line { id: string; nome: string; categoria: string; colore: string | null; }
 
@@ -28,7 +28,7 @@ export function ServiziFatturatoTab() {
     queryKey: ["admin", "servizi-fatturato"],
     queryFn: async () => {
       const [b, c, l] = await Promise.all([
-        sb().from("aedix_service_billings").select("id,service_client_id,periodo,importo_dovuto,importo_incassato,societa"),
+        sb().from("aedix_service_billings").select("id,service_client_id,periodo,importo_dovuto,importo_incassato,societa,provvigione_importo,provvigione_stato,provvigione_commerciale"),
         sb().from("aedix_service_clients").select("id,product_line_id,importo,ricorrenza,stato"),
         sb().from("aedix_product_lines").select("id,nome,categoria,colore"),
       ]);
@@ -47,11 +47,12 @@ export function ServiziFatturatoTab() {
     const lineMap = new Map(lines.map((l) => [l.id, l]));
     const clientMap = new Map(clients.map((c) => [c.id, c]));
 
-    let dovuto = 0, incassato = 0;
+    let dovuto = 0, incassato = 0, provTot = 0, provDaPagare = 0;
     const perServizio = new Map<string, { nome: string; colore: string | null; dovuto: number; incassato: number }>();
     const perCategoria = new Map<string, { dovuto: number; incassato: number }>();
     const perSocieta = new Map<string, { dovuto: number; incassato: number }>();
     const perMese = new Map<string, { dovuto: number; incassato: number }>();
+    const perCommerciale = new Map<string, { tot: number; daPagare: number }>();
 
     for (const b of billings) {
       const d = Number(b.importo_dovuto) || 0, i = Number(b.importo_incassato) || 0;
@@ -67,6 +68,15 @@ export function ServiziFatturatoTab() {
       const sc = perSocieta.get(soc) ?? { dovuto: 0, incassato: 0 }; sc.dovuto += d; sc.incassato += i; perSocieta.set(soc, sc);
       const mk = monthKey(b.periodo);
       const mm = perMese.get(mk) ?? { dovuto: 0, incassato: 0 }; mm.dovuto += d; mm.incassato += i; perMese.set(mk, mm);
+      const prov = Number(b.provvigione_importo) || 0;
+      if (prov > 0) {
+        provTot += prov;
+        if (b.provvigione_stato !== "pagata") provDaPagare += prov;
+        const comm = b.provvigione_commerciale?.trim() || "Non assegnato";
+        const pc = perCommerciale.get(comm) ?? { tot: 0, daPagare: 0 };
+        pc.tot += prov; if (b.provvigione_stato !== "pagata") pc.daPagare += prov;
+        perCommerciale.set(comm, pc);
+      }
     }
 
     // Ricorrente attivo (stima MRR servizi) dai clienti-servizio attivi
@@ -77,8 +87,10 @@ export function ServiziFatturatoTab() {
 
     return {
       dovuto, incassato, mrr,
+      provTot, provDaPagare, margineNetto: incassato - provTot,
       servizi: Array.from(perServizio.values()).sort((a, b) => b.dovuto - a.dovuto),
       societa: Array.from(perSocieta.entries()).map(([nome, v]) => ({ nome, ...v })).sort((a, b) => b.incassato - a.incassato),
+      commerciali: Array.from(perCommerciale.entries()).map(([nome, v]) => ({ nome, ...v })).sort((a, b) => b.tot - a.tot),
       trend,
       hasData: billings.length > 0,
     };
@@ -92,12 +104,14 @@ export function ServiziFatturatoTab() {
     { l: "Fatturato servizi", v: eur(agg.dovuto), icon: TrendingUp, grad: "from-blue-500 to-indigo-500" },
     { l: "Incassato", v: eur(agg.incassato), icon: Wallet, grad: "from-emerald-500 to-teal-400" },
     { l: "Da incassare", v: eur(Math.max(0, agg.dovuto - agg.incassato)), icon: Package, grad: "from-orange-500 to-amber-400" },
+    { l: "Provvigioni da pagare", v: eur(agg.provDaPagare), icon: Users, grad: "from-rose-500 to-red-400" },
+    { l: "Margine netto", v: eur(agg.margineNetto), icon: PiggyBank, grad: "from-teal-500 to-emerald-400" },
     { l: "Ricorrente ~mese", v: eur(agg.mrr), icon: Repeat, grad: "from-violet-500 to-purple-400" },
   ];
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         {kpis.map((k) => (
           <Card key={k.l} className="relative overflow-hidden">
             <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${k.grad}`} />
@@ -139,7 +153,7 @@ export function ServiziFatturatoTab() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-3">
             <Card>
               <CardContent className="p-4 sm:p-5">
                 <div className="mb-3 flex items-center gap-2 text-sm font-semibold"><Package className="h-4 w-4" /> Per servizio</div>
@@ -173,6 +187,27 @@ export function ServiziFatturatoTab() {
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4 sm:p-5">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold"><Users className="h-4 w-4" /> Provvigioni per commerciale</div>
+                {agg.commerciali.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">Nessuna provvigione registrata.<br />Assegna un commerciale e la % negli Incassi.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {agg.commerciali.map((c) => (
+                      <div key={c.nome} className="flex items-center justify-between rounded-lg border p-2.5 text-sm">
+                        <span className="inline-flex items-center gap-1.5"><Users className="h-3.5 w-3.5 text-muted-foreground" />{c.nome}</span>
+                        <span className="text-right tabular-nums">
+                          <span className="font-medium">{eur(c.tot)}</span>
+                          {c.daPagare > 0 && <span className="ml-1.5 rounded-full bg-rose-500/10 px-1.5 py-0.5 text-[11px] font-medium text-rose-600">{eur(c.daPagare)} da pagare</span>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

@@ -36,6 +36,7 @@ interface ServiceClient {
   contact_id: string | null;
   company_id: string | null;
   cliente_nome: string;
+  commerciale: string | null;
   billing_model: string;
   importo: number;
   provvigione_pct: number | null;
@@ -71,7 +72,7 @@ export default function AdminServiceClients() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [clientQuery, setClientQuery] = useState("");
-  const [billClient, setBillClient] = useState<{ id: string; cliente_nome: string; importo: number } | null>(null);
+  const [billClient, setBillClient] = useState<{ id: string; cliente_nome: string; importo: number; commerciale?: string | null } | null>(null);
   const isEdit = !!draft.id;
 
   const { data: lines = [] } = useQuery({
@@ -124,6 +125,7 @@ export default function AdminServiceClients() {
       const payload = {
         product_line_id: d.product_line_id, package_id: d.package_id ?? null,
         contact_id: d.contact_id ?? null, company_id: d.company_id ?? null, cliente_nome: d.cliente_nome,
+        commerciale: d.commerciale?.trim() || null,
         billing_model: d.billing_model, importo: Number(d.importo) || 0,
         provvigione_pct: d.billing_model === "provvigione" ? (Number(d.provvigione_pct) || 0) : null,
         ricorrenza: d.ricorrenza, stato: d.stato, data_inizio: d.data_inizio, data_fine: d.data_fine ?? null,
@@ -226,7 +228,7 @@ export default function AdminServiceClients() {
                         <TableCell><Badge variant="secondary" className={`border-0 ${STATI[r.stato] ?? ""}`}>{r.stato}</Badge></TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBillClient({ id: r.id, cliente_nome: r.cliente_nome, importo: r.importo })} aria-label="Incassi" title="Registro incassi"><Wallet className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBillClient({ id: r.id, cliente_nome: r.cliente_nome, importo: r.importo, commerciale: r.commerciale })} aria-label="Incassi" title="Registro incassi"><Wallet className="h-4 w-4" /></Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)} aria-label="Modifica"><Pencil className="h-4 w-4" /></Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => { if (confirm(`Eliminare "${r.cliente_nome}"?`)) del.mutate(r.id); }} aria-label="Elimina"><Trash2 className="h-4 w-4" /></Button>
                           </div>
@@ -339,6 +341,10 @@ export default function AdminServiceClients() {
                   </Select>
                 </div>
               )}
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Commerciale</Label>
+              <Input value={draft.commerciale ?? ""} onChange={(e) => setDraft((d) => ({ ...d, commerciale: e.target.value }))} placeholder="Chi ha portato/gestisce il cliente (per le provvigioni)" />
             </div>
             <div className="grid gap-1.5">
               <Label>Note</Label>
