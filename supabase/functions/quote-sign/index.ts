@@ -127,6 +127,26 @@ Deno.serve(async (req) => {
           });
         }
 
+        // Guard anti-bypass OTP: se per questo preventivo esiste una richiesta FEA
+        // attiva (firma con codice OTP), la firma legacy col solo nome NON è
+        // ammessa — altrimenti si aggirerebbe la verifica OTP. Il cliente deve
+        // usare il link di firma elettronica ricevuto via email.
+        const { data: feaAttiva } = await supabaseAdmin
+          .from("signature_requests")
+          .select("id")
+          .eq("quote_id", quote.id)
+          .eq("tipo_documento", "quote")
+          .in("status", ["pending", "otp_verified"])
+          .limit(1)
+          .maybeSingle();
+
+        if (feaAttiva) {
+          return errorResponse(
+            "Questo preventivo richiede la firma con codice OTP: usa il link di firma elettronica ricevuto via email.",
+            409,
+          );
+        }
+
         if (!signed_by_name || signed_by_name.trim().length < 2) {
           return errorResponse("Nome obbligatorio per la firma");
         }

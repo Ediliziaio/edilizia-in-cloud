@@ -1,6 +1,44 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/headers.ts";
 
+// Risolve l'utente "proprietario" del documento a cui inviare la notifica:
+//  - quote → quotes.assigned_to || quotes.created_by
+//  - order/odv/fv → orders.assigned_to || orders.created_by
+//  - fallback → signature_requests.created_by
+// deno-lint-ignore no-explicit-any
+async function risolviOwner(admin: any, sigReq: {
+  created_by?: string | null;
+  tipo_documento?: string | null;
+  quote_id?: string | null;
+  order_id?: string | null;
+}): Promise<string | null> {
+  try {
+    if (sigReq.tipo_documento === "quote" && sigReq.quote_id) {
+      const { data } = await admin
+        .from("quotes")
+        .select("created_by, assigned_to")
+        .eq("id", sigReq.quote_id)
+        .single();
+      const owner = data?.assigned_to || data?.created_by;
+      if (owner) return owner;
+    } else if (
+      (sigReq.tipo_documento === "order" || sigReq.tipo_documento === "odv" || sigReq.tipo_documento === "fv") &&
+      sigReq.order_id
+    ) {
+      const { data } = await admin
+        .from("orders")
+        .select("created_by, assigned_to")
+        .eq("id", sigReq.order_id)
+        .single();
+      const owner = data?.assigned_to || data?.created_by;
+      if (owner) return owner;
+    }
+  } catch (e) {
+    console.warn("risolviOwner lookup error:", e);
+  }
+  return sigReq.created_by ?? null;
+}
+
 Deno.serve(async (req: Request) => {
   const corsH = getCorsHeaders(req);
 
@@ -38,7 +76,7 @@ Deno.serve(async (req: Request) => {
     // Carica signature_request via token
     const { data: sigReq, error: fetchErr } = await supabaseAdmin
       .from("signature_requests")
-      .select("id, status, company_id, quote_id")
+      .select("id, status, company_id, quote_id, order_id, tipo_documento, signer_name, created_by")
       .eq("token", token)
       .single();
 
@@ -110,6 +148,29 @@ Deno.serve(async (req: Request) => {
       if (quoteUpdateErr) {
         console.error("fea-rifiuta-firma quote sync error:", quoteUpdateErr);
       }
+    }
+
+    // Notifica interna al titolare del documento: la firma è stata rifiutata.
+    // Non bloccante: un errore qui non deve invalidare il rifiuto già registrato.
+    try {
+      const ownerId = await risolviOwner(supabaseAdmin, sigReq);
+      if (ownerId) {
+        const signerLabel = sigReq.signer_name ?? "il cliente";
+        await supabaseAdmin.rpc("create_notification", {
+          p_company_id: sigReq.company_id,
+          p_user_id: ownerId,
+          p_type: "documento_rifiutato",
+          p_title: `Documento rifiutato da ${signerLabel}`,
+          p_body: motivoPulito
+            ? `${signerLabel} ha rifiutato la firma del documento. Motivo: ${motivoPulito}`
+            : `${signerLabel} ha rifiutato la firma del documento.`,
+          p_entity_type: "signature_request",
+          p_entity_id: sigReq.id,
+          p_action_url: "/azienda/firma-elettronica",
+        });
+      }
+    } catch (notifyErr) {
+      console.warn("fea-rifiuta-firma notify owner error:", notifyErr);
     }
 
     return new Response(

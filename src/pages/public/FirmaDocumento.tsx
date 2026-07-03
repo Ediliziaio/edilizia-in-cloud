@@ -12,6 +12,29 @@ import { it } from 'date-fns/locale';
 
 type Step = 'loading' | 'errore' | 'riepilogo' | 'otp' | 'b2c_recesso' | 'b2c_clausole' | 'firma' | 'successo' | 'gia_firmato' | 'rifiutato';
 
+// Testo di recesso di fallback (14 giorni, art. 52 Cod. Consumo): usato quando
+// l'azienda non ha una riga fea_configurazione con b2c_testo_recesso.
+const RECESSO_FALLBACK =
+  'Hai diritto di recedere dal presente contratto entro 14 giorni senza dover fornire alcuna motivazione. Il periodo di recesso scade dopo 14 giorni dalla conclusione del contratto. Per esercitare il diritto di recesso sei tenuto a informare l\'azienda della tua decisione mediante una dichiarazione esplicita (ad es. una lettera inviata per posta o un\'email).';
+
+// Su risposta non-2xx, supabase.functions.invoke restituisce un FunctionsHttpError
+// SENZA body parsato: error.message è il generico inglese "Edge Function returned a
+// non-2xx status code". Il corpo reale (con il nostro { error } in italiano) è
+// leggibile da error.context. Questa helper lo estrae; se non c'è, torna al
+// fallback italiano generico passato dal chiamante.
+async function messaggioErroreEdge(error: unknown, fallback: string): Promise<string> {
+  try {
+    const ctx = (error as { context?: { json?: () => Promise<unknown> } })?.context;
+    if (ctx?.json) {
+      const data = (await ctx.json()) as { error?: string } | null;
+      if (data?.error) return data.error;
+    }
+  } catch {
+    // corpo non leggibile o già consumato: usa il fallback
+  }
+  return fallback;
+}
+
 export default function FirmaDocumento() {
   const { token } = useParams<{ token: string }>();
   const [step, setStep] = useState<Step>('loading');
@@ -73,7 +96,8 @@ export default function FirmaDocumento() {
       const { data, error } = await supabase.functions.invoke('fea-documento-pubblico', {
         body: { token },
       });
-      if (error || !data) throw new Error(error?.message ?? 'Link non valido');
+      if (error) throw new Error(await messaggioErroreEdge(error, 'Link non valido'));
+      if (!data) throw new Error('Link non valido');
       if (data.error) throw new Error(data.error);
       // Documento già firmato: solo schermata di conferma, niente flusso di firma
       if (data.already_signed || data.status === 'signed') {
@@ -97,7 +121,8 @@ export default function FirmaDocumento() {
       const { data, error } = await supabase.functions.invoke('fea-genera-otp', {
         body: { request_id: sessione!.request_id, azienda_nome: sessione!.azienda_nome },
       });
-      if (error || data?.error) throw new Error(data?.error ?? 'Errore invio OTP');
+      if (error) throw new Error(await messaggioErroreEdge(error, 'Errore invio OTP'));
+      if (data?.error) throw new Error(data.error);
       setOtpTimer(600);
       setOtpDigits(['', '', '', '', '', '']);
       setStep('otp');
@@ -135,13 +160,14 @@ export default function FirmaDocumento() {
       const { data, error } = await supabase.functions.invoke('fea-verifica-otp', {
         body: { token, otp: otpValue },
       });
-      if (error || data?.error) throw new Error(data?.error ?? 'Codice non corretto');
-      // OTP verificato — passa allo step successivo
+      if (error) throw new Error(await messaggioErroreEdge(error, 'Codice non corretto'));
+      if (data?.error) throw new Error(data.error);
+      // OTP verificato — passa allo step successivo.
+      // B2C: mostra SEMPRE lo step recesso (il consenso è obbligatorio lato server).
+      // Se l'azienda non ha configurato il testo, lo step usa il fallback di legge.
       const isB2c = sessione?.tipo_firmatario === 'b2c';
-      if (isB2c && sessione?.b2c_testo_recesso) {
+      if (isB2c) {
         setStep('b2c_recesso');
-      } else if (isB2c && (sessione?.b2c_clausole?.length ?? 0) > 0) {
-        setStep('b2c_clausole');
       } else {
         setStep('firma');
       }
@@ -170,7 +196,8 @@ export default function FirmaDocumento() {
           b2c_clausole_approvate: sessione?.tipo_firmatario === 'b2c' ? clausoleApprovate : null,
         },
       });
-      if (error || data?.error) throw new Error(data?.error ?? 'Errore nella firma');
+      if (error) throw new Error(await messaggioErroreEdge(error, 'Errore nella firma'));
+      if (data?.error) throw new Error(data.error);
       setFirmaTimestamp(data.firma_timestamp ?? new Date().toISOString());
       setStep('successo');
     } catch (err) {
@@ -189,7 +216,8 @@ export default function FirmaDocumento() {
           motivo: rifiutoMotivo.trim() || null,
         },
       });
-      if (error || data?.error) throw new Error(data?.error ?? 'Errore nel rifiuto del documento');
+      if (error) throw new Error(await messaggioErroreEdge(error, 'Errore nel rifiuto del documento'));
+      if (data?.error) throw new Error(data.error);
       setRifiutoDialogAperto(false);
       setStep('rifiutato');
     } catch (err) {
@@ -382,7 +410,7 @@ export default function FirmaDocumento() {
           <p className="text-slate-500 text-sm mt-1">Leggi attentamente prima di procedere</p>
         </div>
         <div className="bg-blue-50 rounded-xl p-4 text-sm text-slate-700 max-h-48 overflow-y-auto leading-relaxed">
-          {sessione.b2c_testo_recesso ?? 'Hai diritto di recedere dal presente contratto entro 14 giorni senza dover fornire alcuna motivazione. Il periodo di recesso scade dopo 14 giorni dalla conclusione del contratto.'}
+          {sessione.b2c_testo_recesso ?? RECESSO_FALLBACK}
         </div>
         <div className="flex items-start gap-3">
           <Checkbox
