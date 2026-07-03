@@ -88,6 +88,9 @@ export interface HrProfilo {
   contatto_emergenza_telefono: string | null;
   ccnl: string;
   note_interne: string | null;
+  // Ruolo & obiettivi (mansionario)
+  mansione_id?: string | null;
+  responsabilita?: string[];
   // joined
   sede?: HrSede;
   responsabile?: HrProfilo;
@@ -101,6 +104,91 @@ export interface HrProfilo {
 export interface OrgTreeNode extends HrProfilo {
   children: OrgTreeNode[];
   depth: number;
+}
+
+// ── Ruolo, Task e KPI per persona ──────────────────────────────────────────
+export type KpiUnita = "num" | "%" | "ore" | "€";
+export type KpiDirezione = "su" | "giu";
+export type KpiPeriodo = "mensile" | "trimestrale" | "annuale";
+export type KpiTipo = "manuale" | "auto";
+export type KpiAutoMetric = "presenza_pct" | "ore_mese" | "task_completati";
+export type TaskPriorita = "bassa" | "media" | "alta";
+export type TaskStato = "da_fare" | "in_corso" | "fatto" | "annullato";
+
+/** Voce KPI suggerita dal catalogo mansione (jsonb in hr_mansioni.kpi_suggeriti). */
+export interface KpiSuggerito {
+  nome: string;
+  unita: KpiUnita;
+  target: number | null;
+  direzione: KpiDirezione;
+  periodo: KpiPeriodo;
+}
+
+/** Risultato della RPC hr_persona_kpi_auto. */
+export interface KpiAuto {
+  presenza_pct: number;
+  ore_mese: number;
+  task_completati: number;
+  task_totali: number;
+}
+
+/** Catalogo ruoli riutilizzabili (hr_mansioni). */
+export interface HrMansione {
+  id: string;
+  company_id: string;
+  nome: string;
+  area: string | null;
+  descrizione: string | null;
+  responsabilita: string[];
+  kpi_suggeriti: KpiSuggerito[];
+  attivo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Task/obiettivo assegnato a una persona (hr_task). */
+export interface HrTask {
+  id: string;
+  company_id: string;
+  profilo_id: string;
+  titolo: string;
+  descrizione: string | null;
+  priorita: TaskPriorita;
+  scadenza: string | null;
+  stato: TaskStato;
+  order_id: string | null;
+  created_by: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Definizione KPI per persona (hr_kpi). */
+export interface HrKpi {
+  id: string;
+  company_id: string;
+  profilo_id: string;
+  nome: string;
+  unita: KpiUnita;
+  target: number | null;
+  direzione: KpiDirezione;
+  periodo: KpiPeriodo;
+  tipo: KpiTipo;
+  auto_metric: KpiAutoMetric | null;
+  origine_mansione_id: string | null;
+  attivo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Valore storicizzato di un KPI manuale (hr_kpi_valori). */
+export interface HrKpiValore {
+  id: string;
+  kpi_id: string;
+  periodo_label: string;
+  valore: number;
+  note: string | null;
+  created_at: string;
 }
 
 export interface HrTimbratura {

@@ -15,6 +15,7 @@ import { useHrSedi } from "@/hooks/useHrSedi";
 import type { HrProfilo } from "@/types/hr";
 import { HrDocumentiSection } from "@/components/hr/HrDocumentiSection";
 import { HrAssenzeSection } from "@/components/hr/HrAssenzeSection";
+import { HrRuoloObiettiviTab } from "@/components/hr/HrRuoloObiettiviTab";
 import { Save, Loader2, Info } from "lucide-react";
 import { toast } from "sonner";
 
@@ -194,8 +195,9 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
         </SheetHeader>
 
         <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col min-h-0">
-          <TabsList className="mx-6 self-start">
+          <TabsList className="mx-6 self-start flex-wrap h-auto">
             <TabsTrigger value="anagrafica">Anagrafica</TabsTrigger>
+            <TabsTrigger value="ruolo" disabled={!isEditing}>Ruolo & Obiettivi</TabsTrigger>
             <TabsTrigger value="documenti" disabled={!isEditing}>Documenti & Scadenze</TabsTrigger>
             <TabsTrigger value="assenze" disabled={!isEditing}>Assenze</TabsTrigger>
           </TabsList>
@@ -377,6 +379,15 @@ export function HrProfiloSheet({ open, onOpenChange, profilo, allProfili }: Prop
                 </Button>
               </div>
             </form>
+          </TabsContent>
+
+          {/* ── RUOLO & OBIETTIVI ───────────────────────────────────────── */}
+          <TabsContent value="ruolo" className="flex-1 min-h-0 m-0">
+            <ScrollArea className="h-full px-6"><div className="py-4">
+              {isEditing && profilo
+                ? <HrRuoloObiettiviTab profilo={profilo} />
+                : <p className="text-sm text-muted-foreground py-8 text-center">Salva prima il profilo per gestire ruolo e obiettivi.</p>}
+            </div></ScrollArea>
           </TabsContent>
 
           {/* ── DOCUMENTI & SCADENZE ────────────────────────────────────── */}
