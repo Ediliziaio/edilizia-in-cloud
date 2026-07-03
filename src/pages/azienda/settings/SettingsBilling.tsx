@@ -27,6 +27,10 @@ const PROVIDERS = [
   { value: "acube", label: "A-Cube (SDI) · beta", authType: "userpass", icon: "🧊" },
 ] as const;
 
+// Provider che importano anche le fatture RICEVUTE (il "cassetto fiscale" di fatto:
+// le fatture del cassetto AdE passano tutte dallo SDI, e questi provider le espongono).
+const IMPORTA_RICEVUTE = new Set(["fattureincloud", "aruba"]);
+
 // Istruzioni per-provider: dove l'azienda trova la PROPRIA chiave/token (ognuna
 // usa le proprie credenziali, nessuna app a livello piattaforma serve qui).
 const PROVIDER_HELP: Record<string, { text: string; link: string; linkLabel: string; warn?: string }> = {
@@ -41,7 +45,7 @@ const PROVIDER_HELP: Record<string, { text: string; link: string; linkLabel: str
     linkLabel: "Doc Invoicetronic",
   },
   aruba: {
-    text: "Usa le credenziali del tuo account Aruba Fatturazione Elettronica (lo stesso username e password con cui accedi al pannello). EiC le usa per leggere le fatture emesse e lo stato SDI — non lo stato di pagamento.",
+    text: "Usa le credenziali del tuo account Aruba Fatturazione Elettronica (lo stesso username e password con cui accedi al pannello). EiC legge le fatture EMESSE e RICEVUTE (cassetto SDI) e lo stato SDI — non lo stato di pagamento. Nota: la lista Aruba non include gli importi delle ricevute (sono nell'XML).",
     link: "https://fatturazioneelettronica.aruba.it/apidoc/docs.html",
     linkLabel: "Doc API Aruba",
     warn: "Servono le credenziali di un utente abilitato ai Web Service Aruba: verifica nel pannello Aruba che l'accesso alle API sia attivo.",
@@ -431,6 +435,26 @@ export default function SettingsBilling() {
             </TabsList>
 
             <TabsContent value="integrations" className="space-y-4 mt-4">
+              {/* ── Cassetto fiscale (fatture ricevute) ─────────────────────
+                  L'Agenzia delle Entrate non espone API pubbliche per il cassetto
+                  fiscale (solo SPID/CIE/Entratel). Le stesse fatture però passano
+                  tutte dallo SDI: collegando un provider che le espone, emesse e
+                  ricevute arrivano qui in automatico. */}
+              <Card className="border-blue-100 bg-blue-50/40">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    🗄️ Cassetto fiscale — fatture emesse e ricevute
+                  </CardTitle>
+                  <CardDescription>
+                    Le fatture del cassetto fiscale AdE passano tutte dallo SDI. L'Agenzia delle
+                    Entrate non offre un collegamento diretto (si entra solo con SPID/CIE): collega
+                    un provider con il bollino <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-[10px] align-middle">Emesse + Ricevute</Badge>{" "}
+                    e le trovi in <strong>Fatturazione → Fatture ricevute</strong>, senza inserirle a mano.
+                    Con gli altri provider vengono importate solo le emesse.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
               {/* Connected providers */}
               {isLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
@@ -465,6 +489,9 @@ export default function SettingsBilling() {
                                     <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">Attivo</Badge>
                                   ) : (
                                     <Badge variant="secondary" className="text-xs">Disattivato</Badge>
+                                  )}
+                                  {IMPORTA_RICEVUTE.has(integ.provider) && (
+                                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-xs">Emesse + Ricevute</Badge>
                                   )}
                                 </CardTitle>
                                 <CardDescription className="text-xs">
@@ -547,7 +574,7 @@ export default function SettingsBilling() {
                         <SelectContent>
                           {PROVIDERS.map((p) => (
                             <SelectItem key={p.value} value={p.value}>
-                              {p.icon} {p.label}
+                              {p.icon} {p.label}{IMPORTA_RICEVUTE.has(p.value) ? " · Emesse + Ricevute" : ""}
                             </SelectItem>
                           ))}
                         </SelectContent>
