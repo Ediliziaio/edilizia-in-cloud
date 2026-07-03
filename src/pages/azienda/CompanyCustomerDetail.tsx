@@ -151,9 +151,11 @@ export default function CompanyCustomerDetail() {
         .select("id, first_name, last_name, email, phone, address, fiscal_code, site_address, notes, company_id, created_at, salesperson_id, is_business, business_name, city, postal_code, province, country, site_city, site_postal_code, site_province")
         .eq("id", id!)
         .eq("company_id", effectiveCompany.id);
-      const { data, error } = await query.single();
+      // maybeSingle: un cliente inesistente ritorna null (→ "non trovato") invece
+      // di lanciare PGRST116, così un vero errore DB/RLS resta distinguibile.
+      const { data, error } = await query.maybeSingle();
       if (error) throw error;
-      return data as unknown as CustomerProfile;
+      return data as unknown as CustomerProfile | null;
     },
     enabled: !!id && !!effectiveCompany?.id,
   });
@@ -451,11 +453,14 @@ export default function CompanyCustomerDetail() {
   const { data: linkedContact } = useQuery({
     queryKey: ["linked-marketing-contact", customer?.marketing_contact_id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("marketing_contacts")
         .select("id, first_name, last_name, source, lead_score, contact_type, created_at, attr_campaign, tags")
         .eq("id", customer!.marketing_contact_id!)
-        .single();
+        .maybeSingle();
+      // Il contatto collegato può essere stato cancellato: maybeSingle ritorna null
+      // senza errore; un errore reale invece va propagato, non ingoiato.
+      if (error) throw error;
       return data;
     },
     enabled: !!customer?.marketing_contact_id,

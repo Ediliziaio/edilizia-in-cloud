@@ -52,7 +52,7 @@ export function SmsCompose() {
   const onSubmit = (values: FormValues) => {
     sendSms(
       { to_number: values.to_number, body: values.body },
-      { onSuccess: () => reset() }
+      { onSuccess: () => { reset(); setCharCount(0); } }
     );
   };
 

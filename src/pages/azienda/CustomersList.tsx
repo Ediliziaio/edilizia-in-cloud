@@ -1684,6 +1684,7 @@ function CustomersListInner() {
                         <Select
                           value={customer.salesperson_id || "none"}
                           onValueChange={(val) => handleInlineSalesperson(customer.id, val)}
+                          disabled={assignSalespersonMutation.isPending}
                         >
                           <SelectTrigger className="h-8 w-[150px] text-xs">
                             <SelectValue />
