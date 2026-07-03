@@ -11,7 +11,7 @@
  */
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   ArrowLeft, ChevronRight, ChevronLeft,
@@ -25,6 +25,14 @@ import { useGPS } from "@/hooks/useGPS";
 import { FirmaPad } from "@/components/campo/FirmaPad";
 
 const TOTAL_STEPS = 3;
+
+// Fase della commessa su cui l'operaio può dichiarare l'avanzamento
+interface FaseCommessa {
+  id: string;
+  name: string;
+  status: "da_iniziare" | "in_corso" | "completata";
+  percentuale: number;
+}
 
 /**
  * Compressione immagine lato client con gestione completa degli errori:
@@ -80,6 +88,8 @@ export default function CampoRapportino() {
   const [oreLavorate, setOreLavorate] = useState(8);
   const [oreStraordinario, setOreStraordinario] = useState(0);
   const [percentuale, setPercentuale] = useState(0);
+  // Fasi dichiarate: phase_id → nuovo avanzamento raggiunto (0-100)
+  const [fasiDichiarate, setFasiDichiarate] = useState<Record<string, number>>({});
   const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
   const [fotoUrls, setFotoUrls] = useState<string[]>([]);
   const [uploadingFoto, setUploadingFoto] = useState(false);
@@ -104,6 +114,44 @@ export default function CampoRapportino() {
     if (profile?.company_id) requestPosition();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.company_id]);
+
+  // ── Fasi della commessa (order_work_phases) ─────────────────────────
+  // Select minima: l'operaio dichiara solo su quali fasi ha lavorato e il
+  // nuovo avanzamento raggiunto. Se la commessa non ha fasi, il blocco
+  // non viene mostrato (zero regressioni sul flusso esistente).
+  const { data: fasiCommessa = [] } = useQuery({
+    queryKey: ["campo-fasi-commessa", orderId],
+    enabled: !!orderId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<FaseCommessa[]> => {
+      // order_work_phases.percentuale non è nei tipi generati → cast
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("order_work_phases")
+        .select("id, name, status, percentuale")
+        .eq("order_id", orderId)
+        .order("position", { ascending: true });
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map((p) => ({
+        id: p.id as string,
+        name: (p.name as string) ?? "",
+        status: (p.status as FaseCommessa["status"]) ?? "da_iniziare",
+        percentuale: Number(p.percentuale) || 0,
+      }));
+    },
+  });
+
+  // Solo le fasi non completate sono dichiarabili
+  const fasiDichiarabili = fasiCommessa.filter(f => f.status !== "completata");
+
+  const toggleFase = (fase: FaseCommessa) => {
+    setFasiDichiarate(prev => {
+      const next = { ...prev };
+      if (fase.id in next) delete next[fase.id];
+      else next[fase.id] = fase.percentuale; // slider precompilato con l'attuale
+      return next;
+    });
+  };
 
   // ── Upload foto ──────────────────────────────────────────────────────
   const handleFotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,6 +248,12 @@ export default function CampoRapportino() {
         throw new Error("Non puoi inviare rapportini per un lavoro non assegnato");
       }
 
+      // Fasi dichiarate dall'operaio: [{phase_id, percentuale}] (Fase C)
+      const fasiLavorate = Object.entries(fasiDichiarate).map(([phase_id, percentuale]) => ({
+        phase_id,
+        percentuale,
+      }));
+
       // ── Firme (solo fine lavori): dataURL → PNG → bucket campo-rapportini ──
       let firmaClienteUrl: string | null = null;
       let firmaOperaioUrl: string | null = null;
@@ -248,6 +302,8 @@ export default function CampoRapportino() {
           gps_accuracy: accuracy || null,
           meteo: meteo || null,
           stato: "inviato",
+          // Fasi su cui l'operaio ha lavorato: se non ne dichiara, payload invariato
+          ...(fasiLavorate.length > 0 ? { fasi_lavorate: fasiLavorate } : {}),
           // Firme SOLO sul fine lavori: il payload del giornaliero resta invariato
           ...(lavoro_completato && firmaClienteUrl
             ? {
@@ -262,6 +318,48 @@ export default function CampoRapportino() {
         .single();
 
       if (error) throw error;
+
+      // ── Avanzamento fasi dichiarate: GREATEST(attuale, dichiarata) ──
+      // Mai regredire; rilettura fresca dal DB (la cache può essere stantia).
+      // Errori: console.warn, non bloccano mai l'invio del rapportino.
+      if (fasiLavorate.length > 0) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = supabase as any;
+          const { data: fresche, error: frescheErr } = await db
+            .from("order_work_phases")
+            .select("id, status, percentuale")
+            .in("id", fasiLavorate.map(f => f.phase_id));
+          if (frescheErr) throw frescheErr;
+          const byId = new Map(
+            ((fresche ?? []) as { id: string; status: string; percentuale: number | null }[])
+              .map(f => [f.id, f]),
+          );
+
+          for (const dich of fasiLavorate) {
+            try {
+              const attuale = byId.get(dich.phase_id);
+              const nuova = Math.max(Number(attuale?.percentuale) || 0, dich.percentuale);
+              const patch: Record<string, unknown> = {
+                percentuale: nuova,
+                updated_at: new Date().toISOString(),
+              };
+              // Status: completata a 100, in_corso se >0 — mai in regressione
+              if (nuova >= 100) patch.status = "completata";
+              else if (nuova > 0 && attuale?.status !== "completata") patch.status = "in_corso";
+              const { error: faseErr } = await db
+                .from("order_work_phases")
+                .update(patch)
+                .eq("id", dich.phase_id);
+              if (faseErr) throw faseErr;
+            } catch (err) {
+              console.warn("[CampoRapportino] aggiornamento fase non riuscito:", err);
+            }
+          }
+        } catch (err) {
+          console.warn("[CampoRapportino] aggiornamento fasi non riuscito:", err);
+        }
+      }
 
       if (inserted?.id) {
         const actorName = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || profile.email || "Operatore campo";
@@ -359,6 +457,11 @@ export default function CampoRapportino() {
       queryClient.invalidateQueries({ queryKey: ["campo-rapportini-ordine", orderId] });
       queryClient.invalidateQueries({ queryKey: ["order-events", companyId, orderId] });
       queryClient.invalidateQueries({ queryKey: ["order-diary-audit", orderId, companyId] });
+      // Fasi aggiornate dal rapportino: riallinea lavorazioni + semaforo tempi
+      queryClient.invalidateQueries({ queryKey: ["order_work_phases", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["order-phases-progress", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["order-schedule-health", orderId] });
+      queryClient.invalidateQueries({ queryKey: ["campo-fasi-commessa", orderId] });
       navigate(`/campo/lavoro/${orderId}`);
     },
     onError: () => {
@@ -505,6 +608,60 @@ export default function CampoRapportino() {
                 <span>100%</span>
               </div>
             </div>
+
+            {/* ── Fasi lavorate (solo se la commessa ha fasi non completate) ── */}
+            {fasiDichiarabili.length > 0 && (
+              <div className="rounded-2xl border bg-background p-4 shadow-sm">
+                <p className="text-sm font-semibold text-foreground">Su cosa hai lavorato oggi?</p>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Tocca le fasi e indica l'avanzamento raggiunto (facoltativo)
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {fasiDichiarabili.map(fase => {
+                    const selected = fase.id in fasiDichiarate;
+                    return (
+                      <button
+                        key={fase.id}
+                        type="button"
+                        onClick={() => toggleFase(fase)}
+                        className={`rounded-full border px-3 py-2 text-sm transition-colors ${
+                          selected
+                            ? "border-primary bg-primary/10 font-semibold text-primary"
+                            : "border-border bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {fase.name}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {fasiDichiarabili.filter(f => f.id in fasiDichiarate).map(fase => (
+                  <div key={fase.id} className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
+                    <div className="mb-1 flex items-center justify-between">
+                      <p className="min-w-0 truncate text-sm font-medium text-foreground">{fase.name}</p>
+                      <span className="shrink-0 text-primary font-bold">{fasiDichiarate[fase.id]}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={5}
+                      value={fasiDichiarate[fase.id]}
+                      onChange={e =>
+                        setFasiDichiarate(prev => ({ ...prev, [fase.id]: Number(e.target.value) }))
+                      }
+                      className="w-full accent-primary"
+                    />
+                    {fase.percentuale > 0 && (
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Avanzamento attuale: {fase.percentuale}%
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Ore straordinario */}
             <div className="rounded-2xl border bg-background p-4 shadow-sm">

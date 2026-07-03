@@ -32,6 +32,8 @@ export interface WorkPhase {
   start_date: string | null;
   end_date: string | null;
   notes: string | null;
+  /** Avanzamento reale 0-100 dichiarato dai rapportini di campo */
+  percentuale: number;
   assignments: PhaseAssignment[];
 }
 
@@ -272,6 +274,7 @@ export function useOrderWorkPhases(orderId: string | null | undefined) {
         start_date: (p.start_date as string) ?? null,
         end_date: (p.end_date as string) ?? null,
         notes: (p.notes as string) ?? null,
+        percentuale: Number(p.percentuale) || 0,
         assignments: all.filter((a) => a.phase_id === p.id),
       }));
 
