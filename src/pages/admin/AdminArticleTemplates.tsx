@@ -29,7 +29,43 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 interface GridDefault { xs: number[]; ys: number[]; m: (number | null)[][] }
+
+/**
+ * Sorgenti importabili nella libreria globale. Le "Base Edilizia" sono NEUTRE
+ * (nessun fornitore) — punto di partenza per il listino di qualsiasi azienda.
+ * WnD è UN fornitore (serramenti), una sorgente tra le tante: prima era l'unico
+ * bottone di import, dando l'impressione sbagliata che la libreria fosse "di WnD".
+ * Ogni loader è un dynamic import, così i dataset non pesano sul bundle pagina.
+ */
+type LibrarySource = {
+  key: string;
+  gruppo: "base" | "fornitore";
+  label: string;
+  hint: string;
+  load: () => Promise<{ nome: string }[]>;
+};
+const LIBRARY_SOURCES: LibrarySource[] = [
+  {
+    key: "base-piastrelle", gruppo: "base", label: "Base Edilizia · Piastrelle",
+    hint: "Gres, rivestimenti, mosaici, klinker, battiscopa — al m²",
+    load: async () => (await import("@/data/baseArticleTemplates")).BASE_PIASTRELLE_TEMPLATES,
+  },
+  {
+    key: "base-porte", gruppo: "base", label: "Base Edilizia · Porte",
+    hint: "Interne, scorrevoli, vetro, tagliafuoco, blindati — a pezzo",
+    load: async () => (await import("@/data/baseArticleTemplates")).BASE_PORTE_TEMPLATES,
+  },
+  {
+    key: "wnd", gruppo: "fornitore", label: "Fornitore WnD · Serramenti",
+    hint: "Listino WnD estratto dai PDF (un fornitore)",
+    load: async () => (await import("@/data/wndArticleTemplates")).WND_ARTICLE_TEMPLATES,
+  },
+];
 
 /** Riga leggera per la lista: niente griglia_default/assi_default (jsonb pesanti),
  * caricati on-demand solo all'apertura dell'editor. */
@@ -59,9 +95,6 @@ interface Template {
   is_active: boolean;
   sort_order: number | null;
 }
-
-const cellCount = (g: GridDefault | null) =>
-  g?.m ? g.m.reduce((s, row) => s + row.filter((v) => v != null).length, 0) : 0;
 
 /** "porta_finestra" → "Porta Finestra", "veneziane" → "Veneziane". */
 const prettyLabel = (s: string) => (s || "Senza categoria").replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -135,12 +168,14 @@ export default function AdminArticleTemplates() {
   const allCollapsed = groups.length > 0 && groups.every((g) => collapsed.has(g.key));
   const toggleAll = () => setCollapsed(allCollapsed ? new Set() : new Set(groups.map((g) => g.key)));
 
-  const importWnd = useMutation({
-    mutationFn: async () => {
-      // Caricamento LAZY del dataset WnD (~370KB): solo al click, non nel bundle pagina.
-      const { WND_ARTICLE_TEMPLATES } = await import("@/data/wndArticleTemplates");
+  // Import generico da una qualsiasi sorgente libreria (base neutre o fornitore).
+  // Idempotente per `nome`: reimportare non duplica. Dataset caricati lazy.
+  const [importingKey, setImportingKey] = useState<string | null>(null);
+  const importLibrary = useMutation({
+    mutationFn: async (src: LibrarySource) => {
+      const rows = await src.load();
       const existing = new Set(templates.map((t) => t.nome));
-      const toInsert = WND_ARTICLE_TEMPLATES.filter((r) => !existing.has(r.nome));
+      const toInsert = rows.filter((r) => !existing.has(r.nome));
       let ok = 0;
       for (let i = 0; i < toInsert.length; i += 10) {
         const batch = toInsert.slice(i, i + 10);
@@ -148,13 +183,15 @@ export default function AdminArticleTemplates() {
         if (error) throw error;
         ok += batch.length;
       }
-      return { inserted: ok, skipped: WND_ARTICLE_TEMPLATES.length - ok };
+      return { label: src.label, inserted: ok, skipped: rows.length - ok };
     },
+    onMutate: (src) => setImportingKey(src.key),
+    onSettled: () => setImportingKey(null),
     onSuccess: (r) => {
-      toast.success(`Libreria WnD importata: ${r.inserted} nuovi, ${r.skipped} già presenti`);
+      toast.success(`${r.label}: ${r.inserted} nuovi, ${r.skipped} già presenti`);
       qc.invalidateQueries({ queryKey: ["admin-article-templates"] });
     },
-    onError: (e: unknown) => toast.error(`Errore import WnD: ${(e as Error).message}`),
+    onError: (e: unknown) => toast.error(`Errore import: ${(e as Error).message}`),
   });
 
   const del = useMutation({
@@ -202,8 +239,6 @@ export default function AdminArticleTemplates() {
     onError: (e: unknown) => toast.error((e as Error).message),
   });
 
-  const wndInLibrary = templates.filter((t) => (t.tags ?? []).includes("WnD")).length;
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -219,15 +254,48 @@ export default function AdminArticleTemplates() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => importWnd.mutate()}
-            disabled={importWnd.isPending}
-            title={`${wndInLibrary} template WnD già in libreria`}
-          >
-            {importWnd.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
-            Importa libreria WnD
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={importLibrary.isPending}>
+                {importLibrary.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+                Importa da libreria
+                <ChevronDown className="h-4 w-4 ml-1.5 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80">
+              <DropdownMenuLabel>Librerie base (neutre)</DropdownMenuLabel>
+              {LIBRARY_SOURCES.filter((s) => s.gruppo === "base").map((s) => (
+                <DropdownMenuItem
+                  key={s.key}
+                  disabled={importLibrary.isPending}
+                  onSelect={(e) => { e.preventDefault(); importLibrary.mutate(s); }}
+                  className="flex-col items-start gap-0.5"
+                >
+                  <span className="font-medium flex items-center gap-2">
+                    {importingKey === s.key && <Loader2 className="h-3 w-3 animate-spin" />}
+                    {s.label}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{s.hint}</span>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Cataloghi fornitore</DropdownMenuLabel>
+              {LIBRARY_SOURCES.filter((s) => s.gruppo === "fornitore").map((s) => (
+                <DropdownMenuItem
+                  key={s.key}
+                  disabled={importLibrary.isPending}
+                  onSelect={(e) => { e.preventDefault(); importLibrary.mutate(s); }}
+                  className="flex-col items-start gap-0.5"
+                >
+                  <span className="font-medium flex items-center gap-2">
+                    {importingKey === s.key && <Loader2 className="h-3 w-3 animate-spin" />}
+                    {s.label}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{s.hint}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={() => setCreatingNew(true)}>
             <Plus className="h-4 w-4 mr-2" /> Nuovo
           </Button>

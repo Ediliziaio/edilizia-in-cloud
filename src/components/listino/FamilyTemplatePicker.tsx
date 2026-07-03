@@ -35,6 +35,8 @@ import {
 
 const VERTICALI = [
   { value: "all",          label: "Tutti i verticali" },
+  { value: "pavimenti",    label: "Pavimenti & Rivestimenti" },
+  { value: "porte",        label: "Porte" },
   { value: "serramenti",   label: "Serramenti" },
   { value: "bagno",        label: "Bagno" },
   { value: "fotovoltaico", label: "Fotovoltaico" },
