@@ -112,7 +112,7 @@ export default function AdminServiceClients() {
     },
   });
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "service-clients"],
     queryFn: async (): Promise<ServiceClient[]> => {
       const { data, error } = await sb().from("aedix_service_clients").select("*").order("created_at", { ascending: false });
@@ -165,7 +165,8 @@ export default function AdminServiceClients() {
   const save = useMutation({
     mutationFn: async (d: Draft) => {
       const isProv = d.billing_model === "provvigione";
-      const activeLines = commLines.filter((l) => l.etichetta.trim() !== "" || Number(l.percentuale) > 0);
+      // Una riga conta solo se ha una % > 0 (le righe vuote/incomplete si scartano).
+      const activeLines = commLines.filter((l) => Number(l.percentuale) > 0);
       const payload = {
         product_line_id: d.product_line_id, package_id: d.package_id ?? null,
         contact_id: d.contact_id ?? null, company_id: d.company_id ?? null, cliente_nome: d.cliente_nome,
@@ -217,16 +218,21 @@ export default function AdminServiceClients() {
 
   const openNew = () => { setDraft(EMPTY); setClientQuery(""); setCommLines([{ etichetta: "", base: "fatturato", percentuale: 0 }]); setDialogOpen(true); };
   const openEdit = async (r: ServiceClient) => {
-    setDraft({ ...r }); setClientQuery("");
+    // Reset SUBITO commLines: evita di mostrare le righe del cliente precedente
+    // finché la query asincrona del nuovo cliente non risolve.
+    setDraft({ ...r }); setClientQuery(""); setCommLines([]); setDialogOpen(true);
     if (r.billing_model === "provvigione") {
-      const { data } = await sb().from("aedix_service_commission_lines").select("*").eq("service_client_id", r.id).order("ordine");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const loaded = ((data ?? []) as any[]).map((l) => ({ id: l.id as string, etichetta: (l.etichetta ?? "") as string, base: (l.base ?? "fatturato") as string, percentuale: Number(l.percentuale) || 0 }));
-      setCommLines(loaded.length ? loaded : [{ etichetta: "", base: "fatturato", percentuale: 0 }]);
-    } else {
-      setCommLines([]);
+      try {
+        const { data, error } = await sb().from("aedix_service_commission_lines").select("*").eq("service_client_id", r.id).order("ordine");
+        if (error) throw error;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const loaded = ((data ?? []) as any[]).map((l) => ({ id: l.id as string, etichetta: (l.etichetta ?? "") as string, base: (l.base ?? "fatturato") as string, percentuale: Number(l.percentuale) || 0 }));
+        setCommLines(loaded.length ? loaded : [{ etichetta: "", base: "fatturato", percentuale: 0 }]);
+      } catch (e) {
+        toast.error("Impossibile caricare le provvigioni", { description: e instanceof Error ? e.message : String(e) });
+        setCommLines([{ etichetta: "", base: "fatturato", percentuale: 0 }]);
+      }
     }
-    setDialogOpen(true);
   };
 
   const kpi = useMemo(() => {
@@ -246,7 +252,7 @@ export default function AdminServiceClients() {
   }, [rows, search, filtServizio, filtStato]);
 
   const hasFilters = search.trim() !== "" || filtServizio !== "tutti" || filtStato !== "tutti";
-  const canSave = !!draft.cliente_nome?.trim() && !!draft.product_line_id;
+  const canSave = !!draft.cliente_nome?.trim() && !!draft.product_line_id && !!draft.billing_model;
 
   return (
     <div className="space-y-5">
@@ -306,6 +312,12 @@ export default function AdminServiceClients() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="flex justify-center py-16 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>
+          ) : isError ? (
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <AlertTriangle className="h-10 w-10 text-amber-500/60" />
+              <p className="text-sm text-muted-foreground">Errore nel caricamento dei clienti-servizio.</p>
+              <Button variant="outline" size="sm" onClick={() => refetch()}>Riprova</Button>
+            </div>
           ) : rows.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-16 text-center">
               <Users className="h-10 w-10 text-muted-foreground/40" />
@@ -479,8 +491,8 @@ export default function AdminServiceClients() {
               <div className="grid gap-2 rounded-lg border border-dashed p-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Provvigioni — % sul fatturato/incassato mensile del cliente (una o più)</div>
                 {commLines.map((l, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_7.5rem_4.75rem_auto] items-center gap-2">
-                    <Input value={l.etichetta} onChange={(e) => setCommLines((cs) => cs.map((c, j) => (j === i ? { ...c, etichetta: e.target.value } : c)))} placeholder={i === 0 ? "Etichetta (es. Fatturato)" : "Etichetta (es. Prodotto B)"} className="h-9" />
+                  <div key={i} className="grid grid-cols-[minmax(0,1fr)_6.5rem_4rem_auto] items-center gap-2">
+                    <Input value={l.etichetta} onChange={(e) => setCommLines((cs) => cs.map((c, j) => (j === i ? { ...c, etichetta: e.target.value } : c)))} placeholder={i === 0 ? "Etichetta (es. Fatturato)" : "Etichetta (es. Prodotto B)"} className="h-9 min-w-0" />
                     <Select value={l.base} onValueChange={(v) => setCommLines((cs) => cs.map((c, j) => (j === i ? { ...c, base: v } : c)))}>
                       <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                       <SelectContent>{COMM_BASE.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}</SelectContent>

@@ -10,8 +10,9 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { BrandTrendChart } from "@/components/admin/BrandTrendChart";
-import { Loader2, Package, TrendingUp, Wallet, Building2, Repeat, Users, PiggyBank } from "lucide-react";
+import { Loader2, Package, TrendingUp, Wallet, Building2, Repeat, Users, PiggyBank, AlertTriangle } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sb = () => supabase as any;
@@ -25,7 +26,7 @@ interface Line { id: string; nome: string; categoria: string; colore: string | n
 const CAT_LABEL: Record<string, string> = { saas: "SaaS", consulenza: "Consulenza", agenzia: "Agenzia", performance: "Performance", una_tantum: "Una-tantum" };
 
 export function ServiziFatturatoTab() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["admin", "servizi-fatturato"],
     queryFn: async () => {
       const [b, c, l] = await Promise.all([
@@ -108,6 +109,17 @@ export function ServiziFatturatoTab() {
 
   if (isLoading) {
     return <div className="flex justify-center py-16 text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  }
+  if (isError) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+          <AlertTriangle className="h-9 w-9 text-amber-500/60" />
+          <p className="text-sm text-muted-foreground">Errore nel caricamento del fatturato servizi.</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>Riprova</Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   const kpis = [

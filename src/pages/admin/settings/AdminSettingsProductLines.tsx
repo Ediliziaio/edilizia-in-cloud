@@ -26,6 +26,10 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -81,6 +85,7 @@ export default function AdminSettingsProductLines() {
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [slugTouched, setSlugTouched] = useState(false);
   const [pkgLine, setPkgLine] = useState<{ id: string; nome: string } | null>(null);
+  const [deleteLine, setDeleteLine] = useState<ProductLine | null>(null);
   const isEdit = !!draft.id;
 
   const { data: pkgCounts = {} } = useQuery({
@@ -140,11 +145,12 @@ export default function AdminSettingsProductLines() {
       qc.invalidateQueries({ queryKey: ["admin", "product-lines"] });
       qc.invalidateQueries({ queryKey: ["crm-dash", "product-lines"] });
       toast.success("Servizio eliminato");
+      setDeleteLine(null);
     },
     onError: (e: unknown) => toast.error("Errore nell'eliminazione", { description: e instanceof Error ? e.message : String(e) }),
   });
 
-  const openNew = () => { setDraft({ ...EMPTY, ordine: (rows.at(-1)?.ordine ?? 0) + 1 }); setSlugTouched(false); setDialogOpen(true); };
+  const openNew = () => { setDraft({ ...EMPTY, ordine: rows.reduce((m, r) => Math.max(m, r.ordine ?? 0), -1) + 1 }); setSlugTouched(false); setDialogOpen(true); };
   const openEdit = (r: ProductLine) => { setDraft({ ...r }); setSlugTouched(true); setDialogOpen(true); };
   const totali = useMemo(() => ({ attivi: rows.filter((r) => r.attivo).length, tot: rows.length }), [rows]);
 
@@ -226,7 +232,7 @@ export default function AdminSettingsProductLines() {
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)} aria-label="Modifica"><Pencil className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => { if (confirm(`Eliminare "${r.nome}"?`)) del.mutate(r.id); }} aria-label="Elimina"><Trash2 className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteLine(r)} aria-label="Elimina"><Trash2 className="h-4 w-4" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -325,6 +331,21 @@ export default function AdminSettingsProductLines() {
       </Dialog>
 
       <ProductPackagesDialog line={pkgLine} open={!!pkgLine} onOpenChange={(v) => { if (!v) setPkgLine(null); }} />
+
+      <AlertDialog open={!!deleteLine} onOpenChange={(v) => { if (!v) setDeleteLine(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare "{deleteLine?.nome}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Il servizio verrà eliminato dal catalogo, insieme ai suoi pacchetti e ai clienti-servizio collegati (e relativi incassi). L'azione non è reversibile.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { if (deleteLine) del.mutate(deleteLine.id); }}>{del.isPending ? "Eliminazione…" : "Elimina"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

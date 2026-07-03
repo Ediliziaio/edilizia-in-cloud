@@ -15,6 +15,10 @@ import { Switch } from "@/components/ui/switch";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Loader2, Package, Layers } from "lucide-react";
 
@@ -48,6 +52,7 @@ export function ProductPackagesDialog({
 }) {
   const qc = useQueryClient();
   const [form, setForm] = useState<Draft | null>(null); // null = form nascosto
+  const [deletePkg, setDeletePkg] = useState<ProductPackage | null>(null);
 
   const { data: pkgs = [], isLoading } = useQuery({
     enabled: !!line?.id && open,
@@ -89,11 +94,11 @@ export function ProductPackagesDialog({
       const { error } = await (supabase.from("aedix_product_packages") as any).delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { invalidate(); toast.success("Pacchetto eliminato"); },
+    onSuccess: () => { invalidate(); toast.success("Pacchetto eliminato"); setDeletePkg(null); },
     onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
 
-  const openNew = () => setForm({ ricorrenza: line ? "mensile" : "mensile", attivo: true, prezzo: 0, ltv_target: 0, ordine: (pkgs.at(-1)?.ordine ?? 0) + 1 });
+  const openNew = () => setForm({ ricorrenza: "mensile", attivo: true, prezzo: 0, ltv_target: 0, ordine: pkgs.reduce((m, p) => Math.max(m, p.ordine ?? 0), -1) + 1 });
   const canSave = !!form?.nome?.trim();
 
   return (
@@ -124,7 +129,7 @@ export function ProductPackagesDialog({
                 </div>
                 <Switch checked={p.attivo} onCheckedChange={(v) => save.mutate({ ...p, attivo: v })} aria-label="Attivo" />
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setForm({ ...p })} aria-label="Modifica"><Pencil className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => { if (confirm(`Eliminare "${p.nome}"?`)) del.mutate(p.id); }} aria-label="Elimina"><Trash2 className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeletePkg(p)} aria-label="Elimina"><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))
           )}
@@ -170,6 +175,19 @@ export function ProductPackagesDialog({
         ) : (
           <Button variant="outline" onClick={openNew} className="w-full gap-2"><Plus className="h-4 w-4" /> Aggiungi pacchetto</Button>
         )}
+
+        <AlertDialog open={!!deletePkg} onOpenChange={(v) => { if (!v) setDeletePkg(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Eliminare "{deletePkg?.nome}"?</AlertDialogTitle>
+              <AlertDialogDescription>Il pacchetto verrà eliminato definitivamente.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { if (deletePkg) del.mutate(deletePkg.id); }}>{del.isPending ? "Eliminazione…" : "Elimina"}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );

@@ -14,6 +14,10 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Loader2, Wallet } from "lucide-react";
 
@@ -60,6 +64,7 @@ export function ServiceBillingsDialog({
 }) {
   const qc = useQueryClient();
   const [form, setForm] = useState<Draft | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: rows = [], isLoading } = useQuery({
     enabled: !!client?.id && open,
@@ -113,7 +118,7 @@ export function ServiceBillingsDialog({
   });
   const del = useMutation({
     mutationFn: async (id: string) => { const { error } = await sb().from("aedix_service_billings").delete().eq("id", id); if (error) throw error; },
-    onSuccess: () => { invalidate(); toast.success("Eliminato"); },
+    onSuccess: () => { invalidate(); toast.success("Eliminato"); setDeleteId(null); },
     onError: (e: unknown) => toast.error("Errore", { description: e instanceof Error ? e.message : String(e) }),
   });
 
@@ -172,7 +177,7 @@ export function ServiceBillingsDialog({
                 </div>
                 <span className={`rounded-full px-2 py-0.5 text-[11px] ${r.stato === "incassato" ? "bg-emerald-100 text-emerald-700" : r.stato === "parziale" ? "bg-amber-100 text-amber-700" : "bg-slate-200 text-slate-600"}`}>{r.stato}</span>
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditRow(r)} aria-label="Modifica"><Pencil className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => { if (confirm("Eliminare questo incasso?")) del.mutate(r.id); }} aria-label="Elimina"><Trash2 className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(r.id)} aria-label="Elimina"><Trash2 className="h-4 w-4" /></Button>
               </div>
             ))
           )}
@@ -273,6 +278,19 @@ export function ServiceBillingsDialog({
         ) : (
           <Button variant="outline" onClick={openNew} className="w-full gap-2"><Plus className="h-4 w-4" /> Registra incasso mese</Button>
         )}
+
+        <AlertDialog open={!!deleteId} onOpenChange={(v) => { if (!v) setDeleteId(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Eliminare questo incasso?</AlertDialogTitle>
+              <AlertDialogDescription>L'incasso del mese verrà eliminato definitivamente.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { if (deleteId) del.mutate(deleteId); }}>{del.isPending ? "Eliminazione…" : "Elimina"}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
