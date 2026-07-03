@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,6 +62,7 @@ export default function SignaturePage() {
 
     if (error) {
       setStatus("ready");
+      toast.error("Impossibile registrare la firma. Riprova o contatta l'azienda.");
       return;
     }
     setStatus("signed");
