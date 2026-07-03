@@ -236,6 +236,8 @@ function CreateOrderInner() {
     appliedQuoteRef.current = selectedQuoteId;
     if (quotePrefill.description) setValue("description", quotePrefill.description);
     if (quotePrefill.orderItems.length > 0) setOrderItems(quotePrefill.orderItems);
+    // Fasi di pagamento del preventivo → rate della commessa (già compilate).
+    if (quotePrefill.installments.length > 0) setInstallments(prefillExpectedDates(quotePrefill.installments));
   }, [quotePrefill, selectedQuoteId, setValue]);
 
   // Import da preventivo via selettore: se ci sono già righe, chiede conferma
