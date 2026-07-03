@@ -112,6 +112,7 @@ const AdminPortalePage = lazy(() => import("@/pages/admin/AdminPortalePage"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
 const SmsSuperAdminPage = lazy(() => import("@/pages/admin/sms/SmsSuperAdminPage"));
 const AdminCRM = lazy(() => import("@/pages/admin/AdminCRM"));
+const AdminServiceClients = lazy(() => import("@/pages/admin/AdminServiceClients"));
 // Campagne AB Test (Feature 7)
 const CampaignsPage = lazy(() => import("@/pages/admin/CampaignsPage"));
 const CampaignAnalyticsPage = lazy(() => import("@/pages/admin/CampaignAnalyticsPage"));
@@ -319,6 +320,7 @@ export default function AdminRoutesContainer() {
         <Route path="gdpr" element={<Navigate to="/admin/operazioni?tab=gdpr" replace />} />
         <Route path="marketing" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingDashboard /></RequireAdminPermission>} />
         <Route path="marketing/dashboard" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingCommercialDashboard /></RequireAdminPermission>} />
+        <Route path="marketing/clienti-servizio" element={<RequireAdminPermission permission="can_manage_marketing"><AdminServiceClients /></RequireAdminPermission>} />
         <Route path="marketing/contatti" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingContacts /></RequireAdminPermission>} />
         <Route path="marketing/contatti/:id" element={<RequireAdminPermission permission="can_manage_marketing"><AdminMarketingContactDetail /></RequireAdminPermission>} />
         <Route path="marketing/lead-scraper" element={<RequireAdminPermission permission="can_manage_marketing"><AdminLeadScraper /></RequireAdminPermission>} />

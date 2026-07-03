@@ -11,6 +11,7 @@
  * opportunità/clienti ai servizi e tracciarne fatturato/incassato.
  */
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,7 +31,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Package, Plus, Pencil, Trash2, Loader2, Cloud, Megaphone, Trophy, BarChart3, Handshake, Layers,
+  Package, Plus, Pencil, Trash2, Loader2, Cloud, Megaphone, Trophy, BarChart3, Handshake, Layers, Users,
 } from "lucide-react";
 import { ProductPackagesDialog } from "@/components/admin/settings/ProductPackagesDialog";
 
@@ -156,7 +157,14 @@ export default function AdminSettingsProductLines() {
         eyebrow="Impostazioni"
         title="Prodotti & Servizi"
         subtitle="Il catalogo dei servizi che vendi oltre a Edilizia in Cloud — con la natura (consulenza, agenzia, performance…). Alimenta le card CRM e la futura sezione Fatturato Servizi."
-        actions={<Button onClick={openNew} className="gap-2"><Plus className="h-4 w-4" /> Nuovo servizio</Button>}
+        actions={
+          <>
+            <Button asChild variant="outline" className="gap-2 bg-white/10 text-white border-white/25 hover:bg-white/20 hover:text-white">
+              <Link to="/admin/marketing/clienti-servizio"><Users className="h-4 w-4" /> Clienti-Servizio</Link>
+            </Button>
+            <Button onClick={openNew} className="gap-2"><Plus className="h-4 w-4" /> Nuovo servizio</Button>
+          </>
+        }
       />
 
       <Card>
