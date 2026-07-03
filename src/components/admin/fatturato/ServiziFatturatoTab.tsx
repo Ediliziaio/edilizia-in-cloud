@@ -19,17 +19,18 @@ const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", c
 const monthKey = (d: string) => d.slice(0, 7);
 const monthShort = (k: string) => new Date(k + "-01T00:00:00").toLocaleDateString("it-IT", { month: "short", year: "2-digit" });
 
-interface Billing { id: string; service_client_id: string; periodo: string; importo_dovuto: number; importo_incassato: number; societa: string | null; provvigione_importo: number; provvigione_stato: string; provvigione_commerciale: string | null; }
-interface Client { id: string; product_line_id: string; importo: number; ricorrenza: string; stato: string; }
+interface Billing { id: string; service_client_id: string; periodo: string; importo_dovuto: number; importo_incassato: number; societa: string | null; provvigione_importo: number; provvigione_stato: string; provvigione_commerciale: string | null; righe_provvigione: { base: string; importo: number }[] | null; }
+interface Client { id: string; product_line_id: string; importo: number; ricorrenza: string; stato: string; cliente_nome: string; }
 interface Line { id: string; nome: string; categoria: string; colore: string | null; }
+const CAT_LABEL: Record<string, string> = { saas: "SaaS", consulenza: "Consulenza", agenzia: "Agenzia", performance: "Performance", una_tantum: "Una-tantum" };
 
 export function ServiziFatturatoTab() {
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "servizi-fatturato"],
     queryFn: async () => {
       const [b, c, l] = await Promise.all([
-        sb().from("aedix_service_billings").select("id,service_client_id,periodo,importo_dovuto,importo_incassato,societa,provvigione_importo,provvigione_stato,provvigione_commerciale"),
-        sb().from("aedix_service_clients").select("id,product_line_id,importo,ricorrenza,stato"),
+        sb().from("aedix_service_billings").select("id,service_client_id,periodo,importo_dovuto,importo_incassato,societa,provvigione_importo,provvigione_stato,provvigione_commerciale,righe_provvigione"),
+        sb().from("aedix_service_clients").select("id,product_line_id,importo,ricorrenza,stato,cliente_nome"),
         sb().from("aedix_product_lines").select("id,nome,categoria,colore"),
       ]);
       return {
@@ -53,6 +54,8 @@ export function ServiziFatturatoTab() {
     const perSocieta = new Map<string, { dovuto: number; incassato: number }>();
     const perMese = new Map<string, { dovuto: number; incassato: number }>();
     const perCommerciale = new Map<string, { tot: number; daPagare: number }>();
+    const perCliente = new Map<string, { nome: string; dovuto: number; incassato: number }>();
+    const perBase = new Map<string, number>();
 
     for (const b of billings) {
       const d = Number(b.importo_dovuto) || 0, i = Number(b.importo_incassato) || 0;
@@ -68,6 +71,9 @@ export function ServiziFatturatoTab() {
       const sc = perSocieta.get(soc) ?? { dovuto: 0, incassato: 0 }; sc.dovuto += d; sc.incassato += i; perSocieta.set(soc, sc);
       const mk = monthKey(b.periodo);
       const mm = perMese.get(mk) ?? { dovuto: 0, incassato: 0 }; mm.dovuto += d; mm.incassato += i; perMese.set(mk, mm);
+      const pcl = perCliente.get(b.service_client_id) ?? { nome: cl?.cliente_nome ?? "Senza nome", dovuto: 0, incassato: 0 };
+      pcl.dovuto += d; pcl.incassato += i; perCliente.set(b.service_client_id, pcl);
+      for (const rg of b.righe_provvigione ?? []) { const bk = rg.base === "incassato" ? "incassato" : "fatturato"; perBase.set(bk, (perBase.get(bk) ?? 0) + (Number(rg.importo) || 0)); }
       const prov = Number(b.provvigione_importo) || 0;
       if (prov > 0) {
         provTot += prov;
@@ -91,6 +97,10 @@ export function ServiziFatturatoTab() {
       servizi: Array.from(perServizio.values()).sort((a, b) => b.dovuto - a.dovuto),
       societa: Array.from(perSocieta.entries()).map(([nome, v]) => ({ nome, ...v })).sort((a, b) => b.incassato - a.incassato),
       commerciali: Array.from(perCommerciale.entries()).map(([nome, v]) => ({ nome, ...v })).sort((a, b) => b.tot - a.tot),
+      categorie: Array.from(perCategoria.entries()).map(([k, v]) => ({ nome: CAT_LABEL[k] ?? (k === "—" ? "Senza categoria" : k), ...v })).sort((a, b) => b.dovuto - a.dovuto),
+      clienti: Array.from(perCliente.values()).sort((a, b) => b.incassato - a.incassato).slice(0, 8),
+      provBaseFatturato: perBase.get("fatturato") ?? 0,
+      provBaseIncassato: perBase.get("incassato") ?? 0,
       trend,
       hasData: billings.length > 0,
     };
@@ -152,6 +162,47 @@ export function ServiziFatturatoTab() {
               />
             </CardContent>
           </Card>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card className="lg:col-span-2">
+              <CardContent className="p-4 sm:p-5">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold"><Users className="h-4 w-4" /> Top clienti · per incassato</div>
+                <div className="space-y-2.5">
+                  {agg.clienti.map((c) => {
+                    const pct = agg.incassato > 0 ? Math.round((c.incassato / agg.incassato) * 100) : 0;
+                    return (
+                      <div key={c.nome}>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="truncate font-medium">{c.nome}</span>
+                          <span className="tabular-nums text-muted-foreground">{eur(c.incassato)} / <span className="text-foreground">{eur(c.dovuto)}</span></span>
+                        </div>
+                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400" style={{ width: `${pct}%` }} /></div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4 sm:p-5">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold"><PiggyBank className="h-4 w-4" /> Per categoria</div>
+                <div className="space-y-2">
+                  {agg.categorie.map((c) => (
+                    <div key={c.nome} className="flex items-center justify-between rounded-lg border p-2.5 text-sm">
+                      <span>{c.nome}</span>
+                      <span className="tabular-nums text-muted-foreground">{eur(c.incassato)} / <span className="font-medium text-foreground">{eur(c.dovuto)}</span></span>
+                    </div>
+                  ))}
+                </div>
+                {(agg.provBaseFatturato > 0 || agg.provBaseIncassato > 0) && (
+                  <div className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">
+                    Provvigioni per base · <span className="font-medium text-foreground tabular-nums">{eur(agg.provBaseFatturato)}</span> su fatturato · <span className="font-medium text-foreground tabular-nums">{eur(agg.provBaseIncassato)}</span> su incassato
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
           <div className="grid gap-4 lg:grid-cols-3">
             <Card>
