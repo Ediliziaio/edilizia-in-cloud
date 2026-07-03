@@ -220,7 +220,11 @@ export default function FeatureFlags() {
       const { error } = await supabase
         .from("company_feature_overrides")
         .upsert(
-          { company_id: companyId, feature_key: flagKey, is_enabled: enabled },
+          // access_level è la fonte di verità per resolve_company_feature
+          // (is_enabled solo COALESCE di fallback). Scriverlo coerente con is_enabled
+          // rende il toggle effettivo: senza, per gli override con access_level già
+          // valorizzato il cambiamento era un no-op lato azienda.
+          { company_id: companyId, feature_key: flagKey, is_enabled: enabled, access_level: enabled ? "enabled" : "disabled" },
           { onConflict: "company_id,feature_key" }
         );
       if (error) throw error;
@@ -249,6 +253,7 @@ export default function FeatureFlags() {
           company_id: c.id,
           feature_key: flagKey,
           is_enabled: true,
+          access_level: "enabled" as const,
         }));
         const { error } = await supabase
           .from("company_feature_overrides")
@@ -277,7 +282,7 @@ export default function FeatureFlags() {
       const toEnable = sorted.slice(0, count).map((c) => c.id);
       const toDisable = sorted.slice(count).map((c) => c.id);
       if (toEnable.length > 0) {
-        const rows = toEnable.map((id) => ({ company_id: id, feature_key: flagKey, is_enabled: true }));
+        const rows = toEnable.map((id) => ({ company_id: id, feature_key: flagKey, is_enabled: true, access_level: "enabled" as const }));
         const { error } = await supabase
           .from("company_feature_overrides")
           .upsert(rows, { onConflict: "company_id,feature_key" });
