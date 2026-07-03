@@ -102,13 +102,14 @@ function PrimaNotaInner() {
 
   const isAutoFilter = autoView === "auto" ? true : autoView === "manuali" ? false : null;
 
-  const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, create, remove } = usePrimaNota({
+  const { entries, isLoading, totalCount, totalPages, saldo, isSaldoLoading, create, remove, fetchAllForExport } = usePrimaNota({
     fromDate,
     toDate,
     direction: direction || undefined,
     search,
     isAuto: isAutoFilter,
   }, page, pageSize);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Running balance (from oldest to newest, then reverse for display)
   const entriesWithBalance = useMemo(() => {
@@ -147,28 +148,39 @@ function PrimaNotaInner() {
     return Array.from(buckets.values());
   }, [entries]);
 
-  const exportCSV = () => {
-    const header = "Data,Direzione,Categoria,Descrizione,Importo,Metodo,Riferimento,Note,Auto\n";
-    const rows = entries.map((e) =>
-      [
-        e.entry_date,
-        e.direction,
-        e.category,
-        e.description,
-        e.direction === "uscita" ? `-${e.amount}` : e.amount,
-        e.payment_method || "",
-        e.reference_number || "",
-        e.notes || "",
-        e.is_auto ? "Sì" : "No",
-      ].map((v) => escapeCsvCell(v as string | number, ",")).join(",")
-    ).join("\n");
-    const blob = new Blob([header + rows], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `prima-nota-${fromDate}-${toDate}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  // Esporta TUTTE le righe filtrate (non solo la pagina visibile): prima il CSV
+  // conteneva solo i 50 movimenti della pagina corrente → export incompleto.
+  const exportCSV = async () => {
+    setIsExporting(true);
+    try {
+      const all = await fetchAllForExport();
+      if (all.length === 0) { toast.info("Nessun movimento da esportare"); return; }
+      const header = "Data,Direzione,Categoria,Descrizione,Importo,Metodo,Riferimento,Note,Auto\n";
+      const rows = all.map((e) =>
+        [
+          e.entry_date,
+          e.direction,
+          e.category,
+          e.description,
+          e.direction === "uscita" ? `-${e.amount}` : e.amount,
+          e.payment_method || "",
+          e.reference_number || "",
+          e.notes || "",
+          e.is_auto ? "Sì" : "No",
+        ].map((v) => escapeCsvCell(v as string | number, ",")).join(",")
+      ).join("\n");
+      const blob = new Blob([header + rows], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `prima-nota-${fromDate}-${toDate}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Errore durante l'export");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -186,8 +198,8 @@ function PrimaNotaInner() {
             </div>
           </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={exportCSV}>
-            <Download className="h-4 w-4 mr-1" /> CSV
+          <Button variant="outline" size="sm" onClick={exportCSV} disabled={isExporting}>
+            {isExporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />} CSV
           </Button>
           <PrimaNotaXBRL
             entries={entries.map(e => ({
