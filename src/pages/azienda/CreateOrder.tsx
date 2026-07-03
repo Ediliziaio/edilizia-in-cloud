@@ -6,6 +6,8 @@ import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuotePrefill } from "@/hooks/useQuotePrefill";
 import { ImportFromQuotePicker } from "@/components/orders/ImportFromQuotePicker";
+import { ContractImportDialog } from "@/components/orders/ContractImportDialog";
+import { contractImponibile, contractToInstallments, type ContractExtract } from "@/lib/orders/contractExtract";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -138,6 +140,10 @@ function CreateOrderInner() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
+  const [showContractImport, setShowContractImport] = useState(false);
+  const [aiCustomerInitial, setAiCustomerInitial] = useState<
+    { fullName?: string; email?: string; phone?: string; address?: string; fiscalCode?: string } | undefined
+  >(undefined);
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
 
   // Auto-assign for staff with onlyAssigned
@@ -269,6 +275,41 @@ function CreateOrderInner() {
       return;
     }
     setSelectedQuoteId(qid);
+  };
+
+  // AI: applica i dati estratti dal contratto / copia commissione alla commessa.
+  const applyContractExtract = (ex: ContractExtract) => {
+    if (ex.descrizione_lavori) setValue("description", ex.descrizione_lavori);
+    const imp = contractImponibile(ex);
+    if (imp != null) setValue("total_amount", String(imp));
+    if (ex.iva_pct != null) setValue("vat_rate", String(ex.iva_pct));
+    if (ex.voci.length > 0) {
+      setOrderItems(ex.voci.map((v, idx) => ({
+        name: v.descrizione,
+        quantity: v.quantita || 1,
+        status: "da_ordinare",
+        position: idx,
+        unit_price: v.prezzo_unitario_eur,
+        vat_rate: ex.iva_pct ?? undefined,
+        family_id: null,
+        axis_selections: null,
+        misure_preventivo: null,
+        measure_status: null,
+      })));
+    }
+    const insts = contractToInstallments(ex, imp ?? 0);
+    if (insts.length > 0) setInstallments(prefillExpectedDates(insts));
+    if ((ex.modalita_pagamento ?? "").toLowerCase().includes("finanz")) setValue("payment_type", "financing");
+    if (ex.cliente.nome_completo.trim()) {
+      setAiCustomerInitial({
+        fullName: ex.cliente.nome_completo,
+        email: ex.cliente.email ?? undefined,
+        phone: ex.cliente.telefono ?? undefined,
+        address: ex.cliente.indirizzo ?? undefined,
+        fiscalCode: ex.cliente.codice_fiscale ?? ex.cliente.partita_iva ?? undefined,
+      });
+      setShowCreateCustomer(true);
+    }
   };
 
   // Auto-save draft on every change — debounced 800ms to avoid firing on every keystroke
@@ -787,12 +828,24 @@ function CreateOrderInner() {
           <p className="text-sm text-muted-foreground">
             {selectedQuoteId
               ? "Preventivo importato: rivedi righe e misure qui sotto."
-              : "Hai già un preventivo? Importalo per precompilare righe, prezzi e misure."}
+              : "Hai un preventivo? Importalo. Oppure carica il contratto / copia commissione: l'AI compila la commessa."}
           </p>
-          <ImportFromQuotePicker
-            onSelect={handleImportQuote}
-            disabled={createOrderMutation.isPending}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <ImportFromQuotePicker
+              onSelect={handleImportQuote}
+              disabled={createOrderMutation.isPending}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2 border-orange-300"
+              onClick={() => setShowContractImport(true)}
+              disabled={createOrderMutation.isPending}
+            >
+              <Sparkles className="h-4 w-4 text-orange-600" />
+              Carica contratto (AI)
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
@@ -1035,12 +1088,21 @@ function CreateOrderInner() {
           del preventivo sono già caricati) → niente remount che cancella l'input. */}
       {showCreateCustomer && (
         <CreateCustomerDialog
-          key={selectedQuoteId ?? "new"}
+          key={aiCustomerInitial ? "ai-contract" : (selectedQuoteId ?? "new")}
           open
           onOpenChange={setShowCreateCustomer}
           onCustomerCreated={handleCustomerCreated}
-          initialValues={quoteCustomerInitial}
-          defaultCreatePortalAccount={quoteCustomerInitial ? false : undefined}
+          initialValues={aiCustomerInitial ?? quoteCustomerInitial}
+          defaultCreatePortalAccount={(aiCustomerInitial ?? quoteCustomerInitial) ? false : undefined}
+        />
+      )}
+
+      {showContractImport && (
+        <ContractImportDialog
+          open
+          onOpenChange={setShowContractImport}
+          companyId={effectiveCompany?.id ?? null}
+          onApply={applyContractExtract}
         />
       )}
     </div>
