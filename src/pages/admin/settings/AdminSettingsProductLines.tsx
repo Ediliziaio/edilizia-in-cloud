@@ -30,8 +30,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Package, Plus, Pencil, Trash2, Loader2, Cloud, Megaphone, Trophy, BarChart3, Handshake,
+  Package, Plus, Pencil, Trash2, Loader2, Cloud, Megaphone, Trophy, BarChart3, Handshake, Layers,
 } from "lucide-react";
+import { ProductPackagesDialog } from "@/components/admin/settings/ProductPackagesDialog";
 
 interface ProductLine {
   id: string;
@@ -78,7 +79,20 @@ export default function AdminSettingsProductLines() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [slugTouched, setSlugTouched] = useState(false);
+  const [pkgLine, setPkgLine] = useState<{ id: string; nome: string } | null>(null);
   const isEdit = !!draft.id;
+
+  const { data: pkgCounts = {} } = useQuery({
+    queryKey: ["admin", "product-packages-counts"],
+    queryFn: async (): Promise<Record<string, number>> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from("aedix_product_packages") as any).select("product_line_id");
+      if (error) throw error;
+      const map: Record<string, number> = {};
+      for (const r of (data ?? []) as { product_line_id: string }[]) map[r.product_line_id] = (map[r.product_line_id] ?? 0) + 1;
+      return map;
+    },
+  });
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["admin", "product-lines"],
@@ -166,6 +180,7 @@ export default function AdminSettingsProductLines() {
                     <TableHead className="text-right">LTV</TableHead>
                     <TableHead className="text-center">Clienti/mese</TableHead>
                     <TableHead>Ricorrenza</TableHead>
+                    <TableHead className="text-center">Pacchetti</TableHead>
                     <TableHead className="text-center">Attivo</TableHead>
                     <TableHead className="text-right">Azioni</TableHead>
                   </TableRow>
@@ -192,6 +207,11 @@ export default function AdminSettingsProductLines() {
                         <TableCell className="text-right tabular-nums font-medium">{eur(r.ltv_target)}</TableCell>
                         <TableCell className="text-center tabular-nums">{r.quota_mensile}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{RICORRENZE.find((x) => x.value === r.ricorrenza)?.label ?? r.ricorrenza}</TableCell>
+                        <TableCell className="text-center">
+                          <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => setPkgLine({ id: r.id, nome: r.nome })}>
+                            <Layers className="h-3.5 w-3.5" /> {pkgCounts[r.id] ?? 0}
+                          </Button>
+                        </TableCell>
                         <TableCell className="text-center">
                           <Switch checked={r.attivo} onCheckedChange={(v) => save.mutate({ ...r, attivo: v })} aria-label="Attivo" />
                         </TableCell>
@@ -295,6 +315,8 @@ export default function AdminSettingsProductLines() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ProductPackagesDialog line={pkgLine} open={!!pkgLine} onOpenChange={(v) => { if (!v) setPkgLine(null); }} />
     </div>
   );
 }
