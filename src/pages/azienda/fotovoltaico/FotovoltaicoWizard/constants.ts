@@ -84,7 +84,10 @@ export const INITIAL: WizardData = {
   kit_prezzo: null,
   layout_overlay: null,
   tariffa_installazione_id: null,
+  prodotti_extra: [],
   finanziamento_modalita: "rate",
+  sconto_tipo: "pct",
+  sconto_valore: null,
   tabella_finanziamento_id: null,
   durata_mesi_scelta: 84,
   modalita_pagamento: {

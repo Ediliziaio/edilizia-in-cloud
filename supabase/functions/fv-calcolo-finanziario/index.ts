@@ -76,6 +76,24 @@ Deno.serve(async (req: Request) => {
     // catch in fondo) se la company dell'utente è nulla o ≠ prog.company_id.
     // Eccezioni gestite dall'helper: super_admin e multi_company_access.
     await requireCompanyAccess(supabaseAdmin, userId, prog.company_id, corsHeaders);
+
+    // Regole di scontistica attive della company, per il clamp server-side
+    // dello sconto commerciale. Caricate QUI (non nella Promise.all iniziale)
+    // perché company_id è noto solo dopo il fetch del progetto.
+    const { data: discountRulesData } = await supabaseAdmin
+      .from("discount_rules")
+      .select("*")
+      .eq("company_id", prog.company_id)
+      .eq("is_active", true);
+    const discountRules = (discountRulesData ?? []) as Array<{
+      scope: string;
+      tipo_lavoro: string | null;
+      importo_min: number | null;
+      importo_max: number | null;
+      sconto_max_pct: number | null;
+      margine_min_pct: number | null;
+    }>;
+
     const params = (paramsRes.data ?? []) as ParametroDb[];
     const par = (k: string, def: number): number => params.find((x) => x.chiave === k)?.valore ?? def;
     const profili = profiliRes.data ?? [];
@@ -99,7 +117,51 @@ Deno.serve(async (req: Request) => {
     const costo_servizi_vendita = servizi.reduce((s: number, x: { prezzo_vendita: number; quantita: number }) => s + (x.prezzo_vendita * x.quantita), 0);
 
     const costo_totale_netto = costo_componenti_netto + costo_manodopera_netto + costo_servizi_netto;
-    const prezzo_vendita_netto = costo_componenti_vendita + costo_manodopera_vendita + costo_servizi_vendita;
+    const prezzo_pieno_netto = costo_componenti_vendita + costo_manodopera_vendita + costo_servizi_vendita;
+
+    // ── 2b. Sconto commerciale (fv_progetti.sconto_tipo/sconto_valore) ─────
+    // Clamp server-side sulle discount_rules — mirror semplificato di
+    // evaluateDiscountRules client (src/lib/serramenti/discountRules.ts):
+    //  - fascia importo valutata sul prezzo netto PIENO (pre-sconto)
+    //  - tipo_lavoro 'fotovoltaico' oppure regola senza tipo
+    //  - solo scope 'globale' (per_commerciale/per_cliente_cat ignorati qui)
+    //  - max sconto tra le regole matching; fallback 10% se nessuna regola
+    //  - margine_min_pct: lo sconto non può portare il margine sotto il minimo
+    const FALLBACK_SCONTO_PCT = 10;
+    const scontoTipo = (prog.sconto_tipo as string | null) ?? null;
+    const scontoValore = Number(prog.sconto_valore ?? 0);
+    const sconto_eur_richiesto = scontoValore > 0
+      ? (scontoTipo === "pct"
+        ? prezzo_pieno_netto * (scontoValore / 100)
+        : scontoValore)
+      : 0;
+
+    const regoleMatch = discountRules.filter((r) => {
+      if (r.scope !== "globale") return false;
+      const tipo = (r.tipo_lavoro ?? "").trim().toLowerCase();
+      if (tipo && tipo !== "fotovoltaico") return false;
+      const imMin = Number(r.importo_min ?? 0);
+      const imMax = r.importo_max == null ? Infinity : Number(r.importo_max);
+      return prezzo_pieno_netto >= imMin && prezzo_pieno_netto <= imMax;
+    });
+    const scontoMaxPct = regoleMatch.length > 0
+      ? Math.max(...regoleMatch.map((r) => Number(r.sconto_max_pct ?? 0)))
+      : FALLBACK_SCONTO_PCT;
+    const margineMinPct = regoleMatch.length > 0
+      ? Math.max(...regoleMatch.map((r) => Number(r.margine_min_pct ?? 0)))
+      : 0;
+    const capRegoleEur = prezzo_pieno_netto * (scontoMaxPct / 100);
+    // Vincolo margine minimo: (P − s − C) / (P − s) ≥ m  →  s ≤ P − C/(1−m).
+    const capMargineEur = margineMinPct < 100
+      ? Math.max(0, prezzo_pieno_netto - costo_totale_netto / (1 - margineMinPct / 100))
+      : 0;
+    const scontoCapEur = Math.max(0, Math.min(capRegoleEur, capMargineEur));
+    const sconto_eur_applicato = round2(Math.min(sconto_eur_richiesto, scontoCapEur));
+    const sconto_limitato = sconto_eur_richiesto > sconto_eur_applicato + 0.005;
+
+    // TUTTE le metriche a valle (IVA inclusa, margine, incentivi, NPV/IRR/
+    // payback/rata) usano il prezzo SCONTATO.
+    const prezzo_vendita_netto = round2(prezzo_pieno_netto - sconto_eur_applicato);
     const iva_aliquota = prog.iva_aliquota ?? 0.10;
     const prezzo_vendita_iva_inclusa = prezzo_vendita_netto * (1 + iva_aliquota);
     const margine_eur = prezzo_vendita_netto - costo_totale_netto;
@@ -300,6 +362,11 @@ Deno.serve(async (req: Request) => {
       // metadata
       costi: {
         costo_totale_netto: round2(costo_totale_netto),
+        // Prezzo pieno PRE-sconto + sconto effettivamente applicato (clamp
+        // server-side) + flag se lo sconto richiesto è stato limitato.
+        prezzo_pieno_netto: round2(prezzo_pieno_netto),
+        sconto_eur_applicato,
+        sconto_limitato,
         prezzo_vendita_netto: round2(prezzo_vendita_netto),
         prezzo_vendita_iva_inclusa: round2(prezzo_vendita_iva_inclusa),
         margine_eur: round2(margine_eur),
@@ -368,6 +435,8 @@ Deno.serve(async (req: Request) => {
         prezzo_vendita_iva_inclusa,
         margine_eur,
         margine_pct,
+        // Audit sconto: quanto è stato EFFETTIVAMENTE concesso post-clamp.
+        sconto_eur_applicato,
         incentivi_applicati: incentivi,
         capienza_irpef_ok: capienza.capienza_ok,
         capienza_irpef_warning: capienza.warning,

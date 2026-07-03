@@ -350,10 +350,13 @@ export interface ArticoloFv {
   unita_misura: string | null;
   immagine_url: string | null;
   attivo: boolean;
+  /** Provenienza dal listino (article_families): valorizzato per i componenti
+   *  proiettati/sincronizzati dal trigger fv_sync_listino_macro. */
+  listino_family_id: string | null;
 }
 
 const FV_CAT_COLS =
-  "id, codice, descrizione, categoria_fv, prezzo_vendita, prezzo_acquisto, potenza_w, potenza_kw, capacita_kwh, garanzia_anni, efficienza_pct, marca_fv, modello_fv, unita_misura, immagine_url, attivo";
+  "id, codice, descrizione, categoria_fv, prezzo_vendita, prezzo_acquisto, potenza_w, potenza_kw, capacita_kwh, garanzia_anni, efficienza_pct, marca_fv, modello_fv, unita_misura, immagine_url, attivo, listino_family_id";
 
 // Lista COMPLETA dei componenti FV (inclusi i disattivati) per la gestione.
 export function useArticoliFvCatalogo() {
@@ -381,6 +384,8 @@ export interface ListinoOpzioneFv {
   nome: string | null;
   descrizione: string | null;
   prezzo: number | null;
+  /** Prezzo base d'acquisto (per il margine dei "Prodotti extra" wizard). */
+  prezzo_acquisto: number | null;
 }
 export function useListinoPerFv(search?: string) {
   const companyId = useEffectiveCompanyId();
@@ -390,7 +395,7 @@ export function useListinoPerFv(search?: string) {
     queryFn: async () => {
       let q = supabase
         .from("article_families" as never)
-        .select("id, nome, descrizione, prezzo_base_vendita")
+        .select("id, nome, descrizione, prezzo_base_vendita, prezzo_base_acquisto")
         .eq("company_id", companyId as string)
         .eq("attivo", true)
         .order("nome")
@@ -404,11 +409,13 @@ export function useListinoPerFv(search?: string) {
         nome: string | null;
         descrizione: string | null;
         prezzo_base_vendita: number | null;
+        prezzo_base_acquisto: number | null;
       }>) ?? []).map((r) => ({
         id: r.id,
         nome: r.nome,
         descrizione: r.descrizione,
         prezzo: r.prezzo_base_vendita,
+        prezzo_acquisto: r.prezzo_base_acquisto,
       })) as ListinoOpzioneFv[];
     },
   });

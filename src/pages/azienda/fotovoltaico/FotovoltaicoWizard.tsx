@@ -14,7 +14,7 @@
  */
 
 import { useState, useMemo, useEffect, useRef, useCallback, type PointerEvent as ReactPointerEvent } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useBundlesList, type Bundle } from "@/hooks/useBundles";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,6 +50,8 @@ import {
   useAggiornaProgetto,
   useProfiliAutoconsumo,
   useArticoliFv,
+  useComponentiProgetto,
+  useListinoPerFv,
   useUpsertComponenti,
   useUpsertManodopera,
   useUpsertServizi,
@@ -63,6 +65,9 @@ import {
   type FvTabellaFinanziamento,
   type FvRigaFinanziamento,
 } from "@/lib/fotovoltaico/queries";
+import { useDiscountRules } from "@/hooks/useDiscountRules";
+import { evaluateDiscountRules, classifyDiscount } from "@/lib/serramenti/discountRules";
+import { parseDecimalIT } from "@/lib/parseDecimalIT";
 import type {
   FvArchetipo,
   FvProfiloAutoconsumoCodice,
@@ -155,7 +160,12 @@ export default function FotovoltaicoWizard() {
   const initialDraft = useMemo(() => loadPersistedDraft(id ?? null), [id]);
 
   const [step, setStep] = useState(initialDraft?.step ?? 1);
-  const [data, setData] = useState<WizardData>(initialDraft?.data ?? INITIAL);
+  // Merge con INITIAL: i draft salvati prima dell'aggiunta di nuovi campi
+  // (prodotti_extra, sconto_tipo/valore) non li contengono → senza merge
+  // `data.prodotti_extra` sarebbe undefined a runtime.
+  const [data, setData] = useState<WizardData>(
+    initialDraft ? { ...INITIAL, ...initialDraft.data } : INITIAL,
+  );
   const [progettoId, setProgettoId] = useState<string | null>(id ?? null);
   const [salvando, setSalvando] = useState(false);
   const [analizzandoTetto, setAnalizzandoTetto] = useState(false);
@@ -260,9 +270,13 @@ export default function FotovoltaicoWizard() {
 
   // ─── Queries ──────────────────────────────────────────────────────────────
   const { data: profili = [] } = useProfiliAutoconsumo();
-  const { data: pannelli = [] } = useArticoliFv("pannello");
-  const { data: inverter = [] } = useArticoliFv("inverter");
+  const { data: pannelli = [], isLoading: pannelliLoading } = useArticoliFv("pannello");
+  const { data: inverter = [], isLoading: inverterLoading } = useArticoliFv("inverter");
   const { data: accumuli = [] } = useArticoliFv("accumulo");
+  // Banner Step 5: catalogo FV vuoto (query concluse, 0 pannelli e 0 inverter)
+  // → il listino non è ancora stato collegato al preventivatore.
+  const catalogoFvVuoto =
+    !pannelliLoading && !inverterLoading && pannelli.length === 0 && inverter.length === 0;
   const { data: tariffeFv = [] } = useTariffeFv();
   // Kit/offerte FV: i bundle con fv_kwp valorizzato (indipendente dal vertical
   // dell'azienda, che può essere "generico" pur avendo il modulo FV). Filtro in Step5.
@@ -271,6 +285,10 @@ export default function FotovoltaicoWizard() {
   const { data: serviziCatalogo = [] } = useServiziCatalogo();
   const { data: progettoEsistente } = useProgetto(progettoId ?? undefined);
   const { data: manodoperaEsistente } = useManodoperaProgetto(progettoId ?? undefined);
+  // Componenti già salvati: servono per ri-idratare i "Prodotti extra"
+  // (categoria='altro', esclusa la voce-kit) in modifica, così sopravvivono
+  // al flusso delete+insert dello Step 5.
+  const { data: componentiEsistenti } = useComponentiProgetto(progettoId ?? undefined);
 
   // Sprint 4: tabelle finanziamento per importo target del progetto
   const investimentoCorrente = progettoEsistente?.prezzo_vendita_iva_inclusa ?? null;
@@ -379,6 +397,13 @@ export default function FotovoltaicoWizard() {
       modalita_pagamento:
         (progettoEsistente as { modalita_pagamento?: WizardData["modalita_pagamento"] })
           .modalita_pagamento ?? INITIAL.modalita_pagamento,
+      // Sconto commerciale persistito (Step 6): ri-idrata tipo + valore.
+      sconto_tipo:
+        ((progettoEsistente as { sconto_tipo?: "pct" | "importo" | null }).sconto_tipo ?? "pct"),
+      sconto_valore:
+        (progettoEsistente as { sconto_valore?: number | null }).sconto_valore != null
+          ? Number((progettoEsistente as { sconto_valore?: number | null }).sconto_valore)
+          : null,
     }));
     // Marca tutti gli step "passati" del progetto come completati.
     // Un progetto già emesso ha tutti gli 8 step completati.
@@ -402,6 +427,36 @@ export default function FotovoltaicoWizard() {
       }
     }
   }, [manodoperaEsistente]);
+
+  // Ri-idrata i "Prodotti extra" dalle righe fv_componenti_progetto salvate
+  // (categoria='altro', esclusa la voce-kit che ha unita_misura='kit').
+  // UNA volta per progetto: senza guardia il refetch post-save (replace:true)
+  // sovrascriverebbe le modifiche live dell'utente (es. extra appena rimossi).
+  const extrasHydratedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!progettoId || !componentiEsistenti || componentiEsistenti.length === 0) return;
+    if (extrasHydratedRef.current === progettoId) return;
+    const extras = componentiEsistenti.filter(
+      (c) => c.categoria === "altro" && c.unita_misura !== "kit",
+    );
+    extrasHydratedRef.current = progettoId;
+    if (extras.length === 0) return;
+    setData((d) =>
+      d.prodotti_extra.length > 0
+        ? d
+        : {
+            ...d,
+            prodotti_extra: extras.map((c) => ({
+              listino_id: null,
+              descrizione: c.descrizione,
+              quantita: Number(c.quantita) || 1,
+              prezzo_vendita: Number(c.prezzo_unitario_vendita) || 0,
+              prezzo_acquisto:
+                c.prezzo_unitario_netto != null ? Number(c.prezzo_unitario_netto) : null,
+            })),
+          },
+    );
+  }, [componentiEsistenti, progettoId]);
 
   // Persistenza locale: salva draft ad ogni cambio di state, ma non quando
   // siamo in read-only (il DB è già la verità).
@@ -959,6 +1014,35 @@ export default function FotovoltaicoWizard() {
       }
       } // chiude il ramo "configurazione manuale" (vs kit)
 
+      // Prodotti extra dal listino (caldaia, clima, colonnina, …): righe con
+      // categoria='altro' nello STESSO payload replace-insert dei componenti
+      // principali, così sopravvivono al flusso delete+insert e l'edge
+      // finanziaria le somma automaticamente (reduce su tutti i componenti).
+      data.prodotti_extra.forEach((ex, i) => {
+        if (!ex.descrizione.trim() || !(ex.quantita > 0)) return;
+        const vendita = Number(ex.prezzo_vendita) || 0;
+        const netto =
+          ex.prezzo_acquisto != null && ex.prezzo_acquisto > 0
+            ? Number(ex.prezzo_acquisto)
+            : Math.round(vendita * 0.75 * 100) / 100;
+        comp.push({
+          progetto_id: progettoId,
+          articolo_id: null,
+          categoria: "altro",
+          descrizione: ex.descrizione.trim(),
+          quantita: ex.quantita,
+          unita_misura: "pz",
+          prezzo_unitario_netto: netto,
+          prezzo_unitario_vendita: vendita,
+          margine_pct: vendita > 0 ? (vendita - netto) / vendita : null,
+          potenza_unitaria_w: null,
+          potenza_unitaria_kw: null,
+          capacita_kwh: null,
+          garanzia_anni: null,
+          ordinamento: 10 + i,
+        });
+      });
+
       await upsertComponenti.mutateAsync({
         progetto_id: progettoId,
         righe: comp.map(({ progetto_id: _ignored, ...r }) => r),
@@ -1037,6 +1121,18 @@ export default function FotovoltaicoWizard() {
     setCalcolandoFinanziario(true);
     setScenarioErr(null);
     try {
+      // Persisti lo sconto PRIMA del calcolo: l'edge legge sconto_tipo/valore
+      // dalla riga fv_progetti e applica il clamp server-side (discount_rules).
+      if (!readOnlyMode) {
+        const scontoAttivo = data.sconto_valore != null && data.sconto_valore > 0;
+        await aggiornaProgetto.mutateAsync({
+          id: progettoId,
+          patch: {
+            sconto_tipo: scontoAttivo ? data.sconto_tipo : null,
+            sconto_valore: scontoAttivo ? data.sconto_valore : null,
+          } as never,
+        });
+      }
       const { data: result, error } = await supabase.functions.invoke(
         "fv-calcolo-finanziario",
         { body: { progetto_id: progettoId } },
@@ -1045,6 +1141,15 @@ export default function FotovoltaicoWizard() {
       if (!mountedRef.current) return;
       setScenarioFin(result as Record<string, unknown>);
       setCompletedSteps((s) => new Set(s).add(6));
+      // Nota clamp server-side: se lo sconto richiesto superava le regole
+      // aziendali, l'edge lo ha limitato — avvisa il venditore.
+      const costiRes = (result as { costi?: { sconto_limitato?: boolean; sconto_eur_applicato?: number } } | null)
+        ?.costi;
+      if (costiRes?.sconto_limitato) {
+        toast.warning(
+          `Sconto oltre il massimo consentito dalle regole aziendali: applicato ${formatEur(costiRes.sconto_eur_applicato ?? 0)}.`,
+        );
+      }
       toast.success("Calcolo finanziario completato");
     } catch (e) {
       if (!mountedRef.current) return;
@@ -1054,7 +1159,10 @@ export default function FotovoltaicoWizard() {
     } finally {
       if (mountedRef.current) setCalcolandoFinanziario(false);
     }
-  }, [progettoId]);
+    // aggiornaProgetto escluso dalle deps (identità instabile di useMutation);
+    // le sole dipendenze dati sono progettoId + sconto correnti.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progettoId, readOnlyMode, data.sconto_tipo, data.sconto_valore]);
 
   // Auto-calcolo entrando nello step 6
   const autoCalcRequested = useRef<string | null>(null);
@@ -1158,6 +1266,10 @@ export default function FotovoltaicoWizard() {
           finanziamento_tan: tanPct,
           finanziamento_totale_dovuto_eur: totaleDovuto,
           modalita_pagamento: data.modalita_pagamento,
+          // Sconto commerciale (già persistito da handleCalcolaFinanziario,
+          // ribadito qui per coprire modifiche post-calcolo senza ricalcolo).
+          sconto_tipo: data.sconto_valore != null && data.sconto_valore > 0 ? data.sconto_tipo : null,
+          sconto_valore: data.sconto_valore != null && data.sconto_valore > 0 ? data.sconto_valore : null,
         } as never,
       });
       if (!mountedRef.current) return;
@@ -1551,6 +1663,7 @@ export default function FotovoltaicoWizard() {
               tariffeFv={tariffeFv}
               kitFv={kitFvBundles}
               serviziCatalogoCount={serviziCatalogo.length}
+              catalogoFvVuoto={catalogoFvVuoto}
             />
           )}
           {step === 6 && (
@@ -2727,6 +2840,7 @@ function Step5Configurazione({
   tariffeFv,
   kitFv,
   serviziCatalogoCount,
+  catalogoFvVuoto,
 }: {
   data: WizardData;
   update: <K extends keyof WizardData>(k: K, v: WizardData[K]) => void;
@@ -2737,7 +2851,39 @@ function Step5Configurazione({
   tariffeFv: FvTariffaAziendale[];
   kitFv: Bundle[];
   serviziCatalogoCount: number;
+  catalogoFvVuoto: boolean;
 }) {
+  // Prodotti extra: ricerca live sull'INTERO listino generale (article_families).
+  const [extraSearch, setExtraSearch] = useState("");
+  const { data: listinoExtra = [] } = useListinoPerFv(extraSearch);
+
+  const aggiungiExtra = (l: { id: string; nome: string | null; descrizione: string | null; prezzo: number | null; prezzo_acquisto: number | null }) => {
+    update("prodotti_extra", [
+      ...data.prodotti_extra,
+      {
+        listino_id: l.id,
+        descrizione: l.nome || l.descrizione || "Prodotto listino",
+        quantita: 1,
+        prezzo_vendita: l.prezzo ?? 0,
+        prezzo_acquisto: l.prezzo_acquisto,
+      },
+    ]);
+    setExtraSearch("");
+  };
+
+  const aggiornaExtra = (
+    idx: number,
+    patch: Partial<WizardData["prodotti_extra"][number]>,
+  ) => {
+    update(
+      "prodotti_extra",
+      data.prodotti_extra.map((ex, i) => (i === idx ? { ...ex, ...patch } : ex)),
+    );
+  };
+
+  const rimuoviExtra = (idx: number) => {
+    update("prodotti_extra", data.prodotti_extra.filter((_, i) => i !== idx));
+  };
   // Auto-calcolo potenza_kwp da numero pannelli. In sola lettura NON scrive:
   // update() in read-only mostra un toast d'errore, che da un useEffect
   // partirebbe spurio al mount dello step.
@@ -2811,6 +2957,24 @@ function Step5Configurazione({
           </>
         }
       />
+
+      {/* Catalogo FV vuoto: il listino non è ancora stato collegato al
+          preventivatore (0 pannelli e 0 inverter in articoli_native). */}
+      {catalogoFvVuoto && (
+        <div className="mb-4 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+          <div className="flex-1 text-sm text-amber-900">
+            <strong>Nessun componente nel catalogo FV.</strong>{" "}
+            I prodotti del tuo listino non sono ancora stati collegati al preventivatore.
+          </div>
+          <Link
+            to="/azienda/marketing/fotovoltaico/componenti"
+            className="inline-flex items-center gap-1.5 shrink-0 px-4 py-2 text-sm font-semibold rounded-lg text-white bg-amber-600 hover:bg-amber-700 transition-colors"
+          >
+            Collega il listino al preventivatore
+          </Link>
+        </div>
+      )}
 
       {/* Kit/offerta dal listino (Bundle FV): prefill potenza + accumulo + prezzo */}
       {kitFv.some((k) => k.attivo && k.fv_kwp != null) && (
@@ -3208,6 +3372,144 @@ function Step5Configurazione({
               </label>
             </div>
           </div>
+        </FvCard>
+      </div>
+
+      {/* ─── Prodotti extra dal listino ─────────────────────────────────────
+          Ricerca live sull'INTERO listino generale (article_families): caldaia,
+          clima, colonnina, … Le righe vengono salvate in fv_componenti_progetto
+          con categoria='altro' insieme ai componenti principali e sommate
+          automaticamente nel riepilogo economico dello Step 6. */}
+      <div className="mt-4">
+        <FvCard title="Prodotti extra dal listino (opzionale)">
+          <p className="text-sm text-slate-600 mb-3">
+            Aggiungi al preventivo altri prodotti del tuo listino (es. caldaia,
+            climatizzatore, colonnina di ricarica). Vengono sommati al totale e
+            compaiono nel riepilogo economico della Fase 6.
+          </p>
+
+          {!readOnlyMode && (
+            <div className="relative mb-2">
+              <Input
+                value={extraSearch}
+                onChange={(e) => setExtraSearch(e.target.value)}
+                placeholder="Cerca un prodotto del listino da aggiungere…"
+              />
+              {extraSearch.trim() && (
+                <div className="absolute z-20 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                  {listinoExtra.length === 0 ? (
+                    <p className="text-xs text-slate-400 px-3 py-2">Nessun prodotto trovato.</p>
+                  ) : (
+                    listinoExtra.map((l) => (
+                      <button
+                        key={l.id}
+                        type="button"
+                        onClick={() => aggiungiExtra(l)}
+                        className="w-full text-left text-sm px-3 py-2 hover:bg-orange-50 flex items-center justify-between gap-2"
+                      >
+                        <span className="min-w-0 truncate text-slate-700">{l.nome || l.descrizione}</span>
+                        <span className="shrink-0 text-xs text-slate-400">
+                          {l.prezzo != null ? formatEur(l.prezzo) : "—"}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {data.prodotti_extra.length === 0 ? (
+            <p className="text-xs text-slate-400">Nessun prodotto extra aggiunto.</p>
+          ) : (
+            <div className="space-y-2">
+              {data.prodotti_extra.map((ex, idx) => (
+                <div
+                  key={`extra-${idx}`}
+                  className="grid grid-cols-12 gap-2 items-end rounded-lg border border-slate-200 bg-slate-50/60 p-2.5"
+                >
+                  <div className="col-span-12 sm:col-span-5">
+                    <Label className="text-[11px] text-slate-500">Descrizione</Label>
+                    <Input
+                      value={ex.descrizione}
+                      disabled={readOnlyMode}
+                      onChange={(e) => aggiornaExtra(idx, { descrizione: e.target.value })}
+                      className="h-9 text-sm bg-white"
+                    />
+                  </div>
+                  <div className="col-span-3 sm:col-span-2">
+                    <Label className="text-[11px] text-slate-500">Quantità</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={ex.quantita}
+                      disabled={readOnlyMode}
+                      onChange={(e) =>
+                        aggiornaExtra(idx, { quantita: Math.max(1, Math.round(Number(e.target.value) || 1)) })
+                      }
+                      className="h-9 text-sm bg-white"
+                    />
+                  </div>
+                  <div className="col-span-4 sm:col-span-2">
+                    <Label className="text-[11px] text-slate-500">Vendita € (unit.)</Label>
+                    <Input
+                      inputMode="decimal"
+                      defaultValue={ex.prezzo_vendita || ""}
+                      disabled={readOnlyMode}
+                      onBlur={(e) =>
+                        aggiornaExtra(idx, { prezzo_vendita: Math.max(0, parseDecimalIT(e.target.value)) })
+                      }
+                      className="h-9 text-sm bg-white"
+                      placeholder="0,00"
+                    />
+                  </div>
+                  <div className="col-span-4 sm:col-span-2">
+                    <Label className="text-[11px] text-slate-500">Acquisto € (margine)</Label>
+                    <Input
+                      inputMode="decimal"
+                      defaultValue={ex.prezzo_acquisto ?? ""}
+                      disabled={readOnlyMode}
+                      onBlur={(e) =>
+                        aggiornaExtra(idx, {
+                          prezzo_acquisto: e.target.value.trim() === "" ? null : Math.max(0, parseDecimalIT(e.target.value)),
+                        })
+                      }
+                      className="h-9 text-sm bg-white"
+                      placeholder="—"
+                    />
+                  </div>
+                  <div className="col-span-1 flex items-center justify-end gap-1 pb-1">
+                    {!readOnlyMode && (
+                      <button
+                        type="button"
+                        onClick={() => rimuoviExtra(idx)}
+                        className="text-slate-400 hover:text-red-500 transition-colors"
+                        aria-label="Rimuovi prodotto extra"
+                        title="Rimuovi"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="col-span-11 text-[11px] text-slate-500 -mt-1">
+                    Totale riga: <strong>{formatEur((Number(ex.prezzo_vendita) || 0) * (ex.quantita || 1))}</strong>
+                  </div>
+                </div>
+              ))}
+              <p className="text-xs text-slate-500 text-right">
+                Totale prodotti extra:{" "}
+                <strong className="text-slate-700">
+                  {formatEur(
+                    data.prodotti_extra.reduce(
+                      (s, ex) => s + (Number(ex.prezzo_vendita) || 0) * (ex.quantita || 1),
+                      0,
+                    ),
+                  )}
+                </strong>
+              </p>
+            </div>
+          )}
         </FvCard>
       </div>
     </>
@@ -3646,6 +3948,12 @@ function Step6Finanziario({
   // Confronto varianti (gap vs Reonic/Autarc): profili autoconsumo per stimare
   // il delta delle varianti con/senza accumulo. Hook prima di ogni early-return.
   const { data: profiliAutoconsumo } = useProfiliAutoconsumo();
+  // Sconto commerciale: regole aziendali (stesso pattern di StepEconomia
+  // serramenti) + input locale stringa per digitazione decimale IT fluida.
+  const { data: discountRules = [] } = useDiscountRules();
+  const [scontoInput, setScontoInput] = useState<string>(() =>
+    data.sconto_valore != null ? String(data.sconto_valore).replace(".", ",") : "",
+  );
 
   if (calcolando) {
     return (
@@ -3699,6 +4007,9 @@ function Step6Finanziario({
     }>) ?? [];
   const costi = scenario.costi as {
     costo_totale_netto?: number;
+    prezzo_pieno_netto?: number;
+    sconto_eur_applicato?: number;
+    sconto_limitato?: boolean;
     prezzo_vendita_netto?: number;
     prezzo_vendita_iva_inclusa: number;
     margine_eur?: number;
@@ -3706,6 +4017,37 @@ function Step6Finanziario({
   };
 
   const investimento = costi?.prezzo_vendita_iva_inclusa ?? 0;
+
+  // ─── Sconto commerciale (clamp lato client, mirror di StepEconomia) ───────
+  // Prezzo pieno = netto PRE-sconto: dagli scenari nuovi arriva
+  // prezzo_pieno_netto; per scenari vecchi ricostruito da netto + applicato.
+  const prezzoPienoNetto =
+    costi?.prezzo_pieno_netto ??
+    ((costi?.prezzo_vendita_netto ?? 0) + (costi?.sconto_eur_applicato ?? 0));
+  const costoTotaleNetto = costi?.costo_totale_netto ?? 0;
+  const scontoValoreNum = data.sconto_valore ?? 0;
+  const scontoEurRichiesto =
+    scontoValoreNum > 0
+      ? data.sconto_tipo === "pct"
+        ? (prezzoPienoNetto * scontoValoreNum) / 100
+        : scontoValoreNum
+      : 0;
+  // Conversione €↔% rispetto al prezzo netto pieno per il confronto regole.
+  const scontoPctRichiesto = prezzoPienoNetto > 0 ? (scontoEurRichiesto / prezzoPienoNetto) * 100 : 0;
+  const discountEval = evaluateDiscountRules(discountRules, {
+    importo: prezzoPienoNetto,
+    tipoLavoro: "fotovoltaico",
+    // salespersonId non disponibile nel contesto wizard FV → undefined
+  });
+  const discountVerdict = classifyDiscount(scontoPctRichiesto, discountEval);
+  const scontoCapEur = (prezzoPienoNetto * discountEval.scontoMaxPct) / 100;
+  const scontoApplicatoLive = Math.min(scontoEurRichiesto, scontoCapEur);
+  const prezzoNettoScontatoLive = Math.max(0, prezzoPienoNetto - scontoApplicatoLive);
+  const margineLiveEur = prezzoNettoScontatoLive - costoTotaleNetto;
+  const margineLivePct = prezzoNettoScontatoLive > 0 ? (margineLiveEur / prezzoNettoScontatoLive) * 100 : 0;
+  const scontoServerApplicato = costi?.sconto_eur_applicato ?? 0;
+  // L'input differisce da quanto già calcolato server-side → serve Ricalcola.
+  const scontoDaRicalcolare = Math.abs(scontoApplicatoLive - scontoServerApplicato) > 0.5;
   const risparmioAnno1 =
     (scenario.risparmio_bolletta_eur as number) + (scenario.ricavi_rid_eur as number);
   const risparmio25Anni = scenario.risparmio_totale_25_anni as number;
@@ -4029,6 +4371,147 @@ function Step6Finanziario({
         />
         <FvKpi label="Risparmio 25 anni" value={formatEur(risparmio25Anni)} variant="green" />
       </div>
+
+      {/* ─── Sconto commerciale ────────────────────────────────────────────
+          Pattern StepEconomia serramenti: valutazione live delle discount_rules
+          (fascia importo sul prezzo netto pieno + tipo_lavoro 'fotovoltaico'),
+          verdetto verde/ambra/rosso e clamp definitivo server-side nell'edge
+          fv-calcolo-finanziario. Vale per TUTTI i clienti (B2B e privati). */}
+      <FvCard title="Sconto commerciale" className="mb-4">
+        <div className="flex flex-wrap items-end gap-3 mb-3">
+          <div>
+            <Label className="text-xs text-slate-500 mb-1 block">Tipo di sconto</Label>
+            <div className="inline-flex rounded-lg border border-slate-300 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => update("sconto_tipo", "pct")}
+                className={`px-4 py-2 text-sm font-semibold transition-colors ${
+                  data.sconto_tipo === "pct"
+                    ? "bg-orange-500 text-white"
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                %
+              </button>
+              <button
+                type="button"
+                onClick={() => update("sconto_tipo", "importo")}
+                className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-slate-300 ${
+                  data.sconto_tipo === "importo"
+                    ? "bg-orange-500 text-white"
+                    : "bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                €
+              </button>
+            </div>
+          </div>
+          <div className="w-40">
+            <Label className="text-xs text-slate-500 mb-1 block">
+              {data.sconto_tipo === "pct" ? "Sconto (%)" : "Sconto (€)"}
+            </Label>
+            <Input
+              inputMode="decimal"
+              value={scontoInput}
+              onChange={(e) => {
+                setScontoInput(e.target.value);
+                const v = e.target.value.trim() === "" ? null : Math.max(0, parseDecimalIT(e.target.value));
+                update("sconto_valore", v);
+              }}
+              placeholder={data.sconto_tipo === "pct" ? "es. 5" : "es. 500"}
+              className={`h-10 ${
+                discountVerdict === "blocked"
+                  ? "border-red-400 focus-visible:ring-red-400"
+                  : discountVerdict === "approve"
+                    ? "border-amber-400 focus-visible:ring-amber-400"
+                    : ""
+              }`}
+            />
+          </div>
+          <div className="text-xs text-slate-500 pb-2">
+            Regole aziendali: sconto max <strong>{discountEval.scontoMaxPct.toFixed(1)}%</strong>
+            {discountEval.approvaOltrePct != null && (
+              <> · approvazione oltre <strong>{discountEval.approvaOltrePct.toFixed(1)}%</strong></>
+            )}
+            {discountEval.isFallback && <> · (nessuna regola: fallback 10%)</>}
+          </div>
+        </div>
+
+        {/* Verdetto live (pattern StepEconomia) */}
+        {scontoEurRichiesto > 0 && discountVerdict === "ok" && (
+          <p className="text-xs text-emerald-700 mb-3 flex items-center gap-1.5">
+            ✓ Sconto entro le regole aziendali — margine post-sconto{" "}
+            <strong>{margineLivePct.toFixed(1)}%</strong> ({formatEur(margineLiveEur)})
+          </p>
+        )}
+        {scontoEurRichiesto > 0 && discountVerdict === "approve" && (
+          <p className="text-xs text-amber-700 mb-3 flex items-center gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            Sconto {scontoPctRichiesto.toFixed(1)}% oltre soglia{" "}
+            {discountEval.approvaOltrePct?.toFixed(1)}%: richiede approvazione admin.
+          </p>
+        )}
+        {scontoEurRichiesto > 0 && discountVerdict === "blocked" && (
+          <p className="text-xs text-red-600 mb-3 flex items-center gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            Sconto {scontoPctRichiesto.toFixed(1)}% oltre il massimo consentito ({discountEval.scontoMaxPct.toFixed(1)}%):
+            verrà limitato a {discountEval.scontoMaxPct.toFixed(1)}% (≈ {formatEur(scontoCapEur)}).
+          </p>
+        )}
+        {costi?.sconto_limitato && !scontoDaRicalcolare && (
+          <p className="text-xs text-amber-700 mb-3">
+            ⚠ Lo sconto richiesto superava le regole: il calcolo ha applicato{" "}
+            <strong>{formatEur(scontoServerApplicato)}</strong>.
+          </p>
+        )}
+
+        {/* Riepilogo prezzo: pieno / sconto / scontato / margine post-sconto */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-sm">
+          <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+            <div className="text-xs text-slate-500">Prezzo pieno (netto)</div>
+            <div className="font-extrabold text-slate-900 tabular-nums">{formatEur(prezzoPienoNetto)}</div>
+          </div>
+          <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+            <div className="text-xs text-slate-500">Sconto applicato</div>
+            <div className="font-extrabold text-slate-900 tabular-nums">
+              −{formatEur(scontoApplicatoLive)}
+              {prezzoPienoNetto > 0 && scontoApplicatoLive > 0 && (
+                <span className="text-xs font-medium text-slate-500 ml-1">
+                  ({((scontoApplicatoLive / prezzoPienoNetto) * 100).toFixed(1)}%)
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="rounded-lg bg-orange-50 border border-orange-200 p-3">
+            <div className="text-xs text-orange-700">Prezzo netto scontato</div>
+            <div className="font-extrabold text-orange-800 tabular-nums">{formatEur(prezzoNettoScontatoLive)}</div>
+          </div>
+          <div className={`rounded-lg border p-3 ${margineLiveEur >= 0 ? "bg-emerald-50 border-emerald-200" : "bg-rose-50 border-rose-200"}`}>
+            <div className={`text-xs ${margineLiveEur >= 0 ? "text-emerald-700" : "text-rose-700"}`}>Margine post-sconto</div>
+            <div className={`font-extrabold tabular-nums ${margineLiveEur >= 0 ? "text-emerald-800" : "text-rose-700"}`}>
+              {formatEur(margineLiveEur)}
+              <span className="text-xs font-medium ml-1">({margineLivePct.toFixed(1)}%)</span>
+            </div>
+          </div>
+        </div>
+
+        {scontoDaRicalcolare && (
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+            <p className="text-xs text-blue-900">
+              Sconto modificato: premi <strong>Ricalcola</strong> per applicarlo a IVA, rata,
+              payback e a tutti i numeri del preventivo.
+            </p>
+            <button
+              type="button"
+              onClick={onRicalcola}
+              className="shrink-0 px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-gradient-to-br from-orange-500 to-amber-400 shadow hover:shadow-md transition-all inline-flex items-center gap-1.5"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Ricalcola
+            </button>
+          </div>
+        )}
+      </FvCard>
 
       {/* 3 NUM CARDS — Rata vs Risparmio vs Costo netto reale (Sprint 4: rata REALE) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">

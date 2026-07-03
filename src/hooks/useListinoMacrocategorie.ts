@@ -44,6 +44,21 @@ export interface ListinoMacrocategoria {
    *  'principale' (DEFAULT) = prodotto principale del verticale (Infissi).
    *  'accessorio' = accessorio collegato (Tapparelle, Cassonetti, ...). */
   categoria_tipo: "principale" | "accessorio";
+  /** Tipologia listino (classificazione per i preventivatori): 'fotovoltaico',
+   *  'serramenti', 'ristrutturazione', 'bagno', 'tetto', 'climatizzazione'.
+   *  NULL = non classificata. */
+  tipologia: string | null;
+  /** Componente FV (solo con tipologia='fotovoltaico'): il trigger DB proietta
+   *  i prodotti della macro in articoli_native con questa categoria_fv. */
+  fv_categoria:
+    | "pannello"
+    | "inverter"
+    | "accumulo"
+    | "wallbox"
+    | "ottimizzatore"
+    | "struttura"
+    | "altro"
+    | null;
   created_at: string;
   updated_at: string;
 }
@@ -60,6 +75,8 @@ export interface MacrocategoriaPayload {
   descrizione_estesa?: string | null;
   mostra_pagina_dedicata_pdf?: boolean;
   categoria_tipo?: "principale" | "accessorio";
+  tipologia?: string | null;
+  fv_categoria?: ListinoMacrocategoria["fv_categoria"];
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -148,6 +165,8 @@ export function useMacrocategorieMutations() {
           descrizione_estesa: payload.descrizione_estesa ?? null,
           mostra_pagina_dedicata_pdf: payload.mostra_pagina_dedicata_pdf ?? false,
           categoria_tipo: payload.categoria_tipo ?? "principale",
+          tipologia: payload.tipologia ?? null,
+          fv_categoria: payload.tipologia === "fotovoltaico" ? payload.fv_categoria ?? null : null,
         } as never)
         .select()
         .single();
@@ -189,6 +208,10 @@ export function useMacrocategorieMutations() {
             : {}),
           ...(patch.categoria_tipo !== undefined
             ? { categoria_tipo: patch.categoria_tipo }
+            : {}),
+          ...(patch.tipologia !== undefined ? { tipologia: patch.tipologia } : {}),
+          ...(patch.fv_categoria !== undefined
+            ? { fv_categoria: patch.fv_categoria }
             : {}),
         } as never)
         .eq("id", id)

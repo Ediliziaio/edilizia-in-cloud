@@ -1,19 +1,29 @@
 /**
- * Catalogo Componenti FV — gestione di pannelli / inverter / accumuli che
- * alimentano la Fase 5 del wizard Fotovoltaico (tabella articoli_native con
- * categoria_fv). Permette di crearli da zero o "precompilando dal listino"
- * (article_families) per riusare descrizione e prezzo già caricati.
+ * Catalogo Componenti FV — gestione dei componenti che alimentano la Fase 5
+ * del wizard Fotovoltaico (tabella articoli_native con categoria_fv).
+ *
+ * Il listino è l'unica fonte di verità: da qui si "collega dal listino"
+ * assegnando alle macrocategorie (listino_macrocategorie) la tipologia
+ * 'fotovoltaico' + fv_categoria — un trigger DB proietta automaticamente i
+ * prodotti in articoli_native (listino_family_id valorizzato, badge
+ * "Dal listino"). I componenti si possono anche creare a mano da zero o
+ * "precompilando dal listino" per il singolo articolo.
  */
 import { useMemo, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowLeft,
   Battery,
+  Gauge,
+  Link2,
   Package,
   Pencil,
   Plus,
+  PlugZap,
+  RefreshCw,
   Search,
   Sun,
+  Wrench,
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -27,6 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -45,11 +56,29 @@ import {
   useUpsertArticoloFv,
   type ArticoloFv,
 } from "@/lib/fotovoltaico/queries";
+import {
+  CATEGORIE_FV_LISTINO,
+  TIPOLOGIE_LISTINO,
+  proponiMappingMacroFv,
+  useCollegaMacroFv,
+  useMacroListinoFv,
+  useSyncListinoFv,
+  type CategoriaFvListino,
+} from "@/lib/fotovoltaico/collegaListino";
 
 const eur = (n: number | null | undefined) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n ?? 0);
 
-type TipoFv = "pannello" | "inverter" | "accumulo";
+type TipoFv =
+  | "pannello"
+  | "inverter"
+  | "accumulo"
+  | "wallbox"
+  | "ottimizzatore"
+  | "struttura"
+  | "altro";
+
+type SpecField = "potenza_w" | "potenza_kw" | "capacita_kwh" | null;
 
 const TIPI: Array<{
   value: TipoFv;
@@ -58,18 +87,30 @@ const TIPI: Array<{
   icon: typeof Sun;
   specLabel: string;
   unit: string;
+  specField: SpecField;
 }> = [
-  { value: "pannello", label: "Pannello / Modulo", plural: "Pannelli", icon: Sun, specLabel: "Potenza unitaria (W)", unit: "W" },
-  { value: "inverter", label: "Inverter", plural: "Inverter", icon: Zap, specLabel: "Potenza (kW)", unit: "kW" },
-  { value: "accumulo", label: "Batteria / Accumulo", plural: "Accumuli", icon: Battery, specLabel: "Capacità (kWh)", unit: "kWh" },
+  { value: "pannello", label: "Pannello / Modulo", plural: "Pannelli", icon: Sun, specLabel: "Potenza unitaria (W)", unit: "W", specField: "potenza_w" },
+  { value: "inverter", label: "Inverter", plural: "Inverter", icon: Zap, specLabel: "Potenza (kW)", unit: "kW", specField: "potenza_kw" },
+  { value: "accumulo", label: "Batteria / Accumulo", plural: "Accumuli", icon: Battery, specLabel: "Capacità (kWh)", unit: "kWh", specField: "capacita_kwh" },
+  { value: "wallbox", label: "Colonnina / Wallbox", plural: "Colonnine / Wallbox", icon: PlugZap, specLabel: "Potenza (kW)", unit: "kW", specField: "potenza_kw" },
+  { value: "ottimizzatore", label: "Ottimizzatore", plural: "Ottimizzatori", icon: Gauge, specLabel: "Potenza (W)", unit: "W", specField: "potenza_w" },
+  { value: "struttura", label: "Struttura / Zavorra", plural: "Strutture e zavorre", icon: Wrench, specLabel: "", unit: "", specField: null },
+  { value: "altro", label: "Altro / Extra", plural: "Altro / Extra", icon: Package, specLabel: "", unit: "", specField: null },
 ];
 
 const tipoMeta = (cat: string | null) => TIPI.find((t) => t.value === cat);
 
+const specValueOf = (a: ArticoloFv, field: SpecField): number | null => {
+  if (field === "potenza_w") return a.potenza_w;
+  if (field === "potenza_kw") return a.potenza_kw;
+  if (field === "capacita_kwh") return a.capacita_kwh;
+  return null;
+};
+
 const specDi = (a: ArticoloFv): string => {
   const m = tipoMeta(a.categoria_fv);
-  if (!m) return "";
-  const v = m.value === "pannello" ? a.potenza_w : m.value === "inverter" ? a.potenza_kw : a.capacita_kwh;
+  if (!m || !m.specField) return "";
+  const v = specValueOf(a, m.specField);
   return v != null ? `${v} ${m.unit}` : "—";
 };
 
@@ -100,13 +141,26 @@ export default function ComponentiFv() {
   const { data: componenti = [], isLoading } = useArticoliFvCatalogo();
   const upsert = useUpsertArticoloFv();
   const toggle = useToggleArticoloFv();
+  const syncListino = useSyncListinoFv();
 
   const [open, setOpen] = useState(false);
+  const [collegaOpen, setCollegaOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [listinoSearch, setListinoSearch] = useState("");
   const { data: listino = [] } = useListinoPerFv(listinoSearch);
   const [uploadingImg, setUploadingImg] = useState(false);
   const imgInputRef = useRef<HTMLInputElement | null>(null);
+
+  // "Sincronizza ora": riallinea articoli_native con il listino taggato
+  // (il trigger DB copre i cambi futuri, la RPC serve per il backfill).
+  const handleSyncNow = async () => {
+    try {
+      const n = await syncListino.mutateAsync();
+      toast.success(`Sincronizzazione completata: ${n} componenti allineati dal listino`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Sincronizzazione non riuscita");
+    }
+  };
 
   // Upload foto componente → bucket fv-progetti, signed URL 1 anno (come i template).
   const handleImgUpload = async (file: File) => {
@@ -157,13 +211,7 @@ export default function ComponentiFv() {
 
   const openEdit = (a: ArticoloFv) => {
     const m = tipoMeta(a.categoria_fv);
-    const specVal = m
-      ? m.value === "pannello"
-        ? a.potenza_w
-        : m.value === "inverter"
-          ? a.potenza_kw
-          : a.capacita_kwh
-      : null;
+    const specVal = m ? specValueOf(a, m.specField) : null;
     setForm({
       id: a.id,
       categoria_fv: (m?.value ?? "pannello") as TipoFv,
@@ -196,6 +244,7 @@ export default function ComponentiFv() {
     }
     const prezzo = form.prezzo_vendita ? Number(form.prezzo_vendita.replace(",", ".")) : 0;
     const specNum = form.spec ? Number(form.spec.replace(",", ".")) : null;
+    const specField = tipoMeta(form.categoria_fv)?.specField ?? null;
     try {
       await upsert.mutateAsync({
         id: form.id,
@@ -205,9 +254,9 @@ export default function ComponentiFv() {
         marca_fv: form.marca_fv.trim() || null,
         modello_fv: form.modello_fv.trim() || null,
         prezzo_vendita: Number.isFinite(prezzo) ? prezzo : 0,
-        potenza_w: form.categoria_fv === "pannello" ? specNum : null,
-        potenza_kw: form.categoria_fv === "inverter" ? specNum : null,
-        capacita_kwh: form.categoria_fv === "accumulo" ? specNum : null,
+        potenza_w: specField === "potenza_w" ? specNum : null,
+        potenza_kw: specField === "potenza_kw" ? specNum : null,
+        capacita_kwh: specField === "capacita_kwh" ? specNum : null,
         immagine_url: form.immagine_url || null,
       });
       toast.success(form.id ? "Componente aggiornato" : "Componente aggiunto al catalogo FV");
@@ -236,13 +285,26 @@ export default function ComponentiFv() {
           </Link>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Componenti FV</h1>
           <p className="text-sm text-blue-100 mt-1 max-w-2xl">
-            Pannelli, inverter e accumuli che il wizard usa nella Fase 5 (Configurazione). Aggiungili a mano o partendo dai prodotti del tuo listino.
+            Pannelli, inverter, accumuli e gli altri componenti che il wizard usa nella Fase 5 (Configurazione).
+            Collega le macrocategorie del tuo listino al preventivatore: i prodotti si sincronizzano da soli.
           </p>
         </div>
       </div>
 
       <div className="max-w-[1200px] mx-auto px-4 sm:px-8 py-6 space-y-6">
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={handleSyncNow}
+            disabled={syncListino.isPending}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${syncListino.isPending ? "animate-spin" : ""}`} />
+            {syncListino.isPending ? "Sincronizzazione…" : "Sincronizza ora"}
+          </Button>
+          <Button variant="outline" onClick={() => setCollegaOpen(true)} className="gap-2">
+            <Link2 className="h-4 w-4" /> Collega dal listino
+          </Button>
           <Button onClick={openNew} className="gap-2">
             <Plus className="h-4 w-4" /> Aggiungi componente
           </Button>
@@ -273,6 +335,11 @@ export default function ComponentiFv() {
                             <span className="font-medium text-slate-800 truncate">{a.descrizione}</span>
                             {(a.marca_fv || a.modello_fv) && (
                               <span className="text-xs text-slate-500">{[a.marca_fv, a.modello_fv].filter(Boolean).join(" · ")}</span>
+                            )}
+                            {a.listino_family_id && (
+                              <Badge variant="outline" className="text-[10px] border-blue-300 text-blue-700 gap-1">
+                                <Link2 className="h-2.5 w-2.5" /> Dal listino
+                              </Badge>
                             )}
                             {!a.attivo && <Badge variant="secondary" className="text-[10px]">Disattivato</Badge>}
                           </div>
@@ -369,10 +436,12 @@ export default function ComponentiFv() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="mb-1.5 block">{specMeta.specLabel}</Label>
-                <Input inputMode="decimal" value={form.spec} onChange={(e) => setForm((f) => ({ ...f, spec: e.target.value }))} placeholder={specMeta.unit} />
-              </div>
+              {specMeta.specField && (
+                <div>
+                  <Label className="mb-1.5 block">{specMeta.specLabel}</Label>
+                  <Input inputMode="decimal" value={form.spec} onChange={(e) => setForm((f) => ({ ...f, spec: e.target.value }))} placeholder={specMeta.unit} />
+                </div>
+              )}
               <div>
                 <Label className="mb-1.5 block">Prezzo di vendita (€)</Label>
                 <Input inputMode="decimal" value={form.prezzo_vendita} onChange={(e) => setForm((f) => ({ ...f, prezzo_vendita: e.target.value }))} placeholder="0,00" />
@@ -441,6 +510,201 @@ export default function ComponentiFv() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CollegaListinoDialog open={collegaOpen} onOpenChange={setCollegaOpen} />
     </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Collega dal listino — classificazione delle macrocategorie.
+ *
+ * Il listino è l'unica fonte di verità: qui si assegna a ogni macro la
+ * tipologia (fotovoltaico, serramenti, …) e — per il fotovoltaico — la
+ * categoria componente. Il salvataggio aggiorna listino_macrocategorie e
+ * chiama la RPC fv_sync_listino_macro che proietta i prodotti in
+ * articoli_native (il trigger DB mantiene poi tutto in sync da solo).
+ * ───────────────────────────────────────────────────────────────────────── */
+const SELECT_NONE = "__none__";
+
+interface CollegaRowState {
+  tipologia: string | null;
+  fv_categoria: CategoriaFvListino | null;
+  /** True se il valore mostrato è una proposta automatica (non ancora in DB). */
+  proposta: boolean;
+}
+
+function CollegaListinoDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { data: macros = [], isLoading } = useMacroListinoFv(open);
+  const collega = useCollegaMacroFv();
+  // `rows` contiene SOLO gli override utente; il valore mostrato per ogni
+  // macro è derivato: override → valori DB → proposta automatica (ILIKE).
+  // Niente effect di inizializzazione: stato derivato in render.
+  const [rows, setRows] = useState<Record<string, CollegaRowState>>({});
+
+  const rigaDefault = (m: MacroListinoFv): CollegaRowState => {
+    if (m.tipologia || m.fv_categoria) {
+      return { tipologia: m.tipologia, fv_categoria: m.fv_categoria, proposta: false };
+    }
+    const p = proponiMappingMacroFv(m.nome);
+    return { tipologia: p.tipologia, fv_categoria: p.fv_categoria, proposta: p.tipologia != null };
+  };
+  const rigaDi = (m: MacroListinoFv): CollegaRowState => rows[m.id] ?? rigaDefault(m);
+
+  const setRow = (m: MacroListinoFv, patch: Partial<CollegaRowState>) =>
+    setRows((r) => ({ ...r, [m.id]: { ...rigaDi(m), ...patch, proposta: false } }));
+
+  const daCollegare = useMemo(
+    () =>
+      macros.filter((m) => {
+        const r = rows[m.id] ?? rigaDefault(m);
+        return (
+          (r.tipologia ?? null) !== (m.tipologia ?? null) ||
+          (r.fv_categoria ?? null) !== (m.fv_categoria ?? null) ||
+          r.proposta
+        );
+      }),
+    // rigaDefault è pura (dipende solo da m) → non serve nelle deps
+     
+    [macros, rows],
+  );
+
+  const fvCollegate = macros.filter((m) => {
+    const r = rigaDi(m);
+    return r.tipologia === "fotovoltaico" && r.fv_categoria;
+  });
+
+  const handleSalva = async () => {
+    try {
+      const payload = macros.map((m) => {
+        const r = rigaDi(m);
+        return { id: m.id, tipologia: r.tipologia, fv_categoria: r.fv_categoria };
+      });
+      const sincronizzati = await collega.mutateAsync(payload);
+      toast.success(
+        `Listino collegato: ${fvCollegate.length} macrocategorie FV — ${sincronizzati} componenti sincronizzati`,
+      );
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Collegamento non riuscito");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !collega.isPending && onOpenChange(o)}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Link2 className="h-4 w-4 text-orange-500" /> Collega dal listino
+          </DialogTitle>
+          <DialogDescription>
+            Classifica le macrocategorie del listino una volta sola: quelle con tipologia
+            "Fotovoltaico" + componente vengono sincronizzate automaticamente nel
+            preventivatore FV (anche per i prodotti aggiunti in futuro).
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <p className="text-sm text-slate-500 py-6 text-center">Caricamento listino…</p>
+        ) : macros.length === 0 ? (
+          <p className="text-sm text-slate-500 py-6 text-center">
+            Nessuna macrocategoria nel listino. Crea prima il listino in Impostazioni → Catalogo.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {macros.map((m) => {
+              const r = rows[m.id] ?? { tipologia: null, fv_categoria: null, proposta: false };
+              const isFv = r.tipologia === "fotovoltaico";
+              return (
+                <div
+                  key={m.id}
+                  className={`rounded-lg border p-3 flex flex-col sm:flex-row sm:items-center gap-2 ${
+                    isFv && r.fv_categoria ? "border-emerald-200 bg-emerald-50/40" : "border-slate-200"
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm text-slate-800 truncate">{m.nome}</span>
+                      {!m.attivo && <Badge variant="secondary" className="text-[10px]">Macro disattivata</Badge>}
+                      {r.proposta && (
+                        <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700">
+                          Proposta automatica
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {m.prodottiAttivi} prodotti attivi nel listino
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Select
+                      value={r.tipologia ?? SELECT_NONE}
+                      onValueChange={(v) =>
+                        setRow(m.id, {
+                          tipologia: v === SELECT_NONE ? null : v,
+                          fv_categoria: v === "fotovoltaico" ? r.fv_categoria : null,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="w-[160px] h-9 text-xs">
+                        <SelectValue placeholder="Tipologia" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SELECT_NONE}>— Nessuna tipologia —</SelectItem>
+                        {TIPOLOGIE_LISTINO.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {isFv && (
+                      <Select
+                        value={r.fv_categoria ?? SELECT_NONE}
+                        onValueChange={(v) =>
+                          setRow(m.id, { fv_categoria: v === SELECT_NONE ? null : (v as CategoriaFvListino) })
+                        }
+                      >
+                        <SelectTrigger className="w-[180px] h-9 text-xs">
+                          <SelectValue placeholder="Componente FV" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={SELECT_NONE}>— Scegli componente —</SelectItem>
+                          {CATEGORIE_FV_LISTINO.map((c) => (
+                            <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {macros.length > 0 && (
+          <p className="text-xs text-slate-500">
+            {fvCollegate.length > 0
+              ? `${fvCollegate.length} macrocategorie collegate al preventivatore FV (${fvCollegate.reduce((s, m) => s + m.prodottiAttivi, 0)} prodotti totali).`
+              : "Nessuna macrocategoria collegata al fotovoltaico: assegna tipologia e componente."}
+            {daCollegare.length > 0 ? ` ${daCollegare.length} modifiche da salvare.` : ""}
+          </p>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={collega.isPending}>
+            Annulla
+          </Button>
+          <Button onClick={handleSalva} disabled={collega.isPending || macros.length === 0}>
+            {collega.isPending ? "Sincronizzazione…" : "Salva e sincronizza"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
