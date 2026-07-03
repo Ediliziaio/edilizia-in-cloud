@@ -913,6 +913,596 @@ export const BASE_PORTE_TEMPLATES: BaseArticleTemplateSeed[] = [
   },
 ];
 
+// ════════════════════════════════════════════════════════════════════════════
+// BAGNO & SANITARI — prezzo a pezzo  (vertical: bagno)
+// ════════════════════════════════════════════════════════════════════════════
+export const BASE_BAGNO_TEMPLATES: BaseArticleTemplateSeed[] = [
+  {
+    ...noGrid,
+    nome: "Vaso WC sospeso",
+    descrizione: "Vaso sospeso in ceramica, tecnologia rimless (senza brida) per igiene e pulizia facilitata.",
+    vertical_slug: "bagno",
+    categoria_slug: "sanitari",
+    tipologia: "wc_sospeso",
+    materiale: "ceramica",
+    tags: ["Base", "Bagno", "sanitari", "wc"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 120,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 10,
+    assi_default: [
+      {
+        nome: "Tipo", codice: "tipo", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "sospeso", label: "Sospeso rimless", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "filo_muro", label: "Filo muro (back-to-wall)", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 40 },
+        ],
+      },
+      {
+        nome: "Copriwater", codice: "copriwater", tipo: "discrete", obbligatorio: true, sort_order: 1,
+        values: [
+          { valore: "softclose", label: "Sedile softclose incluso", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "senza", label: "Senza sedile", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: -20 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Bidet sospeso",
+    descrizione: "Bidet sospeso in ceramica, coordinato al vaso; monoforo per miscelatore.",
+    vertical_slug: "bagno",
+    categoria_slug: "sanitari",
+    tipologia: "bidet_sospeso",
+    materiale: "ceramica",
+    tags: ["Base", "Bagno", "sanitari", "bidet"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 100,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 20,
+    assi_default: [
+      {
+        nome: "Tipo", codice: "tipo", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "sospeso", label: "Sospeso", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "filo_pavimento", label: "Filo pavimento", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 15 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Lavabo",
+    descrizione: "Lavabo in ceramica per bagno, disponibile da appoggio, sospeso o semincasso.",
+    vertical_slug: "bagno",
+    categoria_slug: "sanitari",
+    tipologia: "lavabo",
+    materiale: "ceramica",
+    tags: ["Base", "Bagno", "sanitari", "lavabo"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 90,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 30,
+    assi_default: [
+      {
+        nome: "Installazione", codice: "installazione", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "appoggio", label: "Da appoggio", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "sospeso", label: "Sospeso", maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "semincasso", label: "Semincasso", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 20 },
+        ],
+      },
+      {
+        nome: "Materiale", codice: "materiale", tipo: "discrete", obbligatorio: true, sort_order: 1,
+        values: [
+          { valore: "ceramica", label: "Ceramica", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "ceramica_sottile", label: "Ceramica sottile", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 30 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Piatto doccia",
+    descrizione: "Piatto doccia a filo pavimento, riducibile su misura; materiale a scelta.",
+    vertical_slug: "bagno",
+    categoria_slug: "docce",
+    tipologia: "piatto_doccia",
+    materiale: "resina",
+    tags: ["Base", "Bagno", "doccia", "piatto"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 150,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 40,
+    assi_default: [
+      {
+        nome: "Materiale", codice: "materiale", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "acrilico", label: "Acrilico", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "resina", label: "Pietra/resina", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 80 },
+          { valore: "gres", label: "Gres effetto pietra", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 120 },
+        ],
+      },
+      {
+        nome: "Dimensione", codice: "dimensione", tipo: "discrete", obbligatorio: true, sort_order: 1,
+        values: [
+          { valore: "70x90", label: "70×90 cm", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "80x120", label: "80×120 cm", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 40 },
+          { valore: "90x140", label: "90×140 cm", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 70 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Box doccia",
+    descrizione: "Box doccia in cristallo temperato, profili in alluminio; varie aperture.",
+    vertical_slug: "bagno",
+    categoria_slug: "docce",
+    tipologia: "box_doccia",
+    materiale: "vetro",
+    tags: ["Base", "Bagno", "doccia", "box"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 320,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 50,
+    assi_default: [
+      {
+        nome: "Apertura", codice: "apertura", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "scorrevole", label: "Scorrevole", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "battente", label: "Battente", maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "angolare", label: "Angolare 2 lati", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 120 },
+        ],
+      },
+      {
+        nome: "Cristallo", codice: "cristallo", tipo: "discrete", obbligatorio: true, sort_order: 1,
+        values: [
+          { valore: "6mm", label: "6 mm trasparente", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "8mm", label: "8 mm trasparente", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 90 },
+          { valore: "satinato", label: "Satinato", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 40 },
+        ],
+      },
+      {
+        nome: "Profilo", codice: "profilo", tipo: "discrete", obbligatorio: true, sort_order: 2,
+        values: [
+          { valore: "cromo", label: "Cromo", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "nero", label: "Nero opaco", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 60 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Miscelatore lavabo",
+    descrizione: "Miscelatore monocomando per lavabo, cartuccia ceramica; varie finiture.",
+    vertical_slug: "bagno",
+    categoria_slug: "rubinetteria",
+    tipologia: "miscelatore_lavabo",
+    materiale: "ottone",
+    tags: ["Base", "Bagno", "rubinetteria", "lavabo"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 60,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 60,
+    assi_default: [
+      {
+        nome: "Altezza", codice: "altezza", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "standard", label: "Standard", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "alto", label: "Alto (per lavabo d'appoggio)", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 25 },
+        ],
+      },
+      {
+        nome: "Finitura", codice: "finitura", tipo: "discrete", obbligatorio: true, sort_order: 1,
+        values: [
+          { valore: "cromo", label: "Cromo", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "nero", label: "Nero opaco", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 40 },
+          { valore: "oro", label: "Oro spazzolato", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 70 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Colonna doccia",
+    descrizione: "Colonna doccia con soffione e doccetta; versione termostatica per temperatura costante.",
+    vertical_slug: "bagno",
+    categoria_slug: "rubinetteria",
+    tipologia: "colonna_doccia",
+    materiale: "ottone",
+    tags: ["Base", "Bagno", "rubinetteria", "doccia"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 180,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 70,
+    assi_default: [
+      {
+        nome: "Tipo", codice: "tipo", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "saliscendi", label: "Saliscendi + soffione", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "termostatica", label: "Termostatica", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 120 },
+        ],
+      },
+      {
+        nome: "Finitura", codice: "finitura", tipo: "discrete", obbligatorio: true, sort_order: 1,
+        values: [
+          { valore: "cromo", label: "Cromo", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "nero", label: "Nero opaco", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 60 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Mobile bagno sospeso con lavabo",
+    descrizione: "Mobile bagno sospeso con lavabo integrato e cassetti soft-close; varie larghezze e finiture.",
+    vertical_slug: "bagno",
+    categoria_slug: "mobili_bagno",
+    tipologia: "mobile_lavabo",
+    materiale: "legno",
+    tags: ["Base", "Bagno", "mobili", "lavabo"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 350,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 80,
+    assi_default: [
+      {
+        nome: "Larghezza", codice: "larghezza", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "60", label: "60 cm", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "80", label: "80 cm", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 80 },
+          { valore: "100", label: "100 cm", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 150 },
+        ],
+      },
+      {
+        nome: "Finitura", codice: "finitura", tipo: "discrete", obbligatorio: true, sort_order: 1,
+        values: [
+          { valore: "bianco", label: "Bianco", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "rovere", label: "Rovere", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 60 },
+          { valore: "laccato_colore", label: "Laccato colore", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 90 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Termoarredo scaldasalviette",
+    descrizione: "Radiatore scaldasalviette per bagno; alimentazione idraulica, elettrica o mista.",
+    vertical_slug: "bagno",
+    categoria_slug: "riscaldamento_bagno",
+    tipologia: "scaldasalviette",
+    materiale: "acciaio",
+    tags: ["Base", "Bagno", "termoarredo", "scaldasalviette"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 130,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 90,
+    assi_default: [
+      {
+        nome: "Alimentazione", codice: "alimentazione", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "idraulico", label: "Idraulico", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "elettrico", label: "Elettrico", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 50 },
+          { valore: "misto", label: "Misto", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 80 },
+        ],
+      },
+      {
+        nome: "Colore", codice: "colore", tipo: "discrete", obbligatorio: true, sort_order: 1,
+        values: [
+          { valore: "bianco", label: "Bianco", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "antracite", label: "Antracite", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 40 },
+          { valore: "cromo", label: "Cromo", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 90 },
+        ],
+      },
+    ],
+  },
+];
+
+// ════════════════════════════════════════════════════════════════════════════
+// ELETTRICO — a pezzo (punti, placche, quadri, corpi) o al metro (cavi/tubi)
+// ════════════════════════════════════════════════════════════════════════════
+export const BASE_ELETTRICO_TEMPLATES: BaseArticleTemplateSeed[] = [
+  {
+    ...noGrid,
+    nome: "Punto luce",
+    descrizione: "Punto luce completo (scatola, comando, cablaggio); esclusa manodopera di posa.",
+    vertical_slug: "elettrico",
+    categoria_slug: "punti",
+    tipologia: "punto_luce",
+    materiale: null,
+    tags: ["Base", "Elettrico", "punto", "luce"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 22,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 10,
+    assi_default: [
+      {
+        nome: "Comando", codice: "comando", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "interrotto", label: "Interrotto", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "deviato", label: "Deviato", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 6 },
+          { valore: "invertito", label: "Invertito", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 12 },
+        ],
+      },
+      {
+        nome: "Serie civile", codice: "serie", tipo: "discrete", obbligatorio: true, sort_order: 1,
+        values: [
+          { valore: "economica", label: "Economica", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "media", label: "Media gamma", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 4 },
+          { valore: "design", label: "Top design", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 8 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Punto presa",
+    descrizione: "Punto presa completo (scatola, presa, cablaggio); esclusa manodopera di posa.",
+    vertical_slug: "elettrico",
+    categoria_slug: "punti",
+    tipologia: "punto_presa",
+    materiale: null,
+    tags: ["Base", "Elettrico", "punto", "presa"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 20,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 20,
+    assi_default: [
+      {
+        nome: "Tipo presa", codice: "tipo", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "bivalente", label: "2P+T 16A bivalente", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "schuko", label: "Schuko", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 3 },
+          { valore: "usb", label: "Con presa USB", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 12 },
+          { valore: "comandata", label: "Comandata", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 6 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Placca serie civile",
+    descrizione: "Placca di finitura con supporto per serie civile; vari posti e materiali.",
+    vertical_slug: "elettrico",
+    categoria_slug: "placche",
+    tipologia: "placca",
+    materiale: null,
+    tags: ["Base", "Elettrico", "placca", "serie-civile"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 8,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 30,
+    assi_default: [
+      {
+        nome: "Posti", codice: "posti", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "3", label: "3 posti", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "4", label: "4 posti", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 2 },
+          { valore: "7", label: "7 posti", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 6 },
+        ],
+      },
+      {
+        nome: "Materiale", codice: "materiale", tipo: "discrete", obbligatorio: true, sort_order: 1,
+        values: [
+          { valore: "tecnopolimero", label: "Tecnopolimero", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "metallo", label: "Metallo", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 12 },
+          { valore: "vetro", label: "Vetro", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 18 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Comando modulare",
+    descrizione: "Meccanismo modulare per serie civile: interruttore, deviatore, pulsante o dimmer.",
+    vertical_slug: "elettrico",
+    categoria_slug: "comandi",
+    tipologia: "comando_modulare",
+    materiale: null,
+    tags: ["Base", "Elettrico", "comando", "modulo"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 6,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 40,
+    assi_default: [
+      {
+        nome: "Funzione", codice: "funzione", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "interruttore", label: "Interruttore", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "deviatore", label: "Deviatore", maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "pulsante", label: "Pulsante", maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "dimmer", label: "Dimmer", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 18 },
+          { valore: "smart", label: "Connesso/Smart", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 25 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Quadro elettrico da incasso",
+    descrizione: "Centralino da incasso per appartamento; numero moduli a scelta, porta inclusa.",
+    vertical_slug: "elettrico",
+    categoria_slug: "quadri",
+    tipologia: "quadro_incasso",
+    materiale: null,
+    tags: ["Base", "Elettrico", "quadro", "centralino"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 45,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 50,
+    assi_default: [
+      {
+        nome: "Moduli", codice: "moduli", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "12", label: "12 moduli (1 fila)", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "24", label: "24 moduli (2 file)", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 30 },
+          { valore: "36", label: "36 moduli (3 file)", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 55 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Interruttore differenziale magnetotermico (salvavita)",
+    descrizione: "Magnetotermico differenziale per protezione linea; sensibilità e curva a norma.",
+    vertical_slug: "elettrico",
+    categoria_slug: "protezioni",
+    tipologia: "salvavita",
+    materiale: null,
+    tags: ["Base", "Elettrico", "salvavita", "protezione"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 55,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 60,
+    assi_default: [
+      {
+        nome: "Tipo", codice: "tipo", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "1pn", label: "1P+N 4,5 kA", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "2p", label: "2P 6 kA", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 20 },
+        ],
+      },
+      {
+        nome: "Sensibilità", codice: "sensibilita", tipo: "discrete", obbligatorio: true, sort_order: 1,
+        values: [
+          { valore: "ac", label: "30 mA tipo AC", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "a", label: "30 mA tipo A", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 25 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Faretto LED da incasso",
+    descrizione: "Faretto LED da incasso per controsoffitto; fisso o orientabile, varie temperature colore.",
+    vertical_slug: "elettrico",
+    categoria_slug: "illuminazione",
+    tipologia: "faretto_led",
+    materiale: null,
+    tags: ["Base", "Elettrico", "illuminazione", "faretto", "led"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 12,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 70,
+    assi_default: [
+      {
+        nome: "Orientabilità", codice: "orientabilita", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "fisso", label: "Fisso", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "orientabile", label: "Orientabile", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 4 },
+        ],
+      },
+      {
+        nome: "Potenza", codice: "potenza", tipo: "discrete", obbligatorio: true, sort_order: 1,
+        values: [
+          { valore: "7w", label: "7 W", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "10w", label: "10 W", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 3 },
+          { valore: "15w", label: "15 W", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 6 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Pannello LED",
+    descrizione: "Plafoniera/pannello LED da soffitto; formato tondo o quadro, versione dimmerabile.",
+    vertical_slug: "elettrico",
+    categoria_slug: "illuminazione",
+    tipologia: "pannello_led",
+    materiale: null,
+    tags: ["Base", "Elettrico", "illuminazione", "pannello", "led"],
+    modalita_prezzo_base: "pz",
+    prezzo_base_vendita: 28,
+    vat_rate: 22,
+    unit_of_measure: "pz",
+    sort_order: 80,
+    assi_default: [
+      {
+        nome: "Formato", codice: "formato", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "tondo", label: "Tondo Ø30 cm", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "quadro60", label: "Quadro 60×60 cm", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 15 },
+        ],
+      },
+      {
+        nome: "Dimmerabile", codice: "dimmerabile", tipo: "boolean", obbligatorio: false, sort_order: 1,
+        values: [
+          { valore: "no", label: "No", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "si", label: "Sì", maggiorazione_tipo: "fisso_pz", maggiorazione_valore: 12 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Cavo elettrico unipolare",
+    descrizione: "Cavo unipolare tipo FS17/N07V-K per impianti civili; prezzo al metro lineare.",
+    vertical_slug: "elettrico",
+    categoria_slug: "cavi",
+    tipologia: "cavo_unipolare",
+    materiale: "rame",
+    tags: ["Base", "Elettrico", "cavo"],
+    modalita_prezzo_base: "misura_libera",
+    prezzo_base_vendita: 0.8,
+    vat_rate: 22,
+    unit_of_measure: "ml",
+    sort_order: 90,
+    assi_default: [
+      {
+        nome: "Sezione", codice: "sezione", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "1.5", label: "1,5 mm²", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "2.5", label: "2,5 mm²", maggiorazione_tipo: "fisso_ml", maggiorazione_valore: 0.4 },
+          { valore: "4", label: "4 mm²", maggiorazione_tipo: "fisso_ml", maggiorazione_valore: 1.1 },
+          { valore: "6", label: "6 mm²", maggiorazione_tipo: "fisso_ml", maggiorazione_valore: 2 },
+        ],
+      },
+    ],
+  },
+  {
+    ...noGrid,
+    nome: "Tubo/canalina passacavi",
+    descrizione: "Tubo corrugato o canalina per protezione cavi; prezzo al metro lineare.",
+    vertical_slug: "elettrico",
+    categoria_slug: "canalizzazioni",
+    tipologia: "tubo_corrugato",
+    materiale: "pvc",
+    tags: ["Base", "Elettrico", "tubo", "canalina"],
+    modalita_prezzo_base: "misura_libera",
+    prezzo_base_vendita: 0.6,
+    vat_rate: 22,
+    unit_of_measure: "ml",
+    sort_order: 100,
+    assi_default: [
+      {
+        nome: "Tipo", codice: "tipo", tipo: "discrete", obbligatorio: true, sort_order: 0,
+        values: [
+          { valore: "corrugato20", label: "Corrugato Ø20", is_default: true, maggiorazione_tipo: "none", maggiorazione_valore: 0 },
+          { valore: "corrugato25", label: "Corrugato Ø25", maggiorazione_tipo: "fisso_ml", maggiorazione_valore: 0.2 },
+          { valore: "canalina", label: "Canalina 20×20", maggiorazione_tipo: "fisso_ml", maggiorazione_valore: 0.9 },
+        ],
+      },
+    ],
+  },
+];
+
 /** Metadati delle collezioni "Base Edilizia" per la UI di import (super_admin). */
 export interface BaseLibraryCollection {
   key: string;
@@ -934,6 +1524,18 @@ export const BASE_LIBRARY_COLLECTIONS: BaseLibraryCollection[] = [
     descrizione: "Porte interne (battenti, scorrevoli, vetro, filomuro), tagliafuoco, ingresso/blindati — a pezzo.",
     count: BASE_PORTE_TEMPLATES.length,
   },
+  {
+    key: "bagno",
+    label: "Base Edilizia · Bagno & Sanitari",
+    descrizione: "Vasi/bidet/lavabi, piatti e box doccia, rubinetteria, mobili, scaldasalviette — a pezzo.",
+    count: BASE_BAGNO_TEMPLATES.length,
+  },
+  {
+    key: "elettrico",
+    label: "Base Edilizia · Elettrico",
+    descrizione: "Punti luce/presa, placche, comandi, quadri, salvavita, illuminazione LED, cavi/tubi (al ml).",
+    count: BASE_ELETTRICO_TEMPLATES.length,
+  },
 ];
 
 /** Ritorna il seed di una collezione base per chiave. */
@@ -943,6 +1545,10 @@ export function getBaseCollection(key: string): BaseArticleTemplateSeed[] {
       return BASE_PIASTRELLE_TEMPLATES;
     case "porte":
       return BASE_PORTE_TEMPLATES;
+    case "bagno":
+      return BASE_BAGNO_TEMPLATES;
+    case "elettrico":
+      return BASE_ELETTRICO_TEMPLATES;
     default:
       return [];
   }

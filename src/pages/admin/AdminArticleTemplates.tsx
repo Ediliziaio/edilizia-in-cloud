@@ -61,6 +61,16 @@ const LIBRARY_SOURCES: LibrarySource[] = [
     load: async () => (await import("@/data/baseArticleTemplates")).BASE_PORTE_TEMPLATES,
   },
   {
+    key: "base-bagno", gruppo: "base", label: "Base Edilizia · Bagno & Sanitari",
+    hint: "Sanitari, docce, rubinetteria, mobili, scaldasalviette — a pezzo",
+    load: async () => (await import("@/data/baseArticleTemplates")).BASE_BAGNO_TEMPLATES,
+  },
+  {
+    key: "base-elettrico", gruppo: "base", label: "Base Edilizia · Elettrico",
+    hint: "Punti, placche, quadri, salvavita, LED, cavi/tubi (al ml)",
+    load: async () => (await import("@/data/baseArticleTemplates")).BASE_ELETTRICO_TEMPLATES,
+  },
+  {
     key: "wnd", gruppo: "fornitore", label: "Fornitore WnD · Serramenti",
     hint: "Listino WnD estratto dai PDF (un fornitore)",
     load: async () => (await import("@/data/wndArticleTemplates")).WND_ARTICLE_TEMPLATES,
