@@ -478,7 +478,7 @@ export function FinancialSummary({
                   Ritenuta Bonus Edilizio
                 </p>
                 <div className="flex justify-between text-xs">
-                  <span className="text-amber-700 dark:text-amber-300">Imponibile bancario (÷ 1.22)</span>
+                  <span className="text-amber-700 dark:text-amber-300">Imponibile bancario (÷ {(1 + vat / 100).toFixed(2)})</span>
                   <span className="text-amber-800 dark:text-amber-200">{formatCurrency(bankTaxableBase)}</span>
                 </div>
                 <div className="flex justify-between text-xs font-semibold">
@@ -816,7 +816,7 @@ export function FinancialSummaryReadOnly({
                 Ritenuta Bonus Edilizio
               </p>
               <div className="flex justify-between text-xs">
-                <span className="text-amber-700 dark:text-amber-300">Imponibile bancario (÷ 1.22)</span>
+                <span className="text-amber-700 dark:text-amber-300">Imponibile bancario (÷ {(1 + vatRate / 100).toFixed(2)})</span>
                 <span className="text-amber-800 dark:text-amber-200">{formatCurrency(bankTaxableBase)}</span>
               </div>
               <div className="flex justify-between text-xs font-semibold">
