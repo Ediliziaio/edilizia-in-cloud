@@ -112,22 +112,17 @@ async function fetchDashboardData(): Promise<AdminDashboardData> {
         .limit(5000)
     ),
     withDashboardTimeout(
+      // DAC (aziende attive 24h): attività reale da user_sessions via RPC.
+      // Prima interrogava public.audit_log — tabella inesistente → sempre 0.
       "Attivita giornaliera",
-      supabase
-        .from("audit_log")
-        .select("company_id", { count: "exact", head: false })
-        .gte("created_at", oneDayAgo)
-        .not("company_id", "is", null)
-        .limit(1000)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).rpc("get_active_companies", { p_since: oneDayAgo })
     ),
     withDashboardTimeout(
+      // WAC (aziende attive 7gg): stessa RPC su finestra 7 giorni.
       "Attivita settimanale",
-      supabase
-        .from("audit_log")
-        .select("company_id", { count: "exact", head: false })
-        .gte("created_at", sevenDaysAgo)
-        .not("company_id", "is", null)
-        .limit(5000)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).rpc("get_active_companies", { p_since: sevenDaysAgo })
     ),
   ]);
 
