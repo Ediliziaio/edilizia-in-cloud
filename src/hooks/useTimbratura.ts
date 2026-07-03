@@ -120,8 +120,12 @@ export function useTimbra() {
         .from("hr_timbrature")
         .insert(payload)
         .select()
-        .single();
+        .maybeSingle();
 
+      // maybeSingle: se una RLS/race non restituisce la riga appena inserita,
+      // .single() lancerebbe (PGRST116) facendo apparire fallita una timbratura
+      // in realtà avvenuta. Con maybeSingle l'insert resta valido; le query
+      // vengono comunque invalidate in onSuccess.
       if (error) throw error;
       return data;
     },

@@ -75,22 +75,28 @@ export function TabRichieste() {
   const [showNew, setShowNew] = useState(false);
   const [detailReq, setDetailReq] = useState<RichiestaWithProfilo | null>(null);
 
-  const { data: richieste = [], isLoading, isError, error, refetch, isFetching } = useRichieste(
-    statoFilter !== "tutte" ? { stato: statoFilter } : undefined
-  );
+  // Fetch SEMPRE tutte le richieste: il filtro per stato è applicato lato client
+  // così le KPI (In attesa/Approvate/Rifiutate) restano coerenti anche quando è
+  // selezionato un filtro (prima erano calcolate sulla lista già filtrata dal
+  // server → contatori sbagliati).
+  const { data: richieste = [], isLoading, isError, error, refetch, isFetching } = useRichieste();
   const { data: profili = [] } = useAllHrProfili();
   const loadingTimedOut = useLoadingTimeout(isLoading);
 
   const filtered = useMemo(() => {
-    if (!searchText) return richieste;
-    const s = searchText.toLowerCase();
-    return richieste.filter((r) => {
-      const nome = `${r.profilo?.nome ?? ""} ${r.profilo?.cognome ?? ""}`.toLowerCase();
-      return nome.includes(s) || TIPO_LABELS[r.tipo]?.toLowerCase().includes(s);
-    });
-  }, [richieste, searchText]);
+    let list = richieste;
+    if (statoFilter !== "tutte") list = list.filter((r) => r.stato === statoFilter);
+    if (searchText) {
+      const s = searchText.toLowerCase();
+      list = list.filter((r) => {
+        const nome = `${r.profilo?.nome ?? ""} ${r.profilo?.cognome ?? ""}`.toLowerCase();
+        return nome.includes(s) || TIPO_LABELS[r.tipo]?.toLowerCase().includes(s);
+      });
+    }
+    return list;
+  }, [richieste, searchText, statoFilter]);
 
-  // KPIs
+  // KPIs — sempre sull'intero set (non filtrato) per contatori corretti
   const kpis = useMemo(() => {
     const all = richieste;
     return {

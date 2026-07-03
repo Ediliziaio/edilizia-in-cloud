@@ -49,6 +49,10 @@ export function HrAssenzeSection({ profiloId, companyId }: Props) {
 
   const save = async () => {
     if (!form.data_inizio) { toast.error("Inserisci la data di inizio"); return; }
+    if (form.data_fine && form.data_fine < form.data_inizio) {
+      toast.error("La data di fine non può precedere la data di inizio");
+      return;
+    }
     try {
       setBusy(true);
       const patch: Partial<HrAssenza> = { ...form, giorni: form.giorni ?? calcGiorni(form.data_inizio, form.data_fine) };

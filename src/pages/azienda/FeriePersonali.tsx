@@ -157,17 +157,27 @@ export default function FeriePersonali() {
       toast.error("Inserisci le date della richiesta");
       return;
     }
-    await createMutation.mutateAsync({
-      profilo_id: profilo.id,
-      tipo: form.tipo,
-      data_inizio: form.data_inizio,
-      data_fine: form.data_fine,
-      ore_richieste: form.ore_richieste ? Number(form.ore_richieste) : null,
-      motivo: form.motivo || null,
-    });
-    setDialogOpen(false);
-    setForm(FORM_DEFAULT);
-    qc.invalidateQueries({ queryKey: ["my-richieste"] });
+    if (form.data_fine < form.data_inizio) {
+      toast.error("La data di fine non può precedere la data di inizio");
+      return;
+    }
+    try {
+      await createMutation.mutateAsync({
+        profilo_id: profilo.id,
+        tipo: form.tipo,
+        data_inizio: form.data_inizio,
+        data_fine: form.data_fine,
+        ore_richieste: form.ore_richieste ? Number(form.ore_richieste) : null,
+        motivo: form.motivo || null,
+      });
+      setDialogOpen(false);
+      setForm(FORM_DEFAULT);
+      qc.invalidateQueries({ queryKey: ["my-richieste"] });
+    } catch {
+      // L'errore (saldo insufficiente / sovrapposizione) è già mostrato dal
+      // toast onError della mutation: teniamo aperto il dialog senza chiuderlo
+      // né resettare il form, e senza rejection non gestita.
+    }
   };
 
   // ── Annulla richiesta ─────────────────────────────────────────────────
