@@ -22,8 +22,10 @@ Deno.serve(async (req: Request) => {
       return errore(400, "token obbligatorio");
     }
 
-    // IP dal header
-    const ip = req.headers.get("x-forwarded-for") ?? req.headers.get("cf-connecting-ip") ?? null;
+    // Solo il PRIMO IP: x-forwarded-for arriva come lista "client, proxy…" e la
+    // colonna audit è INET — il cast su lista fallisce e l'evento andrebbe perso.
+    const ip = (req.headers.get("x-forwarded-for") ?? req.headers.get("cf-connecting-ip") ?? "")
+      .split(",")[0].trim() || null;
     const userAgent = req.headers.get("user-agent") ?? null;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -83,8 +85,8 @@ Deno.serve(async (req: Request) => {
       return errore(500, "Errore nella registrazione del rifiuto. Riprova tra qualche istante.");
     }
 
-    // Audit log firma_rifiutata
-    await supabaseAdmin.from("fea_audit_log").insert({
+    // Audit log firma_rifiutata (non bloccante, ma l'errore va loggato)
+    const { error: auditErr } = await supabaseAdmin.from("fea_audit_log").insert({
       request_id: sigReq.id,
       company_id: sigReq.company_id,
       evento: "firma_rifiutata",
@@ -92,6 +94,9 @@ Deno.serve(async (req: Request) => {
       user_agent: userAgent,
       metadati: { motivo: motivoPulito },
     });
+    if (auditErr) {
+      console.error("fea-rifiuta-firma audit error:", auditErr);
+    }
 
     // Sync preventivo collegato: 'rifiutata' è uno stato valido di quotes (QuoteStatus).
     // Non-bloccante: un errore qui non deve invalidare il rifiuto già registrato.

@@ -149,7 +149,7 @@ Deno.serve(async (req: Request) => {
       request_id: sigReq.id,
       company_id: sigReq.company_id,
       evento: "link_aperto",
-      ip: req.headers.get("x-forwarded-for") ?? null,
+      ip: (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null,
       user_agent: req.headers.get("user-agent") ?? null,
     });
 

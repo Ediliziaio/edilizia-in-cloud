@@ -39,8 +39,11 @@ Deno.serve(async (req: Request) => {
       return errore(400, "token obbligatorio");
     }
 
-    // IP dal header
-    const ip = req.headers.get("x-forwarded-for") ?? req.headers.get("cf-connecting-ip") ?? null;
+    // Solo il PRIMO IP: x-forwarded-for è spesso una lista "client, proxy…" e
+    // firma_ip è INET — con la lista il cast fallisce e l'UPDATE della firma
+    // andrebbe in errore: il cliente non riuscirebbe a firmare.
+    const ip = (req.headers.get("x-forwarded-for") ?? req.headers.get("cf-connecting-ip") ?? "")
+      .split(",")[0].trim() || null;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

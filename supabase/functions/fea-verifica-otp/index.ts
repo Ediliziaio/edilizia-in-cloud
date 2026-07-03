@@ -86,7 +86,7 @@ Deno.serve(async (req: Request) => {
         request_id: sigReq.id,
         company_id: sigReq.company_id,
         evento: "otp_fallito",
-        ip: req.headers.get("x-forwarded-for") ?? null,
+        ip: (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null,
         user_agent: req.headers.get("user-agent") ?? null,
         metadati: { tentativo: sigReq.otp_tentativi + 1 },
       });
@@ -109,7 +109,7 @@ Deno.serve(async (req: Request) => {
       request_id: sigReq.id,
       company_id: sigReq.company_id,
       evento: "otp_verificato",
-      ip: req.headers.get("x-forwarded-for") ?? null,
+      ip: (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || null,
       user_agent: req.headers.get("user-agent") ?? null,
     });
 
